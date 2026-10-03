@@ -3,8 +3,8 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import type {
   AccountDeletionResponse,
   DeletionEligibilityResponse,
-  ExportPlatformUsersCsvApiV1OperatorUsersExportCsvGetParams,
-  ListAllUsersApiV1OperatorUsersGetParams,
+  ExportPlatformUsersCsvParams,
+  ListAllUsersParams,
   OperatorDeletionEligibilityResponse,
   OperatorUserDeleteRequest,
   OperatorUserListResponse,
@@ -13,28 +13,28 @@ import type {
   VerificationSendResponse,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
-  checkUserDeletionEligibilityApiV1OperatorUsersUserIdDeletionEligibilityGet,
-  clearAgeBlockApiV1OperatorUsersUserIdAgeBlockDelete,
-  clearSecondFactorApiV1OperatorUsersUserIdSecondFactorDelete,
-  deleteUserApiV1OperatorUsersUserIdDelete,
-  exportPlatformUsersCsvApiV1OperatorUsersExportCsvGet,
-  getCheckUserDeletionEligibilityApiV1OperatorUsersUserIdDeletionEligibilityGetQueryKey,
-  getListAllUsersApiV1OperatorUsersGetQueryKey,
-  liftSignInLockApiV1OperatorUsersUserIdSignInLockDelete,
-  listAllUsersApiV1OperatorUsersGet,
-  reactivateUserApiV1OperatorUsersUserIdReactivatePost,
-  removeUserAvatarApiV1OperatorUsersUserIdAvatarDelete,
-  resendVerificationEmailApiV1OperatorUsersUserIdVerificationEmailPost,
-  restoreDeletedUserApiV1OperatorUsersUserIdRestorePost,
-  revokeUserApiKeysApiV1OperatorUsersUserIdApiKeysDelete,
-  setUserSuspensionApiV1OperatorUsersUserIdSuspensionPost,
-  setUserUsernameApiV1OperatorUsersUserIdUsernamePatch,
-  triggerPasswordResetApiV1OperatorUsersUserIdResetPasswordPost,
-  updatePlatformRoleApiV1OperatorUsersUserIdPlatformRolePatch,
+  checkUserDeletionEligibility,
+  clearAgeBlock,
+  clearSecondFactor,
+  deleteUser,
+  exportPlatformUsersCsv,
+  getCheckUserDeletionEligibilityQueryKey,
+  getListAllUsersQueryKey,
+  liftSignInLock,
+  listAllUsers,
+  reactivateUser,
+  removeUserAvatar,
+  resendVerificationEmail,
+  restoreDeletedUser,
+  revokeUserApiKeys,
+  setUserSuspension,
+  setUserUsername,
+  triggerPasswordReset,
+  updatePlatformRole,
 } from "@/api/generated/operator/operator";
 import {
-  checkDeletionEligibilityApiV1MeDeletionEligibilityGet,
-  getCheckDeletionEligibilityApiV1MeDeletionEligibilityGetQueryKey,
+  checkDeletionEligibility,
+  getCheckDeletionEligibilityQueryKey,
 } from "@/api/generated/users/users";
 import { invalidate, q } from "@/api/query-keys";
 import { useApiMutation } from "@/hooks/useApiMutation";
@@ -47,12 +47,12 @@ import type { QueryOpts } from "@/types/query";
 /** One page of platform users (operator endpoint), searched and sorted on the
  *  server. The previous page stays on screen while the next one loads. */
 export const usePlatformUsers = (
-  params: ListAllUsersApiV1OperatorUsersGetParams,
+  params: ListAllUsersParams,
   options?: QueryOpts<OperatorUserListResponse>
 ) => {
   return useQuery<OperatorUserListResponse>({
-    queryKey: getListAllUsersApiV1OperatorUsersGetQueryKey(params),
-    queryFn: () => listAllUsersApiV1OperatorUsersGet(params),
+    queryKey: getListAllUsersQueryKey(params),
+    queryFn: () => listAllUsers(params),
     placeholderData: keepPreviousData,
     ...options,
   });
@@ -66,10 +66,8 @@ export const usePlatformUsers = (
  */
 export const useUserDeletionEligibility = (userId: number) => {
   return useQuery<OperatorDeletionEligibilityResponse>({
-    queryKey:
-      getCheckUserDeletionEligibilityApiV1OperatorUsersUserIdDeletionEligibilityGetQueryKey(userId),
-    queryFn: () =>
-      checkUserDeletionEligibilityApiV1OperatorUsersUserIdDeletionEligibilityGet(userId),
+    queryKey: getCheckUserDeletionEligibilityQueryKey(userId),
+    queryFn: () => checkUserDeletionEligibility(userId),
     enabled: false,
   });
 };
@@ -82,8 +80,8 @@ export const useUserDeletionEligibility = (userId: number) => {
  */
 export const useMyDeletionEligibility = () => {
   return useQuery<DeletionEligibilityResponse>({
-    queryKey: getCheckDeletionEligibilityApiV1MeDeletionEligibilityGetQueryKey(),
-    queryFn: () => checkDeletionEligibilityApiV1MeDeletionEligibilityGet(),
+    queryKey: getCheckDeletionEligibilityQueryKey(),
+    queryFn: () => checkDeletionEligibility(),
     enabled: false,
   });
 };
@@ -97,7 +95,7 @@ export const useOperatorDeleteUser = (
 ) =>
   useApiMutation<AccountDeletionResponse, OperatorUserDeleteRequest>(
     {
-      mutationFn: (request) => deleteUserApiV1OperatorUsersUserIdDelete(userId, request),
+      mutationFn: (request) => deleteUser(userId, request),
       invalidate: () => invalidate(q.operatorUsers()),
     },
     options
@@ -109,7 +107,7 @@ export const useOperatorTriggerPasswordReset = (
 ) =>
   useApiMutation<VerificationSendResponse, number>(
     {
-      mutationFn: (userId) => triggerPasswordResetApiV1OperatorUsersUserIdResetPasswordPost(userId),
+      mutationFn: (userId) => triggerPasswordReset(userId),
     },
     options
   );
@@ -120,8 +118,7 @@ export const useOperatorResendVerification = (
 ) =>
   useApiMutation<VerificationSendResponse, number>(
     {
-      mutationFn: (userId) =>
-        resendVerificationEmailApiV1OperatorUsersUserIdVerificationEmailPost(userId),
+      mutationFn: (userId) => resendVerificationEmail(userId),
     },
     options
   );
@@ -130,7 +127,7 @@ export const useOperatorResendVerification = (
 export const useOperatorReactivateUser = (options?: MutationOpts<OperatorUserRead, number>) =>
   useApiMutation<OperatorUserRead, number>(
     {
-      mutationFn: (userId) => reactivateUserApiV1OperatorUsersUserIdReactivatePost(userId),
+      mutationFn: (userId) => reactivateUser(userId),
       invalidate: () => invalidate(q.operatorUsers()),
     },
     options
@@ -144,7 +141,7 @@ export const useOperatorReactivateUser = (options?: MutationOpts<OperatorUserRea
 export const useOperatorRestoreUser = (options?: MutationOpts<OperatorUserRead, number>) =>
   useApiMutation<OperatorUserRead, number>(
     {
-      mutationFn: (userId) => restoreDeletedUserApiV1OperatorUsersUserIdRestorePost(userId),
+      mutationFn: (userId) => restoreDeletedUser(userId),
       invalidate: () => invalidate(q.operatorUsers()),
     },
     options
@@ -157,8 +154,7 @@ type SetUsernameVars = { userId: number; username: string };
 export const useOperatorSetUsername = (options?: MutationOpts<OperatorUserRead, SetUsernameVars>) =>
   useApiMutation<OperatorUserRead, SetUsernameVars>(
     {
-      mutationFn: ({ userId, username }) =>
-        setUserUsernameApiV1OperatorUsersUserIdUsernamePatch(userId, { username }),
+      mutationFn: ({ userId, username }) => setUserUsername(userId, { username }),
       invalidate: () => invalidate(q.operatorUsers()),
     },
     options
@@ -174,7 +170,7 @@ export const useOperatorSetSuspension = (
   useApiMutation<OperatorUserRead, SetSuspensionVars>(
     {
       mutationFn: ({ userId, suspended, reason }) =>
-        setUserSuspensionApiV1OperatorUsersUserIdSuspensionPost(userId, {
+        setUserSuspension(userId, {
           suspended,
           reason: reason || null,
         }),
@@ -190,7 +186,7 @@ export const useOperatorSetSuspension = (
 export const useOperatorClearAgeBlock = (options?: MutationOpts<OperatorUserRead, number>) =>
   useApiMutation<OperatorUserRead, number>(
     {
-      mutationFn: (userId) => clearAgeBlockApiV1OperatorUsersUserIdAgeBlockDelete(userId),
+      mutationFn: (userId) => clearAgeBlock(userId),
       invalidate: () => invalidate(q.operatorUsers()),
     },
     options
@@ -201,7 +197,7 @@ export const useOperatorClearAgeBlock = (options?: MutationOpts<OperatorUserRead
 export const useOperatorLiftSignInLock = (options?: MutationOpts<OperatorUserRead, number>) =>
   useApiMutation<OperatorUserRead, number>(
     {
-      mutationFn: (userId) => liftSignInLockApiV1OperatorUsersUserIdSignInLockDelete(userId),
+      mutationFn: (userId) => liftSignInLock(userId),
       invalidate: () => invalidate(q.operatorUsers()),
     },
     options
@@ -213,7 +209,7 @@ export const useOperatorLiftSignInLock = (options?: MutationOpts<OperatorUserRea
 export const useOperatorClearSecondFactor = (options?: MutationOpts<void, number>) =>
   useApiMutation<void, number>(
     {
-      mutationFn: (userId) => clearSecondFactorApiV1OperatorUsersUserIdSecondFactorDelete(userId),
+      mutationFn: (userId) => clearSecondFactor(userId),
       invalidate: () => invalidate(q.operatorUsers()),
     },
     options
@@ -224,7 +220,7 @@ export const useOperatorClearSecondFactor = (options?: MutationOpts<void, number
 export const useOperatorRevokeApiKeys = (options?: MutationOpts<OperatorUserRead, number>) =>
   useApiMutation<OperatorUserRead, number>(
     {
-      mutationFn: (userId) => revokeUserApiKeysApiV1OperatorUsersUserIdApiKeysDelete(userId),
+      mutationFn: (userId) => revokeUserApiKeys(userId),
       invalidate: () => invalidate(q.operatorUsers()),
     },
     options
@@ -235,14 +231,14 @@ export const useOperatorRevokeApiKeys = (options?: MutationOpts<OperatorUserRead
 export const useOperatorRemoveAvatar = (options?: MutationOpts<void, number>) =>
   useApiMutation<void, number>(
     {
-      mutationFn: (userId) => removeUserAvatarApiV1OperatorUsersUserIdAvatarDelete(userId),
+      mutationFn: (userId) => removeUserAvatar(userId),
       invalidate: () => invalidate(q.operatorUsers()),
     },
     options
   );
 
 type ExportPlatformUsersVars = {
-  params: ExportPlatformUsersCsvApiV1OperatorUsersExportCsvGetParams;
+  params: ExportPlatformUsersCsvParams;
   filename: string;
 };
 
@@ -251,7 +247,7 @@ export const useExportPlatformUsersCsv = (options?: MutationOpts<void, ExportPla
   useApiMutation<void, ExportPlatformUsersVars>(
     {
       mutationFn: async ({ params, filename }) => {
-        const blob = (await exportPlatformUsersCsvApiV1OperatorUsersExportCsvGet(params, {
+        const blob = (await exportPlatformUsersCsv(params, {
           responseType: "blob",
           // FastAPI expects ?user_id=1&user_id=2; axios's default `[]` suffix gets ignored.
           paramsSerializer: { indexes: null },
@@ -269,9 +265,9 @@ export const useOperatorUpdatePlatformRole = (
   useApiMutation<OperatorUserRead, { userId: number; role: UserRole }>(
     {
       mutationFn: ({ userId, role }) =>
-        updatePlatformRoleApiV1OperatorUsersUserIdPlatformRolePatch(userId, {
+        updatePlatformRole(userId, {
           role,
-        } as Parameters<typeof updatePlatformRoleApiV1OperatorUsersUserIdPlatformRolePatch>[1]),
+        } as Parameters<typeof updatePlatformRole>[1]),
       invalidate: () => invalidate(q.operatorUsers()),
     },
     options

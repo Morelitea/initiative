@@ -9,7 +9,7 @@ import { server } from "@/__tests__/helpers/msw-server";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 import { setAuthToken } from "@/api/client";
 import type { NotificationListResponse, UserRead } from "@/api/generated/initiativeAPI.schemas";
-import { getListNotificationsApiV1NotificationsGetQueryKey } from "@/api/generated/notifications/notifications";
+import { getListNotificationsQueryKey } from "@/api/generated/notifications/notifications";
 import { q } from "@/api/query-keys";
 import { AuthContext } from "@/hooks/useAuth";
 import { setAlertHandler } from "@/lib/desktopAlerts";
@@ -101,10 +101,7 @@ describe("useNotificationStream", () => {
 
   it("reads only the popover's first page when a line arrives", async () => {
     // The popover's own key, as `useAllUnreadNotifications` builds it.
-    const inboxKey = [
-      ...getListNotificationsApiV1NotificationsGetQueryKey({ limit: 50, unread_only: true }),
-      "history",
-    ];
+    const inboxKey = [...getListNotificationsQueryKey({ limit: 50, unread_only: true }), "history"];
     const held = Array.from({ length: 60 }, () => buildNotification());
     queryClient.setQueryData<InfiniteData<NotificationListResponse>>(inboxKey, {
       pages: [

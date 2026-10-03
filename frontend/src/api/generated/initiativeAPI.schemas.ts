@@ -1374,18 +1374,18 @@ export interface BillingPortalHandoffResponse {
   expires_in_seconds: number;
 }
 
-export interface BodyImportEnvelopeArchiveApiV1CGuildIdImportsEnvelopeArchivePost {
+export interface BodyImportEnvelopeArchive {
   file: Blob;
   initiative_id: number;
   /** The envelope type the import was started for; a zip holding another tool's export is refused */
   envelope_type?: string | null;
 }
 
-export interface BodyImportSpreadsheetFileApiV1CGuildIdDocumentsDocumentIdSpreadsheetImportPost {
+export interface BodyImportSpreadsheetFile {
   file: Blob;
 }
 
-export interface BodyLoginAccessTokenApiV1AuthTokenPost {
+export interface BodyLoginAccessToken {
   device_name?: string | null;
   grant_type?: string | null;
   username: string;
@@ -1395,16 +1395,16 @@ export interface BodyLoginAccessTokenApiV1AuthTokenPost {
   client_secret?: string | null;
 }
 
-export interface BodyNotifyMentionsApiV1CGuildIdDocumentsDocumentIdMentionsPost {
+export interface BodyNotifyMentions {
   mentioned_user_ids: number[];
 }
 
-export interface BodySetGuildBannerApiV1CommunitiesGuildIdBannerPut {
+export interface BodySetCommunityBanner {
   full: Blob;
   card: Blob;
 }
 
-export interface BodySetGuildIconApiV1CommunitiesGuildIdIconPut {
+export interface BodySetCommunityIcon {
   icon: Blob;
 }
 
@@ -1428,7 +1428,7 @@ export const ListingKind = {
   wiki: "wiki",
 } as const;
 
-export interface BodyShareToMarketplaceApiV1CGuildIdMarketplaceSharePost {
+export interface BodyShareToMarketplace {
   kind: ListingKind;
   entity_id: number;
   name: string;
@@ -1440,57 +1440,57 @@ export interface BodyShareToMarketplaceApiV1CGuildIdMarketplaceSharePost {
   images?: Blob[];
 }
 
-export interface BodyStartConfluenceExportImportApiV1CGuildIdImportsAtlassianExportPost {
+export interface BodyStartConfluenceExportImport {
   file: Blob;
   initiative_id: number;
   include_attachments?: boolean;
 }
 
-export interface BodyUploadAnnouncementImageApiV1AnnouncementsOperatorImagesPost {
+export interface BodyUploadAnnouncementImage {
   file: Blob;
 }
 
-export interface BodyUploadAttachmentApiV1CGuildIdAttachmentsPost {
+export interface BodyUploadAttachment {
   file: Blob;
 }
 
-export interface BodyUploadBackupApiV1CGuildIdImportsBackupPost {
+export interface BodyUploadBackup {
   file: Blob;
 }
 
-export interface BodyUploadDocumentFileApiV1CGuildIdDocumentsUploadPost {
+export interface BodyUploadDocumentFile {
   name: string;
   initiative_id: number;
   file: Blob;
 }
 
-export interface BodyUploadDocumentVersionApiV1CGuildIdDocumentsDocumentIdVersionsPost {
+export interface BodyUploadDocumentVersion {
   file: Blob;
 }
 
-export interface BodyUploadGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesPost {
+export interface BodyUploadGalleryImage {
   file: Blob;
   title?: string | null;
   caption?: string | null;
 }
 
-export interface BodyUploadGalleryImageVersionApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsPost {
+export interface BodyUploadGalleryImageVersion {
   file: Blob;
 }
 
-export interface BodyUploadListingPictureApiV1MarketplaceLocalMediaPost {
+export interface BodyUploadListingPicture {
   file: Blob;
 }
 
-export interface BodyUploadMyAvatarApiV1MeAvatarPut {
+export interface BodyUploadMyAvatar {
   file: Blob;
 }
 
-export interface BodyUploadPastedImageApiV1CGuildIdAttachmentsPastedPost {
+export interface BodyUploadPastedImage {
   file: Blob;
 }
 
-export interface BodyUploadRegistryBundleApiV1MarketplaceRegistryBundlePost {
+export interface BodyUploadRegistryBundle {
   file: Blob;
 }
 
@@ -9270,7 +9270,7 @@ export interface VerificationSendResponse {
 }
 
 /**
- * Body for ``POST /api/v1/c/{guild_id}/webhooks/subscriptions``.
+ * Body for ``POST /api/v1/c/{community_id}/webhooks/subscriptions``.
  *
  * The guild comes from the path. ``initiative_id`` narrows the subscription
  * to one initiative; omitted, it covers the whole community.
@@ -9750,36 +9750,36 @@ export const SmartChipKind = {
   "task:checklist": "task:checklist",
 } as const;
 
-export type GetVersionApiV1VersionGet200 = { [key: string]: string };
+export type GetVersion200 = { [key: string]: string };
 
-export type GetLatestDockerhubVersionApiV1VersionLatestGet200 = { [key: string]: string | null };
+export type GetLatestDockerhubVersion200 = { [key: string]: string | null };
 
-export type GetChangelogApiV1ChangelogGetParams = {
+export type GetChangelogParams = {
   version?: string | null;
   limit?: number;
 };
 
-export type GetBundleManifestApiV1NativeBundleManifestGet200 = { [key: string]: unknown };
+export type GetBundleManifest200 = { [key: string]: unknown };
 
-export type RegisterUserApiV1AuthRegisterPostParams = {
+export type RegisterUserParams = {
   invite_code?: string | null;
 };
 
-export type BeginPasskeySignUpApiV1AuthRegisterPasskeyBeginPostParams = {
+export type BeginPasskeySignUpParams = {
   invite_code?: string | null;
 };
 
-export type FinishPasskeySignUpApiV1AuthRegisterPasskeyFinishPostParams = {
+export type FinishPasskeySignUpParams = {
   invite_code?: string | null;
 };
 
-export type BootstrapStatusApiV1AuthBootstrapGet200 = { [key: string]: boolean };
+export type BootstrapStatus200 = { [key: string]: boolean };
 
-export type SuggestUsernamesApiV1AuthUsernameSuggestionsGetParams = {
+export type SuggestUsernamesParams = {
   seed?: string | null;
 };
 
-export type CheckUsernameAvailableApiV1AuthUsernameAvailableGetParams = {
+export type CheckUsernameAvailableParams = {
   /**
    * The name part to check
    * @maxLength 64
@@ -9787,25 +9787,25 @@ export type CheckUsernameAvailableApiV1AuthUsernameAvailableGetParams = {
   username: string;
 };
 
-export type ProviderLoginApiV1AuthProviderSlugLoginGetParams = {
+export type ProviderLoginParams = {
   mobile?: boolean;
   device_name?: string;
   next?: string;
   code_challenge?: string;
 };
 
-export type ProviderCallbackApiV1AuthProviderSlugCallbackGetParams = {
+export type ProviderCallbackParams = {
   code?: string | null;
   state?: string | null;
 };
 
-export type ListAllUsersApiV1OperatorUsersGetParams = {
+export type ListAllUsersParams = {
   /**
    * Matches the handle's name part; a whole handle (`foobar#1234`) pins one account.
    */
   search?: string | null;
-  sort_by?: ListAllUsersApiV1OperatorUsersGetSortBy;
-  sort_dir?: ListAllUsersApiV1OperatorUsersGetSortDir;
+  sort_by?: ListAllUsersSortBy;
+  sort_dir?: ListAllUsersSortDir;
   /**
    * @minimum 1
    */
@@ -9817,29 +9817,28 @@ export type ListAllUsersApiV1OperatorUsersGetParams = {
   page_size?: number;
 };
 
-export type ListAllUsersApiV1OperatorUsersGetSortBy =
-  | (typeof ListAllUsersApiV1OperatorUsersGetSortBy)[keyof typeof ListAllUsersApiV1OperatorUsersGetSortBy]
+export type ListAllUsersSortBy =
+  | (typeof ListAllUsersSortBy)[keyof typeof ListAllUsersSortBy]
   | null;
 
-export const ListAllUsersApiV1OperatorUsersGetSortBy = {
+export const ListAllUsersSortBy = {
   id: "id",
   username: "username",
   status: "status",
 } as const;
 
-export type ListAllUsersApiV1OperatorUsersGetSortDir =
-  (typeof ListAllUsersApiV1OperatorUsersGetSortDir)[keyof typeof ListAllUsersApiV1OperatorUsersGetSortDir];
+export type ListAllUsersSortDir = (typeof ListAllUsersSortDir)[keyof typeof ListAllUsersSortDir];
 
-export const ListAllUsersApiV1OperatorUsersGetSortDir = {
+export const ListAllUsersSortDir = {
   asc: "asc",
   desc: "desc",
 } as const;
 
-export type ExportPlatformUsersCsvApiV1OperatorUsersExportCsvGetParams = {
+export type ExportPlatformUsersCsvParams = {
   user_id?: number[] | null;
 };
 
-export type ListCommunityGuildsApiV1CommunitiesDirectoryGetParams = {
+export type ListDirectoryCommunitiesParams = {
   q?: string | null;
   category?: CommunityCategory[];
   /**
@@ -9853,11 +9852,11 @@ export type ListCommunityGuildsApiV1CommunitiesDirectoryGetParams = {
   page_size?: number;
 };
 
-export type ListAnnouncementsApiV1AnnouncementsGetParams = {
+export type ListAnnouncementsParams = {
   include_dismissed?: boolean;
 };
 
-export type ListAccessGrantsApiV1AccessGrantsGetParams = {
+export type ListAccessGrantsParams = {
   status?: string | null;
   /**
    * Keep only grants that haven't expired yet.
@@ -9874,7 +9873,7 @@ export type ListAccessGrantsApiV1AccessGrantsGetParams = {
   offset?: number;
 };
 
-export type ListAccessGrantQueueApiV1AccessGrantsQueueGetParams = {
+export type ListAccessGrantQueueParams = {
   status?: string | null;
   /**
    * Keep only grants that haven't expired yet.
@@ -9891,13 +9890,13 @@ export type ListAccessGrantQueueApiV1AccessGrantsQueueGetParams = {
   offset?: number;
 };
 
-export type ListPlatformGuildStorageApiV1SettingsCommunitiesGetParams = {
+export type ListPlatformCommunityStorageParams = {
   /**
    * Matches the name.
    */
   search?: string | null;
-  sort_by?: ListPlatformGuildStorageApiV1SettingsCommunitiesGetSortBy;
-  sort_dir?: ListPlatformGuildStorageApiV1SettingsCommunitiesGetSortDir;
+  sort_by?: ListPlatformCommunityStorageSortBy;
+  sort_dir?: ListPlatformCommunityStorageSortDir;
   /**
    * @minimum 1
    */
@@ -9909,75 +9908,73 @@ export type ListPlatformGuildStorageApiV1SettingsCommunitiesGetParams = {
   page_size?: number;
 };
 
-export type ListPlatformGuildStorageApiV1SettingsCommunitiesGetSortBy =
-  (typeof ListPlatformGuildStorageApiV1SettingsCommunitiesGetSortBy)[keyof typeof ListPlatformGuildStorageApiV1SettingsCommunitiesGetSortBy];
+export type ListPlatformCommunityStorageSortBy =
+  (typeof ListPlatformCommunityStorageSortBy)[keyof typeof ListPlatformCommunityStorageSortBy];
 
-export const ListPlatformGuildStorageApiV1SettingsCommunitiesGetSortBy = {
+export const ListPlatformCommunityStorageSortBy = {
   id: "id",
   name: "name",
 } as const;
 
-export type ListPlatformGuildStorageApiV1SettingsCommunitiesGetSortDir =
-  (typeof ListPlatformGuildStorageApiV1SettingsCommunitiesGetSortDir)[keyof typeof ListPlatformGuildStorageApiV1SettingsCommunitiesGetSortDir];
+export type ListPlatformCommunityStorageSortDir =
+  (typeof ListPlatformCommunityStorageSortDir)[keyof typeof ListPlatformCommunityStorageSortDir];
 
-export const ListPlatformGuildStorageApiV1SettingsCommunitiesGetSortDir = {
+export const ListPlatformCommunityStorageSortDir = {
   asc: "asc",
   desc: "desc",
 } as const;
 
-export type CreatePlatformGuildBillingServiceHandoffApiV1SettingsCommunitiesGuildIdBillingServiceHandoffPostParams =
-  {
-    console?: CreatePlatformGuildBillingServiceHandoffApiV1SettingsCommunitiesGuildIdBillingServiceHandoffPostConsole;
-  };
+export type CreatePlatformCommunityBillingServiceHandoffParams = {
+  console?: CreatePlatformCommunityBillingServiceHandoffConsole;
+};
 
-export type CreatePlatformGuildBillingServiceHandoffApiV1SettingsCommunitiesGuildIdBillingServiceHandoffPostConsole =
-  (typeof CreatePlatformGuildBillingServiceHandoffApiV1SettingsCommunitiesGuildIdBillingServiceHandoffPostConsole)[keyof typeof CreatePlatformGuildBillingServiceHandoffApiV1SettingsCommunitiesGuildIdBillingServiceHandoffPostConsole];
+export type CreatePlatformCommunityBillingServiceHandoffConsole =
+  (typeof CreatePlatformCommunityBillingServiceHandoffConsole)[keyof typeof CreatePlatformCommunityBillingServiceHandoffConsole];
 
-export const CreatePlatformGuildBillingServiceHandoffApiV1SettingsCommunitiesGuildIdBillingServiceHandoffPostConsole =
-  {
-    support: "support",
-    operator: "operator",
-  } as const;
+export const CreatePlatformCommunityBillingServiceHandoffConsole = {
+  support: "support",
+  operator: "operator",
+} as const;
 
-export type ReadAppPlatformJwksApiV1AppPlatformJwksJsonGet200 = { [key: string]: unknown };
+export type ReadAppPlatformJwks200 = { [key: string]: unknown };
 
-export type IssueAppAccessTokenApiV1AppPlatformOauthTokenPostBodyGrantType =
-  (typeof IssueAppAccessTokenApiV1AppPlatformOauthTokenPostBodyGrantType)[keyof typeof IssueAppAccessTokenApiV1AppPlatformOauthTokenPostBodyGrantType];
+export type IssueAppAccessTokenBodyGrantType =
+  (typeof IssueAppAccessTokenBodyGrantType)[keyof typeof IssueAppAccessTokenBodyGrantType];
 
-export const IssueAppAccessTokenApiV1AppPlatformOauthTokenPostBodyGrantType = {
+export const IssueAppAccessTokenBodyGrantType = {
   client_credentials: "client_credentials",
   "urn:ietf:params:oauth:grant-type:jwt-bearer": "urn:ietf:params:oauth:grant-type:jwt-bearer",
 } as const;
 
-export type IssueAppAccessTokenApiV1AppPlatformOauthTokenPostBodyClientAssertionType =
-  (typeof IssueAppAccessTokenApiV1AppPlatformOauthTokenPostBodyClientAssertionType)[keyof typeof IssueAppAccessTokenApiV1AppPlatformOauthTokenPostBodyClientAssertionType];
+export type IssueAppAccessTokenBodyClientAssertionType =
+  (typeof IssueAppAccessTokenBodyClientAssertionType)[keyof typeof IssueAppAccessTokenBodyClientAssertionType];
 
-export const IssueAppAccessTokenApiV1AppPlatformOauthTokenPostBodyClientAssertionType = {
+export const IssueAppAccessTokenBodyClientAssertionType = {
   "urn:ietf:params:oauth:client-assertion-type:jwt-bearer":
     "urn:ietf:params:oauth:client-assertion-type:jwt-bearer",
 } as const;
 
-export type IssueAppAccessTokenApiV1AppPlatformOauthTokenPostBodyLevel =
-  (typeof IssueAppAccessTokenApiV1AppPlatformOauthTokenPostBodyLevel)[keyof typeof IssueAppAccessTokenApiV1AppPlatformOauthTokenPostBodyLevel];
+export type IssueAppAccessTokenBodyLevel =
+  (typeof IssueAppAccessTokenBodyLevel)[keyof typeof IssueAppAccessTokenBodyLevel];
 
-export const IssueAppAccessTokenApiV1AppPlatformOauthTokenPostBodyLevel = {
+export const IssueAppAccessTokenBodyLevel = {
   moderator: "moderator",
   guild_admin: "guild_admin",
 } as const;
 
-export type IssueAppAccessTokenApiV1AppPlatformOauthTokenPostBody = {
-  grant_type: IssueAppAccessTokenApiV1AppPlatformOauthTokenPostBodyGrantType;
-  client_assertion_type?: IssueAppAccessTokenApiV1AppPlatformOauthTokenPostBodyClientAssertionType;
+export type IssueAppAccessTokenBody = {
+  grant_type: IssueAppAccessTokenBodyGrantType;
+  client_assertion_type?: IssueAppAccessTokenBodyClientAssertionType;
   client_assertion?: string;
   client_id?: string;
   installation?: string;
   scope?: string;
   resource?: string;
-  level?: IssueAppAccessTokenApiV1AppPlatformOauthTokenPostBodyLevel;
+  level?: IssueAppAccessTokenBodyLevel;
   assertion?: string;
 };
 
-export type ListAppInstallationsApiV1AppPlatformInstallationsGetParams = {
+export type ListAppInstallationsParams = {
   /**
    * @minimum 1
    * @maximum 200
@@ -9986,12 +9983,12 @@ export type ListAppInstallationsApiV1AppPlatformInstallationsGetParams = {
   cursor?: string | null;
 };
 
-export type ListPlacementCommunitiesApiV1SettingsPlacementCommunitiesGetParams = {
+export type ListPlacementCommunitiesParams = {
   provider_id: number;
   q?: string | null;
 };
 
-export type ListNotificationsApiV1NotificationsGetParams = {
+export type ListNotificationsParams = {
   /**
    * @minimum 1
    * @maximum 100
@@ -10003,11 +10000,11 @@ export type ListNotificationsApiV1NotificationsGetParams = {
   personal_only?: boolean;
 };
 
-export type MarkAllNotificationsReadApiV1NotificationsReadAllPostParams = {
+export type MarkAllNotificationsReadParams = {
   guild_id?: number | null;
 };
 
-export type GetToolCountsApiV1CGuildIdToolsToolCountsGetParams = {
+export type GetToolCountsParams = {
   initiative_id?: number | null;
   /**
    * The view the tag counts are for: active, archived, or templates for a tool that has them
@@ -10023,7 +10020,7 @@ export type GetToolCountsApiV1CGuildIdToolsToolCountsGetParams = {
   include_tags?: boolean;
 };
 
-export type ListProjectsApiV1CGuildIdProjectsGetParams = {
+export type ListProjectsParams = {
   /**
    * true lists what has been archived instead of what is live. Omit for the live list, which is what every other view shows.
    */
@@ -10075,7 +10072,7 @@ export type ListProjectsApiV1CGuildIdProjectsGetParams = {
   page_size?: number;
 };
 
-export type ListDocumentsApiV1CGuildIdDocumentsGetParams = {
+export type ListDocumentsParams = {
   initiative_id?: number | null;
   /**
    * Filter to specific document IDs — for hydrating a known set of documents without walking a collection. Maximum 100 IDs.
@@ -10125,7 +10122,7 @@ export type ListDocumentsApiV1CGuildIdDocumentsGetParams = {
   archived?: boolean | null;
 };
 
-export type ListQueuesApiV1CGuildIdQueuesGetParams = {
+export type ListQueuesParams = {
   initiative_id?: number | null;
   /**
    * Full-text match over the row — its name and its description. Reads the same index the search page does, so a list's filter box and a search agree about what matches.
@@ -10166,7 +10163,7 @@ export type ListQueuesApiV1CGuildIdQueuesGetParams = {
   page_size?: number;
 };
 
-export type ListCounterGroupsApiV1CGuildIdCounterGroupsGetParams = {
+export type ListCounterGroupsParams = {
   initiative_id?: number | null;
   /**
    * Full-text match over the row — its name and its description. Reads the same index the search page does, so a list's filter box and a search agree about what matches.
@@ -10203,7 +10200,7 @@ export type ListCounterGroupsApiV1CGuildIdCounterGroupsGetParams = {
   page_size?: number;
 };
 
-export type ListCalendarsApiV1CGuildIdCalendarsGetParams = {
+export type ListCalendarsParams = {
   initiative_id?: number | null;
   scope?: "guild" | null;
   /**
@@ -10241,7 +10238,7 @@ export type ListCalendarsApiV1CGuildIdCalendarsGetParams = {
   page_size?: number;
 };
 
-export type ListDashboardsApiV1CGuildIdDashboardsGetParams = {
+export type ListDashboardsParams = {
   initiative_id?: number | null;
   /**
    * Full-text match over the row — its name and its description. Reads the same index the search page does, so a list's filter box and a search agree about what matches.
@@ -10278,7 +10275,7 @@ export type ListDashboardsApiV1CGuildIdDashboardsGetParams = {
   page_size?: number;
 };
 
-export type ListPostsApiV1CGuildIdPostsGetParams = {
+export type ListPostsParams = {
   initiative_id?: number | null;
   /**
    * Full-text match over the notice — its headline and its body. Reads the same index the search page does, so the board's filter and a search agree about what matches.
@@ -10324,7 +10321,7 @@ export type ListPostsApiV1CGuildIdPostsGetParams = {
   page_size?: number;
 };
 
-export type ListGalleriesApiV1CGuildIdGalleriesGetParams = {
+export type ListGalleriesParams = {
   initiative_id?: number | null;
   /**
    * Full-text match over the gallery's name and description, through the same index the search page reads.
@@ -10361,7 +10358,7 @@ export type ListGalleriesApiV1CGuildIdGalleriesGetParams = {
   page_size?: number;
 };
 
-export type ListWikisApiV1CGuildIdWikisGetParams = {
+export type ListWikisParams = {
   initiative_id?: number | null;
   /**
    * Full-text match over the wiki's name and description, through the same index the search page reads.
@@ -10398,7 +10395,7 @@ export type ListWikisApiV1CGuildIdWikisGetParams = {
   page_size?: number;
 };
 
-export type ProjectActivityFeedApiV1CGuildIdProjectsProjectIdActivityGetParams = {
+export type ProjectActivityFeedParams = {
   /**
    * @minimum 1
    */
@@ -10410,14 +10407,14 @@ export type ProjectActivityFeedApiV1CGuildIdProjectsProjectIdActivityGetParams =
   page_size?: number;
 };
 
-export type ReadProjectApiV1CGuildIdProjectsProjectIdGetParams = {
+export type ReadProjectParams = {
   /**
    * Also return the resource if it is in the trash. For reading a resource back after a deleted event — the row still exists until retention purges it, and access is checked exactly as for a live one.
    */
   include_deleted?: boolean;
 };
 
-export type ListTasksApiV1CGuildIdTasksGetParams = {
+export type ListTasksParams = {
   /**
    * JSON list of filter conditions, AND-ed together. Each object: {"field": "<column>", "op": "<operator>", "value": <val>}. Any Task column is valid plus virtual fields: status_category, assignee_ids, tag_ids, initiative_ids. An object with a "conditions" key is an AND/OR group: {"logic": "or", "conditions": [...]}.
    */
@@ -10445,28 +10442,26 @@ export type ListTasksApiV1CGuildIdTasksGetParams = {
   tz?: string | null;
 };
 
-export type ReadTaskApiV1CGuildIdTasksTaskIdGetParams = {
+export type ReadTaskParams = {
   /**
    * Also return the resource if it is in the trash. For reading a resource back after a deleted event — the row still exists until retention purges it, and access is checked exactly as for a live one.
    */
   include_deleted?: boolean;
 };
 
-export type DeleteTaskApiV1CGuildIdTasksTaskIdDeleteParams = {
-  scope?: DeleteTaskApiV1CGuildIdTasksTaskIdDeleteScope;
+export type DeleteTaskParams = {
+  scope?: DeleteTaskScope;
 };
 
-export type DeleteTaskApiV1CGuildIdTasksTaskIdDeleteScope =
-  | (typeof DeleteTaskApiV1CGuildIdTasksTaskIdDeleteScope)[keyof typeof DeleteTaskApiV1CGuildIdTasksTaskIdDeleteScope]
-  | null;
+export type DeleteTaskScope = (typeof DeleteTaskScope)[keyof typeof DeleteTaskScope] | null;
 
-export const DeleteTaskApiV1CGuildIdTasksTaskIdDeleteScope = {
+export const DeleteTaskScope = {
   this: "this",
   following: "following",
   all: "all",
 } as const;
 
-export type ArchiveDoneTasksApiV1CGuildIdTasksArchiveDonePostParams = {
+export type ArchiveDoneTasksParams = {
   /**
    * Project to archive done tasks from
    */
@@ -10477,7 +10472,7 @@ export type ArchiveDoneTasksApiV1CGuildIdTasksArchiveDonePostParams = {
   task_status_id?: number | null;
 };
 
-export type ListReportsApiV1CGuildIdInitiativesInitiativeIdReportsGetParams = {
+export type ListReportsParams = {
   settled?: boolean;
   /**
    * @minimum 1
@@ -10490,7 +10485,7 @@ export type ListReportsApiV1CGuildIdInitiativesInitiativeIdReportsGetParams = {
   offset?: number;
 };
 
-export type ListCommentsApiV1CGuildIdCommentsGetParams = {
+export type ListCommentsParams = {
   task_id?: number | null;
   document_id?: number | null;
   project_id?: number | null;
@@ -10510,7 +10505,7 @@ export type ListCommentsApiV1CGuildIdCommentsGetParams = {
   cursor?: string | null;
 };
 
-export type RecentCommentsApiV1CGuildIdCommentsRecentGetParams = {
+export type RecentCommentsParams = {
   /**
    * @minimum 1
    * @maximum 50
@@ -10518,32 +10513,32 @@ export type RecentCommentsApiV1CGuildIdCommentsRecentGetParams = {
   limit?: number;
 };
 
-export type ReadCommentApiV1CGuildIdCommentsCommentIdGetParams = {
+export type ReadCommentParams = {
   /**
    * Also return the resource if it is in the trash. For reading a resource back after a deleted event — the row still exists until retention purges it, and access is checked exactly as for a live one.
    */
   include_deleted?: boolean;
 };
 
-export type ListInitiativesApiV1CGuildIdInitiativesGetParams = {
+export type ListInitiativesParams = {
   scope?: InitiativeListScope;
 };
 
-export type ListJoinRequestsApiV1CGuildIdInitiativesInitiativeIdJoinRequestsGetParams = {
+export type ListJoinRequestsParams = {
   /**
    * Narrow the queue to one status. Omit for the pending queue — the rows that are still open to an answer.
    */
   status?: JoinRequestStatus | null;
 };
 
-export type GetInitiativeApiV1CGuildIdInitiativesInitiativeIdGetParams = {
+export type GetInitiativeParams = {
   /**
    * Also return the resource if it is in the trash. For reading a resource back after a deleted event — the row still exists until retention purges it, and access is checked exactly as for a live one.
    */
   include_deleted?: boolean;
 };
 
-export type GetInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembersGetParams = {
+export type GetInitiativeMembersParams = {
   /**
    * Case-insensitive substring match on the member's name.
    */
@@ -10563,7 +10558,7 @@ export type GetInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembersGetPa
   page_size?: number;
 };
 
-export type SearchInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembersSearchGetParams = {
+export type SearchInitiativeMembersParams = {
   /**
    * Case-insensitive substring match on the member's name.
    */
@@ -10580,7 +10575,7 @@ export type SearchInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembersSe
   page_size?: number;
 };
 
-export type ReadDocumentApiV1CGuildIdDocumentsDocumentIdGetParams = {
+export type ReadDocumentParams = {
   /**
    * Include the document body. Pass false for the metadata alone — a document's body is the largest thing this API returns, and a caller reacting to a change (a name, a tag, a property) does not need it. Everything else is unchanged.
    */
@@ -10591,8 +10586,8 @@ export type ReadDocumentApiV1CGuildIdDocumentsDocumentIdGetParams = {
   include_deleted?: boolean;
 };
 
-export type ExportTasksApiV1CGuildIdExportsTasksGetParams = {
-  format?: ExportTasksApiV1CGuildIdExportsTasksGetFormat;
+export type ExportTasksParams = {
+  format?: ExportTasksFormat;
   /**
    * Same JSON filter conditions as the task list
    */
@@ -10609,29 +10604,27 @@ export type ExportTasksApiV1CGuildIdExportsTasksGetParams = {
   /**
    * Report layout. Markdown: a table (default) or a GitHub-style task list (checklist). PDF: the default table, or 'detailed' for a one-task-per-page report with description, checklist and comments. Ignored by csv/xlsx.
    */
-  layout?: ExportTasksApiV1CGuildIdExportsTasksGetLayout;
+  layout?: ExportTasksLayout;
 };
 
-export type ExportTasksApiV1CGuildIdExportsTasksGetFormat =
-  (typeof ExportTasksApiV1CGuildIdExportsTasksGetFormat)[keyof typeof ExportTasksApiV1CGuildIdExportsTasksGetFormat];
+export type ExportTasksFormat = (typeof ExportTasksFormat)[keyof typeof ExportTasksFormat];
 
-export const ExportTasksApiV1CGuildIdExportsTasksGetFormat = {
+export const ExportTasksFormat = {
   pdf: "pdf",
   csv: "csv",
   xlsx: "xlsx",
   md: "md",
 } as const;
 
-export type ExportTasksApiV1CGuildIdExportsTasksGetLayout =
-  (typeof ExportTasksApiV1CGuildIdExportsTasksGetLayout)[keyof typeof ExportTasksApiV1CGuildIdExportsTasksGetLayout];
+export type ExportTasksLayout = (typeof ExportTasksLayout)[keyof typeof ExportTasksLayout];
 
-export const ExportTasksApiV1CGuildIdExportsTasksGetLayout = {
+export const ExportTasksLayout = {
   table: "table",
   checklist: "checklist",
   detailed: "detailed",
 } as const;
 
-export type ExportEventsApiV1CGuildIdExportsEventsGetParams = {
+export type ExportEventsParams = {
   format?: "ics";
   initiative_id?: number | null;
   scope?: "guild" | null;
@@ -10655,8 +10648,8 @@ export type ExportEventsApiV1CGuildIdExportsEventsGetParams = {
   tz?: string | null;
 };
 
-export type EstimateAggregateExportApiV1CGuildIdExportsEstimateGetParams = {
-  scope: EstimateAggregateExportApiV1CGuildIdExportsEstimateGetScope;
+export type EstimateAggregateExportParams = {
+  scope: EstimateAggregateExportScope;
   /**
    * Required when scope=initiative
    */
@@ -10668,17 +10661,17 @@ export type EstimateAggregateExportApiV1CGuildIdExportsEstimateGetParams = {
   filters?: string | null;
 };
 
-export type EstimateAggregateExportApiV1CGuildIdExportsEstimateGetScope =
-  (typeof EstimateAggregateExportApiV1CGuildIdExportsEstimateGetScope)[keyof typeof EstimateAggregateExportApiV1CGuildIdExportsEstimateGetScope];
+export type EstimateAggregateExportScope =
+  (typeof EstimateAggregateExportScope)[keyof typeof EstimateAggregateExportScope];
 
-export const EstimateAggregateExportApiV1CGuildIdExportsEstimateGetScope = {
+export const EstimateAggregateExportScope = {
   initiative: "initiative",
   guild: "guild",
 } as const;
 
-export type ExportInitiativeApiV1CGuildIdExportsInitiativeGetParams = {
+export type ExportInitiativeParams = {
   initiative_id: number;
-  mode?: ExportInitiativeApiV1CGuildIdExportsInitiativeGetMode;
+  mode?: ExportInitiativeMode;
   /**
    * JSON object of tool→bool, e.g. {"project": true, "queue": false}. Omitted = every tool.
    */
@@ -10701,16 +10694,15 @@ export type ExportInitiativeApiV1CGuildIdExportsInitiativeGetParams = {
   tz?: string | null;
 };
 
-export type ExportInitiativeApiV1CGuildIdExportsInitiativeGetMode =
-  (typeof ExportInitiativeApiV1CGuildIdExportsInitiativeGetMode)[keyof typeof ExportInitiativeApiV1CGuildIdExportsInitiativeGetMode];
+export type ExportInitiativeMode = (typeof ExportInitiativeMode)[keyof typeof ExportInitiativeMode];
 
-export const ExportInitiativeApiV1CGuildIdExportsInitiativeGetMode = {
+export const ExportInitiativeMode = {
   backup: "backup",
   report: "report",
 } as const;
 
-export type ExportGuildApiV1CGuildIdExportsCommunityGetParams = {
-  mode?: ExportGuildApiV1CGuildIdExportsCommunityGetMode;
+export type ExportCommunityParams = {
+  mode?: ExportCommunityMode;
   /**
    * JSON object of tool→bool; omitted = every tool
    */
@@ -10733,15 +10725,14 @@ export type ExportGuildApiV1CGuildIdExportsCommunityGetParams = {
   tz?: string | null;
 };
 
-export type ExportGuildApiV1CGuildIdExportsCommunityGetMode =
-  (typeof ExportGuildApiV1CGuildIdExportsCommunityGetMode)[keyof typeof ExportGuildApiV1CGuildIdExportsCommunityGetMode];
+export type ExportCommunityMode = (typeof ExportCommunityMode)[keyof typeof ExportCommunityMode];
 
-export const ExportGuildApiV1CGuildIdExportsCommunityGetMode = {
+export const ExportCommunityMode = {
   backup: "backup",
   report: "report",
 } as const;
 
-export type ExportToolApiV1CGuildIdExportsToolGetParams = {
+export type ExportToolParams = {
   /**
    * What to export: one artifact per id, zipped when there is more than one
    */
@@ -10749,7 +10740,7 @@ export type ExportToolApiV1CGuildIdExportsToolGetParams = {
   /**
    * One of the tool's export formats (project: json, pdf, csv, xlsx; document: json, md, pdf, docx, csv, xlsx, file; queue: json, pdf, csv, xlsx, md; counter_group: json, pdf, csv, xlsx, md; calendar: ics, json; dashboard: json; post: json; gallery: json; wiki: json, pdf, md, docx). ``json`` is the importable envelope. A document's formats depend on its type, so it has no default; a calendar defaults to ``ics``, every other tool to ``json``
    */
-  format?: ExportToolApiV1CGuildIdExportsToolGetFormat;
+  format?: ExportToolFormat;
   /**
    * Calendars only: with no ids, every calendar the caller may export in this initiative
    */
@@ -10764,11 +10755,9 @@ export type ExportToolApiV1CGuildIdExportsToolGetParams = {
   tz?: string | null;
 };
 
-export type ExportToolApiV1CGuildIdExportsToolGetFormat =
-  | (typeof ExportToolApiV1CGuildIdExportsToolGetFormat)[keyof typeof ExportToolApiV1CGuildIdExportsToolGetFormat]
-  | null;
+export type ExportToolFormat = (typeof ExportToolFormat)[keyof typeof ExportToolFormat] | null;
 
-export const ExportToolApiV1CGuildIdExportsToolGetFormat = {
+export const ExportToolFormat = {
   csv: "csv",
   docx: "docx",
   file: "file",
@@ -10779,53 +10768,51 @@ export const ExportToolApiV1CGuildIdExportsToolGetFormat = {
   xlsx: "xlsx",
 } as const;
 
-export type ConfirmImportApiV1CGuildIdImportsJobsJobIdConfirmPostBody = {
-  [key: string]: unknown;
-} | null;
+export type ConfirmImportBody = { [key: string]: unknown } | null;
 
-export type ReadQueueApiV1CGuildIdQueuesQueueIdGetParams = {
+export type ReadQueueParams = {
   /**
    * Also return the resource if it is in the trash. For reading a resource back after a deleted event — the row still exists until retention purges it, and access is checked exactly as for a live one.
    */
   include_deleted?: boolean;
 };
 
-export type ReadQueueItemApiV1CGuildIdQueueItemsItemIdGetParams = {
+export type ReadQueueItemParams = {
   /**
    * Also return the resource if it is in the trash. For reading a resource back after a deleted event — the row still exists until retention purges it, and access is checked exactly as for a live one.
    */
   include_deleted?: boolean;
 };
 
-export type ReadCounterGroupApiV1CGuildIdCounterGroupsGroupIdGetParams = {
+export type ReadCounterGroupParams = {
   /**
    * Also return the resource if it is in the trash. For reading a resource back after a deleted event — the row still exists until retention purges it, and access is checked exactly as for a live one.
    */
   include_deleted?: boolean;
 };
 
-export type ReadCounterApiV1CGuildIdCountersCounterIdGetParams = {
+export type ReadCounterParams = {
   /**
    * Also return the resource if it is in the trash. For reading a resource back after a deleted event — the row still exists until retention purges it, and access is checked exactly as for a live one.
    */
   include_deleted?: boolean;
 };
 
-export type ReadCalendarApiV1CGuildIdCalendarsCalendarIdGetParams = {
+export type ReadCalendarParams = {
   /**
    * Also return the resource if it is in the trash. For reading a resource back after a deleted event — the row still exists until retention purges it, and access is checked exactly as for a live one.
    */
   include_deleted?: boolean;
 };
 
-export type ReadDashboardApiV1CGuildIdDashboardsDashboardIdGetParams = {
+export type ReadDashboardParams = {
   /**
    * Also return the resource if it is in the trash. For reading a resource back after a deleted event — the row still exists until retention purges it, and access is checked exactly as for a live one.
    */
   include_deleted?: boolean;
 };
 
-export type GetPostTimelineApiV1CGuildIdPostsTimelineGetParams = {
+export type GetPostTimelineParams = {
   initiative_id?: number | null;
   search?: string | null;
   tag_ids?: number[] | null;
@@ -10844,21 +10831,21 @@ export type GetPostTimelineApiV1CGuildIdPostsTimelineGetParams = {
   tz?: string | null;
 };
 
-export type ReadPostApiV1CGuildIdPostsPostIdGetParams = {
+export type ReadPostParams = {
   /**
    * Also return the resource if it is in the trash. For reading a resource back after a deleted event — the row still exists until retention purges it, and access is checked exactly as for a live one.
    */
   include_deleted?: boolean;
 };
 
-export type ReadGalleryApiV1CGuildIdGalleriesGalleryIdGetParams = {
+export type ReadGalleryParams = {
   /**
    * Also return the resource if it is in the trash. For reading a resource back after a deleted event — the row still exists until retention purges it, and access is checked exactly as for a live one.
    */
   include_deleted?: boolean;
 };
 
-export type ListGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesGetParams = {
+export type ListGalleryImagesParams = {
   /**
    * Only pictures carrying ANY of these tags.
    */
@@ -10886,7 +10873,7 @@ export type ListGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesGetParams = {
   page_size?: number;
 };
 
-export type GetGalleryImageTimelineApiV1CGuildIdGalleriesGalleryIdImagesTimelineGetParams = {
+export type GetGalleryImageTimelineParams = {
   tag_ids?: number[] | null;
   search?: string | null;
   /**
@@ -10895,7 +10882,7 @@ export type GetGalleryImageTimelineApiV1CGuildIdGalleriesGalleryIdImagesTimeline
   tz?: string | null;
 };
 
-export type ReadAppDataApiV1CGuildIdAppsAppIdEndpointsEndpointIdGetParams = {
+export type ReadAppDataParams = {
   /**
    * The dashboard the widget sits on. Its own gates decide whether this caller may see anything here at all.
    */
@@ -10910,7 +10897,7 @@ export type ReadAppDataApiV1CGuildIdAppsAppIdEndpointsEndpointIdGetParams = {
   widget_id?: string | null;
 };
 
-export type ReadAppParamOptionsApiV1CGuildIdAppsAppIdEndpointsEndpointIdOptionsGetParams = {
+export type ReadAppParamOptionsParams = {
   /**
    * Which of the endpoint's parameters to fill a menu for.
    */
@@ -10921,7 +10908,7 @@ export type ReadAppParamOptionsApiV1CGuildIdAppsAppIdEndpointsEndpointIdOptionsG
   params?: string | null;
 };
 
-export type ListGuildAppMembersApiV1CGuildIdAppsAppIdMembersGetParams = {
+export type ListCommunityAppMembersParams = {
   /**
    * @minimum 1
    */
@@ -10933,7 +10920,7 @@ export type ListGuildAppMembersApiV1CGuildIdAppsAppIdMembersGetParams = {
   page_size?: number;
 };
 
-export type ReadCalendarEventApiV1CGuildIdCalendarEventsEventIdGetParams = {
+export type ReadCalendarEventParams = {
   /**
    * One occurrence of a repeating event, whose answers to show.
    */
@@ -10944,44 +10931,42 @@ export type ReadCalendarEventApiV1CGuildIdCalendarEventsEventIdGetParams = {
   include_deleted?: boolean;
 };
 
-export type DeleteCalendarEventApiV1CGuildIdCalendarEventsEventIdDeleteParams = {
-  scope?: DeleteCalendarEventApiV1CGuildIdCalendarEventsEventIdDeleteScope;
+export type DeleteCalendarEventParams = {
+  scope?: DeleteCalendarEventScope;
   occurrence?: string | null;
 };
 
-export type DeleteCalendarEventApiV1CGuildIdCalendarEventsEventIdDeleteScope =
-  | (typeof DeleteCalendarEventApiV1CGuildIdCalendarEventsEventIdDeleteScope)[keyof typeof DeleteCalendarEventApiV1CGuildIdCalendarEventsEventIdDeleteScope]
+export type DeleteCalendarEventScope =
+  | (typeof DeleteCalendarEventScope)[keyof typeof DeleteCalendarEventScope]
   | null;
 
-export const DeleteCalendarEventApiV1CGuildIdCalendarEventsEventIdDeleteScope = {
+export const DeleteCalendarEventScope = {
   this: "this",
   following: "following",
   all: "all",
 } as const;
 
-export type DuplicateCalendarEventApiV1CGuildIdCalendarEventsEventIdDuplicatePostParams = {
+export type DuplicateCalendarEventParams = {
   /**
    * One date of a repeating event, copied as an event of its own.
    */
   occurrence?: string | null;
 };
 
-export type SetAttendeesApiV1CGuildIdCalendarEventsEventIdAttendeesPutParams = {
-  scope?: SetAttendeesApiV1CGuildIdCalendarEventsEventIdAttendeesPutScope;
+export type SetAttendeesParams = {
+  scope?: SetAttendeesScope;
   occurrence?: string | null;
 };
 
-export type SetAttendeesApiV1CGuildIdCalendarEventsEventIdAttendeesPutScope =
-  | (typeof SetAttendeesApiV1CGuildIdCalendarEventsEventIdAttendeesPutScope)[keyof typeof SetAttendeesApiV1CGuildIdCalendarEventsEventIdAttendeesPutScope]
-  | null;
+export type SetAttendeesScope = (typeof SetAttendeesScope)[keyof typeof SetAttendeesScope] | null;
 
-export const SetAttendeesApiV1CGuildIdCalendarEventsEventIdAttendeesPutScope = {
+export const SetAttendeesScope = {
   this: "this",
   following: "following",
   all: "all",
 } as const;
 
-export type ListCalendarEntriesApiV1CGuildIdCalendarEntriesGetParams = {
+export type ListCalendarEntriesParams = {
   initiative_id?: number | null;
   scope?: "guild" | null;
   calendar_ids?: number[] | null;
@@ -10997,7 +10982,7 @@ export type ListCalendarEntriesApiV1CGuildIdCalendarEntriesGetParams = {
   start_before: string;
 };
 
-export type ListMarketplaceListingsApiV1CGuildIdMarketplaceListingsGetParams = {
+export type ListMarketplaceListingsParams = {
   kind?: ListingKind | null;
   q?: string | null;
   /**
@@ -11011,26 +10996,26 @@ export type ListMarketplaceListingsApiV1CGuildIdMarketplaceListingsGetParams = {
   page_size?: number;
 };
 
-export type ListRelationshipsApiV1CGuildIdRelationshipsGetParams = {
+export type ListRelationshipsParams = {
   /**
    * The thing to list edges for, as `kind:id`
    */
   entity: string;
   relationship_type?: RelationshipType | null;
   other_type?: SearchEntityType | null;
-  direction?: ListRelationshipsApiV1CGuildIdRelationshipsGetDirection;
+  direction?: ListRelationshipsDirection;
 };
 
-export type ListRelationshipsApiV1CGuildIdRelationshipsGetDirection =
-  (typeof ListRelationshipsApiV1CGuildIdRelationshipsGetDirection)[keyof typeof ListRelationshipsApiV1CGuildIdRelationshipsGetDirection];
+export type ListRelationshipsDirection =
+  (typeof ListRelationshipsDirection)[keyof typeof ListRelationshipsDirection];
 
-export const ListRelationshipsApiV1CGuildIdRelationshipsGetDirection = {
+export const ListRelationshipsDirection = {
   inbound: "inbound",
   outbound: "outbound",
   both: "both",
 } as const;
 
-export type ReplaceRelationshipSliceApiV1CGuildIdRelationshipsPutParams = {
+export type ReplaceRelationshipSliceParams = {
   /**
    * The thing whose edges are being set
    */
@@ -11039,14 +11024,14 @@ export type ReplaceRelationshipSliceApiV1CGuildIdRelationshipsPutParams = {
   other_type: SearchEntityType;
 };
 
-export type GetTagApiV1CGuildIdTagsTagIdGetParams = {
+export type GetTagParams = {
   /**
    * Also return the resource if it is in the trash. For reading a resource back after a deleted event — the row still exists until retention purges it, and access is checked exactly as for a live one.
    */
   include_deleted?: boolean;
 };
 
-export type SearchGuildApiV1CGuildIdSearchGetParams = {
+export type SearchCommunityParams = {
   /**
    * What to search for.
    * @maxLength 1000
@@ -11079,7 +11064,7 @@ export type SearchGuildApiV1CGuildIdSearchGetParams = {
   offset?: number;
 };
 
-export type RecentGuildApiV1CGuildIdSearchRecentGetParams = {
+export type RecentCommunityParams = {
   /**
    * Restrict to these entity types. Omit for the default scope (calendar, calendar_event, counter, counter_group, dashboard, document, gallery, gallery_image, post, project, queue, queue_item, tag, task, wiki, wiki_page); naming a type reaches it explicitly.
    */
@@ -11102,7 +11087,7 @@ export type RecentGuildApiV1CGuildIdSearchRecentGetParams = {
   limit?: number;
 };
 
-export type SuggestGuildApiV1CGuildIdSearchSuggestGetParams = {
+export type SuggestCommunityParams = {
   /**
    * What to jump to.
    * @maxLength 200
@@ -11130,7 +11115,7 @@ export type SuggestGuildApiV1CGuildIdSearchSuggestGetParams = {
   limit?: number;
 };
 
-export type ReadSmartChipsApiV1CGuildIdSmartChipsGetParams = {
+export type ReadSmartChipsParams = {
   /**
    * A chip to read, as `kind:id:aspect` — `task:12:status`. Repeat it for every chip on the page; they are read together. Pairs that name no chip are ignored. Available: calendar_event:when, counter:value, project:progress, task:assignee, task:due, task:priority, task:status, task:checklist
    * @maxItems 100
@@ -11138,7 +11123,7 @@ export type ReadSmartChipsApiV1CGuildIdSmartChipsGetParams = {
   ref?: string[];
 };
 
-export type ReadReferenceEmbedsApiV1CGuildIdSmartChipsEmbedsGetParams = {
+export type ReadReferenceEmbedsParams = {
   /**
    * A reference to show in full, as `kind:id` — `task:12`.
    * @maxItems 100
@@ -11146,11 +11131,11 @@ export type ReadReferenceEmbedsApiV1CGuildIdSmartChipsEmbedsGetParams = {
   ref?: string[];
 };
 
-export type ListPropertyDefinitionsApiV1CGuildIdPropertyDefinitionsGetParams = {
+export type ListPropertyDefinitionsParams = {
   initiative_id?: number | null;
 };
 
-export type ListGuildTrashApiV1CGuildIdTrashGetParams = {
+export type ListCommunityTrashParams = {
   /**
    * @minimum 1
    */
@@ -11162,7 +11147,7 @@ export type ListGuildTrashApiV1CGuildIdTrashGetParams = {
   page_size?: number;
 };
 
-export type ListUsersApiV1CGuildIdUsersGetParams = {
+export type ListUsersParams = {
   /**
    * Matches members the way ``/search`` does: the handle, a whole handle pinning one member, and the display names members set here.
    */
@@ -11178,7 +11163,7 @@ export type ListUsersApiV1CGuildIdUsersGetParams = {
   page_size?: number;
 };
 
-export type SearchUsersApiV1CGuildIdUsersSearchGetParams = {
+export type SearchUsersParams = {
   /**
    * Matches the handle's name part. Type the whole handle (`foobar#1234`) to pin one member; a partial number after `#` is a prefix of the four digits as rendered. Display names members set here are matched too.
    */
@@ -11208,7 +11193,7 @@ export type SearchUsersApiV1CGuildIdUsersSearchGetParams = {
   page_size?: number;
 };
 
-export type ListRosterApiV1CGuildIdUsersRosterGetParams = {
+export type ListRosterParams = {
   /**
    * @minimum 1
    */
@@ -11220,11 +11205,11 @@ export type ListRosterApiV1CGuildIdUsersRosterGetParams = {
   page_size?: number;
 };
 
-export type ExportUsersCsvApiV1CGuildIdUsersExportCsvGetParams = {
+export type ExportUsersCsvParams = {
   user_id?: number[] | null;
 };
 
-export type ListMyTasksApiV1MeTasksGetParams = {
+export type ListMyTasksParams = {
   conditions?: (FilterCondition | FilterGroup)[];
   /**
    * The tasks you created instead of the ones assigned to you
@@ -11247,14 +11232,14 @@ export type ListMyTasksApiV1MeTasksGetParams = {
   tz?: string | null;
 };
 
-export type ReadTicketAvailabilityApiV1MeTicketsAvailabilityGetParams = {
+export type ReadTicketAvailabilityParams = {
   /**
    * The community the reader is standing in.
    */
   guild_id?: number | null;
 };
 
-export type GetMyToolCountsApiV1MeToolsCountsGetParams = {
+export type GetMyToolCountsParams = {
   guild_ids?: number[] | null;
   /**
    * Count only what the caller wrote, matching the list views.
@@ -11262,7 +11247,7 @@ export type GetMyToolCountsApiV1MeToolsCountsGetParams = {
   created_by_me?: boolean;
 };
 
-export type ListMyProjectsApiV1MeProjectsGetParams = {
+export type ListMyProjectsParams = {
   guild_ids?: number[] | null;
   search?: string | null;
   /**
@@ -11288,7 +11273,7 @@ export type ListMyProjectsApiV1MeProjectsGetParams = {
   page_size?: number;
 };
 
-export type ListMyDocumentsApiV1MeDocumentsGetParams = {
+export type ListMyDocumentsParams = {
   guild_ids?: number[] | null;
   search?: string | null;
   /**
@@ -11314,7 +11299,7 @@ export type ListMyDocumentsApiV1MeDocumentsGetParams = {
   page_size?: number;
 };
 
-export type ListMyQueuesApiV1MeQueuesGetParams = {
+export type ListMyQueuesParams = {
   guild_ids?: number[] | null;
   search?: string | null;
   /**
@@ -11340,7 +11325,7 @@ export type ListMyQueuesApiV1MeQueuesGetParams = {
   page_size?: number;
 };
 
-export type ListMyCounterGroupsApiV1MeCounterGroupsGetParams = {
+export type ListMyCounterGroupsParams = {
   guild_ids?: number[] | null;
   search?: string | null;
   /**
@@ -11366,7 +11351,7 @@ export type ListMyCounterGroupsApiV1MeCounterGroupsGetParams = {
   page_size?: number;
 };
 
-export type ListMyCalendarsApiV1MeCalendarsGetParams = {
+export type ListMyCalendarsParams = {
   guild_ids?: number[] | null;
   search?: string | null;
   /**
@@ -11392,7 +11377,7 @@ export type ListMyCalendarsApiV1MeCalendarsGetParams = {
   page_size?: number;
 };
 
-export type ListMyDashboardsApiV1MeDashboardsGetParams = {
+export type ListMyDashboardsParams = {
   guild_ids?: number[] | null;
   search?: string | null;
   /**
@@ -11418,7 +11403,7 @@ export type ListMyDashboardsApiV1MeDashboardsGetParams = {
   page_size?: number;
 };
 
-export type ListMyPostsApiV1MePostsGetParams = {
+export type ListMyPostsParams = {
   guild_ids?: number[] | null;
   search?: string | null;
   /**
@@ -11444,7 +11429,7 @@ export type ListMyPostsApiV1MePostsGetParams = {
   page_size?: number;
 };
 
-export type ListMyGalleriesApiV1MeGalleriesGetParams = {
+export type ListMyGalleriesParams = {
   guild_ids?: number[] | null;
   search?: string | null;
   /**
@@ -11470,7 +11455,7 @@ export type ListMyGalleriesApiV1MeGalleriesGetParams = {
   page_size?: number;
 };
 
-export type ListMyWikisApiV1MeWikisGetParams = {
+export type ListMyWikisParams = {
   guild_ids?: number[] | null;
   search?: string | null;
   /**
@@ -11496,7 +11481,7 @@ export type ListMyWikisApiV1MeWikisGetParams = {
   page_size?: number;
 };
 
-export type ListMyCalendarEntriesApiV1MeCalendarEntriesGetParams = {
+export type ListMyCalendarEntriesParams = {
   guild_ids?: number[] | null;
   /**
    * Task filter conditions (same JSON shape as GET /me/tasks).
@@ -11509,7 +11494,7 @@ export type ListMyCalendarEntriesApiV1MeCalendarEntriesGetParams = {
   start_before: string;
 };
 
-export type ListMyTrashApiV1MeTrashGetParams = {
+export type ListMyTrashParams = {
   /**
    * @minimum 1
    */
@@ -11521,7 +11506,7 @@ export type ListMyTrashApiV1MeTrashGetParams = {
   page_size?: number;
 };
 
-export type ListContactSectionsApiV1MeContactsGetParams = {
+export type ListContactSectionsParams = {
   /**
    * Narrows every section. Matches the handle, plus the real name in a guild that shows names; type a whole handle (`foobar#1234`) to pin one person.
    */
@@ -11538,14 +11523,14 @@ export type ListContactSectionsApiV1MeContactsGetParams = {
   page_size?: number;
 };
 
-export type ListFavoriteContactsApiV1MeContactsFavoritesGetParams = {
+export type ListFavoriteContactsParams = {
   /**
    * Narrows every section. Matches the handle, plus the real name in a guild that shows names; type a whole handle (`foobar#1234`) to pin one person.
    */
   search?: string | null;
 };
 
-export type ListIgnoredAccountsApiV1MeIgnoredGetParams = {
+export type ListIgnoredAccountsParams = {
   /**
    * @minimum 1
    */
@@ -11557,15 +11542,15 @@ export type ListIgnoredAccountsApiV1MeIgnoredGetParams = {
   page_size?: number;
 };
 
-export type CollectQueueApiV1MeDmQueueGetParams = {
+export type CollectQueueParams = {
   device_id: string;
 };
 
-export type CollectVerificationApiV1MeDmVerificationGetParams = {
+export type CollectVerificationParams = {
   device_id: string;
 };
 
-export type GetUserStatsApiV1MeStatsGetParams = {
+export type GetUserStatsParams = {
   /**
    * Optional guild ID to filter stats
    */

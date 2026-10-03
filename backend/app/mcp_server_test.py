@@ -104,18 +104,6 @@ _SAFE_WRITES = {
 }
 
 
-def _operation(name: str) -> str:
-    """Return the FastAPI handler name from a route-backed operationId.
-
-    operationIds are ``{function}_api_v1_{path}``; splitting on the route
-    boundary yields the *exact* function name (e.g. ``create_task``) without
-    collapsing multi-word resources — so a hypothetical ``create_task_template``
-    does not match the allowed ``create_task``. Returns the whole name
-    unchanged if the boundary is absent (then it simply won't match the safe set).
-    """
-    return name.split("_api_v1_", 1)[0]
-
-
 async def test_mcp_tools_are_curated():
     tools = await build_mcp_server(app).list_tools()
     names = [t.name.lower() for t in tools]
@@ -193,9 +181,7 @@ async def test_comment_reads_are_exposed():
     (the guild-wide ``recent`` activity feed and the @-mention picker's search)
     are matched by no RouteMap and fall through the default-deny catch-all.
     """
-    names = {
-        _operation(t.name.lower()) for t in await build_mcp_server(app).list_tools()
-    }
+    names = {t.name.lower() for t in await build_mcp_server(app).list_tools()}
 
     assert "list_comments" in names
     assert "read_comment" in names
@@ -211,13 +197,11 @@ async def test_search_is_exposed_without_the_picker_routes():
     and titles to jump to while it is — rather than answering a question, so
     they fall through the default-deny catch-all.
     """
-    names = {
-        _operation(t.name.lower()) for t in await build_mcp_server(app).list_tools()
-    }
+    names = {t.name.lower() for t in await build_mcp_server(app).list_tools()}
 
-    assert "search_guild" in names
-    assert "recent_guild" not in names
-    assert "suggest_guild" not in names
+    assert "search_community" in names
+    assert "recent_community" not in names
+    assert "suggest_community" not in names
 
 
 async def test_relationship_tools_are_read_and_draw_one():
@@ -229,9 +213,7 @@ async def test_relationship_tools_are_read_and_draw_one():
     doesn't mention; deleting one is a delete. Both fall through the
     default-deny catch-all.
     """
-    names = {
-        _operation(t.name.lower()) for t in await build_mcp_server(app).list_tools()
-    }
+    names = {t.name.lower() for t in await build_mcp_server(app).list_tools()}
 
     assert "list_relationships" in names
     assert "create_relationship" in names
@@ -244,7 +226,7 @@ async def test_mcp_write_tools_are_the_curated_safe_set():
     # write-prefix check.
     names = [t.name.lower() for t in await build_mcp_server(app).list_tools()]
 
-    writes = {_operation(n) for n in names if n.startswith(_WRITE_PREFIXES)}
+    writes = {n for n in names if n.startswith(_WRITE_PREFIXES)}
     # Exactly the allow-list — no delete/archive/reset/reorder/duplicate/batch,
     # no AI generation, no grants, no property or tag mutation.
     assert writes == _SAFE_WRITES, f"write surface changed: {sorted(writes)}"
@@ -265,7 +247,7 @@ async def test_the_tool_writes_stop_short_of_these():
     these spell out the categories that were weighed.
     """
     names = [t.name.lower() for t in await build_mcp_server(app).list_tools()]
-    writes = {_operation(n) for n in names if n.startswith(_WRITE_PREFIXES)}
+    writes = {n for n in names if n.startswith(_WRITE_PREFIXES)}
 
     # Nothing that removes or empties: delete, trash, archive, reset a counter
     # or a queue, discard the done column.

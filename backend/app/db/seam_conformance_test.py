@@ -397,15 +397,15 @@ async def test_every_socket_admits_through_the_seam(
     #: community's configuration and none of its content — or, for the
     #: account's own stream, a token that is none.
     channels = {
-        "/api/v1/c/{guild_id}/queues/{queue_id}/ws": f"{base}/queues/{queue.id}/ws",
-        "/api/v1/c/{guild_id}/counter-groups/{group_id}/ws": (
+        "/api/v1/c/{community_id}/queues/{queue_id}/ws": f"{base}/queues/{queue.id}/ws",
+        "/api/v1/c/{community_id}/counter-groups/{group_id}/ws": (
             f"{base}/counter-groups/{group.id}/ws"
         ),
-        "/api/v1/c/{guild_id}/events/updates": f"{base}/events/updates",
-        "/api/v1/c/{guild_id}/collaboration/documents/{document_id}/collaborate": (
+        "/api/v1/c/{community_id}/events/updates": f"{base}/events/updates",
+        "/api/v1/c/{community_id}/collaboration/documents/{document_id}/collaborate": (
             f"{base}/collaboration/documents/{document.id}/collaborate"
         ),
-        "/api/v1/c/{guild_id}/collaboration/wiki-pages/{page_id}/collaborate": (
+        "/api/v1/c/{community_id}/collaboration/wiki-pages/{page_id}/collaborate": (
             f"{base}/collaboration/wiki-pages/{page.id}/collaborate"
         ),
     }

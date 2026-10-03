@@ -5,8 +5,8 @@ Follows the My Tasks / My Trash pattern: a user-scoped aggregate READ
 (``UserSessionDep`` + ``gather_across_guilds``) that visits each guild's schema
 and merges. Writes (attach key, set preference) stay guild-scoped — the client
 addresses them with each section's ``guild_id`` via
-``/c/{guild_id}/settings/ai/me/*``. There is no cross-guild write here, exactly
-like task edits stay under ``/c/{guild_id}``.
+``/c/{community_id}/settings/ai/me/*``. There is no cross-guild write here, exactly
+like task edits stay under ``/c/{community_id}``.
 """
 
 from __future__ import annotations

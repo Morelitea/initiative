@@ -17,7 +17,7 @@ import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { useTranslation } from "react-i18next";
 
 import { API_BASE_URL } from "@/api/client";
-import { notifyMentionsApiV1CGuildIdDocumentsDocumentIdMentionsPost } from "@/api/generated/documents/documents";
+import { notifyMentions } from "@/api/generated/documents/documents";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { ToolCommentsPanel } from "@/components/comments/ToolCommentsPanel";
 import {
@@ -278,7 +278,7 @@ export const DocumentDetailPage = () => {
         editedBody as SerializedEditorState | undefined
       );
       if (newMentionIds.length > 0) {
-        notifyMentionsApiV1CGuildIdDocumentsDocumentIdMentionsPost(guildId, parsedId, {
+        notifyMentions(guildId, parsedId, {
           mentioned_user_ids: newMentionIds,
         }).catch((err) => console.error("Failed to notify mentions:", err));
       }

@@ -1,6 +1,6 @@
 import type { PostReactionSettings } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
-import { setPostReactionSettingsApiV1CGuildIdPostsPostIdReactionsPut } from "@/api/generated/posts/posts";
+import { setPostReactionSettings } from "@/api/generated/posts/posts";
 import { invalidate, q } from "@/api/query-keys";
 import { useGuildMutation } from "@/hooks/useApiMutation";
 import type { MutationOpts } from "@/types/mutation";
@@ -19,7 +19,7 @@ export const useSetPostReactions = (
   useGuildMutation<PostReactionSettings, { id: number; enabled: boolean }>(
     {
       mutationFn: (guildId, { id, enabled }) =>
-        setPostReactionSettingsApiV1CGuildIdPostsPostIdReactionsPut(guildId, id, {
+        setPostReactionSettings(guildId, id, {
           reactions_enabled: enabled,
         }),
       invalidate: (_data, vars) => {

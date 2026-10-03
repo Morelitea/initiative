@@ -21,10 +21,10 @@ vi.mock("@/hooks/useAppConfig", () => ({ useAppConfig: () => ({ billing: state.b
 const mintHandoff = vi.hoisted(() => vi.fn());
 const listInvites = vi.hoisted(() => vi.fn().mockResolvedValue([]));
 vi.mock("@/api/generated/communities/communities", () => ({
-  createGuildInviteApiV1CommunitiesGuildIdInvitesPost: vi.fn(),
-  deleteGuildInviteApiV1CommunitiesGuildIdInvitesInviteIdDelete: vi.fn(),
-  listGuildInvitesApiV1CommunitiesGuildIdInvitesGet: listInvites,
-  createGuildBillingHandoffApiV1CommunitiesGuildIdBillingHandoffPost: mintHandoff,
+  createCommunityInvite: vi.fn(),
+  deleteCommunityInvite: vi.fn(),
+  listCommunityInvites: listInvites,
+  createCommunityBillingHandoff: mintHandoff,
 }));
 
 vi.mock("@/hooks/useUsers", () => ({

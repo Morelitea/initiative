@@ -26,7 +26,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { updateGuildApiV1CommunitiesGuildIdPatch } from "@/api/generated/communities/communities";
+import { updateCommunity } from "@/api/generated/communities/communities";
 import type { CommunityCategory, CommunityRead } from "@/api/generated/initiativeAPI.schemas";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -72,9 +72,9 @@ export const GuildDiscoveryPanel = () => {
     setError(null);
     setMessage(null);
     try {
-      const result = (await updateGuildApiV1CommunitiesGuildIdPatch(
+      const result = (await updateCommunity(
         activeGuild.id,
-        updates as Parameters<typeof updateGuildApiV1CommunitiesGuildIdPatch>[1]
+        updates as Parameters<typeof updateCommunity>[1]
       )) as unknown as CommunityRead;
       updateGuildInState(result);
       await refreshGuilds();

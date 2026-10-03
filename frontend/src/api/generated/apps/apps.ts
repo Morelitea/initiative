@@ -41,9 +41,9 @@ import type {
   CommunityAppUpdate,
   CommunityAppUpgrade,
   HTTPValidationError,
-  ListGuildAppMembersApiV1CGuildIdAppsAppIdMembersGetParams,
-  ReadAppDataApiV1CGuildIdAppsAppIdEndpointsEndpointIdGetParams,
-  ReadAppParamOptionsApiV1CGuildIdAppsAppIdEndpointsEndpointIdOptionsGetParams,
+  ListCommunityAppMembersParams,
+  ReadAppDataParams,
+  ReadAppParamOptionsParams,
 } from "../initiativeAPI.schemas";
 
 import { apiMutator } from "../../mutator";
@@ -78,86 +78,69 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
  * so offering them would be offering a binding that cannot resolve.
  * @summary Read App Widget Catalog
  */
-export const readAppWidgetCatalogApiV1CGuildIdAppsWidgetCatalogGet = (
-  guildId: number,
+export const readAppWidgetCatalog = (
+  communityId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<AppWidgetCatalogResponse>(
-    { url: `/api/v1/c/${guildId}/apps/widget-catalog`, method: "GET", signal },
+    { url: `/api/v1/c/${communityId}/apps/widget-catalog`, method: "GET", signal },
     options
   );
 };
 
-export const getReadAppWidgetCatalogApiV1CGuildIdAppsWidgetCatalogGetQueryKey = (
-  guildId: number
-) => {
-  return [`/api/v1/c/${guildId}/apps/widget-catalog`] as const;
+export const getReadAppWidgetCatalogQueryKey = (communityId: number) => {
+  return [`/api/v1/c/${communityId}/apps/widget-catalog`] as const;
 };
 
-export const getReadAppWidgetCatalogApiV1CGuildIdAppsWidgetCatalogGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof readAppWidgetCatalogApiV1CGuildIdAppsWidgetCatalogGet>>,
+export const getReadAppWidgetCatalogQueryOptions = <
+  TData = Awaited<ReturnType<typeof readAppWidgetCatalog>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readAppWidgetCatalogApiV1CGuildIdAppsWidgetCatalogGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof readAppWidgetCatalog>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   }
 ) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey =
-    queryOptions?.queryKey ??
-    getReadAppWidgetCatalogApiV1CGuildIdAppsWidgetCatalogGetQueryKey(guildId);
+  const queryKey = queryOptions?.queryKey ?? getReadAppWidgetCatalogQueryKey(communityId);
 
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof readAppWidgetCatalogApiV1CGuildIdAppsWidgetCatalogGet>>
-  > = ({ signal }) =>
-    readAppWidgetCatalogApiV1CGuildIdAppsWidgetCatalogGet(guildId, requestOptions, signal);
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof readAppWidgetCatalog>>> = ({ signal }) =>
+    readAppWidgetCatalog(communityId, requestOptions, signal);
 
   return {
     queryKey,
     queryFn,
-    enabled: guildId !== null && guildId !== undefined,
+    enabled: communityId !== null && communityId !== undefined,
     ...queryOptions,
-  } as UseQueryOptions<
-    Awaited<ReturnType<typeof readAppWidgetCatalogApiV1CGuildIdAppsWidgetCatalogGet>>,
-    TError,
-    TData
-  > & { queryKey: DataTag<QueryKey, TData, TError> };
+  } as UseQueryOptions<Awaited<ReturnType<typeof readAppWidgetCatalog>>, TError, TData> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 };
 
-export type ReadAppWidgetCatalogApiV1CGuildIdAppsWidgetCatalogGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof readAppWidgetCatalogApiV1CGuildIdAppsWidgetCatalogGet>>
+export type ReadAppWidgetCatalogQueryResult = NonNullable<
+  Awaited<ReturnType<typeof readAppWidgetCatalog>>
 >;
-export type ReadAppWidgetCatalogApiV1CGuildIdAppsWidgetCatalogGetQueryError =
-  ErrorType<HTTPValidationError>;
+export type ReadAppWidgetCatalogQueryError = ErrorType<HTTPValidationError>;
 
-export function useReadAppWidgetCatalogApiV1CGuildIdAppsWidgetCatalogGet<
-  TData = Awaited<ReturnType<typeof readAppWidgetCatalogApiV1CGuildIdAppsWidgetCatalogGet>>,
+export function useReadAppWidgetCatalog<
+  TData = Awaited<ReturnType<typeof readAppWidgetCatalog>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   options: {
     query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readAppWidgetCatalogApiV1CGuildIdAppsWidgetCatalogGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof readAppWidgetCatalog>>, TError, TData>
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readAppWidgetCatalogApiV1CGuildIdAppsWidgetCatalogGet>>,
+          Awaited<ReturnType<typeof readAppWidgetCatalog>>,
           TError,
-          Awaited<ReturnType<typeof readAppWidgetCatalogApiV1CGuildIdAppsWidgetCatalogGet>>
+          Awaited<ReturnType<typeof readAppWidgetCatalog>>
         >,
         "initialData"
       >;
@@ -165,24 +148,20 @@ export function useReadAppWidgetCatalogApiV1CGuildIdAppsWidgetCatalogGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadAppWidgetCatalogApiV1CGuildIdAppsWidgetCatalogGet<
-  TData = Awaited<ReturnType<typeof readAppWidgetCatalogApiV1CGuildIdAppsWidgetCatalogGet>>,
+export function useReadAppWidgetCatalog<
+  TData = Awaited<ReturnType<typeof readAppWidgetCatalog>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readAppWidgetCatalogApiV1CGuildIdAppsWidgetCatalogGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof readAppWidgetCatalog>>, TError, TData>
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readAppWidgetCatalogApiV1CGuildIdAppsWidgetCatalogGet>>,
+          Awaited<ReturnType<typeof readAppWidgetCatalog>>,
           TError,
-          Awaited<ReturnType<typeof readAppWidgetCatalogApiV1CGuildIdAppsWidgetCatalogGet>>
+          Awaited<ReturnType<typeof readAppWidgetCatalog>>
         >,
         "initialData"
       >;
@@ -190,18 +169,14 @@ export function useReadAppWidgetCatalogApiV1CGuildIdAppsWidgetCatalogGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadAppWidgetCatalogApiV1CGuildIdAppsWidgetCatalogGet<
-  TData = Awaited<ReturnType<typeof readAppWidgetCatalogApiV1CGuildIdAppsWidgetCatalogGet>>,
+export function useReadAppWidgetCatalog<
+  TData = Awaited<ReturnType<typeof readAppWidgetCatalog>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readAppWidgetCatalogApiV1CGuildIdAppsWidgetCatalogGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof readAppWidgetCatalog>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
@@ -211,27 +186,20 @@ export function useReadAppWidgetCatalogApiV1CGuildIdAppsWidgetCatalogGet<
  * @summary Read App Widget Catalog
  */
 
-export function useReadAppWidgetCatalogApiV1CGuildIdAppsWidgetCatalogGet<
-  TData = Awaited<ReturnType<typeof readAppWidgetCatalogApiV1CGuildIdAppsWidgetCatalogGet>>,
+export function useReadAppWidgetCatalog<
+  TData = Awaited<ReturnType<typeof readAppWidgetCatalog>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readAppWidgetCatalogApiV1CGuildIdAppsWidgetCatalogGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof readAppWidgetCatalog>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getReadAppWidgetCatalogApiV1CGuildIdAppsWidgetCatalogGetQueryOptions(
-    guildId,
-    options
-  );
+  const queryOptions = getReadAppWidgetCatalogQueryOptions(communityId, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -249,17 +217,17 @@ export function useReadAppWidgetCatalogApiV1CGuildIdAppsWidgetCatalogGet<
  * error tile instead of the request becoming a server fault.
  * @summary Read App Data
  */
-export const readAppDataApiV1CGuildIdAppsAppIdEndpointsEndpointIdGet = (
-  guildId: number,
+export const readAppData = (
+  communityId: number,
   appId: number,
   endpointId: string,
-  params: ReadAppDataApiV1CGuildIdAppsAppIdEndpointsEndpointIdGetParams,
+  params: ReadAppDataParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<AppDataResponse>(
     {
-      url: `/api/v1/c/${guildId}/apps/${appId}/endpoints/${endpointId}`,
+      url: `/api/v1/c/${communityId}/apps/${appId}/endpoints/${endpointId}`,
       method: "GET",
       params,
       signal,
@@ -268,105 +236,73 @@ export const readAppDataApiV1CGuildIdAppsAppIdEndpointsEndpointIdGet = (
   );
 };
 
-export const getReadAppDataApiV1CGuildIdAppsAppIdEndpointsEndpointIdGetQueryKey = (
-  guildId: number,
+export const getReadAppDataQueryKey = (
+  communityId: number,
   appId: number,
   endpointId: string,
-  params?: ReadAppDataApiV1CGuildIdAppsAppIdEndpointsEndpointIdGetParams
+  params?: ReadAppDataParams
 ) => {
   return [
-    `/api/v1/c/${guildId}/apps/${appId}/endpoints/${endpointId}`,
+    `/api/v1/c/${communityId}/apps/${appId}/endpoints/${endpointId}`,
     ...(params ? [params] : []),
   ] as const;
 };
 
-export const getReadAppDataApiV1CGuildIdAppsAppIdEndpointsEndpointIdGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof readAppDataApiV1CGuildIdAppsAppIdEndpointsEndpointIdGet>>,
+export const getReadAppDataQueryOptions = <
+  TData = Awaited<ReturnType<typeof readAppData>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   appId: number,
   endpointId: string,
-  params: ReadAppDataApiV1CGuildIdAppsAppIdEndpointsEndpointIdGetParams,
+  params: ReadAppDataParams,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readAppDataApiV1CGuildIdAppsAppIdEndpointsEndpointIdGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readAppData>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   }
 ) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
   const queryKey =
-    queryOptions?.queryKey ??
-    getReadAppDataApiV1CGuildIdAppsAppIdEndpointsEndpointIdGetQueryKey(
-      guildId,
-      appId,
-      endpointId,
-      params
-    );
+    queryOptions?.queryKey ?? getReadAppDataQueryKey(communityId, appId, endpointId, params);
 
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof readAppDataApiV1CGuildIdAppsAppIdEndpointsEndpointIdGet>>
-  > = ({ signal }) =>
-    readAppDataApiV1CGuildIdAppsAppIdEndpointsEndpointIdGet(
-      guildId,
-      appId,
-      endpointId,
-      params,
-      requestOptions,
-      signal
-    );
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof readAppData>>> = ({ signal }) =>
+    readAppData(communityId, appId, endpointId, params, requestOptions, signal);
 
   return {
     queryKey,
     queryFn,
     enabled:
-      guildId !== null &&
-      guildId !== undefined &&
+      communityId !== null &&
+      communityId !== undefined &&
       appId !== null &&
       appId !== undefined &&
       endpointId !== null &&
       endpointId !== undefined,
     ...queryOptions,
-  } as UseQueryOptions<
-    Awaited<ReturnType<typeof readAppDataApiV1CGuildIdAppsAppIdEndpointsEndpointIdGet>>,
-    TError,
-    TData
-  > & { queryKey: DataTag<QueryKey, TData, TError> };
+  } as UseQueryOptions<Awaited<ReturnType<typeof readAppData>>, TError, TData> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 };
 
-export type ReadAppDataApiV1CGuildIdAppsAppIdEndpointsEndpointIdGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof readAppDataApiV1CGuildIdAppsAppIdEndpointsEndpointIdGet>>
->;
-export type ReadAppDataApiV1CGuildIdAppsAppIdEndpointsEndpointIdGetQueryError =
-  ErrorType<HTTPValidationError>;
+export type ReadAppDataQueryResult = NonNullable<Awaited<ReturnType<typeof readAppData>>>;
+export type ReadAppDataQueryError = ErrorType<HTTPValidationError>;
 
-export function useReadAppDataApiV1CGuildIdAppsAppIdEndpointsEndpointIdGet<
-  TData = Awaited<ReturnType<typeof readAppDataApiV1CGuildIdAppsAppIdEndpointsEndpointIdGet>>,
+export function useReadAppData<
+  TData = Awaited<ReturnType<typeof readAppData>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   appId: number,
   endpointId: string,
-  params: ReadAppDataApiV1CGuildIdAppsAppIdEndpointsEndpointIdGetParams,
+  params: ReadAppDataParams,
   options: {
-    query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readAppDataApiV1CGuildIdAppsAppIdEndpointsEndpointIdGet>>,
-        TError,
-        TData
-      >
-    > &
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof readAppData>>, TError, TData>> &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readAppDataApiV1CGuildIdAppsAppIdEndpointsEndpointIdGet>>,
+          Awaited<ReturnType<typeof readAppData>>,
           TError,
-          Awaited<ReturnType<typeof readAppDataApiV1CGuildIdAppsAppIdEndpointsEndpointIdGet>>
+          Awaited<ReturnType<typeof readAppData>>
         >,
         "initialData"
       >;
@@ -374,27 +310,21 @@ export function useReadAppDataApiV1CGuildIdAppsAppIdEndpointsEndpointIdGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadAppDataApiV1CGuildIdAppsAppIdEndpointsEndpointIdGet<
-  TData = Awaited<ReturnType<typeof readAppDataApiV1CGuildIdAppsAppIdEndpointsEndpointIdGet>>,
+export function useReadAppData<
+  TData = Awaited<ReturnType<typeof readAppData>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   appId: number,
   endpointId: string,
-  params: ReadAppDataApiV1CGuildIdAppsAppIdEndpointsEndpointIdGetParams,
+  params: ReadAppDataParams,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readAppDataApiV1CGuildIdAppsAppIdEndpointsEndpointIdGet>>,
-        TError,
-        TData
-      >
-    > &
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readAppData>>, TError, TData>> &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readAppDataApiV1CGuildIdAppsAppIdEndpointsEndpointIdGet>>,
+          Awaited<ReturnType<typeof readAppData>>,
           TError,
-          Awaited<ReturnType<typeof readAppDataApiV1CGuildIdAppsAppIdEndpointsEndpointIdGet>>
+          Awaited<ReturnType<typeof readAppData>>
         >,
         "initialData"
       >;
@@ -402,22 +332,16 @@ export function useReadAppDataApiV1CGuildIdAppsAppIdEndpointsEndpointIdGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadAppDataApiV1CGuildIdAppsAppIdEndpointsEndpointIdGet<
-  TData = Awaited<ReturnType<typeof readAppDataApiV1CGuildIdAppsAppIdEndpointsEndpointIdGet>>,
+export function useReadAppData<
+  TData = Awaited<ReturnType<typeof readAppData>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   appId: number,
   endpointId: string,
-  params: ReadAppDataApiV1CGuildIdAppsAppIdEndpointsEndpointIdGetParams,
+  params: ReadAppDataParams,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readAppDataApiV1CGuildIdAppsAppIdEndpointsEndpointIdGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readAppData>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
@@ -426,33 +350,21 @@ export function useReadAppDataApiV1CGuildIdAppsAppIdEndpointsEndpointIdGet<
  * @summary Read App Data
  */
 
-export function useReadAppDataApiV1CGuildIdAppsAppIdEndpointsEndpointIdGet<
-  TData = Awaited<ReturnType<typeof readAppDataApiV1CGuildIdAppsAppIdEndpointsEndpointIdGet>>,
+export function useReadAppData<
+  TData = Awaited<ReturnType<typeof readAppData>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   appId: number,
   endpointId: string,
-  params: ReadAppDataApiV1CGuildIdAppsAppIdEndpointsEndpointIdGetParams,
+  params: ReadAppDataParams,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readAppDataApiV1CGuildIdAppsAppIdEndpointsEndpointIdGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readAppData>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getReadAppDataApiV1CGuildIdAppsAppIdEndpointsEndpointIdGetQueryOptions(
-    guildId,
-    appId,
-    endpointId,
-    params,
-    options
-  );
+  const queryOptions = getReadAppDataQueryOptions(communityId, appId, endpointId, params, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -481,17 +393,17 @@ export function useReadAppDataApiV1CGuildIdAppsAppIdEndpointsEndpointIdGet<
  * ``unavailable`` with no options, and the parameter stays typeable.
  * @summary Read App Param Options
  */
-export const readAppParamOptionsApiV1CGuildIdAppsAppIdEndpointsEndpointIdOptionsGet = (
-  guildId: number,
+export const readAppParamOptions = (
+  communityId: number,
   appId: number,
   endpointId: string,
-  params: ReadAppParamOptionsApiV1CGuildIdAppsAppIdEndpointsEndpointIdOptionsGetParams,
+  params: ReadAppParamOptionsParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<AppParamOptionsResponse>(
     {
-      url: `/api/v1/c/${guildId}/apps/${appId}/endpoints/${endpointId}/options`,
+      url: `/api/v1/c/${communityId}/apps/${appId}/endpoints/${endpointId}/options`,
       method: "GET",
       params,
       signal,
@@ -500,131 +412,80 @@ export const readAppParamOptionsApiV1CGuildIdAppsAppIdEndpointsEndpointIdOptions
   );
 };
 
-export const getReadAppParamOptionsApiV1CGuildIdAppsAppIdEndpointsEndpointIdOptionsGetQueryKey = (
-  guildId: number,
+export const getReadAppParamOptionsQueryKey = (
+  communityId: number,
   appId: number,
   endpointId: string,
-  params?: ReadAppParamOptionsApiV1CGuildIdAppsAppIdEndpointsEndpointIdOptionsGetParams
+  params?: ReadAppParamOptionsParams
 ) => {
   return [
-    `/api/v1/c/${guildId}/apps/${appId}/endpoints/${endpointId}/options`,
+    `/api/v1/c/${communityId}/apps/${appId}/endpoints/${endpointId}/options`,
     ...(params ? [params] : []),
   ] as const;
 };
 
-export const getReadAppParamOptionsApiV1CGuildIdAppsAppIdEndpointsEndpointIdOptionsGetQueryOptions =
-  <
-    TData = Awaited<
-      ReturnType<typeof readAppParamOptionsApiV1CGuildIdAppsAppIdEndpointsEndpointIdOptionsGet>
-    >,
-    TError = ErrorType<HTTPValidationError>,
-  >(
-    guildId: number,
-    appId: number,
-    endpointId: string,
-    params: ReadAppParamOptionsApiV1CGuildIdAppsAppIdEndpointsEndpointIdOptionsGetParams,
-    options?: {
-      query?: Partial<
-        UseQueryOptions<
-          Awaited<
-            ReturnType<
-              typeof readAppParamOptionsApiV1CGuildIdAppsAppIdEndpointsEndpointIdOptionsGet
-            >
-          >,
-          TError,
-          TData
-        >
-      >;
-      request?: SecondParameter<typeof apiMutator>;
-    }
-  ) => {
-    const { query: queryOptions, request: requestOptions } = options ?? {};
-
-    const queryKey =
-      queryOptions?.queryKey ??
-      getReadAppParamOptionsApiV1CGuildIdAppsAppIdEndpointsEndpointIdOptionsGetQueryKey(
-        guildId,
-        appId,
-        endpointId,
-        params
-      );
-
-    const queryFn: QueryFunction<
-      Awaited<
-        ReturnType<typeof readAppParamOptionsApiV1CGuildIdAppsAppIdEndpointsEndpointIdOptionsGet>
-      >
-    > = ({ signal }) =>
-      readAppParamOptionsApiV1CGuildIdAppsAppIdEndpointsEndpointIdOptionsGet(
-        guildId,
-        appId,
-        endpointId,
-        params,
-        requestOptions,
-        signal
-      );
-
-    return {
-      queryKey,
-      queryFn,
-      enabled:
-        guildId !== null &&
-        guildId !== undefined &&
-        appId !== null &&
-        appId !== undefined &&
-        endpointId !== null &&
-        endpointId !== undefined,
-      ...queryOptions,
-    } as UseQueryOptions<
-      Awaited<
-        ReturnType<typeof readAppParamOptionsApiV1CGuildIdAppsAppIdEndpointsEndpointIdOptionsGet>
-      >,
-      TError,
-      TData
-    > & { queryKey: DataTag<QueryKey, TData, TError> };
-  };
-
-export type ReadAppParamOptionsApiV1CGuildIdAppsAppIdEndpointsEndpointIdOptionsGetQueryResult =
-  NonNullable<
-    Awaited<
-      ReturnType<typeof readAppParamOptionsApiV1CGuildIdAppsAppIdEndpointsEndpointIdOptionsGet>
-    >
-  >;
-export type ReadAppParamOptionsApiV1CGuildIdAppsAppIdEndpointsEndpointIdOptionsGetQueryError =
-  ErrorType<HTTPValidationError>;
-
-export function useReadAppParamOptionsApiV1CGuildIdAppsAppIdEndpointsEndpointIdOptionsGet<
-  TData = Awaited<
-    ReturnType<typeof readAppParamOptionsApiV1CGuildIdAppsAppIdEndpointsEndpointIdOptionsGet>
-  >,
+export const getReadAppParamOptionsQueryOptions = <
+  TData = Awaited<ReturnType<typeof readAppParamOptions>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   appId: number,
   endpointId: string,
-  params: ReadAppParamOptionsApiV1CGuildIdAppsAppIdEndpointsEndpointIdOptionsGetParams,
+  params: ReadAppParamOptionsParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof readAppParamOptions>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getReadAppParamOptionsQueryKey(communityId, appId, endpointId, params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof readAppParamOptions>>> = ({ signal }) =>
+    readAppParamOptions(communityId, appId, endpointId, params, requestOptions, signal);
+
+  return {
+    queryKey,
+    queryFn,
+    enabled:
+      communityId !== null &&
+      communityId !== undefined &&
+      appId !== null &&
+      appId !== undefined &&
+      endpointId !== null &&
+      endpointId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<Awaited<ReturnType<typeof readAppParamOptions>>, TError, TData> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+};
+
+export type ReadAppParamOptionsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof readAppParamOptions>>
+>;
+export type ReadAppParamOptionsQueryError = ErrorType<HTTPValidationError>;
+
+export function useReadAppParamOptions<
+  TData = Awaited<ReturnType<typeof readAppParamOptions>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  communityId: number,
+  appId: number,
+  endpointId: string,
+  params: ReadAppParamOptionsParams,
   options: {
     query: Partial<
-      UseQueryOptions<
-        Awaited<
-          ReturnType<typeof readAppParamOptionsApiV1CGuildIdAppsAppIdEndpointsEndpointIdOptionsGet>
-        >,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof readAppParamOptions>>, TError, TData>
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<
-            ReturnType<
-              typeof readAppParamOptionsApiV1CGuildIdAppsAppIdEndpointsEndpointIdOptionsGet
-            >
-          >,
+          Awaited<ReturnType<typeof readAppParamOptions>>,
           TError,
-          Awaited<
-            ReturnType<
-              typeof readAppParamOptionsApiV1CGuildIdAppsAppIdEndpointsEndpointIdOptionsGet
-            >
-          >
+          Awaited<ReturnType<typeof readAppParamOptions>>
         >,
         "initialData"
       >;
@@ -632,39 +493,23 @@ export function useReadAppParamOptionsApiV1CGuildIdAppsAppIdEndpointsEndpointIdO
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadAppParamOptionsApiV1CGuildIdAppsAppIdEndpointsEndpointIdOptionsGet<
-  TData = Awaited<
-    ReturnType<typeof readAppParamOptionsApiV1CGuildIdAppsAppIdEndpointsEndpointIdOptionsGet>
-  >,
+export function useReadAppParamOptions<
+  TData = Awaited<ReturnType<typeof readAppParamOptions>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   appId: number,
   endpointId: string,
-  params: ReadAppParamOptionsApiV1CGuildIdAppsAppIdEndpointsEndpointIdOptionsGetParams,
+  params: ReadAppParamOptionsParams,
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<
-          ReturnType<typeof readAppParamOptionsApiV1CGuildIdAppsAppIdEndpointsEndpointIdOptionsGet>
-        >,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof readAppParamOptions>>, TError, TData>
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<
-            ReturnType<
-              typeof readAppParamOptionsApiV1CGuildIdAppsAppIdEndpointsEndpointIdOptionsGet
-            >
-          >,
+          Awaited<ReturnType<typeof readAppParamOptions>>,
           TError,
-          Awaited<
-            ReturnType<
-              typeof readAppParamOptionsApiV1CGuildIdAppsAppIdEndpointsEndpointIdOptionsGet
-            >
-          >
+          Awaited<ReturnType<typeof readAppParamOptions>>
         >,
         "initialData"
       >;
@@ -672,25 +517,17 @@ export function useReadAppParamOptionsApiV1CGuildIdAppsAppIdEndpointsEndpointIdO
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadAppParamOptionsApiV1CGuildIdAppsAppIdEndpointsEndpointIdOptionsGet<
-  TData = Awaited<
-    ReturnType<typeof readAppParamOptionsApiV1CGuildIdAppsAppIdEndpointsEndpointIdOptionsGet>
-  >,
+export function useReadAppParamOptions<
+  TData = Awaited<ReturnType<typeof readAppParamOptions>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   appId: number,
   endpointId: string,
-  params: ReadAppParamOptionsApiV1CGuildIdAppsAppIdEndpointsEndpointIdOptionsGetParams,
+  params: ReadAppParamOptionsParams,
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<
-          ReturnType<typeof readAppParamOptionsApiV1CGuildIdAppsAppIdEndpointsEndpointIdOptionsGet>
-        >,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof readAppParamOptions>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
@@ -700,38 +537,29 @@ export function useReadAppParamOptionsApiV1CGuildIdAppsAppIdEndpointsEndpointIdO
  * @summary Read App Param Options
  */
 
-export function useReadAppParamOptionsApiV1CGuildIdAppsAppIdEndpointsEndpointIdOptionsGet<
-  TData = Awaited<
-    ReturnType<typeof readAppParamOptionsApiV1CGuildIdAppsAppIdEndpointsEndpointIdOptionsGet>
-  >,
+export function useReadAppParamOptions<
+  TData = Awaited<ReturnType<typeof readAppParamOptions>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   appId: number,
   endpointId: string,
-  params: ReadAppParamOptionsApiV1CGuildIdAppsAppIdEndpointsEndpointIdOptionsGetParams,
+  params: ReadAppParamOptionsParams,
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<
-          ReturnType<typeof readAppParamOptionsApiV1CGuildIdAppsAppIdEndpointsEndpointIdOptionsGet>
-        >,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof readAppParamOptions>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions =
-    getReadAppParamOptionsApiV1CGuildIdAppsAppIdEndpointsEndpointIdOptionsGetQueryOptions(
-      guildId,
-      appId,
-      endpointId,
-      params,
-      options
-    );
+  const queryOptions = getReadAppParamOptionsQueryOptions(
+    communityId,
+    appId,
+    endpointId,
+    params,
+    options
+  );
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -748,74 +576,67 @@ export function useReadAppParamOptionsApiV1CGuildIdAppsAppIdEndpointsEndpointIdO
  * switched off comes back too, marked unavailable — an install that quietly
  * vanished would leave an admin with nothing to look at and nothing to
  * remove.
- * @summary List Guild Apps
+ * @summary List Community Apps
  */
-export const listGuildAppsApiV1CGuildIdAppsGet = (
-  guildId: number,
+export const listCommunityApps = (
+  communityId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<CommunityAppListResponse>(
-    { url: `/api/v1/c/${guildId}/apps/`, method: "GET", signal },
+    { url: `/api/v1/c/${communityId}/apps/`, method: "GET", signal },
     options
   );
 };
 
-export const getListGuildAppsApiV1CGuildIdAppsGetQueryKey = (guildId: number) => {
-  return [`/api/v1/c/${guildId}/apps/`] as const;
+export const getListCommunityAppsQueryKey = (communityId: number) => {
+  return [`/api/v1/c/${communityId}/apps/`] as const;
 };
 
-export const getListGuildAppsApiV1CGuildIdAppsGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof listGuildAppsApiV1CGuildIdAppsGet>>,
+export const getListCommunityAppsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listCommunityApps>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   options?: {
-    query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listGuildAppsApiV1CGuildIdAppsGet>>, TError, TData>
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listCommunityApps>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   }
 ) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey = queryOptions?.queryKey ?? getListGuildAppsApiV1CGuildIdAppsGetQueryKey(guildId);
+  const queryKey = queryOptions?.queryKey ?? getListCommunityAppsQueryKey(communityId);
 
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof listGuildAppsApiV1CGuildIdAppsGet>>> = ({
-    signal,
-  }) => listGuildAppsApiV1CGuildIdAppsGet(guildId, requestOptions, signal);
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listCommunityApps>>> = ({ signal }) =>
+    listCommunityApps(communityId, requestOptions, signal);
 
   return {
     queryKey,
     queryFn,
-    enabled: guildId !== null && guildId !== undefined,
+    enabled: communityId !== null && communityId !== undefined,
     ...queryOptions,
-  } as UseQueryOptions<
-    Awaited<ReturnType<typeof listGuildAppsApiV1CGuildIdAppsGet>>,
-    TError,
-    TData
-  > & { queryKey: DataTag<QueryKey, TData, TError> };
+  } as UseQueryOptions<Awaited<ReturnType<typeof listCommunityApps>>, TError, TData> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 };
 
-export type ListGuildAppsApiV1CGuildIdAppsGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof listGuildAppsApiV1CGuildIdAppsGet>>
+export type ListCommunityAppsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listCommunityApps>>
 >;
-export type ListGuildAppsApiV1CGuildIdAppsGetQueryError = ErrorType<HTTPValidationError>;
+export type ListCommunityAppsQueryError = ErrorType<HTTPValidationError>;
 
-export function useListGuildAppsApiV1CGuildIdAppsGet<
-  TData = Awaited<ReturnType<typeof listGuildAppsApiV1CGuildIdAppsGet>>,
+export function useListCommunityApps<
+  TData = Awaited<ReturnType<typeof listCommunityApps>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   options: {
-    query: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listGuildAppsApiV1CGuildIdAppsGet>>, TError, TData>
-    > &
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof listCommunityApps>>, TError, TData>> &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listGuildAppsApiV1CGuildIdAppsGet>>,
+          Awaited<ReturnType<typeof listCommunityApps>>,
           TError,
-          Awaited<ReturnType<typeof listGuildAppsApiV1CGuildIdAppsGet>>
+          Awaited<ReturnType<typeof listCommunityApps>>
         >,
         "initialData"
       >;
@@ -823,20 +644,18 @@ export function useListGuildAppsApiV1CGuildIdAppsGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListGuildAppsApiV1CGuildIdAppsGet<
-  TData = Awaited<ReturnType<typeof listGuildAppsApiV1CGuildIdAppsGet>>,
+export function useListCommunityApps<
+  TData = Awaited<ReturnType<typeof listCommunityApps>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   options?: {
-    query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listGuildAppsApiV1CGuildIdAppsGet>>, TError, TData>
-    > &
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listCommunityApps>>, TError, TData>> &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listGuildAppsApiV1CGuildIdAppsGet>>,
+          Awaited<ReturnType<typeof listCommunityApps>>,
           TError,
-          Awaited<ReturnType<typeof listGuildAppsApiV1CGuildIdAppsGet>>
+          Awaited<ReturnType<typeof listCommunityApps>>
         >,
         "initialData"
       >;
@@ -844,37 +663,33 @@ export function useListGuildAppsApiV1CGuildIdAppsGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListGuildAppsApiV1CGuildIdAppsGet<
-  TData = Awaited<ReturnType<typeof listGuildAppsApiV1CGuildIdAppsGet>>,
+export function useListCommunityApps<
+  TData = Awaited<ReturnType<typeof listCommunityApps>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   options?: {
-    query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listGuildAppsApiV1CGuildIdAppsGet>>, TError, TData>
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listCommunityApps>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
- * @summary List Guild Apps
+ * @summary List Community Apps
  */
 
-export function useListGuildAppsApiV1CGuildIdAppsGet<
-  TData = Awaited<ReturnType<typeof listGuildAppsApiV1CGuildIdAppsGet>>,
+export function useListCommunityApps<
+  TData = Awaited<ReturnType<typeof listCommunityApps>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   options?: {
-    query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listGuildAppsApiV1CGuildIdAppsGet>>, TError, TData>
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listCommunityApps>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListGuildAppsApiV1CGuildIdAppsGetQueryOptions(guildId, options);
+  const queryOptions = getListCommunityAppsQueryOptions(communityId, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -900,17 +715,17 @@ export function useListGuildAppsApiV1CGuildIdAppsGet<
  * them), the initiatives the app is placed in (``"all"`` is every initiative
  * that exists now), and the built-in roles that open it in each. Anything
  * refused is refused before the install exists.
- * @summary Install Guild App
+ * @summary Install Community App
  */
-export const installGuildAppApiV1CGuildIdAppsPost = (
-  guildId: number,
+export const installCommunityApp = (
+  communityId: number,
   communityAppInstall: BodyType<CommunityAppInstall>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<CommunityAppRead>(
     {
-      url: `/api/v1/c/${guildId}/apps/`,
+      url: `/api/v1/c/${communityId}/apps/`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
       data: communityAppInstall,
@@ -920,27 +735,26 @@ export const installGuildAppApiV1CGuildIdAppsPost = (
   );
 };
 
-export const getInstallGuildAppApiV1CGuildIdAppsPostMutationKey = () =>
-  ["installGuildAppApiV1CGuildIdAppsPost"] as const;
+export const getInstallCommunityAppMutationKey = () => ["installCommunityApp"] as const;
 
-export const getInstallGuildAppApiV1CGuildIdAppsPostMutationOptions = <
+export const getInstallCommunityAppMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof installGuildAppApiV1CGuildIdAppsPost>>,
+    Awaited<ReturnType<typeof installCommunityApp>>,
     TError,
-    InstallGuildAppApiV1CGuildIdAppsPostMutationVariables,
+    InstallCommunityAppMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof installGuildAppApiV1CGuildIdAppsPost>>,
+  Awaited<ReturnType<typeof installCommunityApp>>,
   TError,
-  InstallGuildAppApiV1CGuildIdAppsPostMutationVariables,
+  InstallCommunityAppMutationVariables,
   TContext
 > => {
-  const mutationKey = getInstallGuildAppApiV1CGuildIdAppsPostMutationKey();
+  const mutationKey = getInstallCommunityAppMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -948,51 +762,48 @@ export const getInstallGuildAppApiV1CGuildIdAppsPostMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof installGuildAppApiV1CGuildIdAppsPost>>,
-    InstallGuildAppApiV1CGuildIdAppsPostMutationVariables
+    Awaited<ReturnType<typeof installCommunityApp>>,
+    InstallCommunityAppMutationVariables
   > = (props) => {
-    const { guildId, data } = props ?? {};
+    const { communityId, data } = props ?? {};
 
-    return installGuildAppApiV1CGuildIdAppsPost(guildId, data, requestOptions);
+    return installCommunityApp(communityId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type InstallGuildAppApiV1CGuildIdAppsPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof installGuildAppApiV1CGuildIdAppsPost>>
+export type InstallCommunityAppMutationResult = NonNullable<
+  Awaited<ReturnType<typeof installCommunityApp>>
 >;
-export type InstallGuildAppApiV1CGuildIdAppsPostMutationBody = BodyType<CommunityAppInstall>;
-export type InstallGuildAppApiV1CGuildIdAppsPostMutationError = ErrorType<HTTPValidationError>;
-export type InstallGuildAppApiV1CGuildIdAppsPostMutationVariables = {
-  guildId: number;
+export type InstallCommunityAppMutationBody = BodyType<CommunityAppInstall>;
+export type InstallCommunityAppMutationError = ErrorType<HTTPValidationError>;
+export type InstallCommunityAppMutationVariables = {
+  communityId: number;
   data: BodyType<CommunityAppInstall>;
 };
 
 /**
- * @summary Install Guild App
+ * @summary Install Community App
  */
-export const useInstallGuildAppApiV1CGuildIdAppsPost = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
+export const useInstallCommunityApp = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof installGuildAppApiV1CGuildIdAppsPost>>,
+      Awaited<ReturnType<typeof installCommunityApp>>,
       TError,
-      InstallGuildAppApiV1CGuildIdAppsPostMutationVariables,
+      InstallCommunityAppMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof installGuildAppApiV1CGuildIdAppsPost>>,
+  Awaited<ReturnType<typeof installCommunityApp>>,
   TError,
-  InstallGuildAppApiV1CGuildIdAppsPostMutationVariables,
+  InstallCommunityAppMutationVariables,
   TContext
 > => {
-  return useMutation(getInstallGuildAppApiV1CGuildIdAppsPostMutationOptions(options), queryClient);
+  return useMutation(getInstallCommunityAppMutationOptions(options), queryClient);
 };
 /**
  * One install with its connections, from the caller's own perspective.
@@ -1001,86 +812,69 @@ export const useInstallGuildAppApiV1CGuildIdAppsPost = <
  * caller's own state, and a guild-scoped one reports presence rather than
  * values to everybody but the seat that sets them, so there is nothing here
  * that belongs to somebody else.
- * @summary Get Guild App
+ * @summary Get Community App
  */
-export const getGuildAppApiV1CGuildIdAppsAppIdGet = (
-  guildId: number,
+export const getCommunityApp = (
+  communityId: number,
   appId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<CommunityAppDetail>(
-    { url: `/api/v1/c/${guildId}/apps/${appId}`, method: "GET", signal },
+    { url: `/api/v1/c/${communityId}/apps/${appId}`, method: "GET", signal },
     options
   );
 };
 
-export const getGetGuildAppApiV1CGuildIdAppsAppIdGetQueryKey = (guildId: number, appId: number) => {
-  return [`/api/v1/c/${guildId}/apps/${appId}`] as const;
+export const getGetCommunityAppQueryKey = (communityId: number, appId: number) => {
+  return [`/api/v1/c/${communityId}/apps/${appId}`] as const;
 };
 
-export const getGetGuildAppApiV1CGuildIdAppsAppIdGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof getGuildAppApiV1CGuildIdAppsAppIdGet>>,
+export const getGetCommunityAppQueryOptions = <
+  TData = Awaited<ReturnType<typeof getCommunityApp>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   appId: number,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getGuildAppApiV1CGuildIdAppsAppIdGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getCommunityApp>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   }
 ) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey =
-    queryOptions?.queryKey ?? getGetGuildAppApiV1CGuildIdAppsAppIdGetQueryKey(guildId, appId);
+  const queryKey = queryOptions?.queryKey ?? getGetCommunityAppQueryKey(communityId, appId);
 
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof getGuildAppApiV1CGuildIdAppsAppIdGet>>
-  > = ({ signal }) => getGuildAppApiV1CGuildIdAppsAppIdGet(guildId, appId, requestOptions, signal);
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getCommunityApp>>> = ({ signal }) =>
+    getCommunityApp(communityId, appId, requestOptions, signal);
 
   return {
     queryKey,
     queryFn,
-    enabled: guildId !== null && guildId !== undefined && appId !== null && appId !== undefined,
+    enabled:
+      communityId !== null && communityId !== undefined && appId !== null && appId !== undefined,
     ...queryOptions,
-  } as UseQueryOptions<
-    Awaited<ReturnType<typeof getGuildAppApiV1CGuildIdAppsAppIdGet>>,
-    TError,
-    TData
-  > & { queryKey: DataTag<QueryKey, TData, TError> };
+  } as UseQueryOptions<Awaited<ReturnType<typeof getCommunityApp>>, TError, TData> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 };
 
-export type GetGuildAppApiV1CGuildIdAppsAppIdGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof getGuildAppApiV1CGuildIdAppsAppIdGet>>
->;
-export type GetGuildAppApiV1CGuildIdAppsAppIdGetQueryError = ErrorType<HTTPValidationError>;
+export type GetCommunityAppQueryResult = NonNullable<Awaited<ReturnType<typeof getCommunityApp>>>;
+export type GetCommunityAppQueryError = ErrorType<HTTPValidationError>;
 
-export function useGetGuildAppApiV1CGuildIdAppsAppIdGet<
-  TData = Awaited<ReturnType<typeof getGuildAppApiV1CGuildIdAppsAppIdGet>>,
+export function useGetCommunityApp<
+  TData = Awaited<ReturnType<typeof getCommunityApp>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   appId: number,
   options: {
-    query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getGuildAppApiV1CGuildIdAppsAppIdGet>>,
-        TError,
-        TData
-      >
-    > &
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getCommunityApp>>, TError, TData>> &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getGuildAppApiV1CGuildIdAppsAppIdGet>>,
+          Awaited<ReturnType<typeof getCommunityApp>>,
           TError,
-          Awaited<ReturnType<typeof getGuildAppApiV1CGuildIdAppsAppIdGet>>
+          Awaited<ReturnType<typeof getCommunityApp>>
         >,
         "initialData"
       >;
@@ -1088,25 +882,19 @@ export function useGetGuildAppApiV1CGuildIdAppsAppIdGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetGuildAppApiV1CGuildIdAppsAppIdGet<
-  TData = Awaited<ReturnType<typeof getGuildAppApiV1CGuildIdAppsAppIdGet>>,
+export function useGetCommunityApp<
+  TData = Awaited<ReturnType<typeof getCommunityApp>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   appId: number,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getGuildAppApiV1CGuildIdAppsAppIdGet>>,
-        TError,
-        TData
-      >
-    > &
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getCommunityApp>>, TError, TData>> &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getGuildAppApiV1CGuildIdAppsAppIdGet>>,
+          Awaited<ReturnType<typeof getCommunityApp>>,
           TError,
-          Awaited<ReturnType<typeof getGuildAppApiV1CGuildIdAppsAppIdGet>>
+          Awaited<ReturnType<typeof getCommunityApp>>
         >,
         "initialData"
       >;
@@ -1114,47 +902,35 @@ export function useGetGuildAppApiV1CGuildIdAppsAppIdGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetGuildAppApiV1CGuildIdAppsAppIdGet<
-  TData = Awaited<ReturnType<typeof getGuildAppApiV1CGuildIdAppsAppIdGet>>,
+export function useGetCommunityApp<
+  TData = Awaited<ReturnType<typeof getCommunityApp>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   appId: number,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getGuildAppApiV1CGuildIdAppsAppIdGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getCommunityApp>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
- * @summary Get Guild App
+ * @summary Get Community App
  */
 
-export function useGetGuildAppApiV1CGuildIdAppsAppIdGet<
-  TData = Awaited<ReturnType<typeof getGuildAppApiV1CGuildIdAppsAppIdGet>>,
+export function useGetCommunityApp<
+  TData = Awaited<ReturnType<typeof getCommunityApp>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   appId: number,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getGuildAppApiV1CGuildIdAppsAppIdGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getCommunityApp>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getGetGuildAppApiV1CGuildIdAppsAppIdGetQueryOptions(guildId, appId, options);
+  const queryOptions = getGetCommunityAppQueryOptions(communityId, appId, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -1182,10 +958,10 @@ export function useGetGuildAppApiV1CGuildIdAppsAppIdGet<
  * the roles it had, a new one starts with its moderator role, and one left out
  * is removed. It is the community's own answer to where an app belongs rather
  * than a permission, so it reads the same for everyone, admins included.
- * @summary Update Guild App
+ * @summary Update Community App
  */
-export const updateGuildAppApiV1CGuildIdAppsAppIdPatch = (
-  guildId: number,
+export const updateCommunityApp = (
+  communityId: number,
   appId: number,
   communityAppUpdate: BodyType<CommunityAppUpdate>,
   options?: SecondParameter<typeof apiMutator>,
@@ -1193,7 +969,7 @@ export const updateGuildAppApiV1CGuildIdAppsAppIdPatch = (
 ) => {
   return apiMutator<CommunityAppRead>(
     {
-      url: `/api/v1/c/${guildId}/apps/${appId}`,
+      url: `/api/v1/c/${communityId}/apps/${appId}`,
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       data: communityAppUpdate,
@@ -1203,27 +979,26 @@ export const updateGuildAppApiV1CGuildIdAppsAppIdPatch = (
   );
 };
 
-export const getUpdateGuildAppApiV1CGuildIdAppsAppIdPatchMutationKey = () =>
-  ["updateGuildAppApiV1CGuildIdAppsAppIdPatch"] as const;
+export const getUpdateCommunityAppMutationKey = () => ["updateCommunityApp"] as const;
 
-export const getUpdateGuildAppApiV1CGuildIdAppsAppIdPatchMutationOptions = <
+export const getUpdateCommunityAppMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof updateGuildAppApiV1CGuildIdAppsAppIdPatch>>,
+    Awaited<ReturnType<typeof updateCommunityApp>>,
     TError,
-    UpdateGuildAppApiV1CGuildIdAppsAppIdPatchMutationVariables,
+    UpdateCommunityAppMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof updateGuildAppApiV1CGuildIdAppsAppIdPatch>>,
+  Awaited<ReturnType<typeof updateCommunityApp>>,
   TError,
-  UpdateGuildAppApiV1CGuildIdAppsAppIdPatchMutationVariables,
+  UpdateCommunityAppMutationVariables,
   TContext
 > => {
-  const mutationKey = getUpdateGuildAppApiV1CGuildIdAppsAppIdPatchMutationKey();
+  const mutationKey = getUpdateCommunityAppMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1231,55 +1006,49 @@ export const getUpdateGuildAppApiV1CGuildIdAppsAppIdPatchMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof updateGuildAppApiV1CGuildIdAppsAppIdPatch>>,
-    UpdateGuildAppApiV1CGuildIdAppsAppIdPatchMutationVariables
+    Awaited<ReturnType<typeof updateCommunityApp>>,
+    UpdateCommunityAppMutationVariables
   > = (props) => {
-    const { guildId, appId, data } = props ?? {};
+    const { communityId, appId, data } = props ?? {};
 
-    return updateGuildAppApiV1CGuildIdAppsAppIdPatch(guildId, appId, data, requestOptions);
+    return updateCommunityApp(communityId, appId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type UpdateGuildAppApiV1CGuildIdAppsAppIdPatchMutationResult = NonNullable<
-  Awaited<ReturnType<typeof updateGuildAppApiV1CGuildIdAppsAppIdPatch>>
+export type UpdateCommunityAppMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateCommunityApp>>
 >;
-export type UpdateGuildAppApiV1CGuildIdAppsAppIdPatchMutationBody = BodyType<CommunityAppUpdate>;
-export type UpdateGuildAppApiV1CGuildIdAppsAppIdPatchMutationError = ErrorType<HTTPValidationError>;
-export type UpdateGuildAppApiV1CGuildIdAppsAppIdPatchMutationVariables = {
-  guildId: number;
+export type UpdateCommunityAppMutationBody = BodyType<CommunityAppUpdate>;
+export type UpdateCommunityAppMutationError = ErrorType<HTTPValidationError>;
+export type UpdateCommunityAppMutationVariables = {
+  communityId: number;
   appId: number;
   data: BodyType<CommunityAppUpdate>;
 };
 
 /**
- * @summary Update Guild App
+ * @summary Update Community App
  */
-export const useUpdateGuildAppApiV1CGuildIdAppsAppIdPatch = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
+export const useUpdateCommunityApp = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof updateGuildAppApiV1CGuildIdAppsAppIdPatch>>,
+      Awaited<ReturnType<typeof updateCommunityApp>>,
       TError,
-      UpdateGuildAppApiV1CGuildIdAppsAppIdPatchMutationVariables,
+      UpdateCommunityAppMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof updateGuildAppApiV1CGuildIdAppsAppIdPatch>>,
+  Awaited<ReturnType<typeof updateCommunityApp>>,
   TError,
-  UpdateGuildAppApiV1CGuildIdAppsAppIdPatchMutationVariables,
+  UpdateCommunityAppMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getUpdateGuildAppApiV1CGuildIdAppsAppIdPatchMutationOptions(options),
-    queryClient
-  );
+  return useMutation(getUpdateCommunityAppMutationOptions(options), queryClient);
 };
 /**
  * Remove an app, ending its access and trashing what it created
@@ -1287,41 +1056,40 @@ export const useUpdateGuildAppApiV1CGuildIdAppsAppIdPatch = <
  *
  * An app the deployment provides to every guild is not removable here (§7.7):
  * the operator's registration decides whether it exists at all.
- * @summary Uninstall Guild App
+ * @summary Uninstall Community App
  */
-export const uninstallGuildAppApiV1CGuildIdAppsAppIdDelete = (
-  guildId: number,
+export const uninstallCommunityApp = (
+  communityId: number,
   appId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<void>(
-    { url: `/api/v1/c/${guildId}/apps/${appId}`, method: "DELETE", signal },
+    { url: `/api/v1/c/${communityId}/apps/${appId}`, method: "DELETE", signal },
     options
   );
 };
 
-export const getUninstallGuildAppApiV1CGuildIdAppsAppIdDeleteMutationKey = () =>
-  ["uninstallGuildAppApiV1CGuildIdAppsAppIdDelete"] as const;
+export const getUninstallCommunityAppMutationKey = () => ["uninstallCommunityApp"] as const;
 
-export const getUninstallGuildAppApiV1CGuildIdAppsAppIdDeleteMutationOptions = <
+export const getUninstallCommunityAppMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof uninstallGuildAppApiV1CGuildIdAppsAppIdDelete>>,
+    Awaited<ReturnType<typeof uninstallCommunityApp>>,
     TError,
-    UninstallGuildAppApiV1CGuildIdAppsAppIdDeleteMutationVariables,
+    UninstallCommunityAppMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof uninstallGuildAppApiV1CGuildIdAppsAppIdDelete>>,
+  Awaited<ReturnType<typeof uninstallCommunityApp>>,
   TError,
-  UninstallGuildAppApiV1CGuildIdAppsAppIdDeleteMutationVariables,
+  UninstallCommunityAppMutationVariables,
   TContext
 > => {
-  const mutationKey = getUninstallGuildAppApiV1CGuildIdAppsAppIdDeleteMutationKey();
+  const mutationKey = getUninstallCommunityAppMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1329,55 +1097,48 @@ export const getUninstallGuildAppApiV1CGuildIdAppsAppIdDeleteMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof uninstallGuildAppApiV1CGuildIdAppsAppIdDelete>>,
-    UninstallGuildAppApiV1CGuildIdAppsAppIdDeleteMutationVariables
+    Awaited<ReturnType<typeof uninstallCommunityApp>>,
+    UninstallCommunityAppMutationVariables
   > = (props) => {
-    const { guildId, appId } = props ?? {};
+    const { communityId, appId } = props ?? {};
 
-    return uninstallGuildAppApiV1CGuildIdAppsAppIdDelete(guildId, appId, requestOptions);
+    return uninstallCommunityApp(communityId, appId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type UninstallGuildAppApiV1CGuildIdAppsAppIdDeleteMutationResult = NonNullable<
-  Awaited<ReturnType<typeof uninstallGuildAppApiV1CGuildIdAppsAppIdDelete>>
+export type UninstallCommunityAppMutationResult = NonNullable<
+  Awaited<ReturnType<typeof uninstallCommunityApp>>
 >;
 
-export type UninstallGuildAppApiV1CGuildIdAppsAppIdDeleteMutationError =
-  ErrorType<HTTPValidationError>;
-export type UninstallGuildAppApiV1CGuildIdAppsAppIdDeleteMutationVariables = {
-  guildId: number;
-  appId: number;
-};
+export type UninstallCommunityAppMutationError = ErrorType<HTTPValidationError>;
+export type UninstallCommunityAppMutationVariables = { communityId: number; appId: number };
 
 /**
- * @summary Uninstall Guild App
+ * @summary Uninstall Community App
  */
-export const useUninstallGuildAppApiV1CGuildIdAppsAppIdDelete = <
+export const useUninstallCommunityApp = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof uninstallGuildAppApiV1CGuildIdAppsAppIdDelete>>,
+      Awaited<ReturnType<typeof uninstallCommunityApp>>,
       TError,
-      UninstallGuildAppApiV1CGuildIdAppsAppIdDeleteMutationVariables,
+      UninstallCommunityAppMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof uninstallGuildAppApiV1CGuildIdAppsAppIdDelete>>,
+  Awaited<ReturnType<typeof uninstallCommunityApp>>,
   TError,
-  UninstallGuildAppApiV1CGuildIdAppsAppIdDeleteMutationVariables,
+  UninstallCommunityAppMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getUninstallGuildAppApiV1CGuildIdAppsAppIdDeleteMutationOptions(options),
-    queryClient
-  );
+  return useMutation(getUninstallCommunityAppMutationOptions(options), queryClient);
 };
 /**
  * Re-pin an installed app to its listing's current version, now.
@@ -1398,10 +1159,10 @@ export const useUninstallGuildAppApiV1CGuildIdAppsAppIdDelete = <
  * ``payload`` names the version the seat was shown and the scopes it grants
  * with it. Without it the answer is 409, carrying what the version asks
  * for; so is a consent naming a version the catalog no longer offers.
- * @summary Upgrade Guild App
+ * @summary Upgrade Community App
  */
-export const upgradeGuildAppApiV1CGuildIdAppsAppIdUpgradePost = (
-  guildId: number,
+export const upgradeCommunityApp = (
+  communityId: number,
   appId: number,
   communityAppUpgradeNull?: BodyType<CommunityAppUpgrade | null> | null,
   options?: SecondParameter<typeof apiMutator>,
@@ -1409,7 +1170,7 @@ export const upgradeGuildAppApiV1CGuildIdAppsAppIdUpgradePost = (
 ) => {
   return apiMutator<CommunityAppDetail>(
     {
-      url: `/api/v1/c/${guildId}/apps/${appId}/upgrade`,
+      url: `/api/v1/c/${communityId}/apps/${appId}/upgrade`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
       data: communityAppUpgradeNull,
@@ -1419,27 +1180,26 @@ export const upgradeGuildAppApiV1CGuildIdAppsAppIdUpgradePost = (
   );
 };
 
-export const getUpgradeGuildAppApiV1CGuildIdAppsAppIdUpgradePostMutationKey = () =>
-  ["upgradeGuildAppApiV1CGuildIdAppsAppIdUpgradePost"] as const;
+export const getUpgradeCommunityAppMutationKey = () => ["upgradeCommunityApp"] as const;
 
-export const getUpgradeGuildAppApiV1CGuildIdAppsAppIdUpgradePostMutationOptions = <
+export const getUpgradeCommunityAppMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof upgradeGuildAppApiV1CGuildIdAppsAppIdUpgradePost>>,
+    Awaited<ReturnType<typeof upgradeCommunityApp>>,
     TError,
-    UpgradeGuildAppApiV1CGuildIdAppsAppIdUpgradePostMutationVariables,
+    UpgradeCommunityAppMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof upgradeGuildAppApiV1CGuildIdAppsAppIdUpgradePost>>,
+  Awaited<ReturnType<typeof upgradeCommunityApp>>,
   TError,
-  UpgradeGuildAppApiV1CGuildIdAppsAppIdUpgradePostMutationVariables,
+  UpgradeCommunityAppMutationVariables,
   TContext
 > => {
-  const mutationKey = getUpgradeGuildAppApiV1CGuildIdAppsAppIdUpgradePostMutationKey();
+  const mutationKey = getUpgradeCommunityAppMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1447,58 +1207,49 @@ export const getUpgradeGuildAppApiV1CGuildIdAppsAppIdUpgradePostMutationOptions 
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof upgradeGuildAppApiV1CGuildIdAppsAppIdUpgradePost>>,
-    UpgradeGuildAppApiV1CGuildIdAppsAppIdUpgradePostMutationVariables
+    Awaited<ReturnType<typeof upgradeCommunityApp>>,
+    UpgradeCommunityAppMutationVariables
   > = (props) => {
-    const { guildId, appId, data } = props ?? {};
+    const { communityId, appId, data } = props ?? {};
 
-    return upgradeGuildAppApiV1CGuildIdAppsAppIdUpgradePost(guildId, appId, data, requestOptions);
+    return upgradeCommunityApp(communityId, appId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type UpgradeGuildAppApiV1CGuildIdAppsAppIdUpgradePostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof upgradeGuildAppApiV1CGuildIdAppsAppIdUpgradePost>>
+export type UpgradeCommunityAppMutationResult = NonNullable<
+  Awaited<ReturnType<typeof upgradeCommunityApp>>
 >;
-export type UpgradeGuildAppApiV1CGuildIdAppsAppIdUpgradePostMutationBody =
-  | BodyType<CommunityAppUpgrade | null>
-  | undefined;
-export type UpgradeGuildAppApiV1CGuildIdAppsAppIdUpgradePostMutationError =
-  ErrorType<HTTPValidationError>;
-export type UpgradeGuildAppApiV1CGuildIdAppsAppIdUpgradePostMutationVariables = {
-  guildId: number;
+export type UpgradeCommunityAppMutationBody = BodyType<CommunityAppUpgrade | null> | undefined;
+export type UpgradeCommunityAppMutationError = ErrorType<HTTPValidationError>;
+export type UpgradeCommunityAppMutationVariables = {
+  communityId: number;
   appId: number;
   data?: BodyType<CommunityAppUpgrade | null>;
 };
 
 /**
- * @summary Upgrade Guild App
+ * @summary Upgrade Community App
  */
-export const useUpgradeGuildAppApiV1CGuildIdAppsAppIdUpgradePost = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
+export const useUpgradeCommunityApp = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof upgradeGuildAppApiV1CGuildIdAppsAppIdUpgradePost>>,
+      Awaited<ReturnType<typeof upgradeCommunityApp>>,
       TError,
-      UpgradeGuildAppApiV1CGuildIdAppsAppIdUpgradePostMutationVariables,
+      UpgradeCommunityAppMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof upgradeGuildAppApiV1CGuildIdAppsAppIdUpgradePost>>,
+  Awaited<ReturnType<typeof upgradeCommunityApp>>,
   TError,
-  UpgradeGuildAppApiV1CGuildIdAppsAppIdUpgradePostMutationVariables,
+  UpgradeCommunityAppMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getUpgradeGuildAppApiV1CGuildIdAppsAppIdUpgradePostMutationOptions(options),
-    queryClient
-  );
+  return useMutation(getUpgradeCommunityAppMutationOptions(options), queryClient);
 };
 /**
  * Keep the pinned version, and stop being asked about this one.
@@ -1506,10 +1257,10 @@ export const useUpgradeGuildAppApiV1CGuildIdAppsAppIdUpgradePost = <
  * The install goes on running the version it has, with the grant it has.
  * The sweep does not ask about the declined version again; a newer one is
  * asked about afresh. Accepting it later is still the Update button.
- * @summary Decline Guild App Upgrade
+ * @summary Decline Community App Upgrade
  */
-export const declineGuildAppUpgradeApiV1CGuildIdAppsAppIdUpgradeDeclinePost = (
-  guildId: number,
+export const declineCommunityAppUpgrade = (
+  communityId: number,
   appId: number,
   communityAppDecline: BodyType<CommunityAppDecline>,
   options?: SecondParameter<typeof apiMutator>,
@@ -1517,7 +1268,7 @@ export const declineGuildAppUpgradeApiV1CGuildIdAppsAppIdUpgradeDeclinePost = (
 ) => {
   return apiMutator<CommunityAppDetail>(
     {
-      url: `/api/v1/c/${guildId}/apps/${appId}/upgrade/decline`,
+      url: `/api/v1/c/${communityId}/apps/${appId}/upgrade/decline`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
       data: communityAppDecline,
@@ -1527,28 +1278,27 @@ export const declineGuildAppUpgradeApiV1CGuildIdAppsAppIdUpgradeDeclinePost = (
   );
 };
 
-export const getDeclineGuildAppUpgradeApiV1CGuildIdAppsAppIdUpgradeDeclinePostMutationKey = () =>
-  ["declineGuildAppUpgradeApiV1CGuildIdAppsAppIdUpgradeDeclinePost"] as const;
+export const getDeclineCommunityAppUpgradeMutationKey = () =>
+  ["declineCommunityAppUpgrade"] as const;
 
-export const getDeclineGuildAppUpgradeApiV1CGuildIdAppsAppIdUpgradeDeclinePostMutationOptions = <
+export const getDeclineCommunityAppUpgradeMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof declineGuildAppUpgradeApiV1CGuildIdAppsAppIdUpgradeDeclinePost>>,
+    Awaited<ReturnType<typeof declineCommunityAppUpgrade>>,
     TError,
-    DeclineGuildAppUpgradeApiV1CGuildIdAppsAppIdUpgradeDeclinePostMutationVariables,
+    DeclineCommunityAppUpgradeMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof declineGuildAppUpgradeApiV1CGuildIdAppsAppIdUpgradeDeclinePost>>,
+  Awaited<ReturnType<typeof declineCommunityAppUpgrade>>,
   TError,
-  DeclineGuildAppUpgradeApiV1CGuildIdAppsAppIdUpgradeDeclinePostMutationVariables,
+  DeclineCommunityAppUpgradeMutationVariables,
   TContext
 > => {
-  const mutationKey =
-    getDeclineGuildAppUpgradeApiV1CGuildIdAppsAppIdUpgradeDeclinePostMutationKey();
+  const mutationKey = getDeclineCommunityAppUpgradeMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1556,63 +1306,52 @@ export const getDeclineGuildAppUpgradeApiV1CGuildIdAppsAppIdUpgradeDeclinePostMu
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof declineGuildAppUpgradeApiV1CGuildIdAppsAppIdUpgradeDeclinePost>>,
-    DeclineGuildAppUpgradeApiV1CGuildIdAppsAppIdUpgradeDeclinePostMutationVariables
+    Awaited<ReturnType<typeof declineCommunityAppUpgrade>>,
+    DeclineCommunityAppUpgradeMutationVariables
   > = (props) => {
-    const { guildId, appId, data } = props ?? {};
+    const { communityId, appId, data } = props ?? {};
 
-    return declineGuildAppUpgradeApiV1CGuildIdAppsAppIdUpgradeDeclinePost(
-      guildId,
-      appId,
-      data,
-      requestOptions
-    );
+    return declineCommunityAppUpgrade(communityId, appId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type DeclineGuildAppUpgradeApiV1CGuildIdAppsAppIdUpgradeDeclinePostMutationResult =
-  NonNullable<
-    Awaited<ReturnType<typeof declineGuildAppUpgradeApiV1CGuildIdAppsAppIdUpgradeDeclinePost>>
-  >;
-export type DeclineGuildAppUpgradeApiV1CGuildIdAppsAppIdUpgradeDeclinePostMutationBody =
-  BodyType<CommunityAppDecline>;
-export type DeclineGuildAppUpgradeApiV1CGuildIdAppsAppIdUpgradeDeclinePostMutationError =
-  ErrorType<HTTPValidationError>;
-export type DeclineGuildAppUpgradeApiV1CGuildIdAppsAppIdUpgradeDeclinePostMutationVariables = {
-  guildId: number;
+export type DeclineCommunityAppUpgradeMutationResult = NonNullable<
+  Awaited<ReturnType<typeof declineCommunityAppUpgrade>>
+>;
+export type DeclineCommunityAppUpgradeMutationBody = BodyType<CommunityAppDecline>;
+export type DeclineCommunityAppUpgradeMutationError = ErrorType<HTTPValidationError>;
+export type DeclineCommunityAppUpgradeMutationVariables = {
+  communityId: number;
   appId: number;
   data: BodyType<CommunityAppDecline>;
 };
 
 /**
- * @summary Decline Guild App Upgrade
+ * @summary Decline Community App Upgrade
  */
-export const useDeclineGuildAppUpgradeApiV1CGuildIdAppsAppIdUpgradeDeclinePost = <
+export const useDeclineCommunityAppUpgrade = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof declineGuildAppUpgradeApiV1CGuildIdAppsAppIdUpgradeDeclinePost>>,
+      Awaited<ReturnType<typeof declineCommunityAppUpgrade>>,
       TError,
-      DeclineGuildAppUpgradeApiV1CGuildIdAppsAppIdUpgradeDeclinePostMutationVariables,
+      DeclineCommunityAppUpgradeMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof declineGuildAppUpgradeApiV1CGuildIdAppsAppIdUpgradeDeclinePost>>,
+  Awaited<ReturnType<typeof declineCommunityAppUpgrade>>,
   TError,
-  DeclineGuildAppUpgradeApiV1CGuildIdAppsAppIdUpgradeDeclinePostMutationVariables,
+  DeclineCommunityAppUpgradeMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getDeclineGuildAppUpgradeApiV1CGuildIdAppsAppIdUpgradeDeclinePostMutationOptions(options),
-    queryClient
-  );
+  return useMutation(getDeclineCommunityAppUpgradeMutationOptions(options), queryClient);
 };
 /**
  * Set the guild-wide values an app's connections ask for.
@@ -1625,10 +1364,10 @@ export const useDeclineGuildAppUpgradeApiV1CGuildIdAppsAppIdUpgradeDeclinePost =
  * Only guild-scoped connections are settable here. A per-member one is that
  * member's to make, and the fields an app marks ``managed`` come from its
  * ``after_connect`` hook when a flow completes rather than through a form.
- * @summary Update Guild App Config
+ * @summary Update Community App Config
  */
-export const updateGuildAppConfigApiV1CGuildIdAppsAppIdConfigPut = (
-  guildId: number,
+export const updateCommunityAppConfig = (
+  communityId: number,
   appId: number,
   communityAppConfigUpdate: BodyType<CommunityAppConfigUpdate>,
   options?: SecondParameter<typeof apiMutator>,
@@ -1636,7 +1375,7 @@ export const updateGuildAppConfigApiV1CGuildIdAppsAppIdConfigPut = (
 ) => {
   return apiMutator<CommunityAppDetail>(
     {
-      url: `/api/v1/c/${guildId}/apps/${appId}/config`,
+      url: `/api/v1/c/${communityId}/apps/${appId}/config`,
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       data: communityAppConfigUpdate,
@@ -1646,27 +1385,26 @@ export const updateGuildAppConfigApiV1CGuildIdAppsAppIdConfigPut = (
   );
 };
 
-export const getUpdateGuildAppConfigApiV1CGuildIdAppsAppIdConfigPutMutationKey = () =>
-  ["updateGuildAppConfigApiV1CGuildIdAppsAppIdConfigPut"] as const;
+export const getUpdateCommunityAppConfigMutationKey = () => ["updateCommunityAppConfig"] as const;
 
-export const getUpdateGuildAppConfigApiV1CGuildIdAppsAppIdConfigPutMutationOptions = <
+export const getUpdateCommunityAppConfigMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof updateGuildAppConfigApiV1CGuildIdAppsAppIdConfigPut>>,
+    Awaited<ReturnType<typeof updateCommunityAppConfig>>,
     TError,
-    UpdateGuildAppConfigApiV1CGuildIdAppsAppIdConfigPutMutationVariables,
+    UpdateCommunityAppConfigMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof updateGuildAppConfigApiV1CGuildIdAppsAppIdConfigPut>>,
+  Awaited<ReturnType<typeof updateCommunityAppConfig>>,
   TError,
-  UpdateGuildAppConfigApiV1CGuildIdAppsAppIdConfigPutMutationVariables,
+  UpdateCommunityAppConfigMutationVariables,
   TContext
 > => {
-  const mutationKey = getUpdateGuildAppConfigApiV1CGuildIdAppsAppIdConfigPutMutationKey();
+  const mutationKey = getUpdateCommunityAppConfigMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1674,72 +1412,62 @@ export const getUpdateGuildAppConfigApiV1CGuildIdAppsAppIdConfigPutMutationOptio
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof updateGuildAppConfigApiV1CGuildIdAppsAppIdConfigPut>>,
-    UpdateGuildAppConfigApiV1CGuildIdAppsAppIdConfigPutMutationVariables
+    Awaited<ReturnType<typeof updateCommunityAppConfig>>,
+    UpdateCommunityAppConfigMutationVariables
   > = (props) => {
-    const { guildId, appId, data } = props ?? {};
+    const { communityId, appId, data } = props ?? {};
 
-    return updateGuildAppConfigApiV1CGuildIdAppsAppIdConfigPut(
-      guildId,
-      appId,
-      data,
-      requestOptions
-    );
+    return updateCommunityAppConfig(communityId, appId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type UpdateGuildAppConfigApiV1CGuildIdAppsAppIdConfigPutMutationResult = NonNullable<
-  Awaited<ReturnType<typeof updateGuildAppConfigApiV1CGuildIdAppsAppIdConfigPut>>
+export type UpdateCommunityAppConfigMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateCommunityAppConfig>>
 >;
-export type UpdateGuildAppConfigApiV1CGuildIdAppsAppIdConfigPutMutationBody =
-  BodyType<CommunityAppConfigUpdate>;
-export type UpdateGuildAppConfigApiV1CGuildIdAppsAppIdConfigPutMutationError =
-  ErrorType<HTTPValidationError>;
-export type UpdateGuildAppConfigApiV1CGuildIdAppsAppIdConfigPutMutationVariables = {
-  guildId: number;
+export type UpdateCommunityAppConfigMutationBody = BodyType<CommunityAppConfigUpdate>;
+export type UpdateCommunityAppConfigMutationError = ErrorType<HTTPValidationError>;
+export type UpdateCommunityAppConfigMutationVariables = {
+  communityId: number;
   appId: number;
   data: BodyType<CommunityAppConfigUpdate>;
 };
 
 /**
- * @summary Update Guild App Config
+ * @summary Update Community App Config
  */
-export const useUpdateGuildAppConfigApiV1CGuildIdAppsAppIdConfigPut = <
+export const useUpdateCommunityAppConfig = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof updateGuildAppConfigApiV1CGuildIdAppsAppIdConfigPut>>,
+      Awaited<ReturnType<typeof updateCommunityAppConfig>>,
       TError,
-      UpdateGuildAppConfigApiV1CGuildIdAppsAppIdConfigPutMutationVariables,
+      UpdateCommunityAppConfigMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof updateGuildAppConfigApiV1CGuildIdAppsAppIdConfigPut>>,
+  Awaited<ReturnType<typeof updateCommunityAppConfig>>,
   TError,
-  UpdateGuildAppConfigApiV1CGuildIdAppsAppIdConfigPutMutationVariables,
+  UpdateCommunityAppConfigMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getUpdateGuildAppConfigApiV1CGuildIdAppsAppIdConfigPutMutationOptions(options),
-    queryClient
-  );
+  return useMutation(getUpdateCommunityAppConfigMutationOptions(options), queryClient);
 };
 /**
  * Place the app in one initiative with exactly these roles.
  *
  * Creates the placement or replaces its roles. Every role must be one of that
  * initiative's; guild admins open the app there whatever the roles say.
- * @summary Put Guild App Placement
+ * @summary Put Community App Placement
  */
-export const putGuildAppPlacementApiV1CGuildIdAppsAppIdPlacementsInitiativeIdPut = (
-  guildId: number,
+export const putCommunityAppPlacement = (
+  communityId: number,
   appId: number,
   initiativeId: number,
   appPlacementUpdate: BodyType<AppPlacementUpdate>,
@@ -1748,7 +1476,7 @@ export const putGuildAppPlacementApiV1CGuildIdAppsAppIdPlacementsInitiativeIdPut
 ) => {
   return apiMutator<AppPlacementRead>(
     {
-      url: `/api/v1/c/${guildId}/apps/${appId}/placements/${initiativeId}`,
+      url: `/api/v1/c/${communityId}/apps/${appId}/placements/${initiativeId}`,
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       data: appPlacementUpdate,
@@ -1758,98 +1486,80 @@ export const putGuildAppPlacementApiV1CGuildIdAppsAppIdPlacementsInitiativeIdPut
   );
 };
 
-export const getPutGuildAppPlacementApiV1CGuildIdAppsAppIdPlacementsInitiativeIdPutMutationKey =
-  () => ["putGuildAppPlacementApiV1CGuildIdAppsAppIdPlacementsInitiativeIdPut"] as const;
+export const getPutCommunityAppPlacementMutationKey = () => ["putCommunityAppPlacement"] as const;
 
-export const getPutGuildAppPlacementApiV1CGuildIdAppsAppIdPlacementsInitiativeIdPutMutationOptions =
-  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
-    mutation?: UseMutationOptions<
-      Awaited<
-        ReturnType<typeof putGuildAppPlacementApiV1CGuildIdAppsAppIdPlacementsInitiativeIdPut>
-      >,
-      TError,
-      PutGuildAppPlacementApiV1CGuildIdAppsAppIdPlacementsInitiativeIdPutMutationVariables,
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  }): UseMutationOptions<
-    Awaited<ReturnType<typeof putGuildAppPlacementApiV1CGuildIdAppsAppIdPlacementsInitiativeIdPut>>,
+export const getPutCommunityAppPlacementMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof putCommunityAppPlacement>>,
     TError,
-    PutGuildAppPlacementApiV1CGuildIdAppsAppIdPlacementsInitiativeIdPutMutationVariables,
+    PutCommunityAppPlacementMutationVariables,
     TContext
-  > => {
-    const mutationKey =
-      getPutGuildAppPlacementApiV1CGuildIdAppsAppIdPlacementsInitiativeIdPutMutationKey();
-    const { mutation: mutationOptions, request: requestOptions } = options
-      ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-        ? options
-        : { ...options, mutation: { ...options.mutation, mutationKey } }
-      : { mutation: { mutationKey }, request: undefined };
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof putCommunityAppPlacement>>,
+  TError,
+  PutCommunityAppPlacementMutationVariables,
+  TContext
+> => {
+  const mutationKey = getPutCommunityAppPlacementMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
 
-    const mutationFn: MutationFunction<
-      Awaited<
-        ReturnType<typeof putGuildAppPlacementApiV1CGuildIdAppsAppIdPlacementsInitiativeIdPut>
-      >,
-      PutGuildAppPlacementApiV1CGuildIdAppsAppIdPlacementsInitiativeIdPutMutationVariables
-    > = (props) => {
-      const { guildId, appId, initiativeId, data } = props ?? {};
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof putCommunityAppPlacement>>,
+    PutCommunityAppPlacementMutationVariables
+  > = (props) => {
+    const { communityId, appId, initiativeId, data } = props ?? {};
 
-      return putGuildAppPlacementApiV1CGuildIdAppsAppIdPlacementsInitiativeIdPut(
-        guildId,
-        appId,
-        initiativeId,
-        data,
-        requestOptions
-      );
-    };
-
-    return { mutationFn, ...mutationOptions };
+    return putCommunityAppPlacement(communityId, appId, initiativeId, data, requestOptions);
   };
 
-export type PutGuildAppPlacementApiV1CGuildIdAppsAppIdPlacementsInitiativeIdPutMutationResult =
-  NonNullable<
-    Awaited<ReturnType<typeof putGuildAppPlacementApiV1CGuildIdAppsAppIdPlacementsInitiativeIdPut>>
-  >;
-export type PutGuildAppPlacementApiV1CGuildIdAppsAppIdPlacementsInitiativeIdPutMutationBody =
-  BodyType<AppPlacementUpdate>;
-export type PutGuildAppPlacementApiV1CGuildIdAppsAppIdPlacementsInitiativeIdPutMutationError =
-  ErrorType<HTTPValidationError>;
-export type PutGuildAppPlacementApiV1CGuildIdAppsAppIdPlacementsInitiativeIdPutMutationVariables = {
-  guildId: number;
+  return { mutationFn, ...mutationOptions };
+};
+
+export type PutCommunityAppPlacementMutationResult = NonNullable<
+  Awaited<ReturnType<typeof putCommunityAppPlacement>>
+>;
+export type PutCommunityAppPlacementMutationBody = BodyType<AppPlacementUpdate>;
+export type PutCommunityAppPlacementMutationError = ErrorType<HTTPValidationError>;
+export type PutCommunityAppPlacementMutationVariables = {
+  communityId: number;
   appId: number;
   initiativeId: number;
   data: BodyType<AppPlacementUpdate>;
 };
 
 /**
- * @summary Put Guild App Placement
+ * @summary Put Community App Placement
  */
-export const usePutGuildAppPlacementApiV1CGuildIdAppsAppIdPlacementsInitiativeIdPut = <
+export const usePutCommunityAppPlacement = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<
-        ReturnType<typeof putGuildAppPlacementApiV1CGuildIdAppsAppIdPlacementsInitiativeIdPut>
-      >,
+      Awaited<ReturnType<typeof putCommunityAppPlacement>>,
       TError,
-      PutGuildAppPlacementApiV1CGuildIdAppsAppIdPlacementsInitiativeIdPutMutationVariables,
+      PutCommunityAppPlacementMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof putGuildAppPlacementApiV1CGuildIdAppsAppIdPlacementsInitiativeIdPut>>,
+  Awaited<ReturnType<typeof putCommunityAppPlacement>>,
   TError,
-  PutGuildAppPlacementApiV1CGuildIdAppsAppIdPlacementsInitiativeIdPutMutationVariables,
+  PutCommunityAppPlacementMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getPutGuildAppPlacementApiV1CGuildIdAppsAppIdPlacementsInitiativeIdPutMutationOptions(options),
-    queryClient
-  );
+  return useMutation(getPutCommunityAppPlacementMutationOptions(options), queryClient);
 };
 /**
  * Grant the install exactly these scopes.
@@ -1857,10 +1567,10 @@ export const usePutGuildAppPlacementApiV1CGuildIdAppsAppIdPlacementsInitiativeId
  * Each must be one the app's manifest requests and one the deployment's
  * registration allows the app (its ceiling). The whole set is replaced: a
  * scope left out is withdrawn.
- * @summary Put Guild App Scopes
+ * @summary Put Community App Scopes
  */
-export const putGuildAppScopesApiV1CGuildIdAppsAppIdScopesPut = (
-  guildId: number,
+export const putCommunityAppScopes = (
+  communityId: number,
   appId: number,
   communityAppScopesUpdate: BodyType<CommunityAppScopesUpdate>,
   options?: SecondParameter<typeof apiMutator>,
@@ -1868,7 +1578,7 @@ export const putGuildAppScopesApiV1CGuildIdAppsAppIdScopesPut = (
 ) => {
   return apiMutator<CommunityAppRead>(
     {
-      url: `/api/v1/c/${guildId}/apps/${appId}/scopes`,
+      url: `/api/v1/c/${communityId}/apps/${appId}/scopes`,
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       data: communityAppScopesUpdate,
@@ -1878,27 +1588,26 @@ export const putGuildAppScopesApiV1CGuildIdAppsAppIdScopesPut = (
   );
 };
 
-export const getPutGuildAppScopesApiV1CGuildIdAppsAppIdScopesPutMutationKey = () =>
-  ["putGuildAppScopesApiV1CGuildIdAppsAppIdScopesPut"] as const;
+export const getPutCommunityAppScopesMutationKey = () => ["putCommunityAppScopes"] as const;
 
-export const getPutGuildAppScopesApiV1CGuildIdAppsAppIdScopesPutMutationOptions = <
+export const getPutCommunityAppScopesMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof putGuildAppScopesApiV1CGuildIdAppsAppIdScopesPut>>,
+    Awaited<ReturnType<typeof putCommunityAppScopes>>,
     TError,
-    PutGuildAppScopesApiV1CGuildIdAppsAppIdScopesPutMutationVariables,
+    PutCommunityAppScopesMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof putGuildAppScopesApiV1CGuildIdAppsAppIdScopesPut>>,
+  Awaited<ReturnType<typeof putCommunityAppScopes>>,
   TError,
-  PutGuildAppScopesApiV1CGuildIdAppsAppIdScopesPutMutationVariables,
+  PutCommunityAppScopesMutationVariables,
   TContext
 > => {
-  const mutationKey = getPutGuildAppScopesApiV1CGuildIdAppsAppIdScopesPutMutationKey();
+  const mutationKey = getPutCommunityAppScopesMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1906,57 +1615,52 @@ export const getPutGuildAppScopesApiV1CGuildIdAppsAppIdScopesPutMutationOptions 
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof putGuildAppScopesApiV1CGuildIdAppsAppIdScopesPut>>,
-    PutGuildAppScopesApiV1CGuildIdAppsAppIdScopesPutMutationVariables
+    Awaited<ReturnType<typeof putCommunityAppScopes>>,
+    PutCommunityAppScopesMutationVariables
   > = (props) => {
-    const { guildId, appId, data } = props ?? {};
+    const { communityId, appId, data } = props ?? {};
 
-    return putGuildAppScopesApiV1CGuildIdAppsAppIdScopesPut(guildId, appId, data, requestOptions);
+    return putCommunityAppScopes(communityId, appId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type PutGuildAppScopesApiV1CGuildIdAppsAppIdScopesPutMutationResult = NonNullable<
-  Awaited<ReturnType<typeof putGuildAppScopesApiV1CGuildIdAppsAppIdScopesPut>>
+export type PutCommunityAppScopesMutationResult = NonNullable<
+  Awaited<ReturnType<typeof putCommunityAppScopes>>
 >;
-export type PutGuildAppScopesApiV1CGuildIdAppsAppIdScopesPutMutationBody =
-  BodyType<CommunityAppScopesUpdate>;
-export type PutGuildAppScopesApiV1CGuildIdAppsAppIdScopesPutMutationError =
-  ErrorType<HTTPValidationError>;
-export type PutGuildAppScopesApiV1CGuildIdAppsAppIdScopesPutMutationVariables = {
-  guildId: number;
+export type PutCommunityAppScopesMutationBody = BodyType<CommunityAppScopesUpdate>;
+export type PutCommunityAppScopesMutationError = ErrorType<HTTPValidationError>;
+export type PutCommunityAppScopesMutationVariables = {
+  communityId: number;
   appId: number;
   data: BodyType<CommunityAppScopesUpdate>;
 };
 
 /**
- * @summary Put Guild App Scopes
+ * @summary Put Community App Scopes
  */
-export const usePutGuildAppScopesApiV1CGuildIdAppsAppIdScopesPut = <
+export const usePutCommunityAppScopes = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof putGuildAppScopesApiV1CGuildIdAppsAppIdScopesPut>>,
+      Awaited<ReturnType<typeof putCommunityAppScopes>>,
       TError,
-      PutGuildAppScopesApiV1CGuildIdAppsAppIdScopesPutMutationVariables,
+      PutCommunityAppScopesMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof putGuildAppScopesApiV1CGuildIdAppsAppIdScopesPut>>,
+  Awaited<ReturnType<typeof putCommunityAppScopes>>,
   TError,
-  PutGuildAppScopesApiV1CGuildIdAppsAppIdScopesPutMutationVariables,
+  PutCommunityAppScopesMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getPutGuildAppScopesApiV1CGuildIdAppsAppIdScopesPutMutationOptions(options),
-    queryClient
-  );
+  return useMutation(getPutCommunityAppScopesMutationOptions(options), queryClient);
 };
 /**
  * Mint the short-lived credential for one of this app's embedded surfaces.
@@ -1968,43 +1672,41 @@ export const usePutGuildAppScopesApiV1CGuildIdAppsAppIdScopesPut = <
  *
  * The token goes to the iframe by ``postMessage`` — never a query string —
  * and expires in a minute.
- * @summary Create Guild App Handoff
+ * @summary Create Community App Handoff
  */
-export const createGuildAppHandoffApiV1CGuildIdAppsAppIdHandoffSurfaceIdPost = (
-  guildId: number,
+export const createCommunityAppHandoff = (
+  communityId: number,
   appId: number,
   surfaceId: string,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<CommunityAppHandoff>(
-    { url: `/api/v1/c/${guildId}/apps/${appId}/handoff/${surfaceId}`, method: "POST", signal },
+    { url: `/api/v1/c/${communityId}/apps/${appId}/handoff/${surfaceId}`, method: "POST", signal },
     options
   );
 };
 
-export const getCreateGuildAppHandoffApiV1CGuildIdAppsAppIdHandoffSurfaceIdPostMutationKey = () =>
-  ["createGuildAppHandoffApiV1CGuildIdAppsAppIdHandoffSurfaceIdPost"] as const;
+export const getCreateCommunityAppHandoffMutationKey = () => ["createCommunityAppHandoff"] as const;
 
-export const getCreateGuildAppHandoffApiV1CGuildIdAppsAppIdHandoffSurfaceIdPostMutationOptions = <
+export const getCreateCommunityAppHandoffMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof createGuildAppHandoffApiV1CGuildIdAppsAppIdHandoffSurfaceIdPost>>,
+    Awaited<ReturnType<typeof createCommunityAppHandoff>>,
     TError,
-    CreateGuildAppHandoffApiV1CGuildIdAppsAppIdHandoffSurfaceIdPostMutationVariables,
+    CreateCommunityAppHandoffMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof createGuildAppHandoffApiV1CGuildIdAppsAppIdHandoffSurfaceIdPost>>,
+  Awaited<ReturnType<typeof createCommunityAppHandoff>>,
   TError,
-  CreateGuildAppHandoffApiV1CGuildIdAppsAppIdHandoffSurfaceIdPostMutationVariables,
+  CreateCommunityAppHandoffMutationVariables,
   TContext
 > => {
-  const mutationKey =
-    getCreateGuildAppHandoffApiV1CGuildIdAppsAppIdHandoffSurfaceIdPostMutationKey();
+  const mutationKey = getCreateCommunityAppHandoffMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -2012,62 +1714,52 @@ export const getCreateGuildAppHandoffApiV1CGuildIdAppsAppIdHandoffSurfaceIdPostM
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof createGuildAppHandoffApiV1CGuildIdAppsAppIdHandoffSurfaceIdPost>>,
-    CreateGuildAppHandoffApiV1CGuildIdAppsAppIdHandoffSurfaceIdPostMutationVariables
+    Awaited<ReturnType<typeof createCommunityAppHandoff>>,
+    CreateCommunityAppHandoffMutationVariables
   > = (props) => {
-    const { guildId, appId, surfaceId } = props ?? {};
+    const { communityId, appId, surfaceId } = props ?? {};
 
-    return createGuildAppHandoffApiV1CGuildIdAppsAppIdHandoffSurfaceIdPost(
-      guildId,
-      appId,
-      surfaceId,
-      requestOptions
-    );
+    return createCommunityAppHandoff(communityId, appId, surfaceId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type CreateGuildAppHandoffApiV1CGuildIdAppsAppIdHandoffSurfaceIdPostMutationResult =
-  NonNullable<
-    Awaited<ReturnType<typeof createGuildAppHandoffApiV1CGuildIdAppsAppIdHandoffSurfaceIdPost>>
-  >;
+export type CreateCommunityAppHandoffMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createCommunityAppHandoff>>
+>;
 
-export type CreateGuildAppHandoffApiV1CGuildIdAppsAppIdHandoffSurfaceIdPostMutationError =
-  ErrorType<HTTPValidationError>;
-export type CreateGuildAppHandoffApiV1CGuildIdAppsAppIdHandoffSurfaceIdPostMutationVariables = {
-  guildId: number;
+export type CreateCommunityAppHandoffMutationError = ErrorType<HTTPValidationError>;
+export type CreateCommunityAppHandoffMutationVariables = {
+  communityId: number;
   appId: number;
   surfaceId: string;
 };
 
 /**
- * @summary Create Guild App Handoff
+ * @summary Create Community App Handoff
  */
-export const useCreateGuildAppHandoffApiV1CGuildIdAppsAppIdHandoffSurfaceIdPost = <
+export const useCreateCommunityAppHandoff = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof createGuildAppHandoffApiV1CGuildIdAppsAppIdHandoffSurfaceIdPost>>,
+      Awaited<ReturnType<typeof createCommunityAppHandoff>>,
       TError,
-      CreateGuildAppHandoffApiV1CGuildIdAppsAppIdHandoffSurfaceIdPostMutationVariables,
+      CreateCommunityAppHandoffMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof createGuildAppHandoffApiV1CGuildIdAppsAppIdHandoffSurfaceIdPost>>,
+  Awaited<ReturnType<typeof createCommunityAppHandoff>>,
   TError,
-  CreateGuildAppHandoffApiV1CGuildIdAppsAppIdHandoffSurfaceIdPostMutationVariables,
+  CreateCommunityAppHandoffMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getCreateGuildAppHandoffApiV1CGuildIdAppsAppIdHandoffSurfaceIdPostMutationOptions(options),
-    queryClient
-  );
+  return useMutation(getCreateCommunityAppHandoffMutationOptions(options), queryClient);
 };
 /**
  * Start the vendor flow behind one connection.
@@ -2085,10 +1777,10 @@ export const useCreateGuildAppHandoffApiV1CGuildIdAppsAppIdHandoffSurfaceIdPost 
  * authorization page, or its install page for a connection an organization
  * installs), and the vendor returns the person to Initiative's callback.
  * Nothing is stored until it does.
- * @summary Connect Guild App
+ * @summary Connect Community App
  */
-export const connectGuildAppApiV1CGuildIdAppsAppIdConnectionsConnectionIdConnectPost = (
-  guildId: number,
+export const connectCommunityApp = (
+  communityId: number,
   appId: number,
   connectionId: string,
   options?: SecondParameter<typeof apiMutator>,
@@ -2096,7 +1788,7 @@ export const connectGuildAppApiV1CGuildIdAppsAppIdConnectionsConnectionIdConnect
 ) => {
   return apiMutator<CommunityAppConnectStart>(
     {
-      url: `/api/v1/c/${guildId}/apps/${appId}/connections/${connectionId}/connect`,
+      url: `/api/v1/c/${communityId}/apps/${appId}/connections/${connectionId}/connect`,
       method: "POST",
       signal,
     },
@@ -2104,100 +1796,76 @@ export const connectGuildAppApiV1CGuildIdAppsAppIdConnectionsConnectionIdConnect
   );
 };
 
-export const getConnectGuildAppApiV1CGuildIdAppsAppIdConnectionsConnectionIdConnectPostMutationKey =
-  () => ["connectGuildAppApiV1CGuildIdAppsAppIdConnectionsConnectionIdConnectPost"] as const;
+export const getConnectCommunityAppMutationKey = () => ["connectCommunityApp"] as const;
 
-export const getConnectGuildAppApiV1CGuildIdAppsAppIdConnectionsConnectionIdConnectPostMutationOptions =
-  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
-    mutation?: UseMutationOptions<
-      Awaited<
-        ReturnType<typeof connectGuildAppApiV1CGuildIdAppsAppIdConnectionsConnectionIdConnectPost>
-      >,
-      TError,
-      ConnectGuildAppApiV1CGuildIdAppsAppIdConnectionsConnectionIdConnectPostMutationVariables,
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  }): UseMutationOptions<
-    Awaited<
-      ReturnType<typeof connectGuildAppApiV1CGuildIdAppsAppIdConnectionsConnectionIdConnectPost>
-    >,
-    TError,
-    ConnectGuildAppApiV1CGuildIdAppsAppIdConnectionsConnectionIdConnectPostMutationVariables,
-    TContext
-  > => {
-    const mutationKey =
-      getConnectGuildAppApiV1CGuildIdAppsAppIdConnectionsConnectionIdConnectPostMutationKey();
-    const { mutation: mutationOptions, request: requestOptions } = options
-      ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-        ? options
-        : { ...options, mutation: { ...options.mutation, mutationKey } }
-      : { mutation: { mutationKey }, request: undefined };
-
-    const mutationFn: MutationFunction<
-      Awaited<
-        ReturnType<typeof connectGuildAppApiV1CGuildIdAppsAppIdConnectionsConnectionIdConnectPost>
-      >,
-      ConnectGuildAppApiV1CGuildIdAppsAppIdConnectionsConnectionIdConnectPostMutationVariables
-    > = (props) => {
-      const { guildId, appId, connectionId } = props ?? {};
-
-      return connectGuildAppApiV1CGuildIdAppsAppIdConnectionsConnectionIdConnectPost(
-        guildId,
-        appId,
-        connectionId,
-        requestOptions
-      );
-    };
-
-    return { mutationFn, ...mutationOptions };
-  };
-
-export type ConnectGuildAppApiV1CGuildIdAppsAppIdConnectionsConnectionIdConnectPostMutationResult =
-  NonNullable<
-    Awaited<
-      ReturnType<typeof connectGuildAppApiV1CGuildIdAppsAppIdConnectionsConnectionIdConnectPost>
-    >
-  >;
-
-export type ConnectGuildAppApiV1CGuildIdAppsAppIdConnectionsConnectionIdConnectPostMutationError =
-  ErrorType<HTTPValidationError>;
-export type ConnectGuildAppApiV1CGuildIdAppsAppIdConnectionsConnectionIdConnectPostMutationVariables =
-  { guildId: number; appId: number; connectionId: string };
-
-/**
- * @summary Connect Guild App
- */
-export const useConnectGuildAppApiV1CGuildIdAppsAppIdConnectionsConnectionIdConnectPost = <
+export const getConnectCommunityAppMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
->(
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof connectCommunityApp>>,
+    TError,
+    ConnectCommunityAppMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof connectCommunityApp>>,
+  TError,
+  ConnectCommunityAppMutationVariables,
+  TContext
+> => {
+  const mutationKey = getConnectCommunityAppMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof connectCommunityApp>>,
+    ConnectCommunityAppMutationVariables
+  > = (props) => {
+    const { communityId, appId, connectionId } = props ?? {};
+
+    return connectCommunityApp(communityId, appId, connectionId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ConnectCommunityAppMutationResult = NonNullable<
+  Awaited<ReturnType<typeof connectCommunityApp>>
+>;
+
+export type ConnectCommunityAppMutationError = ErrorType<HTTPValidationError>;
+export type ConnectCommunityAppMutationVariables = {
+  communityId: number;
+  appId: number;
+  connectionId: string;
+};
+
+/**
+ * @summary Connect Community App
+ */
+export const useConnectCommunityApp = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<
-        ReturnType<typeof connectGuildAppApiV1CGuildIdAppsAppIdConnectionsConnectionIdConnectPost>
-      >,
+      Awaited<ReturnType<typeof connectCommunityApp>>,
       TError,
-      ConnectGuildAppApiV1CGuildIdAppsAppIdConnectionsConnectionIdConnectPostMutationVariables,
+      ConnectCommunityAppMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<
-    ReturnType<typeof connectGuildAppApiV1CGuildIdAppsAppIdConnectionsConnectionIdConnectPost>
-  >,
+  Awaited<ReturnType<typeof connectCommunityApp>>,
   TError,
-  ConnectGuildAppApiV1CGuildIdAppsAppIdConnectionsConnectionIdConnectPostMutationVariables,
+  ConnectCommunityAppMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getConnectGuildAppApiV1CGuildIdAppsAppIdConnectionsConnectionIdConnectPostMutationOptions(
-      options
-    ),
-    queryClient
-  );
+  return useMutation(getConnectCommunityAppMutationOptions(options), queryClient);
 };
 /**
  * Disconnect: a member's own account, or a guild-wide credential.
@@ -2206,10 +1874,10 @@ export const useConnectGuildAppApiV1CGuildIdAppsAppIdConnectionsConnectionIdConn
  * per-member connection is always the caller's own — an admin ending somebody
  * else's uses the Members endpoints, which record who acted. Clearing a
  * guild-wide credential is an admin action, since it is the guild's.
- * @summary Disconnect Guild App
+ * @summary Disconnect Community App
  */
-export const disconnectGuildAppApiV1CGuildIdAppsAppIdConnectionsConnectionIdDelete = (
-  guildId: number,
+export const disconnectCommunityApp = (
+  communityId: number,
   appId: number,
   connectionId: string,
   options?: SecondParameter<typeof apiMutator>,
@@ -2217,7 +1885,7 @@ export const disconnectGuildAppApiV1CGuildIdAppsAppIdConnectionsConnectionIdDele
 ) => {
   return apiMutator<void>(
     {
-      url: `/api/v1/c/${guildId}/apps/${appId}/connections/${connectionId}`,
+      url: `/api/v1/c/${communityId}/apps/${appId}/connections/${connectionId}`,
       method: "DELETE",
       signal,
     },
@@ -2225,98 +1893,79 @@ export const disconnectGuildAppApiV1CGuildIdAppsAppIdConnectionsConnectionIdDele
   );
 };
 
-export const getDisconnectGuildAppApiV1CGuildIdAppsAppIdConnectionsConnectionIdDeleteMutationKey =
-  () => ["disconnectGuildAppApiV1CGuildIdAppsAppIdConnectionsConnectionIdDelete"] as const;
+export const getDisconnectCommunityAppMutationKey = () => ["disconnectCommunityApp"] as const;
 
-export const getDisconnectGuildAppApiV1CGuildIdAppsAppIdConnectionsConnectionIdDeleteMutationOptions =
-  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
-    mutation?: UseMutationOptions<
-      Awaited<
-        ReturnType<typeof disconnectGuildAppApiV1CGuildIdAppsAppIdConnectionsConnectionIdDelete>
-      >,
-      TError,
-      DisconnectGuildAppApiV1CGuildIdAppsAppIdConnectionsConnectionIdDeleteMutationVariables,
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  }): UseMutationOptions<
-    Awaited<
-      ReturnType<typeof disconnectGuildAppApiV1CGuildIdAppsAppIdConnectionsConnectionIdDelete>
-    >,
+export const getDisconnectCommunityAppMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof disconnectCommunityApp>>,
     TError,
-    DisconnectGuildAppApiV1CGuildIdAppsAppIdConnectionsConnectionIdDeleteMutationVariables,
+    DisconnectCommunityAppMutationVariables,
     TContext
-  > => {
-    const mutationKey =
-      getDisconnectGuildAppApiV1CGuildIdAppsAppIdConnectionsConnectionIdDeleteMutationKey();
-    const { mutation: mutationOptions, request: requestOptions } = options
-      ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-        ? options
-        : { ...options, mutation: { ...options.mutation, mutationKey } }
-      : { mutation: { mutationKey }, request: undefined };
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof disconnectCommunityApp>>,
+  TError,
+  DisconnectCommunityAppMutationVariables,
+  TContext
+> => {
+  const mutationKey = getDisconnectCommunityAppMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
 
-    const mutationFn: MutationFunction<
-      Awaited<
-        ReturnType<typeof disconnectGuildAppApiV1CGuildIdAppsAppIdConnectionsConnectionIdDelete>
-      >,
-      DisconnectGuildAppApiV1CGuildIdAppsAppIdConnectionsConnectionIdDeleteMutationVariables
-    > = (props) => {
-      const { guildId, appId, connectionId } = props ?? {};
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof disconnectCommunityApp>>,
+    DisconnectCommunityAppMutationVariables
+  > = (props) => {
+    const { communityId, appId, connectionId } = props ?? {};
 
-      return disconnectGuildAppApiV1CGuildIdAppsAppIdConnectionsConnectionIdDelete(
-        guildId,
-        appId,
-        connectionId,
-        requestOptions
-      );
-    };
-
-    return { mutationFn, ...mutationOptions };
+    return disconnectCommunityApp(communityId, appId, connectionId, requestOptions);
   };
 
-export type DisconnectGuildAppApiV1CGuildIdAppsAppIdConnectionsConnectionIdDeleteMutationResult =
-  NonNullable<
-    Awaited<
-      ReturnType<typeof disconnectGuildAppApiV1CGuildIdAppsAppIdConnectionsConnectionIdDelete>
-    >
-  >;
+  return { mutationFn, ...mutationOptions };
+};
 
-export type DisconnectGuildAppApiV1CGuildIdAppsAppIdConnectionsConnectionIdDeleteMutationError =
-  ErrorType<HTTPValidationError>;
-export type DisconnectGuildAppApiV1CGuildIdAppsAppIdConnectionsConnectionIdDeleteMutationVariables =
-  { guildId: number; appId: number; connectionId: string };
+export type DisconnectCommunityAppMutationResult = NonNullable<
+  Awaited<ReturnType<typeof disconnectCommunityApp>>
+>;
+
+export type DisconnectCommunityAppMutationError = ErrorType<HTTPValidationError>;
+export type DisconnectCommunityAppMutationVariables = {
+  communityId: number;
+  appId: number;
+  connectionId: string;
+};
 
 /**
- * @summary Disconnect Guild App
+ * @summary Disconnect Community App
  */
-export const useDisconnectGuildAppApiV1CGuildIdAppsAppIdConnectionsConnectionIdDelete = <
+export const useDisconnectCommunityApp = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<
-        ReturnType<typeof disconnectGuildAppApiV1CGuildIdAppsAppIdConnectionsConnectionIdDelete>
-      >,
+      Awaited<ReturnType<typeof disconnectCommunityApp>>,
       TError,
-      DisconnectGuildAppApiV1CGuildIdAppsAppIdConnectionsConnectionIdDeleteMutationVariables,
+      DisconnectCommunityAppMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof disconnectGuildAppApiV1CGuildIdAppsAppIdConnectionsConnectionIdDelete>>,
+  Awaited<ReturnType<typeof disconnectCommunityApp>>,
   TError,
-  DisconnectGuildAppApiV1CGuildIdAppsAppIdConnectionsConnectionIdDeleteMutationVariables,
+  DisconnectCommunityAppMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getDisconnectGuildAppApiV1CGuildIdAppsAppIdConnectionsConnectionIdDeleteMutationOptions(
-      options
-    ),
-    queryClient
-  );
+  return useMutation(getDisconnectCommunityAppMutationOptions(options), queryClient);
 };
 /**
  * Allow this app to act as you for one of its requests, at ``access``.
@@ -2326,8 +1975,8 @@ export const useDisconnectGuildAppApiV1CGuildIdAppsAppIdConnectionsConnectionIdD
  * signed in is recorded with the answer.
  * @summary Grant My Consent
  */
-export const grantMyConsentApiV1CGuildIdAppsAppIdConsentsConsentIdPut = (
-  guildId: number,
+export const grantMyConsent = (
+  communityId: number,
   appId: number,
   consentId: number,
   communityAppConsentAnswer: BodyType<CommunityAppConsentAnswer>,
@@ -2336,7 +1985,7 @@ export const grantMyConsentApiV1CGuildIdAppsAppIdConsentsConsentIdPut = (
 ) => {
   return apiMutator<CommunityAppConsentRead>(
     {
-      url: `/api/v1/c/${guildId}/apps/${appId}/consents/${consentId}`,
+      url: `/api/v1/c/${communityId}/apps/${appId}/consents/${consentId}`,
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       data: communityAppConsentAnswer,
@@ -2346,27 +1995,26 @@ export const grantMyConsentApiV1CGuildIdAppsAppIdConsentsConsentIdPut = (
   );
 };
 
-export const getGrantMyConsentApiV1CGuildIdAppsAppIdConsentsConsentIdPutMutationKey = () =>
-  ["grantMyConsentApiV1CGuildIdAppsAppIdConsentsConsentIdPut"] as const;
+export const getGrantMyConsentMutationKey = () => ["grantMyConsent"] as const;
 
-export const getGrantMyConsentApiV1CGuildIdAppsAppIdConsentsConsentIdPutMutationOptions = <
+export const getGrantMyConsentMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof grantMyConsentApiV1CGuildIdAppsAppIdConsentsConsentIdPut>>,
+    Awaited<ReturnType<typeof grantMyConsent>>,
     TError,
-    GrantMyConsentApiV1CGuildIdAppsAppIdConsentsConsentIdPutMutationVariables,
+    GrantMyConsentMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof grantMyConsentApiV1CGuildIdAppsAppIdConsentsConsentIdPut>>,
+  Awaited<ReturnType<typeof grantMyConsent>>,
   TError,
-  GrantMyConsentApiV1CGuildIdAppsAppIdConsentsConsentIdPutMutationVariables,
+  GrantMyConsentMutationVariables,
   TContext
 > => {
-  const mutationKey = getGrantMyConsentApiV1CGuildIdAppsAppIdConsentsConsentIdPutMutationKey();
+  const mutationKey = getGrantMyConsentMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -2374,32 +2022,22 @@ export const getGrantMyConsentApiV1CGuildIdAppsAppIdConsentsConsentIdPutMutation
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof grantMyConsentApiV1CGuildIdAppsAppIdConsentsConsentIdPut>>,
-    GrantMyConsentApiV1CGuildIdAppsAppIdConsentsConsentIdPutMutationVariables
+    Awaited<ReturnType<typeof grantMyConsent>>,
+    GrantMyConsentMutationVariables
   > = (props) => {
-    const { guildId, appId, consentId, data } = props ?? {};
+    const { communityId, appId, consentId, data } = props ?? {};
 
-    return grantMyConsentApiV1CGuildIdAppsAppIdConsentsConsentIdPut(
-      guildId,
-      appId,
-      consentId,
-      data,
-      requestOptions
-    );
+    return grantMyConsent(communityId, appId, consentId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type GrantMyConsentApiV1CGuildIdAppsAppIdConsentsConsentIdPutMutationResult = NonNullable<
-  Awaited<ReturnType<typeof grantMyConsentApiV1CGuildIdAppsAppIdConsentsConsentIdPut>>
->;
-export type GrantMyConsentApiV1CGuildIdAppsAppIdConsentsConsentIdPutMutationBody =
-  BodyType<CommunityAppConsentAnswer>;
-export type GrantMyConsentApiV1CGuildIdAppsAppIdConsentsConsentIdPutMutationError =
-  ErrorType<HTTPValidationError>;
-export type GrantMyConsentApiV1CGuildIdAppsAppIdConsentsConsentIdPutMutationVariables = {
-  guildId: number;
+export type GrantMyConsentMutationResult = NonNullable<Awaited<ReturnType<typeof grantMyConsent>>>;
+export type GrantMyConsentMutationBody = BodyType<CommunityAppConsentAnswer>;
+export type GrantMyConsentMutationError = ErrorType<HTTPValidationError>;
+export type GrantMyConsentMutationVariables = {
+  communityId: number;
   appId: number;
   consentId: number;
   data: BodyType<CommunityAppConsentAnswer>;
@@ -2408,70 +2046,67 @@ export type GrantMyConsentApiV1CGuildIdAppsAppIdConsentsConsentIdPutMutationVari
 /**
  * @summary Grant My Consent
  */
-export const useGrantMyConsentApiV1CGuildIdAppsAppIdConsentsConsentIdPut = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
+export const useGrantMyConsent = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof grantMyConsentApiV1CGuildIdAppsAppIdConsentsConsentIdPut>>,
+      Awaited<ReturnType<typeof grantMyConsent>>,
       TError,
-      GrantMyConsentApiV1CGuildIdAppsAppIdConsentsConsentIdPutMutationVariables,
+      GrantMyConsentMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof grantMyConsentApiV1CGuildIdAppsAppIdConsentsConsentIdPut>>,
+  Awaited<ReturnType<typeof grantMyConsent>>,
   TError,
-  GrantMyConsentApiV1CGuildIdAppsAppIdConsentsConsentIdPutMutationVariables,
+  GrantMyConsentMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getGrantMyConsentApiV1CGuildIdAppsAppIdConsentsConsentIdPutMutationOptions(options),
-    queryClient
-  );
+  return useMutation(getGrantMyConsentMutationOptions(options), queryClient);
 };
 /**
  * Decline one of this app's requests, or withdraw what you allowed. The
  * app stops acting as you for it on its next request.
  * @summary Revoke My Consent
  */
-export const revokeMyConsentApiV1CGuildIdAppsAppIdConsentsConsentIdDelete = (
-  guildId: number,
+export const revokeMyConsent = (
+  communityId: number,
   appId: number,
   consentId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<void>(
-    { url: `/api/v1/c/${guildId}/apps/${appId}/consents/${consentId}`, method: "DELETE", signal },
+    {
+      url: `/api/v1/c/${communityId}/apps/${appId}/consents/${consentId}`,
+      method: "DELETE",
+      signal,
+    },
     options
   );
 };
 
-export const getRevokeMyConsentApiV1CGuildIdAppsAppIdConsentsConsentIdDeleteMutationKey = () =>
-  ["revokeMyConsentApiV1CGuildIdAppsAppIdConsentsConsentIdDelete"] as const;
+export const getRevokeMyConsentMutationKey = () => ["revokeMyConsent"] as const;
 
-export const getRevokeMyConsentApiV1CGuildIdAppsAppIdConsentsConsentIdDeleteMutationOptions = <
+export const getRevokeMyConsentMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof revokeMyConsentApiV1CGuildIdAppsAppIdConsentsConsentIdDelete>>,
+    Awaited<ReturnType<typeof revokeMyConsent>>,
     TError,
-    RevokeMyConsentApiV1CGuildIdAppsAppIdConsentsConsentIdDeleteMutationVariables,
+    RevokeMyConsentMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof revokeMyConsentApiV1CGuildIdAppsAppIdConsentsConsentIdDelete>>,
+  Awaited<ReturnType<typeof revokeMyConsent>>,
   TError,
-  RevokeMyConsentApiV1CGuildIdAppsAppIdConsentsConsentIdDeleteMutationVariables,
+  RevokeMyConsentMutationVariables,
   TContext
 > => {
-  const mutationKey = getRevokeMyConsentApiV1CGuildIdAppsAppIdConsentsConsentIdDeleteMutationKey();
+  const mutationKey = getRevokeMyConsentMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -2479,31 +2114,24 @@ export const getRevokeMyConsentApiV1CGuildIdAppsAppIdConsentsConsentIdDeleteMuta
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof revokeMyConsentApiV1CGuildIdAppsAppIdConsentsConsentIdDelete>>,
-    RevokeMyConsentApiV1CGuildIdAppsAppIdConsentsConsentIdDeleteMutationVariables
+    Awaited<ReturnType<typeof revokeMyConsent>>,
+    RevokeMyConsentMutationVariables
   > = (props) => {
-    const { guildId, appId, consentId } = props ?? {};
+    const { communityId, appId, consentId } = props ?? {};
 
-    return revokeMyConsentApiV1CGuildIdAppsAppIdConsentsConsentIdDelete(
-      guildId,
-      appId,
-      consentId,
-      requestOptions
-    );
+    return revokeMyConsent(communityId, appId, consentId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type RevokeMyConsentApiV1CGuildIdAppsAppIdConsentsConsentIdDeleteMutationResult =
-  NonNullable<
-    Awaited<ReturnType<typeof revokeMyConsentApiV1CGuildIdAppsAppIdConsentsConsentIdDelete>>
-  >;
+export type RevokeMyConsentMutationResult = NonNullable<
+  Awaited<ReturnType<typeof revokeMyConsent>>
+>;
 
-export type RevokeMyConsentApiV1CGuildIdAppsAppIdConsentsConsentIdDeleteMutationError =
-  ErrorType<HTTPValidationError>;
-export type RevokeMyConsentApiV1CGuildIdAppsAppIdConsentsConsentIdDeleteMutationVariables = {
-  guildId: number;
+export type RevokeMyConsentMutationError = ErrorType<HTTPValidationError>;
+export type RevokeMyConsentMutationVariables = {
+  communityId: number;
   appId: number;
   consentId: number;
 };
@@ -2511,30 +2139,24 @@ export type RevokeMyConsentApiV1CGuildIdAppsAppIdConsentsConsentIdDeleteMutation
 /**
  * @summary Revoke My Consent
  */
-export const useRevokeMyConsentApiV1CGuildIdAppsAppIdConsentsConsentIdDelete = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
+export const useRevokeMyConsent = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof revokeMyConsentApiV1CGuildIdAppsAppIdConsentsConsentIdDelete>>,
+      Awaited<ReturnType<typeof revokeMyConsent>>,
       TError,
-      RevokeMyConsentApiV1CGuildIdAppsAppIdConsentsConsentIdDeleteMutationVariables,
+      RevokeMyConsentMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof revokeMyConsentApiV1CGuildIdAppsAppIdConsentsConsentIdDelete>>,
+  Awaited<ReturnType<typeof revokeMyConsent>>,
   TError,
-  RevokeMyConsentApiV1CGuildIdAppsAppIdConsentsConsentIdDeleteMutationVariables,
+  RevokeMyConsentMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getRevokeMyConsentApiV1CGuildIdAppsAppIdConsentsConsentIdDeleteMutationOptions(options),
-    queryClient
-  );
+  return useMutation(getRevokeMyConsentMutationOptions(options), queryClient);
 };
 /**
  * Who has connected which of this app's per-member connections, and who
@@ -2543,43 +2165,39 @@ export const useRevokeMyConsentApiV1CGuildIdAppsAppIdConsentsConsentIdDelete = <
  * Guild admins only, and never secret values: what this supports is governance
  * — seeing which vendor account somebody connected as, and ending it — rather
  * than looking at credentials.
- * @summary List Guild App Members
+ * @summary List Community App Members
  */
-export const listGuildAppMembersApiV1CGuildIdAppsAppIdMembersGet = (
-  guildId: number,
+export const listCommunityAppMembers = (
+  communityId: number,
   appId: number,
-  params?: ListGuildAppMembersApiV1CGuildIdAppsAppIdMembersGetParams,
+  params?: ListCommunityAppMembersParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<CommunityAppMembersResponse>(
-    { url: `/api/v1/c/${guildId}/apps/${appId}/members`, method: "GET", params, signal },
+    { url: `/api/v1/c/${communityId}/apps/${appId}/members`, method: "GET", params, signal },
     options
   );
 };
 
-export const getListGuildAppMembersApiV1CGuildIdAppsAppIdMembersGetQueryKey = (
-  guildId: number,
+export const getListCommunityAppMembersQueryKey = (
+  communityId: number,
   appId: number,
-  params?: ListGuildAppMembersApiV1CGuildIdAppsAppIdMembersGetParams
+  params?: ListCommunityAppMembersParams
 ) => {
-  return [`/api/v1/c/${guildId}/apps/${appId}/members`, ...(params ? [params] : [])] as const;
+  return [`/api/v1/c/${communityId}/apps/${appId}/members`, ...(params ? [params] : [])] as const;
 };
 
-export const getListGuildAppMembersApiV1CGuildIdAppsAppIdMembersGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof listGuildAppMembersApiV1CGuildIdAppsAppIdMembersGet>>,
+export const getListCommunityAppMembersQueryOptions = <
+  TData = Awaited<ReturnType<typeof listCommunityAppMembers>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   appId: number,
-  params?: ListGuildAppMembersApiV1CGuildIdAppsAppIdMembersGetParams,
+  params?: ListCommunityAppMembersParams,
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listGuildAppMembersApiV1CGuildIdAppsAppIdMembersGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof listCommunityAppMembers>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   }
@@ -2587,58 +2205,44 @@ export const getListGuildAppMembersApiV1CGuildIdAppsAppIdMembersGetQueryOptions 
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
   const queryKey =
-    queryOptions?.queryKey ??
-    getListGuildAppMembersApiV1CGuildIdAppsAppIdMembersGetQueryKey(guildId, appId, params);
+    queryOptions?.queryKey ?? getListCommunityAppMembersQueryKey(communityId, appId, params);
 
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof listGuildAppMembersApiV1CGuildIdAppsAppIdMembersGet>>
-  > = ({ signal }) =>
-    listGuildAppMembersApiV1CGuildIdAppsAppIdMembersGet(
-      guildId,
-      appId,
-      params,
-      requestOptions,
-      signal
-    );
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listCommunityAppMembers>>> = ({
+    signal,
+  }) => listCommunityAppMembers(communityId, appId, params, requestOptions, signal);
 
   return {
     queryKey,
     queryFn,
-    enabled: guildId !== null && guildId !== undefined && appId !== null && appId !== undefined,
+    enabled:
+      communityId !== null && communityId !== undefined && appId !== null && appId !== undefined,
     ...queryOptions,
-  } as UseQueryOptions<
-    Awaited<ReturnType<typeof listGuildAppMembersApiV1CGuildIdAppsAppIdMembersGet>>,
-    TError,
-    TData
-  > & { queryKey: DataTag<QueryKey, TData, TError> };
+  } as UseQueryOptions<Awaited<ReturnType<typeof listCommunityAppMembers>>, TError, TData> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 };
 
-export type ListGuildAppMembersApiV1CGuildIdAppsAppIdMembersGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof listGuildAppMembersApiV1CGuildIdAppsAppIdMembersGet>>
+export type ListCommunityAppMembersQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listCommunityAppMembers>>
 >;
-export type ListGuildAppMembersApiV1CGuildIdAppsAppIdMembersGetQueryError =
-  ErrorType<HTTPValidationError>;
+export type ListCommunityAppMembersQueryError = ErrorType<HTTPValidationError>;
 
-export function useListGuildAppMembersApiV1CGuildIdAppsAppIdMembersGet<
-  TData = Awaited<ReturnType<typeof listGuildAppMembersApiV1CGuildIdAppsAppIdMembersGet>>,
+export function useListCommunityAppMembers<
+  TData = Awaited<ReturnType<typeof listCommunityAppMembers>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   appId: number,
-  params: undefined | ListGuildAppMembersApiV1CGuildIdAppsAppIdMembersGetParams,
+  params: undefined | ListCommunityAppMembersParams,
   options: {
     query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listGuildAppMembersApiV1CGuildIdAppsAppIdMembersGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof listCommunityAppMembers>>, TError, TData>
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listGuildAppMembersApiV1CGuildIdAppsAppIdMembersGet>>,
+          Awaited<ReturnType<typeof listCommunityAppMembers>>,
           TError,
-          Awaited<ReturnType<typeof listGuildAppMembersApiV1CGuildIdAppsAppIdMembersGet>>
+          Awaited<ReturnType<typeof listCommunityAppMembers>>
         >,
         "initialData"
       >;
@@ -2646,26 +2250,22 @@ export function useListGuildAppMembersApiV1CGuildIdAppsAppIdMembersGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListGuildAppMembersApiV1CGuildIdAppsAppIdMembersGet<
-  TData = Awaited<ReturnType<typeof listGuildAppMembersApiV1CGuildIdAppsAppIdMembersGet>>,
+export function useListCommunityAppMembers<
+  TData = Awaited<ReturnType<typeof listCommunityAppMembers>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   appId: number,
-  params?: ListGuildAppMembersApiV1CGuildIdAppsAppIdMembersGetParams,
+  params?: ListCommunityAppMembersParams,
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listGuildAppMembersApiV1CGuildIdAppsAppIdMembersGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof listCommunityAppMembers>>, TError, TData>
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listGuildAppMembersApiV1CGuildIdAppsAppIdMembersGet>>,
+          Awaited<ReturnType<typeof listCommunityAppMembers>>,
           TError,
-          Awaited<ReturnType<typeof listGuildAppMembersApiV1CGuildIdAppsAppIdMembersGet>>
+          Awaited<ReturnType<typeof listCommunityAppMembers>>
         >,
         "initialData"
       >;
@@ -2673,54 +2273,41 @@ export function useListGuildAppMembersApiV1CGuildIdAppsAppIdMembersGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListGuildAppMembersApiV1CGuildIdAppsAppIdMembersGet<
-  TData = Awaited<ReturnType<typeof listGuildAppMembersApiV1CGuildIdAppsAppIdMembersGet>>,
+export function useListCommunityAppMembers<
+  TData = Awaited<ReturnType<typeof listCommunityAppMembers>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   appId: number,
-  params?: ListGuildAppMembersApiV1CGuildIdAppsAppIdMembersGetParams,
+  params?: ListCommunityAppMembersParams,
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listGuildAppMembersApiV1CGuildIdAppsAppIdMembersGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof listCommunityAppMembers>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
- * @summary List Guild App Members
+ * @summary List Community App Members
  */
 
-export function useListGuildAppMembersApiV1CGuildIdAppsAppIdMembersGet<
-  TData = Awaited<ReturnType<typeof listGuildAppMembersApiV1CGuildIdAppsAppIdMembersGet>>,
+export function useListCommunityAppMembers<
+  TData = Awaited<ReturnType<typeof listCommunityAppMembers>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   appId: number,
-  params?: ListGuildAppMembersApiV1CGuildIdAppsAppIdMembersGetParams,
+  params?: ListCommunityAppMembersParams,
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listGuildAppMembersApiV1CGuildIdAppsAppIdMembersGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof listCommunityAppMembers>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListGuildAppMembersApiV1CGuildIdAppsAppIdMembersGetQueryOptions(
-    guildId,
-    appId,
-    params,
-    options
-  );
+  const queryOptions = getListCommunityAppMembersQueryOptions(communityId, appId, params, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -2733,134 +2320,99 @@ export function useListGuildAppMembersApiV1CGuildIdAppsAppIdMembersGet<
  * End one member's connection. They may connect again unless blocked.
  * @summary Revoke Member Connection
  */
-export const revokeMemberConnectionApiV1CGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdDelete =
-  (
-    guildId: number,
-    appId: number,
-    userId: number,
-    connectionId: string,
-    options?: SecondParameter<typeof apiMutator>,
-    signal?: AbortSignal
-  ) => {
-    return apiMutator<void>(
-      {
-        url: `/api/v1/c/${guildId}/apps/${appId}/members/${userId}/connections/${connectionId}`,
-        method: "DELETE",
-        signal,
-      },
-      options
-    );
-  };
+export const revokeMemberConnection = (
+  communityId: number,
+  appId: number,
+  userId: number,
+  connectionId: string,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<void>(
+    {
+      url: `/api/v1/c/${communityId}/apps/${appId}/members/${userId}/connections/${connectionId}`,
+      method: "DELETE",
+      signal,
+    },
+    options
+  );
+};
 
-export const getRevokeMemberConnectionApiV1CGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdDeleteMutationKey =
-  () =>
-    [
-      "revokeMemberConnectionApiV1CGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdDelete",
-    ] as const;
+export const getRevokeMemberConnectionMutationKey = () => ["revokeMemberConnection"] as const;
 
-export const getRevokeMemberConnectionApiV1CGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdDeleteMutationOptions =
-  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
-    mutation?: UseMutationOptions<
-      Awaited<
-        ReturnType<
-          typeof revokeMemberConnectionApiV1CGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdDelete
-        >
-      >,
-      TError,
-      RevokeMemberConnectionApiV1CGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdDeleteMutationVariables,
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  }): UseMutationOptions<
-    Awaited<
-      ReturnType<
-        typeof revokeMemberConnectionApiV1CGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdDelete
-      >
-    >,
+export const getRevokeMemberConnectionMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof revokeMemberConnection>>,
     TError,
-    RevokeMemberConnectionApiV1CGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdDeleteMutationVariables,
+    RevokeMemberConnectionMutationVariables,
     TContext
-  > => {
-    const mutationKey =
-      getRevokeMemberConnectionApiV1CGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdDeleteMutationKey();
-    const { mutation: mutationOptions, request: requestOptions } = options
-      ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-        ? options
-        : { ...options, mutation: { ...options.mutation, mutationKey } }
-      : { mutation: { mutationKey }, request: undefined };
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof revokeMemberConnection>>,
+  TError,
+  RevokeMemberConnectionMutationVariables,
+  TContext
+> => {
+  const mutationKey = getRevokeMemberConnectionMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
 
-    const mutationFn: MutationFunction<
-      Awaited<
-        ReturnType<
-          typeof revokeMemberConnectionApiV1CGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdDelete
-        >
-      >,
-      RevokeMemberConnectionApiV1CGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdDeleteMutationVariables
-    > = (props) => {
-      const { guildId, appId, userId, connectionId } = props ?? {};
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof revokeMemberConnection>>,
+    RevokeMemberConnectionMutationVariables
+  > = (props) => {
+    const { communityId, appId, userId, connectionId } = props ?? {};
 
-      return revokeMemberConnectionApiV1CGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdDelete(
-        guildId,
-        appId,
-        userId,
-        connectionId,
-        requestOptions
-      );
-    };
-
-    return { mutationFn, ...mutationOptions };
+    return revokeMemberConnection(communityId, appId, userId, connectionId, requestOptions);
   };
 
-export type RevokeMemberConnectionApiV1CGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdDeleteMutationResult =
-  NonNullable<
-    Awaited<
-      ReturnType<
-        typeof revokeMemberConnectionApiV1CGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdDelete
-      >
-    >
-  >;
+  return { mutationFn, ...mutationOptions };
+};
 
-export type RevokeMemberConnectionApiV1CGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdDeleteMutationError =
-  ErrorType<HTTPValidationError>;
-export type RevokeMemberConnectionApiV1CGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdDeleteMutationVariables =
-  { guildId: number; appId: number; userId: number; connectionId: string };
+export type RevokeMemberConnectionMutationResult = NonNullable<
+  Awaited<ReturnType<typeof revokeMemberConnection>>
+>;
+
+export type RevokeMemberConnectionMutationError = ErrorType<HTTPValidationError>;
+export type RevokeMemberConnectionMutationVariables = {
+  communityId: number;
+  appId: number;
+  userId: number;
+  connectionId: string;
+};
 
 /**
  * @summary Revoke Member Connection
  */
-export const useRevokeMemberConnectionApiV1CGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdDelete =
-  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
-    options?: {
-      mutation?: UseMutationOptions<
-        Awaited<
-          ReturnType<
-            typeof revokeMemberConnectionApiV1CGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdDelete
-          >
-        >,
-        TError,
-        RevokeMemberConnectionApiV1CGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdDeleteMutationVariables,
-        TContext
-      >;
-      request?: SecondParameter<typeof apiMutator>;
-    },
-    queryClient?: QueryClient
-  ): UseMutationResult<
-    Awaited<
-      ReturnType<
-        typeof revokeMemberConnectionApiV1CGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdDelete
-      >
-    >,
-    TError,
-    RevokeMemberConnectionApiV1CGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdDeleteMutationVariables,
-    TContext
-  > => {
-    return useMutation(
-      getRevokeMemberConnectionApiV1CGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdDeleteMutationOptions(
-        options
-      ),
-      queryClient
-    );
-  };
+export const useRevokeMemberConnection = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof revokeMemberConnection>>,
+      TError,
+      RevokeMemberConnectionMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof revokeMemberConnection>>,
+  TError,
+  RevokeMemberConnectionMutationVariables,
+  TContext
+> => {
+  return useMutation(getRevokeMemberConnectionMutationOptions(options), queryClient);
+};
 /**
  * Revoke a member's connection and refuse the next one.
  *
@@ -2868,266 +2420,196 @@ export const useRevokeMemberConnectionApiV1CGuildIdAppsAppIdMembersUserIdConnect
  * that does not mean uninstalling the app for everyone.
  * @summary Block Member Connection
  */
-export const blockMemberConnectionApiV1CGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdBlockPost =
-  (
-    guildId: number,
-    appId: number,
-    userId: number,
-    connectionId: string,
-    options?: SecondParameter<typeof apiMutator>,
-    signal?: AbortSignal
-  ) => {
-    return apiMutator<void>(
-      {
-        url: `/api/v1/c/${guildId}/apps/${appId}/members/${userId}/connections/${connectionId}/block`,
-        method: "POST",
-        signal,
-      },
-      options
-    );
-  };
+export const blockMemberConnection = (
+  communityId: number,
+  appId: number,
+  userId: number,
+  connectionId: string,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<void>(
+    {
+      url: `/api/v1/c/${communityId}/apps/${appId}/members/${userId}/connections/${connectionId}/block`,
+      method: "POST",
+      signal,
+    },
+    options
+  );
+};
 
-export const getBlockMemberConnectionApiV1CGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdBlockPostMutationKey =
-  () =>
-    [
-      "blockMemberConnectionApiV1CGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdBlockPost",
-    ] as const;
+export const getBlockMemberConnectionMutationKey = () => ["blockMemberConnection"] as const;
 
-export const getBlockMemberConnectionApiV1CGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdBlockPostMutationOptions =
-  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
-    mutation?: UseMutationOptions<
-      Awaited<
-        ReturnType<
-          typeof blockMemberConnectionApiV1CGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdBlockPost
-        >
-      >,
-      TError,
-      BlockMemberConnectionApiV1CGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdBlockPostMutationVariables,
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  }): UseMutationOptions<
-    Awaited<
-      ReturnType<
-        typeof blockMemberConnectionApiV1CGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdBlockPost
-      >
-    >,
+export const getBlockMemberConnectionMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof blockMemberConnection>>,
     TError,
-    BlockMemberConnectionApiV1CGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdBlockPostMutationVariables,
+    BlockMemberConnectionMutationVariables,
     TContext
-  > => {
-    const mutationKey =
-      getBlockMemberConnectionApiV1CGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdBlockPostMutationKey();
-    const { mutation: mutationOptions, request: requestOptions } = options
-      ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-        ? options
-        : { ...options, mutation: { ...options.mutation, mutationKey } }
-      : { mutation: { mutationKey }, request: undefined };
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof blockMemberConnection>>,
+  TError,
+  BlockMemberConnectionMutationVariables,
+  TContext
+> => {
+  const mutationKey = getBlockMemberConnectionMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
 
-    const mutationFn: MutationFunction<
-      Awaited<
-        ReturnType<
-          typeof blockMemberConnectionApiV1CGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdBlockPost
-        >
-      >,
-      BlockMemberConnectionApiV1CGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdBlockPostMutationVariables
-    > = (props) => {
-      const { guildId, appId, userId, connectionId } = props ?? {};
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof blockMemberConnection>>,
+    BlockMemberConnectionMutationVariables
+  > = (props) => {
+    const { communityId, appId, userId, connectionId } = props ?? {};
 
-      return blockMemberConnectionApiV1CGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdBlockPost(
-        guildId,
-        appId,
-        userId,
-        connectionId,
-        requestOptions
-      );
-    };
-
-    return { mutationFn, ...mutationOptions };
+    return blockMemberConnection(communityId, appId, userId, connectionId, requestOptions);
   };
 
-export type BlockMemberConnectionApiV1CGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdBlockPostMutationResult =
-  NonNullable<
-    Awaited<
-      ReturnType<
-        typeof blockMemberConnectionApiV1CGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdBlockPost
-      >
-    >
-  >;
+  return { mutationFn, ...mutationOptions };
+};
 
-export type BlockMemberConnectionApiV1CGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdBlockPostMutationError =
-  ErrorType<HTTPValidationError>;
-export type BlockMemberConnectionApiV1CGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdBlockPostMutationVariables =
-  { guildId: number; appId: number; userId: number; connectionId: string };
+export type BlockMemberConnectionMutationResult = NonNullable<
+  Awaited<ReturnType<typeof blockMemberConnection>>
+>;
+
+export type BlockMemberConnectionMutationError = ErrorType<HTTPValidationError>;
+export type BlockMemberConnectionMutationVariables = {
+  communityId: number;
+  appId: number;
+  userId: number;
+  connectionId: string;
+};
 
 /**
  * @summary Block Member Connection
  */
-export const useBlockMemberConnectionApiV1CGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdBlockPost =
-  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
-    options?: {
-      mutation?: UseMutationOptions<
-        Awaited<
-          ReturnType<
-            typeof blockMemberConnectionApiV1CGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdBlockPost
-          >
-        >,
-        TError,
-        BlockMemberConnectionApiV1CGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdBlockPostMutationVariables,
-        TContext
-      >;
-      request?: SecondParameter<typeof apiMutator>;
-    },
-    queryClient?: QueryClient
-  ): UseMutationResult<
-    Awaited<
-      ReturnType<
-        typeof blockMemberConnectionApiV1CGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdBlockPost
-      >
-    >,
-    TError,
-    BlockMemberConnectionApiV1CGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdBlockPostMutationVariables,
-    TContext
-  > => {
-    return useMutation(
-      getBlockMemberConnectionApiV1CGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdBlockPostMutationOptions(
-        options
-      ),
-      queryClient
-    );
-  };
+export const useBlockMemberConnection = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof blockMemberConnection>>,
+      TError,
+      BlockMemberConnectionMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof blockMemberConnection>>,
+  TError,
+  BlockMemberConnectionMutationVariables,
+  TContext
+> => {
+  return useMutation(getBlockMemberConnectionMutationOptions(options), queryClient);
+};
 /**
  * Lift a block, so the member may connect their own account again.
  * @summary Unblock Member Connection
  */
-export const unblockMemberConnectionApiV1CGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdBlockDelete =
-  (
-    guildId: number,
-    appId: number,
-    userId: number,
-    connectionId: string,
-    options?: SecondParameter<typeof apiMutator>,
-    signal?: AbortSignal
-  ) => {
-    return apiMutator<void>(
-      {
-        url: `/api/v1/c/${guildId}/apps/${appId}/members/${userId}/connections/${connectionId}/block`,
-        method: "DELETE",
-        signal,
-      },
-      options
-    );
-  };
+export const unblockMemberConnection = (
+  communityId: number,
+  appId: number,
+  userId: number,
+  connectionId: string,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<void>(
+    {
+      url: `/api/v1/c/${communityId}/apps/${appId}/members/${userId}/connections/${connectionId}/block`,
+      method: "DELETE",
+      signal,
+    },
+    options
+  );
+};
 
-export const getUnblockMemberConnectionApiV1CGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdBlockDeleteMutationKey =
-  () =>
-    [
-      "unblockMemberConnectionApiV1CGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdBlockDelete",
-    ] as const;
+export const getUnblockMemberConnectionMutationKey = () => ["unblockMemberConnection"] as const;
 
-export const getUnblockMemberConnectionApiV1CGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdBlockDeleteMutationOptions =
-  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
-    mutation?: UseMutationOptions<
-      Awaited<
-        ReturnType<
-          typeof unblockMemberConnectionApiV1CGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdBlockDelete
-        >
-      >,
-      TError,
-      UnblockMemberConnectionApiV1CGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdBlockDeleteMutationVariables,
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  }): UseMutationOptions<
-    Awaited<
-      ReturnType<
-        typeof unblockMemberConnectionApiV1CGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdBlockDelete
-      >
-    >,
+export const getUnblockMemberConnectionMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof unblockMemberConnection>>,
     TError,
-    UnblockMemberConnectionApiV1CGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdBlockDeleteMutationVariables,
+    UnblockMemberConnectionMutationVariables,
     TContext
-  > => {
-    const mutationKey =
-      getUnblockMemberConnectionApiV1CGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdBlockDeleteMutationKey();
-    const { mutation: mutationOptions, request: requestOptions } = options
-      ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-        ? options
-        : { ...options, mutation: { ...options.mutation, mutationKey } }
-      : { mutation: { mutationKey }, request: undefined };
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof unblockMemberConnection>>,
+  TError,
+  UnblockMemberConnectionMutationVariables,
+  TContext
+> => {
+  const mutationKey = getUnblockMemberConnectionMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
 
-    const mutationFn: MutationFunction<
-      Awaited<
-        ReturnType<
-          typeof unblockMemberConnectionApiV1CGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdBlockDelete
-        >
-      >,
-      UnblockMemberConnectionApiV1CGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdBlockDeleteMutationVariables
-    > = (props) => {
-      const { guildId, appId, userId, connectionId } = props ?? {};
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof unblockMemberConnection>>,
+    UnblockMemberConnectionMutationVariables
+  > = (props) => {
+    const { communityId, appId, userId, connectionId } = props ?? {};
 
-      return unblockMemberConnectionApiV1CGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdBlockDelete(
-        guildId,
-        appId,
-        userId,
-        connectionId,
-        requestOptions
-      );
-    };
-
-    return { mutationFn, ...mutationOptions };
+    return unblockMemberConnection(communityId, appId, userId, connectionId, requestOptions);
   };
 
-export type UnblockMemberConnectionApiV1CGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdBlockDeleteMutationResult =
-  NonNullable<
-    Awaited<
-      ReturnType<
-        typeof unblockMemberConnectionApiV1CGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdBlockDelete
-      >
-    >
-  >;
+  return { mutationFn, ...mutationOptions };
+};
 
-export type UnblockMemberConnectionApiV1CGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdBlockDeleteMutationError =
-  ErrorType<HTTPValidationError>;
-export type UnblockMemberConnectionApiV1CGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdBlockDeleteMutationVariables =
-  { guildId: number; appId: number; userId: number; connectionId: string };
+export type UnblockMemberConnectionMutationResult = NonNullable<
+  Awaited<ReturnType<typeof unblockMemberConnection>>
+>;
+
+export type UnblockMemberConnectionMutationError = ErrorType<HTTPValidationError>;
+export type UnblockMemberConnectionMutationVariables = {
+  communityId: number;
+  appId: number;
+  userId: number;
+  connectionId: string;
+};
 
 /**
  * @summary Unblock Member Connection
  */
-export const useUnblockMemberConnectionApiV1CGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdBlockDelete =
-  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
-    options?: {
-      mutation?: UseMutationOptions<
-        Awaited<
-          ReturnType<
-            typeof unblockMemberConnectionApiV1CGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdBlockDelete
-          >
-        >,
-        TError,
-        UnblockMemberConnectionApiV1CGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdBlockDeleteMutationVariables,
-        TContext
-      >;
-      request?: SecondParameter<typeof apiMutator>;
-    },
-    queryClient?: QueryClient
-  ): UseMutationResult<
-    Awaited<
-      ReturnType<
-        typeof unblockMemberConnectionApiV1CGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdBlockDelete
-      >
-    >,
-    TError,
-    UnblockMemberConnectionApiV1CGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdBlockDeleteMutationVariables,
-    TContext
-  > => {
-    return useMutation(
-      getUnblockMemberConnectionApiV1CGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdBlockDeleteMutationOptions(
-        options
-      ),
-      queryClient
-    );
-  };
+export const useUnblockMemberConnection = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof unblockMemberConnection>>,
+      TError,
+      UnblockMemberConnectionMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof unblockMemberConnection>>,
+  TError,
+  UnblockMemberConnectionMutationVariables,
+  TContext
+> => {
+  return useMutation(getUnblockMemberConnectionMutationOptions(options), queryClient);
+};
 /**
  * End every answer one member gave this app's requests to act as them,
  * pending requests included.
@@ -3137,8 +2619,8 @@ export const useUnblockMemberConnectionApiV1CGuildIdAppsAppIdMembersUserIdConnec
  * what keeps "the app acts as me" something its subject actually decided.
  * @summary Revoke Member Consents
  */
-export const revokeMemberConsentsApiV1CGuildIdAppsAppIdMembersUserIdConsentsDelete = (
-  guildId: number,
+export const revokeMemberConsents = (
+  communityId: number,
   appId: number,
   userId: number,
   options?: SecondParameter<typeof apiMutator>,
@@ -3146,7 +2628,7 @@ export const revokeMemberConsentsApiV1CGuildIdAppsAppIdMembersUserIdConsentsDele
 ) => {
   return apiMutator<void>(
     {
-      url: `/api/v1/c/${guildId}/apps/${appId}/members/${userId}/consents`,
+      url: `/api/v1/c/${communityId}/apps/${appId}/members/${userId}/consents`,
       method: "DELETE",
       signal,
     },
@@ -3154,98 +2636,79 @@ export const revokeMemberConsentsApiV1CGuildIdAppsAppIdMembersUserIdConsentsDele
   );
 };
 
-export const getRevokeMemberConsentsApiV1CGuildIdAppsAppIdMembersUserIdConsentsDeleteMutationKey =
-  () => ["revokeMemberConsentsApiV1CGuildIdAppsAppIdMembersUserIdConsentsDelete"] as const;
+export const getRevokeMemberConsentsMutationKey = () => ["revokeMemberConsents"] as const;
 
-export const getRevokeMemberConsentsApiV1CGuildIdAppsAppIdMembersUserIdConsentsDeleteMutationOptions =
-  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
-    mutation?: UseMutationOptions<
-      Awaited<
-        ReturnType<typeof revokeMemberConsentsApiV1CGuildIdAppsAppIdMembersUserIdConsentsDelete>
-      >,
-      TError,
-      RevokeMemberConsentsApiV1CGuildIdAppsAppIdMembersUserIdConsentsDeleteMutationVariables,
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  }): UseMutationOptions<
-    Awaited<
-      ReturnType<typeof revokeMemberConsentsApiV1CGuildIdAppsAppIdMembersUserIdConsentsDelete>
-    >,
+export const getRevokeMemberConsentsMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof revokeMemberConsents>>,
     TError,
-    RevokeMemberConsentsApiV1CGuildIdAppsAppIdMembersUserIdConsentsDeleteMutationVariables,
+    RevokeMemberConsentsMutationVariables,
     TContext
-  > => {
-    const mutationKey =
-      getRevokeMemberConsentsApiV1CGuildIdAppsAppIdMembersUserIdConsentsDeleteMutationKey();
-    const { mutation: mutationOptions, request: requestOptions } = options
-      ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-        ? options
-        : { ...options, mutation: { ...options.mutation, mutationKey } }
-      : { mutation: { mutationKey }, request: undefined };
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof revokeMemberConsents>>,
+  TError,
+  RevokeMemberConsentsMutationVariables,
+  TContext
+> => {
+  const mutationKey = getRevokeMemberConsentsMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
 
-    const mutationFn: MutationFunction<
-      Awaited<
-        ReturnType<typeof revokeMemberConsentsApiV1CGuildIdAppsAppIdMembersUserIdConsentsDelete>
-      >,
-      RevokeMemberConsentsApiV1CGuildIdAppsAppIdMembersUserIdConsentsDeleteMutationVariables
-    > = (props) => {
-      const { guildId, appId, userId } = props ?? {};
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof revokeMemberConsents>>,
+    RevokeMemberConsentsMutationVariables
+  > = (props) => {
+    const { communityId, appId, userId } = props ?? {};
 
-      return revokeMemberConsentsApiV1CGuildIdAppsAppIdMembersUserIdConsentsDelete(
-        guildId,
-        appId,
-        userId,
-        requestOptions
-      );
-    };
-
-    return { mutationFn, ...mutationOptions };
+    return revokeMemberConsents(communityId, appId, userId, requestOptions);
   };
 
-export type RevokeMemberConsentsApiV1CGuildIdAppsAppIdMembersUserIdConsentsDeleteMutationResult =
-  NonNullable<
-    Awaited<
-      ReturnType<typeof revokeMemberConsentsApiV1CGuildIdAppsAppIdMembersUserIdConsentsDelete>
-    >
-  >;
+  return { mutationFn, ...mutationOptions };
+};
 
-export type RevokeMemberConsentsApiV1CGuildIdAppsAppIdMembersUserIdConsentsDeleteMutationError =
-  ErrorType<HTTPValidationError>;
-export type RevokeMemberConsentsApiV1CGuildIdAppsAppIdMembersUserIdConsentsDeleteMutationVariables =
-  { guildId: number; appId: number; userId: number };
+export type RevokeMemberConsentsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof revokeMemberConsents>>
+>;
+
+export type RevokeMemberConsentsMutationError = ErrorType<HTTPValidationError>;
+export type RevokeMemberConsentsMutationVariables = {
+  communityId: number;
+  appId: number;
+  userId: number;
+};
 
 /**
  * @summary Revoke Member Consents
  */
-export const useRevokeMemberConsentsApiV1CGuildIdAppsAppIdMembersUserIdConsentsDelete = <
+export const useRevokeMemberConsents = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<
-        ReturnType<typeof revokeMemberConsentsApiV1CGuildIdAppsAppIdMembersUserIdConsentsDelete>
-      >,
+      Awaited<ReturnType<typeof revokeMemberConsents>>,
       TError,
-      RevokeMemberConsentsApiV1CGuildIdAppsAppIdMembersUserIdConsentsDeleteMutationVariables,
+      RevokeMemberConsentsMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof revokeMemberConsentsApiV1CGuildIdAppsAppIdMembersUserIdConsentsDelete>>,
+  Awaited<ReturnType<typeof revokeMemberConsents>>,
   TError,
-  RevokeMemberConsentsApiV1CGuildIdAppsAppIdMembersUserIdConsentsDeleteMutationVariables,
+  RevokeMemberConsentsMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getRevokeMemberConsentsApiV1CGuildIdAppsAppIdMembersUserIdConsentsDeleteMutationOptions(
-      options
-    ),
-    queryClient
-  );
+  return useMutation(getRevokeMemberConsentsMutationOptions(options), queryClient);
 };
 /**
  * Stop this app acting as anybody, without uninstalling it.
@@ -3257,105 +2720,87 @@ export const useRevokeMemberConsentsApiV1CGuildIdAppsAppIdMembersUserIdConsentsD
  * satisfied.
  * @summary Revoke All Member Consents
  */
-export const revokeAllMemberConsentsApiV1CGuildIdAppsAppIdConsentsRevokeAllPost = (
-  guildId: number,
+export const revokeAllMemberConsents = (
+  communityId: number,
   appId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<void>(
-    { url: `/api/v1/c/${guildId}/apps/${appId}/consents/revoke-all`, method: "POST", signal },
+    { url: `/api/v1/c/${communityId}/apps/${appId}/consents/revoke-all`, method: "POST", signal },
     options
   );
 };
 
-export const getRevokeAllMemberConsentsApiV1CGuildIdAppsAppIdConsentsRevokeAllPostMutationKey =
-  () => ["revokeAllMemberConsentsApiV1CGuildIdAppsAppIdConsentsRevokeAllPost"] as const;
+export const getRevokeAllMemberConsentsMutationKey = () => ["revokeAllMemberConsents"] as const;
 
-export const getRevokeAllMemberConsentsApiV1CGuildIdAppsAppIdConsentsRevokeAllPostMutationOptions =
-  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
-    mutation?: UseMutationOptions<
-      Awaited<
-        ReturnType<typeof revokeAllMemberConsentsApiV1CGuildIdAppsAppIdConsentsRevokeAllPost>
-      >,
-      TError,
-      RevokeAllMemberConsentsApiV1CGuildIdAppsAppIdConsentsRevokeAllPostMutationVariables,
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  }): UseMutationOptions<
-    Awaited<ReturnType<typeof revokeAllMemberConsentsApiV1CGuildIdAppsAppIdConsentsRevokeAllPost>>,
+export const getRevokeAllMemberConsentsMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof revokeAllMemberConsents>>,
     TError,
-    RevokeAllMemberConsentsApiV1CGuildIdAppsAppIdConsentsRevokeAllPostMutationVariables,
+    RevokeAllMemberConsentsMutationVariables,
     TContext
-  > => {
-    const mutationKey =
-      getRevokeAllMemberConsentsApiV1CGuildIdAppsAppIdConsentsRevokeAllPostMutationKey();
-    const { mutation: mutationOptions, request: requestOptions } = options
-      ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-        ? options
-        : { ...options, mutation: { ...options.mutation, mutationKey } }
-      : { mutation: { mutationKey }, request: undefined };
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof revokeAllMemberConsents>>,
+  TError,
+  RevokeAllMemberConsentsMutationVariables,
+  TContext
+> => {
+  const mutationKey = getRevokeAllMemberConsentsMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
 
-    const mutationFn: MutationFunction<
-      Awaited<
-        ReturnType<typeof revokeAllMemberConsentsApiV1CGuildIdAppsAppIdConsentsRevokeAllPost>
-      >,
-      RevokeAllMemberConsentsApiV1CGuildIdAppsAppIdConsentsRevokeAllPostMutationVariables
-    > = (props) => {
-      const { guildId, appId } = props ?? {};
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof revokeAllMemberConsents>>,
+    RevokeAllMemberConsentsMutationVariables
+  > = (props) => {
+    const { communityId, appId } = props ?? {};
 
-      return revokeAllMemberConsentsApiV1CGuildIdAppsAppIdConsentsRevokeAllPost(
-        guildId,
-        appId,
-        requestOptions
-      );
-    };
-
-    return { mutationFn, ...mutationOptions };
+    return revokeAllMemberConsents(communityId, appId, requestOptions);
   };
 
-export type RevokeAllMemberConsentsApiV1CGuildIdAppsAppIdConsentsRevokeAllPostMutationResult =
-  NonNullable<
-    Awaited<ReturnType<typeof revokeAllMemberConsentsApiV1CGuildIdAppsAppIdConsentsRevokeAllPost>>
-  >;
-
-export type RevokeAllMemberConsentsApiV1CGuildIdAppsAppIdConsentsRevokeAllPostMutationError =
-  ErrorType<HTTPValidationError>;
-export type RevokeAllMemberConsentsApiV1CGuildIdAppsAppIdConsentsRevokeAllPostMutationVariables = {
-  guildId: number;
-  appId: number;
+  return { mutationFn, ...mutationOptions };
 };
+
+export type RevokeAllMemberConsentsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof revokeAllMemberConsents>>
+>;
+
+export type RevokeAllMemberConsentsMutationError = ErrorType<HTTPValidationError>;
+export type RevokeAllMemberConsentsMutationVariables = { communityId: number; appId: number };
 
 /**
  * @summary Revoke All Member Consents
  */
-export const useRevokeAllMemberConsentsApiV1CGuildIdAppsAppIdConsentsRevokeAllPost = <
+export const useRevokeAllMemberConsents = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<
-        ReturnType<typeof revokeAllMemberConsentsApiV1CGuildIdAppsAppIdConsentsRevokeAllPost>
-      >,
+      Awaited<ReturnType<typeof revokeAllMemberConsents>>,
       TError,
-      RevokeAllMemberConsentsApiV1CGuildIdAppsAppIdConsentsRevokeAllPostMutationVariables,
+      RevokeAllMemberConsentsMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof revokeAllMemberConsentsApiV1CGuildIdAppsAppIdConsentsRevokeAllPost>>,
+  Awaited<ReturnType<typeof revokeAllMemberConsents>>,
   TError,
-  RevokeAllMemberConsentsApiV1CGuildIdAppsAppIdConsentsRevokeAllPostMutationVariables,
+  RevokeAllMemberConsentsMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getRevokeAllMemberConsentsApiV1CGuildIdAppsAppIdConsentsRevokeAllPostMutationOptions(options),
-    queryClient
-  );
+  return useMutation(getRevokeAllMemberConsentsMutationOptions(options), queryClient);
 };
 /**
  * End every member's connection at once, leaving the install standing.
@@ -3364,39 +2809,39 @@ export const useRevokeAllMemberConsentsApiV1CGuildIdAppsAppIdConsentsRevokeAllPo
  * guild its configuration.
  * @summary Revoke All Member Connections
  */
-export const revokeAllMemberConnectionsApiV1CGuildIdAppsAppIdRevokeAllPost = (
-  guildId: number,
+export const revokeAllMemberConnections = (
+  communityId: number,
   appId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<void>(
-    { url: `/api/v1/c/${guildId}/apps/${appId}/revoke-all`, method: "POST", signal },
+    { url: `/api/v1/c/${communityId}/apps/${appId}/revoke-all`, method: "POST", signal },
     options
   );
 };
 
-export const getRevokeAllMemberConnectionsApiV1CGuildIdAppsAppIdRevokeAllPostMutationKey = () =>
-  ["revokeAllMemberConnectionsApiV1CGuildIdAppsAppIdRevokeAllPost"] as const;
+export const getRevokeAllMemberConnectionsMutationKey = () =>
+  ["revokeAllMemberConnections"] as const;
 
-export const getRevokeAllMemberConnectionsApiV1CGuildIdAppsAppIdRevokeAllPostMutationOptions = <
+export const getRevokeAllMemberConnectionsMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof revokeAllMemberConnectionsApiV1CGuildIdAppsAppIdRevokeAllPost>>,
+    Awaited<ReturnType<typeof revokeAllMemberConnections>>,
     TError,
-    RevokeAllMemberConnectionsApiV1CGuildIdAppsAppIdRevokeAllPostMutationVariables,
+    RevokeAllMemberConnectionsMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof revokeAllMemberConnectionsApiV1CGuildIdAppsAppIdRevokeAllPost>>,
+  Awaited<ReturnType<typeof revokeAllMemberConnections>>,
   TError,
-  RevokeAllMemberConnectionsApiV1CGuildIdAppsAppIdRevokeAllPostMutationVariables,
+  RevokeAllMemberConnectionsMutationVariables,
   TContext
 > => {
-  const mutationKey = getRevokeAllMemberConnectionsApiV1CGuildIdAppsAppIdRevokeAllPostMutationKey();
+  const mutationKey = getRevokeAllMemberConnectionsMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -3404,60 +2849,48 @@ export const getRevokeAllMemberConnectionsApiV1CGuildIdAppsAppIdRevokeAllPostMut
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof revokeAllMemberConnectionsApiV1CGuildIdAppsAppIdRevokeAllPost>>,
-    RevokeAllMemberConnectionsApiV1CGuildIdAppsAppIdRevokeAllPostMutationVariables
+    Awaited<ReturnType<typeof revokeAllMemberConnections>>,
+    RevokeAllMemberConnectionsMutationVariables
   > = (props) => {
-    const { guildId, appId } = props ?? {};
+    const { communityId, appId } = props ?? {};
 
-    return revokeAllMemberConnectionsApiV1CGuildIdAppsAppIdRevokeAllPost(
-      guildId,
-      appId,
-      requestOptions
-    );
+    return revokeAllMemberConnections(communityId, appId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type RevokeAllMemberConnectionsApiV1CGuildIdAppsAppIdRevokeAllPostMutationResult =
-  NonNullable<
-    Awaited<ReturnType<typeof revokeAllMemberConnectionsApiV1CGuildIdAppsAppIdRevokeAllPost>>
-  >;
+export type RevokeAllMemberConnectionsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof revokeAllMemberConnections>>
+>;
 
-export type RevokeAllMemberConnectionsApiV1CGuildIdAppsAppIdRevokeAllPostMutationError =
-  ErrorType<HTTPValidationError>;
-export type RevokeAllMemberConnectionsApiV1CGuildIdAppsAppIdRevokeAllPostMutationVariables = {
-  guildId: number;
-  appId: number;
-};
+export type RevokeAllMemberConnectionsMutationError = ErrorType<HTTPValidationError>;
+export type RevokeAllMemberConnectionsMutationVariables = { communityId: number; appId: number };
 
 /**
  * @summary Revoke All Member Connections
  */
-export const useRevokeAllMemberConnectionsApiV1CGuildIdAppsAppIdRevokeAllPost = <
+export const useRevokeAllMemberConnections = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof revokeAllMemberConnectionsApiV1CGuildIdAppsAppIdRevokeAllPost>>,
+      Awaited<ReturnType<typeof revokeAllMemberConnections>>,
       TError,
-      RevokeAllMemberConnectionsApiV1CGuildIdAppsAppIdRevokeAllPostMutationVariables,
+      RevokeAllMemberConnectionsMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof revokeAllMemberConnectionsApiV1CGuildIdAppsAppIdRevokeAllPost>>,
+  Awaited<ReturnType<typeof revokeAllMemberConnections>>,
   TError,
-  RevokeAllMemberConnectionsApiV1CGuildIdAppsAppIdRevokeAllPostMutationVariables,
+  RevokeAllMemberConnectionsMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getRevokeAllMemberConnectionsApiV1CGuildIdAppsAppIdRevokeAllPostMutationOptions(options),
-    queryClient
-  );
+  return useMutation(getRevokeAllMemberConnectionsMutationOptions(options), queryClient);
 };
 /**
  * Mint the credential for a surface opened inside one initiative.
@@ -3476,131 +2909,97 @@ export const useRevokeAllMemberConnectionsApiV1CGuildIdAppsAppIdRevokeAllPost = 
  * or trusting a parameter.
  * @summary Create Initiative App Handoff
  */
-export const createInitiativeAppHandoffApiV1CGuildIdInitiativesInitiativeIdAppsAppIdHandoffSurfaceIdPost =
-  (
-    guildId: number,
-    initiativeId: number,
-    appId: number,
-    surfaceId: string,
-    options?: SecondParameter<typeof apiMutator>,
-    signal?: AbortSignal
-  ) => {
-    return apiMutator<CommunityAppHandoff>(
-      {
-        url: `/api/v1/c/${guildId}/initiatives/${initiativeId}/apps/${appId}/handoff/${surfaceId}`,
-        method: "POST",
-        signal,
-      },
-      options
-    );
-  };
+export const createInitiativeAppHandoff = (
+  communityId: number,
+  initiativeId: number,
+  appId: number,
+  surfaceId: string,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<CommunityAppHandoff>(
+    {
+      url: `/api/v1/c/${communityId}/initiatives/${initiativeId}/apps/${appId}/handoff/${surfaceId}`,
+      method: "POST",
+      signal,
+    },
+    options
+  );
+};
 
-export const getCreateInitiativeAppHandoffApiV1CGuildIdInitiativesInitiativeIdAppsAppIdHandoffSurfaceIdPostMutationKey =
-  () =>
-    [
-      "createInitiativeAppHandoffApiV1CGuildIdInitiativesInitiativeIdAppsAppIdHandoffSurfaceIdPost",
-    ] as const;
+export const getCreateInitiativeAppHandoffMutationKey = () =>
+  ["createInitiativeAppHandoff"] as const;
 
-export const getCreateInitiativeAppHandoffApiV1CGuildIdInitiativesInitiativeIdAppsAppIdHandoffSurfaceIdPostMutationOptions =
-  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
-    mutation?: UseMutationOptions<
-      Awaited<
-        ReturnType<
-          typeof createInitiativeAppHandoffApiV1CGuildIdInitiativesInitiativeIdAppsAppIdHandoffSurfaceIdPost
-        >
-      >,
-      TError,
-      CreateInitiativeAppHandoffApiV1CGuildIdInitiativesInitiativeIdAppsAppIdHandoffSurfaceIdPostMutationVariables,
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  }): UseMutationOptions<
-    Awaited<
-      ReturnType<
-        typeof createInitiativeAppHandoffApiV1CGuildIdInitiativesInitiativeIdAppsAppIdHandoffSurfaceIdPost
-      >
-    >,
+export const getCreateInitiativeAppHandoffMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createInitiativeAppHandoff>>,
     TError,
-    CreateInitiativeAppHandoffApiV1CGuildIdInitiativesInitiativeIdAppsAppIdHandoffSurfaceIdPostMutationVariables,
+    CreateInitiativeAppHandoffMutationVariables,
     TContext
-  > => {
-    const mutationKey =
-      getCreateInitiativeAppHandoffApiV1CGuildIdInitiativesInitiativeIdAppsAppIdHandoffSurfaceIdPostMutationKey();
-    const { mutation: mutationOptions, request: requestOptions } = options
-      ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-        ? options
-        : { ...options, mutation: { ...options.mutation, mutationKey } }
-      : { mutation: { mutationKey }, request: undefined };
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createInitiativeAppHandoff>>,
+  TError,
+  CreateInitiativeAppHandoffMutationVariables,
+  TContext
+> => {
+  const mutationKey = getCreateInitiativeAppHandoffMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
 
-    const mutationFn: MutationFunction<
-      Awaited<
-        ReturnType<
-          typeof createInitiativeAppHandoffApiV1CGuildIdInitiativesInitiativeIdAppsAppIdHandoffSurfaceIdPost
-        >
-      >,
-      CreateInitiativeAppHandoffApiV1CGuildIdInitiativesInitiativeIdAppsAppIdHandoffSurfaceIdPostMutationVariables
-    > = (props) => {
-      const { guildId, initiativeId, appId, surfaceId } = props ?? {};
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createInitiativeAppHandoff>>,
+    CreateInitiativeAppHandoffMutationVariables
+  > = (props) => {
+    const { communityId, initiativeId, appId, surfaceId } = props ?? {};
 
-      return createInitiativeAppHandoffApiV1CGuildIdInitiativesInitiativeIdAppsAppIdHandoffSurfaceIdPost(
-        guildId,
-        initiativeId,
-        appId,
-        surfaceId,
-        requestOptions
-      );
-    };
-
-    return { mutationFn, ...mutationOptions };
+    return createInitiativeAppHandoff(communityId, initiativeId, appId, surfaceId, requestOptions);
   };
 
-export type CreateInitiativeAppHandoffApiV1CGuildIdInitiativesInitiativeIdAppsAppIdHandoffSurfaceIdPostMutationResult =
-  NonNullable<
-    Awaited<
-      ReturnType<
-        typeof createInitiativeAppHandoffApiV1CGuildIdInitiativesInitiativeIdAppsAppIdHandoffSurfaceIdPost
-      >
-    >
-  >;
+  return { mutationFn, ...mutationOptions };
+};
 
-export type CreateInitiativeAppHandoffApiV1CGuildIdInitiativesInitiativeIdAppsAppIdHandoffSurfaceIdPostMutationError =
-  ErrorType<HTTPValidationError>;
-export type CreateInitiativeAppHandoffApiV1CGuildIdInitiativesInitiativeIdAppsAppIdHandoffSurfaceIdPostMutationVariables =
-  { guildId: number; initiativeId: number; appId: number; surfaceId: string };
+export type CreateInitiativeAppHandoffMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createInitiativeAppHandoff>>
+>;
+
+export type CreateInitiativeAppHandoffMutationError = ErrorType<HTTPValidationError>;
+export type CreateInitiativeAppHandoffMutationVariables = {
+  communityId: number;
+  initiativeId: number;
+  appId: number;
+  surfaceId: string;
+};
 
 /**
  * @summary Create Initiative App Handoff
  */
-export const useCreateInitiativeAppHandoffApiV1CGuildIdInitiativesInitiativeIdAppsAppIdHandoffSurfaceIdPost =
-  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
-    options?: {
-      mutation?: UseMutationOptions<
-        Awaited<
-          ReturnType<
-            typeof createInitiativeAppHandoffApiV1CGuildIdInitiativesInitiativeIdAppsAppIdHandoffSurfaceIdPost
-          >
-        >,
-        TError,
-        CreateInitiativeAppHandoffApiV1CGuildIdInitiativesInitiativeIdAppsAppIdHandoffSurfaceIdPostMutationVariables,
-        TContext
-      >;
-      request?: SecondParameter<typeof apiMutator>;
-    },
-    queryClient?: QueryClient
-  ): UseMutationResult<
-    Awaited<
-      ReturnType<
-        typeof createInitiativeAppHandoffApiV1CGuildIdInitiativesInitiativeIdAppsAppIdHandoffSurfaceIdPost
-      >
-    >,
-    TError,
-    CreateInitiativeAppHandoffApiV1CGuildIdInitiativesInitiativeIdAppsAppIdHandoffSurfaceIdPostMutationVariables,
-    TContext
-  > => {
-    return useMutation(
-      getCreateInitiativeAppHandoffApiV1CGuildIdInitiativesInitiativeIdAppsAppIdHandoffSurfaceIdPostMutationOptions(
-        options
-      ),
-      queryClient
-    );
-  };
+export const useCreateInitiativeAppHandoff = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof createInitiativeAppHandoff>>,
+      TError,
+      CreateInitiativeAppHandoffMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof createInitiativeAppHandoff>>,
+  TError,
+  CreateInitiativeAppHandoffMutationVariables,
+  TContext
+> => {
+  return useMutation(getCreateInitiativeAppHandoffMutationOptions(options), queryClient);
+};

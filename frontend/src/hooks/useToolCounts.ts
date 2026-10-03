@@ -12,15 +12,15 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import type {
-  GetToolCountsApiV1CGuildIdToolsToolCountsGetParams,
+  GetToolCountsParams,
   Tool,
   ToolCountsResponse,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
-  getGetToolCountsApiV1CGuildIdToolsToolCountsGetQueryKey,
-  getGetToolCountsByInitiativeApiV1CGuildIdToolsCountsByInitiativeGetQueryKey,
-  getToolCountsApiV1CGuildIdToolsToolCountsGet,
-  getToolCountsByInitiativeApiV1CGuildIdToolsCountsByInitiativeGet,
+  getGetToolCountsByInitiativeQueryKey,
+  getGetToolCountsQueryKey,
+  getToolCounts,
+  getToolCountsByInitiative,
 } from "@/api/generated/tools/tools";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { TOOLS } from "@/lib/tools";
@@ -51,8 +51,8 @@ const toCountMap = (counts: Record<string, number> | undefined): Map<number, num
 export function useToolCountsByInitiative(options?: UseToolCountsOptions): ToolCountsByInitiative {
   const guildId = useActiveGuildId();
   const query = useQuery({
-    queryKey: getGetToolCountsByInitiativeApiV1CGuildIdToolsCountsByInitiativeGetQueryKey(guildId),
-    queryFn: () => getToolCountsByInitiativeApiV1CGuildIdToolsCountsByInitiativeGet(guildId),
+    queryKey: getGetToolCountsByInitiativeQueryKey(guildId),
+    queryFn: () => getToolCountsByInitiative(guildId),
     enabled: options?.enabled ?? true,
     staleTime: options?.staleTime ?? 30_000,
   });
@@ -69,14 +69,11 @@ export function useToolCountsByInitiative(options?: UseToolCountsOptions): ToolC
 /** One tool's page: how many rows sit in each view, and the tag tree beside
  *  the view named by `params.view`. The previous answer stays on screen while
  *  the next view's arrives, so the badges do not blank out. */
-export const useToolCounts = (
-  tool: Tool,
-  params: GetToolCountsApiV1CGuildIdToolsToolCountsGetParams
-) => {
+export const useToolCounts = (tool: Tool, params: GetToolCountsParams) => {
   const guildId = useActiveGuildId();
   return useQuery<ToolCountsResponse>({
-    queryKey: getGetToolCountsApiV1CGuildIdToolsToolCountsGetQueryKey(guildId, tool, params),
-    queryFn: () => getToolCountsApiV1CGuildIdToolsToolCountsGet(guildId, tool, params),
+    queryKey: getGetToolCountsQueryKey(guildId, tool, params),
+    queryFn: () => getToolCounts(guildId, tool, params),
     placeholderData: keepPreviousData,
   });
 };

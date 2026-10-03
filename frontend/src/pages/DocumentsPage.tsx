@@ -4,10 +4,7 @@ import { LayoutGrid, Plus, Table, Tags } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type {
-  DocumentSummary,
-  ListDocumentsApiV1CGuildIdDocumentsGetParams,
-} from "@/api/generated/initiativeAPI.schemas";
+import type { DocumentSummary, ListDocumentsParams } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { invalidate, q } from "@/api/query-keys";
 import { BulkEditAccessDialog } from "@/components/access/BulkEditAccessDialog";
@@ -311,7 +308,7 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
     viewMode,
   ]);
 
-  const documentsQueryParams: ListDocumentsApiV1CGuildIdDocumentsGetParams = {
+  const documentsQueryParams: ListDocumentsParams = {
     ...(lockedInitiativeId ? { initiative_id: lockedInitiativeId } : {}),
     ...(searchQuery.trim() ? { search: searchQuery.trim() } : {}),
     ...(queryTagIds.length > 0 ? { tag_ids: queryTagIds } : {}),
@@ -333,7 +330,7 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
   // only — they answer "how many exist", not "how many survive the current
   // filters".
   // The tag tree beside the list counts under the list's own filters.
-  const countFilters: ListDocumentsApiV1CGuildIdDocumentsGetParams = {
+  const countFilters: ListDocumentsParams = {
     ...(searchQuery.trim() ? { search: searchQuery.trim() } : {}),
     ...(queryDocumentType ? { document_type: queryDocumentType } : {}),
     ...(encodedPropertyFilters ? { property_filters: encodedPropertyFilters } : {}),
@@ -350,7 +347,7 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
   const prefetchPage = useCallback(
     (targetPage: number) => {
       if (targetPage < 1) return;
-      const prefetchParams: ListDocumentsApiV1CGuildIdDocumentsGetParams = {
+      const prefetchParams: ListDocumentsParams = {
         ...(lockedInitiativeId ? { initiative_id: lockedInitiativeId } : {}),
         ...(searchQuery.trim() ? { search: searchQuery.trim() } : {}),
         ...(queryTagIds.length > 0 ? { tag_ids: queryTagIds } : {}),

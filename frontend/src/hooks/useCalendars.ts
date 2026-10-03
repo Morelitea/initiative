@@ -2,7 +2,7 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import type {
   CalendarListResponse,
-  ListMyCalendarsApiV1MeCalendarsGetParams,
+  ListMyCalendarsParams,
 } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { TOOL_HOOKS } from "@/hooks/toolHooks";
@@ -25,7 +25,7 @@ export const useSetCalendarGrants = calendars.useSetGrants;
 /** Cross-guild variant for the My Calendar grouping panel — every calendar
  * visible to the user across their guilds, in one request. */
 export const useMyCalendars = (
-  params?: ListMyCalendarsApiV1MeCalendarsGetParams,
+  params?: ListMyCalendarsParams,
   options?: QueryOpts<CalendarListResponse>
 ) => {
   return useQuery<CalendarListResponse>({

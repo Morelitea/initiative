@@ -1,7 +1,7 @@
 import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 
-import { createGuildBillingHandoffApiV1CommunitiesGuildIdBillingHandoffPost } from "@/api/generated/communities/communities";
+import { createCommunityBillingHandoff } from "@/api/generated/communities/communities";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useServer } from "@/hooks/useServer";
 
@@ -52,8 +52,7 @@ export const useBillingPortal = () => {
     async (guildId: number, page: BillingPortalPage): Promise<string | null> => {
       const base = pageUrl(guildId, page);
       if (!base) return null;
-      const { handoff_token } =
-        await createGuildBillingHandoffApiV1CommunitiesGuildIdBillingHandoffPost(guildId);
+      const { handoff_token } = await createCommunityBillingHandoff(guildId);
       return `${base}#handoff=${encodeURIComponent(handoff_token)}`;
     },
     [pageUrl]

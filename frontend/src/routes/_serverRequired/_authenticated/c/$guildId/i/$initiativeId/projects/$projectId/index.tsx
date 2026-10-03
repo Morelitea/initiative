@@ -1,21 +1,18 @@
 import { createFileRoute, lazyRouteComponent } from "@tanstack/react-router";
 
 import {
-  getListFilterPresetsApiV1CGuildIdProjectsProjectIdFilterPresetsGetQueryKey,
-  listFilterPresetsApiV1CGuildIdProjectsProjectIdFilterPresetsGet,
+  getListFilterPresetsQueryKey,
+  listFilterPresets,
 } from "@/api/generated/filter-presets/filter-presets";
 import type {
   FilterPresetListResponse,
   ProjectRead,
   UserViewPreferencesMap,
 } from "@/api/generated/initiativeAPI.schemas";
+import { getReadProjectQueryKey, readProject } from "@/api/generated/projects/projects";
 import {
-  getReadProjectApiV1CGuildIdProjectsProjectIdGetQueryKey,
-  readProjectApiV1CGuildIdProjectsProjectIdGet,
-} from "@/api/generated/projects/projects";
-import {
-  getListTaskStatusesApiV1CGuildIdProjectsProjectIdTaskStatusesGetQueryKey,
-  listTaskStatusesApiV1CGuildIdProjectsProjectIdTaskStatusesGet,
+  getListTaskStatusesQueryKey,
+  listTaskStatuses,
 } from "@/api/generated/task-statuses/task-statuses";
 import { tasksQuery } from "@/hooks/useTasks";
 import { VIEW_PREFERENCES_QUERY_KEY } from "@/hooks/useViewPreference";
@@ -73,26 +70,18 @@ export const Route = createFileRoute(
       try {
         const [project, presets] = await Promise.all([
           queryClient.ensureQueryData<ProjectRead>({
-            queryKey: getReadProjectApiV1CGuildIdProjectsProjectIdGetQueryKey(guildId, projectId),
-            queryFn: () => readProjectApiV1CGuildIdProjectsProjectIdGet(guildId, projectId),
+            queryKey: getReadProjectQueryKey(guildId, projectId),
+            queryFn: () => readProject(guildId, projectId),
             staleTime: 30_000,
           }),
           queryClient.ensureQueryData<FilterPresetListResponse>({
-            queryKey: getListFilterPresetsApiV1CGuildIdProjectsProjectIdFilterPresetsGetQueryKey(
-              guildId,
-              projectId
-            ),
-            queryFn: () =>
-              listFilterPresetsApiV1CGuildIdProjectsProjectIdFilterPresetsGet(guildId, projectId),
+            queryKey: getListFilterPresetsQueryKey(guildId, projectId),
+            queryFn: () => listFilterPresets(guildId, projectId),
             staleTime: 60_000,
           }),
           queryClient.ensureQueryData({
-            queryKey: getListTaskStatusesApiV1CGuildIdProjectsProjectIdTaskStatusesGetQueryKey(
-              guildId,
-              projectId
-            ),
-            queryFn: () =>
-              listTaskStatusesApiV1CGuildIdProjectsProjectIdTaskStatusesGet(guildId, projectId),
+            queryKey: getListTaskStatusesQueryKey(guildId, projectId),
+            queryFn: () => listTaskStatuses(guildId, projectId),
             staleTime: 60_000,
           }),
         ]);

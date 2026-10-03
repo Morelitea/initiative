@@ -1,15 +1,15 @@
 import { useQuery } from "@tanstack/react-query";
 
 import {
-  completeAppServiceVendorSetupApiV1AppServicesRegistrationIdVendorSetupCompletePost,
-  connectAppServiceApiV1AppServicesRegistrationIdConnectPost,
-  createAppServiceApiV1AppServicesPost,
-  deleteAppServiceApiV1AppServicesRegistrationIdDelete,
-  getListAppServicesApiV1AppServicesGetQueryKey,
-  listAppServicesApiV1AppServicesGet,
-  readAppServiceKeysApiV1AppServicesRegistrationIdConnectGet,
-  startAppServiceVendorSetupApiV1AppServicesRegistrationIdVendorSetupPost,
-  updateAppServiceApiV1AppServicesRegistrationIdPatch,
+  completeAppServiceVendorSetup,
+  connectAppService,
+  createAppService,
+  deleteAppService,
+  getListAppServicesQueryKey,
+  listAppServices,
+  readAppServiceKeys,
+  startAppServiceVendorSetup,
+  updateAppService,
 } from "@/api/generated/app-services/app-services";
 import type {
   AppServicePublishedKey,
@@ -26,8 +26,8 @@ import type { QueryOpts } from "@/types/query";
 /** Every app service this deployment has wired up (`apps.manage`). */
 export const useAppServices = (options?: QueryOpts<AppServiceRegistrationRead[]>) =>
   useQuery<AppServiceRegistrationRead[]>({
-    queryKey: getListAppServicesApiV1AppServicesGetQueryKey(),
-    queryFn: () => listAppServicesApiV1AppServicesGet(),
+    queryKey: getListAppServicesQueryKey(),
+    queryFn: () => listAppServices(),
     ...options,
   });
 
@@ -36,7 +36,7 @@ export const useCreateAppService = (
 ) =>
   useApiMutation<AppServiceRegistrationRead, AppServiceRegistrationCreate>(
     {
-      mutationFn: (data) => createAppServiceApiV1AppServicesPost(data),
+      mutationFn: (data) => createAppService(data),
       invalidate: () => invalidate(q.appServices()),
     },
     options
@@ -52,8 +52,7 @@ export const useUpdateAppService = (
 ) =>
   useApiMutation<AppServiceRegistrationRead, UpdateAppServiceVariables>(
     {
-      mutationFn: ({ registrationId, data }) =>
-        updateAppServiceApiV1AppServicesRegistrationIdPatch(registrationId, data),
+      mutationFn: ({ registrationId, data }) => updateAppService(registrationId, data),
       invalidate: () => invalidate(q.appServices()),
     },
     options
@@ -62,8 +61,7 @@ export const useUpdateAppService = (
 export const useDeleteAppService = (options?: MutationOpts<void, number>) =>
   useApiMutation<void, number>(
     {
-      mutationFn: (registrationId) =>
-        deleteAppServiceApiV1AppServicesRegistrationIdDelete(registrationId),
+      mutationFn: (registrationId) => deleteAppService(registrationId),
       invalidate: () => invalidate(q.appServices()),
     },
     options
@@ -77,8 +75,7 @@ export const useDeleteAppService = (options?: MutationOpts<void, number>) =>
 export const useAppServiceKeys = (options?: MutationOpts<AppServicePublishedKey[], number>) =>
   useApiMutation<AppServicePublishedKey[], number>(
     {
-      mutationFn: (registrationId) =>
-        readAppServiceKeysApiV1AppServicesRegistrationIdConnectGet(registrationId),
+      mutationFn: (registrationId) => readAppServiceKeys(registrationId),
     },
     options
   );
@@ -96,7 +93,7 @@ export const useConnectAppService = (
   useApiMutation<AppServiceRegistrationRead, ConnectAppServiceVariables>(
     {
       mutationFn: ({ registrationId, keys }) =>
-        connectAppServiceApiV1AppServicesRegistrationIdConnectPost(registrationId, {
+        connectAppService(registrationId, {
           keys,
         }),
       invalidate: () => invalidate(q.appServices()),
@@ -117,7 +114,7 @@ export const useStartVendorSetup = (
   useApiMutation<AppServiceVendorSetup, StartVendorSetupVariables>(
     {
       mutationFn: ({ registrationId, organization }) =>
-        startAppServiceVendorSetupApiV1AppServicesRegistrationIdVendorSetupPost(registrationId, {
+        startAppServiceVendorSetup(registrationId, {
           organization: organization || null,
         }),
     },
@@ -137,10 +134,7 @@ export const useCompleteVendorSetup = (
   useApiMutation<AppServiceRegistrationRead, CompleteVendorSetupVariables>(
     {
       mutationFn: ({ registrationId, code, state }) =>
-        completeAppServiceVendorSetupApiV1AppServicesRegistrationIdVendorSetupCompletePost(
-          registrationId,
-          { code, state }
-        ),
+        completeAppServiceVendorSetup(registrationId, { code, state }),
       invalidate: () => invalidate(q.appServices()),
     },
     options

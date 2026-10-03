@@ -2,7 +2,7 @@
 
 Covers the two endpoints a guild's opt-in unlocks —
 ``GET /api/v1/communities/directory`` (browse) and
-``POST /api/v1/communities/directory/{guild_id}/join`` (join without an invite) —
+``POST /api/v1/communities/directory/{community_id}/join`` (join without an invite) —
 plus the guild-admin PATCH that sets the opt-in and its categories.
 """
 

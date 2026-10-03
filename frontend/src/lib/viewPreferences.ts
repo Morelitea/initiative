@@ -9,8 +9,8 @@
 
 import type { UserViewPreferencesMap } from "@/api/generated/initiativeAPI.schemas";
 import {
-  getListViewPreferencesApiV1UserViewPreferencesGetQueryKey,
-  listViewPreferencesApiV1UserViewPreferencesGet,
+  getListViewPreferencesQueryKey,
+  listViewPreferences,
 } from "@/api/generated/user-view-preferences/user-view-preferences";
 import { queryClient } from "@/lib/queryClient";
 
@@ -18,8 +18,7 @@ import { queryClient } from "@/lib/queryClient";
  * The cache key for the full preferences map. Exported so the one-shot
  * localStorage migration can prime the cache before the query runs.
  */
-export const VIEW_PREFERENCES_QUERY_KEY =
-  getListViewPreferencesApiV1UserViewPreferencesGetQueryKey();
+export const VIEW_PREFERENCES_QUERY_KEY = getListViewPreferencesQueryKey();
 
 /**
  * Filter state changes rarely from the server's perspective; this client owns
@@ -44,7 +43,7 @@ export const prefetchViewPreferences = (): void => {
   void queryClient
     .prefetchQuery<UserViewPreferencesMap>({
       queryKey: VIEW_PREFERENCES_QUERY_KEY,
-      queryFn: ({ signal }) => listViewPreferencesApiV1UserViewPreferencesGet(undefined, signal),
+      queryFn: ({ signal }) => listViewPreferences(undefined, signal),
       staleTime: PREFERENCES_STALE_TIME_MS,
     })
     .catch(() => {});

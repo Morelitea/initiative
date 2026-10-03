@@ -12,7 +12,7 @@ import {
 import { type ReactNode, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { createGuildInviteApiV1CommunitiesGuildIdInvitesPost } from "@/api/generated/communities/communities";
+import { createCommunityInvite } from "@/api/generated/communities/communities";
 import type { CommunityInviteRead, CommunityRead } from "@/api/generated/initiativeAPI.schemas";
 import { InitiativeMark } from "@/components/icons/InitiativeMark";
 import {
@@ -68,10 +68,7 @@ export const GuildContextMenu = ({ guild, children, onReorder }: GuildContextMen
     if (creatingInvite || atUserLimit) return;
     setCreatingInvite(true);
     try {
-      const data = (await createGuildInviteApiV1CommunitiesGuildIdInvitesPost(
-        guild.id,
-        {}
-      )) as unknown as CommunityInviteRead;
+      const data = (await createCommunityInvite(guild.id, {})) as unknown as CommunityInviteRead;
       const inviteLink = `${window.location.origin}/invite/${data.code}`;
       await navigator.clipboard.writeText(inviteLink);
       toast.success(t("inviteLinkCopied"));

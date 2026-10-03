@@ -1,6 +1,6 @@
 /** Encrypting an envelope for everybody who should see it. */
 
-import { sendMessagesApiV1MeDmConversationsConversationIdMessagesPost as sendMessages } from "@/api/generated/direct-messages/direct-messages";
+import { sendMessages } from "@/api/generated/direct-messages/direct-messages";
 
 import { ratchet } from "./client";
 import { type Context, ensureDeviceContext } from "./device";

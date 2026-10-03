@@ -24,6 +24,7 @@ from starlette.routing import Match
 from sqlalchemy.exc import DBAPIError
 
 from app.api.deps import (
+    CommunityIdPath,
     GuildAccessError,
     SessionDep,
     establish_guild_access,
@@ -241,6 +242,9 @@ app = FastAPI(
     docs_url=None,
     openapi_url=f"{API_V1_STR}/openapi.json",
     redoc_url=None,
+    # An operation is named after its handler (``list_projects``), which the
+    # generated client and the MCP tools take as their names.
+    generate_unique_id_function=lambda route: route.name,
 )
 
 
@@ -605,11 +609,11 @@ app.add_middleware(
 app.add_middleware(RequestAuditMiddleware)
 
 
-@app.get("/uploads/{guild_id}/{filename:path}", include_in_schema=False)
+@app.get("/uploads/{community_id}/{filename:path}", include_in_schema=False)
 @limiter.limit("600/minute")
 async def serve_upload_file(
     request: Request,
-    guild_id: int,
+    guild_id: CommunityIdPath,
     filename: str,
     current_user: Annotated[User, Depends(get_upload_user)],
     session: SessionDep,

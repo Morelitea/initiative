@@ -75,7 +75,7 @@ async def _assumed_role(session: AsyncSession) -> str:
 
 class TestGuildSession:
     """A guild-scoped session — ``SET ROLE guild_<id>``, the request path for
-    everything under ``/c/{guild_id}``.
+    everything under ``/c/{community_id}``.
 
     It does not reach ``public.users`` at all. People are read through
     ``public.guild_member_profiles``, the projection that carries who somebody

@@ -25,7 +25,7 @@ vi.mock("@/hooks/useAppConfig", () => ({
 }));
 const mintMock = vi.hoisted(() => vi.fn());
 vi.mock("@/api/generated/communities/communities", () => ({
-  createGuildBillingHandoffApiV1CommunitiesGuildIdBillingHandoffPost: mintMock,
+  createCommunityBillingHandoff: mintMock,
 }));
 // Who is asked, and when, is the hook's (useGuildBillingSummary.test.tsx);
 // this is what the panel makes of the answer.

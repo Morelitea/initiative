@@ -46,7 +46,7 @@ async def test_a_system_session_is_from_the_cohort_of_the_community_served():
     ) -> None:
         seen.append(session.bind)
 
-    app.get("/c/{guild_id}/probe")(probe)
+    app.get("/c/{community_id}/probe")(probe)
     app.get("/probe")(probe)
     token, _ = seal_install_token(
         guild_id=4,

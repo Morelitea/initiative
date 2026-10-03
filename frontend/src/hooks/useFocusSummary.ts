@@ -5,15 +5,12 @@ import { useCallback, useEffect, useMemo } from "react";
 import type {
   FilterCondition,
   FilterGroup,
-  ListMyTasksApiV1MeTasksGetParams,
+  ListMyTasksParams,
   TaskListRead,
   TaskListResponse,
   TaskPriority,
 } from "@/api/generated/initiativeAPI.schemas";
-import {
-  getListMyTasksApiV1MeTasksGetQueryKey,
-  listMyTasksApiV1MeTasksGet,
-} from "@/api/generated/tasks/tasks";
+import { getListMyTasksQueryKey, listMyTasks } from "@/api/generated/tasks/tasks";
 import { useLiveClockValue } from "@/hooks/useRelativeTime";
 import { useViewPreference } from "@/hooks/useViewPreference";
 
@@ -269,7 +266,7 @@ export function useFocusSummary() {
   // churn the query key continuously).
   const today = useLiveClockValue((now) => startOfDay(now).getTime());
 
-  const ruleParams = useMemo<ListMyTasksApiV1MeTasksGetParams>(
+  const ruleParams = useMemo<ListMyTasksParams>(
     () => ({
       conditions: buildFocusConditions({
         today: new Date(today),
@@ -285,8 +282,8 @@ export function useFocusSummary() {
   );
 
   const ruleQuery = useQuery<TaskListResponse>({
-    queryKey: getListMyTasksApiV1MeTasksGetQueryKey(ruleParams),
-    queryFn: () => listMyTasksApiV1MeTasksGet(ruleParams),
+    queryKey: getListMyTasksQueryKey(ruleParams),
+    queryFn: () => listMyTasks(ruleParams),
     enabled: isLoaded,
     placeholderData: keepPreviousData,
   });
@@ -296,7 +293,7 @@ export function useFocusSummary() {
     [prefs.pins]
   );
 
-  const pinParams = useMemo<ListMyTasksApiV1MeTasksGetParams>(
+  const pinParams = useMemo<ListMyTasksParams>(
     () => ({
       conditions: [{ field: "id", op: "in_", value: pinnedIds }],
       page: 1,
@@ -307,8 +304,8 @@ export function useFocusSummary() {
   );
 
   const pinQuery = useQuery<TaskListResponse>({
-    queryKey: getListMyTasksApiV1MeTasksGetQueryKey(pinParams),
-    queryFn: () => listMyTasksApiV1MeTasksGet(pinParams),
+    queryKey: getListMyTasksQueryKey(pinParams),
+    queryFn: () => listMyTasks(pinParams),
     enabled: isLoaded && pinnedIds.length > 0,
     placeholderData: keepPreviousData,
   });

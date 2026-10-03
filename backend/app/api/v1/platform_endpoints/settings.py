@@ -7,6 +7,7 @@ from sqlalchemy import func
 from sqlmodel import select
 
 from app.api.deps import (
+    CommunityIdPath,
     UserSessionDep,
     SystemSessionDep,
 )
@@ -866,7 +867,7 @@ _GUILD_SORT_FIELDS = {"id": Guild.id, "name": Guild.name}
 
 
 @router.get("/communities", response_model=PlatformCommunityStorageListResponse)
-async def list_platform_guild_storage(
+async def list_platform_community_storage(
     session: UserSessionDep,
     _operator: GuildsManageDep,
     search: str | None = Query(default=None, description="Matches the name."),
@@ -922,9 +923,11 @@ async def list_platform_guild_storage(
     )
 
 
-@router.patch("/communities/{guild_id}", response_model=PlatformCommunityStorageRead)
-async def update_platform_guild_storage(
-    guild_id: int,
+@router.patch(
+    "/communities/{community_id}", response_model=PlatformCommunityStorageRead
+)
+async def update_platform_community_storage(
+    guild_id: CommunityIdPath,
     payload: PlatformCommunityStorageUpdate,
     session: SystemSessionDep,
     operator: GuildsManageDep,
@@ -1068,10 +1071,11 @@ async def update_platform_guild_storage(
 
 
 @router.get(
-    "/communities/{guild_id}/narrowings", response_model=list[CommunityNarrowingPending]
+    "/communities/{community_id}/narrowings",
+    response_model=list[CommunityNarrowingPending],
 )
-async def read_guild_narrowings(
-    guild_id: int,
+async def read_community_narrowings(
+    guild_id: CommunityIdPath,
     session: SystemSessionDep,
     operator: GuildsManageDep,
 ) -> list[CommunityNarrowingPending]:
@@ -1088,11 +1092,11 @@ async def read_guild_narrowings(
 
 
 @router.put(
-    "/communities/{guild_id}/narrowings/{connection_id}",
+    "/communities/{community_id}/narrowings/{connection_id}",
     response_model=CommunityNarrowingPending,
 )
-async def agree_guild_narrowing(
-    guild_id: int,
+async def agree_community_narrowing(
+    guild_id: CommunityIdPath,
     connection_id: int,
     payload: CommunityNarrowingAgreement,
     session: SystemSessionDep,
@@ -1114,10 +1118,10 @@ async def agree_guild_narrowing(
 
 
 @router.post(
-    "/communities/{guild_id}/restore", response_model=PlatformCommunityStorageRead
+    "/communities/{community_id}/restore", response_model=PlatformCommunityStorageRead
 )
-async def restore_platform_guild(
-    guild_id: int,
+async def restore_platform_community(
+    guild_id: CommunityIdPath,
     payload: PlatformCommunityRestore,
     session: SystemSessionDep,
     operator: GuildsManageDep,
@@ -1180,11 +1184,11 @@ async def restore_platform_guild(
 
 
 @router.post(
-    "/communities/{guild_id}/billing/service-handoff",
+    "/communities/{community_id}/billing/service-handoff",
     response_model=BillingPortalHandoffResponse,
 )
-async def create_platform_guild_billing_service_handoff(
-    guild_id: int,
+async def create_platform_community_billing_service_handoff(
+    guild_id: CommunityIdPath,
     session: SystemSessionDep,
     operator: GuildsManageDep,
     console: Literal["support", "operator"] = "support",

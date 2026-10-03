@@ -684,7 +684,7 @@ async def _load_guild_context(
     """Resolve and validate the guild context for one guild.
 
     ``guild_id`` is the single guild the request operates in (on REST it comes
-    from the ``/c/{guild_id}/...`` path, which is only a selector, never a trust
+    from the ``/c/{community_id}/...`` path, which is only a selector, never a trust
     boundary). Access is validated fresh on every call — real membership or a
     live PAM grant, else ``GuildAccessError`` — so a stale or mistyped guild id
     fails closed. The caller has already coerced ``guild_id`` to ``int``; it
@@ -826,16 +826,23 @@ async def _load_guild_context(
     )
 
 
+#: The community a ``/c/{community_id}`` or ``/communities/{community_id}``
+#: route addresses. Handlers keep the Python name ``guild_id``.
+CommunityIdPath = Annotated[
+    int, Path(alias="community_id", description="Community this request addresses")
+]
+
+
 async def get_guild_membership(
     request: Request,
     session: SessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_id: Annotated[int, Path(description="Guild this request operates in")],
+    guild_id: CommunityIdPath,
 ) -> GuildContext:
     """The establishment seam for a REST request: who this reader is in the
     community the path addresses, and the session routed to match.
 
-    Every guild-scoped router mounts under ``/c/{guild_id}``, so FastAPI injects
+    Every guild-scoped router mounts under ``/c/{community_id}``, so FastAPI injects
     the segment here. Membership (or a live PAM grant) is validated fresh; a
     non-member or stale grant gets 403. A guild-scoped route mounted *outside*
     the prefix fails at startup (missing path param) — a useful guard that every
@@ -1106,7 +1113,7 @@ async def get_guild_settings_context(
     request: Request,
     session: SessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_id: Annotated[int, Path(description="Guild this request configures")],
+    guild_id: CommunityIdPath,
 ) -> GuildContext:
     """The establishment seam for a request to the community's own
     configuration and roster.
@@ -1491,7 +1498,7 @@ def app_scope(scope: str) -> Callable[..., Awaitable[ActorContext]]:
     :data:`GuildContextDep` would take them, so one route serves both. An
     installation token is admitted only here: :func:`get_current_user` refuses
     one, so a route that names no scope cannot be reached by an app. For an
-    install, the guild comes from the token and the path's ``{guild_id}`` is
+    install, the guild comes from the token and the path's ``{community_id}`` is
     not read; a token whose scopes
     do not cover ``scope`` gets 403 (``APP_SCOPE_REQUIRED``).
 
@@ -1517,7 +1524,7 @@ def app_scope(scope: str) -> Callable[..., Awaitable[ActorContext]]:
     async def dependency(
         request: Request,
         session: SessionDep,
-        guild_id: Annotated[int, Path(description="Guild this request operates in")],
+        guild_id: CommunityIdPath,
         person: Annotated[Optional[User], Depends(get_actor_user)],
     ) -> ActorContext:
         if person is None:
@@ -1554,7 +1561,7 @@ def app_scope_by(
     async def dependency(
         request: Request,
         session: SessionDep,
-        guild_id: Annotated[int, Path(description="Guild this request operates in")],
+        guild_id: CommunityIdPath,
         person: Annotated[Optional[User], Depends(get_actor_user)],
     ) -> ActorContext:
         if person is None:
@@ -1609,7 +1616,7 @@ def app_scope_checked(
     async def dependency(
         request: Request,
         session: SessionDep,
-        guild_id: Annotated[int, Path(description="Guild this request operates in")],
+        guild_id: CommunityIdPath,
         person: Annotated[Optional[User], Depends(get_actor_user)],
     ) -> ActorContext:
         if person is None:
@@ -1704,7 +1711,7 @@ ActorSessionDep = Annotated[AsyncSession, Depends(get_actor_session)]
 
 
 async def get_guild_seat_context(
-    guild_id: int,
+    guild_id: CommunityIdPath,
     session: SessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> GuildContext:
@@ -1791,7 +1798,7 @@ async def get_guild_seat_write_session(
 
 
 async def get_guild_seat_payment_context(
-    guild_id: int,
+    guild_id: CommunityIdPath,
     session: SessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> GuildContext:

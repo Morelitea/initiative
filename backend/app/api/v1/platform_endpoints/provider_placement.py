@@ -10,7 +10,7 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Query, status
 
-from app.api.deps import SystemSessionDep
+from app.api.deps import SystemSessionDep, CommunityIdPath
 from app.api.v1.platform_endpoints.operator import ConfigManageDep, GuildsManageDep
 from app.schemas.platform.settings import (
     CommunityNarrowingPending,
@@ -75,12 +75,12 @@ async def list_placement_communities(
 
 
 @router.get(
-    "/providers/{provider_id}/communities/{guild_id}/initiatives",
+    "/providers/{provider_id}/communities/{community_id}/initiatives",
     response_model=List[PlacementInitiativeRead],
 )
 async def list_placement_targets(
     provider_id: int,
-    guild_id: int,
+    guild_id: CommunityIdPath,
     session: SystemSessionDep,
     _operator: GuildsManageDep,
 ) -> List[PlacementInitiativeRead]:

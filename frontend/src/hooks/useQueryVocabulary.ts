@@ -12,10 +12,10 @@
 import { useQueries, useQuery } from "@tanstack/react-query";
 
 import {
-  getReadFieldCatalogApiV1FieldsDatasetGetQueryKey,
-  getReadQueryVocabularyApiV1QueryVocabularyGetQueryKey,
-  readFieldCatalogApiV1FieldsDatasetGet,
-  readQueryVocabularyApiV1QueryVocabularyGet,
+  getReadFieldCatalogQueryKey,
+  getReadQueryVocabularyQueryKey,
+  readFieldCatalog,
+  readQueryVocabulary,
 } from "@/api/generated/fields/fields";
 import type { DatasetName } from "@/api/generated/initiativeAPI.schemas";
 import type { DatasetFields } from "@/lib/widgets/completion";
@@ -34,8 +34,8 @@ const NO_FIELDS: DatasetFields[] = [];
 /** What a statement may name and call. */
 export const useQueryVocabulary = (enabled = true) => {
   const query = useQuery({
-    queryKey: getReadQueryVocabularyApiV1QueryVocabularyGetQueryKey(),
-    queryFn: () => readQueryVocabularyApiV1QueryVocabularyGet(),
+    queryKey: getReadQueryVocabularyQueryKey(),
+    queryFn: () => readQueryVocabulary(),
     enabled,
     ...FOREVER,
   });
@@ -57,8 +57,8 @@ export const useQueryVocabulary = (enabled = true) => {
 export const useFieldCatalogs = (datasets: string[], enabled = true): DatasetFields[] =>
   useQueries({
     queries: datasets.map((dataset) => ({
-      queryKey: getReadFieldCatalogApiV1FieldsDatasetGetQueryKey(dataset as DatasetName),
-      queryFn: () => readFieldCatalogApiV1FieldsDatasetGet(dataset as DatasetName),
+      queryKey: getReadFieldCatalogQueryKey(dataset as DatasetName),
+      queryFn: () => readFieldCatalog(dataset as DatasetName),
       enabled,
       ...FOREVER,
     })),

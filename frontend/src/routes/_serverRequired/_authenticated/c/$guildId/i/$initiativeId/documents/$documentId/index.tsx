@@ -1,9 +1,6 @@
 import { createFileRoute, lazyRouteComponent } from "@tanstack/react-router";
 
-import {
-  getReadDocumentApiV1CGuildIdDocumentsDocumentIdGetQueryKey,
-  readDocumentApiV1CGuildIdDocumentsDocumentIdGet,
-} from "@/api/generated/documents/documents";
+import { getReadDocumentQueryKey, readDocument } from "@/api/generated/documents/documents";
 import { commentThreadQueryOptions } from "@/hooks/useComments";
 
 export const Route = createFileRoute(
@@ -19,8 +16,8 @@ export const Route = createFileRoute(
     // is swallowed here; the page fetches for itself and reports the error.
     void Promise.all([
       queryClient.ensureQueryData({
-        queryKey: getReadDocumentApiV1CGuildIdDocumentsDocumentIdGetQueryKey(guildId, documentId),
-        queryFn: () => readDocumentApiV1CGuildIdDocumentsDocumentIdGet(guildId, documentId),
+        queryKey: getReadDocumentQueryKey(guildId, documentId),
+        queryFn: () => readDocument(guildId, documentId),
         staleTime: 30_000,
       }),
       queryClient.ensureInfiniteQueryData({

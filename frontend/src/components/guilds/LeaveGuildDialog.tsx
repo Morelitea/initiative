@@ -2,10 +2,7 @@ import { AlertTriangle, Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 
-import {
-  checkLeaveEligibilityApiV1CommunitiesGuildIdLeaveEligibilityGet,
-  leaveGuildApiV1CommunitiesGuildIdLeaveDelete,
-} from "@/api/generated/communities/communities";
+import { checkLeaveEligibility, leaveCommunity } from "@/api/generated/communities/communities";
 import type {
   CommunityRead,
   LeaveCommunityEligibilityResponse,
@@ -55,7 +52,7 @@ export const LeaveGuildDialog = ({ guild, open, onOpenChange }: LeaveGuildDialog
       setLoading(true);
       setError(null);
       try {
-        const data = (await checkLeaveEligibilityApiV1CommunitiesGuildIdLeaveEligibilityGet(
+        const data = (await checkLeaveEligibility(
           guild.id
         )) as unknown as LeaveCommunityEligibilityResponse;
         setEligibility(data);
@@ -75,7 +72,7 @@ export const LeaveGuildDialog = ({ guild, open, onOpenChange }: LeaveGuildDialog
   const handleLeave = async () => {
     setLeaving(true);
     try {
-      await leaveGuildApiV1CommunitiesGuildIdLeaveDelete(guild.id);
+      await leaveCommunity(guild.id);
 
       // Switch to another guild if leaving the active one
       if (activeGuildId === guild.id) {

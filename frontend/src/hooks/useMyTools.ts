@@ -14,10 +14,7 @@ import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { MyToolCountsResponse, Tool } from "@/api/generated/initiativeAPI.schemas";
-import {
-  getGetMyToolCountsApiV1MeToolsCountsGetQueryKey,
-  getMyToolCountsApiV1MeToolsCountsGet,
-} from "@/api/generated/my-tools/my-tools";
+import { getGetMyToolCountsQueryKey, getMyToolCounts } from "@/api/generated/my-tools/my-tools";
 import type { ToolMyListParams } from "@/hooks/toolHooks";
 import { TOOL_HOOKS } from "@/hooks/toolHooks";
 import type { ToolRow } from "@/lib/toolRows";
@@ -38,8 +35,8 @@ export const useMyToolCounts = (
   options?: QueryOpts<MyToolCountsResponse>
 ) =>
   useQuery<MyToolCountsResponse>({
-    queryKey: getGetMyToolCountsApiV1MeToolsCountsGetQueryKey(params),
-    queryFn: () => getMyToolCountsApiV1MeToolsCountsGet(params),
+    queryKey: getGetMyToolCountsQueryKey(params),
+    queryFn: () => getMyToolCounts(params),
     staleTime: 30_000,
     ...options,
   });

@@ -11,7 +11,7 @@ vi.mock("@/hooks/useAppConfig", () => ({ useAppConfig: () => ({ billing: state.b
 const read = vi.hoisted(() => vi.fn());
 vi.mock("@/api/generated/communities/communities", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/api/generated/communities/communities")>()),
-  readGuildBillingSummaryApiV1CommunitiesGuildIdBillingSummaryGet: read,
+  readCommunityBillingSummary: read,
 }));
 
 import { useGuildBillingSummary } from "./useGuildBillingSummary";

@@ -5,8 +5,8 @@ import { useTranslation } from "react-i18next";
 
 import type { NotificationRead } from "@/api/generated/initiativeAPI.schemas";
 import {
-  listNotificationsApiV1NotificationsGet,
-  readNotificationAlertApiV1NotificationsNotificationIdAlertGet,
+  listNotifications,
+  readNotificationAlert,
 } from "@/api/generated/notifications/notifications";
 import { notificationLink, notificationText } from "@/components/notifications/notificationLine";
 import { useNotificationStreamConnected } from "@/hooks/useNotificationStream";
@@ -67,8 +67,7 @@ export const useDesktopApp = () => {
       return;
     }
     const announce = async (id: number) => {
-      const { notification, redacted } =
-        await readNotificationAlertApiV1NotificationsNotificationIdAlertGet(id);
+      const { notification, redacted } = await readNotificationAlert(id);
       if (notification.read_at) {
         return;
       }
@@ -86,7 +85,7 @@ export const useDesktopApp = () => {
       );
     };
     const summarise = async () => {
-      const { unread_count: count } = await listNotificationsApiV1NotificationsGet({
+      const { unread_count: count } = await listNotifications({
         limit: 1,
         unread_only: true,
       });

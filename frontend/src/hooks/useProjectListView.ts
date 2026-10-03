@@ -1,10 +1,7 @@
 import { keepPreviousData } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import type {
-  ListProjectsApiV1CGuildIdProjectsGetParams,
-  Tool,
-} from "@/api/generated/initiativeAPI.schemas";
+import type { ListProjectsParams, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { parsePropertyFilters } from "@/components/properties/PropertyFilter";
 import type { ToolListFilters } from "@/components/tools/ToolFilterFields";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
@@ -24,7 +21,7 @@ const SORT_MODES: ProjectSortMode[] = [
 type UseProjectListViewOptions = {
   /** Which list this tab reads — its initiative, and active, template, or
    *  archived projects. The search and tags are added here. */
-  params: ListProjectsApiV1CGuildIdProjectsGetParams;
+  params: ListProjectsParams;
   /** View-preference namespace, e.g. `project:list` or `project:archive`. */
   storagePrefix: string;
   /**

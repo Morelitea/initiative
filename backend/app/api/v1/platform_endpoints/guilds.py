@@ -17,6 +17,7 @@ from fastapi import (
 )
 
 from app.api.deps import (
+    CommunityIdPath,
     GuildContext,
     SeatPaymentSessionDep,
     SeatSessionDep,
@@ -269,7 +270,7 @@ _GUILD_PROFILE_FIELDS = (
 
 
 @router.get("/", response_model=List[CommunityRead])
-async def list_guilds(
+async def list_communities(
     session: UserSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> List[CommunityRead]:
@@ -319,7 +320,7 @@ async def list_guilds(
 
 
 @router.put("/order", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
-async def reorder_guilds(
+async def reorder_communities(
     payload: CommunityOrderUpdate,
     session: UserSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
@@ -338,7 +339,7 @@ MAX_COMMUNITY_PAGE_SIZE = 60
 
 
 @router.get("/directory", response_model=DirectoryCommunityPage)
-async def list_community_guilds(
+async def list_directory_communities(
     session: SystemSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     q: str | None = Query(default=None, max_length=200),
@@ -407,9 +408,9 @@ async def list_community_guilds(
     )
 
 
-@router.post("/directory/{guild_id}/join", response_model=CommunityRead)
-async def join_community_guild(
-    guild_id: int,
+@router.post("/directory/{community_id}/join", response_model=CommunityRead)
+async def join_directory_community(
+    guild_id: CommunityIdPath,
     session: SystemSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> CommunityRead:
@@ -519,7 +520,7 @@ async def _resolve_guild_owner(
 
 
 @router.post("/", response_model=CommunityRead, status_code=status.HTTP_201_CREATED)
-async def create_guild(
+async def create_community(
     guild_in: CommunityCreate,
     session: SystemSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
@@ -620,9 +621,9 @@ async def create_guild(
     )
 
 
-@router.get("/{guild_id}/invites", response_model=List[CommunityInviteRead])
-async def list_guild_invites(
-    guild_id: int,
+@router.get("/{community_id}/invites", response_model=List[CommunityInviteRead])
+async def list_community_invites(
+    guild_id: CommunityIdPath,
     _guild_context: SettingsAdminWriteContextDep,
     session: SettingsRLSSessionDep,
 ) -> List[CommunityInviteRead]:
@@ -630,9 +631,9 @@ async def list_guild_invites(
     return [CommunityInviteRead.model_validate(invite) for invite in invites]
 
 
-@router.get("/{guild_id}", response_model=CommunityRead)
-async def read_guild(
-    guild_id: int,
+@router.get("/{community_id}", response_model=CommunityRead)
+async def read_community(
+    guild_id: CommunityIdPath,
     guild_context: SettingsAdminContextDep,
     session: SettingsRLSSessionDep,
     system_session: SystemSessionDep,
@@ -666,9 +667,9 @@ async def read_guild(
     )
 
 
-@router.patch("/{guild_id}", response_model=CommunityRead)
-async def update_guild(
-    guild_id: int,
+@router.patch("/{community_id}", response_model=CommunityRead)
+async def update_community(
+    guild_id: CommunityIdPath,
     guild_context: SettingsAdminWriteContextDep,
     updates: CommunityUpdate,
     session: SettingsRLSSessionDep,
@@ -798,9 +799,9 @@ async def update_guild(
 # reasoning.
 
 
-@router.get("/{guild_id}/entitlements", response_model=CommunityEntitlementsRead)
-async def read_guild_entitlements(
-    guild_id: int,
+@router.get("/{community_id}/entitlements", response_model=CommunityEntitlementsRead)
+async def read_community_entitlements(
+    guild_id: CommunityIdPath,
     _guild_context: SettingsAdminContextDep,
     session: SettingsRLSSessionDep,
 ) -> CommunityEntitlementsRead:
@@ -821,11 +822,11 @@ async def read_guild_entitlements(
     )
 
 
-@router.get("/{guild_id}/image/{sha256}", include_in_schema=False)
+@router.get("/{community_id}/image/{sha256}", include_in_schema=False)
 @limiter.limit("600/minute")
-async def read_guild_image(
+async def read_community_image(
     request: Request,
-    guild_id: int,
+    guild_id: CommunityIdPath,
     sha256: str,
     current_user: UploadUserDep,
     session: SystemSessionDep,
@@ -899,9 +900,9 @@ async def _store_guild_images(
     await images_service.set_images(session, guild_id=guild_id, renditions=renditions)
 
 
-@router.put("/{guild_id}/icon", response_model=CommunityRead)
-async def set_guild_icon(
-    guild_id: int,
+@router.put("/{community_id}/icon", response_model=CommunityRead)
+async def set_community_icon(
+    guild_id: CommunityIdPath,
     guild_context: SettingsAdminWriteContextDep,
     session: SystemSessionDep,
     settings_session: SettingsRLSSessionDep,
@@ -920,9 +921,9 @@ async def set_guild_icon(
     )
 
 
-@router.delete("/{guild_id}/icon", response_model=CommunityRead)
-async def clear_guild_icon(
-    guild_id: int,
+@router.delete("/{community_id}/icon", response_model=CommunityRead)
+async def clear_community_icon(
+    guild_id: CommunityIdPath,
     guild_context: SettingsAdminWriteContextDep,
     session: SystemSessionDep,
     settings_session: SettingsRLSSessionDep,
@@ -938,9 +939,9 @@ async def clear_guild_icon(
     )
 
 
-@router.put("/{guild_id}/banner", response_model=CommunityRead)
-async def set_guild_banner(
-    guild_id: int,
+@router.put("/{community_id}/banner", response_model=CommunityRead)
+async def set_community_banner(
+    guild_id: CommunityIdPath,
     guild_context: SettingsAdminWriteContextDep,
     session: SystemSessionDep,
     settings_session: SettingsRLSSessionDep,
@@ -974,9 +975,9 @@ async def set_guild_banner(
     )
 
 
-@router.delete("/{guild_id}/banner", response_model=CommunityRead)
-async def clear_guild_banner(
-    guild_id: int,
+@router.delete("/{community_id}/banner", response_model=CommunityRead)
+async def clear_community_banner(
+    guild_id: CommunityIdPath,
     guild_context: SettingsAdminWriteContextDep,
     session: SystemSessionDep,
     settings_session: SettingsRLSSessionDep,
@@ -1032,11 +1033,11 @@ async def _guild_payload_after_image_change(
 
 
 @router.post(
-    "/{guild_id}/billing/handoff",
+    "/{community_id}/billing/handoff",
     response_model=BillingPortalHandoffResponse,
 )
-async def create_guild_billing_handoff(
-    guild_id: int,
+async def create_community_billing_handoff(
+    guild_id: CommunityIdPath,
     seat_session: SeatPaymentSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> BillingPortalHandoffResponse:
@@ -1080,13 +1081,13 @@ async def create_guild_billing_handoff(
 
 
 @router.get(
-    "/{guild_id}/billing/payment-issue",
+    "/{community_id}/billing/payment-issue",
     response_model=CommunityPaymentIssueRead,
 )
 @limiter.limit("6/minute")
-async def read_guild_payment_issue(
+async def read_community_payment_issue(
     request: Request,
-    guild_id: int,
+    guild_id: CommunityIdPath,
     seat_session: SeatSessionDep,
 ) -> CommunityPaymentIssueRead:
     guild = await seat_session.get(Guild, guild_id)
@@ -1102,13 +1103,13 @@ async def read_guild_payment_issue(
 
 
 @router.get(
-    "/{guild_id}/billing/summary",
+    "/{community_id}/billing/summary",
     response_model=CommunityBillingSummaryRead,
 )
 @limiter.limit("30/minute")
-async def read_guild_billing_summary(
+async def read_community_billing_summary(
     request: Request,
-    guild_id: int,
+    guild_id: CommunityIdPath,
     _seat_session: SeatWriteSessionDep,
 ) -> CommunityBillingSummaryRead:
     """The guild's plan, asked of billing for this response and kept nowhere.
@@ -1188,9 +1189,9 @@ async def _auth_settings_response(
     )
 
 
-@router.get("/{guild_id}/auth-settings", response_model=CommunityAuthSettingsRead)
-async def get_guild_auth_settings(
-    guild_id: int,
+@router.get("/{community_id}/auth-settings", response_model=CommunityAuthSettingsRead)
+async def get_community_auth_settings(
+    guild_id: CommunityIdPath,
     seat_session: SeatSessionDep,
     system_session: SystemSessionDep,
 ) -> CommunityAuthSettingsRead:
@@ -1213,9 +1214,9 @@ async def _auth_policy_response(
     )
 
 
-@router.patch("/{guild_id}/auth-settings", response_model=CommunityAuthSettingsRead)
-async def update_guild_auth_settings(
-    guild_id: int,
+@router.patch("/{community_id}/auth-settings", response_model=CommunityAuthSettingsRead)
+async def update_community_auth_settings(
+    guild_id: CommunityIdPath,
     payload: CommunityAuthSettingsUpdate,
     seat_session: SeatWriteSessionDep,
     system_session: SystemSessionDep,
@@ -1267,10 +1268,10 @@ async def update_guild_auth_settings(
 
 
 @router.delete(
-    "/{guild_id}", status_code=status.HTTP_204_NO_CONTENT, response_class=Response
+    "/{community_id}", status_code=status.HTTP_204_NO_CONTENT, response_class=Response
 )
-async def delete_guild(
-    guild_id: int,
+async def delete_community(
+    guild_id: CommunityIdPath,
     _guild_context: SettingsSeatWriteContextDep,
     http_request: Request,
     request: CommunityDeletionRequest,
@@ -1355,12 +1356,12 @@ async def delete_guild(
 
 
 @router.post(
-    "/{guild_id}/invites",
+    "/{community_id}/invites",
     response_model=CommunityInviteRead,
     status_code=status.HTTP_201_CREATED,
 )
-async def create_guild_invite(
-    guild_id: int,
+async def create_community_invite(
+    guild_id: CommunityIdPath,
     _guild_context: SettingsAdminWriteContextDep,
     invite_in: CommunityInviteCreate,
     session: SettingsRLSSessionDep,
@@ -1385,12 +1386,12 @@ async def create_guild_invite(
 
 
 @router.delete(
-    "/{guild_id}/invites/{invite_id}",
+    "/{community_id}/invites/{invite_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     response_class=Response,
 )
-async def delete_guild_invite(
-    guild_id: int,
+async def delete_community_invite(
+    guild_id: CommunityIdPath,
     _guild_context: SettingsAdminWriteContextDep,
     invite_id: int,
     session: SettingsRLSSessionDep,
@@ -1462,12 +1463,12 @@ async def accept_invite(
 
 
 @router.patch(
-    "/{guild_id}/members/{user_id}",
+    "/{community_id}/members/{user_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     response_class=Response,
 )
-async def update_guild_membership(
-    guild_id: int,
+async def update_community_membership(
+    guild_id: CommunityIdPath,
     guild_context: SettingsAdminWriteContextDep,
     user_id: int,
     payload: CommunityMembershipUpdate,
@@ -1586,12 +1587,12 @@ async def update_guild_membership(
 
 
 @router.put(
-    "/{guild_id}/members/{user_id}/display-name",
+    "/{community_id}/members/{user_id}/display-name",
     status_code=status.HTTP_204_NO_CONTENT,
     response_class=Response,
 )
 async def set_member_display_name(
-    guild_id: int,
+    guild_id: CommunityIdPath,
     _guild_context: SettingsAdminWriteContextDep,
     user_id: int,
     payload: MemberDisplayNameUpdate,
@@ -1617,12 +1618,12 @@ async def set_member_display_name(
 
 
 @router.put(
-    "/{guild_id}/membership/display-name",
+    "/{community_id}/membership/display-name",
     status_code=status.HTTP_204_NO_CONTENT,
     response_class=Response,
 )
 async def set_own_display_name(
-    guild_id: int,
+    guild_id: CommunityIdPath,
     guild_context: SettingsContextDep,
     payload: MemberDisplayNameUpdate,
     session: SettingsRLSSessionDep,
@@ -1647,10 +1648,11 @@ async def set_own_display_name(
 
 
 @router.get(
-    "/{guild_id}/leave/eligibility", response_model=LeaveCommunityEligibilityResponse
+    "/{community_id}/leave/eligibility",
+    response_model=LeaveCommunityEligibilityResponse,
 )
 async def check_leave_eligibility(
-    guild_id: int,
+    guild_id: CommunityIdPath,
     session: UserSessionDep,
     system_session: SystemSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
@@ -1684,10 +1686,12 @@ async def check_leave_eligibility(
 
 
 @router.delete(
-    "/{guild_id}/leave", status_code=status.HTTP_204_NO_CONTENT, response_class=Response
+    "/{community_id}/leave",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_class=Response,
 )
-async def leave_guild(
-    guild_id: int,
+async def leave_community(
+    guild_id: CommunityIdPath,
     session: UserSessionDep,
     system_session: SystemSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],

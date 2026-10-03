@@ -15,9 +15,9 @@ import type {
   TicketAvailability,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
-  fileTicketApiV1MeTicketsPost,
-  getReadTicketAvailabilityApiV1MeTicketsAvailabilityGetQueryKey,
-  readTicketAvailabilityApiV1MeTicketsAvailabilityGet,
+  fileTicket,
+  getReadTicketAvailabilityQueryKey,
+  readTicketAvailability,
 } from "@/api/generated/tickets/tickets";
 import { useApiMutation } from "@/hooks/useApiMutation";
 import { docsUrl } from "@/lib/links";
@@ -43,8 +43,8 @@ export const useTicketAvailability = (
 ) => {
   const params = guildId == null ? undefined : { guild_id: guildId };
   return useQuery<TicketAvailability>({
-    queryKey: getReadTicketAvailabilityApiV1MeTicketsAvailabilityGetQueryKey(params),
-    queryFn: () => readTicketAvailabilityApiV1MeTicketsAvailabilityGet(params),
+    queryKey: getReadTicketAvailabilityQueryKey(params),
+    queryFn: () => readTicketAvailability(params),
     staleTime: 5 * 60 * 1000,
     ...options,
   });
@@ -55,7 +55,7 @@ export const useFileTicket = (options?: MutationOpts<TicketAccepted, TicketCreat
     {
       // Nothing of the reader's changes by filing, so nothing is invalidated:
       // the case lands in a project they have no part in.
-      mutationFn: (body) => fileTicketApiV1MeTicketsPost(body),
+      mutationFn: (body) => fileTicket(body),
     },
     options
   );

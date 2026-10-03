@@ -9,11 +9,11 @@ import type {
   Tool,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
-  createInitiativeRoleApiV1CGuildIdInitiativesInitiativeIdRolesPost,
-  deleteInitiativeRoleApiV1CGuildIdInitiativesInitiativeIdRolesRoleIdDelete,
-  getListInitiativeRolesApiV1CGuildIdInitiativesInitiativeIdRolesGetQueryKey,
-  listInitiativeRolesApiV1CGuildIdInitiativesInitiativeIdRolesGet,
-  updateInitiativeRoleApiV1CGuildIdInitiativesInitiativeIdRolesRoleIdPatch,
+  createInitiativeRole,
+  deleteInitiativeRole,
+  getListInitiativeRolesQueryKey,
+  listInitiativeRoles,
+  updateInitiativeRole,
 } from "@/api/generated/initiatives/initiatives";
 import { invalidate, q } from "@/api/query-keys";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
@@ -24,12 +24,8 @@ import { TOOLS, toolCreatePermission, toolPascalPlural, toolViewPermission } fro
 export const useInitiativeRoles = (initiativeId: number | null) => {
   const guildId = useActiveGuildId();
   return useQuery<InitiativeRoleRead[]>({
-    queryKey: getListInitiativeRolesApiV1CGuildIdInitiativesInitiativeIdRolesGetQueryKey(
-      guildId,
-      initiativeId!
-    ),
-    queryFn: () =>
-      listInitiativeRolesApiV1CGuildIdInitiativesInitiativeIdRolesGet(guildId, initiativeId!),
+    queryKey: getListInitiativeRolesQueryKey(guildId, initiativeId!),
+    queryFn: () => listInitiativeRoles(guildId, initiativeId!),
     enabled: !!initiativeId,
     staleTime: 30 * 1000,
   });
@@ -41,11 +37,7 @@ export const useCreateRole = (initiativeId: number) => {
 
   return useMutation({
     mutationFn: async (data: InitiativeRoleCreate) => {
-      return createInitiativeRoleApiV1CGuildIdInitiativesInitiativeIdRolesPost(
-        guildId,
-        initiativeId,
-        data
-      );
+      return createInitiativeRole(guildId, initiativeId, data);
     },
     onSuccess: () => {
       toast.success(t("settings.roleCreated"));
@@ -63,12 +55,7 @@ export const useUpdateRole = (initiativeId: number) => {
 
   return useMutation({
     mutationFn: async ({ roleId, data }: { roleId: number; data: InitiativeRoleUpdate }) => {
-      return updateInitiativeRoleApiV1CGuildIdInitiativesInitiativeIdRolesRoleIdPatch(
-        guildId,
-        initiativeId,
-        roleId,
-        data
-      );
+      return updateInitiativeRole(guildId, initiativeId, roleId, data);
     },
     onSuccess: () => {
       toast.success(t("settings.roleUpdated"));
@@ -109,21 +96,13 @@ export const useGrantToolToRoles = (initiativeId: number) => {
   return useMutation({
     mutationFn: async ({ tool }: { tool: Tool }) => {
       const key = toolViewPermission(tool);
-      const roles = await listInitiativeRolesApiV1CGuildIdInitiativesInitiativeIdRolesGet(
-        guildId,
-        initiativeId
-      );
+      const roles = await listInitiativeRoles(guildId, initiativeId);
       const needsGrant = roles.filter(
         (role) => !role.is_manager && !(role.permissions[key] ?? false)
       );
       const results = await Promise.allSettled(
         needsGrant.map((role) =>
-          updateInitiativeRoleApiV1CGuildIdInitiativesInitiativeIdRolesRoleIdPatch(
-            guildId,
-            initiativeId,
-            role.id,
-            { permissions: { [key]: true } }
-          )
+          updateInitiativeRole(guildId, initiativeId, role.id, { permissions: { [key]: true } })
         )
       );
       const failed = results.find((r) => r.status === "rejected");
@@ -177,19 +156,11 @@ export const useGrantToolsToMembers = () => {
         permissions[toolViewPermission(tool)] = audience !== "managers";
         permissions[toolCreatePermission(tool)] = audience === "create";
       }
-      const roles = await listInitiativeRolesApiV1CGuildIdInitiativesInitiativeIdRolesGet(
-        guildId,
-        initiativeId
-      );
+      const roles = await listInitiativeRoles(guildId, initiativeId);
       const ordinary = roles.filter((role) => !role.is_manager);
       const results = await Promise.allSettled(
         ordinary.map((role) =>
-          updateInitiativeRoleApiV1CGuildIdInitiativesInitiativeIdRolesRoleIdPatch(
-            guildId,
-            initiativeId,
-            role.id,
-            { permissions }
-          )
+          updateInitiativeRole(guildId, initiativeId, role.id, { permissions })
         )
       );
       const failed = results.find((r) => r.status === "rejected");
@@ -208,11 +179,7 @@ export const useDeleteRole = (initiativeId: number) => {
 
   return useMutation({
     mutationFn: async (roleId: number) => {
-      await deleteInitiativeRoleApiV1CGuildIdInitiativesInitiativeIdRolesRoleIdDelete(
-        guildId,
-        initiativeId,
-        roleId
-      );
+      await deleteInitiativeRole(guildId, initiativeId, roleId);
     },
     onSuccess: () => {
       toast.success(t("settings.roleDeleted"));

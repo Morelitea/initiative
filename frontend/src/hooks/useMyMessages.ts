@@ -16,13 +16,13 @@ import { skipToken, useMutation, useQuery, useQueryClient } from "@tanstack/reac
 import { useEffect, useRef, useSyncExternalStore } from "react";
 
 import {
-  acceptInvitationApiV1MeDmConversationsConversationIdAcceptPost as acceptInvitation,
-  checkRosterApiV1MeDmRosterCheckPost as checkRoster,
-  createConversationApiV1MeDmConversationsPost as createConversation,
-  createGroupConversationApiV1MeDmConversationsGroupPost as createGroup,
-  leaveConversationApiV1MeDmConversationsConversationIdDelete as leaveConversation,
-  listConversationsApiV1MeDmConversationsGet as listConversations,
-  markConversationReadApiV1MeDmConversationsConversationIdReadPost as reportThreadRead,
+  acceptInvitation,
+  checkRoster,
+  createConversation,
+  createGroupConversation as createGroup,
+  leaveConversation,
+  listConversations,
+  markConversationRead as reportThreadRead,
 } from "@/api/generated/direct-messages/direct-messages";
 import { invalidate, q } from "@/api/query-keys";
 import type { PeerKeyChange, StoredMessage } from "@/crypto/messaging";

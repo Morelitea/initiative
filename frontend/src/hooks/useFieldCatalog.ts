@@ -14,7 +14,7 @@
 
 import { useMemo } from "react";
 
-import { useReadFieldCatalogApiV1FieldsDatasetGet } from "@/api/generated/fields/fields";
+import { useReadFieldCatalog } from "@/api/generated/fields/fields";
 import type {
   DatasetName,
   DefaultFilter,
@@ -36,7 +36,7 @@ const NO_DEFAULTS: DefaultFilter[] = [];
  * in step for no gain.
  */
 export function useFieldCatalog(dataset: DatasetName) {
-  const query = useReadFieldCatalogApiV1FieldsDatasetGet(dataset, {
+  const query = useReadFieldCatalog(dataset, {
     query: {
       staleTime: Number.POSITIVE_INFINITY,
       gcTime: Number.POSITIVE_INFINITY,

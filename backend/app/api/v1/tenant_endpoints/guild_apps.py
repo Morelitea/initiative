@@ -377,7 +377,7 @@ async def _member_rows(session, *, app_id: int, user_id: int) -> dict:
 
 
 @router.get("/", response_model=CommunityAppListResponse)
-async def list_guild_apps(
+async def list_community_apps(
     session: RLSSessionDep,
     current_user: CurrentUser,
     guild_context: GuildContextDep,
@@ -420,7 +420,7 @@ async def list_guild_apps(
 
 
 @router.get("/{app_id}", response_model=CommunityAppDetail)
-async def get_guild_app(
+async def get_community_app(
     app_id: int,
     session: RLSSessionDep,
     current_user: CurrentUser,
@@ -438,7 +438,7 @@ async def get_guild_app(
 
 
 @router.post("/", response_model=CommunityAppRead, status_code=status.HTTP_201_CREATED)
-async def install_guild_app(
+async def install_community_app(
     payload: CommunityAppInstall,
     session: SeatWriteSessionDep,
     current_user: CurrentUser,
@@ -540,7 +540,7 @@ async def install_guild_app(
 
 
 @router.post("/{app_id}/upgrade", response_model=CommunityAppDetail)
-async def upgrade_guild_app(
+async def upgrade_community_app(
     app_id: int,
     session: SeatWriteSessionDep,
     current_user: CurrentUser,
@@ -657,7 +657,7 @@ async def upgrade_guild_app(
 
 
 @router.post("/{app_id}/upgrade/decline", response_model=CommunityAppDetail)
-async def decline_guild_app_upgrade(
+async def decline_community_app_upgrade(
     app_id: int,
     payload: CommunityAppDecline,
     session: SeatWriteSessionDep,
@@ -700,7 +700,7 @@ async def decline_guild_app_upgrade(
 
 
 @router.patch("/{app_id}", response_model=CommunityAppRead)
-async def update_guild_app(
+async def update_community_app(
     app_id: int,
     payload: CommunityAppUpdate,
     session: SeatWriteSessionDep,
@@ -771,7 +771,7 @@ async def update_guild_app(
 
 
 @router.delete("/{app_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def uninstall_guild_app(
+async def uninstall_community_app(
     app_id: int,
     session: SeatWriteSessionDep,
     current_user: CurrentUser,
@@ -820,7 +820,7 @@ async def _drop_install_refs(guild_id: int, install_id: int) -> None:
 
 
 @router.put("/{app_id}/config", response_model=CommunityAppDetail)
-async def update_guild_app_config(
+async def update_community_app_config(
     app_id: int,
     payload: CommunityAppConfigUpdate,
     session: SeatWriteSessionDep,
@@ -861,7 +861,7 @@ async def update_guild_app_config(
 
 
 @router.put("/{app_id}/placements/{initiative_id}", response_model=AppPlacementRead)
-async def put_guild_app_placement(
+async def put_community_app_placement(
     app_id: int,
     initiative_id: int,
     payload: AppPlacementUpdate,
@@ -910,7 +910,7 @@ async def put_guild_app_placement(
 
 
 @router.put("/{app_id}/scopes", response_model=CommunityAppRead)
-async def put_guild_app_scopes(
+async def put_community_app_scopes(
     app_id: int,
     payload: CommunityAppScopesUpdate,
     session: SeatWriteSessionDep,
@@ -960,7 +960,7 @@ async def put_guild_app_scopes(
 
 
 @router.post("/{app_id}/handoff/{surface_id}", response_model=CommunityAppHandoff)
-async def create_guild_app_handoff(
+async def create_community_app_handoff(
     app_id: int,
     surface_id: str,
     session: RLSSessionDep,
@@ -1059,7 +1059,7 @@ def _handoff_response(handoff: handoff_service.EmbedHandoff) -> CommunityAppHand
     "/{app_id}/connections/{connection_id}/connect",
     response_model=CommunityAppConnectStart,
 )
-async def connect_guild_app(
+async def connect_community_app(
     app_id: int,
     connection_id: str,
     session: RLSSessionDep,
@@ -1150,7 +1150,7 @@ async def connect_guild_app(
 @router.delete(
     "/{app_id}/connections/{connection_id}", status_code=status.HTTP_204_NO_CONTENT
 )
-async def disconnect_guild_app(
+async def disconnect_community_app(
     app_id: int,
     connection_id: str,
     session: RLSSessionDep,
@@ -1279,7 +1279,7 @@ async def revoke_my_consent(
 
 
 @router.get("/{app_id}/members", response_model=CommunityAppMembersResponse)
-async def list_guild_app_members(
+async def list_community_app_members(
     app_id: int,
     session: SeatSessionDep,
     current_user: CurrentUser,

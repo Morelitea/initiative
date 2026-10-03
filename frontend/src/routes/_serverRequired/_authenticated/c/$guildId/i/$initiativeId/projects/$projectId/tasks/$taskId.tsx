@@ -1,17 +1,11 @@
 import { createFileRoute, lazyRouteComponent } from "@tanstack/react-router";
 
+import { getReadProjectQueryKey, readProject } from "@/api/generated/projects/projects";
 import {
-  getReadProjectApiV1CGuildIdProjectsProjectIdGetQueryKey,
-  readProjectApiV1CGuildIdProjectsProjectIdGet,
-} from "@/api/generated/projects/projects";
-import {
-  getListTaskStatusesApiV1CGuildIdProjectsProjectIdTaskStatusesGetQueryKey,
-  listTaskStatusesApiV1CGuildIdProjectsProjectIdTaskStatusesGet,
+  getListTaskStatusesQueryKey,
+  listTaskStatuses,
 } from "@/api/generated/task-statuses/task-statuses";
-import {
-  getReadTaskApiV1CGuildIdTasksTaskIdGetQueryKey,
-  readTaskApiV1CGuildIdTasksTaskIdGet,
-} from "@/api/generated/tasks/tasks";
+import { getReadTaskQueryKey, readTask } from "@/api/generated/tasks/tasks";
 import { commentThreadQueryOptions } from "@/hooks/useComments";
 
 export const Route = createFileRoute(
@@ -30,8 +24,8 @@ export const Route = createFileRoute(
     // instead of waiting on the task to name its project.
     void Promise.all([
       queryClient.ensureQueryData({
-        queryKey: getReadTaskApiV1CGuildIdTasksTaskIdGetQueryKey(guildId, taskId),
-        queryFn: () => readTaskApiV1CGuildIdTasksTaskIdGet(guildId, taskId),
+        queryKey: getReadTaskQueryKey(guildId, taskId),
+        queryFn: () => readTask(guildId, taskId),
         staleTime: 30_000,
       }),
       queryClient.ensureInfiniteQueryData({
@@ -39,17 +33,13 @@ export const Route = createFileRoute(
         staleTime: 30_000,
       }),
       queryClient.ensureQueryData({
-        queryKey: getReadProjectApiV1CGuildIdProjectsProjectIdGetQueryKey(guildId, projectId),
-        queryFn: () => readProjectApiV1CGuildIdProjectsProjectIdGet(guildId, projectId),
+        queryKey: getReadProjectQueryKey(guildId, projectId),
+        queryFn: () => readProject(guildId, projectId),
         staleTime: 30_000,
       }),
       queryClient.ensureQueryData({
-        queryKey: getListTaskStatusesApiV1CGuildIdProjectsProjectIdTaskStatusesGetQueryKey(
-          guildId,
-          projectId
-        ),
-        queryFn: () =>
-          listTaskStatusesApiV1CGuildIdProjectsProjectIdTaskStatusesGet(guildId, projectId),
+        queryKey: getListTaskStatusesQueryKey(guildId, projectId),
+        queryFn: () => listTaskStatuses(guildId, projectId),
         staleTime: 60_000,
       }),
     ]).catch(() => {});

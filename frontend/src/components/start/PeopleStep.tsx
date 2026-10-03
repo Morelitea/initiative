@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { createGuildInviteApiV1CommunitiesGuildIdInvitesPost } from "@/api/generated/communities/communities";
+import { createCommunityInvite } from "@/api/generated/communities/communities";
 import { PATH_SCENES, PATH_TINTS, PixelScene } from "@/components/start/PixelScene";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -43,7 +43,7 @@ export const PeopleStep = ({
     asked.current = true;
     celebrate();
     // One link for the whole group, so it takes any number of people.
-    createGuildInviteApiV1CommunitiesGuildIdInvitesPost(guildId, { max_uses: null })
+    createCommunityInvite(guildId, { max_uses: null })
       .then((invite) => setLink(`${origin}/invite/${encodeURIComponent(invite.code)}`))
       .catch(() => setFailed(true));
   }, [guildId, origin]);

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { apiClient } from "@/api/client";
-import { useGetExportJobApiV1CGuildIdExportsJobsJobIdGet } from "@/api/generated/exports/exports";
+import { useGetExportJob } from "@/api/generated/exports/exports";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { toast } from "@/lib/chesterToast";
 import { downloadBlob } from "@/lib/csv";
@@ -67,7 +67,7 @@ export function useExportJob({ resumePending = false }: UseExportJobOptions = {}
   // though polling re-renders keep delivering it.
   const handledJobs = useRef(new Set<number>());
 
-  const jobQuery = useGetExportJobApiV1CGuildIdExportsJobsJobIdGet(guildId, jobId ?? 0, {
+  const jobQuery = useGetExportJob(guildId, jobId ?? 0, {
     query: {
       enabled: jobId != null,
       refetchInterval: (query) => (TERMINAL.has(query.state.data?.status ?? "") ? false : POLL_MS),

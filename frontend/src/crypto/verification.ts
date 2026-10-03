@@ -19,8 +19,8 @@
  */
 
 import {
-  collectVerificationApiV1MeDmVerificationGet as collectInbox,
-  sendVerificationApiV1MeDmVerificationPost as sendRelay,
+  collectVerification as collectInbox,
+  sendVerification as sendRelay,
 } from "@/api/generated/direct-messages/direct-messages";
 
 import { ratchet } from "./client";

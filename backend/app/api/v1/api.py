@@ -143,7 +143,7 @@ api_router.include_router(
 # What this deployment carries: the operator's catalog rescan, the signed
 # registry, and the mirrored listing artwork. A property of the deployment
 # rather than of any guild, so it takes no guild segment. Reading the
-# marketplace is guild-addressed (see /c/{guild_id}/marketplace below).
+# marketplace is guild-addressed (see /c/{community_id}/marketplace below).
 api_router.include_router(
     marketplace.router, prefix="/marketplace", tags=["marketplace"]
 )
@@ -238,11 +238,11 @@ api_router.include_router(
 
 # ---------------------------------------------------------------------------
 # Guild-scoped routes: everything that resolves a single guild's data lives
-# under /c/{guild_id}. The guild is taken from the path (see
+# under /c/{community_id}. The guild is taken from the path (see
 # deps.get_guild_membership); a guild-scoped router mounted outside this prefix
 # fails at startup (missing path param) — a useful guard.
 # ---------------------------------------------------------------------------
-guild_router = APIRouter(prefix="/c/{guild_id}")
+guild_router = APIRouter(prefix="/c/{community_id}")
 guild_router.include_router(webhooks.router, prefix="/webhooks", tags=["webhooks"])
 # Every tool's list, mounted once per Tool at each tool's own path, and the
 # one sidebar-counts route beside them (see tenant_endpoints/tool_lists.py).

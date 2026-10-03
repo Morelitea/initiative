@@ -21,8 +21,8 @@ import { GuildContextMenu } from "./GuildContextMenu";
 const mintInvite = vi.hoisted(() => vi.fn());
 const mintHandoff = vi.hoisted(() => vi.fn());
 vi.mock("@/api/generated/communities/communities", () => ({
-  createGuildInviteApiV1CommunitiesGuildIdInvitesPost: mintInvite,
-  createGuildBillingHandoffApiV1CommunitiesGuildIdBillingHandoffPost: mintHandoff,
+  createCommunityInvite: mintInvite,
+  createCommunityBillingHandoff: mintHandoff,
 }));
 
 // Null billing is the self-hosted deployment; a test opts into the portal.

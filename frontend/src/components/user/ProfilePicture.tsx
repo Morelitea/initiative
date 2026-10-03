@@ -7,10 +7,7 @@ import type {
   ProfileDecorationsOutput,
   UserSelfUpdate,
 } from "@/api/generated/initiativeAPI.schemas";
-import {
-  deleteMyAvatarApiV1MeAvatarDelete,
-  uploadMyAvatarApiV1MeAvatarPut,
-} from "@/api/generated/users/users";
+import { deleteMyAvatar, uploadMyAvatar } from "@/api/generated/users/users";
 import { Button } from "@/components/ui/button";
 import { ImagePicker } from "@/components/ui/image-picker";
 import { Input } from "@/components/ui/input";
@@ -108,7 +105,7 @@ export const ProfilePicture = ({
   };
 
   const pick = (file: File) => {
-    void run(async () => uploadMyAvatarApiV1MeAvatarPut({ file: await renderAvatar(file) }));
+    void run(async () => uploadMyAvatar({ file: await renderAvatar(file) }));
   };
 
   const avatar = (
@@ -158,7 +155,7 @@ export const ProfilePicture = ({
                 variant="ghost"
                 size="sm"
                 disabled={busy}
-                onClick={() => void run(() => deleteMyAvatarApiV1MeAvatarDelete())}
+                onClick={() => void run(() => deleteMyAvatar())}
               >
                 {t("settings:profile.removeUploadedAvatar")}
               </Button>

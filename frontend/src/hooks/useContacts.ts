@@ -15,13 +15,13 @@ import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
 
 import {
-  getListContactSectionsApiV1MeContactsGetQueryKey,
-  getListFavoriteContactsApiV1MeContactsFavoritesGetQueryKey,
-  listContactSectionsApiV1MeContactsGet,
-  useAddFavoriteContactApiV1MeContactsFavoritesUserIdPut,
-  useListContactSectionsApiV1MeContactsGet,
-  useListFavoriteContactsApiV1MeContactsFavoritesGet,
-  useRemoveFavoriteContactApiV1MeContactsFavoritesUserIdDelete,
+  getListContactSectionsQueryKey,
+  getListFavoriteContactsQueryKey,
+  listContactSections,
+  useAddFavoriteContact,
+  useListContactSections,
+  useListFavoriteContacts,
+  useRemoveFavoriteContact,
 } from "@/api/generated/contacts/contacts";
 
 /** Members read per community at a time. */
@@ -51,13 +51,13 @@ const guildPageParams = (guildId: number, page: number, search: string) => ({
  * there is no reason to walk it until somebody opens the thing.
  */
 export const useContactSections = (search: string, options?: { enabled?: boolean }) =>
-  useListContactSectionsApiV1MeContactsGet(sectionParams(search), {
+  useListContactSections(sectionParams(search), {
     query: { enabled: options?.enabled ?? true },
   });
 
 /** The reader's starred people. `enabled` for the same reason as above. */
 export const useFavoriteContacts = (search: string, options?: { enabled?: boolean }) =>
-  useListFavoriteContactsApiV1MeContactsFavoritesGet(favoriteParams(search), {
+  useListFavoriteContacts(favoriteParams(search), {
     query: { enabled: options?.enabled ?? true },
   });
 
@@ -81,8 +81,7 @@ export const useFavoriteContacts = (search: string, options?: { enabled?: boolea
 export const useMoreCommunityContacts = (guildId: number, search: string, enabled: boolean) =>
   useInfiniteQuery({
     queryKey: ["contacts", "community", guildId, search.trim()] as const,
-    queryFn: ({ pageParam }) =>
-      listContactSectionsApiV1MeContactsGet(guildPageParams(guildId, pageParam, search)),
+    queryFn: ({ pageParam }) => listContactSections(guildPageParams(guildId, pageParam, search)),
     initialPageParam: 2,
     // The section says whether there is one after it; the page number is how
     // many have been fetched, offset by the one that arrived with the walk.
@@ -102,17 +101,17 @@ export const useToggleFavoriteContact = () => {
 
   const invalidate = useCallback(() => {
     void queryClient.invalidateQueries({
-      queryKey: getListFavoriteContactsApiV1MeContactsFavoritesGetQueryKey(),
+      queryKey: getListFavoriteContactsQueryKey(),
     });
     void queryClient.invalidateQueries({
-      queryKey: getListContactSectionsApiV1MeContactsGetQueryKey(),
+      queryKey: getListContactSectionsQueryKey(),
     });
   }, [queryClient]);
 
-  const add = useAddFavoriteContactApiV1MeContactsFavoritesUserIdPut({
+  const add = useAddFavoriteContact({
     mutation: { onSuccess: invalidate },
   });
-  const remove = useRemoveFavoriteContactApiV1MeContactsFavoritesUserIdDelete({
+  const remove = useRemoveFavoriteContact({
     mutation: { onSuccess: invalidate },
   });
 

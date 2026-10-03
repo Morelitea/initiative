@@ -114,9 +114,8 @@ let narrowings: {
 const agreeNarrowing = vi.fn();
 
 vi.mock("@/api/generated/settings/settings", () => ({
-  createPlatformGuildBillingServiceHandoffApiV1SettingsCommunitiesGuildIdBillingServiceHandoffPost:
-    (guildId: number, answer: unknown) =>
-      answer ? mintHandoff(guildId, answer) : mintHandoff(guildId),
+  createPlatformCommunityBillingServiceHandoff: (guildId: number, answer: unknown) =>
+    answer ? mintHandoff(guildId, answer) : mintHandoff(guildId),
 }));
 
 // Captured so a test can fire the save's own callbacks and check what the

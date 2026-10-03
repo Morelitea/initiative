@@ -37,7 +37,7 @@ from app.models.tenant.document import Document
 from app.testing import create_document
 from app.testing.app_clients import CLIENT, install_app, share_with_members
 
-_PROBE_PATH = "/api/v1/c/{guild_id}/app-scope-probe/documents"
+_PROBE_PATH = "/api/v1/c/{community_id}/app-scope-probe/documents"
 _read_documents = app_scope("documents:read")
 
 _probe = APIRouter(route_class=ActorRoute)
@@ -68,7 +68,7 @@ def _mounted():
 
 
 def _url(guild_id: int) -> str:
-    return _PROBE_PATH.format(guild_id=guild_id)
+    return _PROBE_PATH.format(community_id=guild_id)
 
 
 def _bearer(token: str) -> dict[str, str]:

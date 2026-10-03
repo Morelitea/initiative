@@ -29,7 +29,7 @@ UPLOADS_URL_PREFIX = "/uploads/"
 #: a document or a gallery keeps its own name and is never touched.
 PASTED_IMAGE_PREFIX = "pasted-"
 
-#: An upload's address inside markdown: ``/uploads/{guild_id}/{filename}``,
+#: An upload's address inside markdown: ``/uploads/{community_id}/{filename}``,
 #: optionally behind an origin.
 _MARKDOWN_UPLOAD_URL = re.compile(r"(?:https?://[^\s()<>]+?)?/uploads/\d+/[\w.-]+")
 
@@ -140,7 +140,7 @@ def normalize_upload_url(url: str | None) -> str | None:
         path = parsed.path or ""
     if not path.startswith(UPLOADS_URL_PREFIX):
         return None
-    # Keep the full ``/uploads/{guild_id}/{filename}`` path (only origin/query are
+    # Keep the full ``/uploads/{community_id}/{filename}`` path (only origin/query are
     # dropped): the guild segment is part of the canonical URL, so content
     # rewrites and dedup compare like-for-like. Disk ops take ``Path(url).name``,
     # which is the filename regardless of the guild segment.
@@ -890,7 +890,7 @@ async def store_upload(
     initiative_id: int | None = None,
 ) -> str:
     """Write ``data`` to the guild's storage as ``filename`` and record it in
-    ``uploads``. Returns the served URL, ``/uploads/{guild_id}/{filename}``.
+    ``uploads``. Returns the served URL, ``/uploads/{community_id}/{filename}``.
 
     Every upload a person or an import brings into a guild is stored here.
     The ``uploads`` row is what the serve route requires and what the storage

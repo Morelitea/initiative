@@ -1,8 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 
 import {
-  getReadGuildBillingSummaryApiV1CommunitiesGuildIdBillingSummaryGetQueryKey,
-  readGuildBillingSummaryApiV1CommunitiesGuildIdBillingSummaryGet,
+  getReadCommunityBillingSummaryQueryKey,
+  readCommunityBillingSummary,
 } from "@/api/generated/communities/communities";
 import type { CommunityBillingSummaryRead } from "@/api/generated/initiativeAPI.schemas";
 import { useAppConfig } from "@/hooks/useAppConfig";
@@ -23,8 +23,8 @@ export const useGuildBillingSummary = (guild: GuildEntry | null | undefined) => 
   const { billing } = useAppConfig();
   const guildId = guild?.id ?? 0;
   return useQuery<CommunityBillingSummaryRead>({
-    queryKey: getReadGuildBillingSummaryApiV1CommunitiesGuildIdBillingSummaryGetQueryKey(guildId),
-    queryFn: () => readGuildBillingSummaryApiV1CommunitiesGuildIdBillingSummaryGet(guildId),
+    queryKey: getReadCommunityBillingSummaryQueryKey(guildId),
+    queryFn: () => readCommunityBillingSummary(guildId),
     enabled: Boolean(billing) && holdsBillingSeat(guild),
     retry: false,
     staleTime: 60_000,

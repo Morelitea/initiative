@@ -1,4 +1,4 @@
-"""`/api/v1/c/{guild_id}/search` — one query across everything in a guild.
+"""`/api/v1/c/{community_id}/search` — one query across everything in a guild.
 
 Guild-scoped like any other content endpoint: the guild comes from the path and
 ``RLSSessionDep`` routes into its schema, so the index answers under the same
@@ -70,7 +70,7 @@ _TYPE_DESCRIPTION = (
 
 
 @router.get("/", response_model=SearchResults)
-async def search_guild(
+async def search_community(
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
@@ -108,7 +108,7 @@ async def search_guild(
 
 
 @router.get("/recent", response_model=List[SearchSuggestion])
-async def recent_guild(
+async def recent_community(
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
@@ -144,7 +144,7 @@ async def recent_guild(
 
 
 @router.get("/suggest", response_model=List[SearchSuggestion])
-async def suggest_guild(
+async def suggest_community(
     session: ActorSessionDep,
     guild_context: SuggestByEntityType,
     q: str = Query(description="What to jump to.", max_length=200),

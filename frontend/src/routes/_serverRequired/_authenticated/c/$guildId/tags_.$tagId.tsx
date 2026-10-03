@@ -1,10 +1,10 @@
 import { createFileRoute, lazyRouteComponent } from "@tanstack/react-router";
 
 import {
-  getGetTagApiV1CGuildIdTagsTagIdGetQueryKey,
-  getGetTagEntitiesApiV1CGuildIdTagsTagIdEntitiesGetQueryKey,
-  getTagApiV1CGuildIdTagsTagIdGet,
-  getTagEntitiesApiV1CGuildIdTagsTagIdEntitiesGet,
+  getGetTagEntitiesQueryKey,
+  getGetTagQueryKey,
+  getTag,
+  getTagEntities,
 } from "@/api/generated/tags/tags";
 import { type PageSearch, validatePage } from "@/lib/routeSearch";
 
@@ -22,13 +22,13 @@ export const Route = createFileRoute("/_serverRequired/_authenticated/c/$guildId
     // is swallowed here; the page fetches for itself and reports the error.
     void Promise.all([
       queryClient.ensureQueryData({
-        queryKey: getGetTagApiV1CGuildIdTagsTagIdGetQueryKey(guildId, tagId),
-        queryFn: () => getTagApiV1CGuildIdTagsTagIdGet(guildId, tagId),
+        queryKey: getGetTagQueryKey(guildId, tagId),
+        queryFn: () => getTag(guildId, tagId),
         staleTime: 60_000,
       }),
       queryClient.ensureQueryData({
-        queryKey: getGetTagEntitiesApiV1CGuildIdTagsTagIdEntitiesGetQueryKey(guildId, tagId),
-        queryFn: () => getTagEntitiesApiV1CGuildIdTagsTagIdEntitiesGet(guildId, tagId),
+        queryKey: getGetTagEntitiesQueryKey(guildId, tagId),
+        queryFn: () => getTagEntities(guildId, tagId),
         staleTime: 30_000,
       }),
     ]).catch(() => {});

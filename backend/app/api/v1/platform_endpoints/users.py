@@ -190,12 +190,12 @@ router = APIRouter()
 # /api/v1/me; user-scoped (no guild context).
 me_router = APIRouter()
 # Guild-scoped member management (guild-admin lists/creates/approves/removes
-# members of one guild). Mounted under /c/{guild_id}/users. The member
+# members of one guild). Mounted under /c/{community_id}/users. The member
 # search is also what an installed app reads people through, under
 # ``members:read``.
 guild_router = APIRouter(route_class=ActorRoute)
 # A member's picture, by the reference an installed app knows them by. Mounted
-# under /c/{guild_id}/members.
+# under /c/{community_id}/members.
 members_router = APIRouter(route_class=ActorRoute)
 
 MembersRead = Annotated[ActorContext, Depends(app_scope("members:read"))]
@@ -232,7 +232,7 @@ async def read_me(
     unmet, because every screen that could answer it is drawn from this."""
     # No initiative_roles enrichment: initiative membership is guild-schema
     # content, which a platform-path request cannot (and must not) read.
-    # Guild-scoped rosters (/c/{guild_id}/users/) still serve it; clients
+    # Guild-scoped rosters (/c/{community_id}/users/) still serve it; clients
     # derive per-guild manager state from guild-scoped initiative data.
     payload = await users_service.to_self_read(current_user)
     # Own-row read on the platform-tier session: whether any external identity
@@ -1885,7 +1885,7 @@ async def transfer_ownership(
 
 
 @guild_router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_user(
+async def remove_member(
     user_id: int,
     session: SessionDep,
     system_session: SystemSessionDep,

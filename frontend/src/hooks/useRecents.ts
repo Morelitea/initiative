@@ -2,10 +2,10 @@ import { type UseQueryOptions, useMutation, useQuery, useQueryClient } from "@ta
 
 import type { RecentItemRead } from "@/api/generated/initiativeAPI.schemas";
 import {
-  clearRecentApiV1CGuildIdRecentsEntityTypeEntityIdDelete,
-  getListRecentsApiV1RecentsGetQueryKey,
-  listRecentsApiV1RecentsGet,
-  recordRecentApiV1CGuildIdRecentsEntityTypeEntityIdPost,
+  clearRecent,
+  getListRecentsQueryKey,
+  listRecents,
+  recordRecent,
 } from "@/api/generated/recents/recents";
 import { invalidate, q } from "@/api/query-keys";
 
@@ -22,8 +22,8 @@ type QueryOpts<TData> = Omit<UseQueryOptions<TData>, "queryKey" | "queryFn">;
  */
 export const useRecents = (options?: QueryOpts<RecentItemRead[]>) => {
   return useQuery<RecentItemRead[]>({
-    queryKey: getListRecentsApiV1RecentsGetQueryKey(),
-    queryFn: () => listRecentsApiV1RecentsGet(),
+    queryKey: getListRecentsQueryKey(),
+    queryFn: () => listRecents(),
     staleTime: 30 * 1000,
     ...options,
   });
@@ -42,13 +42,12 @@ export const useRecents = (options?: QueryOpts<RecentItemRead[]>) => {
 export const useRecordRecentView = (entityType: RecentEntityType, guildId: number) => {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: (entityId: number) =>
-      recordRecentApiV1CGuildIdRecentsEntityTypeEntityIdPost(guildId, entityType, entityId),
+    mutationFn: (entityId: number) => recordRecent(guildId, entityType, entityId),
     onSuccess: (written) => {
       // The bar is read across every community the reader is in, so it is
       // read again only for a tab it does not have yet — whose name and icon
       // nothing here knows. Reopening one already there moves it to the front.
-      const key = getListRecentsApiV1RecentsGetQueryKey();
+      const key = getListRecentsQueryKey();
       const held = client.getQueryData<RecentItemRead[]>(key);
       const opened = held?.find(
         (item) =>
@@ -92,7 +91,7 @@ export const useClearRecentView = () => {
       entityId: number;
       guildId: number;
     }) => {
-      await clearRecentApiV1CGuildIdRecentsEntityTypeEntityIdDelete(guildId, entityType, entityId);
+      await clearRecent(guildId, entityType, entityId);
     },
     onSuccess: () => {
       void invalidate(q.recents());
@@ -122,7 +121,7 @@ export const useClearRecentViews = () => {
     mutationFn: async (targets: ClearRecentTarget[]) => {
       await Promise.all(
         targets.map(({ entityType, entityId, guildId }) =>
-          clearRecentApiV1CGuildIdRecentsEntityTypeEntityIdDelete(guildId, entityType, entityId)
+          clearRecent(guildId, entityType, entityId)
         )
       );
     },

@@ -13,7 +13,7 @@ import { buildRecentItem } from "@/__tests__/factories";
 import { guildHttp } from "@/__tests__/helpers/guildHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import type { RecentItemRead } from "@/api/generated/initiativeAPI.schemas";
-import { getListRecentsApiV1RecentsGetQueryKey } from "@/api/generated/recents/recents";
+import { getListRecentsQueryKey } from "@/api/generated/recents/recents";
 import { useRecordRecentView } from "@/hooks/useRecents";
 import { queryClient } from "@/lib/queryClient";
 
@@ -27,7 +27,7 @@ describe("useRecordRecentView", () => {
   afterEach(() => queryClient.clear());
 
   it("moves a reopened tab to the front, and reads the bar again only for a new one", async () => {
-    const key = getListRecentsApiV1RecentsGetQueryKey();
+    const key = getListRecentsQueryKey();
     const [first, reopened] = [
       buildRecentItem({ last_viewed_at: "2026-09-30T11:00:00.000Z" }),
       buildRecentItem({ last_viewed_at: "2026-09-30T10:00:00.000Z" }),

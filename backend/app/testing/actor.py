@@ -11,7 +11,7 @@ The two role dimensions are orthogonal (platform-roles design §7):
   and defaulting low makes the suite prove that continuously.
 * **Guild role** — when ``guild_role`` (or ``guild``) is given, the actor gets
   a provisioned guild (or joins the one passed) with that ``CommunityRole``;
-  requests route through ``/c/{guild_id}`` and assume ``guild_<id>``.
+  requests route through ``/c/{community_id}`` and assume ``guild_<id>``.
 
 Usage (via the ``acting_user`` fixture):
 

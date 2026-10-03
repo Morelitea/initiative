@@ -3,8 +3,8 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
-  getReadGuildExportStatusApiV1CGuildIdExportsCommunityStatusGetQueryKey,
-  useReadGuildExportStatusApiV1CGuildIdExportsCommunityStatusGet,
+  getReadCommunityExportStatusQueryKey,
+  useReadCommunityExportStatus,
 } from "@/api/generated/exports/exports";
 import type { ExportJobRead } from "@/api/generated/initiativeAPI.schemas";
 import { ExportWizard } from "@/components/exports/ExportWizard";
@@ -58,7 +58,7 @@ export function CommunityExportCard() {
   // in.
   const heldBySeat = Boolean(activeGuild?.can.seat);
 
-  const statusQuery = useReadGuildExportStatusApiV1CGuildIdExportsCommunityStatusGet(guildId, {
+  const statusQuery = useReadCommunityExportStatus(guildId, {
     query: {
       refetchInterval: (query) =>
         ACTIVE.has(query.state.data?.latest?.status ?? "") ? POLL_MS : false,
@@ -77,7 +77,7 @@ export function CommunityExportCard() {
     setWizardOpen(open);
     if (!open) {
       void queryClient.invalidateQueries({
-        queryKey: getReadGuildExportStatusApiV1CGuildIdExportsCommunityStatusGetQueryKey(guildId),
+        queryKey: getReadCommunityExportStatusQueryKey(guildId),
       });
     }
   };

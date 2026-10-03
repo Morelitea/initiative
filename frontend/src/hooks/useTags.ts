@@ -8,15 +8,15 @@ import type {
   TagUpdate,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
-  createTagApiV1CGuildIdTagsPost,
-  deleteTagApiV1CGuildIdTagsTagIdDelete,
-  getGetTagApiV1CGuildIdTagsTagIdGetQueryKey,
-  getGetTagEntitiesApiV1CGuildIdTagsTagIdEntitiesGetQueryKey,
-  getListTagsApiV1CGuildIdTagsGetQueryKey,
-  getTagApiV1CGuildIdTagsTagIdGet,
-  getTagEntitiesApiV1CGuildIdTagsTagIdEntitiesGet,
-  listTagsApiV1CGuildIdTagsGet,
-  updateTagApiV1CGuildIdTagsTagIdPatch,
+  createTag,
+  deleteTag,
+  getGetTagEntitiesQueryKey,
+  getGetTagQueryKey,
+  getListTagsQueryKey,
+  getTag,
+  getTagEntities,
+  listTags,
+  updateTag,
 } from "@/api/generated/tags/tags";
 import { invalidate, q } from "@/api/query-keys";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
@@ -41,8 +41,8 @@ const invalidateTagBearers = () => {
 export const useTags = (options?: { enabled?: boolean }) => {
   const guildId = useActiveGuildId();
   return useQuery<TagRead[]>({
-    queryKey: getListTagsApiV1CGuildIdTagsGetQueryKey(guildId),
-    queryFn: () => listTagsApiV1CGuildIdTagsGet(guildId),
+    queryKey: getListTagsQueryKey(guildId),
+    queryFn: () => listTags(guildId),
     staleTime: 60 * 1000,
     enabled: options?.enabled ?? true,
   });
@@ -51,8 +51,8 @@ export const useTags = (options?: { enabled?: boolean }) => {
 export const useTag = (tagId: number | null) => {
   const guildId = useActiveGuildId();
   return useQuery<TagRead>({
-    queryKey: getGetTagApiV1CGuildIdTagsTagIdGetQueryKey(guildId, tagId!),
-    queryFn: () => getTagApiV1CGuildIdTagsTagIdGet(guildId, tagId!),
+    queryKey: getGetTagQueryKey(guildId, tagId!),
+    queryFn: () => getTag(guildId, tagId!),
     enabled: !!tagId,
     staleTime: 60 * 1000,
   });
@@ -61,7 +61,7 @@ export const useTag = (tagId: number | null) => {
 export const useCreateTag = (options?: MutationOpts<TagRead, TagCreate>) =>
   useGuildMutation<TagRead, TagCreate>(
     {
-      mutationFn: (guildId, data) => createTagApiV1CGuildIdTagsPost(guildId, data),
+      mutationFn: (guildId, data) => createTag(guildId, data),
       invalidate: () => invalidate(q.allTags()),
       errorKey: "tags:createError",
     },
@@ -78,7 +78,7 @@ export const useUpdateTag = (
   return useMutation({
     ...rest,
     mutationFn: async ({ tagId, data }: { tagId: number; data: TagUpdate }) => {
-      return updateTagApiV1CGuildIdTagsTagIdPatch(guildId, tagId, data);
+      return updateTag(guildId, tagId, data);
     },
     onSuccess: (...args) => {
       toast.success(t("updated"));
@@ -108,7 +108,7 @@ export const useDeleteTag = (
   return useMutation({
     ...rest,
     mutationFn: async (tagId: number) => {
-      await deleteTagApiV1CGuildIdTagsTagIdDelete(guildId, tagId);
+      await deleteTag(guildId, tagId);
     },
     onSuccess: (...args) => {
       if (!silent) {
@@ -129,8 +129,8 @@ export const useDeleteTag = (
 export const useTagEntities = (tagId: number | null) => {
   const guildId = useActiveGuildId();
   return useQuery<TaggedEntitiesResponse>({
-    queryKey: getGetTagEntitiesApiV1CGuildIdTagsTagIdEntitiesGetQueryKey(guildId, tagId!),
-    queryFn: () => getTagEntitiesApiV1CGuildIdTagsTagIdEntitiesGet(guildId, tagId!),
+    queryKey: getGetTagEntitiesQueryKey(guildId, tagId!),
+    queryFn: () => getTagEntities(guildId, tagId!),
     enabled: !!tagId,
     staleTime: 30 * 1000,
   });
