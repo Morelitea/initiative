@@ -25,7 +25,7 @@ import type {
   UserRead,
 } from "@/api/generated/initiativeAPI.schemas";
 import { clearAllWhiteboardSceneCaches } from "@/components/documents/whiteboardSceneCache";
-import { forgetMessagesOnThisDevice } from "@/crypto/messaging";
+import { forgetMessagesOnThisDevice, serveAccount } from "@/crypto/messaging";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import { clearJustSignedIn, markJustSignedIn } from "@/lib/authTransition";
 import { toast } from "@/lib/chesterToast";
@@ -229,6 +229,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setUserState(nextUser);
       setHasActiveSession(nextUser !== null);
       rememberIdentity(nextUser);
+      if (nextUser) serveAccount(nextUser.id);
       // The first screen's list query waits on the saved filters and sort, so
       // ask for them from here rather than from the screen: knowing who is
       // signed in is the only prerequisite, and this is where that happens.
@@ -251,8 +252,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       );
       setHasActiveSession(true);
       rememberIdentity(nextUser);
-      // Signing in lands here rather than in setUser; the map is still fresh
-      // from any earlier call, so a re-read costs nothing.
+      // Signing in lands here. Before anything reads this device's messages, a
+      // store another account left behind is wiped.
+      serveAccount(nextUser.id);
+      // The view-preference map is still fresh from any earlier call, so a
+      // re-read costs nothing.
       prefetchViewPreferences();
     },
     [rememberIdentity]
@@ -705,14 +709,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
    *
    *  Distinct from `logout()`, which ends the same session deliberately and
    *  tells the server so. Both are scoped to this device; this one has nothing
-   *  to tell the server, because the session is already gone. */
+   *  to tell the server, because the session is already gone.
+   *
+   *  The phone and desktop apps keep their messages: it is the same device when
+   *  its owner signs back in, and the key store is still registered to them. A
+   *  browser may be a shared computer, so its messages go with the session. */
   const endSessionLocally = useCallback(async () => {
     setHasActiveSession(false);
     clearJustSignedIn();
-    try {
-      await forgetMessagesOnThisDevice();
-    } catch {
-      // The session is over either way.
+    if (!Capacitor.isNativePlatform()) {
+      try {
+        await forgetMessagesOnThisDevice();
+      } catch {
+        // The session is over either way.
+      }
     }
     clearLocalSession();
   }, [clearLocalSession]);

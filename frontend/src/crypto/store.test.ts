@@ -20,11 +20,13 @@ import {
   accountPickle,
   deviceClaim,
   deviceId,
+  deviceOwner,
   forgetDevice,
   messageLog,
   peerDeviceChanges,
   peerDeviceKeys,
   peerKeyChanges,
+  serveAccount,
   sessionForDevice,
   sessionOrigin,
   sessionPickle,
@@ -305,6 +307,20 @@ describe("the account", () => {
     ]);
 
     expect(results.filter(Boolean)).toHaveLength(1);
+  });
+
+  it("serves the account that wrote it and is wiped for any other", async () => {
+    // A device keeps its store through a lapse, so whoever signs in next may be
+    // somebody else, and nothing of the first account may reach them.
+    await deviceOwner.set(1);
+    await messageLog.append("conv", { id: "a", body: "kept", at: "", mine: true });
+
+    serveAccount(1);
+    expect((await messageLog.get("conv")).map((entry) => entry.body)).toEqual(["kept"]);
+
+    serveAccount(2);
+    expect(await messageLog.get("conv")).toEqual([]);
+    expect(await deviceOwner.get()).toBeUndefined();
   });
 });
 

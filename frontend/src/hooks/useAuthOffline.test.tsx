@@ -32,6 +32,7 @@ vi.mock("@/api/client", () => ({
 
 vi.mock("@/crypto/messaging", () => ({
   forgetMessagesOnThisDevice: vi.fn(),
+  serveAccount: vi.fn(),
 }));
 
 const clearWhiteboards = vi.fn();
