@@ -312,6 +312,7 @@
     "support": "Assistance",
     "loading": "Chargement de la grille tarifaire…",
     "tierListAria": "Formules",
+    "regularPrice": "Prix habituel {{price}}",
     "selfHostBody": "Vous préférez l'héberger sur votre propre serveur ? C'est gratuit et open source.",
     "everyPlanAria": "Toutes les formules",
     "sameTitle": "Le même Initiative dans les deux cas",

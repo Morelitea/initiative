@@ -9,8 +9,8 @@ The table is new and empty, so row security is turned on at creation. It is
 the system engine's alone: the schema default is taken back from both floors
 and no policy is written (``FORCED_NO_POLICY`` in ``app.db.public_rls``).
 
-Revision ID: 20261003_0449
-Revises: 20261003_0448
+Revision ID: 20261003_0450
+Revises: 20261003_0449
 Create Date: 2026-10-03
 """
 
@@ -19,8 +19,8 @@ from alembic import op
 
 from app.core.config import settings
 
-revision = "20261003_0449"
-down_revision = "20261003_0448"
+revision = "20261003_0450"
+down_revision = "20261003_0449"
 branch_labels = None
 depends_on = None
 

@@ -312,6 +312,7 @@
     "support": "Support",
     "loading": "Fetching the price book…",
     "tierListAria": "Plans",
+    "regularPrice": "Regular price {{price}}",
     "selfHostBody": "Rather run it on your own server? It's free and open source.",
     "everyPlanAria": "Every plan",
     "sameTitle": "Same Initiative either way",

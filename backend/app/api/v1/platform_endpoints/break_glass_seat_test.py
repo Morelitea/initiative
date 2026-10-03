@@ -42,7 +42,9 @@ async def test_a_break_glass_holder_seats_a_superadmin_from_the_guilds_own_route
     blocked = await client.get(eligibility, headers=operator.headers)
     assert blocked.status_code == 200, blocked.text
     assert blocked.json()["can_delete"] is False
-    assert [g["guild_id"] for g in blocked.json()["guild_blockers"]] == [guild_id]
+    assert [g["community_id"] for g in blocked.json()["community_blockers"]] == [
+        guild_id
+    ]
 
     # Not a member and no grant yet: the route is not theirs.
     before = await client.patch(
@@ -76,7 +78,7 @@ async def test_a_break_glass_holder_seats_a_superadmin_from_the_guilds_own_route
     cleared = await client.get(eligibility, headers=operator.headers)
     assert cleared.status_code == 200, cleared.text
     assert cleared.json()["can_delete"] is True
-    assert cleared.json()["guild_blockers"] == []
+    assert cleared.json()["community_blockers"] == []
 
 
 async def test_a_break_glass_holder_deletes_the_community_from_its_own_settings(
@@ -119,7 +121,7 @@ async def test_a_break_glass_holder_deletes_the_community_from_its_own_settings(
 
     cleared = await client.get(eligibility, headers=operator.headers)
     assert cleared.status_code == 200, cleared.text
-    assert cleared.json()["guild_blockers"] == []
+    assert cleared.json()["community_blockers"] == []
 
 
 async def test_the_platform_has_no_route_of_its_own_to_delete_a_community(

@@ -27,7 +27,11 @@ import {
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
-import { type CatalogTier, portalPricingUrl } from "@/hooks/useBillingCatalog";
+import {
+  type CatalogEarlyRate,
+  type CatalogTier,
+  portalPricingUrl,
+} from "@/hooks/useBillingCatalog";
 import { docsUrl } from "@/lib/links";
 import { cn } from "@/lib/utils";
 
@@ -116,8 +120,36 @@ interface TierProps {
   registrationOpen: boolean;
 }
 
-/** One of the plans that compare against each other: a column in the row. */
-const TierCard = ({ tier, portalUrl, registrationOpen }: TierProps) => (
+/** The headline figure, with the regular price struck through before it on a
+ *  plan sold at the early rate. */
+const Price = ({ tier, className }: { tier: CatalogTier; className: string }) => {
+  const { t } = useTranslation("landing");
+  const regular = tier.price.regular_display;
+  return (
+    <p className={className}>
+      {regular ? (
+        <>
+          <s className="mr-2 font-semibold text-2xl text-muted-foreground" aria-hidden="true">
+            {regular}
+          </s>
+          <span className="sr-only">{t("pricing.regularPrice", { price: regular })} </span>
+        </>
+      ) : null}
+      {tier.price.display}
+    </p>
+  );
+};
+
+/** One of the plans that compare against each other: a column in the row.
+ *
+ *  `earlyRate` reserves its line on every card while the price book has one,
+ *  so a card off the early rate still lines its tagline up with the rest. */
+const TierCard = ({
+  tier,
+  portalUrl,
+  registrationOpen,
+  earlyRate,
+}: TierProps & { earlyRate: CatalogEarlyRate | null }) => (
   <li
     className={cn(
       "flex flex-col rounded-2xl border bg-card p-6",
@@ -132,10 +164,22 @@ const TierCard = ({ tier, portalUrl, registrationOpen }: TierProps) => (
       <TierBadge tier={tier} />
     </div>
     <h3 className="font-bold text-xl">{tier.name}</h3>
-    <p className="mt-3 font-extrabold text-4xl tracking-tight">{tier.price.display}</p>
+    <Price tier={tier} className="mt-3 font-extrabold text-4xl tracking-tight" />
     {tier.price.sub_display && (
       <p className="mt-1 text-muted-foreground text-sm">{tier.price.sub_display}</p>
     )}
+    {earlyRate ? (
+      <p className="mt-2 min-h-[1.25rem] text-muted-foreground text-xs">
+        {tier.price.regular_display ? (
+          <>
+            <span className="rounded-full bg-primary px-2 py-0.5 font-bold text-primary-foreground uppercase">
+              {earlyRate.label}
+            </span>{" "}
+            {earlyRate.note}
+          </>
+        ) : null}
+      </p>
+    ) : null}
     <p className="mt-4 font-semibold">{tier.tagline}</p>
     <p className="mt-1 text-muted-foreground text-sm">{tier.audience}</p>
     <TierLimits tier={tier} className="mt-5 space-y-2 border-t pt-5" />
@@ -287,6 +331,7 @@ export const PricingPage = () => {
                 tier={tier}
                 portalUrl={portalUrl}
                 registrationOpen={registrationOpen}
+                earlyRate={catalog.data?.early_rate ?? null}
               />
             ))}
             {trail.map((tier) => (

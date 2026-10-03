@@ -180,7 +180,7 @@ async def test_what_it_creates_is_its_own_and_names_nobody(
     assert created.status_code == 201, created.text
     calendar = created.json()
     assert calendar["created_by"] is None
-    assert isinstance(calendar["guild_id"], str)
+    assert isinstance(calendar["community_id"], str)
     assert calendar["can"]["delete"] is True
     assert_names_nobody(created.text, [installed.seat.user.id, guild_id])
 

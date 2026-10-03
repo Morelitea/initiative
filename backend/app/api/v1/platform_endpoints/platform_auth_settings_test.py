@@ -90,7 +90,7 @@ async def test_read_reports_every_method_and_its_cost(
         "totp",
         "passkey",
     }
-    assert got.json()["guilds_requiring_sign_in"] == 0
+    assert got.json()["communities_requiring_sign_in"] == 0
 
 
 async def test_at_least_one_way_in_must_remain(
@@ -178,7 +178,7 @@ async def test_withdrawing_sso_waits_for_guild_requirements(
     assert refused.headers["X-Affected-Count"] == "1"
 
     got = await client.get(URL, headers=headers)
-    assert got.json()["guilds_requiring_sign_in"] == 1
+    assert got.json()["communities_requiring_sign_in"] == 1
 
     await session.delete(policy)
     await session.commit()

@@ -174,7 +174,7 @@ async def test_the_seat_deletes_the_community_and_then_itself(
     eligibility = await client.get("/api/v1/me/deletion-eligibility", headers=headers)
     assert eligibility.status_code == 200, eligibility.text
     assert eligibility.json()["can_delete"] is False
-    assert eligibility.json()["sole_superadmin_guilds"] == ["Winding Down"]
+    assert eligibility.json()["sole_superadmin_communities"] == ["Winding Down"]
 
     refused = await client.post(
         "/api/v1/me/delete-account",

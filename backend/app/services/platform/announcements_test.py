@@ -135,7 +135,7 @@ async def test_guild_admins_only_needs_an_admin_membership_somewhere(session):
         session, user=admin, guild=guild, role=CommunityRole.admin
     )
     await session.commit()
-    await _publish(session, author, guild_admins_only=True)
+    await _publish(session, author, community_admins_only=True)
 
     assert await service.list_for_user(session, user=plain) == []
     assert len(await service.list_for_user(session, user=admin)) == 1
