@@ -43,6 +43,7 @@ from app.api.v1.platform_endpoints.session_opening import (
     second_factor_outstanding,
     upgrade_session,
 )
+from app.core.config import is_device
 from app.core.login_methods import LoginMethod
 from app.core.messages import AuthMessages
 from app.core.email_i18n import SUPPORTED_EMAIL_LOCALES
@@ -192,7 +193,7 @@ async def send_sign_in_code(
         system_session,
         user_id=recipient.id if recipient is not None else None,
         user_email_id=row.id if row is not None else None,
-        native=payload.native,
+        native=is_device(request),
         email=address if signing_up else None,
     )
     await system_session.commit()
@@ -325,7 +326,6 @@ async def verify_sign_in_code(
         token_version=token_version,
         amr=EMAIL_CODE_LEG.amr,
         audit_detail={"method": EMAIL_CODE_LEG.method},
-        return_refresh_token=native,
     )
     if retired:
         # Connections opened on the credentials retired above close now.
@@ -403,7 +403,6 @@ async def register_with_code(
         token_version=registered.user.token_version,
         amr=EMAIL_CODE_LEG.amr,
         audit_detail={"method": EMAIL_CODE_LEG.method, "during": "registration"},
-        return_refresh_token=email_otp_service.is_native(ticket),
     )
 
 

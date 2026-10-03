@@ -12,7 +12,6 @@ export interface AuthContextValue {
   user: UserRead | null;
   token: string | null;
   loading: boolean;
-  isDeviceToken: boolean;
   login: (payload: { email: string; password: string; deviceName?: string }) => Promise<void>;
   register: (payload: {
     email: string;
@@ -20,7 +19,7 @@ export interface AuthContextValue {
     username: string;
     inviteCode?: string;
   }) => Promise<unknown>;
-  completeOidcLogin: (credential?: NativeSession | { deviceToken: string }) => Promise<void>;
+  completeOidcLogin: (credential?: NativeSession) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }

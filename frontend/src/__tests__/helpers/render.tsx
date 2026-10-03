@@ -98,7 +98,6 @@ function buildDefaultAuth(): React.ComponentProps<typeof AuthContext.Provider>["
     user: buildUser(),
     token: "test-token",
     loading: false,
-    isDeviceToken: false,
     sessionUnverified: false,
     login: vi.fn(),
     completeSecondFactor: vi.fn(),

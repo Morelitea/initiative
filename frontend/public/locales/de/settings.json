@@ -106,7 +106,6 @@
     "loadingDevices": "Geräte werden geladen…",
     "devicesError": "Geräte konnten nicht geladen werden.",
     "unknownDevice": "Unbekanntes Gerät",
-    "loggedIn": "Angemeldet {{date}}",
     "revokeDialogCancel": "Abbrechen",
     "revoking": "Wird widerrufen…",
     "revokeError": "Gerätezugriff konnte nicht widerrufen werden",

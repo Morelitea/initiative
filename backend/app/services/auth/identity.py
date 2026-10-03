@@ -426,8 +426,8 @@ async def ways_in(session: AsyncSession, *, user_id: int) -> frozenset[LoginMeth
     present.
 
     ``totp`` is never a member: it accompanies a sign-in rather than beginning
-    one (see :data:`PRIMARY_LOGIN_METHODS`). Nor are device tokens and API
-    keys, which are derived from a sign-in that already happened.
+    one (see :data:`PRIMARY_LOGIN_METHODS`). Nor are API keys, which are
+    derived from a sign-in that already happened.
 
     The same predicates the counts are built from, asked of one account: the
     settings row is read once and the credentials in one query, so a caller

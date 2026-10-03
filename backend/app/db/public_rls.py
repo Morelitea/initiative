@@ -726,8 +726,9 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             # Same: the transport is reached on the authenticated platform-tier
             # path, never before a session is routed.
             app_user=None,
-            # UPDATE is column-scoped to last_seen_at, device_token_id and signature
-            # (migration 0395), so it lives in the column ACL, not here.
+            # UPDATE is column-scoped to last_seen_at, session_id and signature,
+            # so it lives in the column ACL, not here; so is the system engine's
+            # UPDATE of session_id, which follows a key store across renewals.
             platform_base=frozenset({SELECT, INSERT, DELETE}),
         ),
     ),
@@ -2067,8 +2068,8 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
     "user_tokens": SharedTable(
         rls=FORCED_NO_POLICY,
         grants=Grants(
-            # Email-verification, password-reset and device tokens, matched by hash
-            # before the account is known: minted, redeemed, slid, revoked and swept on
+            # Email-verification and password-reset tokens, matched by hash
+            # before the account is known: minted, redeemed and swept on
             # the system engine alone (0358), like auth_sessions and user_api_keys.
             app_admin=DML,
             # 0358: every token path runs on the system engine, pre-routing included.
