@@ -25,7 +25,7 @@ from app.services import email as email_service
 from app.services.auth import account_changes, addresses
 from app.services.auth import sessions as session_service
 from app.services.platform import email_outbox, user_tokens
-from app.testing import create_user
+from app.testing import create_user, get_auth_headers
 
 READ = "/api/v1/auth/account-change/read"
 SIGN_OUT = "/api/v1/auth/account-change/sign-out"
@@ -357,6 +357,44 @@ async def test_undoing_a_removal_puts_the_address_back_over_the_later_ones(
         "later@example.com",
     }
     assert await _primary(session, user_id) == "original@example.com"
+
+
+async def test_a_removal_undo_works_over_a_minted_primary(
+    client: AsyncClient, session: AsyncSession, mailed
+):
+    """An account a provider made with no address keeps the address minted
+    for it as primary beside the ones it proved. Removing one of those
+    through the route still leaves its copy able to put it back."""
+    user = await create_user(session, email="older-sso@example.com")
+    user_id = user.id
+    older = (await addresses.list_for_user(session, user_id=user_id))[0]
+    minted = addresses.record_address(
+        session,
+        user_id=user_id,
+        email=f"idp-{user_id}@oidc.local",
+        source=addresses.SOURCE_SYNTHETIC,
+        verified=False,
+        is_primary=False,
+    )
+    older.is_primary = False
+    session.add(older)
+    await session.flush()
+    minted.is_primary = True
+    session.add(minted)
+    await session.commit()
+    await _address(session, user, "newer-sso@example.com")
+
+    removed = await client.post(
+        f"/api/v1/me/emails/{older.id}/remove",
+        json={"current_password": "testpassword123"},
+        headers=get_auth_headers(user),
+    )
+    assert removed.status_code == 204, removed.text
+    await email_outbox._run_pass(session, now=datetime.now(timezone.utc))
+
+    response = await client.post(UNDO, json={"token": mailed["older-sso@example.com"]})
+    assert response.status_code == 200, response.text
+    assert await _primary(session, user_id) == "older-sso@example.com"
 
 
 async def test_the_newest_address_removed_gets_no_link(session: AsyncSession, mailed):

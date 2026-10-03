@@ -198,6 +198,37 @@ async def test_the_primary_moves_only_to_a_proven_address(
     assert primaries == ["proven@example.com"]
 
 
+async def test_the_primary_moves_off_a_minted_address(
+    client: AsyncClient, session: AsyncSession
+):
+    """An account a provider made with no address has the one minted for it
+    as primary; making a proved address primary stands it down."""
+    user = await create_user(session, email="proved-sso@example.com")
+    proved = (await _listing(client, user))[0]
+    row = await session.get(UserEmail, proved["id"])
+    assert row is not None
+    row.is_primary = False
+    session.add(row)
+    await session.flush()
+    addresses.record_address(
+        session,
+        user_id=user.id,
+        email=f"idp-{user.id}@oidc.local",
+        source=addresses.SOURCE_SYNTHETIC,
+        verified=False,
+        is_primary=True,
+    )
+    await session.commit()
+
+    moved = await client.put(
+        f"/api/v1/me/emails/{proved['id']}/primary",
+        json=CONFIRM,
+        headers=get_auth_headers(user),
+    )
+    assert moved.status_code == 200, moved.text
+    assert moved.json()["is_primary"] is True
+
+
 async def test_the_primary_address_is_not_removed(
     client: AsyncClient, session: AsyncSession
 ):

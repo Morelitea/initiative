@@ -1334,16 +1334,16 @@ async def remove_my_address(
             risky=await is_risky(request, system_session, current_user),
             undo=account_changes.removal_undo(
                 target,
-                primary_id=next(
-                    (
-                        held.id
-                        for held in await addresses.list_for_user(
-                            system_session, user_id=current_user.id
+                # Read directly: the primary can be an address the account
+                # was minted with, which the address list leaves out.
+                primary_id=(
+                    await system_session.exec(
+                        select(UserEmail.id).where(
+                            UserEmail.user_id == current_user.id,
+                            UserEmail.is_primary.is_(True),
                         )
-                        if held.is_primary
-                    ),
-                    None,
-                ),
+                    )
+                ).first(),
             ),
         )
         if target is not None

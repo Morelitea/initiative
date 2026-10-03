@@ -644,10 +644,18 @@ async def set_primary_for_user(
     # arriving together would both stand the old one down and then raise two.
     # The lock makes them take turns; the second reads the first's result.
     await _lock_addresses(session, user_id)
-    for other in await list_for_user(session, user_id=user_id):
-        if other.is_primary and other.id != row.id:
-            other.is_primary = False
-            session.add(other)
+    # Every primary row, the one minted for an account with no address of its
+    # own included, which the listing leaves out.
+    others = await session.exec(
+        select(UserEmail).where(
+            UserEmail.user_id == user_id,
+            UserEmail.is_primary.is_(True),
+            UserEmail.id != row.id,
+        )
+    )
+    for other in others.all():
+        other.is_primary = False
+        session.add(other)
     await session.flush()
     row.is_primary = True
     session.add(row)
