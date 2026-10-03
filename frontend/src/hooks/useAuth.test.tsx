@@ -30,6 +30,8 @@ vi.mock("@/api/client", () => ({
   setAuthToken: (...args: unknown[]) => setAuthToken(...args),
   getAuthToken: () => null,
   clearUploadToken: vi.fn(),
+  watchForActivity: () => () => undefined,
+  forgetSessionActivity: vi.fn(),
 }));
 
 const getItem = vi.fn((_key: string): string | null => null);

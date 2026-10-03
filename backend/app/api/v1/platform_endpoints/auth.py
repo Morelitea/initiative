@@ -1,4 +1,4 @@
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 import hashlib
 import hmac
 import logging
@@ -965,6 +965,7 @@ async def refresh_access_token(
         raw_refresh_token=raw,
         user_agent=request.headers.get("user-agent"),
         ip=get_inet_client_ip(request),
+        idle=timedelta(seconds=(payload.idle_seconds or 0) if payload else 0),
     )
     if result.outcome is RefreshOutcome.REUSED and result.user_id is not None:
         # No actor, for the same reason a refused sign-in has none, and more

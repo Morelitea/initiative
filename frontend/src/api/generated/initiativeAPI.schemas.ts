@@ -8041,6 +8041,7 @@ export interface ReferenceEmbedList {
  */
 export interface RefreshRequest {
   refresh_token?: string | null;
+  idle_seconds?: number | null;
 }
 
 /**

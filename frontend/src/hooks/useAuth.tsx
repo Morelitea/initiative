@@ -14,9 +14,11 @@ import {
   AUTH_ACCOUNT_SUSPENDED_EVENT,
   AUTH_UNAUTHORIZED_EVENT,
   apiClient,
+  forgetSessionActivity,
   renewSession,
   setAuthToken,
   setHasActiveSession,
+  watchForActivity,
 } from "@/api/client";
 import type {
   NewCommunity,
@@ -693,6 +695,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     clearUploadToken();
     forgetDeviceToken();
     clearRefreshToken();
+    forgetSessionActivity();
     queryClient.clear();
     // replaceIdentity already dropped the session snapshot; the cache that went
     // with it goes at the same time.
@@ -756,6 +759,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
     clearLocalSession();
   }, [clearLocalSession]);
+
+  // While somebody is signed in, their input is what keeps the session alive.
+  const signedIn = user !== null;
+  useEffect(() => (signedIn ? watchForActivity() : undefined), [signedIn]);
 
   useEffect(() => {
     if (typeof window === "undefined") {

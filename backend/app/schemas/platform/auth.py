@@ -105,6 +105,9 @@ class RefreshRequest(SanitizedBaseModel):
     """
 
     refresh_token: Optional[str] = None
+    #: How long ago the person last did something here. The idle window runs
+    #: from then; absent, from now.
+    idle_seconds: Optional[int] = Field(default=None, ge=0)
 
 
 class DeviceTokenResponse(SanitizedBaseModel):
