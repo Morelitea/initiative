@@ -53,7 +53,7 @@ export const ProjectActivitySidebar = ({
         page: pageParam as number,
       }) as unknown as Promise<ProjectActivityResponse>;
     },
-    getNextPageParam: (lastPage) => lastPage.next_page ?? undefined,
+    getNextPageParam: (last) => (last.has_next ? last.page + 1 : undefined),
     initialPageParam: 1,
     enabled: isEnabled,
     // No timer: the live channel names the project for anything that happens

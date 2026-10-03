@@ -38,6 +38,7 @@ from app.api.deps import (
     CurrentUser,
 )
 from app.core.messages import ImportEngineMessages, MarketplaceMessages
+from app.db.query import build_paginated_response
 from app.models.platform.marketplace import MarketplaceListing
 from app.schemas.platform.marketplace import (
     ListingKind,
@@ -116,11 +117,17 @@ async def list_marketplace_listings(
         session, [listing.latest_version_id for listing in listings]
     )
     return MarketplaceListingPage(
-        items=[
-            serialize_listing_summary(listing, versions.get(listing.latest_version_id))
-            for listing in listings
-        ],
-        total=total,
+        **build_paginated_response(
+            [
+                serialize_listing_summary(
+                    listing, versions.get(listing.latest_version_id)
+                )
+                for listing in listings
+            ],
+            total,
+            page,
+            page_size,
+        )
     )
 
 

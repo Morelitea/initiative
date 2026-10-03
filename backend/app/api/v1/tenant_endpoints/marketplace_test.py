@@ -173,7 +173,7 @@ class TestBrowse:
             headers=actor.headers,
         )
         assert miss.json()["items"] == []
-        assert miss.json()["total"] == 0
+        assert miss.json()["total_count"] == 0
 
     async def test_pages(self, client, acting_user, session):
         for index in range(3):
@@ -190,7 +190,7 @@ class TestBrowse:
             headers=actor.headers,
         )
         body = response.json()
-        assert body["total"] == 3
+        assert body["total_count"] == 3
         assert len(body["items"]) == 1
 
     async def test_a_card_carries_the_version_it_would_install(

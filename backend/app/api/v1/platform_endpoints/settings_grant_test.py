@@ -328,7 +328,7 @@ async def test_a_lesser_grant_does_not_stand_in_the_way_of_breaking_glass(
     listed = await client.get(
         "/api/v1/access-grants/?mine=true", headers=get_auth_headers(operator)
     )
-    grants = {g["id"]: g for g in listed.json()}
+    grants = {g["id"]: g for g in listed.json()["items"]}
     # The pair is live...
     live = {(g["purpose"], g["access_level"]) for g in grants.values() if g["is_live"]}
     assert live == {("content", "read_write"), ("settings", "superadmin")}
@@ -360,7 +360,7 @@ async def test_one_request_can_ask_for_both(client: AsyncClient, session: AsyncS
     assert response.json()["purpose"] == "content"
 
     listed = await client.get("/api/v1/access-grants/?mine=true", headers=headers)
-    asked = {(g["purpose"], g["access_level"]) for g in listed.json()}
+    asked = {(g["purpose"], g["access_level"]) for g in listed.json()["items"]}
     assert asked == {("content", "read_write"), ("settings", "admin")}
 
 

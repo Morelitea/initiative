@@ -63,7 +63,7 @@ export function CommunitiesPage() {
   const guilds = directory.data?.pages.flatMap((page) => page.items) ?? [];
   // How many matched, not how many are on screen — every page carries the
   // same figure, so the first one answers it.
-  const total = directory.data?.pages[0]?.total ?? 0;
+  const total = directory.data?.pages[0]?.total_count ?? 0;
 
   // Either this client was told there is no directory, or it asked and was told
   // so. The second is how a tab that was open when an owner switched it off

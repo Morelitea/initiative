@@ -24,6 +24,7 @@ import type {
   AccessGrantApprove,
   AccessGrantCreate,
   AccessGrantLimits,
+  AccessGrantListResponse,
   AccessGrantRead,
   BreakGlassCreate,
   BreakGlassRequirements,
@@ -148,9 +149,8 @@ export const useCreateAccessRequest = <TError = ErrorType<HTTPValidationError>, 
 /**
  * List your own access grants.
  *
- * Ordered newest-first; ``limit``/``offset`` page the result so it can't grow
- * unbounded, and ``live=true`` narrows to grants that are still within their
- * window. The full queue is ``GET /access-grants/queue``.
+ * Newest first, a page at a time; ``live=true`` narrows to grants that are
+ * still within their window. The full queue is ``GET /access-grants/queue``.
  * @summary List Access Grants
  */
 export const listAccessGrants = (
@@ -158,7 +158,7 @@ export const listAccessGrants = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<AccessGrantRead[]>(
+  return apiMutator<AccessGrantListResponse>(
     { url: `/api/v1/access-grants/`, method: "GET", params, signal },
     options
   );
@@ -593,7 +593,7 @@ export const listAccessGrantQueue = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<AccessGrantRead[]>(
+  return apiMutator<AccessGrantListResponse>(
     { url: `/api/v1/access-grants/queue`, method: "GET", params, signal },
     options
   );

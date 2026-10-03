@@ -1,5 +1,7 @@
 import { HttpResponse, http } from "msw";
 
+import { buildPage } from "@/__tests__/factories/page.factory";
+
 /**
  * The direct-message surfaces, answering empty.
  *
@@ -25,7 +27,7 @@ export const dmHandlers = [
   ),
   http.get("/api/v1/me/connections", () => HttpResponse.json(noGrants)),
   http.get("/api/v1/me/message-requests", () => HttpResponse.json(noGrants)),
-  http.get("/api/v1/me/ignored", () => HttpResponse.json({ items: [], total: 0 })),
+  http.get("/api/v1/me/ignored", () => HttpResponse.json(buildPage([]))),
   http.get("/api/v1/users/:userId/dm-permission", () =>
     HttpResponse.json({ permission: "denied", may_connect: false })
   ),

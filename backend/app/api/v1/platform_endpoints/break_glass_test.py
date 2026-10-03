@@ -77,7 +77,11 @@ async def _live_pair(client: AsyncClient, actor: Actor) -> set[tuple[str, str]]:
     """The (purpose, access level) pairs the caller holds right now."""
     listed = await client.get(MINE, headers=actor.headers)
     assert listed.status_code == 200, listed.text
-    return {(g["purpose"], g["access_level"]) for g in listed.json() if g["is_live"]}
+    return {
+        (g["purpose"], g["access_level"])
+        for g in listed.json()["items"]
+        if g["is_live"]
+    }
 
 
 async def test_break_glass_self_issues_live_grant(client: AsyncClient, outsider):
@@ -224,7 +228,7 @@ async def test_breaking_glass_again_supersedes_rather_than_stacking(
 
     assert await _live_pair(client, a) == THE_PAIR
     listed = await client.get(MINE, headers=a.headers)
-    assert sum(1 for g in listed.json() if g["status"] == "revoked") == 2
+    assert sum(1 for g in listed.json()["items"] if g["status"] == "revoked") == 2
 
 
 async def test_break_glass_denies_a_pending_request_before_issuing_the_pair(
@@ -249,7 +253,7 @@ async def test_break_glass_denies_a_pending_request_before_issuing_the_pair(
     assert issued.status_code == 201, issued.text
 
     listed = await client.get(MINE, headers=a.headers)
-    prior = next(g for g in listed.json() if g["id"] == requested.json()["id"])
+    prior = next(g for g in listed.json()["items"] if g["id"] == requested.json()["id"])
     assert prior["status"] == "denied"
     assert await _live_pair(client, a) == THE_PAIR
 

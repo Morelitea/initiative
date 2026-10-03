@@ -167,8 +167,5 @@ class ProjectActivityEntry(SanitizedBaseModel):
     task_title: str
 
 
-class ProjectActivityResponse(SanitizedBaseModel):
-    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
-
+class ProjectActivityResponse(PageMeta):
     items: List[ProjectActivityEntry]
-    next_page: Optional[int] = None

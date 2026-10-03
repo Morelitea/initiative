@@ -7,8 +7,7 @@
   },
   "empty": {
     "open": "Nothing has been reported.",
-    "settled": "Nothing has been settled yet.",
-    "noFurther": "Nothing further."
+    "settled": "Nothing has been settled yet."
   },
   "reportedCount_one": "Reported by {{count}} person",
   "reportedCount_other": "Reported by {{count}} people",

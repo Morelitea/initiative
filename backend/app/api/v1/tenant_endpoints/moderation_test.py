@@ -81,6 +81,7 @@ async def _report_and_read(client: AsyncClient, scene: dict, **body) -> dict:
     listed = await client.get(_reports_url(scene), headers=scene["mod"].headers)
     assert listed.status_code == 200, listed.text
     (item,) = listed.json()["items"]
+    assert listed.json()["total_count"] == 1
     return item
 
 

@@ -85,13 +85,13 @@ async def search_community(
     is_template: Optional[bool] = Query(
         default=None, description=_TEMPLATE_DESCRIPTION
     ),
-    limit: int = Query(default=20, ge=1, le=search_service.MAX_LIMIT),
-    offset: int = Query(default=0, ge=0),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=search_service.MAX_PAGE_SIZE),
 ) -> SearchResults:
     """Ranked matches across the guild's tools, comments and tags.
 
-    ``total`` counts entities the caller may see, so it is what a pager should
-    show rather than an estimate to correct later.
+    ``total_count`` counts entities the caller may see, so it is what a pager
+    should show rather than an estimate to correct later.
     """
     return await search_service.search(
         session,
@@ -102,8 +102,8 @@ async def search_community(
             include_archived=include_archived,
             template=is_template,
         ),
-        limit=limit,
-        offset=offset,
+        page=page,
+        page_size=page_size,
     )
 
 

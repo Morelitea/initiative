@@ -113,7 +113,7 @@ async def test_directory_lists_only_opted_in_guilds(
 
     assert response.status_code == 200
     data = response.json()
-    assert data["total"] == 1
+    assert data["total_count"] == 1
     assert [item["name"] for item in data["items"]] == ["Open Table"]
 
 
@@ -145,7 +145,8 @@ async def test_the_directory_re_checks_a_listed_guild_before_offering_it(
     )
 
     assert response.status_code == 200
-    assert response.json() == {"items": [], "total": 0}
+    assert response.json()["items"] == []
+    assert response.json()["total_count"] == 0
 
 
 async def test_directory_card_carries_only_published_fields(
@@ -292,7 +293,7 @@ async def test_directory_searches_every_guild_not_only_a_loaded_page(
 
     body = response.json()
     assert [item["name"] for item in body["items"]] == ["Dice Goblins"]
-    assert body["total"] == 1
+    assert body["total_count"] == 1
 
 
 async def test_directory_paginates(
@@ -310,9 +311,11 @@ async def test_directory_paginates(
     )
 
     # The total counts everything that matched, not just this page.
-    assert first.json()["total"] == 3
+    assert first.json()["total_count"] == 3
     assert len(first.json()["items"]) == 2
+    assert first.json()["has_next"] is True
     assert len(second.json()["items"]) == 1
+    assert second.json()["has_next"] is False
 
 
 async def test_directory_requires_authentication(client: AsyncClient):

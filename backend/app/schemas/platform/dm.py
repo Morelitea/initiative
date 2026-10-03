@@ -13,6 +13,7 @@ from pydantic import AliasChoices, ConfigDict, Field
 from app.models.platform.user import Presence, UserStatus
 from app.models.platform.user_dm_settings import DmPolicy
 from app.schemas.base import SanitizedBaseModel
+from app.schemas.query import PageMeta
 from app.schemas.platform.user import ProfileDecorations
 
 
@@ -75,11 +76,8 @@ class IgnoredAccountRead(SanitizedBaseModel):
     created_at: datetime
 
 
-class IgnoredAccountsResponse(SanitizedBaseModel):
-    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
-
+class IgnoredAccountsResponse(PageMeta):
     items: List[IgnoredAccountRead]
-    total: int
 
 
 class DirectMessagePermissionRead(SanitizedBaseModel):

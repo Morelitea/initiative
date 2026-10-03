@@ -22,7 +22,7 @@ from typing import Optional
 
 from fastapi import HTTPException, status as http_status
 from sqlalchemy import Table, select as sa_select, text, tuple_
-from sqlmodel import SQLModel, select
+from sqlmodel import SQLModel, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.intake import IntakeStream
@@ -39,6 +39,7 @@ from app.core.moderation import (
 from app.core.search import SearchEntityType
 from app.core.tools import Tool
 from app.db import cohorts
+from app.db.query import paginated_query
 from app.db.session import set_rls_context
 from app.models.platform import user_profile_view
 from app.models.platform.user import User
@@ -669,10 +670,11 @@ async def list_reports(
     *,
     initiative_id: int,
     settled: bool = False,
-    limit: int = 50,
-    offset: int = 0,
-) -> list[tuple[ModerationReport, int, list[str]]]:
-    """Reports for one initiative, with how many people reported each.
+    page: int = 1,
+    page_size: int = 50,
+) -> tuple[list[tuple[ModerationReport, int, list[str]]], int, int]:
+    """One page of an initiative's reports, with how many people reported
+    each. Returns ``(rows, total_count, page)``.
 
     The session must already be routed; RLS decides whether this reader sees
     any of it. Reporter **identities** are deliberately not returned — the
@@ -686,23 +688,26 @@ async def list_reports(
         if settled
         else stmt.where(ModerationReport.outcome.is_(None))
     )
-    reports = (
-        await session.exec(
-            # A second key, because two reports can share a timestamp and an
-            # offset page needs one order to be paged through.
-            stmt.order_by(
-                ModerationReport.reported_at.desc(), ModerationReport.id.desc()
-            )
-            .offset(offset)
-            .limit(limit)
-            .execution_options(populate_existing=True)
-        )
-    ).all()
+    reports, total_count, page = await paginated_query(
+        session,
+        # A second key, because two reports can share a timestamp and a page
+        # needs one order to be paged through.
+        stmt.order_by(
+            ModerationReport.reported_at.desc(), ModerationReport.id.desc()
+        ).execution_options(populate_existing=True),
+        select(func.count()).select_from(stmt.subquery()),
+        page,
+        page_size,
+    )
     if not reports:
-        return []
+        return [], total_count, page
 
     counts, details = await reporters_for(session, [r.id for r in reports])
-    return [
-        (report, counts.get(report.id, 0), details.get(report.id, []))
-        for report in reports
-    ]
+    return (
+        [
+            (report, counts.get(report.id, 0), details.get(report.id, []))
+            for report in reports
+        ],
+        total_count,
+        page,
+    )

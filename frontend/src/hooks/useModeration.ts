@@ -35,24 +35,24 @@ interface ReportsParams {
   guildId: number;
   initiativeId: number;
   settled?: boolean;
-  offset?: number;
+  page?: number;
 }
 
 export const useModerationReports = (
-  { guildId, initiativeId, settled = false, offset = 0 }: ReportsParams,
+  { guildId, initiativeId, settled = false, page = 1 }: ReportsParams,
   options?: QueryOpts<ModerationReportList>
 ) =>
   useQuery<ModerationReportList>({
     queryKey: getListReportsQueryKey(guildId, initiativeId, {
       settled,
-      limit: REPORTS_PAGE_SIZE,
-      offset,
+      page,
+      page_size: REPORTS_PAGE_SIZE,
     }),
     queryFn: () =>
       listReports(guildId, initiativeId, {
         settled,
-        limit: REPORTS_PAGE_SIZE,
-        offset,
+        page,
+        page_size: REPORTS_PAGE_SIZE,
       }),
     ...options,
   });

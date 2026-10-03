@@ -26,6 +26,7 @@ from app.models.tenant.task import TaskStatusCategory
 from app.services.tenant import tags as tags_service
 from app.testing import route_session_to_guild
 from app.testing.factories import (
+    create_comment,
     create_document,
     create_guild,
     create_relationship,
@@ -1651,3 +1652,22 @@ async def test_duplicating_a_project_clones_its_presets(
     cloned_status_ids = by_slug["mine"]["filters"]["status_ids"]
     assert cloned_status_ids
     assert source_status.id not in cloned_status_ids
+
+
+async def test_activity_feed_pages_newest_first(
+    client: AsyncClient, session: AsyncSession, acting_user
+) -> None:
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
+    task = await create_task(session, a.project, title="busy")
+    for n in range(3):
+        await create_comment(session, a.user, task=task, content=f"note {n}")
+
+    first = await client.get(
+        a.g(f"/projects/{a.project.id}/activity"),
+        params={"page_size": 2},
+        headers=a.headers,
+    )
+    assert first.status_code == 200, first.text
+    body = first.json()
+    assert [e["content"] for e in body["items"]] == ["note 2", "note 1"]
+    assert (body["total_count"], body["has_next"]) == (3, True)

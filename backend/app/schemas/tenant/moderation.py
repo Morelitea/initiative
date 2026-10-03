@@ -11,6 +11,7 @@ from app.core.moderation import ReportOutcome, ReportReason
 from app.core.search import SearchEntityType
 from app.core.tools import Tool
 from app.schemas.base import SanitizedBaseModel
+from app.schemas.query import PageMeta
 
 
 class ReportCreate(SanitizedBaseModel):
@@ -72,11 +73,8 @@ class ModerationReportRead(SanitizedBaseModel):
     target_link: Optional["ReportTargetLink"] = None
 
 
-class ModerationReportList(SanitizedBaseModel):
+class ModerationReportList(PageMeta):
     items: List[ModerationReportRead]
-    #: How many are in this page. Settled reports accumulate without bound, so
-    #: the list is paged and this is not a count of everything there is.
-    total: int
 
 
 class ReportSettle(SanitizedBaseModel):

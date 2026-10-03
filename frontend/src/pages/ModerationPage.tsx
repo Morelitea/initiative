@@ -27,12 +27,7 @@ import { MentionText } from "@/components/user/MentionText";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useInitiativeRoster } from "@/hooks/useInitiatives";
 import { MentionedPeopleScope, ReportMentionedPeople } from "@/hooks/useMentionedPeople";
-import {
-  REPORTS_PAGE_SIZE,
-  useInitiativeSharing,
-  useModerationReports,
-  useSettleReport,
-} from "@/hooks/useModeration";
+import { useInitiativeSharing, useModerationReports, useSettleReport } from "@/hooks/useModeration";
 import { toast } from "@/lib/chesterToast";
 import { entityRefTypeFor, isSearchEntityType } from "@/lib/entityResolver";
 import { getErrorMessage } from "@/lib/errorMessage";
@@ -55,27 +50,26 @@ export const ModerationPage = () => {
   const initiative = Number(initiativeId);
   const [area, setArea] = useState<ConsoleArea>("reports");
   const [tab, setTab] = useState<"open" | "settled">("open");
-  const [page, setPage] = useState(0);
+  const [page, setPage] = useState(1);
 
   const { data, isLoading } = useModerationReports(
     {
       guildId: guildId ?? 0,
       initiativeId: initiative,
       settled: tab === "settled",
-      offset: page * REPORTS_PAGE_SIZE,
+      page,
     },
     { enabled: Boolean(guildId) && Number.isFinite(initiative) }
   );
 
   const reports = data?.items ?? [];
-  // The server answers with one page, so a full page is the signal there may
-  // be another. Settled reports accumulate without bound, which is what makes
-  // the second page reachable rather than theoretical.
-  const hasMore = reports.length === REPORTS_PAGE_SIZE;
+  // The server may answer with an earlier page than the one asked for, when
+  // reports settled in between left fewer pages than there were.
+  const shownPage = data?.page ?? page;
 
   const showTab = (next: "open" | "settled") => {
     setTab(next);
-    setPage(0);
+    setPage(1);
   };
 
   return (
@@ -114,13 +108,7 @@ export const ModerationPage = () => {
           <div className="space-y-4">
             {reports.length === 0 ? (
               <p className="text-muted-foreground text-sm">
-                {/* A later page that came back empty is a different thing from
-                  nothing ever having been reported, and says so. */}
-                {page > 0
-                  ? t("empty.noFurther")
-                  : tab === "open"
-                    ? t("empty.open")
-                    : t("empty.settled")}
+                {tab === "open" ? t("empty.open") : t("empty.settled")}
               </p>
             ) : (
               // A reported comment is shown by its opening words, and the
@@ -140,27 +128,24 @@ export const ModerationPage = () => {
               </MentionedPeopleScope>
             )}
 
-            {/* Outside the empty branch on purpose: a count that divides exactly
-              by the page size lands on an empty page, and the way back has to
-              still be there. */}
-            {(page > 0 || hasMore) && (
+            {(data?.has_prev || data?.has_next) && (
               <div className="flex items-center justify-between gap-2 pt-2">
                 <Button
                   variant="outline"
                   size="sm"
-                  disabled={page === 0}
-                  onClick={() => setPage((p) => Math.max(0, p - 1))}
+                  disabled={!data.has_prev}
+                  onClick={() => setPage(shownPage - 1)}
                 >
                   {t("paging.newer")}
                 </Button>
                 <span className="text-muted-foreground text-sm">
-                  {t("paging.page", { page: page + 1 })}
+                  {t("paging.page", { page: shownPage })}
                 </span>
                 <Button
                   variant="outline"
                   size="sm"
-                  disabled={!hasMore}
-                  onClick={() => setPage((p) => p + 1)}
+                  disabled={!data.has_next}
+                  onClick={() => setPage(shownPage + 1)}
                 >
                   {t("paging.older")}
                 </Button>

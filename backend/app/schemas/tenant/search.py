@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict
 from app.core.search import SearchEntityType
 from app.core.tools import Tool
 from app.schemas.base import MentionStr
+from app.schemas.query import PageMeta
 
 
 class SearchHit(BaseModel):
@@ -31,11 +32,8 @@ class SearchHit(BaseModel):
     tool_id: Optional[int] = None
 
 
-class SearchResults(BaseModel):
+class SearchResults(PageMeta):
     items: List[SearchHit]
-    total: int
-    limit: int
-    offset: int
     #: True when nothing matched what was typed and these are the closest
     #: titles instead — so a reader is told which of the two they are reading.
     fuzzy: bool = False

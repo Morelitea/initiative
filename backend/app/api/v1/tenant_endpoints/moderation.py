@@ -23,6 +23,7 @@ from app.api.deps import (
     GuildContextDep,
 )
 from app.core.messages import ModerationMessages
+from app.db.query import build_paginated_response
 from app.models.platform.user import User
 from app.schemas.tenant.moderation import (
     InitiativeSharingRead,
@@ -81,8 +82,8 @@ async def list_reports(
     guild_context: GuildContextDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     settled: Annotated[bool, Query()] = False,
-    limit: Annotated[int, Query(ge=1, le=200)] = 50,
-    offset: Annotated[int, Query(ge=0)] = 0,
+    page: Annotated[int, Query(ge=1)] = 1,
+    page_size: Annotated[int, Query(ge=1, le=200)] = 50,
 ) -> ModerationReportList:
     """This initiative's reports.
 
@@ -91,12 +92,12 @@ async def list_reports(
     A reader who is not one of them gets an empty list, the same way they get
     404 for any content they are not in.
     """
-    rows = await moderation_service.list_reports(
+    rows, total_count, actual_page = await moderation_service.list_reports(
         session,
         initiative_id=initiative_id,
         settled=settled,
-        limit=limit,
-        offset=offset,
+        page=page,
+        page_size=page_size,
     )
     # One lookup for the page rather than one per card: a moderator deciding
     # from a list should not have to open each item to find out what it says.
@@ -105,11 +106,15 @@ async def list_reports(
         [report for report, _, _ in rows],
     )
     return ModerationReportList(
-        items=[
-            _read(report, count, details, previews.get(report.id))
-            for report, count, details in rows
-        ],
-        total=len(rows),
+        **build_paginated_response(
+            [
+                _read(report, count, details, previews.get(report.id))
+                for report, count, details in rows
+            ],
+            total_count,
+            actual_page,
+            page_size,
+        )
     )
 
 

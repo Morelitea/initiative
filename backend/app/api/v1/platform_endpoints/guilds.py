@@ -40,6 +40,7 @@ from app.api.v1.platform_endpoints.password_recheck import (
     require_password_or_recent_proof,
 )
 from app.core.intake import IntakeStream
+from app.db.query import build_paginated_response
 from app.core.capabilities import Capability, user_has_capability
 from app.core.config import settings
 from app.core.login_methods import SecondFactorRequirement
@@ -387,24 +388,28 @@ async def list_directory_communities(
         GuildImageVariant.card,
     )
     return DirectoryCommunityPage(
-        items=[
-            DirectoryCommunityRead(
-                id=guild.id,
-                name=guild.name,
-                description=guild.description,
-                icon_url=images.get(guild.id, {}).get(GuildImageVariant.icon),
-                banner=CommunityBannerRead(
-                    image_url=images.get(guild.id, {}).get(GuildImageVariant.card),
-                    **guild.banner,
-                ),
-                categories=[CommunityCategory(value) for value in guild.categories],
-                member_count=member_count,
-                online_count=online.get(guild.id, 0),
-                already_member=already_member,
-            )
-            for guild, member_count, already_member in rows
-        ],
-        total=total,
+        **build_paginated_response(
+            [
+                DirectoryCommunityRead(
+                    id=guild.id,
+                    name=guild.name,
+                    description=guild.description,
+                    icon_url=images.get(guild.id, {}).get(GuildImageVariant.icon),
+                    banner=CommunityBannerRead(
+                        image_url=images.get(guild.id, {}).get(GuildImageVariant.card),
+                        **guild.banner,
+                    ),
+                    categories=[CommunityCategory(value) for value in guild.categories],
+                    member_count=member_count,
+                    online_count=online.get(guild.id, 0),
+                    already_member=already_member,
+                )
+                for guild, member_count, already_member in rows
+            ],
+            total,
+            page,
+            page_size,
+        )
     )
 
 
