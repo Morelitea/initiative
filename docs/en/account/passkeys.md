@@ -37,6 +37,8 @@ Keep those somewhere that isn't the device with the passkey on it. They're the w
 
 You can't remove the last way in. Your only passkey stays until you set a password or add another, and your password stays until there's a passkey to replace it.
 
+Removing your last passkey from somewhere you've only just signed in [waits two days](profile-and-preferences.md#changes-that-wait) before it happens.
+
 ## If a community asks for one
 
 A community can require that everybody in it signed in with a passkey, the same way it can require a code from an authenticator app. Signed in with your password instead? You're asked for the passkey where you are — a small prompt, then everything fills in behind it. Nobody is signed out to satisfy a new rule.

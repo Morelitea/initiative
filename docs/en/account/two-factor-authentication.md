@@ -63,6 +63,8 @@ If your server asks everybody for a second factor, turning yours off means being
 
 Turning it off discards your recovery codes and signs you out everywhere else, which is deliberate: if you're turning this off because something went wrong, every other session going with it is the useful part.
 
+Turned off from somewhere you've only just signed in, it [waits two days](profile-and-preferences.md#changes-that-wait) before it happens.
+
 ??? techspec "The details"
     Standard TOTP, RFC 6238: SHA-1, six digits, thirty-second steps, which is what every authenticator app expects. Codes one step either side of the current one are accepted, so a phone clock that has drifted slightly still works.
 
