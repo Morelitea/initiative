@@ -24,6 +24,7 @@ from app.testing import (
     create_document,
     create_initiative,
     create_resource_grant,
+    lexical_body,
     route_as,
 )
 
@@ -443,13 +444,6 @@ async def test_download_native_document_returns_404(
     assert response.status_code == 404
 
 
-def _saying(words: str) -> dict:
-    """A document holding one paragraph of ``words``."""
-    text = {"type": "text", "text": words, "version": 1}
-    paragraph = {"type": "paragraph", "version": 1, "children": [text]}
-    return {"root": {"type": "root", "version": 1, "children": [paragraph]}}
-
-
 async def _words(state: bytes) -> str:
     rendered = await editor_engine.render(state)
     return "".join(
@@ -465,7 +459,7 @@ async def test_update_content_is_written_into_yjs_state(
     """PATCH /documents/{id} with content writes it into the stored Yjs state,
     which the next collaborative session opens on."""
     owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
-    before, after = _saying("before"), _saying("after")
+    before, after = lexical_body("before"), lexical_body("after")
     doc = await create_document(
         session,
         owner.initiative,
@@ -491,7 +485,7 @@ async def test_a_write_naming_a_version_since_changed_is_refused(
 ) -> None:
     owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
     doc = await create_document(
-        session, owner.initiative, owner.user, content=_saying("first")
+        session, owner.initiative, owner.user, content=lexical_body("first")
     )
     url = owner.g(f"/documents/{doc.id}")
     version = (await client.get(url, headers=owner.headers)).json()["content_version"]
@@ -499,12 +493,12 @@ async def test_a_write_naming_a_version_since_changed_is_refused(
     taken = await client.patch(
         url,
         headers=owner.headers,
-        json={"content": _saying("second"), "content_version": version},
+        json={"content": lexical_body("second"), "content_version": version},
     )
     stale = await client.patch(
         url,
         headers=owner.headers,
-        json={"content": _saying("third"), "content_version": version},
+        json={"content": lexical_body("third"), "content_version": version},
     )
 
     assert taken.status_code == 200, taken.text
@@ -520,7 +514,7 @@ async def test_a_versioned_write_goes_into_a_live_session(
     the editors are; one naming no version is still refused."""
     owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
     doc = await create_document(
-        session, owner.initiative, owner.user, content=_saying("in the session")
+        session, owner.initiative, owner.user, content=lexical_body("in the session")
     )
     routed = await role_session("app_user")
     await route_as(routed, user_id=owner.user.id, guild_id=owner.guild.id)
@@ -533,13 +527,13 @@ async def test_a_versioned_write_goes_into_a_live_session(
         read = (await client.get(url, headers=owner.headers)).json()
 
         unversioned = await client.patch(
-            url, headers=owner.headers, json={"content": _saying("ignored")}
+            url, headers=owner.headers, json={"content": lexical_body("ignored")}
         )
         versioned = await client.patch(
             url,
             headers=owner.headers,
             json={
-                "content": _saying("from the API"),
+                "content": lexical_body("from the API"),
                 "content_version": read["content_version"],
             },
         )
@@ -547,7 +541,7 @@ async def test_a_versioned_write_goes_into_a_live_session(
             url,
             headers=owner.headers,
             json={
-                "content": _saying("from a second writer"),
+                "content": lexical_body("from a second writer"),
                 "content_version": read["content_version"],
             },
         )
