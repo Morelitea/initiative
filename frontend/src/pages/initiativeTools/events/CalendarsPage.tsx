@@ -85,6 +85,7 @@ import { useRecordRecentView } from "@/hooks/useRecents";
 import { useUpdateTask } from "@/hooks/useTasks";
 import { useUnreadTree } from "@/hooks/useUnreadTree";
 import { useViewPreference } from "@/hooks/useViewPreference";
+import { getErrorMessage } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
 import { getProjectColor } from "@/lib/projectColor";
 import { PRIORITY_ORDER } from "@/lib/sorting";
@@ -829,6 +830,12 @@ export const CalendarsView = ({
           </div>
         </ToolFilterPanel>
       )}
+
+      {entriesQuery.isError ? (
+        <p className="text-destructive text-sm" role="alert">
+          {getErrorMessage(entriesQuery.error, "calendars:loadError")}
+        </p>
+      ) : null}
 
       {isLoading ? (
         <SkeletonRegion label={t("loading")}>

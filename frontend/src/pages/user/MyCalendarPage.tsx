@@ -37,6 +37,7 @@ import { useMyCalendars } from "@/hooks/useCalendars";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useUnreadTree } from "@/hooks/useUnreadTree";
 import { useViewPreference } from "@/hooks/useViewPreference";
+import { getErrorMessage } from "@/lib/errorMessage";
 import { guildPath, useGuildPath } from "@/lib/guildUrl";
 import { getProjectColor } from "@/lib/projectColor";
 import { PRIORITY_ORDER } from "@/lib/sorting";
@@ -405,6 +406,12 @@ export const MyCalendarPage = () => {
             </div>
           </div>
         </ToolFilterPanel>
+
+        {entriesQuery.isError ? (
+          <p className="text-destructive text-sm" role="alert">
+            {getErrorMessage(entriesQuery.error, "calendars:loadError")}
+          </p>
+        ) : null}
 
         {isLoading ? (
           <SkeletonRegion>

@@ -23,7 +23,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core import recurrence
-from app.core.messages import QueryMessages
+from app.core.messages import CalendarEventMessages, QueryMessages
 from app.core.identity_boundary import MentionForm, without_mention_names
 from app.core.references import TEXT_REFERENCE, kind_for_trigger
 from app.core.relationships import RelationshipType
@@ -1238,13 +1238,16 @@ def projected_occurrences(
 
     An occurrence is the task as its successor will be: the same task with its
     dates moved to the next start of its rule, until the series ends. A rolling
-    series has none, since its next start waits on when the task is done."""
+    series has none, since its next start waits on when the task is done.
+    A window holding more than ``recurrence.MAX_EXPANDED`` of them is refused,
+    for a shorter one."""
 
     def within(value: datetime | None) -> bool:
         return value is not None and start_after <= value <= start_before
 
     placed: list[TaskListRead] = []
     projected: list[TaskListRead] = []
+    expanded = 0
     for task in tasks:
         if within(task.start_date) or within(task.due_date):
             placed.append(task)
@@ -1259,9 +1262,16 @@ def projected_occurrences(
                 start_after,
                 start_before,
                 count=False,
+                at_most=recurrence.MAX_EXPANDED - expanded + 1,
             )
         except ValueError:
             continue
+        expanded += len(starts)
+        if expanded > recurrence.MAX_EXPANDED:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=CalendarEventMessages.WINDOW_TOO_FULL,
+            )
         lead = due - task.start_date if task.start_date else None
         for start in starts:
             if start <= due or (

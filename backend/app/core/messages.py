@@ -926,6 +926,9 @@ class CalendarEventMessages:
     CANNOT_CROSS_SCOPE = "CALENDAR_EVENT_CANNOT_CROSS_SCOPE"
     # A calendar read's date window ends before it starts or spans too long.
     WINDOW_INVALID = "CALENDAR_WINDOW_INVALID"
+    # A calendar read's window holds more repeating occurrences than one read
+    # expands (``app.core.recurrence.MAX_EXPANDED``).
+    WINDOW_TOO_FULL = "CALENDAR_WINDOW_TOO_FULL"
 
 
 class DashboardMessages:
