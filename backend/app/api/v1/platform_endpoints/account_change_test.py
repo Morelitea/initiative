@@ -364,7 +364,9 @@ async def test_a_removal_undo_works_over_a_minted_primary(
 ):
     """An account a provider made with no address keeps the address minted
     for it as primary beside the ones it proved. Removing one of those
-    through the route still leaves its copy able to put it back."""
+    through the route still leaves its copy able to put it back, and the
+    minted address, proved in the same hour, is not one of the run it
+    reverses."""
     user = await create_user(session, email="older-sso@example.com")
     user_id = user.id
     older = (await addresses.list_for_user(session, user_id=user_id))[0]
@@ -373,8 +375,9 @@ async def test_a_removal_undo_works_over_a_minted_primary(
         user_id=user_id,
         email=f"idp-{user_id}@oidc.local",
         source=addresses.SOURCE_SYNTHETIC,
-        verified=False,
+        verified=True,
         is_primary=False,
+        now=datetime.now(timezone.utc),
     )
     older.is_primary = False
     session.add(older)
@@ -382,6 +385,7 @@ async def test_a_removal_undo_works_over_a_minted_primary(
     minted.is_primary = True
     session.add(minted)
     await session.commit()
+    minted_id = minted.id
     await _address(session, user, "newer-sso@example.com")
 
     removed = await client.post(
@@ -395,6 +399,50 @@ async def test_a_removal_undo_works_over_a_minted_primary(
     response = await client.post(UNDO, json={"token": mailed["older-sso@example.com"]})
     assert response.status_code == 200, response.text
     assert await _primary(session, user_id) == "older-sso@example.com"
+    assert await session.get(UserEmail, minted_id) is not None
+
+
+async def test_undoing_a_move_off_a_minted_primary_makes_the_clicker_primary(
+    client: AsyncClient, session: AsyncSession, mailed
+):
+    """A minted address takes no mail, so the copy to an older address puts
+    the primary on that address rather than back on the minted one."""
+    user = await create_user(session, email="kept@example.com")
+    user_id = user.id
+    kept = (await addresses.list_for_user(session, user_id=user_id))[0]
+    minted = addresses.record_address(
+        session,
+        user_id=user_id,
+        email=f"idp-{user_id}@oidc.local",
+        source=addresses.SOURCE_SYNTHETIC,
+        verified=False,
+        is_primary=False,
+    )
+    kept.is_primary = False
+    session.add(kept)
+    await session.flush()
+    minted.is_primary = True
+    session.add(minted)
+    await session.commit()
+    taker = await _address(session, user, "taker@example.com")
+
+    moved = await client.put(
+        f"/api/v1/me/emails/{taker.id}/primary",
+        json={"current_password": "testpassword123"},
+        headers=get_auth_headers(user),
+    )
+    assert moved.status_code == 200, moved.text
+    await email_outbox._run_pass(session, now=datetime.now(timezone.utc))
+    token = mailed["kept@example.com"]
+
+    read = await client.post(READ, json={"token": token})
+    assert (read.json()["undo"], read.json()["subject"]) == (
+        "primary",
+        "kept@example.com",
+    )
+    response = await client.post(UNDO, json={"token": token})
+    assert response.status_code == 200, response.text
+    assert await _primary(session, user_id) == "kept@example.com"
 
 
 async def test_the_newest_address_removed_gets_no_link(session: AsyncSession, mailed):
