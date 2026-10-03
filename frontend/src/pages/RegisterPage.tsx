@@ -3,7 +3,7 @@ import { type FormEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { LegalNotice } from "@/components/auth/LegalNotice";
-import { ServerPicker } from "@/components/auth/ServerChoice";
+import { ServerChip, ServerPicker } from "@/components/auth/ServerChoice";
 import { SignInFrame } from "@/components/auth/SignInFrame";
 import { RecoveryCodesPanel } from "@/components/settings/RecoveryCodesPanel";
 import { type HandleCheck, UsernameField } from "@/components/UsernameField";
@@ -135,7 +135,7 @@ export const RegisterPage = () => {
   };
 
   return (
-    <SignInFrame pickServer={!recoveryCodes}>
+    <SignInFrame>
       <Card className="w-full max-w-md shadow-lg">
         <CardHeader>
           <CardTitle>{t("register.titleBootstrap")}</CardTitle>
@@ -231,13 +231,16 @@ export const RegisterPage = () => {
               {infoMessage ? <p className="text-primary text-sm">{infoMessage}</p> : null}
             </form>
           )}
-          {recoveryCodes ? null : <ServerPicker className="mt-6 border-t pt-4" />}
         </CardContent>
         <CardFooter className="text-muted-foreground text-sm">
           {t("register.haveAccount")}{" "}
           <Link className="ml-1 text-primary underline-offset-4 hover:underline" to="/login">
             {t("register.signIn")}
           </Link>
+        </CardFooter>
+        {/* Signed in by now, so the server is shown rather than changed. */}
+        <CardFooter>
+          {recoveryCodes ? <ServerChip /> : <ServerPicker className="w-full" />}
         </CardFooter>
       </Card>
     </SignInFrame>

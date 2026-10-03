@@ -47,7 +47,10 @@ const mocks = vi.hoisted(() => ({
   }),
   /** Read on every render, so a test can say what the deployment offers. */
   config: { passwordLoginEnabled: true, passkeyLoginEnabled: true },
-  server: { isNativePlatform: false },
+  server: { isNativePlatform: false } as {
+    isNativePlatform: boolean;
+    isServerConfigured?: boolean;
+  },
 }));
 
 // The bootstrap probe and the provider list, answered by path through one mock.
@@ -70,7 +73,7 @@ vi.mock("@/hooks/useServer", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/hooks/useServer")>()),
   useServer: () => ({
     isNativePlatform: mocks.server.isNativePlatform,
-    isServerConfigured: true,
+    isServerConfigured: mocks.server.isServerConfigured ?? true,
     getServerHostname: () => "example.com",
     getServerOrigin: () => "https://example.com",
     clearServerUrl: vi.fn(),
@@ -198,6 +201,21 @@ const resetLoginMocks = () => {
 const fillWithoutTelling = (field: HTMLElement, value: string) => {
   Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(field, value);
 };
+
+describe("LoginPage server", () => {
+  beforeEach(resetLoginMocks);
+
+  it("asks the app for a server before anything else", async () => {
+    mocks.server = { isNativePlatform: true, isServerConfigured: false };
+    renderLogin();
+
+    expect(await screen.findByRole("combobox", { name: /^server$/i })).toHaveTextContent(
+      /self-hosted/i
+    );
+    expect(screen.getByRole("textbox", { name: /server address/i })).toBeInTheDocument();
+    expect(screen.queryByLabelText(/email/i)).not.toBeInTheDocument();
+  });
+});
 
 describe("LoginPage password", () => {
   beforeEach(resetLoginMocks);

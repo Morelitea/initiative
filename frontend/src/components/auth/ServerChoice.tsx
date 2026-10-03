@@ -38,12 +38,7 @@ export const ServerChip = () => {
  */
 export const ServerPicker = ({ className }: { className?: string }) => {
   const { isNativePlatform } = useServer();
-  if (isNativePlatform) return <AppServerPicker className={className} />;
-  return (
-    <div className={className}>
-      <ServerChip />
-    </div>
-  );
+  return isNativePlatform ? <AppServerPicker className={className} /> : <ServerChip />;
 };
 
 const AppServerPicker = ({ className }: { className?: string }) => {

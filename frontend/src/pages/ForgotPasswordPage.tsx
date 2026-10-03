@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 
 import { apiClient } from "@/api/client";
 import { recoverWithCode } from "@/api/generated/auth/auth";
+import { ServerChip } from "@/components/auth/ServerChoice";
 import { SignInFrame } from "@/components/auth/SignInFrame";
 import { Button } from "@/components/ui/button";
 import {
@@ -238,6 +239,9 @@ export const ForgotPasswordPage = () => {
           <Link className="ml-1 text-primary underline-offset-4 hover:underline" to="/login">
             {t("forgotPassword.backToSignIn")}
           </Link>
+        </CardFooter>
+        <CardFooter>
+          <ServerChip />
         </CardFooter>
       </Card>
     </SignInFrame>

@@ -61,7 +61,7 @@ export const LoginPage = () => {
   // one the server is all there is.
   if (isNativePlatform && !isServerConfigured) {
     return (
-      <SignInFrame pickServer>
+      <SignInFrame>
         <ServerPicker className="w-full max-w-md" />
       </SignInFrame>
     );
@@ -411,7 +411,7 @@ const SignInCard = () => {
   }
 
   return (
-    <SignInFrame pickServer>
+    <SignInFrame>
       <Card className="w-full max-w-md shadow-lg">
         <CardHeader>
           <CardTitle>{challenge ? t("secondFactor.title") : t("login.title")}</CardTitle>
@@ -581,7 +581,6 @@ const SignInCard = () => {
               {error ? <p className="text-destructive text-sm">{error}</p> : null}
             </form>
           )}
-          <ServerPicker className="mt-6 border-t pt-4" />
         </CardContent>
         <CardFooter className="flex flex-col items-start gap-2 text-muted-foreground text-sm">
           {passwordLoginEnabled ? (
@@ -596,6 +595,9 @@ const SignInCard = () => {
               </Link>
             </p>
           ) : null}
+        </CardFooter>
+        <CardFooter>
+          <ServerPicker className="w-full" />
         </CardFooter>
       </Card>
     </SignInFrame>
