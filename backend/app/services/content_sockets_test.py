@@ -7,7 +7,6 @@ error) closes it. Frames go through each socket's own outbox.
 """
 
 import asyncio
-from datetime import datetime, timezone
 from types import SimpleNamespace
 from typing import Optional
 
@@ -19,7 +18,6 @@ from app.api.deps import GuildAccessError
 from app.core import auth_context
 from app.core.tools import Tool
 from app.models.platform.user import Presence, UserStatus
-from app.models.platform.user_token import UserToken
 from app.services import content_sockets
 from app.services.auth import sessions as session_service
 from app.services.content_sockets import (
@@ -32,7 +30,6 @@ from app.services.content_sockets import (
     initiative_room,
     resource_room,
 )
-from app.services.platform import user_tokens
 from app.services.platform.ws_auth import authenticate_ws_token
 from app.testing import create_user, get_auth_token
 
@@ -77,7 +74,6 @@ async def register():
     # tasks. A socket's credential is read off the auth context at join; start
     # each test with none recorded.
     auth_context.set_session_credential(None)
-    auth_context.set_device_token_id(None)
     auth_context.set_session_amr(None)
     auth_context.set_satisfied_claims(None)
     auth_context.set_satisfied_providers(None)
@@ -695,29 +691,3 @@ async def test_a_token_version_bump_closes_the_socket(
     await register.revoke_user_everywhere(user.id)
 
     assert ws.closed == WS_CREDENTIAL_ENDED
-
-
-async def test_a_consumed_device_token_closes_only_its_own_socket(
-    register, monkeypatch, session: AsyncSession
-) -> None:
-    _patch_entry(monkeypatch)
-    user = await create_user(session)
-    phone = await user_tokens.create_device_token(
-        session, user_id=user.id, device_name="Phone"
-    )
-    tablet = await user_tokens.create_device_token(
-        session, user_id=user.id, device_name="Tablet"
-    )
-    on_phone = await _open(register, phone, session)
-    phone_id = auth_context.device_token_id()
-    on_tablet = await _open(register, tablet, session)
-
-    row = await session.get(UserToken, phone_id)
-    assert row is not None
-    row.consumed_at = datetime.now(timezone.utc)
-    session.add(row)
-    await session.commit()
-    await register.revoke_user_everywhere(user.id)
-
-    assert on_phone.closed == WS_CREDENTIAL_ENDED
-    assert on_tablet.closed is None

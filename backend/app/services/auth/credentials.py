@@ -6,8 +6,8 @@ a refusal reaches the client; what a credential *is*, which account it names,
 and what it records about the sign-in behind it are decided here, once.
 
 What it records goes to ``app.core.auth_context``: the providers a session
-satisfied and what they asserted, the markers its ``amr`` carries, which device
-token or session it was, and whether it was a personal API key and the guild
+satisfied and what they asserted, the markers its ``amr`` carries, which session
+it was, and whether it was a personal API key and the guild
 that key is limited to. Everything is cleared first, so a credential of another
 kind never inherits what a previous one recorded.
 
@@ -33,7 +33,6 @@ from app.core.auth_context import (
     set_api_key_credential,
     set_api_key_guild_id,
     set_asked_of_account,
-    set_device_token_id,
     set_satisfied_claims,
     set_satisfied_providers,
     set_session_amr,
@@ -54,7 +53,6 @@ from app.services.auth.assurance import policy_markers
 from app.services.auth.subject import account_for_subject
 from app.services.platform import api_keys as api_keys_service
 from app.services.platform import auth_posture
-from app.services.platform import user_tokens
 
 
 class CredentialKind(str, Enum):
@@ -64,21 +62,17 @@ class CredentialKind(str, Enum):
     session = "session"
     #: A personal API key.
     api_key = "api_key"
-    #: The native app's long-lived device token.
-    device_token = "device_token"
     #: A short-lived token that reaches ``/uploads`` and nothing else.
     upload_token = "upload_token"
 
 
 #: What an ``Authorization: Bearer`` header or the session cookie may carry.
 HEADER_CREDENTIALS = frozenset({CredentialKind.session, CredentialKind.api_key})
-#: What the ``DeviceToken`` scheme carries.
-DEVICE_TOKEN_SCHEME = frozenset({CredentialKind.device_token})
-#: What may ride in a URL. Only credentials that are narrow or already meant to
-#: travel this way; a session token or an API key never does.
-URL_CREDENTIALS = frozenset({CredentialKind.upload_token, CredentialKind.device_token})
+#: What may ride in a URL: only the narrow token minted to travel this way; a
+#: session token or an API key never does.
+URL_CREDENTIALS = frozenset({CredentialKind.upload_token})
 #: What a realtime socket's first frame may carry.
-SOCKET_CREDENTIALS = frozenset({CredentialKind.session, CredentialKind.device_token})
+SOCKET_CREDENTIALS = frozenset({CredentialKind.session})
 
 
 @dataclass(frozen=True)
@@ -125,7 +119,6 @@ def clear_recorded_credential() -> None:
     set_satisfied_claims(None)
     set_session_amr(None)
     set_session_credential(None)
-    set_device_token_id(None)
     set_api_key_credential(False)
     set_api_key_guild_id(None)
     set_asked_of_account(None)
@@ -212,22 +205,6 @@ async def _upload_token(session: AsyncSession, token: str) -> Authenticated | No
     return Authenticated(user=user, kind=CredentialKind.upload_token)
 
 
-async def _device_token(session: AsyncSession, token: str) -> Authenticated | None:
-    # Resolved on the system engine, as a personal API key is; the account it
-    # names is loaded on the request's own session.
-    device_token = await user_tokens.authenticate_device_token(token)
-    if device_token is None:
-        return None
-    user = (
-        await session.exec(select(User).where(User.id == device_token.user_id))
-    ).one_or_none()
-    if user is None:
-        return None
-    # The server's only durable name for one installed client.
-    set_device_token_id(device_token.id)
-    return Authenticated(user=user, kind=CredentialKind.device_token)
-
-
 async def _api_key(session: AsyncSession, token: str) -> Authenticated | None:
     found = await api_keys_service.authenticate_api_key(session, token)
     if found is None:
@@ -251,20 +228,9 @@ async def authenticate(
     route that admits one reads it elsewhere.
 
     The kinds tell themselves apart without being told: an API key by its
-    prefix, the two token kinds by being JWTs with their own audiences, and a
-    device token by being none of those. A string that is a JWT is only ever
-    read as one, so a session token that fails is never offered to the device
-    token lookup.
+    prefix, and the two token kinds by being JWTs with their own audiences.
     """
     clear_recorded_credential()
-    if allow == DEVICE_TOKEN_SCHEME:
-        # Named by its scheme, so it is looked up as nothing else.
-        found = await _device_token(session, token)
-        if found is None:
-            raise CredentialRefused(
-                AuthMessages.INVALID_DEVICE_TOKEN, scheme="DeviceToken"
-            )
-        return found
     if is_access_token(token):
         raise CredentialRefused(_UNREADABLE)
 
@@ -285,8 +251,4 @@ async def authenticate(
             return await _session(session, token)
         raise CredentialRefused(_UNREADABLE)
 
-    if CredentialKind.device_token in allow:
-        found = await _device_token(session, token)
-        if found is not None:
-            return found
     raise CredentialRefused(_UNREADABLE)

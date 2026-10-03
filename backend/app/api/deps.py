@@ -26,7 +26,6 @@ from app.core import auth_context
 from app.services.auth import credentials
 from app.services.auth import guild_provider_connections as guild_connections
 from app.services.auth.credentials import (
-    DEVICE_TOKEN_SCHEME,
     HEADER_CREDENTIALS,
     URL_CREDENTIALS,
     Authenticated,
@@ -126,16 +125,9 @@ _SAFE_HTTP_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 #: credential is a party to the decision rather than a way of transporting it.
 CREDENTIAL_SESSION = CredentialKind.session.value
 CREDENTIAL_API_KEY = CredentialKind.api_key.value
-CREDENTIAL_DEVICE_TOKEN = CredentialKind.device_token.value
 #: An installed app's access token. Only a route that names an app scope
 #: admits one (:func:`app_scope`).
 CREDENTIAL_INSTALL = "install"
-
-#: The credentials that are somebody signing in, as opposed to something acting
-#: for them in their absence. The native app trades an email and password for a
-#: device token and then uses it for everything, so it belongs here beside the
-#: web session — the person is just as present either way.
-FIRST_PARTY_CREDENTIALS = frozenset({CREDENTIAL_SESSION, CREDENTIAL_DEVICE_TOKEN})
 
 
 def _admit(request: Request, authenticated: Authenticated) -> User:
@@ -165,18 +157,6 @@ def _admit(request: Request, authenticated: Authenticated) -> User:
     return authenticated.user
 
 
-def _presented(
-    request: Request, bearer_token: str | None, session_cookie: str | None
-) -> tuple[str | None, frozenset[CredentialKind]]:
-    """The credential a request's headers or cookie carry, and the kinds it
-    may be. The ``DeviceToken`` scheme names its own kind; a bearer token or
-    the session cookie may be a session or a personal API key."""
-    auth_header = request.headers.get("Authorization", "")
-    if auth_header.startswith("DeviceToken "):
-        return auth_header.removeprefix("DeviceToken "), DEVICE_TOKEN_SCHEME
-    return bearer_token or session_cookie, HEADER_CREDENTIALS
-
-
 async def get_current_user(
     request: Request,
     session: SessionDep,
@@ -187,7 +167,7 @@ async def get_current_user(
     # none reads as something other than a session.
     clear_recorded_credential()
     request.state.credential = None
-    token, allow = _presented(request, bearer_token, session_cookie)
+    token = bearer_token or session_cookie
     if not token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -197,7 +177,9 @@ async def get_current_user(
     # A credential that cannot be read is 401 "please re-authenticate", not
     # 403: the SPA's 401 interceptor sends an expired session to /welcome.
     try:
-        authenticated = await credentials.authenticate(session, token, allow=allow)
+        authenticated = await credentials.authenticate(
+            session, token, allow=HEADER_CREDENTIALS
+        )
     except CredentialRefused as exc:
         raise exc.as_http() from exc
     return _admit(request, authenticated)
@@ -213,15 +195,14 @@ def require_first_party_session(request: Request) -> str:
     says how far a standing credential reaches, so it is made by the person, in
     a session of their own, rather than by the thing being granted.
 
-    Two credentials qualify, because both are somebody signing in: a web session
-    and a device token, which is what the native app exchanges an email and
-    password for and then uses for everything after.
+    Only a session qualifies: it is somebody signing in, on the web or in the
+    app.
 
     Returns the credential kind, which is what a grant records as the factor it
     was confirmed by.
     """
     credential = getattr(request.state, "credential", None)
-    if credential not in FIRST_PARTY_CREDENTIALS:
+    if credential != CREDENTIAL_SESSION:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=AuthMessages.SESSION_REQUIRED,
@@ -2006,16 +1987,16 @@ async def _resolve_upload_user(
 
       * Authorization header or HttpOnly cookie — not exposed in URLs, so what
         every other route accepts is accepted here.
-      * ``?token=`` query param — part of the URL, so only a
-        short-lived uploads-scoped token or a device token is accepted. A
-        session token or API key there is refused; native clients fetch a
-        scoped token from ``POST /auth/upload-token`` instead.
+      * ``?token=`` query param — part of the URL, so only a short-lived
+        uploads-scoped token is accepted. A session token or API key there is
+        refused; native clients fetch a scoped token from
+        ``POST /auth/upload-token`` instead.
 
     Held to the same account status rule as every other route.
     """
     clear_recorded_credential()
     request.state.credential = None
-    token, allow = _presented(request, bearer_token, session_cookie)
+    token, allow = bearer_token or session_cookie, HEADER_CREDENTIALS
     if not token and token_param:
         token, allow = token_param, URL_CREDENTIALS
     if not token:

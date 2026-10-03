@@ -78,7 +78,6 @@ export const UserSettingsSecurityPage = () => {
     },
   });
 
-  // Device tokens queries and mutations
   const handleCreate = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const trimmedName = name.trim();

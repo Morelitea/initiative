@@ -18,6 +18,7 @@ from pydantic import (
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import ArgumentError
+from starlette.requests import Request
 
 
 # App identity/shape — deliberately constants, not settings: the SPA, the
@@ -29,13 +30,24 @@ API_V1_STR = "/api/v1"
 #: install's own community, which its token names.
 APP_SERVER_URL = f"{API_V1_STR}/c/0"
 
-# Origins used by the Capacitor native mobile app (iOS and Android).
+# Origins used by the Capacitor native apps (iOS, Android and the desktop app).
 # Must always be allowed regardless of CORS_ALLOWED_ORIGINS setting.
 CAPACITOR_NATIVE_ORIGINS = [
     "https://com.morelitea.initiative",  # Capacitor custom hostname (Android + iOS with iosScheme=https)
-    "capacitor://com.morelitea.initiative",  # Capacitor default iOS scheme with custom hostname
+    "capacitor://com.morelitea.initiative",  # Capacitor default iOS scheme with custom hostname; the desktop app
     "capacitor://localhost",  # Capacitor fallback (no custom hostname)
 ]
+
+
+def is_device(request: Request) -> bool:
+    """Whether the request comes from the phone or desktop app.
+
+    The one place that decides. The apps present their own origin, which no
+    page can, and a device keeps its own refresh token and stays signed in
+    longer than a browser.
+    """
+    return request.headers.get("origin") in CAPACITOR_NATIVE_ORIGINS
+
 
 # Third-party origins the built SPA legitimately embeds in iframes, used to build
 # the Content-Security-Policy (pentest MED-001). These are the document

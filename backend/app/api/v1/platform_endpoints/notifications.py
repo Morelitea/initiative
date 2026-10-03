@@ -19,16 +19,22 @@ from app.api.deps import (
 from app.db.cohorts import request_sessionmaker
 from app.models.platform.user import User
 from app.schemas.platform.notification import (
+    NotificationAlertRead,
     NotificationCountResponse,
     NotificationListResponse,
     NotificationPlace,
     NotificationRead,
+    RedactedAlert,
     SubjectReadRequest,
     SubjectReadResponse,
     UnreadPlacesResponse,
 )
 from app.core.messages import NotificationMessages
-from app.services.platform import notification_subjects, presence
+from app.services.platform import (
+    notification_policy,
+    notification_subjects,
+    presence,
+)
 from app.services.platform import user_notifications as notifications_service
 from app.services.platform.ws_auth import authenticate_ws_token
 from app.api.content_socket import hold_open, read_auth_frame
@@ -145,6 +151,34 @@ async def read_notification_subject(
         subject_id=payload.subject_id,
     )
     return SubjectReadResponse(comment_ids=comment_ids, since=since)
+
+
+@router.get("/{notification_id}/alert", response_model=NotificationAlertRead)
+async def read_notification_alert(
+    notification_id: int,
+    session: AccountHolderSessionDep,
+    current_user: AccountHolder,
+) -> NotificationAlertRead:
+    """One line as the desktop app announces it, after an ``alert`` frame.
+
+    The switches are read as they stand now: a community that has started
+    redacting since the frame went gets the kind of thing that happened, and
+    one that has switched push off gets no more than that.
+    """
+    notification = await notifications_service.get_notification(
+        session, user_id=current_user.id, notification_id=notification_id
+    )
+    if notification is None:
+        raise HTTPException(status_code=404, detail=NotificationMessages.NOT_FOUND)
+    policy = await notification_policy.for_send(session, notification.guild_id)
+    redacted = None
+    if policy.redact or not policy.push:
+        title, body = notification_policy.redacted_push(
+            notification.type, current_user.locale or "en"
+        )
+        redacted = RedactedAlert(title=title, body=body)
+    (line,) = await _with_subjects(session, current_user.id, [notification])
+    return NotificationAlertRead(notification=line, redacted=redacted)
 
 
 @router.post("/{notification_id}/read", response_model=NotificationRead)

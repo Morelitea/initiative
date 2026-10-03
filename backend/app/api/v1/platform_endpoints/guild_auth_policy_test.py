@@ -29,7 +29,6 @@ from app.models.platform.user import User, UserRole
 from app.models.tenant.project import Project
 from app.services.auth.assurance import SECOND_FACTOR_AMR
 from app.services.platform import api_keys as api_keys_service
-from app.services.platform import user_tokens
 from app.services.platform.ws_auth import authenticate_ws_token
 from app.testing.actor import Actor
 from app.testing.factories import (
@@ -325,32 +324,6 @@ async def test_open_guild_admits_any_session(
 # --- Credentials that record no sign-in --------------------------------------
 
 
-async def _an_exchanged_device_token(
-    client: AsyncClient, session: AsyncSession, user: User
-) -> dict[str, str]:
-    """The session a device token is traded for."""
-    device_token = await user_tokens.create_device_token(
-        session, user_id=user.id, device_name="old-phone"
-    )
-    await session.commit()
-    exchanged = await client.post(
-        "/api/v1/auth/device-token/exchange", json={"device_token": device_token}
-    )
-    assert exchanged.status_code == 200, exchanged.text
-    return _bearer(exchanged.json()["access_token"])
-
-
-async def _a_device_token(
-    client: AsyncClient, session: AsyncSession, user: User
-) -> dict[str, str]:
-    """The same credential presented as one, rather than traded for a session."""
-    device_token = await user_tokens.create_device_token(
-        session, user_id=user.id, device_name="old-phone"
-    )
-    await session.commit()
-    return {"Authorization": f"DeviceToken {device_token}"}
-
-
 async def _an_api_key(
     client: AsyncClient, session: AsyncSession, user: User
 ) -> dict[str, str]:
@@ -380,30 +353,21 @@ async def _require_any_of_ours(session: AsyncSession, guild: Guild) -> None:
         pytest.param(_require_any_of_ours, "", id="any of ours"),
     ],
 )
-@pytest.mark.parametrize(
-    "open_credential",
-    [
-        pytest.param(_an_exchanged_device_token, id="exchanged device token"),
-        pytest.param(_a_device_token, id="device token"),
-        pytest.param(_an_api_key, id="api key"),
-    ],
-)
 async def test_a_credential_that_records_no_sign_in_satisfies_no_requirement(
     client: AsyncClient,
     session: AsyncSession,
     acting_user,
-    open_credential,
     require_a_sign_in,
     step_up_slug: str,
 ):
-    """A device token and an API key are both derived from a sign-in that
-    already happened and record nothing about it, so the session each buys
-    carries no providers. Whichever shape the requirement takes — one named
-    provider, or any of this community's — such a session gets the answer every
-    unsatisfied session gets, and the challenge names what would serve it."""
+    """An API key is derived from a sign-in that already happened and records
+    nothing about it, so it carries no providers. Whichever shape the
+    requirement takes — one named provider, or any of this community's — it
+    gets the answer every unsatisfied session gets, and the challenge names
+    what would serve it."""
     member = await acting_user(guild_role=GuildRole.member)
     await require_a_sign_in(session, member.guild)
-    headers = await open_credential(client, session, member.user)
+    headers = await _an_api_key(client, session, member.user)
 
     blocked = await client.get(member.g("/initiatives/"), headers=headers)
     assert blocked.status_code == 401, blocked.text

@@ -113,7 +113,6 @@ export interface StepUpEventDetail {
 }
 
 let authToken: string | null = null;
-let isDeviceToken = false;
 // Tracks whether we currently believe a user session is active. On web the
 // in-memory authToken is never set after a page reload (cookie auth is
 // HttpOnly, so there's nothing for JS to restore). The 401 interceptor used
@@ -122,15 +121,10 @@ let isDeviceToken = false;
 // again to land on /welcome. An explicit session flag closes that gap.
 let hasActiveSession = false;
 
-/**
- * Set the authentication token.
- * @param token The token value (JWT or device token)
- * @param deviceToken If true, use "DeviceToken" auth scheme instead of "Bearer"
- */
-export const setAuthToken = (token: string | null, deviceToken = false) => {
+/** Set the access token sent as `Authorization: Bearer`. */
+export const setAuthToken = (token: string | null) => {
   authToken = token;
-  isDeviceToken = deviceToken;
-  if (token && !deviceToken) noteSessionClock(token);
+  if (token) noteSessionClock(token);
 };
 
 export const getAuthToken = (): string | null => authToken;
@@ -142,7 +136,7 @@ export const setHasActiveSession = (value: boolean) => {
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
   // Send cookies for web sessions (HttpOnly cookie auth).
-  // Disabled on native: Capacitor uses Bearer/DeviceToken headers and the
+  // Disabled on native: Capacitor uses Bearer headers and the
   // backend returns Access-Control-Allow-Origin: * which is incompatible
   // with credentialed requests per the CORS spec.
   withCredentials: !Capacitor.isNativePlatform(),
@@ -171,9 +165,7 @@ export const apiClient = axios.create({
 apiClient.interceptors.request.use((config) => {
   if (authToken) {
     config.headers = config.headers ?? {};
-    // Use DeviceToken scheme for device tokens, Bearer for JWTs
-    const scheme = isDeviceToken ? "DeviceToken" : "Bearer";
-    config.headers.Authorization = `${scheme} ${authToken}`;
+    config.headers.Authorization = `Bearer ${authToken}`;
   }
   return config;
 });
@@ -297,12 +289,11 @@ const emitUnauthorized = () => {
   }
 };
 
-// Silent session renewal (web only). An expired access cookie is renewable:
-// the HttpOnly refresh cookie issued at login rotates into a fresh session via
-// POST /auth/refresh, so a 401 gets one renewal attempt and a retry before it
-// is surfaced as a signed-out state. Concurrent 401s share a single in-flight
-// refresh. Native is excluded: it authenticates with device tokens and no
-// refresh cookie exists there yet.
+// Silent session renewal. An expired access token is renewable: the refresh
+// token issued at login (an HttpOnly cookie on the web, kept by the app on
+// native) rotates into a fresh session via POST /auth/refresh, so a 401 gets
+// one renewal attempt and a retry before it is surfaced as a signed-out state.
+// Concurrent 401s share a single in-flight refresh.
 let refreshInFlight: Promise<boolean> | null = null;
 
 // Whether a failed renewal is an answer about the session. Only a 401 is: it
@@ -337,7 +328,7 @@ type TurnResult = Renewal | typeof RENEWED_BY_PEER;
 // over — and gets the replacement back the same way, because rotation means the
 // one it holds is spent.
 const renew = async (): Promise<Renewal> => {
-  const stored = isDeviceToken ? null : readRefreshToken();
+  const stored = readRefreshToken();
   const input = lastInput();
   const body = {
     ...(stored ? { refresh_token: stored } : {}),
@@ -420,10 +411,8 @@ const takeRenewalTurn = (): Promise<TurnResult> => {
   return locks ? locks.request(REFRESH_LOCK, renew) : renewTakingTurns();
 };
 
-// Native was excluded from renewal because it had nothing to renew with: one
-// long-lived device token, so a 401 really was the end of the session. An app
-// holding a refresh token is in the same position as the browser and renews the
-// same way; one still in device-token mode is not, and keeps the old answer.
+// The browser always has its refresh cookie to try. The app renews only with a
+// refresh token in hand; without one a 401 really is the end of the session.
 const canRenewSession = (): boolean => !Capacitor.isNativePlatform() || !!readRefreshToken();
 
 const attemptSessionRefresh = (): Promise<boolean> => {
@@ -435,7 +424,7 @@ const attemptSessionRefresh = (): Promise<boolean> => {
         // stale header, which the backend reads before the fresh cookie. When
         // another window renewed, the token it was handed is not ours to hold,
         // so the retry goes on the cookie that window set.
-        if (!isDeviceToken && (authToken || readRefreshToken())) {
+        if (authToken || readRefreshToken()) {
           setAuthToken(result === RENEWED_BY_PEER ? null : result.data?.access_token || null);
         }
         return true;
@@ -473,7 +462,7 @@ export const renewSession = async (): Promise<string | null> =>
 // (recursion), and login/logout, whose 401s mean something other than "the
 // access token expired mid-session".
 const isAuthLifecyclePath = (url: string | undefined): boolean =>
-  !!url && /\/auth\/(token|refresh|logout|device-token)(\?|$)/.test(url);
+  !!url && /\/auth\/(token|refresh|logout)(\?|$)/.test(url);
 
 interface RetriableRequestConfig extends AxiosRequestConfig {
   _sessionRefreshRetried?: boolean;

@@ -11,6 +11,8 @@ const hasLocalStorage = typeof localStorage !== "undefined";
  * settings and server address and signs in again.
  */
 export const CREDENTIAL_KEYS = {
+  // Legacy: where the app once kept a long-lived device token. Read by nothing;
+  // kept so sign-in can delete what an older version left behind.
   token: "initiative-token",
   isDeviceToken: "initiative-is-device-token",
   refreshToken: "initiative-refresh-token",

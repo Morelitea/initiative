@@ -378,9 +378,7 @@ export function useGetPlatformAuthSettingsApiV1SettingsAuthPlatformGet<
  * echoes that exact number back in ``acknowledge_stranded``.
  *
  * Nobody is signed out. A session already open keeps the terms it was
- * opened under; a device token is brought under a new session limit now,
- * measured from when it was issued, so shortening the limit can end one on
- * the spot.
+ * opened under.
  * @summary Update Platform Auth Settings
  */
 export const updatePlatformAuthSettingsApiV1SettingsAuthPlatformPatch = (
@@ -630,7 +628,7 @@ export function useGetNotificationSettingsApiV1SettingsNotificationsGet<
  * Every community is held to this as a ceiling: one may decline a channel the
  * deployment permits, and none may take back one the deployment has declined.
  *
- * Switching push off drops the device tokens this deployment was holding, and
+ * Switching push off drops the push tokens this deployment was holding, and
  * the registration endpoint declines while it stays off — so the deployment
  * stops sending and stops keeping the addresses it was sending to. Devices
  * register again the next time the app starts, which is what restores

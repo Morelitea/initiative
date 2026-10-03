@@ -1,3 +1,4 @@
+import { Bell, type LucideIcon, Mail, Monitor, Smartphone } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -44,7 +45,15 @@ const DEFAULT_REMINDER_MINUTES = 15;
 const GROUP_ORDER = ["addressed_to_me", "activity", "community", "account"] as const;
 
 // Every channel, in column order.
-const CHANNELS: Channel[] = ["in_app", "email", "push"];
+const CHANNELS: Channel[] = ["in_app", "email", "push", "desktop"];
+
+// What a column is headed with where its name does not fit.
+const CHANNEL_ICONS: Record<Channel, LucideIcon> = {
+  in_app: Bell,
+  email: Mail,
+  push: Smartphone,
+  desktop: Monitor,
+};
 
 const LEVELS: NotificationLevel[] = ["everything", "personal", "nothing"];
 
@@ -287,20 +296,28 @@ export const UserSettingsNotificationsPage = ({
     );
   };
 
-  const gridColumns =
-    visibleChannels.length === 3 ? "grid-cols-[1fr_auto_auto_auto]" : "grid-cols-[1fr_auto_auto]";
+  const gridColumns = { gridTemplateColumns: `1fr repeat(${visibleChannels.length}, auto)` };
 
   const renderGrid = (guildId?: number) => (
     <div className="space-y-1">
-      <div className={`grid items-center gap-4 border-b pb-2 ${gridColumns}`}>
+      <div className="grid items-center gap-2 border-b pb-2 sm:gap-4" style={gridColumns}>
         <p className="font-medium text-muted-foreground text-sm">
           {t("notifications.categoryHeader")}
         </p>
-        {visibleChannels.map((channel) => (
-          <p key={channel} className="w-16 text-center font-medium text-muted-foreground text-sm">
-            {t(`notifications.channels.${channel}`)}
-          </p>
-        ))}
+        {visibleChannels.map((channel) => {
+          const Icon = CHANNEL_ICONS[channel];
+          return (
+            <p
+              key={channel}
+              className="flex w-10 justify-center font-medium text-muted-foreground text-sm sm:w-16"
+            >
+              <Icon className="size-4 sm:hidden" aria-hidden />
+              <span className="sr-only sm:not-sr-only">
+                {t(`notifications.channels.${channel}`)}
+              </span>
+            </p>
+          );
+        })}
       </div>
 
       {grouped.map((section) => {
@@ -313,7 +330,7 @@ export const UserSettingsNotificationsPage = ({
             </p>
             {rows.map((row) => (
               <div key={row.category} className="border-b last:border-b-0">
-                <div className={`grid items-center gap-4 py-3 ${gridColumns}`}>
+                <div className="grid items-center gap-2 py-3 sm:gap-4" style={gridColumns}>
                   <div>
                     <p className="font-medium">{t(`notifications.categories.${row.category}`)}</p>
                     <p className="text-muted-foreground text-sm">
@@ -323,7 +340,7 @@ export const UserSettingsNotificationsPage = ({
                   {visibleChannels.map((channel) => {
                     const mutable = row.mutable_channels.includes(channel);
                     return (
-                      <div key={channel} className="flex w-16 justify-center">
+                      <div key={channel} className="flex w-10 justify-center sm:w-16">
                         <Switch
                           checked={mutable ? isOn(row, channel, guildId) : true}
                           disabled={!mutable || writePreferences.isPending}

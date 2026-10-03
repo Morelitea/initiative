@@ -48,6 +48,9 @@ class Channel(str, Enum):
     in_app = "in_app"
     email = "email"
     push = "push"
+    #: A system notification from the desktop app, carried on its own
+    #: connection rather than through a push service, so it needs no Firebase.
+    desktop = "desktop"
 
 
 ALL_CHANNELS: tuple[Channel, ...] = tuple(Channel)
@@ -80,7 +83,12 @@ class CategoryGroup(str, Enum):
     account = "account"
 
 
-_ON = {Channel.in_app: True, Channel.email: True, Channel.push: True}
+_ON = {
+    Channel.in_app: True,
+    Channel.email: True,
+    Channel.push: True,
+    Channel.desktop: True,
+}
 
 
 @dataclass(frozen=True)
@@ -105,7 +113,7 @@ class CategorySpec:
 
 _ALL_MUTABLE = frozenset(ALL_CHANNELS)
 #: In-app stays on; the reachable channels are still the account's own choice.
-_KEEP_IN_APP = frozenset({Channel.email, Channel.push})
+_KEEP_IN_APP = frozenset({Channel.email, Channel.push, Channel.desktop})
 
 
 CATEGORY_SPECS: Mapping[NotificationCategory, CategorySpec] = {

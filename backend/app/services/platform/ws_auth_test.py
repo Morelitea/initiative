@@ -14,7 +14,6 @@ from app.core.auth_context import session_amr
 from app.core.config import settings
 from app.core.security import JWT_ALGORITHM
 from app.models.platform.user import UserStatus
-from app.services.platform import user_tokens
 from app.services.platform.ws_auth import authenticate_ws_token
 from app.testing import create_user, get_auth_token
 
@@ -91,20 +90,6 @@ async def test_garbage_token_rejected(session: AsyncSession):
     assert await authenticate_ws_token("not-a-jwt", session) is None
 
 
-async def test_device_token_still_authenticates(session: AsyncSession):
-    """Device tokens are revoked separately (consumed / expired in the DB),
-    not via ``token_version``; they must keep working through the helper."""
-    user = await create_user(session)
-    device_token = await user_tokens.create_device_token(
-        session, user_id=user.id, device_name="pytest-device"
-    )
-
-    result = await authenticate_ws_token(device_token, session)
-
-    assert result is not None
-    assert result.id == user.id
-
-
 async def test_token_without_version_claim_rejected(session: AsyncSession):
     """A valid-signature JWT with NO ``ver`` claim at all (e.g. a legacy token
     minted before versioning existed) exercises the ``ver is not None`` guard
@@ -128,26 +113,13 @@ async def test_token_without_version_claim_rejected(session: AsyncSession):
     assert await authenticate_ws_token(legacy_token, session) is None
 
 
-async def test_jwt_without_sub_does_not_fall_through_to_device_lookup(
-    session: AsyncSession, monkeypatch
-):
-    """A valid-signature JWT carrying no ``sub`` is still a session token: it
-    must be rejected outright, never re-interpreted as a device credential."""
+async def test_jwt_without_sub_rejected(session: AsyncSession):
+    """A valid-signature JWT carrying no ``sub`` names nobody."""
     from datetime import datetime, timedelta, timezone
 
     import jwt as pyjwt
 
     from app.core.config import settings
-    from app.services.auth import credentials as credentials_module
-
-    async def _must_not_be_called(*args, **kwargs):  # pragma: no cover
-        raise AssertionError("device-token lookup must not run for a JWT bearer")
-
-    monkeypatch.setattr(
-        credentials_module.user_tokens,
-        "authenticate_device_token",
-        _must_not_be_called,
-    )
 
     subless_token = pyjwt.encode(
         {"exp": datetime.now(timezone.utc) + timedelta(minutes=10)},
@@ -175,24 +147,4 @@ async def test_a_socket_records_what_the_session_proved(session: AsyncSession):
         get_auth_token(user, amr=["pwd"]), session
     )
     assert with_a_password is not None
-    assert session_amr() == frozenset()
-
-
-async def test_a_device_token_records_neither(session: AsyncSession):
-    """A device token says nothing about how its owner signed in, which is the
-    answer a community asking for a factor or a key reads."""
-    user = await create_user(session)
-    device_token = await user_tokens.create_device_token(
-        session, user_id=user.id, device_name="pytest-device"
-    )
-
-    # The passkey session first, so the values a device token leaves are the
-    # ones this helper put there rather than the ones it found.
-    assert (
-        await authenticate_ws_token(
-            get_auth_token(user, amr=["pwd", "hwk", "mfa"]), session
-        )
-        is not None
-    )
-    assert await authenticate_ws_token(device_token, session) is not None
     assert session_amr() == frozenset()

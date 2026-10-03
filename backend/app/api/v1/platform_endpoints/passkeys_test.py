@@ -1072,14 +1072,14 @@ async def test_a_phone_is_handed_a_code(
     ]
 
 
-async def test_an_older_app_is_handed_a_named_device_token(
+async def test_an_older_app_is_asked_to_update(
     client: AsyncClient, session: AsyncSession, assertion
 ):
-    """An app bundle from before the code flow sends no challenge, and is handed
-    a device token under a name even when it sent none."""
-    from app.services.platform import user_tokens
-
+    """An app bundle from before the code flow sends no challenge, and can only
+    be handed a session through the code, so it is asked to update and nothing
+    is opened."""
     user = await _account(session, "pk-unnamed@example.com")
+    user_id = user.id
     await create_passkey(session, user)
 
     challenge = await _begin_sign_in(client)
@@ -1091,11 +1091,12 @@ async def test_an_older_app_is_handed_a_named_device_token(
             "device_name": "  ",
         },
     )
-    assert response.status_code == 200, response.text
-    handed = parse_qs(urlsplit(response.json()["redirect_to"]).query)
-    record = await user_tokens.get_device_token(session, token=handed["token"][0])
-    assert record is not None
-    assert record.device_name == "Mobile Device"
+    assert response.status_code == 400, response.text
+    assert response.json()["detail"] == "NATIVE_APP_UPDATE_REQUIRED"
+    session.expire_all()
+    assert (
+        await session.exec(select(AuthSession).where(AuthSession.user_id == user_id))
+    ).all() == []
 
 
 # ---------------------------------------------------------------------------
@@ -1394,27 +1395,8 @@ async def test_a_standing_credential_cannot_step_up(
     assert response.status_code == 403
     assert response.json()["detail"] == "SESSION_REQUIRED"
 
-
-async def test_a_device_token_cannot_step_up(
-    client: AsyncClient, session: AsyncSession
-):
-    """The same rule for the app's own standing credential, and it is answered
-    before a ceremony is begun: nothing is stored for a request that has no
-    session to add the key to."""
-    from app.services.platform import user_tokens
-
-    user = await _account(session, "pk-stepup-device@example.com")
-    await create_passkey(session, user)
-    token = await user_tokens.create_device_token(
-        session, user_id=user.id, device_name="Phone"
-    )
-
-    response = await client.post(
-        STEP_UP_BEGIN, headers={"Authorization": f"DeviceToken {token}"}
-    )
-    assert response.status_code == 403
-    assert response.json()["detail"] == "SESSION_REQUIRED"
-
+    # Answered before a ceremony is begun: nothing is stored for a request
+    # that has no session to add the key to.
     session.expire_all()
     rows = (
         await session.exec(
