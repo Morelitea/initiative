@@ -137,15 +137,18 @@ async def test_list_queues_previews_whose_turn_it_is(
     client: AsyncClient, acting_user, session
 ):
     """Asked for previews, the list says whose turn it is on each queue and
-    who follows, wrapping round the order; held items are out of it."""
+    who follows, the way the queue advances: a held item comes up once its
+    round is due, and is passed over until then."""
     a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     queue = await create_queue(session, a.initiative, a.user, is_active=True)
     items = {
         label: await create_queue_item(session, queue, label=label, position=position)
         for label, position in (("A", 4), ("B", 3), ("C", 2), ("D", 1))
     }
-    await create_queue_item(session, queue, label="Held", position=0, held_at_round=1)
+    await create_queue_item(session, queue, label="Due", position=0.5, held_at_round=1)
+    await create_queue_item(session, queue, label="Held", position=0, held_at_round=2)
     queue.current_item_id = items["C"].id
+    queue.current_round = 2
     session.add(queue)
     await session.commit()
 
@@ -158,7 +161,7 @@ async def test_list_queues_previews_whose_turn_it_is(
     assert [
         (turn["label"], turn["current"])
         for turn in previewed.json()["items"][0]["preview"]
-    ] == [("C", True), ("D", False), ("A", False)]
+    ] == [("C", True), ("D", False), ("Due", False)]
 
 
 async def test_get_queue(client: AsyncClient, acting_user):

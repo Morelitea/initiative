@@ -227,7 +227,7 @@ export function DashboardCanvas({
                     dashboardId={dashboardId}
                     canEdit={canEdit}
                     sampleData={sampleData || previewAnswers !== undefined}
-                    answer={previewAnswers?.[widget.id]}
+                    answer={previewAnswers ? (previewAnswers[widget.id] ?? null) : undefined}
                     onConfigure={onConfigureWidget}
                     onRemove={onRemoveWidget}
                   />

@@ -139,9 +139,12 @@ async def list_previews(
     session: AsyncSession, queues: Sequence[Queue]
 ) -> dict[int, list[QueueTurnPreview]]:
     """Whose turn it is and who follows, for every queue on a list's page, read
-    in one statement for the whole page. A queue not running shows its order
-    from the top. Held and hidden items are out of the rotation, as they are
-    when the queue runs."""
+    in one statement for the whole page.
+
+    The turns after the current one are walked the way :func:`advance_turn`
+    walks them: a held item is passed over until its round comes due, and is
+    then the turn it would be. A queue not running shows its order from the
+    top, without the held. Hidden items are out of the rotation either way."""
     by_id = {queue.id: queue for queue in queues if queue.id is not None}
     if not by_id:
         return {}
@@ -151,33 +154,52 @@ async def list_previews(
             QueueItem.queue_id,
             QueueItem.label,
             QueueItem.color,
+            QueueItem.held_at_round,
         )
         .where(
             ids_in(QueueItem.queue_id, list(by_id)),
             QueueItem.deleted_at.is_(None),
             QueueItem.is_visible.is_(True),
-            QueueItem.held_at_round.is_(None),
         )
         .order_by(QueueItem.queue_id, QueueItem.position.desc(), QueueItem.id)
     )
-    rotations: dict[int, list] = {queue_id: [] for queue_id in by_id}
+    visible: dict[int, list] = {queue_id: [] for queue_id in by_id}
     for row in rows.all():
-        rotations[row.queue_id].append(row)
+        visible[row.queue_id].append(row)
+
+    def turn(row, current: bool = False) -> QueueTurnPreview:
+        return QueueTurnPreview(
+            id=row.id, label=row.label, color=row.color, current=current
+        )
 
     previews: dict[int, list[QueueTurnPreview]] = {}
-    for queue_id, rotation in rotations.items():
+    for queue_id, order in visible.items():
         queue = by_id[queue_id]
-        current = queue.current_item_id if queue.is_active else None
-        start = next(
-            (index for index, row in enumerate(rotation) if row.id == current), 0
+        at = next(
+            (
+                index
+                for index, row in enumerate(order)
+                if queue.is_active and row.id == queue.current_item_id
+            ),
+            None,
         )
-        turns = (rotation[start:] + rotation[:start])[:PREVIEW_TURNS]
-        previews[queue_id] = [
-            QueueTurnPreview(
-                id=row.id, label=row.label, color=row.color, current=row.id == current
-            )
-            for row in turns
-        ]
+        if at is None:
+            previews[queue_id] = [
+                turn(row) for row in order if row.held_at_round is None
+            ][:PREVIEW_TURNS]
+            continue
+        turns = [turn(order[at], current=True)]
+        round_ = queue.current_round
+        for step in range(1, len(order)):
+            index = (at + step) % len(order)
+            if index == 0:
+                round_ += 1
+            row = order[index]
+            if row.held_at_round is None or row.held_at_round < round_:
+                turns.append(turn(row))
+            if len(turns) == PREVIEW_TURNS:
+                break
+        previews[queue_id] = turns
     return previews
 
 

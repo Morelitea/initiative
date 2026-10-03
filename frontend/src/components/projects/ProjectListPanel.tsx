@@ -278,7 +278,11 @@ export const ProjectListPanel = ({
         </SkeletonRegion>
       ) : view.isError ? (
         <p className="text-destructive text-sm">{errorLabel}</p>
-      ) : filteredProjects.length === 0 && view.tagTree.selectedPaths.size === 0 ? (
+      ) : filteredProjects.length === 0 &&
+        !(
+          viewMode === "tags" &&
+          (view.tagTree.selectedPaths.size > 0 || view.activeFilterCount > 0)
+        ) ? (
         view.activeFilterCount > 0 ? (
           <p className="text-muted-foreground text-sm">{noMatchesLabel}</p>
         ) : (

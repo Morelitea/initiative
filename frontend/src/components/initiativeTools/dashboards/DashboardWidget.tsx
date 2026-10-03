@@ -38,7 +38,7 @@ import { useWidgetData, type WidgetBinding } from "@/hooks/useWidgetData";
 import { useWidgetMeta } from "@/hooks/useWidgetMeta";
 import { cn } from "@/lib/utils";
 import { type DefinitionWidget, isAppWidgetType, unboundSlots } from "@/lib/widgets/definition";
-import { normalizeQueryRows } from "@/lib/widgets/normalize";
+import { emptyDataFor, normalizeQueryRows } from "@/lib/widgets/normalize";
 import { SAMPLE_NOW, sampleFor } from "@/lib/widgets/sampleData";
 import { canDraw, resolveMapping } from "@/lib/widgets/shape";
 import { shapeFor } from "@/lib/widgets/shapes";
@@ -58,9 +58,10 @@ export interface DashboardWidgetProps {
    *  isn't installed shows what it *looks like*, never anyone's data, so it
    *  renders the same for every viewer. */
   sampleData?: boolean;
-  /** This widget's answer, read with a list's page for its card preview. It
-   *  takes the place of sample data for a query widget. */
-  answer?: DashboardWidgetData;
+  /** This widget's answer, read with a list's page for its card preview, or
+   *  null where the page brought none. A query widget in a preview draws its
+   *  answer or nothing — never sample rows that could pass for real ones. */
+  answer?: DashboardWidgetData | null;
   onConfigure?: (widgetId: string) => void;
   onRemove?: (widgetId: string) => void;
 }
@@ -118,11 +119,13 @@ export function DashboardWidget({
     : undefined;
   const data = answered
     ? { source: "rows" as const, ...answered }
-    : sampleData
-      ? isAppWidget
-        ? { source: "app" as const, ...appSample }
-        : sampleFor(widget.type)
-      : live.data;
+    : answer !== undefined && binding.source === "query"
+      ? emptyDataFor("query")
+      : sampleData
+        ? isAppWidget
+          ? { source: "app" as const, ...appSample }
+          : sampleFor(widget.type)
+        : live.data;
   // Which columns fill this widget's slots. Resolved here rather than in the
   // sandbox: it needs the widget's declared shape and the author's overrides,
   // and neither is the widget's to read.

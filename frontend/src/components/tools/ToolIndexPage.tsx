@@ -627,9 +627,10 @@ const ToolIndexBody = ({ tool, entry, fixedInitiativeId, canCreate }: ToolIndexB
         </SkeletonRegion>
       ) : list.isError ? (
         <p className="text-destructive text-sm">{t("loadError")}</p>
-      ) : list.rows.length > 0 || tagTree.selectedPaths.size > 0 ? (
-        // A tag picked in the tree keeps the tree on screen even when nothing
-        // carries it, so the pick can be undone.
+      ) : list.rows.length > 0 ||
+        (layout === "tags" && (tagTree.selectedPaths.size > 0 || activeFilterCount > 0)) ? (
+        // In the tags view a narrowed list that matches nothing keeps the tree
+        // on screen, so another tag can be picked or the pick undone.
         <>
           <BulkAccessSection
             selection={selection}
