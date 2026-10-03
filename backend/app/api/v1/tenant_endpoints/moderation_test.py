@@ -67,7 +67,7 @@ async def _report_comment(client: AsyncClient, scene: dict, **body) -> Response:
             "target_type": "comment",
             "target_id": scene["comment"].id,
             "reason": "spam",
-            "guild_id": scene["guild"].id,
+            "community_id": scene["guild"].id,
             **body,
         },
     )

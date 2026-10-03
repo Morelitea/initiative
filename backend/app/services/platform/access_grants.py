@@ -823,8 +823,8 @@ async def to_read(
             read.user_email = addresses_by_user.get(g.user_id)
         guild = guilds.get(g.guild_id)
         if guild is not None:
-            read.guild_name = guild.name
-            read.guild_status = CommunityStatus(guild.status)
+            read.community_name = guild.name
+            read.community_status = CommunityStatus(guild.status)
         if g.approved_by_id is not None:
             approver = users.get(g.approved_by_id)
             if approver is not None:

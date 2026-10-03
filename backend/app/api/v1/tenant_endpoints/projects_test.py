@@ -151,14 +151,14 @@ async def test_people_search_names_who_can_open_the_project(
         "avatar_url",
         "status",
         "profile_decorations",
-        "guild_role",
+        "community_role",
     }
     # Asserted as a value, not only as a key: the schema leaves it unset, so a
     # key-set check passes just as happily on an endpoint that never fills it
     # in.
     by_username = {item["username"]: item for item in body["items"]}
-    assert by_username[admin.user.username]["guild_role"] == "admin"
-    assert by_username["quill"]["guild_role"] == "member"
+    assert by_username[admin.user.username]["community_role"] == "admin"
+    assert by_username["quill"]["community_role"] == "member"
 
     # The filter matches what the guild renders — the handle always.
     response = await client.get(
