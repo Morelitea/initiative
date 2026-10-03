@@ -38,6 +38,8 @@ let connection: Promise<IDBDatabase> | null = null;
 /** Settled once the store holds nothing of an account but the one signed in. */
 let ownerSettled: Promise<void> = Promise.resolve();
 let settledFor: string | null = null;
+/** The server the signed-in account is on, written beside the owner whenever it is. */
+let servedServer: string | null = null;
 
 /**
  * The account signed in here, on this server, which is the only one this store
@@ -50,6 +52,7 @@ let settledFor: string | null = null;
  */
 export function serveAccount(server: string, userId: number): void {
   const account = `${server}\n${userId}`;
+  servedServer = server;
   if (settledFor === account) return;
   settledFor = account;
   ownerSettled = (async () => {
@@ -414,7 +417,11 @@ export const deviceId = {
  */
 export const deviceOwner = {
   get: () => read<number>(DEVICE_OWNER),
-  set: (userId: number) => write(DEVICE_OWNER, userId),
+  /** With the server beside it, so an owner never stands without one. */
+  set: async (userId: number) => {
+    await write(DEVICE_OWNER, userId);
+    if (servedServer !== null) await write(DEVICE_SERVER, servedServer);
+  },
 };
 
 /**

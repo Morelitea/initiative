@@ -330,6 +330,15 @@ describe("the account", () => {
     serveAccount("https://one.example", 1);
     serveAccount("https://two.example", 1);
     expect(await held()).toEqual([]);
+
+    // Signed out and back in on the same server: the owner it records next
+    // carries the server, so another server is still somebody else.
+    serveAccount("https://one.example", 1);
+    await forgetDevice();
+    serveAccount("https://one.example", 1);
+    await keep();
+    serveAccount("https://two.example", 1);
+    expect(await held()).toEqual([]);
   });
 });
 
