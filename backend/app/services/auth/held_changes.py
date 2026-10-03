@@ -75,14 +75,15 @@ async def make_primary(
 ) -> UserEmail:
     """Make ``address_id`` the primary, commit, and tell the account, the
     previous primary among its addresses. Raises ``AddressError``."""
-    previous = next(
-        (
-            held
-            for held in await addresses.list_for_user(session, user_id=user.id)
-            if held.is_primary
-        ),
-        None,
-    )
+    # Read directly: the primary can be an address the account was minted
+    # with, which the address list leaves out.
+    previous = (
+        await session.exec(
+            select(UserEmail).where(
+                UserEmail.user_id == user.id, col(UserEmail.is_primary).is_(True)
+            )
+        )
+    ).first()
     row = await addresses.set_primary_for_user(
         session, user_id=user.id, address_id=address_id
     )
@@ -101,7 +102,14 @@ async def make_primary(
                     risky=risky,
                     undo={
                         "kind": "primary",
-                        "address_id": previous.id,
+                        # A minted address takes no mail, so undoing a move
+                        # away from one moves the primary to the address
+                        # whose link was clicked.
+                        "address_id": (
+                            None
+                            if previous.source == addresses.SOURCE_SYNTHETIC
+                            else previous.id
+                        ),
                         "made_primary": row.id,
                     },
                 )
