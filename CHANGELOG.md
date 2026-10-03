@@ -46,6 +46,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The app opens faster.** The sign-in page loads less than half the code it used to, in 30 files rather than nearly 170, and the rest of the app loads as you reach it.
 - **Documentation and Ask for help are two buttons now.** The question mark at the foot of the sidebar always opens the documentation. **Ask for help**, the lifebuoy beside it, shows wherever there is somebody to ask: the form in a community that takes help requests, or else your server's support address. The "Something is wrong" notice offers the address too.
 - **People sharing a network no longer share a rate limit.** Requests are counted per signed-in account, so an office behind one address gets an allowance each. Sign-in codes and password reset emails are limited per email address, five every 15 minutes, rather than per network. Loading the app's own pages and scripts no longer counts at all.
+- **A document leads with its featured image.** The **Metadata** section is gone. A document's featured image sits at the top of it, where whoever can edit the document can replace or remove it. A new, empty document offers to add one, which you can hide. To make a picture already in a document the featured one, select it and choose **Make this the featured image**. Uploading a picture with **Insert › Image** has a box that does the same.
+- **Wiki connections open from the bottom of a phone screen**, and open the first time you tap **Connections**.
 
 ### Fixed
 
