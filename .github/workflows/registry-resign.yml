@@ -1,0 +1,39 @@
+name: Registry re-sign
+
+# Starts the public app registry's Registry workflow in
+# Morelitea/initiative-developer once a day. Its timestamp role expires after a
+# day, so the registry is re-signed and republished daily even when nothing
+# merges there. The schedule lives here because GitHub turns a repository's
+# schedules off after 60 days without a commit, and this one is never that
+# quiet. A schedule starts from the workflow on main, so this begins once it
+# ships.
+#
+# The release app needs "Actions: read and write" on initiative-developer.
+
+on:
+  schedule:
+    - cron: "17 4 * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  dispatch:
+    if: vars.RELEASE_APP_CLIENT_ID != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Get the release app's token
+        id: app
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          owner: Morelitea
+          repositories: initiative-developer
+          permission-actions: write
+
+      - name: Run the Registry workflow
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+        run: gh workflow run registry.yml --repo Morelitea/initiative-developer --ref main
