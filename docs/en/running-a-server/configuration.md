@@ -101,7 +101,7 @@ Two things the page will stop you doing, both for the same reason: you can't req
 
 | Switch | What changing it does |
 |---|---|
-| **Mobile notifications** | Turn it off and nothing is sent to a phone: this server stores no device registrations and declines new ones. Devices register again if you switch it back on. |
+| **Phone and desktop notifications** | Turn it off and nothing is sent to a phone or shown by the desktop app: this server stores no device registrations and declines new ones. Devices register again if you switch it back on. |
 | **Email notifications** | Turn it off and no notification email is written, on any cadence anybody has chosen. |
 | **Hide notification details** | Turn it **on** and a push or an email reads "You were mentioned in a comment", with the app the place to find out the rest. |
 

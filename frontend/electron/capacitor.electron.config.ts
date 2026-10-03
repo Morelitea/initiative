@@ -26,6 +26,8 @@ export default defineConfig({
   deepLinks: { scheme: "initiative" },
   csp: { policy },
   window: {
+    // Opened by the computer at sign-in, the app waits in the tray.
+    showOnLaunch: !process.argv.includes("--hidden"),
     width: 1280,
     height: 860,
     minWidth: 360,

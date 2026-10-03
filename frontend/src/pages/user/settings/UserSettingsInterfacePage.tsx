@@ -1,3 +1,4 @@
+import { Capacitor } from "@capacitor/core";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -34,6 +35,7 @@ import {
   TIME_FORMAT_PREFERENCES,
   type TimeFormatPreference,
 } from "@/lib/timeFormat";
+import Desktop from "@/plugins/desktop";
 
 const WEEK_START_OPTIONS = [
   { labelKey: "dates:weekdays.sunday", value: 0 },
@@ -238,8 +240,28 @@ export const UserSettingsInterfacePage = ({
   const [canAutoUpdate, setCanAutoUpdate] = useState(false);
   const [autoUpdate, setAutoUpdate] = useState(autoUpdateConsented);
 
+  // The desktop app's own settings, kept on this computer; null elsewhere.
+  const [desktopShell, setDesktopShell] = useState<Awaited<
+    ReturnType<typeof Desktop.getSettings>
+  > | null>(null);
+
+  // A write the computer refused shows what is actually set, not what was asked.
+  const saveDesktopShell = (write: Promise<void>) => {
+    void write.catch(() => {
+      toast.error(t("interface.updateError"));
+      void Desktop.getSettings()
+        .then(setDesktopShell)
+        .catch(() => {});
+    });
+  };
+
   useEffect(() => {
     void desktopCanUpdate().then(setCanAutoUpdate);
+    if (Capacitor.getPlatform() === "electron") {
+      void Desktop.getSettings()
+        .then(setDesktopShell)
+        .catch(() => {});
+    }
   }, []);
 
   useEffect(() => {
@@ -474,6 +496,38 @@ export const UserSettingsInterfacePage = ({
                 setAutoUpdateConsent(next);
               }}
               aria-label={t("interface.desktopAutoUpdate.label")}
+            />
+          </Preference>
+        ) : null}
+
+        {desktopShell?.tray ? (
+          <Preference
+            label={t("interface.desktopKeepRunning.label")}
+            description={t("interface.desktopKeepRunning.description")}
+          >
+            <Switch
+              checked={desktopShell.keepRunning}
+              onCheckedChange={(enabled) => {
+                setDesktopShell({ ...desktopShell, keepRunning: enabled });
+                saveDesktopShell(Desktop.setKeepRunning({ enabled }));
+              }}
+              aria-label={t("interface.desktopKeepRunning.label")}
+            />
+          </Preference>
+        ) : null}
+
+        {desktopShell ? (
+          <Preference
+            label={t("interface.desktopOpenAtLogin.label")}
+            description={t("interface.desktopOpenAtLogin.description")}
+          >
+            <Switch
+              checked={desktopShell.openAtLogin}
+              onCheckedChange={(enabled) => {
+                setDesktopShell({ ...desktopShell, openAtLogin: enabled });
+                saveDesktopShell(Desktop.setOpenAtLogin({ enabled }));
+              }}
+              aria-label={t("interface.desktopOpenAtLogin.label")}
             />
           </Preference>
         ) : null}

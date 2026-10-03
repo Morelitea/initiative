@@ -49,7 +49,7 @@ The key is write-only: once it's saved, the field shows that a key is there, and
 3. **End to end:** assign yourself a task and confirm a push arrives.
 
 !!! note "Two switches, two questions"
-    **Send push notifications** on this page connects the deployment to Firebase. **Mobile notifications**, under **Settings → Platform → Security**, decides whether a notification may reach a phone at all. Push needs both on.
+    **Send push notifications** on this page connects the deployment to Firebase. **Phone and desktop notifications**, under **Settings → Platform → Security**, decides whether a notification may leave the app for a phone or the desktop app at all. Push needs both on.
 
 ## Self-hosting notes
 

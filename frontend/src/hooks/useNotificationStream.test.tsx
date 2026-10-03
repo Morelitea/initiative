@@ -12,6 +12,7 @@ import type { NotificationListResponse, UserRead } from "@/api/generated/initiat
 import { getListNotificationsApiV1NotificationsGetQueryKey } from "@/api/generated/notifications/notifications";
 import { q } from "@/api/query-keys";
 import { AuthContext } from "@/hooks/useAuth";
+import { setAlertHandler } from "@/lib/desktopAlerts";
 import { queryClient } from "@/lib/queryClient";
 
 import { useNotificationStream, useNotificationStreamConnected } from "./useNotificationStream";
@@ -80,6 +81,22 @@ describe("useNotificationStream", () => {
     socket.receive({ resource: "notification", action: "created", ids: {} });
 
     expect(timesNamed(q.notifications())).toBe(1);
+  });
+
+  it("hands an alert to the desktop app and reads nothing for it", () => {
+    const announced = vi.fn();
+    setAlertHandler(announced);
+    renderWithProviders(<Probe />);
+    const socket = latestSocket();
+    socket.open();
+    invalidations.mockClear();
+
+    const frame = { resource: "alert", action: "created", ids: { notifications: [7] } };
+    socket.receive(frame);
+    setAlertHandler(null);
+
+    expect(announced).toHaveBeenCalledWith(frame);
+    expect(invalidations).not.toHaveBeenCalled();
   });
 
   it("reads only the popover's first page when a line arrives", async () => {

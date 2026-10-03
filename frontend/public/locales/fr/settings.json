@@ -313,6 +313,14 @@
       "description": "Empêche l'écran de cet appareil de s'atténuer ou de se verrouiller tant que l'application est ouverte. Ce paramètre est enregistré uniquement sur cet appareil.",
       "unsupported": "Votre navigateur ne prend pas en charge le maintien de l'écran allumé."
     },
+    "desktopKeepRunning": {
+      "label": "Continuer quand la fenêtre se ferme",
+      "description": "Reste dans la zone de notification pour que les notifications arrivent encore. Quittez depuis son icône. Enregistré sur cet ordinateur uniquement."
+    },
+    "desktopOpenAtLogin": {
+      "label": "Ouvrir au démarrage de l'ordinateur",
+      "description": "Lance Initiative quand vous ouvrez votre session sur cet ordinateur. Enregistré sur cet ordinateur uniquement."
+    },
     "desktopAutoUpdate": {
       "label": "Mettre à jour l'application automatiquement",
       "description": "Quand votre serveur a besoin d'une application de bureau plus récente, elle est téléchargée et installée au redémarrage. Enregistré sur cet ordinateur uniquement."

@@ -35,6 +35,7 @@ import { Button } from "@/components/ui/button";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { useAuth } from "@/hooks/useAuth";
 import { useBackButton } from "@/hooks/useBackButton";
+import { useDesktopApp } from "@/hooks/useDesktopApp";
 import { useFinishPendingStart } from "@/hooks/useFinishPendingStart";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useCollectMessagesWhereRegistered } from "@/hooks/useMyMessages";
@@ -128,6 +129,7 @@ function AppLayout() {
   // survives the bell unmounting with a collapsed sidebar.
   useNotificationStream();
   usePushNotifications();
+  useDesktopApp();
   useBackButton();
   // Mail is fetched wherever you are, so a message that arrives while you are
   // on another page is noticed rather than waiting to be discovered. Only for a

@@ -240,6 +240,15 @@
     "logOut": "Abmelden"
   },
   "notifications": {
+    "desktop": {
+      "app": "Initiative",
+      "open": "Initiative öffnen",
+      "quit": "Initiative beenden",
+      "unread_one": "Initiative: {{count}} ungelesen",
+      "unread_other": "Initiative: {{count}} ungelesen",
+      "summary_one": "Du hast {{count}} ungelesene Benachrichtigung",
+      "summary_other": "Du hast {{count}} ungelesene Benachrichtigungen"
+    },
     "title": "Benachrichtigungen",
     "markAllRead": "Alles gelesen",
     "loadingNotifications": "Benachrichtigungen werden geladen…",

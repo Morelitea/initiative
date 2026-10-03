@@ -8,15 +8,16 @@ Initiative can tell you when something wants your attention — a task landed on
 
 What you get told about, and where, is entirely yours to decide. Nothing is being pushed into your inbox on your behalf for your own good.
 
-## The three channels
+## The channels
 
 | Channel | What it is |
 |---|---|
 | **Bell** | The in-app bell, and the notifications page behind it. |
 | **Email** | Messages to your inbox. |
-| **Mobile app** | Push notifications on your phone (needs the app, and permission). |
+| **Mobile** | Push notifications on your phone (needs the app, and permission). |
+| **Desktop** | Notifications from the [desktop app](../getting-started/install-the-app.md#the-desktop-app), whenever its window isn't the one in front. |
 
-All three are yours, category by category, with no minimum — the bell included. Two categories keep the bell whatever you set: **Waiting on you** and **Your account**. Somebody's waiting on your decision, or somebody changed something about your account. Neither is a thing to discover in March. Their email and mobile switches turn off like anything else.
+All of them are yours, category by category, with no minimum — the bell included. Two categories keep the bell whatever you set: **Waiting on you** and **Your account**. Somebody's waiting on your decision, or somebody changed something about your account. Neither is a thing to discover in March. Their other switches turn off like anything else.
 
 ## The bell, and the page behind it
 
@@ -39,7 +40,7 @@ Notifications arrive **as they happen** — a mention lands the moment it's writ
 
 ## Choosing what you hear about
 
-**User settings → Notifications** gives you a grid: one row per category, with a **Bell**, **Email** and **Mobile App** switch each.
+**User settings → Notifications** gives you a grid: one row per category, with a **Bell**, **Email**, **Mobile** and **Desktop** switch each. **Mobile** appears once your server sends to phones.
 
 | Category | You hear about it when… |
 |---|---|
@@ -118,13 +119,15 @@ If you're sat here with Initiative open, the bell has already told you. So it do
 
 Switch it off in the same place if you'd rather always be told.
 
+The desktop app goes by its own window instead: it speaks up whenever that window isn't the one in front, so the next thing reaches you the moment you've gone to answer an email.
+
 ## Pausing
 
-Going away? **Pause notifications** stands email and mobile down for the days you pick. Pick an end day and it starts now; pick a start day too and you can book the fortnight in Portugal before you leave, rather than remembering to do it at the airport. Both days are included.
+Going away? **Pause notifications** stands email, mobile and the desktop down for the days you pick. Pick an end day and it starts now; pick a start day too and you can book the fortnight in Portugal before you leave, rather than remembering to do it at the airport. Both days are included.
 
 While it's on, nothing reaches you — not a mention, not a direct message, not somebody typing your name in capitals. That's the point. A pause you have to keep checking isn't one.
 
-The bell keeps collecting the whole time. When the pause ends you get **one email** with everything that happened, grouped the same way a digest is, minus anything you've since read. Mobile gets a count.
+The bell keeps collecting the whole time. When the pause ends you get **one email** with everything that happened, grouped the same way a digest is, minus anything you've since read. Mobile and the desktop get a count.
 
 A digest that would have landed in the middle of a booked pause waits for the end of it too, so the days you marked off stay marked off.
 
@@ -149,7 +152,7 @@ A digest that would have landed in the middle of a booked pause waits for the en
 
 A pause is for a fortnight in Portugal. **Quiet hours** are for every night.
 
-Set a window — 22:00 to 07:00, say — and email and mobile hold off inside it. The bell keeps collecting quietly; it was never going to wake you. When the window ends, everything held arrives as one message, the same digest shape as above. If nothing happened, nothing arrives.
+Set a window — 22:00 to 07:00, say — and email, mobile and the desktop hold off inside it. The bell keeps collecting quietly; it was never going to wake you. When the window ends, everything held arrives as one message, the same digest shape as above. If nothing happened, nothing arrives.
 
 ## Turning on mobile push
 
@@ -163,7 +166,7 @@ If push shows as **Blocked**, that's your phone rather than us. Open your device
 
 Your settings pick from what's on offer. Two people decide what that is — whoever runs the server, and each community for itself — and both can only ever make things quieter.
 
-Either can keep notifications **inside the app**, rather than reaching phones or mailboxes. Either can also ask that what does travel says the kind of thing that happened — *"You were mentioned in a comment"* — and leaves the details for the app. Somewhere with a rule about what may appear on a lock screen has a reason for that.
+Either can keep notifications **inside the app**, rather than reaching phones, desktops or mailboxes. Either can also ask that what does travel says the kind of thing that happened — *"You were mentioned in a comment"* — and leaves the details for the app. Somewhere with a rule about what may appear on a lock screen has a reason for that.
 
 The **bell always carries the whole thing**, wherever those two land. It stays inside the app, so it has everything.
 
