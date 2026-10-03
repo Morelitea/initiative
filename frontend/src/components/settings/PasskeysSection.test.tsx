@@ -66,7 +66,7 @@ vi.mock("@/api/generated/auth/auth", () => ({
     isPending: false,
   }),
   useRemovePasskey: (options?: {
-    mutation?: { onSuccess?: () => void; onError?: (err: unknown) => void };
+    mutation?: { onSuccess?: (data: unknown) => void; onError?: (err: unknown) => void };
   }) => ({
     mutate: (vars: unknown) => {
       mocks.remove(vars);
@@ -75,7 +75,8 @@ vi.mock("@/api/generated/auth/auth", () => ({
         options?.mutation?.onError?.(refusal);
         return;
       }
-      options?.mutation?.onSuccess?.();
+      // What the endpoint answers: the change was made, with nothing held.
+      options?.mutation?.onSuccess?.({ held: null });
     },
     isPending: false,
   }),
