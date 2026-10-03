@@ -41,15 +41,11 @@ export function useDeepLinks() {
 
       const error = url.searchParams.get("error");
       const code = url.searchParams.get("code");
-      // A deployment from before the code flow hands back a device token.
-      const deviceToken = url.searchParams.get("token");
       try {
         if (code) {
           const session = await redeemNativeSignIn(code, pending);
           if (!session) throw new Error("NOT_AUTHENTICATED");
           await completeOidcLogin(session);
-        } else if (deviceToken) {
-          await completeOidcLogin({ deviceToken });
         } else {
           throw new Error(error ?? "NOT_AUTHENTICATED");
         }

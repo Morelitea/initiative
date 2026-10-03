@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Uuid
+from sqlalchemy import Column, DateTime, String, Uuid
 from sqlmodel import Field, Index, SQLModel
 
 
@@ -23,15 +23,6 @@ class PushToken(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     user_id: int = Field(
         foreign_key="users.id", ondelete="CASCADE", nullable=False, index=True
-    )
-    # Links to device authentication token (nullable for cases where device token is deleted)
-    device_token_id: Optional[int] = Field(
-        default=None,
-        sa_column=Column(
-            Integer,
-            ForeignKey("user_tokens.id", ondelete="CASCADE"),
-            nullable=True,
-        ),
     )
     # FCM registration token (Android) or APNS device token (iOS)
     # The session that registered this device, followed along its rotation

@@ -27,7 +27,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useAuth } from "@/hooks/useAuth";
-import { useServer } from "@/hooks/useServer";
 import { getErrorMessage } from "@/lib/errorMessage";
 
 type Step = "address" | "code" | "handle";
@@ -51,7 +50,6 @@ const compact = (value: string) => value.replace(/\s+/g, "");
 export const EmailOtpCard = ({ onCancel, onSignedIn, inviteCode, registration }: Props) => {
   const { t } = useTranslation("auth");
   const { applyEmailOtpSignIn } = useAuth();
-  const { isNativePlatform } = useServer();
   // Null on the deployments that run no captcha, which is most of them.
   const { captcha } = useAppConfig();
 
@@ -79,7 +77,6 @@ export const EmailOtpCard = ({ onCancel, onSignedIn, inviteCode, registration }:
     try {
       const { data } = await apiClient.post<{ challenge: string }>("/auth/email-otp/send", {
         email: email.toLowerCase().trim(),
-        native: isNativePlatform,
         ...(inviteCode ? { invite_code: inviteCode } : {}),
         ...(captcha ? { captcha_token: captchaToken } : {}),
       });

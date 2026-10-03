@@ -656,7 +656,7 @@ class NotificationSettingsResponse(SanitizedBaseModel):
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     #: Whether a notification may reach a phone. Off, nothing is sent, the
-    #: registration endpoint declines, and no device token is held.
+    #: registration endpoint declines, and no push token is held.
     push_notifications_enabled: bool
     #: Whether a notification may reach a mailbox. The notification half of
     #: email only — a sign-in code, an address to confirm, a password reset and

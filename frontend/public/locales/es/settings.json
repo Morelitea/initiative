@@ -106,7 +106,6 @@
     "loadingDevices": "Cargando dispositivos…",
     "devicesError": "No se pudieron cargar los dispositivos.",
     "unknownDevice": "Dispositivo desconocido",
-    "loggedIn": "Conectado {{date}}",
     "revokeDialogCancel": "Cancelar",
     "revoking": "Revocando…",
     "revokeError": "No se pudo revocar el acceso del dispositivo",

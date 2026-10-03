@@ -75,8 +75,8 @@ export const UserSettingsAccountPage = ({ user, refreshUser }: UserSettingsAccou
       // A password change rotates token_version server-side and re-sets the
       // session cookie. On web the stale in-memory bearer would otherwise still
       // be sent and 401 us out, so drop it and let the fresh cookie carry the
-      // session. (Native uses bearer/device-token auth with no cookie fallback,
-      // so it re-authenticates instead — left as-is.)
+      // session. (Native has no cookie to fall back on, so it re-authenticates
+      // instead — left as-is.)
       if (variables.password && !isNativePlatform) {
         setAuthToken(null);
       }
@@ -96,8 +96,8 @@ export const UserSettingsAccountPage = ({ user, refreshUser }: UserSettingsAccou
   });
 
   // Giving the password up is a browser errand — the server takes it there and
-  // not from the app, which signs in with a device token. An account that holds
-  // no password has nothing to give up either.
+  // not from the app. An account that holds no password has nothing to give up
+  // either.
   const offersRemoval = user.has_password && !isNativePlatform;
   // A password is offered only where this deployment signs anybody in with
   // one. Where it does not, the section says so and keeps only the way to

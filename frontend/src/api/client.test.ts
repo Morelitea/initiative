@@ -110,8 +110,6 @@ describe("renewal for a client that holds its own refresh token", () => {
   });
 
   it("renews on native rather than signing the app out", async () => {
-    // Native was excluded from renewal when the only credential it could hold
-    // was a device token that never expired — a 401 then really was the end.
     // An app holding a refresh token is in the browser's position, and an
     // expired access token has to renew rather than end the session.
     const { Capacitor } = await import("@capacitor/core");
