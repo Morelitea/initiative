@@ -102,7 +102,7 @@ async def _export(
 
 async def _job(client: AsyncClient, a, job_id: int) -> dict:
     """The job row as its own creator reads it back."""
-    resp = await client.get(a.g(f"/exports/{job_id}"), headers=a.headers)
+    resp = await client.get(a.g(f"/exports/jobs/{job_id}"), headers=a.headers)
     assert resp.status_code == 200
     return resp.json()
 
@@ -117,7 +117,7 @@ async def _run_worker() -> None:
 async def _download(client: AsyncClient, a, job_id: int) -> Response:
     """The finished artifact — surfacing the job's own error if it never
     rendered."""
-    dl = await client.get(a.g(f"/exports/{job_id}/download"), headers=a.headers)
+    dl = await client.get(a.g(f"/exports/jobs/{job_id}/download"), headers=a.headers)
     assert dl.status_code == 200, (await _job(client, a, job_id)).get("error")
     return dl
 
@@ -426,7 +426,9 @@ async def test_large_export_becomes_job(
     assert body["params"]["include_archived"] is False
 
     # Not rendered yet: download must refuse, not serve a partial artifact.
-    dl = await client.get(a.g(f"/exports/{body['id']}/download"), headers=a.headers)
+    dl = await client.get(
+        a.g(f"/exports/jobs/{body['id']}/download"), headers=a.headers
+    )
     assert dl.status_code == 409
     assert dl.json()["detail"] == "EXPORT_NOT_READY"
 
@@ -458,17 +460,18 @@ async def test_jobs_are_own_row_isolated(
     admin = await acting_user(guild_role=GuildRole.admin, guild=a.guild)
 
     assert (await _job(client, a, job_id))["id"] == job_id
-    for path in (f"/exports/{job_id}", f"/exports/{job_id}/download"):
+    for path in (f"/exports/jobs/{job_id}", f"/exports/jobs/{job_id}/download"):
         denied = await client.get(a.g(path), headers=other.headers)
         assert denied.status_code == 404, path
     assert (
-        await client.get(a.g(f"/exports/{job_id}"), headers=admin.headers)
+        await client.get(a.g(f"/exports/jobs/{job_id}"), headers=admin.headers)
     ).status_code == 200
 
     # List views scope the same way.
-    assert (await client.get(a.g("/exports/"), headers=other.headers)).json() == []
+    assert (await client.get(a.g("/exports/jobs"), headers=other.headers)).json() == []
     assert [
-        j["id"] for j in (await client.get(a.g("/exports/"), headers=a.headers)).json()
+        j["id"]
+        for j in (await client.get(a.g("/exports/jobs"), headers=a.headers)).json()
     ] == [job_id]
 
 
@@ -498,7 +501,7 @@ async def test_an_export_is_served_while_its_initiatives_are_reached(
     initiative.keep_content_in = True
     session.add(initiative)
     await session.commit()
-    dl = await client.get(a.g(f"/exports/{job_id}/download"), headers=a.headers)
+    dl = await client.get(a.g(f"/exports/jobs/{job_id}/download"), headers=a.headers)
     assert dl.json()["detail"] == "INITIATIVE_CONTENT_KEPT_IN"
     refused_id = (await _export(client, a, "tasks")).json()["id"]
     await _run_worker()
@@ -514,7 +517,7 @@ async def test_an_export_is_served_while_its_initiatives_are_reached(
         )
     )
     await session.commit()
-    dl = await client.get(a.g(f"/exports/{job_id}/download"), headers=a.headers)
+    dl = await client.get(a.g(f"/exports/jobs/{job_id}/download"), headers=a.headers)
     assert dl.status_code == 403
     assert dl.json()["detail"] == "EXPORT_OUT_OF_REACH"
 
@@ -1153,7 +1156,9 @@ async def test_an_artifact_past_its_expiry_is_not_served(
     )
 
     for job in (due, swept, unrecorded):
-        dl = await client.get(a.g(f"/exports/{job.id}/download"), headers=a.headers)
+        dl = await client.get(
+            a.g(f"/exports/jobs/{job.id}/download"), headers=a.headers
+        )
         assert dl.status_code == 410, job.status
         assert dl.json()["detail"] == "EXPORT_EXPIRED"
     for job in (due, swept):
@@ -2498,7 +2503,8 @@ async def test_initiative_backup_includes_read_only_projects(
     )
     assert demoted.status_code == 200, demoted.text
     dl = await client.get(
-        exporter.g(f"/exports/{resp.json()['id']}/download"), headers=exporter.headers
+        exporter.g(f"/exports/jobs/{resp.json()['id']}/download"),
+        headers=exporter.headers,
     )
     assert dl.json()["detail"] == "INITIATIVE_MANAGER_REQUIRED", dl.text
 
@@ -3106,7 +3112,7 @@ async def test_guild_export_seat_vacated_fails_closed(
     body = await _job(client, a, job_id)
     assert body["status"] == ExportJobStatus.failed.value
     assert body["error"] == "EXPORT_SUPERADMIN_REQUIRED"
-    dl = await client.get(a.g(f"/exports/{job_id}/download"), headers=a.headers)
+    dl = await client.get(a.g(f"/exports/jobs/{job_id}/download"), headers=a.headers)
     assert dl.status_code == 409
 
 
@@ -3511,7 +3517,7 @@ async def test_an_archive_over_the_download_bound_is_delivered(
     assert len(delivered) == 1 and delivered[0].suffix == ".zip"
 
     # Nothing to download, and the job says why rather than reading as unready.
-    dl = await client.get(a.g(f"/exports/{job_id}/download"), headers=a.headers)
+    dl = await client.get(a.g(f"/exports/jobs/{job_id}/download"), headers=a.headers)
     assert dl.status_code == 409
     assert dl.json()["detail"] == "EXPORT_DELIVERED"
 
@@ -3609,7 +3615,7 @@ async def test_download_redirects_when_storage_can_sign_a_url(
         exports_module, "get_guild_storage", lambda gid: Signing(real_storage(gid))
     )
     dl = await client.get(
-        a.g(f"/exports/{job_id}/download"),
+        a.g(f"/exports/jobs/{job_id}/download"),
         headers=a.headers,
         follow_redirects=False,
     )
@@ -3646,7 +3652,9 @@ async def test_download_stays_proxied_unless_the_operator_turns_it_on(
     )
     monkeypatch.setattr(settings, "EXPORT_PRESIGNED_DOWNLOADS", False)
     dl = await client.get(
-        a.g(f"/exports/{job_id}/download"), headers=a.headers, follow_redirects=False
+        a.g(f"/exports/jobs/{job_id}/download"),
+        headers=a.headers,
+        follow_redirects=False,
     )
     assert dl.status_code == 200
     assert dl.headers["content-type"] == "application/zip"
