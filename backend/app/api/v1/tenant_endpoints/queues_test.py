@@ -243,7 +243,7 @@ async def test_update_queue_item(client: AsyncClient, acting_user):
     item_data = await _add_item_via_api(client, a, queue_data["id"], "Original")
 
     response = await client.patch(
-        a.g(f"/queues/{queue_data['id']}/items/{item_data['id']}"),
+        a.g(f"/queue-items/{item_data['id']}"),
         headers=a.headers,
         json={"label": "Renamed", "position": 5},
     )
@@ -256,7 +256,7 @@ async def test_update_queue_item(client: AsyncClient, acting_user):
     # A required field is omitted to keep it, never nulled.
     for field in ("label", "position", "is_visible"):
         response = await client.patch(
-            a.g(f"/queues/{queue_data['id']}/items/{item_data['id']}"),
+            a.g(f"/queue-items/{item_data['id']}"),
             headers=a.headers,
             json={field: None},
         )
@@ -270,7 +270,7 @@ async def test_delete_queue_item(client: AsyncClient, acting_user):
     item_data = await _add_item_via_api(client, a, queue_data["id"], "To Delete")
 
     response = await client.delete(
-        a.g(f"/queues/{queue_data['id']}/items/{item_data['id']}"),
+        a.g(f"/queue-items/{item_data['id']}"),
         headers=a.headers,
     )
     assert response.status_code == 204
@@ -294,7 +294,7 @@ async def test_fractional_positions(client: AsyncClient, acting_user):
 
     # Persisted precision survives a round-trip.
     update = await client.patch(
-        a.g(f"/queues/{queue_data['id']}/items/{item_a['id']}"),
+        a.g(f"/queue-items/{item_a['id']}"),
         headers=a.headers,
         json={"position": 10.25},
     )
@@ -842,7 +842,7 @@ async def test_set_queue_item_tags(
     tag = await create_tag(session, a.guild, name="Priority")
 
     response = await client.patch(
-        a.g(f"/queues/{queue_data['id']}/items/{item_data['id']}"),
+        a.g(f"/queue-items/{item_data['id']}"),
         headers=a.headers,
         json={"tag_ids": [tag.id]},
     )

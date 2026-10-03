@@ -9517,34 +9517,6 @@ export const WikiPageKind = {
 } as const;
 
 /**
- * One end of a connection a page has.
- *
- * Deliberately not a page-shaped object: the other end of an edge is often
- * not a page at all — a task, a calendar event — so this is what any of them
- * have in common, and the kind says which route addresses it.
- */
-export interface WikiPageLink {
-  entity_type: string;
-  entity_id: number;
-  title: string;
-  relationship_type: string;
-  initiative_id: number | null;
-  tool: string | null;
-  tool_id: number | null;
-}
-
-/**
- * What a page connects to, both ways.
- *
- * ``outgoing`` is what this page names; ``incoming`` is what names it — the
- * backlinks, which are the thing that makes a wiki more than a folder.
- */
-export interface WikiPageLinks {
-  outgoing: WikiPageLink[];
-  incoming: WikiPageLink[];
-}
-
-/**
  * Where a page should sit after a drag — two facts, sent together.
  *
  * What it is filed under and where it sits among what else is filed there.

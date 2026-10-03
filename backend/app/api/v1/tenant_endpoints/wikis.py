@@ -6,22 +6,22 @@ everything after that flows from the wiki's resource-grant DAC
 
 Three things here are the wiki's own rather than the generic tool shape:
 
-* **Pages are content, not tools.** A page is reached only through its wiki —
-  ``/wikis/{id}/pages/…`` — and adding, editing or moving one asks for
-  **write** access on the wiki, the way editing a task asks for write on its
-  project.
+* **Pages are content, not tools.** A page is added under its wiki —
+  ``/wikis/{id}/pages`` — and addressed after that by its own id at
+  ``/wiki-pages/{id}``. Adding, editing or moving one asks for **write** access
+  on the wiki, the way editing a task asks for write on its project.
 * **The tree comes back whole.** ``GET /{id}/pages`` returns every page of a
   wiki, flat and in reading order, because the navigation draws all of it at
   once. The rows carry no bodies, so the payload grows with the number of
   pages rather than with what has been written on them.
-* **A page knows what points at it.** ``GET /{id}/pages/{page_id}/links``
-  reads the ``relationships`` table both ways — the ``[[ ]]`` links extracted
-  from bodies on save, and the connections people drew by hand — which is what
-  makes a wiki a web rather than a folder.
+* **A page knows what points at it.** Saving a body records the ``[[ ]]``
+  links it makes in ``relationships``, beside the connections people drew by
+  hand, so ``GET /relationships/?entity=wiki_page:{id}`` reads a page's links
+  both ways — which is what makes a wiki a web rather than a folder.
 """
 
 from copy import deepcopy
-from typing import Annotated, Any, Optional
+from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
@@ -41,14 +41,11 @@ from app.core.messages import WikiMessages
 from app.core.relationships import RelationshipType
 from app.core.search import SearchEntityType
 from app.core.tools import Tool
-from app.db import reference_targets
 from app.models.platform.user import User
 from app.models.tenant.wiki import Wiki, WikiPage
 from app.schemas.tenant.wiki import (
     WikiCreate,
     WikiPageCreate,
-    WikiPageLink,
-    WikiPageLinks,
     WikiPageMove,
     WikiPageRead,
     WikiPageTree,
@@ -72,7 +69,7 @@ from app.services.tenant import wikis as wikis_service
 
 router = APIRouter(route_class=ActorRoute)
 #: A page addressed by its own id, mounted at the guild root the way a queue
-#: item is — for a caller holding nothing but that id.
+#: item is. Only adding one names its wiki.
 pages_router = APIRouter(route_class=ActorRoute)
 
 CurrentUserDep = Annotated[User, Depends(get_current_active_user)]
@@ -540,18 +537,15 @@ async def duplicate_wiki_page(
     return serialize_wiki_page(copy, context=guild_context)
 
 
-@router.patch("/{wiki_id}/pages/{page_id}", response_model=WikiPageRead)
+@pages_router.patch("/wiki-pages/{page_id}", response_model=WikiPageRead)
 async def update_wiki_page(
-    wiki_id: int,
     page_id: int,
     page_in: WikiPageUpdate,
     session: RLSSessionDep,
     current_user: CurrentUserDep,
     guild_context: GuildContextDep,
 ) -> WikiPageRead:
-    page = await resource_access.load_child(
-        session, WikiPage, page_id, access="write", parent_id=wiki_id
-    )
+    page = await resource_access.load_child(session, WikiPage, page_id, access="write")
     data = page_in.model_dump(exclude_unset=True)
     content_updated = "content" in data and data["content"] is not None
     # A page with a live collaboration room has that room as the writer of its
@@ -615,9 +609,8 @@ async def update_wiki_page(
     return serialize_wiki_page(page, context=guild_context)
 
 
-@router.post("/{wiki_id}/pages/{page_id}/move", response_model=WikiPageRead)
+@pages_router.post("/wiki-pages/{page_id}/move", response_model=WikiPageRead)
 async def move_wiki_page(
-    wiki_id: int,
     page_id: int,
     move: WikiPageMove,
     session: RLSSessionDep,
@@ -629,9 +622,7 @@ async def move_wiki_page(
     Only the page's new neighbours are renumbered: a position means something
     among the pages filed together and nothing across the wiki.
     """
-    page = await resource_access.load_child(
-        session, WikiPage, page_id, access="write", parent_id=wiki_id
-    )
+    page = await resource_access.load_child(session, WikiPage, page_id, access="write")
     wiki = page.wiki
     await wikis_service.validate_reparent(session, page, move.parent_page_id)
     await wikis_service.place_in_list(
@@ -642,9 +633,8 @@ async def move_wiki_page(
     return serialize_wiki_page(page, context=guild_context)
 
 
-@router.delete("/{wiki_id}/pages/{page_id}", status_code=status.HTTP_204_NO_CONTENT)
+@pages_router.delete("/wiki-pages/{page_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_wiki_page(
-    wiki_id: int,
     page_id: int,
     session: RLSSessionDep,
     current_user: CurrentUserDep,
@@ -652,9 +642,7 @@ async def delete_wiki_page(
 ) -> None:
     """Send a page to the trash. Its children go with it — a section is put
     away whole."""
-    page = await resource_access.load_child(
-        session, WikiPage, page_id, access="write", parent_id=wiki_id
-    )
+    page = await resource_access.load_child(session, WikiPage, page_id, access="write")
     # Sub-pages go with it through CASCADE_CHILDREN, the same way a comment
     # thread follows its root.
     await soft_delete_service.trash(
@@ -663,66 +651,3 @@ async def delete_wiki_page(
         deleted_by_user_id=current_user.id,
     )
     await session.commit()
-
-
-@router.get("/{wiki_id}/pages/{page_id}/links", response_model=WikiPageLinks)
-async def read_wiki_page_links(
-    wiki_id: int,
-    page_id: int,
-    session: RLSSessionDep,
-    current_user: CurrentUserDep,
-    guild_context: GuildContextDep,
-) -> WikiPageLinks:
-    """What this page names, and what names it.
-
-    The second half is the backlinks. They are read from the same table the
-    ``[[ ]]`` extractor writes to, so a page that somebody linked to from a
-    task knows about it without the task having to say so twice.
-    """
-    page = await resource_access.load_child(
-        session, WikiPage, page_id, parent_id=wiki_id
-    )
-    outgoing, incoming = await wikis_service.page_links(session, page)
-
-    async def _links(rows, *, other: str) -> list[WikiPageLink]:
-        # Resolve titles one kind at a time rather than one row at a time, and
-        # through the shared resolver — which answers only for rows this reader
-        # may see, so a link to something hidden from them simply is not shown.
-        wanted: dict[str, list[int]] = {}
-        for row in rows:
-            wanted.setdefault(getattr(row, f"{other}_type"), []).append(
-                getattr(row, f"{other}_id")
-            )
-        found: dict[tuple[str, int], Any] = {}
-        for entity_type, ids in wanted.items():
-            resolved = await reference_targets.resolve_many(
-                session, SearchEntityType(entity_type), ids, user_id=current_user.id
-            )
-            for entity_id, row in resolved.items():
-                found[(entity_type, entity_id)] = row
-
-        links: list[WikiPageLink] = []
-        for row in rows:
-            entity_type = getattr(row, f"{other}_type")
-            entity_id = getattr(row, f"{other}_id")
-            target = found.get((entity_type, entity_id))
-            if target is None:
-                continue
-            tool = getattr(target, "tool", None)
-            links.append(
-                WikiPageLink(
-                    entity_type=entity_type,
-                    entity_id=entity_id,
-                    title=target.title,
-                    relationship_type=row.relationship_type,
-                    initiative_id=getattr(target, "initiative_id", None),
-                    tool=getattr(tool, "value", tool),
-                    tool_id=getattr(target, "tool_id", None),
-                )
-            )
-        return links
-
-    return WikiPageLinks(
-        outgoing=await _links(outgoing, other="target"),
-        incoming=await _links(incoming, other="source"),
-    )

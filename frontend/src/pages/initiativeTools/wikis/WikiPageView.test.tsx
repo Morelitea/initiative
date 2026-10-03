@@ -73,10 +73,8 @@ beforeEach(() => {
     guildHttp.get("/wiki-pages/:pageId", ({ params }) =>
       HttpResponse.json(pages[params.pageId as string])
     ),
-    guildHttp.get("/wikis/:wikiId/pages/:pageId/links", () =>
-      HttpResponse.json({ outgoing: [], incoming: [] })
-    ),
-    guildHttp.patch("/wikis/:wikiId/pages/:pageId", async ({ request, params }) => {
+    guildHttp.get("/relationships/", () => HttpResponse.json([])),
+    guildHttp.patch("/wiki-pages/:pageId", async ({ request, params }) => {
       const pageId = params.pageId as string;
       const body = (await request.json()) as Record<string, unknown>;
       patches.push({ pageId, body });

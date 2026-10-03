@@ -140,7 +140,7 @@ async def test_a_queue_write_needs_the_write_scope(
     for method, path, payload in (
         ("post", "/queues/", {"name": "No", "initiative_id": installed.placed.id}),
         ("patch", f"/queues/{queue.id}", {"name": "No"}),
-        ("patch", f"/queues/{queue.id}/items/{item.id}", {"label": "No"}),
+        ("patch", f"/queue-items/{item.id}", {"label": "No"}),
         ("post", f"/queues/{queue.id}/next", None),
         ("post", f"/queues/{queue.id}/start", None),
     ):
@@ -274,7 +274,7 @@ async def test_it_names_a_queue_items_person_by_reference(
     assert isinstance(reference, str)
 
     claimed = await client.patch(
-        guild_url(guild_id, f"/queues/{queue.id}/items/{item.id}"),
+        guild_url(guild_id, f"/queue-items/{item.id}"),
         headers=headers,
         json={"user_id": reference},
     )
@@ -286,7 +286,7 @@ async def test_it_names_a_queue_items_person_by_reference(
     assert stored is not None and stored.user_id == seat.user.id
 
     by_row_id = await client.patch(
-        guild_url(guild_id, f"/queues/{queue.id}/items/{item.id}"),
+        guild_url(guild_id, f"/queue-items/{item.id}"),
         headers=headers,
         json={"user_id": seat.user.id},
     )

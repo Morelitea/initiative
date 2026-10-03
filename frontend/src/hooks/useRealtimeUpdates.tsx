@@ -85,6 +85,8 @@ const RESOURCE_SPECS: Record<string, (id: number, recount: boolean) => Spec[]> =
   // moved is a question about the parent, below.
   comments: () => [q.recentComments()],
   calendar_events: (id) => [q.calendarEvent(id), q.allCalendarEvents()],
+  // The wiki it is in is named as its parent, which refreshes the tree.
+  wiki_pages: (id) => [q.wikiPage(id)],
   // An initiative's roster, its roles, what those roles permit and its
   // property definitions all report against the initiative itself — none of
   // those rows has a route of its own — so "the initiative changed" has to
@@ -125,6 +127,7 @@ const CONTAINER_SPECS: Record<string, (id: number, direct: boolean) => Spec[]> =
   ),
   tasks: (id, direct) => (direct ? [q.task(id), q.allTasks()] : [q.task(id)]),
   calendar_events: (id) => [q.calendarEvent(id)],
+  wiki_pages: (id) => [q.wikiPage(id)],
 };
 
 const isRef = (value: unknown): value is ResourceRef => {

@@ -505,6 +505,34 @@ async def test_a_comment_on_a_tool_entity_names_that_entity(session, acting_user
     assert _chain(rows[0]) == [("documents", document.id)]
 
 
+async def test_a_wiki_page_names_itself_once_it_is_not_a_draft(session, acting_user):
+    """A page is addressed by its own id, so it reports as itself under its
+    wiki, and a comment on it names the page before the wiki. A draft is the
+    wiki writers' alone: it says nothing until it is finished."""
+    from app.testing import create_comment, create_wiki, create_wiki_page
+
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    wiki = await create_wiki(session, a.initiative, a.user)
+    page = await create_wiki_page(session, wiki, a.user, is_draft=True)
+
+    def about(rows, kind, row_id):
+        return [r for r in rows if r.resource_type == kind and r.resource_id == row_id]
+
+    assert about(await _outbox(session, a.guild.id), "wiki_pages", page.id) == []
+
+    page.is_draft = False
+    session.add(page)
+    await session.commit()
+    comment = await create_comment(session, a.user, wiki_page=page)
+
+    rows = await _outbox(session, a.guild.id)
+    [published] = about(rows, "wiki_pages", page.id)
+    assert published.action == "created"
+    assert _chain(published) == [("wikis", wiki.id)]
+    [commented] = about(rows, "comments", comment.id)
+    assert _chain(commented) == [("wiki_pages", page.id), ("wikis", wiki.id)]
+
+
 async def test_a_facet_carries_its_owner_chain(session, acting_user):
     """A tag lands on a task; the event names the task, and the task's project.
 

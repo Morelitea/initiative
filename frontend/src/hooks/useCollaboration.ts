@@ -37,7 +37,7 @@ export interface UseCollaborationOptions {
    * The room, as the server addresses it: the collaboration path under
    * `/c/{guildId}/collaboration/`. A document is
    * `documents/{id}/collaborate`; a wiki page is
-   * `wikis/{wikiId}/pages/{pageId}/collaborate`.
+   * `wiki-pages/{id}/collaborate`.
    *
    * The path IS the identity — changing it is what tears the old socket down
    * and opens the new one — so nothing else needs to say which body this is.

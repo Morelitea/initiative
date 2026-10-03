@@ -46,16 +46,11 @@ const seed = (key: readonly unknown[]) => {
 };
 
 /** A comment thread on one parent, as `useComments` keys and holds it; open
- *  (something on screen watching it) unless `open` is false, and `under` the
- *  tool entity it answers to when that is not its own parent. */
+ *  (something on screen watching it) unless `open` is false. */
 const seedThread = (
   param: string,
   id: number,
-  {
-    comments = [],
-    open = true,
-    under,
-  }: { comments?: CommentRead[]; open?: boolean; under?: { type: string; id: number } } = {}
+  { comments = [], open = true }: { comments?: CommentRead[]; open?: boolean } = {}
 ) => {
   const key = getListCommentsApiV1CGuildIdCommentsGetQueryKey(GUILD, { [param]: id });
   queryClient.setQueryData(key, {
@@ -65,7 +60,6 @@ const seedThread = (
   if (open) {
     new InfiniteQueryObserver(queryClient, {
       ...commentThreadQueryOptions(GUILD, { [param]: id }),
-      meta: under ? { under } : undefined,
       enabled: false,
     }).subscribe(() => {});
   }
@@ -187,19 +181,24 @@ describe("realtime comment frames", () => {
     expect(other.invalidated()).toBe(false);
   });
 
-  it("puts a wiki page's comment into that page's thread, which its wiki names", async () => {
-    const wiki = { type: "wikis", id: ENTITY_ID };
-    const page = seedThread("wiki_page_id", 7, { under: wiki });
-    const siblingPage = seedThread("wiki_page_id", 8, { under: wiki });
-    const otherWikisPage = seedThread("wiki_page_id", 9, { under: { type: "wikis", id: 99 } });
+  it("puts a wiki page's comment into that page's thread, which it names before its wiki", async () => {
+    const page = seedThread("wiki_page_id", 7);
+    const siblingPage = seedThread("wiki_page_id", 8);
     const asked = serveComments({ 1: buildComment({ id: 1, wiki_page_id: 7 }) });
 
-    applyChanges([comment(1, [wiki])], GUILD);
+    applyChanges(
+      [
+        comment(1, [
+          { type: "wiki_pages", id: 7 },
+          { type: "wikis", id: ENTITY_ID },
+        ]),
+      ],
+      GUILD
+    );
 
     await vi.waitFor(() => expect(page.ids()).toEqual([1]));
     expect(siblingPage.ids()).toEqual([]);
-    expect(otherWikisPage.ids()).toEqual([]);
-    expect(otherWikisPage.invalidated(), "another wiki's page is not touched").toBe(false);
+    expect(siblingPage.invalidated(), "another page's thread is not touched").toBe(false);
     expect(asked).toEqual([1]);
   });
 

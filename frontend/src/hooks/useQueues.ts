@@ -7,11 +7,14 @@ import type {
   QueueRead,
 } from "@/api/generated/initiativeAPI.schemas";
 import { SearchEntityType, Tool } from "@/api/generated/initiativeAPI.schemas";
-import { duplicateQueueItemApiV1CGuildIdQueueItemsItemIdDuplicatePost } from "@/api/generated/queue-items/queue-items";
+import {
+  deleteQueueItemApiV1CGuildIdQueueItemsItemIdDelete,
+  duplicateQueueItemApiV1CGuildIdQueueItemsItemIdDuplicatePost,
+  updateQueueItemApiV1CGuildIdQueueItemsItemIdPatch,
+} from "@/api/generated/queue-items/queue-items";
 import {
   addQueueItemApiV1CGuildIdQueuesQueueIdItemsPost,
   advanceTurnApiV1CGuildIdQueuesQueueIdNextPost,
-  deleteQueueItemApiV1CGuildIdQueuesQueueIdItemsItemIdDelete,
   getReadQueueApiV1CGuildIdQueuesQueueIdGetQueryKey,
   holdCurrentTurnApiV1CGuildIdQueuesQueueIdHoldPost,
   previousTurnApiV1CGuildIdQueuesQueueIdPreviousPost,
@@ -20,7 +23,6 @@ import {
   setActiveItemApiV1CGuildIdQueuesQueueIdSetActiveItemIdPost,
   startQueueApiV1CGuildIdQueuesQueueIdStartPost,
   stopQueueApiV1CGuildIdQueuesQueueIdStopPost,
-  updateQueueItemApiV1CGuildIdQueuesQueueIdItemsItemIdPatch,
 } from "@/api/generated/queues/queues";
 import { invalidate, q } from "@/api/query-keys";
 import { setRelated } from "@/api/relationships";
@@ -70,7 +72,7 @@ export const useUpdateQueueItem = (
   useGuildMutation<QueueItemRead, { itemId: number; data: QueueItemUpdate }>(
     {
       mutationFn: (guildId, { itemId, data }) =>
-        updateQueueItemApiV1CGuildIdQueuesQueueIdItemsItemIdPatch(guildId, queueId, itemId, data),
+        updateQueueItemApiV1CGuildIdQueueItemsItemIdPatch(guildId, itemId, data),
       invalidate: () => invalidateQueueAndList(queueId),
       errorKey: "queues:error",
     },
@@ -81,7 +83,7 @@ export const useDeleteQueueItem = (queueId: number, options?: MutationOpts<void,
   useGuildMutation<void, number>(
     {
       mutationFn: (guildId, itemId) =>
-        deleteQueueItemApiV1CGuildIdQueuesQueueIdItemsItemIdDelete(guildId, queueId, itemId),
+        deleteQueueItemApiV1CGuildIdQueueItemsItemIdDelete(guildId, itemId),
       invalidate: () => invalidateQueueAndList(queueId),
       errorKey: "queues:error",
     },

@@ -689,7 +689,7 @@ def _tool_comment_parent(tool: Tool) -> CommentParent:
 #: table's single-parent constraint. The extras are written out rather than
 #: derived because each names its own way up to a tool: a comment on a task
 #: names the project too — it is the surface a task comment shows up on, and
-#: the join is already made — and a comment on a wiki page names the wiki.
+#: the join is already made — and a comment on a wiki page names its wiki too.
 _COMMENT_PARENTS: tuple[CommentParent, ...] = (
     CommentParent(
         "task_id",
@@ -706,10 +706,7 @@ _COMMENT_PARENTS: tuple[CommentParent, ...] = (
         "wiki_pages wp JOIN wikis wkp ON wkp.id = wp.wiki_id",
         "wp.id",
         "wkp.initiative_id",
-        # The wiki alone: a page has no address of its own — it is read at
-        # ``/wikis/{id}/pages/{id}`` — so it is not something an event can put
-        # an id under. Its wiki is, which is where a reader would go anyway.
-        (("wikis", "wkp.id"),),
+        (("wiki_pages", "wp.id"), ("wikis", "wkp.id")),
         table="wiki_pages",
         governed_by=Tool.wiki,
         tool_fk="wiki_id",
@@ -1886,11 +1883,9 @@ EVENT_SOURCES: dict[str, Emit | Silent] = {
     # own, so every change to one reports as the gallery it is in — its tags
     # and its history one hop further out.
     "gallery_images": Emit(reports_as=reports_as("galleries", "gallery_id", "images")),
-    # A wiki page is addressed through its wiki — `/wikis/{id}/pages/{id}` —
-    # and an envelope carries ids rather than paths, so a change to one reports
-    # as the wiki it is in. A subscriber re-reads the wiki's list, which is
-    # where the page's place in it lives anyway.
-    "wiki_pages": Emit(reports_as=reports_as("wikis", "wiki_id", "pages")),
+    # A draft page is read only by the wiki's writers, so like an unpublished
+    # notice it is not news until it is finished.
+    "wiki_pages": Emit(quiet_when=lambda r: f"{r}.is_draft"),
     "gallery_image_versions": Emit(reports_as=gallery_facets_report_on_their_gallery()),
     "resource_grants": Emit(reports_as=grants_report_on_their_resource()),
     "post_polls": Emit(reports_as=reports_as("posts", "post_id", "poll")),

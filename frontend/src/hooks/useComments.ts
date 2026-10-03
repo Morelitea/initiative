@@ -46,11 +46,6 @@ export type CommentThreadParams = Omit<
 
 type CommentThreadData = InfiniteData<CommentListResponse>;
 
-/** The tool entity a thread answers to, where the thread is not that entity's
- *  own: a wiki page's thread is under its wiki, which is what a realtime frame
- *  about one of its comments names. */
-export type CommentThreadOwner = { type: string; id: number };
-
 /** One thread as an infinite query — shared by the hook and the route loaders
  *  that warm it, so both land in the same cache entry. */
 export const commentThreadQueryOptions = (guildId: number, params: CommentThreadParams) =>
@@ -87,14 +82,10 @@ const flattenThread = (data: CommentThreadData) => {
  * `data` is every comment loaded so far as one list; `fetchNextPage` brings
  * the next older page of conversations.
  */
-export const useComments = (
-  params: CommentThreadParams,
-  options?: { enabled?: boolean; under?: CommentThreadOwner }
-) => {
+export const useComments = (params: CommentThreadParams, options?: { enabled?: boolean }) => {
   const guildId = useActiveGuildId();
   return useInfiniteQuery({
     ...commentThreadQueryOptions(guildId, params),
-    meta: options?.under ? { under: options.under } : undefined,
     select: flattenThread,
     enabled: options?.enabled,
   });
@@ -197,18 +188,15 @@ const inThread = (comment: CommentRead, params: CommentThreadParams) => {
   return target !== undefined && params[target] === comment[target];
 };
 
-/** The cached threads a comment under `parent` can be in: the parent's own,
- *  and those opened under it (a wiki's pages). */
-const threadsUnder = (guildId: number, parent: CommentThreadOwner) => {
+/** The cached threads of `parent`. */
+const threadsOf = (guildId: number, parent: { type: string; id: number }) => {
   const param = `${singularOf(parent.type)}_id` as keyof CommentThreadParams;
   return queryClient
     .getQueryCache()
     .findAll({ queryKey: getListCommentsApiV1CGuildIdCommentsGetQueryKey(guildId) })
     .filter((query) => {
       const params = query.queryKey[1] as CommentThreadParams | undefined;
-      const under = query.meta?.under as CommentThreadOwner | undefined;
-      if (!params) return false;
-      return params[param] === parent.id || (under?.type === parent.type && under.id === parent.id);
+      return params?.[param] === parent.id;
     });
 };
 
@@ -217,7 +205,7 @@ const readBack = async (
   parent: { type: string; id: number },
   commentIds: readonly number[]
 ) => {
-  const threads = threadsUnder(guildId, parent);
+  const threads = threadsOf(guildId, parent);
   const refetch = () =>
     Promise.all(
       threads.map((thread) =>

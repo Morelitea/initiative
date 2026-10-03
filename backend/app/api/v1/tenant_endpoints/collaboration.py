@@ -64,20 +64,6 @@ MSG_AWARENESS_BINARY = 4  # y-protocols awareness (binary, relayed as-is)
 MSG_CONTENT = 6  # Editor's JSON rendering of the document, for the content column
 
 
-def _addresses_the_same_thing(
-    spec: CollaborativeResource, resolved: Collaborating, parent_id: int | None
-) -> bool:
-    """Whether the parent the URL named is the one the row actually has.
-
-    Only a nested resource has one. The authorization never reads the path
-    segment — it reads the row — so a mismatch is simply refused rather than
-    quietly serving the right room under the wrong address.
-    """
-    if parent_id is None:
-        return True
-    return getattr(resolved.body, "wiki_id", None) == parent_id
-
-
 @router.websocket("/documents/{document_id}/collaborate")
 async def websocket_collaborate_document(
     websocket: WebSocket,
@@ -90,27 +76,15 @@ async def websocket_collaborate_document(
     )
 
 
-@router.websocket("/wikis/{wiki_id}/pages/{page_id}/collaborate")
+@router.websocket("/wiki-pages/{page_id}/collaborate")
 async def websocket_collaborate_wiki_page(
     websocket: WebSocket,
     guild_id: int,
-    wiki_id: int,
     page_id: int,
 ):
-    """Live editing of a wiki page's body.
-
-    ``wiki_id`` is in the path because a page is addressed through its wiki
-    everywhere else, and a socket that named the page alone would be the one
-    place it is not. The page's own row names the wiki that governs it, so the
-    authorization does not read the path segment — a mismatched one is refused
-    below rather than believed.
-    """
+    """Live editing of a wiki page's body."""
     await _collaborate(
-        websocket,
-        guild_id,
-        resource_for(SearchEntityType.wiki_page.value),
-        page_id,
-        parent_id=wiki_id,
+        websocket, guild_id, resource_for(SearchEntityType.wiki_page.value), page_id
     )
 
 
@@ -130,12 +104,10 @@ class _Editing:
         guild_id: int,
         spec: CollaborativeResource,
         resource_id: int,
-        parent_id: int | None,
     ) -> None:
         self.guild_id = guild_id
         self.spec = spec
         self.resource_id = resource_id
-        self.parent_id = parent_id
         self.resolved: Collaborating | None = None
         self.can_write: bool | None = None
 
@@ -143,9 +115,7 @@ class _Editing:
         self, session: AsyncSession, user: User
     ) -> Optional[frozenset[RoomKey]]:
         resolved = await self.spec.load(session, self.resource_id, self.guild_id)
-        if resolved is None or not _addresses_the_same_thing(
-            self.spec, resolved, self.parent_id
-        ):
+        if resolved is None:
             return None
         context = require_guild_context(session)
         try:
@@ -180,8 +150,6 @@ async def _collaborate(
     guild_id: int,
     spec: CollaborativeResource,
     resource_id: int,
-    *,
-    parent_id: int | None = None,
 ):
     """Live editing of one body over Yjs.
 
@@ -196,7 +164,7 @@ async def _collaborate(
     held for the socket's life.
     """
     room_key = resource_room(guild_id, spec.resource_type, resource_id)
-    editing = _Editing(guild_id, spec, resource_id, parent_id)
+    editing = _Editing(guild_id, spec, resource_id)
     room = None
     # Filled before the socket is registered, so a roster read in between
     # never shows this connection without its name.
@@ -396,12 +364,10 @@ async def hand_over_document_edits(
 
 
 @router.post(
-    "/wikis/{wiki_id}/pages/{page_id}/collaborate",
-    status_code=status.HTTP_204_NO_CONTENT,
+    "/wiki-pages/{page_id}/collaborate", status_code=status.HTTP_204_NO_CONTENT
 )
 async def hand_over_wiki_page_edits(
     guild_id: int,
-    wiki_id: int,
     page_id: int,
     handover: CollaborationHandover,
     session: SessionDep,
@@ -415,7 +381,6 @@ async def hand_over_wiki_page_edits(
         resource_for(SearchEntityType.wiki_page.value),
         page_id,
         handover,
-        parent_id=wiki_id,
     )
 
 
@@ -426,8 +391,6 @@ async def _hand_over(
     spec: CollaborativeResource,
     resource_id: int,
     handover: CollaborationHandover,
-    *,
-    parent_id: int | None = None,
 ) -> None:
     """Hand a leaving tab's unsent edits to the body's room.
 
@@ -446,7 +409,7 @@ async def _hand_over(
         await establish_guild_access(session, user, guild_id)
     except GuildAccessError as exc:
         raise_for_guild_access(exc)
-    editing = _Editing(guild_id, spec, resource_id, parent_id)
+    editing = _Editing(guild_id, spec, resource_id)
     if not await editing(session, user) or editing.resolved is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=spec.tool.not_found_code

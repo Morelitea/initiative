@@ -2,7 +2,6 @@ import { useQuery } from "@tanstack/react-query";
 
 import type {
   WikiPageCreate,
-  WikiPageLinks,
   WikiPageMove,
   WikiPageRead,
   WikiPageTree,
@@ -12,18 +11,16 @@ import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import {
   addDocumentToWikiApiV1CGuildIdWikisWikiIdDocumentsDocumentIdPut,
   createWikiPageApiV1CGuildIdWikisWikiIdPagesPost,
-  deleteWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdDelete,
+  deleteWikiPageApiV1CGuildIdWikiPagesPageIdDelete,
   duplicateWikiPageApiV1CGuildIdWikiPagesPageIdDuplicatePost,
   getListWikiPagesApiV1CGuildIdWikisWikiIdPagesGetQueryKey,
   getReadWikiPageApiV1CGuildIdWikiPagesPageIdGetQueryKey,
-  getReadWikiPageLinksApiV1CGuildIdWikisWikiIdPagesPageIdLinksGetQueryKey,
   listWikiPagesApiV1CGuildIdWikisWikiIdPagesGet,
   moveWikiDocumentApiV1CGuildIdWikisWikiIdDocumentsDocumentIdMovePost,
-  moveWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdMovePost,
+  moveWikiPageApiV1CGuildIdWikiPagesPageIdMovePost,
   readWikiPageApiV1CGuildIdWikiPagesPageIdGet,
-  readWikiPageLinksApiV1CGuildIdWikisWikiIdPagesPageIdLinksGet,
   removeDocumentFromWikiApiV1CGuildIdWikisWikiIdDocumentsDocumentIdDelete,
-  updateWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdPatch,
+  updateWikiPageApiV1CGuildIdWikiPagesPageIdPatch,
 } from "@/api/generated/wikis/wikis";
 import { invalidate, q } from "@/api/query-keys";
 import { TOOL_HOOKS } from "@/hooks/toolHooks";
@@ -69,29 +66,6 @@ export const useWikiPage = (pageId: number | null, options?: QueryOpts<WikiPageR
   return useQuery<WikiPageRead>({
     queryKey: getReadWikiPageApiV1CGuildIdWikiPagesPageIdGetQueryKey(guildId, pageId!),
     queryFn: () => readWikiPageApiV1CGuildIdWikiPagesPageIdGet(guildId, pageId!),
-    enabled: ready && userEnabled,
-    ...rest,
-  });
-};
-
-/** What a page links to, and what links back — the backlinks panel. */
-export const useWikiPageLinks = (
-  wikiId: number | null,
-  pageId: number | null,
-  options?: QueryOpts<WikiPageLinks>
-) => {
-  const guildId = useActiveGuildId();
-  const { enabled: userEnabled = true, ...rest } = options ?? {};
-  const ready =
-    wikiId !== null && pageId !== null && Number.isFinite(wikiId) && Number.isFinite(pageId);
-  return useQuery<WikiPageLinks>({
-    queryKey: getReadWikiPageLinksApiV1CGuildIdWikisWikiIdPagesPageIdLinksGetQueryKey(
-      guildId,
-      wikiId!,
-      pageId!
-    ),
-    queryFn: () =>
-      readWikiPageLinksApiV1CGuildIdWikisWikiIdPagesPageIdLinksGet(guildId, wikiId!, pageId!),
     enabled: ready && userEnabled,
     ...rest,
   });
@@ -173,10 +147,10 @@ export const useUpdateWikiPage = (
   useGuildMutation<WikiPageRead, WikiPageUpdate>(
     {
       mutationFn: (guildId, data) =>
-        updateWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdPatch(guildId, wikiId, pageId, data),
+        updateWikiPageApiV1CGuildIdWikiPagesPageIdPatch(guildId, pageId, data),
       // A rename changes the tree, and a body edit changes what links out of
       // this page — so both the tree and the connections are stale.
-      invalidate: () => invalidate(q.wikiPages(wikiId)),
+      invalidate: () => invalidate(q.wikiPages(wikiId), q.relationships()),
       errorKey: "wikis:error",
     },
     options
@@ -195,7 +169,7 @@ export const useMoveWikiPage = (
   useGuildMutation<WikiPageRead, MoveWikiPageVars>(
     {
       mutationFn: (guildId, { pageId, ...move }) =>
-        moveWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdMovePost(guildId, wikiId, pageId, move),
+        moveWikiPageApiV1CGuildIdWikiPagesPageIdMovePost(guildId, pageId, move),
       invalidate: () => invalidate(q.wikiPages(wikiId)),
       errorKey: "wikis:error",
     },
@@ -229,9 +203,7 @@ export const useDeleteWikiPage = (wikiId: number, options?: MutationOpts<void, n
   useGuildMutation<void, number>(
     {
       mutationFn: (guildId, pageId) =>
-        deleteWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdDelete(guildId, wikiId, pageId).then(
-          () => undefined
-        ),
+        deleteWikiPageApiV1CGuildIdWikiPagesPageIdDelete(guildId, pageId).then(() => undefined),
       invalidate: () => invalidate(q.wikiPages(wikiId), q.wiki(wikiId)),
       errorKey: "wikis:error",
     },

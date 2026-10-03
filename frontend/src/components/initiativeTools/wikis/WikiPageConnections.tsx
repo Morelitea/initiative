@@ -2,9 +2,13 @@ import { Link } from "@tanstack/react-router";
 import { ArrowUpRight, CornerDownRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
-import type { WikiPageLink } from "@/api/generated/initiativeAPI.schemas";
+import type {
+  EndpointRef,
+  RelatedEnd,
+  RelationshipRead,
+} from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
-import { useWikiPageLinks } from "@/hooks/useWikis";
+import { useRelationshipsFor } from "@/hooks/useRelationships";
 import { useGuildPath } from "@/lib/guildUrl";
 import {
   entityRefRoute,
@@ -22,8 +26,8 @@ import { cn } from "@/lib/utils";
  * a task at a glance. Sub-resources that are not tools fall back to the tool
  * that governs them, which the server already sends.
  */
-const iconFor = (link: WikiPageLink) => {
-  if (link.entity_type === "wiki_page") return TOOL_ICONS[Tool.wiki];
+const iconFor = (link: RelatedEnd) => {
+  if (link.type === "wiki_page") return TOOL_ICONS[Tool.wiki];
   const tool = link.tool as Tool | null;
   return tool && TOOL_ICONS[tool] ? TOOL_ICONS[tool] : null;
 };
@@ -41,20 +45,20 @@ const iconFor = (link: WikiPageLink) => {
  * starting again. Only something `/go` can resolve and this cannot — a
  * sub-resource, whose id is not its tool's — is worth that.
  */
-const hrefOf = (link: WikiPageLink) => {
-  if (link.entity_type === "wiki_page" && link.tool_id != null) {
-    return wikiPageRoute(link.initiative_id ?? null, link.tool_id, link.entity_id);
+const hrefOf = (link: RelatedEnd) => {
+  if (link.type === "wiki_page" && link.tool_id != null) {
+    return wikiPageRoute(link.initiative_id ?? null, link.tool_id, link.id);
   }
   // A tool's own entity: the link's kind IS the tool, so its id is the one the
   // tool's route wants.
   const tool = link.tool as Tool | null;
-  if (tool && tool === (link.entity_type as unknown as Tool) && link.initiative_id != null) {
-    return toolDetailRoute(tool, link.initiative_id, link.entity_id);
+  if (tool && tool === (link.type as unknown as Tool) && link.initiative_id != null) {
+    return toolDetailRoute(tool, link.initiative_id, link.id);
   }
-  return entityRefRoute(toolKebabSingular(link.entity_type as never), link.entity_id);
+  return entityRefRoute(toolKebabSingular(link.type as never), link.id);
 };
 
-const LinkList = ({ links, heading }: { links: WikiPageLink[]; heading: string }) => {
+const LinkList = ({ links, heading }: { links: RelationshipRead[]; heading: string }) => {
   const gp = useGuildPath();
   if (links.length === 0) return null;
 
@@ -62,14 +66,15 @@ const LinkList = ({ links, heading }: { links: WikiPageLink[]; heading: string }
     <div className="space-y-0.5">
       <h3 className="px-2 font-medium text-muted-foreground text-xs">{heading}</h3>
       <ul>
-        {links.map((link) => {
+        {links.map(({ id, other: link }) => {
           const Icon = iconFor(link);
+          const title = link.title ?? "";
           return (
-            <li key={`${link.entity_type}-${link.entity_id}-${link.relationship_type}`}>
+            <li key={id}>
               <Link
                 to={gp(hrefOf(link))}
                 className="flex items-center gap-1.5 rounded-md px-2 py-1 text-sm hover:bg-accent/50"
-                title={link.title}
+                title={title}
               >
                 {Icon ? (
                   <Icon className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
@@ -79,7 +84,7 @@ const LinkList = ({ links, heading }: { links: WikiPageLink[]; heading: string }
                     aria-hidden
                   />
                 )}
-                <span className="truncate">{link.title}</span>
+                <span className="truncate">{title}</span>
               </Link>
             </li>
           );
@@ -90,7 +95,7 @@ const LinkList = ({ links, heading }: { links: WikiPageLink[]; heading: string }
 };
 
 /**
- * What this page connects to, beside the page.
+ * What this page — or a document filed in the wiki — connects to, beside it.
  *
  * A wiki is explored rather than administered, so this is a way *through* the
  * web rather than a place to manage it: every row is one click to the thing it
@@ -103,19 +108,18 @@ const LinkList = ({ links, heading }: { links: WikiPageLink[]; heading: string }
  * out of it.
  */
 export const WikiPageConnections = ({
-  wikiId,
-  pageId,
+  entity,
   className,
 }: {
-  wikiId: number;
-  pageId: number;
+  entity: EndpointRef;
   className?: string;
 }) => {
   const { t } = useTranslation("wikis");
-  const linksQuery = useWikiPageLinks(wikiId, pageId);
+  const linksQuery = useRelationshipsFor(entity, { enabled: Number.isFinite(entity.id) });
 
-  const outgoing = linksQuery.data?.outgoing ?? [];
-  const incoming = linksQuery.data?.incoming ?? [];
+  const rows = linksQuery.data ?? [];
+  const outgoing = rows.filter((row) => row.direction === "outbound");
+  const incoming = rows.filter((row) => row.direction === "inbound");
   const empty = outgoing.length === 0 && incoming.length === 0;
 
   return (

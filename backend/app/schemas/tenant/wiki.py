@@ -238,46 +238,6 @@ class WikiPageTree(SanitizedBaseModel):
     items: List[WikiPageSummary]
 
 
-class WikiPageLink(SanitizedBaseModel):
-    """One end of a connection a page has.
-
-    Deliberately not a page-shaped object: the other end of an edge is often
-    not a page at all — a task, a calendar event — so this is what any of them
-    have in common, and the kind says which route addresses it.
-    """
-
-    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
-
-    #: The ``SearchEntityType`` value — ``task``, ``wiki_page``, ``document``, …
-    entity_type: str
-    entity_id: int
-    title: str
-    #: How the two are connected: ``references`` for a link somebody wrote in
-    #: the body, or the relationship type they asserted by hand.
-    relationship_type: str
-    #: Where the far end lives, so a client can address it without a second
-    #: request. A page of another wiki is reached through that wiki, and a task
-    #: through its project — which is what ``tool``/``tool_id`` name. Null where
-    #: the target belongs to no initiative (a guild-level tag).
-    initiative_id: Optional[int] = None
-    #: The governing tool and its id — the resolver works both out already.
-    tool: Optional[str] = None
-    tool_id: Optional[int] = None
-
-
-class WikiPageLinks(SanitizedBaseModel):
-    """What a page connects to, both ways.
-
-    ``outgoing`` is what this page names; ``incoming`` is what names it — the
-    backlinks, which are the thing that makes a wiki more than a folder.
-    """
-
-    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
-
-    outgoing: List[WikiPageLink] = Field(default_factory=list)
-    incoming: List[WikiPageLink] = Field(default_factory=list)
-
-
 def serialize_wiki_page_summary(
     page: "Any", *, context: ActorContext, heading_nodes: Optional[list] = None
 ) -> WikiPageSummary:

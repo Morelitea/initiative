@@ -153,58 +153,53 @@ export const useHandOverDocumentEditsApiV1CGuildIdCollaborationDocumentsDocument
  * Merge edits a tab made while its socket was closed into the page.
  * @summary Hand Over Wiki Page Edits
  */
-export const handOverWikiPageEditsApiV1CGuildIdCollaborationWikisWikiIdPagesPageIdCollaboratePost =
-  (
-    guildId: number,
-    wikiId: number,
-    pageId: number,
-    collaborationHandover: BodyType<CollaborationHandover>,
-    options?: SecondParameter<typeof apiMutator>,
-    signal?: AbortSignal
-  ) => {
-    return apiMutator<void>(
-      {
-        url: `/api/v1/c/${guildId}/collaboration/wikis/${wikiId}/pages/${pageId}/collaborate`,
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        data: collaborationHandover,
-        signal,
-      },
-      options
-    );
-  };
+export const handOverWikiPageEditsApiV1CGuildIdCollaborationWikiPagesPageIdCollaboratePost = (
+  guildId: number,
+  pageId: number,
+  collaborationHandover: BodyType<CollaborationHandover>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<void>(
+    {
+      url: `/api/v1/c/${guildId}/collaboration/wiki-pages/${pageId}/collaborate`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: collaborationHandover,
+      signal,
+    },
+    options
+  );
+};
 
-export const getHandOverWikiPageEditsApiV1CGuildIdCollaborationWikisWikiIdPagesPageIdCollaboratePostMutationKey =
-  () =>
-    [
-      "handOverWikiPageEditsApiV1CGuildIdCollaborationWikisWikiIdPagesPageIdCollaboratePost",
-    ] as const;
+export const getHandOverWikiPageEditsApiV1CGuildIdCollaborationWikiPagesPageIdCollaboratePostMutationKey =
+  () => ["handOverWikiPageEditsApiV1CGuildIdCollaborationWikiPagesPageIdCollaboratePost"] as const;
 
-export const getHandOverWikiPageEditsApiV1CGuildIdCollaborationWikisWikiIdPagesPageIdCollaboratePostMutationOptions =
+export const getHandOverWikiPageEditsApiV1CGuildIdCollaborationWikiPagesPageIdCollaboratePostMutationOptions =
   <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
     mutation?: UseMutationOptions<
       Awaited<
         ReturnType<
-          typeof handOverWikiPageEditsApiV1CGuildIdCollaborationWikisWikiIdPagesPageIdCollaboratePost
+          typeof handOverWikiPageEditsApiV1CGuildIdCollaborationWikiPagesPageIdCollaboratePost
         >
       >,
       TError,
-      HandOverWikiPageEditsApiV1CGuildIdCollaborationWikisWikiIdPagesPageIdCollaboratePostMutationVariables,
+      HandOverWikiPageEditsApiV1CGuildIdCollaborationWikiPagesPageIdCollaboratePostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   }): UseMutationOptions<
     Awaited<
       ReturnType<
-        typeof handOverWikiPageEditsApiV1CGuildIdCollaborationWikisWikiIdPagesPageIdCollaboratePost
+        typeof handOverWikiPageEditsApiV1CGuildIdCollaborationWikiPagesPageIdCollaboratePost
       >
     >,
     TError,
-    HandOverWikiPageEditsApiV1CGuildIdCollaborationWikisWikiIdPagesPageIdCollaboratePostMutationVariables,
+    HandOverWikiPageEditsApiV1CGuildIdCollaborationWikiPagesPageIdCollaboratePostMutationVariables,
     TContext
   > => {
     const mutationKey =
-      getHandOverWikiPageEditsApiV1CGuildIdCollaborationWikisWikiIdPagesPageIdCollaboratePostMutationKey();
+      getHandOverWikiPageEditsApiV1CGuildIdCollaborationWikiPagesPageIdCollaboratePostMutationKey();
     const { mutation: mutationOptions, request: requestOptions } = options
       ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
         ? options
@@ -214,16 +209,15 @@ export const getHandOverWikiPageEditsApiV1CGuildIdCollaborationWikisWikiIdPagesP
     const mutationFn: MutationFunction<
       Awaited<
         ReturnType<
-          typeof handOverWikiPageEditsApiV1CGuildIdCollaborationWikisWikiIdPagesPageIdCollaboratePost
+          typeof handOverWikiPageEditsApiV1CGuildIdCollaborationWikiPagesPageIdCollaboratePost
         >
       >,
-      HandOverWikiPageEditsApiV1CGuildIdCollaborationWikisWikiIdPagesPageIdCollaboratePostMutationVariables
+      HandOverWikiPageEditsApiV1CGuildIdCollaborationWikiPagesPageIdCollaboratePostMutationVariables
     > = (props) => {
-      const { guildId, wikiId, pageId, data } = props ?? {};
+      const { guildId, pageId, data } = props ?? {};
 
-      return handOverWikiPageEditsApiV1CGuildIdCollaborationWikisWikiIdPagesPageIdCollaboratePost(
+      return handOverWikiPageEditsApiV1CGuildIdCollaborationWikiPagesPageIdCollaboratePost(
         guildId,
-        wikiId,
         pageId,
         data,
         requestOptions
@@ -233,54 +227,54 @@ export const getHandOverWikiPageEditsApiV1CGuildIdCollaborationWikisWikiIdPagesP
     return { mutationFn, ...mutationOptions };
   };
 
-export type HandOverWikiPageEditsApiV1CGuildIdCollaborationWikisWikiIdPagesPageIdCollaboratePostMutationResult =
+export type HandOverWikiPageEditsApiV1CGuildIdCollaborationWikiPagesPageIdCollaboratePostMutationResult =
   NonNullable<
     Awaited<
       ReturnType<
-        typeof handOverWikiPageEditsApiV1CGuildIdCollaborationWikisWikiIdPagesPageIdCollaboratePost
+        typeof handOverWikiPageEditsApiV1CGuildIdCollaborationWikiPagesPageIdCollaboratePost
       >
     >
   >;
-export type HandOverWikiPageEditsApiV1CGuildIdCollaborationWikisWikiIdPagesPageIdCollaboratePostMutationBody =
+export type HandOverWikiPageEditsApiV1CGuildIdCollaborationWikiPagesPageIdCollaboratePostMutationBody =
   BodyType<CollaborationHandover>;
-export type HandOverWikiPageEditsApiV1CGuildIdCollaborationWikisWikiIdPagesPageIdCollaboratePostMutationError =
+export type HandOverWikiPageEditsApiV1CGuildIdCollaborationWikiPagesPageIdCollaboratePostMutationError =
   ErrorType<HTTPValidationError>;
-export type HandOverWikiPageEditsApiV1CGuildIdCollaborationWikisWikiIdPagesPageIdCollaboratePostMutationVariables =
-  { guildId: number; wikiId: number; pageId: number; data: BodyType<CollaborationHandover> };
+export type HandOverWikiPageEditsApiV1CGuildIdCollaborationWikiPagesPageIdCollaboratePostMutationVariables =
+  { guildId: number; pageId: number; data: BodyType<CollaborationHandover> };
 
 /**
  * @summary Hand Over Wiki Page Edits
  */
-export const useHandOverWikiPageEditsApiV1CGuildIdCollaborationWikisWikiIdPagesPageIdCollaboratePost =
-  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
-    options?: {
-      mutation?: UseMutationOptions<
-        Awaited<
-          ReturnType<
-            typeof handOverWikiPageEditsApiV1CGuildIdCollaborationWikisWikiIdPagesPageIdCollaboratePost
-          >
-        >,
-        TError,
-        HandOverWikiPageEditsApiV1CGuildIdCollaborationWikisWikiIdPagesPageIdCollaboratePostMutationVariables,
-        TContext
-      >;
-      request?: SecondParameter<typeof apiMutator>;
-    },
-    queryClient?: QueryClient
-  ): UseMutationResult<
-    Awaited<
-      ReturnType<
-        typeof handOverWikiPageEditsApiV1CGuildIdCollaborationWikisWikiIdPagesPageIdCollaboratePost
-      >
-    >,
-    TError,
-    HandOverWikiPageEditsApiV1CGuildIdCollaborationWikisWikiIdPagesPageIdCollaboratePostMutationVariables,
-    TContext
-  > => {
-    return useMutation(
-      getHandOverWikiPageEditsApiV1CGuildIdCollaborationWikisWikiIdPagesPageIdCollaboratePostMutationOptions(
-        options
-      ),
-      queryClient
-    );
-  };
+export const useHandOverWikiPageEditsApiV1CGuildIdCollaborationWikiPagesPageIdCollaboratePost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<
+          typeof handOverWikiPageEditsApiV1CGuildIdCollaborationWikiPagesPageIdCollaboratePost
+        >
+      >,
+      TError,
+      HandOverWikiPageEditsApiV1CGuildIdCollaborationWikiPagesPageIdCollaboratePostMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<
+    ReturnType<typeof handOverWikiPageEditsApiV1CGuildIdCollaborationWikiPagesPageIdCollaboratePost>
+  >,
+  TError,
+  HandOverWikiPageEditsApiV1CGuildIdCollaborationWikiPagesPageIdCollaboratePostMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getHandOverWikiPageEditsApiV1CGuildIdCollaborationWikiPagesPageIdCollaboratePostMutationOptions(
+      options
+    ),
+    queryClient
+  );
+};
