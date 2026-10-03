@@ -383,3 +383,39 @@ async def test_no_desktop_alert_where_it_is_refused(
 
     assert len(await _lines(session, recipient.id)) == 1
     assert _alerts(app) == []
+
+
+async def test_a_reaction_alerts_the_desktop_once_per_line(
+    session: AsyncSession, account_socket
+):
+    """Phones hear about reactions in a digest; the desktop when the line
+    opens, and not again for each reaction that joins it."""
+    recipient = await create_user(session)
+    guild = await create_guild(session, creator=recipient)
+    await session.commit()
+    app = account_socket(recipient.id)
+
+    for reaction_id in (7, 8):
+        await set_rls_context(session, SystemGuild(guild.id))
+        await notice_outbox.enqueue(
+            session,
+            [
+                notice_outbox.row(
+                    recipient.id,
+                    guild.id,
+                    NotificationType.comment_reaction,
+                    {
+                        "target_type": "comment",
+                        "target_id": 5,
+                        "entry": {"id": reaction_id, "emoji": "+1", "reactor_id": 3},
+                    },
+                    kind="reaction",
+                )
+            ],
+        )
+        await session.commit()
+        await _deliver(session, datetime.now(timezone.utc))
+    await settle()
+
+    [line] = await _lines(session, recipient.id)
+    assert [alert["ids"] for alert in _alerts(app)] == [{"notifications": [line.id]}]

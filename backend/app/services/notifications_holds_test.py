@@ -24,6 +24,7 @@ from app.testing import (
     push_switched_on,
     set_notification_prefs,
 )
+from app.testing.sockets import settle
 
 NIGHT = {"quiet_hours": {"start": "22:00", "end": "07:00"}}
 MENTION = NotificationType.mention
@@ -355,10 +356,21 @@ async def _summaries(session: AsyncSession) -> list[NoticeOutboxItem]:
     )
 
 
-async def test_the_summary_counts_what_happened_and_goes_once(session: AsyncSession):
+def _summary_alerts(socket) -> list[dict]:
+    return [
+        frame
+        for frame in socket.sent
+        if (frame.get("resource"), frame.get("action")) == ("alert", "summary")
+    ]
+
+
+async def test_the_summary_counts_what_happened_and_goes_once(
+    session: AsyncSession, account_socket
+):
     user = await create_user(session, email="hold-summary@example.com", timezone="UTC")
     guild = await create_guild(session, creator=user)
     await set_notification_prefs(session, user, dict(NIGHT))
+    desktop = account_socket(user.id)
 
     for _ in range(2):
         notification = await user_notifications.create_notification(
@@ -379,6 +391,32 @@ async def test_the_summary_counts_what_happened_and_goes_once(session: AsyncSess
         # The same window is not summarised twice.
         await _run_hold_summary_pass(session, now=_at(9))
         assert len(await _summaries(session)) == 1
+    await settle()
+    assert len(_summary_alerts(desktop)) == 1
+
+
+async def test_the_desktop_hears_the_summary_with_mobile_off(
+    session: AsyncSession, account_socket
+):
+    user = await create_user(session, timezone="UTC")
+    guild = await create_guild(session, creator=user)
+    await set_notification_prefs(
+        session, user, {**NIGHT, "categories": {"mentions": {"push": False}}}
+    )
+    notification = await user_notifications.create_notification(
+        session, user_id=user.id, notification_type=MENTION, data={"guild_id": guild.id}
+    )
+    assert notification is not None
+    notification.created_at = _at(23, day=8)
+    await session.commit()
+    desktop = account_socket(user.id)
+
+    with push_switched_on():
+        await _run_hold_summary_pass(session, now=_at(8))
+    await settle()
+
+    assert await _summaries(session) == []
+    assert len(_summary_alerts(desktop)) == 1
 
 
 async def test_a_quiet_night_is_not_reported(session: AsyncSession):

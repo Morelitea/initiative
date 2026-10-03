@@ -53,3 +53,11 @@ def queue_alert(session: Any, user_id: int, notification_id: int) -> None:
     )
     if frame is not None and notification_id not in frame["ids"]["notifications"]:
         frame["ids"]["notifications"].append(notification_id)
+
+
+def queue_summary_alert(session: Any, user_id: int) -> None:
+    """Ask ``user_id``'s desktop apps to say what waited out a pause or quiet
+    hours. The app counts it from the bell."""
+    user_stream.queue_frame(
+        session, user_id, user_stream.build_frame(ALERT_RESOURCE, "summary")
+    )
