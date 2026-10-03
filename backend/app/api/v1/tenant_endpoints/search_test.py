@@ -89,6 +89,7 @@ async def test_a_person_is_found_where_they_are_mentioned(
     assert await found("countess budget") == ["budget review"]
     assert await found("budget -countess") == []
     assert await found('budget -"ada countess"') == []
+    assert await found('ada "ada countess" budget') == ["budget review"]
 
     membership.display_name = "Duchess"
     session.add(membership)

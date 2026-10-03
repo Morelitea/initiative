@@ -259,8 +259,11 @@ def _with_people(parsed, targets: Iterable[tuple[ColumnElement, str]]):
     prefix names whoever it names whole. Applied to the parsed query rather
     than to the text, so a phrase, an ``or`` and an exclusion keep what they
     meant: ``-ada`` leaves out a mention of Ada as well as the word.
+
+    A term of more words goes first: rewriting ``ada`` would change the
+    ``"ada countess"`` around it, which would then not be found as itself.
     """
-    for target, term in targets:
+    for target, term in sorted(targets, key=lambda t: -len(_WORD.findall(t[1]))):
         mentioned = target.op("||", return_type=TSQUERY)(_people_named(term))
         parsed = func.ts_rewrite(
             parsed, target, func.coalesce(mentioned, target), type_=TSQUERY
