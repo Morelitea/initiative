@@ -195,7 +195,12 @@ async def test_lists_a_gallery_s_pictures_with_the_read_scope(
     await _switch_on(session, TOOLS[1], installed.placed)
     gallery = await create_gallery(session, installed.placed, seat.user)
     picture = await create_gallery_image(
-        session, gallery, seat.user, title="Harbour", write_blob=False
+        session,
+        gallery,
+        seat.user,
+        title="Harbour",
+        write_blob=False,
+        thumbnail_url=f"/uploads/{guild_id}/harbour-thumb.webp",
     )
     file_url = picture.file_url
     gallery.cover_image_id = picture.id
@@ -211,14 +216,14 @@ async def test_lists_a_gallery_s_pictures_with_the_read_scope(
     assert isinstance(image["created_by"], str)
     assert isinstance(image["guild_id"], str)
     assert isinstance(image["uploader"]["id"], str)
-    # A picture's stored paths are left out, and nothing else names anybody.
-    assert "file_url" not in image and "thumbnail_url" not in image
+    # A picture's stored file is an empty string, and nothing names anybody.
+    assert (image["file_url"], image["thumbnail_url"]) == ("", "")
     assert "/uploads/" not in listed.text
     assert_names_nobody(listed.text, [seat.user.id, guild_id])
     for shown in ("/galleries/", f"/galleries/{gallery.id}"):
         read = await client.get(guild_url(guild_id, shown), headers=headers)
         assert read.status_code == 200, read.text
-        assert '"image_id":' in read.text
+        assert '"file_url":""' in read.text
         assert "/uploads/" not in read.text
         assert_names_nobody(read.text, [seat.user.id, guild_id])
 

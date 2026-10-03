@@ -14,6 +14,7 @@ from uuid import uuid4
 
 from fastapi import UploadFile
 
+from app.core.identity_boundary import UPLOAD_PATH_SHAPE
 from app.core.image_headers import read_image_header
 from app.db.query import ids_in
 from app.services.storage import get_guild_storage
@@ -31,7 +32,7 @@ PASTED_IMAGE_PREFIX = "pasted-"
 
 #: An upload's address inside markdown: ``/uploads/{community_id}/{filename}``,
 #: optionally behind an origin.
-_MARKDOWN_UPLOAD_URL = re.compile(r"(?:https?://[^\s()<>]+?)?/uploads/\d+/[\w.-]+")
+_MARKDOWN_UPLOAD_URL = re.compile(rf"(?:https?://[^\s()<>]+?)?{UPLOAD_PATH_SHAPE}")
 
 # Maximum file size for document uploads: 50 MB
 MAX_DOCUMENT_FILE_SIZE = 50 * 1024 * 1024

@@ -1,18 +1,18 @@
 """Mention syntax: parsing and anonymization.
 
 Mention patterns in markdown — comments, task descriptions, any description:
-- Users: @[Display Name](id) - e.g., @[John Doe](42)
+- Users: @[](id) - e.g., @[](42), stored by id alone
+  (``app.core.identity_boundary.without_mention_names``)
 - Anything else: #kind[Title](id) - e.g., #task[Fix bug](123). That half is the
   reference vocabulary, read by ``app.core.references``.
 
 An editor-state body (a document, a post, a wiki page) embeds a mention as a
-Lexical ``mention`` node carrying ``mentionName`` / ``mentionUserId`` /
-``text``.
+Lexical ``mention`` node carrying ``mentionUserId``, with ``mentionName`` and
+``text`` empty.
 
-Both forms bake the user's display name into stored content at insert time,
-so anonymizing the ``users`` row alone leaves the name readable forever.
-``anonymize_user_mentions`` rewrites them to a placeholder, wherever somebody
-writes.
+A mention written before names were left out still carries one, so
+``anonymize_user_mentions`` takes a user's name out of those, wherever
+somebody writes.
 """
 
 import re
@@ -24,6 +24,11 @@ from sqlalchemy.orm.attributes import flag_modified
 from sqlmodel import update
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.identity_boundary import (
+    STORED_MENTION,
+    MentionForm,
+    without_mention_names,
+)
 from app.core.references import references_in_text
 from app.core.search import SearchEntityType
 from app.db import gucs
@@ -31,17 +36,15 @@ from app.db.session import raise_flag
 from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
 from app.db.session import routed_guild_id
 
-USER_PATTERN = re.compile(r"@\[[^\]]+\]\((\d+)\)")
-
-# Placeholder written over an anonymized user's display name wherever it was
-# embedded in content. Matches the frontend's rendering of anonymized users
+# Placeholder written over an anonymized user's name in a digest row.
+# Matches the frontend's rendering of anonymized users
 # (``getUserDisplayName`` → "Deleted user").
 ANONYMIZED_MENTION_NAME = "Deleted user"
 
 
 def extract_mentioned_user_ids(content: str) -> Set[int]:
     """Extract all user IDs mentioned in the content."""
-    return {int(match) for match in USER_PATTERN.findall(content)}
+    return {int(user_id) for _, user_id in STORED_MENTION.findall(content)}
 
 
 def extract_mentioned_task_ids(content: str) -> Set[int]:
@@ -59,17 +62,17 @@ def extract_mentioned_task_ids(content: str) -> Set[int]:
 
 
 def _markdown_mention(user_id: int) -> str:
-    """A markdown mention of ``user_id``, as a regex Python and Postgres read
-    alike."""
+    """A markdown mention of ``user_id`` that still carries a name, as a regex
+    Python and Postgres read alike."""
     return rf"@\[[^\]]+\]\({user_id}\)"
 
 
 def _scrub_mentions(value: Any, user_id: int) -> tuple[Any, bool]:
-    """``value`` with ``user_id``'s mentions reading as the placeholder — a
-    Lexical mention node, or the markdown form inside any string — and whether
+    """``value`` with ``user_id``'s mentions carrying no name — a Lexical
+    mention node, or the markdown form inside any string — and whether
     anything changed."""
     pattern = re.compile(_markdown_mention(user_id))
-    replacement = f"@[{ANONYMIZED_MENTION_NAME}]({user_id})"
+    replacement = f"@[]({user_id})"
     changed = False
 
     def walk(node: Any) -> Any:
@@ -83,14 +86,9 @@ def _scrub_mentions(value: Any, user_id: int) -> tuple[Any, bool]:
         if not isinstance(node, dict):
             return node
         if node.get("mentionUserId") == user_id and (
-            node.get("mentionName") != ANONYMIZED_MENTION_NAME
-            or node.get("text") != ANONYMIZED_MENTION_NAME
+            node.get("mentionName") or node.get("text")
         ):
-            node = {
-                **node,
-                "mentionName": ANONYMIZED_MENTION_NAME,
-                "text": ANONYMIZED_MENTION_NAME,
-            }
+            node = without_mention_names(node, MentionForm.lexical)
             changed = True
         return {key: walk(child) for key, child in node.items()}
 
@@ -103,7 +101,8 @@ async def anonymize_user_mentions(session: AsyncSession, *, user_id: int) -> Non
     Every column somebody writes in (``search_index.written_columns`` — the
     same surfaces search reads) is searched for the user's mentions: the
     markdown form ``@[Display Name](id)`` in text, and Lexical mention nodes as
-    well in an editor state. Either becomes the placeholder. A rewritten editor
+    well in an editor state. Either loses the name, as a mention written now
+    never had one. A rewritten editor
     state has its ``yjs_state`` cleared, so collaboration bootstraps from the
     scrubbed content. Pending task-assignment digest rows lose the
     ``assigned_by_name`` snapshot too.
@@ -118,7 +117,7 @@ async def anonymize_user_mentions(session: AsyncSession, *, user_id: int) -> Non
     from app.services.tenant.collaborative_resources import YJS_STATE_COLUMN
 
     markdown = _markdown_mention(user_id)
-    replacement = f"@[{ANONYMIZED_MENTION_NAME}]({user_id})"
+    replacement = f"@[]({user_id})"
     # An editor state is prefiltered on its text, then decided in Python; a
     # false positive costs one no-op load.
     node = rf'"mentionUserId":\s*{user_id}[^0-9]'

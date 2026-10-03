@@ -517,6 +517,16 @@ async def test_two_writes_of_one_room_do_not_interleave() -> None:
     assert room.is_dirty is False
 
 
+async def test_a_rendering_keeps_a_mention_by_id_with_no_name() -> None:
+    room = loaded_room(1, 5)
+    tab = object()
+    room.apply_update(_an_update(), connection=tab)
+    named = {"type": "mention", "mentionUserId": 7, "mentionName": "Ada", "text": "Ada"}
+
+    assert room.offer_content({"root": named}, connection=tab) is True
+    assert room.snapshot()[2] == {"root": named | {"mentionName": "", "text": ""}}
+
+
 async def test_a_rendering_older_than_the_document_waits_for_a_fresher_one(
     authority,
 ) -> None:

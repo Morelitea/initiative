@@ -26,15 +26,19 @@ install's standing is in:
   class (``app.api.actor_route.ActorRoute``) resolves the markers after
   serialization and writes the references in.
 
-A field marked :class:`Mentions` names people inside its value, and goes
-through the same phases: a mention an install writes names a reference, which
-the input phase resolves to the row id and Initiative's own name for the
-person; a mention in a response carries a marker, and the person's name only
-when the install holds ``members:read``.
+A field marked :class:`Mentions` names people inside its value. A mention is
+stored by row id alone, whoever writes it, and its name is read wherever it is
+shown. For an install it goes through the same phases: a mention it writes
+names a reference, which the input phase resolves to the row id, and a mention
+in a response carries a marker.
 
 A field marked :data:`UPLOAD_PATH` holds a stored file's path,
 ``/uploads/{guild_id}/{name}``, which names the community by its row id and is
-served to people. A person gets it; an install's response leaves it out.
+served to people. A person gets it; in an install's response it is ``""``, and
+an outside URL the field holds instead is as it is. Text
+marked :class:`Mentions` can show a stored file too, as an image or a link: in
+an install's response the address of each one this deployment serves is left
+empty (:data:`UPLOAD_PATH_SHAPE`).
 
 The boundary lives in a context variable that ``ActorRoute`` opens per request,
 so it never outlives the request that set it.
@@ -49,10 +53,11 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 from enum import Enum
+from functools import lru_cache
 from typing import Annotated, Any, Optional
+from urllib.parse import urlsplit
 
 from pydantic import (
-    Field,
     GetCoreSchemaHandler,
     GetJsonSchemaHandler,
     PlainSerializer,
@@ -62,6 +67,7 @@ from pydantic import (
 from pydantic.json_schema import JsonSchemaValue
 from pydantic_core import PydanticCustomError, core_schema
 
+from app.core.config import settings
 from app.core.messages import AppMessages
 from app.models.platform.identity_ref import IdentityEntity
 
@@ -77,11 +83,13 @@ __all__ = [
     "STORED_MENTION",
     "UNKNOWN_REFERENCE_ERROR",
     "UPLOAD_PATH",
+    "UPLOAD_PATH_SHAPE",
     "admit_install",
     "boundary_scope",
     "current_install_boundary",
     "names_withheld",
     "responding_to_install",
+    "with_mention_markup",
     "without_mention_names",
     "written_mention_refs",
 ]
@@ -111,7 +119,7 @@ class InstallBoundary:
     ``guild_id`` and ``install_id`` are the routed community and install,
     ``guild_ref`` what the install calls that community, and ``named`` the
     references the request named that resolve in the install's sector, and
-    ``labels`` what Initiative calls each person among them in the community.
+    ``members`` the people among them who are members of the community.
     ``reads_names`` is whether the install holds ``members:read``, which is
     what lets it read people's names. ``session`` is the request's routed
     session, on which the route class resolves what the response names.
@@ -121,7 +129,7 @@ class InstallBoundary:
     install_id: int
     guild_ref: Optional[str]
     named: Mapping[str, tuple[IdentityEntity, int]]
-    labels: Mapping[int, str] = field(default_factory=dict)
+    members: frozenset[int] = frozenset()
     reads_names: bool = False
     session: Any = None
     phase: BoundaryPhase = BoundaryPhase.input
@@ -147,15 +155,12 @@ class InstallBoundary:
             raise _unknown()
         return entity_id
 
-    def mentioned(self, value: Any) -> tuple[int, str]:
-        """The person a mention in the request names, and what Initiative
-        calls them in the community, or a 422. Somebody who is not a member
-        has no name there, so no mention names them."""
+    def mentioned(self, value: Any) -> int:
+        """The member a mention in the request names, or a 422."""
         user_id = self.resolve(value, IdentityEntity.user)
-        label = self.labels.get(user_id)
-        if label is None:
+        if user_id not in self.members:
             raise _unknown()
-        return user_id, label
+        return user_id
 
     def mark(self, entity: IdentityEntity, entity_id: int) -> str:
         """The marker a response carries for ``entity_id`` until the route
@@ -290,11 +295,12 @@ GuildId = Annotated[
 class MentionForm(str, Enum):
     """How a field's value mentions a person."""
 
-    #: ``@[Name](42)`` inside text: the name it was written with and the
-    #: person's row id.
+    #: ``@[](42)`` inside text: the person's row id. A mention written before
+    #: names were left out carries one, ``@[Ada](42)``, and one of somebody
+    #: with no account here has only a name, ``@[Ada]()``.
     markdown = "markdown"
     #: A node inside a Lexical editor state carrying ``mentionUserId``, with
-    #: the name in ``mentionName`` and ``text``.
+    #: ``mentionName`` and ``text`` empty, and both set where it has no id.
     lexical = "lexical"
 
 
@@ -303,10 +309,10 @@ STORED_MENTION = re.compile(r"@\[([^\]]*)\]\((\d+)\)")
 #: A markdown mention an install writes: whatever it names, which must be a
 #: reference.
 _WRITTEN_MENTION = re.compile(r"@\[[^\]]*\]\(([A-Za-z0-9_-]+)\)")
-#: What a markdown mention's name may not hold, as the editor writes one.
-_LABEL_BREAKS = re.compile(r"[\]\n]")
 
 _MENTION_ID = "mentionUserId"
+#: What a node with an id holds in place of a name.
+_NAMELESS = {"mentionName": "", "text": ""}
 
 
 def written_mention_refs(text: str) -> list[str]:
@@ -315,46 +321,74 @@ def written_mention_refs(text: str) -> list[str]:
     return _WRITTEN_MENTION.findall(text)
 
 
+def _rewrite_nodes(
+    value: Any,
+    rewrite: Callable[[dict[str, Any]], Any],
+    text: Optional[Callable[[str], str]] = None,
+) -> Any:
+    """``value`` copied, with every node that names a person in
+    ``mentionUserId`` passed through ``rewrite``, and every string through
+    ``text`` when one is given."""
+    if isinstance(value, list):
+        return [_rewrite_nodes(item, rewrite, text) for item in value]
+    if isinstance(value, str) and text is not None:
+        return text(value)
+    if not isinstance(value, dict):
+        return value
+    walked = {key: _rewrite_nodes(child, rewrite, text) for key, child in value.items()}
+    return walked if walked.get(_MENTION_ID) is None else rewrite(walked)
+
+
+def without_mention_names(value: Any, form: MentionForm) -> Any:
+    """``value`` with every mention of somebody by id carrying no name.
+
+    How a mention is stored, whoever wrote it: the name is read where it is
+    shown, so it is the one somebody goes by now and nothing holds it once they
+    are gone. A mention with no id keeps the name it was written with, which is
+    all it has.
+    """
+    if form is MentionForm.lexical:
+        return _rewrite_nodes(value, lambda node: node | _NAMELESS)
+    if not isinstance(value, str):
+        return value
+    return STORED_MENTION.sub(lambda match: f"@[]({match.group(2)})", value)
+
+
+def with_mention_markup(value: Any) -> Any:
+    """An editor state whose mentions by id read as their markdown, ``@[](42)``,
+    in ``text``: for plain text made from it, which a client reads the mentions
+    back out of and names as it names any other."""
+    return _rewrite_nodes(
+        value, lambda node: node | {"text": f"@[]({node[_MENTION_ID]})"}
+    )
+
+
 def _markdown_in(value: Any, boundary: InstallBoundary) -> Any:
     if not isinstance(value, str):
         return value
-
-    def stored(match: re.Match[str]) -> str:
-        user_id, label = boundary.mentioned(match.group(1))
-        return f"@[{_LABEL_BREAKS.sub('', label)}]({user_id})"
-
-    return _WRITTEN_MENTION.sub(stored, value)
+    return _WRITTEN_MENTION.sub(
+        lambda match: f"@[]({boundary.mentioned(match.group(1))})", value
+    )
 
 
 def _markdown_out(value: Any, boundary: InstallBoundary) -> Any:
     if not isinstance(value, str):
         return value
-
-    def marked(match: re.Match[str]) -> str:
-        label = match.group(1) if boundary.reads_names else ""
-        marker = boundary.mark(IdentityEntity.user, int(match.group(2)))
-        return f"@[{label}]({marker})"
-
-    return STORED_MENTION.sub(marked, value)
-
-
-def _rewrite_nodes(value: Any, rewrite: Callable[[dict[str, Any]], Any]) -> Any:
-    """``value`` copied, with every node that names a person in
-    ``mentionUserId`` passed through ``rewrite``."""
-    if isinstance(value, list):
-        return [_rewrite_nodes(item, rewrite) for item in value]
-    if not isinstance(value, dict):
-        return value
-    walked = {key: _rewrite_nodes(child, rewrite) for key, child in value.items()}
-    return walked if walked.get(_MENTION_ID) is None else rewrite(walked)
+    return _without_paths(
+        STORED_MENTION.sub(
+            lambda match: (
+                f"@[]({boundary.mark(IdentityEntity.user, int(match.group(2)))})"
+            ),
+            value,
+        )
+    )
 
 
 def _lexical_in(value: Any, boundary: InstallBoundary) -> Any:
-    def stored(node: dict[str, Any]) -> dict[str, Any]:
-        user_id, label = boundary.mentioned(node[_MENTION_ID])
-        return {**node, _MENTION_ID: user_id, "mentionName": label, "text": label}
-
-    return _rewrite_nodes(value, stored)
+    return _rewrite_nodes(
+        value,
+        lambda node: node | {_MENTION_ID: boundary.mentioned(node[_MENTION_ID])},
+    )
 
 
 def _lexical_out(value: Any, boundary: InstallBoundary) -> Any:
@@ -362,32 +396,9 @@ def _lexical_out(value: Any, boundary: InstallBoundary) -> Any:
         user_id = node[_MENTION_ID]
         if not isinstance(user_id, int) or isinstance(user_id, bool):
             return node
-        node = {**node, _MENTION_ID: boundary.mark(IdentityEntity.user, user_id)}
-        if not boundary.reads_names:
-            node |= {"mentionName": "", "text": ""}
-        return node
+        return node | {_MENTION_ID: boundary.mark(IdentityEntity.user, user_id)}
 
-    return _rewrite_nodes(value, marked)
-
-
-def without_mention_names(value: Any, form: MentionForm) -> Any:
-    """``value`` with no mention carrying a name, for an installed app that
-    does not hold ``members:read``; ``value`` as it is otherwise.
-
-    For text a route derives from content for its response, such as an
-    excerpt, which its handler builds before anything is serialized. The
-    mention keeps its row id: what is derived from it shows none.
-    """
-    boundary = current_install_boundary()
-    if boundary is None or boundary.reads_names:
-        return value
-    if form is MentionForm.lexical:
-        return _rewrite_nodes(
-            value, lambda node: node | {"mentionName": "", "text": ""}
-        )
-    if not isinstance(value, str):
-        return value
-    return STORED_MENTION.sub(lambda match: f"@[]({match.group(2)})", value)
+    return _rewrite_nodes(value, marked, _without_paths)
 
 
 _TRANSLATIONS = {
@@ -400,11 +411,11 @@ _TRANSLATIONS = {
 class Mentions:
     """Marks a field whose value may mention people, in ``form``.
 
-    For a person the value passes through as it is. For an install, a mention
-    in the request names a reference and is stored with the row id and
-    Initiative's own name for the person; a mention in the response names the
-    install's reference, with the name only under ``members:read``. The field's
-    schema carries ``x-mentions``, which the app API's document describes.
+    A mention in the request is stored by row id with no name
+    (:func:`without_mention_names`). For an install it names a reference, and
+    a mention in the response names the install's reference; a stored file the
+    value shows comes without its path. The field's schema carries
+    ``x-mentions``, which the app API's document describes.
     """
 
     form: MentionForm
@@ -433,7 +444,7 @@ class Mentions:
         boundary = _boundary_in(BoundaryPhase.input)
         if boundary is not None:
             value = _TRANSLATIONS[self.form][0](value, boundary)
-        return handler(value)
+        return handler(without_mention_names(value, self.form))
 
     def _serialize(
         self, value: Any, handler: core_schema.SerializerFunctionWrapHandler
@@ -452,15 +463,70 @@ LEXICAL_MENTIONS = Mentions(MentionForm.lexical)
 # --- Stored files ---------------------------------------------------------------
 
 
-def _upload_path_withheld(_path: Any) -> bool:
-    return responding_to_install()
+#: A stored file's path, ``/uploads/{guild_id}/{name}``, as a pattern.
+UPLOAD_PATH_SHAPE = r"/uploads/\d+/[\w.-]+"
+
+#: Characters an address goes on with: a path after one is part of it.
+_ADDRESS_CHARS = r"\w.~%+@:/?#=&-"
 
 
-#: Marks a field holding a stored file's path: ``Annotated[str, UPLOAD_PATH]``,
-#: or ``Annotated[Optional[str], UPLOAD_PATH]``. It marks the field itself, so
-#: it goes on the whole annotation, never inside an ``Optional``. A person gets
-#: the path; an install's response leaves the field out. Its schema carries
-#: ``x-upload``, and the app API's document leaves the field out too.
-UPLOAD_PATH = Field(
-    exclude_if=_upload_path_withheld, json_schema_extra={"x-upload": True}
-)
+@lru_cache(maxsize=4)
+def _stored_file_address(app_url: str) -> re.Pattern[str]:
+    """A stored file's address in text: its path on its own, or behind this
+    deployment's origin (``app_url``, with its path when it has one), with any
+    query and fragment, up to a space, a bracket or the end of the text."""
+    own = urlsplit(app_url.strip())
+    origin = rf"(?<![{_ADDRESS_CHARS}])"
+    if own.netloc:
+        prefix = re.escape(own.path.rstrip("/"))
+        origin = rf"(?:https?://(?i:{re.escape(own.netloc)})(?:{prefix})?|{origin})"
+    return re.compile(rf"{origin}{UPLOAD_PATH_SHAPE}(?:[?#][^\s()<>]*)?")
+
+
+def _without_paths(text: str) -> str:
+    """``text`` with each stored file's address emptied: ``![alt]()``,
+    ``[name]()``, a node's ``"src": ""``. An address on another site stays."""
+    return _stored_file_address(settings.APP_URL).sub("", text)
+
+
+@dataclass(frozen=True)
+class UploadPath:
+    """Marks a field holding a stored file's path, or an outside URL.
+
+    For a person the value passes through as it is. In an install's response a
+    stored file's path, the whole value, is ``""``; an outside URL is as it is,
+    and ``None`` stays ``None``. The field's schema carries ``x-upload``, which
+    the app API's document describes.
+    """
+
+    def __get_pydantic_core_schema__(
+        self, source: Any, handler: GetCoreSchemaHandler
+    ) -> core_schema.CoreSchema:
+        schema = handler(source).copy()
+        schema["serialization"] = core_schema.wrap_serializer_function_ser_schema(
+            self._serialize
+        )
+        return schema
+
+    def __get_pydantic_json_schema__(
+        self, schema: core_schema.CoreSchema, handler: GetJsonSchemaHandler
+    ) -> JsonSchemaValue:
+        json_schema = handler(schema)
+        json_schema["x-upload"] = True
+        return json_schema
+
+    def _serialize(
+        self, value: Any, handler: core_schema.SerializerFunctionWrapHandler
+    ) -> Any:
+        if (
+            isinstance(value, str)
+            and responding_to_install()
+            and _stored_file_address(settings.APP_URL).fullmatch(value)
+        ):
+            value = ""
+        return handler(value)
+
+
+#: The mark on a field holding a file's path: ``Annotated[str, UPLOAD_PATH]``,
+#: or ``Annotated[Optional[str], UPLOAD_PATH]``.
+UPLOAD_PATH = UploadPath()

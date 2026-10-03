@@ -14,11 +14,15 @@ may this session last" but "how long may it sit untouched". Both are windows
 on a session rather than checks on a request, which is what keeps
 authentication off the per-request path.
 
-The answer is stamped on the chain when the sign-in happens and carried
-through every rotation unchanged, so renewing a session costs no extra read.
-One consequence, and it is the right one: joining a community that asks for
-the stricter standard applies at that person's next sign-in rather than
-shortening the session they are in.
+The absolute limit is stamped on the chain when the sign-in happens and
+carried through every rotation unchanged. One consequence, and it is the right
+one: joining a community that asks for the stricter standard shortens that
+person's next sign-in rather than the session they are in.
+
+The idle window is read again at every renewal, because a renewal is when it
+is applied. So it follows a change of membership, or of the community's
+setting, from the next renewal: joining starts the fifteen minutes there, and
+leaving or lifting the standard ends them there.
 """
 
 from __future__ import annotations

@@ -31,6 +31,7 @@ import { TaskChecklistProgress } from "@/components/tasks/TaskChecklistProgress"
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon-picker";
+import { MentionText } from "@/components/user/MentionText";
 import { useUnreadTree } from "@/hooks/useUnreadTree";
 import { formatDateTime } from "@/lib/formatDate";
 import { useGuildPath } from "@/lib/guildUrl";
@@ -345,7 +346,7 @@ const KanbanCardContent = memo(
           {shows("description") && task.description_excerpt ? (
             // Two lines of words, not a picture that fills the card.
             <p className="wrap-break-word line-clamp-2 w-full min-w-0 text-muted-foreground text-sm">
-              {task.description_excerpt}
+              <MentionText text={task.description_excerpt} />
             </p>
           ) : null}
           <div className="wrap-break-word w-full min-w-0 space-y-1 text-muted-foreground text-xs">

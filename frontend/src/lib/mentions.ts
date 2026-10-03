@@ -62,13 +62,17 @@ export const typeForTrigger = (word: string): SearchEntityType | undefined =>
 /** Every trigger word, longest first — what a parser matches against. */
 export const TRIGGER_WORDS: string[] = TRIGGER_TYPES.map(([trigger]) => trigger);
 
+/** A label is written into the text, so the characters the syntax is built
+ *  from cannot appear inside it. */
+const mentionLabel = (label: string): string => label.replace(/[[\]()]/g, "");
+
 /** How a chosen suggestion is written into a comment. */
 export const entityMentionSyntax = (type: SearchEntityType, label: string, id: number): string =>
-  `${ENTITY_TRIGGER}${typeTrigger(type)}[${label}](${id})`;
+  `${ENTITY_TRIGGER}${typeTrigger(type)}[${mentionLabel(label)}](${id})`;
 
 /** How a chosen person is written into a comment. */
 export const userMentionSyntax = (label: string, id: number): string =>
-  `${USER_TRIGGER}[${label}](${id})`;
+  `${USER_TRIGGER}[${mentionLabel(label)}](${id})`;
 
 /** Opens the picker over the tools, and can make one that is not there. */
 export const LINK_TRIGGER_OPEN = "[[";

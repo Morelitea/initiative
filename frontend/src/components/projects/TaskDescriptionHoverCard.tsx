@@ -19,7 +19,8 @@ interface TaskDescriptionHoverCardProps {
  *
  * A list row carries only an excerpt, so the whole text is read from the task
  * once the card opens, under the key the task's own page reads it with; the
- * excerpt stands in while it loads.
+ * excerpt stands in while it loads. Either is read in the task's own
+ * community, which on a cross-community list is not the page's.
  */
 export const TaskDescriptionHoverCard = ({ task, className }: TaskDescriptionHoverCardProps) => {
   const [open, setOpen] = useState(false);
@@ -38,11 +39,10 @@ export const TaskDescriptionHoverCard = ({ task, className }: TaskDescriptionHov
         </Button>
       </HoverCardTrigger>
       <HoverCardContent className="max-h-120 w-screen max-w-120 overflow-y-auto">
-        {data?.description ? (
-          <TaskDescription content={data.description} />
-        ) : (
-          <p className="text-muted-foreground text-sm">{task.description_excerpt}</p>
-        )}
+        <TaskDescription
+          content={data?.description || task.description_excerpt || ""}
+          guildId={task.guild_id ?? undefined}
+        />
       </HoverCardContent>
     </HoverCard>
   );

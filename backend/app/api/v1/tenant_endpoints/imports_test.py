@@ -2357,7 +2357,7 @@ async def test_mentions_link_to_whoever_the_people_step_names(
     imported = (
         await session.exec(select(Task).where(Task.title == "Fit the door"))
     ).one()
-    assert imported.description == f"Ask @[Alice Chen]({b.user.id}) first"
+    assert imported.description == f"Ask @[]({b.user.id}) first"
     comments = {
         c.content: c
         for c in (
@@ -2365,7 +2365,7 @@ async def test_mentions_link_to_whoever_the_people_step_names(
         ).all()
     }
     parent = comments["The frame is out of true"]
-    reply = comments[f"@[Alice Chen]({b.user.id}) agreed, and @Alice too"]
+    reply = comments[f"@[]({b.user.id}) agreed, and @Alice too"]
     assert reply.parent_comment_id == parent.id
     assert parent.parent_comment_id is None
 
@@ -3052,11 +3052,11 @@ async def test_a_restored_mention_links_to_whoever_its_handle_is_here(
     restored_task = (
         await session.exec(select(Task).where(Task.project_id == project.id))
     ).one()
-    assert restored_task.description == f"Ask @[{handle}]({c.user.id})"
+    assert restored_task.description == f"Ask @[]({c.user.id})"
     comment = (
         await session.exec(select(Comment).where(Comment.task_id == restored_task.id))
     ).one()
-    assert comment.content == f"@[{handle}]({c.user.id}) agreed"
+    assert comment.content == f"@[]({c.user.id}) agreed"
 
     document = (
         await session.exec(
@@ -3077,7 +3077,7 @@ async def test_a_restored_mention_links_to_whoever_its_handle_is_here(
     for content in (document.content, post.body, page.content):
         [mention] = _mentions_in(content)
         assert mention["mentionUserId"] == c.user.id
-        assert mention["mentionName"] == "Bea"
+        assert (mention["mentionName"], mention["text"]) == ("", "")
         assert "mentionHandle" not in mention
 
 
