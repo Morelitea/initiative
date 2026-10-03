@@ -585,8 +585,8 @@ const MobileSidebar = ({
           style={{
             width: sidebarWidthMobile,
             maxWidth: sidebarWidthMobile,
-            height: "100vh",
-            maxHeight: "100vh",
+            height: "100dvh",
+            maxHeight: "100dvh",
             transform,
             transition: dragging ? "none" : `transform ${SIDEBAR_TRANSITION_MS}ms ease-out`,
             animation: "none",

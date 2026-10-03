@@ -294,7 +294,7 @@ export const AppSidebar = () => {
 
   return (
     <Sidebar
-      className="sticky top-0 h-screen"
+      className="sticky top-0 h-dvh"
       variant="sidebar"
       collapsible={isMobile ? "offcanvas" : "none"}
     >

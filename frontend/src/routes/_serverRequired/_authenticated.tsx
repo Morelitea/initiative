@@ -277,7 +277,7 @@ function AppLayout() {
           applies to descendants whose containing-block chain runs through it;
           the rest are laid out against the document, and it is the document
           that grows to fit them. */}
-      <div className="relative flex h-screen flex-col overflow-clip bg-background">
+      <div className="relative flex h-dvh flex-col overflow-clip bg-background">
         <PushPermissionPrompt />
         <DeviceVerificationDialog />
         <div className="flex min-h-0 flex-1">
