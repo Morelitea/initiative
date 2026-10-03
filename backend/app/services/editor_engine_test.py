@@ -212,6 +212,37 @@ async def test_two_edits_to_one_paragraph_keep_each_others_words():
     assert [node["text"] for node in paragraph["children"]] == ["hello brave world!"]
 
 
+def _paragraphs(*words: str) -> dict:
+    return _document(*(_paragraph(_text(w)) for w in words))
+
+
+async def _words_of(state: bytes) -> list[str]:
+    rendered = await editor_engine.render(state)
+    return [
+        "".join(node["text"] for node in block["children"])
+        for block in rendered["root"]["children"]
+    ]
+
+
+async def test_blocks_written_before_the_first_keep_their_order():
+    state = await editor_engine.bootstrap(_paragraphs("Z"))
+
+    update = await editor_engine.apply(state, _paragraphs("A", "B", "Z"))
+
+    assert await _words_of(_merged(state, update)) == ["A", "B", "Z"]
+
+
+async def test_a_block_a_write_kept_takes_edits_made_to_it_elsewhere():
+    """Removing B and adding D leaves C as it was, so an edit made to C from
+    the same state still lands on C."""
+    state = await editor_engine.bootstrap(_paragraphs("A", "B", "C"))
+
+    rewritten = await editor_engine.apply(state, _paragraphs("A", "C", "D"))
+    edited = await editor_engine.apply(state, _paragraphs("A", "B", "C!"))
+
+    assert await _words_of(_merged(state, rewritten, edited)) == ["A", "C!", "D"]
+
+
 async def test_content_the_editor_refuses_is_an_error():
     with pytest.raises(EditorError):
         await editor_engine.bootstrap(_document({"type": "no-such-node", "version": 1}))

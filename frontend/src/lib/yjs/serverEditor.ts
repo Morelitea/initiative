@@ -149,70 +149,113 @@ function render(state: string): string {
 
 type Serialized = SerializedLexicalNode & { children?: Serialized[]; text?: string };
 
-/** A node as a comparison sees it: its JSON without default values, which a
- *  parsed node leaves out and a node read from Yjs spells out, and without
- *  `direction`, which the browser works out as it draws the text and the
- *  server, drawing nothing, never does. */
+/** A node as a comparison sees it: its JSON with keys in order, without
+ *  default values, which a parsed node leaves out and a node read from Yjs
+ *  spells out, and without `direction`, which the browser works out as it
+ *  draws the text and the server, drawing nothing, never does. */
 const keyOf = (node: Serialized, without?: "children" | "text") =>
-  JSON.stringify(node, (key, value) =>
-    key !== "" &&
-    (key === without ||
-      key === "direction" ||
-      value === 0 ||
-      value === "" ||
-      value === null ||
-      value === false ||
-      value === "normal")
-      ? undefined
-      : value
-  );
+  JSON.stringify(node, (key, value) => {
+    if (
+      key !== "" &&
+      (key === without ||
+        key === "direction" ||
+        value === 0 ||
+        value === "" ||
+        value === null ||
+        value === false ||
+        value === "normal")
+    ) {
+      return undefined;
+    }
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      return Object.fromEntries(Object.entries(value).sort(([a], [b]) => (a < b ? -1 : 1)));
+    }
+    return value;
+  });
 
-/** Make `nodes`, whose JSON is `was`, read as `next`, keeping the nodes at
- *  either end that are unchanged and reconciling the run between them. */
+/** Past this many pairs to compare, a changed run is matched by position
+ *  rather than searched for blocks that moved. */
+const MATCH_LIMIT = 1_000_000;
+
+/** Pairs `[i, j]` of equal keys in `was` and `next`, in order, as many as
+ *  there can be: the blocks a change kept, wherever they now sit. */
+function unchangedPairs(was: string[], next: string[]): Array<[number, number]> {
+  if (was.length * next.length > MATCH_LIMIT) return [];
+  const longest = Array.from({ length: was.length + 1 }, () =>
+    new Array<number>(next.length + 1).fill(0)
+  );
+  for (let i = was.length - 1; i >= 0; i--) {
+    for (let j = next.length - 1; j >= 0; j--) {
+      longest[i][j] =
+        was[i] === next[j]
+          ? longest[i + 1][j + 1] + 1
+          : Math.max(longest[i + 1][j], longest[i][j + 1]);
+    }
+  }
+  const pairs: Array<[number, number]> = [];
+  let i = 0;
+  let j = 0;
+  while (i < was.length && j < next.length) {
+    if (was[i] === next[j]) {
+      pairs.push([i, j]);
+      i++;
+      j++;
+    } else if (longest[i + 1][j] >= longest[i][j + 1]) {
+      i++;
+    } else {
+      j++;
+    }
+  }
+  return pairs;
+}
+
+/**
+ * Make `parent`'s children, whose JSON is `was`, read as `next`. Children a
+ * change kept stay as they are, wherever they now sit. Between them, a run
+ * with as many children on each side is reconciled child by child, and any
+ * other run is replaced.
+ */
 function $reconcileChildren(parent: ElementNode, was: Serialized[], next: Serialized[]) {
   const nodes = parent.getChildren();
   const wasKeys = was.map((node) => keyOf(node));
   const nextKeys = next.map((node) => keyOf(node));
-  let head = 0;
-  while (head < was.length && head < next.length && wasKeys[head] === nextKeys[head]) head++;
-  let tail = 0;
-  while (
-    tail < was.length - head &&
-    tail < next.length - head &&
-    wasKeys[was.length - 1 - tail] === nextKeys[next.length - 1 - tail]
-  ) {
-    tail++;
-  }
-  const changed = nodes.slice(head, nodes.length - tail);
-  const wasRun = was.slice(head, was.length - tail);
-  const nextRun = next.slice(head, next.length - tail);
-  if (changed.length === nextRun.length) {
-    changed.forEach((node, i) => {
-      $reconcile(node, wasRun[i], nextRun[i]);
-    });
-    return;
-  }
-  for (const node of changed) node.remove();
-  const inserted = nextRun.map((node) => $parseSerializedNode(node));
-  const before = head > 0 ? nodes[head - 1] : null;
-  if (before) {
-    let previous: LexicalNode = before;
-    for (const node of inserted) {
-      previous.insertAfter(node);
-      previous = node;
+  let previous: LexicalNode | null = null;
+  const place = (node: LexicalNode) => {
+    if (previous) previous.insertAfter(node);
+    else {
+      const first = parent.getFirstChild();
+      if (first) first.insertBefore(node);
+      else parent.append(node);
     }
-  } else {
-    const first = parent.getFirstChild();
-    if (first) for (const node of inserted) first.insertBefore(node);
-    else parent.append(...inserted);
+    previous = node;
+  };
+  const settle = (fromWas: number, toWas: number, fromNext: number, toNext: number) => {
+    if (toWas - fromWas === toNext - fromNext) {
+      for (let k = 0; k < toWas - fromWas; k++) {
+        previous = $reconcile(nodes[fromWas + k], was[fromWas + k], next[fromNext + k]);
+      }
+      return;
+    }
+    for (const node of nodes.slice(fromWas, toWas)) node.remove();
+    for (const node of next.slice(fromNext, toNext)) place($parseSerializedNode(node));
+  };
+  let i = 0;
+  let j = 0;
+  for (const [keptWas, keptNext] of unchangedPairs(wasKeys, nextKeys)) {
+    settle(i, keptWas, j, keptNext);
+    previous = nodes[keptWas];
+    i = keptWas + 1;
+    j = keptNext + 1;
   }
+  settle(i, was.length, j, next.length);
 }
 
 /** Make `node`, whose JSON is `was`, read as `next`: an element of the same
  *  kind keeps itself and reconciles its children, a text of the same kind has
- *  only its changed characters spliced, and anything else is replaced. */
-function $reconcile(node: LexicalNode, was: Serialized, next: Serialized) {
-  if (keyOf(was) === keyOf(next)) return;
+ *  only its changed characters spliced, and anything else is replaced.
+ *  Returns the node that now stands where `node` did. */
+function $reconcile(node: LexicalNode, was: Serialized, next: Serialized): LexicalNode {
+  if (keyOf(was) === keyOf(next)) return node;
   if (
     $isElementNode(node) &&
     Array.isArray(was.children) &&
@@ -220,7 +263,7 @@ function $reconcile(node: LexicalNode, was: Serialized, next: Serialized) {
     keyOf(was, "children") === keyOf(next, "children")
   ) {
     $reconcileChildren(node, was.children, next.children);
-    return;
+    return node;
   }
   if ($isTextNode(node) && keyOf(was, "text") === keyOf(next, "text")) {
     const from = node.getTextContent();
@@ -236,9 +279,9 @@ function $reconcile(node: LexicalNode, was: Serialized, next: Serialized) {
       end++;
     }
     node.spliceText(start, from.length - start - end, to.slice(start, to.length - end));
-    return;
+    return node;
   }
-  node.replace($parseSerializedNode(next));
+  return node.replace($parseSerializedNode(next));
 }
 
 /**
