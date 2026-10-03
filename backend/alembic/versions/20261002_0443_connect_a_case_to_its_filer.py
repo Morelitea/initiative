@@ -17,13 +17,13 @@ person filed" is the question it answers.
 
 Guild-scoped: applied to ``guild_template`` and every ``guild_<id>``.
 
-Revision ID: 20261002_0441
-Revises: 20261002_0440
+Revision ID: 20261002_0443
+Revises: 20261002_0442
 Create Date: 2026-10-02
 """
 
-revision = "20261002_0441"
-down_revision = "20261002_0440"
+revision = "20261002_0443"
+down_revision = "20261002_0442"
 branch_labels = None
 depends_on = None
 
