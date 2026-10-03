@@ -229,6 +229,11 @@ async function clear(db: IDBDatabase): Promise<void> {
     request.onsuccess = () => resolve();
     request.onerror = () => reject(request.error);
   });
+  announceDropped();
+}
+
+/** Tell every other realm the store was emptied, so it drops what it read. */
+function announceDropped(): void {
   if (typeof BroadcastChannel !== "undefined") {
     const channel = new BroadcastChannel(DROPPED);
     channel.postMessage(null);
@@ -362,16 +367,35 @@ export const deviceClaim = {
   /**
    * Give up on a device the server no longer knows, so it can be replaced.
    *
-   * Only a settled claim naming that exact device is reopened. One already
-   * being registered under is left alone: two tabs noticing the same revocation
-   * still produce one device between them, rather than one each.
+   * The device was removed from the account, so what it held goes with it: its
+   * keys and the messages only it had. Copies its owner's other devices hold
+   * are theirs, and a fresh device can ask them for its history.
+   *
+   * Only a settled claim naming that exact device is reopened, and the store is
+   * emptied in the same transaction. One already being registered under is left
+   * alone: two tabs noticing the same removal still produce one device between
+   * them, and neither empties the other's new one.
    */
   invalidate: async (deviceId: string): Promise<void> => {
-    await update<DeviceClaim>(DEVICE_CLAIM, (current) =>
-      current?.status === "ready" && current.deviceId === deviceId
-        ? { status: "claiming", at: 0, token: "" }
-        : undefined
-    );
+    const db = await open();
+    const cleared = await new Promise<boolean>((resolve, reject) => {
+      const transaction = db.transaction(STORE, "readwrite");
+      const store = transaction.objectStore(STORE);
+      const request = store.get(DEVICE_CLAIM);
+      let emptied = false;
+      request.onsuccess = () => {
+        const current = request.result as DeviceClaim | undefined;
+        if (current?.status !== "ready" || current.deviceId !== deviceId) return;
+        store.clear();
+        store.put({ status: "claiming", at: 0, token: "" } satisfies DeviceClaim, DEVICE_CLAIM);
+        emptied = true;
+      };
+      request.onerror = () => reject(request.error);
+      transaction.oncomplete = () => resolve(emptied);
+      transaction.onerror = () => reject(transaction.error);
+      transaction.onabort = () => reject(transaction.error);
+    });
+    if (cleared) announceDropped();
   },
 
   /** Let go of a turn this caller could not finish, if it is still theirs. */

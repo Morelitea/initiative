@@ -166,7 +166,7 @@
     "removeDevice": "Retirer l'appareil",
     "notSignedIn": "non connecté",
     "removeDeviceDialogTitle": "Retirer cet appareil ?",
-    "removeDeviceDialogDescription": "<bold>{{deviceName}}</bold> est déconnecté et ses messages sont retirés de votre compte : plus rien ne lui est envoyé. Les messages qu'il a déjà y restent.",
+    "removeDeviceDialogDescription": "<bold>{{deviceName}}</bold> est déconnecté et plus rien ne lui est envoyé. S'il est un jour reconnecté, les messages qu'il était seul à avoir y sont supprimés.",
     "removeDeviceConfirm": "Retirer l'appareil",
     "removedDevice": "Appareil retiré",
     "signedOutOne": "Déconnecté",

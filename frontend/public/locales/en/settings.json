@@ -166,7 +166,7 @@
     "removeDevice": "Remove device",
     "notSignedIn": "not signed in",
     "removeDeviceDialogTitle": "Remove this device?",
-    "removeDeviceDialogDescription": "<bold>{{deviceName}}</bold> is signed out and its messages are removed from your account, so nothing more is sent to it. Messages it already holds stay on it.",
+    "removeDeviceDialogDescription": "<bold>{{deviceName}}</bold> is signed out and nothing more is sent to it. If it is ever signed in again, the messages only it held are deleted from it.",
     "removeDeviceConfirm": "Remove device",
     "removedDevice": "Device removed",
     "signedOutOne": "Signed out",

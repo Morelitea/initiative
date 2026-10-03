@@ -393,11 +393,15 @@ describe("the device-registration claim", () => {
     expect(await deviceClaim.take()).not.toBeNull();
   });
 
-  it("can be forced open when the recorded device is gone", async () => {
+  it("can be forced open when the recorded device is gone, taking what it held", async () => {
     const turn = await take();
     await deviceClaim.settle(turn, "device-1", "pickle-1");
+    await messageLog.append("conv", { id: "a", body: "only here", at: "", mine: false });
     await deviceClaim.invalidate("device-1");
 
+    // Removed from the account, so its keys and its messages go too.
+    expect(await deviceId.get()).toBeUndefined();
+    expect(await messageLog.get("conv")).toEqual([]);
     expect(await deviceClaim.take()).not.toBeNull();
   });
 
@@ -423,6 +427,7 @@ describe("the device-registration claim", () => {
 
     expect(await deviceClaim.take()).toBeNull();
     expect(await deviceClaim.read()).toEqual({ status: "ready", deviceId: "device-2" });
+    expect(await deviceId.get()).toBe("device-2");
   });
 
   it("cannot be settled by a caller whose turn was taken over", async () => {
