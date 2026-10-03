@@ -312,6 +312,7 @@
     "support": "Soporte",
     "loading": "Cargando la lista de precios…",
     "tierListAria": "Planes",
+    "regularPrice": "Precio habitual {{price}}",
     "selfHostBody": "¿Prefieres ejecutarlo en tu propio servidor? Es gratis y de código abierto.",
     "everyPlanAria": "Todos los planes",
     "sameTitle": "El mismo Initiative en ambos casos",

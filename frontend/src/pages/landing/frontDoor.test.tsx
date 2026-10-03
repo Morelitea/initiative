@@ -403,6 +403,31 @@ describe("PricingPage", () => {
     });
   });
 
+  it("strikes through the regular price on a plan sold at the early rate", async () => {
+    const onSale = {
+      ...CATALOG.tiers[2],
+      price: { base_monthly: 7, display: "$7", regular_display: "$10", sub_display: "per month" },
+    };
+    server.use(
+      stubConfig({ url: PORTAL }),
+      stubCatalog({
+        ...CATALOG,
+        tiers: [CATALOG.tiers[1], onSale, CATALOG.tiers[3]],
+        early_rate: { percent_off: 30, label: "30% off", note: "Early communities keep it" },
+      })
+    );
+    renderPricing();
+
+    const plans = await screen.findByRole("list", { name: landing.pricing.tierListAria });
+    const card = plans.querySelector('[data-tier="brass"]') as HTMLElement;
+    expect(within(card).getByText("$10").tagName).toBe("S");
+    expect(within(card).getByText("Regular price $10", { exact: false })).toBeInTheDocument();
+    expect(within(card).getByText("30% off")).toBeInTheDocument();
+    expect(
+      within(card).getByText("Early communities keep it", { exact: false })
+    ).toBeInTheDocument();
+  });
+
   it("says so when the price book cannot be read", async () => {
     server.use(stubConfig({ url: PORTAL }), stubCatalog({ detail: "down" }, 503));
     renderPricing();
