@@ -91,6 +91,7 @@
   "AUTH_PROVIDER_SOLE_CREDENTIAL": "Algunas cuentas inician sesión solo con este proveedor; necesitan una contraseña u otro método de inicio de sesión antes de poder eliminarlo",
   "SMTP_NOT_CONFIGURED": "La configuración SMTP está incompleta.",
   "INVALID_OR_EXPIRED_TOKEN": "Token no válido o expirado",
+  "ACCOUNT_CHANGE_MOVED_ON": "Tu cuenta ha cambiado desde ese correo, así que esto no se puede deshacer desde él. Cierra la sesión en todas partes y luego revisa tus ajustes de seguridad.",
   "RESERVED_SIGIL_IN_NAME": "Los nombres y títulos no pueden contener # ni @.",
   "FIELD_CANNOT_BE_NULL": "Este campo no puede quedar vacío.",
   "PROJECT_NOT_FOUND": "Proyecto no encontrado",

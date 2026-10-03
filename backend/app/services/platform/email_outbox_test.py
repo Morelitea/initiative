@@ -250,7 +250,7 @@ async def test_an_account_letter_goes_to_each_address_with_its_own_link(
     await email_outbox.enqueue_account_letter(
         user,
         _pieces(body="A passkey was added"),
-        notice="passkey.added",
+        change={"notice": "passkey.added"},
         also_to=["gone@example.com"],
     )
 

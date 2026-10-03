@@ -2,7 +2,8 @@ import { Link, useSearch } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { readAccountChange, signOutEverywhere } from "@/api/generated/auth/auth";
+import { readAccountChange, signOutEverywhere, undoAccountChange } from "@/api/generated/auth/auth";
+import type { AccountChangeRead } from "@/api/generated/initiativeAPI.schemas";
 import { ServerChip } from "@/components/auth/ServerChoice";
 import { SignInFrame } from "@/components/auth/SignInFrame";
 import { Button } from "@/components/ui/button";
@@ -17,7 +18,15 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import { getErrorMessage } from "@/lib/errorMessage";
 
-type Step = "reading" | "ready" | "done" | "invalid";
+type Step = "reading" | "ready" | "done" | "undone" | "invalid";
+
+/** What each undo does, by the kind the server names. */
+const UNDO_KEYS = {
+  proved: "notMe.undo.proved",
+  primary: "notMe.undo.primary",
+  removed: "notMe.undo.removed",
+  passkey: "notMe.undo.passkey",
+} as const;
 
 /** What each account notice was about, by the part of its name before the dot. */
 const SUBJECT_KEYS = {
@@ -39,35 +48,36 @@ const subjectKey = (notice: string) => {
  * Where the "This wasn't me" button in an account email lands.
  *
  * Opening the link changes nothing: mail scanners open links too. The page
- * reads the token, says what will happen, and only the button signs the
- * account out everywhere.
+ * reads the token, says what will happen, and only a button acts: signing the
+ * account out everywhere, or, where this copy of the email may, undoing the
+ * change as well.
  */
 export const AccountNotMePage = () => {
   const { t } = useTranslation("auth");
   const { token } = useSearch({ strict: false }) as { token?: string };
   const { user, refreshUser } = useAuth();
   const [step, setStep] = useState<Step>(token ? "reading" : "invalid");
-  const [notice, setNotice] = useState("");
+  const [answer, setAnswer] = useState<AccountChangeRead | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!token) return;
     readAccountChange({ token })
-      .then((answer) => {
-        setNotice(answer.notice);
+      .then((read) => {
+        setAnswer(read);
         setStep("ready");
       })
       .catch(() => setStep("invalid"));
   }, [token]);
 
-  const signOut = async () => {
+  const act = async (undo: boolean) => {
     if (!token) return;
     setSubmitting(true);
     setError(null);
     try {
-      await signOutEverywhere({ token });
-      setStep("done");
+      await (undo ? undoAccountChange({ token }) : signOutEverywhere({ token }));
+      setStep(undo ? "undone" : "done");
       // This browser may be one of the sessions just ended. Asking for its
       // own account finds out, and the usual expiry handling signs it out
       // here too; a browser signed in to somebody else stays as it is.
@@ -79,14 +89,21 @@ export const AccountNotMePage = () => {
     }
   };
 
-  const subject = t(subjectKey(notice));
+  const subject = t(subjectKey(answer?.notice ?? ""));
+  const undoKey =
+    answer?.undo && answer.undo in UNDO_KEYS
+      ? UNDO_KEYS[answer.undo as keyof typeof UNDO_KEYS]
+      : null;
+  const finished = step === "done" || step === "undone";
 
   return (
     <SignInFrame>
       <Card className="w-full max-w-md shadow-lg">
-        {step === "done" ? (
+        {finished ? (
           <CardHeader>
-            <CardTitle>{t("notMe.doneTitle")}</CardTitle>
+            <CardTitle>
+              {step === "undone" ? t("notMe.undoneTitle") : t("notMe.doneTitle")}
+            </CardTitle>
             <CardDescription>{t("notMe.doneBody")}</CardDescription>
           </CardHeader>
         ) : step === "invalid" ? (
@@ -101,19 +118,34 @@ export const AccountNotMePage = () => {
               <CardDescription>{t("notMe.description", { subject })}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
+              {undoKey ? (
+                <p className="text-sm">{t(undoKey, { subject: answer?.subject ?? "" })}</p>
+              ) : null}
               <p className="text-muted-foreground text-sm">{t("notMe.whatHappens")}</p>
               {error ? <p className="text-destructive text-sm">{error}</p> : null}
-              <Button
-                className="w-full"
-                onClick={() => void signOut()}
-                disabled={step !== "ready" || submitting}
-              >
-                {t("notMe.confirm")}
-              </Button>
+              {undoKey ? (
+                <Button
+                  className="w-full"
+                  onClick={() => void act(true)}
+                  disabled={step !== "ready" || submitting}
+                >
+                  {t("notMe.undoConfirm")}
+                </Button>
+              ) : null}
+              {answer?.sign_out !== false ? (
+                <Button
+                  className="w-full"
+                  variant={undoKey ? "outline" : "default"}
+                  onClick={() => void act(false)}
+                  disabled={step !== "ready" || submitting}
+                >
+                  {undoKey ? t("notMe.signOutOnly") : t("notMe.confirm")}
+                </Button>
+              ) : null}
             </CardContent>
           </>
         )}
-        {step === "done" || step === "invalid" ? (
+        {finished || step === "invalid" ? (
           <CardFooter className="flex flex-col gap-2 text-sm">
             <Button asChild className="w-full">
               <Link to="/login">{t("notMe.signIn")}</Link>

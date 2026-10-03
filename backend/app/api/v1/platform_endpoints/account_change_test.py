@@ -1,67 +1,138 @@
 """Answering an account letter: "This wasn't me".
 
-The link reads without spending, and signs the account out everywhere once,
-on a token of its own purpose that is still good, while the address it went
-to is still the account's.
+The links are minted by the outbox worker as it sends each copy. A link reads
+without spending, signs the account out everywhere once, and holds only while
+the address it went to stands on the same proof. A risky change can be undone
+from a copy sent to an address older than the newest one involved.
 """
+
+import re
+from datetime import datetime, timedelta, timezone
+from typing import Any
+from unittest.mock import AsyncMock
 
 import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.encryption import hash_email
+from app.core.encryption import SALT_EMAIL, decrypt_field
 from app.models.platform.auth_session import AuthSession
 from app.models.platform.user import User
+from app.models.platform.user_email import UserEmail
+from app.models.platform.user_passkey import UserPasskey
 from app.models.platform.user_token import UserTokenPurpose
-from app.services.auth import addresses
+from app.services import email as email_service
+from app.services.auth import account_changes, addresses
 from app.services.auth import sessions as session_service
-from app.services.platform import user_tokens
+from app.services.platform import email_outbox, user_tokens
 from app.testing import create_user
 
 READ = "/api/v1/auth/account-change/read"
 SIGN_OUT = "/api/v1/auth/account-change/sign-out"
+UNDO = "/api/v1/auth/account-change/undo"
 
 
-async def _link(
+@pytest.fixture
+def mailed(monkeypatch) -> dict[str, str | None]:
+    """Account letters sent as the worker sends them, keeping the token in
+    each copy's link by the address it went to."""
+    links: dict[str, str | None] = {}
+
+    async def deliver(session, user, *, recipient: str, html_body: str, **_):
+        found = re.search(r"/account/not-me\?token=([\w-]+)", html_body)
+        links[recipient] = found.group(1) if found else None
+
+    monkeypatch.setattr(email_service, "email_configured", AsyncMock(return_value=True))
+    monkeypatch.setattr(email_service, "deliver", deliver)
+    monkeypatch.setattr(
+        email_service, "email_context", AsyncMock(return_value=(None, "#123456"))
+    )
+    return links
+
+
+async def _send(
     session: AsyncSession,
+    links: dict[str, str | None],
     user: User,
     *,
-    purpose: UserTokenPurpose = UserTokenPurpose.account_change,
-    minutes: int = 60,
-    sent_to: str | None = None,
-) -> str:
-    """A link as the worker mints it, sent to ``sent_to`` (the account's own
-    address unless named)."""
-    return await user_tokens.create_token(
+    notice: str = "passkey.added",
+    risky: bool | None = None,
+    undo: dict[str, Any] | None = None,
+    also_to: tuple[str, ...] = (),
+) -> dict[str, str | None]:
+    """Queue and send one account letter; the link each address got."""
+    change: dict[str, Any] = {"notice": notice}
+    if undo is not None:
+        change |= await account_changes.change_record(
+            session, user_id=user.id, risky=bool(risky), undo=undo
+        )
+    links.clear()
+    await email_outbox.enqueue_account_letter(
+        user,
+        email_service.EmailPieces(subject="s", headline="h", body="b"),
+        change=change,
+        also_to=also_to,
+    )
+    await email_outbox._run_pass(session, now=datetime.now(timezone.utc))
+    return dict(links)
+
+
+async def _address(
+    session: AsyncSession, user: User, email: str, *, primary: bool = False
+) -> UserEmail:
+    """A proved address, newer than every one before it."""
+    row = addresses.record_address(
         session,
         user_id=user.id,
-        purpose=purpose,
-        expires_minutes=minutes,
-        change={
-            "notice": "passkey.added",
-            "recipient": hash_email(
-                sent_to or await addresses.primary_address(session, user_id=user.id)
-            ),
-        },
+        email=email,
+        source=addresses.SOURCE_ADDED,
+        verified=True,
+        is_primary=False,
+        now=datetime.now(timezone.utc) + timedelta(seconds=1),
     )
+    await session.commit()
+    if primary:
+        await addresses.set_primary_for_user(
+            session, user_id=user.id, address_id=row.id
+        )
+        await session.commit()
+    await session.refresh(row)
+    return row
 
 
-async def test_reading_a_link_says_what_it_answers_and_spends_nothing(
-    client: AsyncClient, session: AsyncSession
+async def _primary(session: AsyncSession, user_id: int) -> str | None:
+    session.expire_all()
+    return await addresses.primary_address(session, user_id=user_id)
+
+
+async def _held(session: AsyncSession, user_id: int) -> set[str]:
+    session.expire_all()
+    return {
+        decrypt_field(row.email_encrypted, SALT_EMAIL)
+        for row in await addresses.list_for_user(session, user_id=user_id)
+    }
+
+
+async def test_reading_a_link_says_what_it_may_do_and_spends_nothing(
+    client: AsyncClient, session: AsyncSession, mailed
 ):
     user = await create_user(session, email="reads@example.com")
-    token = await _link(session, user)
+    token = (await _send(session, mailed, user))["reads@example.com"]
 
     for _ in range(2):
         response = await client.post(READ, json={"token": token})
         assert response.status_code == 200, response.text
-        assert response.json() == {"notice": "passkey.added"}
-
+        assert response.json() == {
+            "notice": "passkey.added",
+            "sign_out": True,
+            "undo": None,
+            "subject": None,
+        }
     assert (await client.post(SIGN_OUT, json={"token": token})).status_code == 200
 
 
 async def test_a_link_signs_the_account_out_everywhere_once(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, mailed
 ):
     user = await create_user(session, email="not-me@example.com")
     user_id, version = user.id, user.token_version
@@ -70,7 +141,7 @@ async def test_a_link_signs_the_account_out_everywhere_once(
     )
     session_id = opened.session.id
     await session.commit()
-    token = await _link(session, user)
+    token = (await _send(session, mailed, user))["not-me@example.com"]
 
     response = await client.post(SIGN_OUT, json={"token": token})
     assert response.status_code == 200, response.text
@@ -89,45 +160,74 @@ async def test_only_a_live_link_of_its_own_purpose_answers(
     client: AsyncClient, session: AsyncSession
 ):
     user = await create_user(session, email="stale@example.com")
-    expired = await _link(session, user, minutes=-1)
-    reset = await _link(session, user, purpose=UserTokenPurpose.password_reset)
-
-    for token in (expired, reset):
-        for route in (READ, SIGN_OUT):
+    for purpose, minutes in (
+        (UserTokenPurpose.account_change, -1),
+        (UserTokenPurpose.password_reset, 60),
+    ):
+        token = await user_tokens.create_token(
+            session, user_id=user.id, purpose=purpose, expires_minutes=minutes
+        )
+        for route in (READ, SIGN_OUT, UNDO):
             response = await client.post(route, json={"token": token})
             assert response.status_code == 400, response.text
             assert response.json()["detail"] == "INVALID_OR_EXPIRED_TOKEN"
 
 
-async def test_a_link_stops_working_when_its_address_leaves_the_account(
-    client: AsyncClient, session: AsyncSession
+async def test_a_link_holds_only_while_its_address_stands_on_the_same_proof(
+    client: AsyncClient, session: AsyncSession, mailed
 ):
+    """Removed, added back unproved, and proved again: each leaves the link
+    sent to it dead."""
     user = await create_user(session, email="stays@example.com")
-    spare = addresses.record_address(
-        session,
-        user_id=user.id,
-        email="leaves@example.com",
-        source=addresses.SOURCE_ADDED,
-        verified=True,
-        is_primary=False,
-    )
-    await session.commit()
-    token = await _link(session, user, sent_to="leaves@example.com")
+    spare = await _address(session, user, "leaves@example.com")
+    token = (await _send(session, mailed, user))["leaves@example.com"]
     assert (await client.post(READ, json={"token": token})).status_code == 200
 
     await session.delete(spare)
     await session.commit()
+    assert (await client.post(READ, json={"token": token})).status_code == 400
 
+    again = addresses.record_address(
+        session,
+        user_id=user.id,
+        email="leaves@example.com",
+        source=addresses.SOURCE_ADDED,
+        verified=False,
+        is_primary=False,
+    )
+    await session.commit()
+    assert (await client.post(READ, json={"token": token})).status_code == 400
+
+    again.verified_at = datetime.now(timezone.utc)
+    session.add(again)
+    await session.commit()
     for route in (READ, SIGN_OUT):
-        response = await client.post(route, json={"token": token})
-        assert response.status_code == 400, response.text
+        assert (await client.post(route, json={"token": token})).status_code == 400
+
+
+async def test_an_address_removed_before_its_copy_goes_gets_no_link(
+    session: AsyncSession, mailed
+):
+    user = await create_user(session, email="keeps@example.com")
+    spare = await _address(session, user, "gone-first@example.com")
+    await email_outbox.enqueue_account_letter(
+        user,
+        email_service.EmailPieces(subject="s", headline="h", body="b"),
+        change={"notice": "passkey.added"},
+    )
+    await session.delete(spare)
+    await session.commit()
+
+    await email_outbox._run_pass(session, now=datetime.now(timezone.utc))
+    assert mailed["gone-first@example.com"] is None
+    assert mailed["keeps@example.com"] is not None
 
 
 async def test_a_sign_out_that_fails_leaves_the_link_good(
-    client: AsyncClient, session: AsyncSession, monkeypatch
+    client: AsyncClient, session: AsyncSession, mailed, monkeypatch
 ):
     user = await create_user(session, email="retry-link@example.com")
-    token = await _link(session, user)
+    token = (await _send(session, mailed, user))["retry-link@example.com"]
 
     async def fail(*args, **kwargs):
         raise RuntimeError("database went away")
@@ -139,3 +239,181 @@ async def test_a_sign_out_that_fails_leaves_the_link_good(
     monkeypatch.undo()
     response = await client.post(SIGN_OUT, json={"token": token})
     assert response.status_code == 200, response.text
+
+
+async def test_only_an_older_address_may_undo_and_only_a_risky_change(
+    client: AsyncClient, session: AsyncSession, mailed
+):
+    user = await create_user(session, email="older@example.com")
+    newer = await _address(session, user, "newer@example.com")
+    undo = {"kind": "proved", "address_id": newer.id}
+
+    owners = await _send(session, mailed, user, risky=False, undo=undo)
+    risky = await _send(session, mailed, user, risky=True, undo=undo)
+
+    for token in (owners["older@example.com"], risky["newer@example.com"]):
+        response = await client.post(READ, json={"token": token})
+        assert response.json()["undo"] is None
+        assert (await client.post(UNDO, json={"token": token})).status_code == 400
+
+    response = await client.post(READ, json={"token": risky["older@example.com"]})
+    assert response.json() == {
+        "notice": "passkey.added",
+        "sign_out": True,
+        "undo": "proved",
+        "subject": "newer@example.com",
+    }
+
+
+async def test_undoing_a_proved_address_takes_it_back_and_the_primary_with_it(
+    client: AsyncClient, session: AsyncSession, mailed
+):
+    user = await create_user(session, email="mine@example.com")
+    user_id, version = user.id, user.token_version
+    theirs = await _address(session, user, "theirs@example.com", primary=True)
+    links = await _send(
+        session,
+        mailed,
+        user,
+        notice="address.proved",
+        risky=True,
+        undo={"kind": "proved", "address_id": theirs.id},
+    )
+
+    response = await client.post(UNDO, json={"token": links["mine@example.com"]})
+    assert response.status_code == 200, response.text
+    assert response.json() == {"status": "undone"}
+    assert await _held(session, user_id) == {"mine@example.com"}
+    assert await _primary(session, user_id) == "mine@example.com"
+    assert (await session.get(User, user_id)).token_version == version + 1
+
+
+async def test_undoing_a_primary_change_moves_it_back(
+    client: AsyncClient, session: AsyncSession, mailed
+):
+    user = await create_user(session, email="first@example.com")
+    user_id = user.id
+    previous = (await addresses.list_for_user(session, user_id=user_id))[0]
+    await _address(session, user, "second@example.com", primary=True)
+    links = await _send(
+        session,
+        mailed,
+        user,
+        notice="address.primary",
+        risky=True,
+        undo={"kind": "primary", "address_id": previous.id},
+    )
+
+    response = await client.post(UNDO, json={"token": links["first@example.com"]})
+    assert response.status_code == 200, response.text
+    assert await _primary(session, user_id) == "first@example.com"
+
+
+async def test_undoing_a_removal_puts_the_address_back_over_the_later_ones(
+    client: AsyncClient, session: AsyncSession, mailed
+):
+    """The removed address's own copy reverses the whole run: it comes back,
+    proved and primary, and the address proved after it goes."""
+    user = await create_user(session, email="original@example.com")
+    user_id = user.id
+    original = (await addresses.list_for_user(session, user_id=user_id))[0]
+    await _address(session, user, "taker@example.com", primary=True)
+    undo = account_changes.removal_undo(original)
+    record = await account_changes.change_record(
+        session, user_id=user_id, risky=True, undo=undo
+    )
+    await session.delete(original)
+    await session.commit()
+
+    mailed.clear()
+    await email_outbox.enqueue_account_letter(
+        user,
+        email_service.EmailPieces(subject="s", headline="h", body="b"),
+        change={"notice": "address.removed", **record},
+        also_to=["original@example.com"],
+    )
+    await email_outbox._run_pass(session, now=datetime.now(timezone.utc))
+    token = mailed["original@example.com"]
+
+    read = await client.post(READ, json={"token": token})
+    assert read.json() == {
+        "notice": "address.removed",
+        "sign_out": False,
+        "undo": "removed",
+        "subject": "original@example.com",
+    }
+    assert (await client.post(SIGN_OUT, json={"token": token})).status_code == 400
+
+    response = await client.post(UNDO, json={"token": token})
+    assert response.status_code == 200, response.text
+    assert await _held(session, user_id) == {"original@example.com"}
+    assert await _primary(session, user_id) == "original@example.com"
+
+
+async def test_the_newest_address_removed_gets_no_link(session: AsyncSession, mailed):
+    """An owner removing the address added last: that address is the newest,
+    so its copy may not put it back."""
+    user = await create_user(session, email="owner@example.com")
+    newest = await _address(session, user, "removed-newest@example.com")
+    record = await account_changes.change_record(
+        session,
+        user_id=user.id,
+        risky=True,
+        undo=account_changes.removal_undo(newest),
+    )
+    await session.delete(newest)
+    await session.commit()
+
+    await email_outbox.enqueue_account_letter(
+        user,
+        email_service.EmailPieces(subject="s", headline="h", body="b"),
+        change={"notice": "address.removed", **record},
+        also_to=["removed-newest@example.com"],
+    )
+    await email_outbox._run_pass(session, now=datetime.now(timezone.utc))
+    assert mailed["removed-newest@example.com"] is None
+    assert mailed["owner@example.com"] is not None
+
+
+async def test_undoing_a_passkey_removes_it_unless_it_is_the_last_way_in(
+    client: AsyncClient, session: AsyncSession, mailed
+):
+    for email, password in (
+        ("pk-undo@example.com", True),
+        ("pk-last@example.com", False),
+    ):
+        user = await create_user(session, email=email)
+        if not password:
+            user.hashed_password = None
+            session.add(user)
+            await session.commit()
+        await _address(session, user, f"newer-{email}")
+        passkey = UserPasskey(
+            user_id=user.id,
+            credential_id=f"undo-{user.id}".encode(),
+            public_key=b"public-key-bytes",
+            rp_id="localhost",
+            sign_count=0,
+            transports=["internal"],
+            name="Laptop",
+        )
+        session.add(passkey)
+        await session.commit()
+        passkey_id = passkey.id
+        links = await _send(
+            session,
+            mailed,
+            user,
+            risky=True,
+            undo={"kind": "passkey", "passkey_id": str(passkey_id)},
+        )
+
+        response = await client.post(UNDO, json={"token": links[email]})
+        session.expire_all()
+        if password:
+            assert response.status_code == 200, response.text
+            assert await session.get(UserPasskey, passkey_id) is None
+        else:
+            assert response.status_code == 409, response.text
+            assert response.json()["detail"] == "ACCOUNT_CHANGE_MOVED_ON"
+            assert await session.get(UserPasskey, passkey_id) is not None

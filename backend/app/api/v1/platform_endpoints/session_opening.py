@@ -154,6 +154,21 @@ async def chain_started_at(
     return result.scalar_one_or_none()
 
 
+async def signed_in_since(
+    system_session: AsyncSession, *, session_id: uuid.UUID
+) -> datetime | None:
+    """How long the person behind this session has been signed in here.
+
+    The start of its chain, or, where it took the place of an earlier session,
+    the start of that one's: a step-up proves the person again without
+    starting their time here over.
+    """
+    row = await system_session.get(AuthSession, session_id)
+    if row is not None and row.continues_since is not None:
+        return row.continues_since
+    return await chain_started_at(system_session, session_id=session_id)
+
+
 async def record_sign_in_failure(
     system_session: AsyncSession,
     user: User | None,
@@ -517,6 +532,9 @@ async def issue_session(
         device=device,
     )
     if replaces is not None:
+        issued.session.continues_since = await signed_in_since(
+            system_session, session_id=replaces
+        )
         await session_service.revoke_chain(system_session, session_id=replaces)
         await session_service.follow_devices(
             system_session, from_id=replaces, to_id=issued.session.id

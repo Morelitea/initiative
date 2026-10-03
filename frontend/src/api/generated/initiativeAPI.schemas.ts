@@ -263,11 +263,13 @@ export interface AccessGrantListResponse {
 }
 
 /**
- * What a "This wasn't me" link answers: the account notice it came in,
- * such as ``address.removed``.
+ * What a "This wasn't me" link answers and what it may do.
  */
 export interface AccountChangeRead {
   notice: string;
+  sign_out: boolean;
+  undo?: string | null;
+  subject?: string | null;
 }
 
 /**

@@ -1074,6 +1074,7 @@ async def _queue_account_notice(
     key: str,
     answerable: bool = True,
     also_to: Sequence[str] = (),
+    record: Mapping[str, object] | None = None,
     **values: str,
 ) -> None:
     """Queue one letter about a way into the account changing.
@@ -1083,7 +1084,8 @@ async def _queue_account_notice(
     still seen by somebody who no longer reads one of them — and to
     ``also_to`` beside them. ``section`` holds the greeting and the "if this
     wasn't you" line every letter of its kind shares; ``key`` holds what this
-    one says. An ``answerable`` letter carries a "This wasn't me" link.
+    one says. An ``answerable`` letter carries a "This wasn't me" link, and
+    ``record`` says what that link may undo (``account_changes.change_record``).
 
     Called once the change is committed, and never allowed to fail it: the
     change was made whether or not the letter can go.
@@ -1093,7 +1095,10 @@ async def _queue_account_notice(
     pieces = _account_notice_pieces(user, section=section, key=key, **values)
     try:
         await email_outbox.enqueue_account_letter(
-            user, pieces, notice=key if answerable else None, also_to=also_to
+            user,
+            pieces,
+            change={"notice": key, **(record or {})} if answerable else None,
+            also_to=also_to,
         )
     except Exception:  # pragma: no cover - the letter is best effort
         logger.exception("could not queue %s for account %s", key, user.id)
@@ -1127,13 +1132,19 @@ async def announce_second_factor_change(
 
 
 async def announce_passkey_change(
-    session: AsyncSession, user: User, *, added: bool, name: str
+    session: AsyncSession,
+    user: User,
+    *,
+    added: bool,
+    name: str,
+    record: Mapping[str, object] | None = None,
 ) -> None:
     """Tell the account a passkey was added or removed."""
     await _queue_account_notice(
         user,
         section="passkey",
         key="passkey.added" if added else "passkey.removed",
+        record=record,
         passkey=name,
     )
 
@@ -1144,15 +1155,24 @@ async def announce_address_change(
     *,
     change: Literal["proved", "primary"],
     address: str,
+    record: Mapping[str, object] | None = None,
 ) -> None:
     """Tell the account an address was proved on it, or made its primary."""
     await _queue_account_notice(
-        user, section="address", key=f"address.{change}", address=address
+        user,
+        section="address",
+        key=f"address.{change}",
+        record=record,
+        address=address,
     )
 
 
 async def announce_address_removed(
-    session: AsyncSession, user: User, *, address: str
+    session: AsyncSession,
+    user: User,
+    *,
+    address: str,
+    record: Mapping[str, object] | None = None,
 ) -> None:
     """Tell the account a proved address was removed, and tell that address.
 
@@ -1164,6 +1184,7 @@ async def announce_address_removed(
         section="address",
         key="address.removed",
         also_to=[address],
+        record=record,
         address=address,
     )
 

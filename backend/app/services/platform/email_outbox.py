@@ -42,9 +42,10 @@ from app.models.platform.email_outbox import EmailOutboxItem
 from app.models.platform.guild import Guild
 from app.models.platform.user import User
 from app.models.platform.user_notification_prefs import EmailCadence
+from app.models.platform.user_email import UserEmail
 from app.models.platform.user_token import UserTokenPurpose
 from app.services import email as email_service
-from app.services.auth import addresses
+from app.services.auth import account_changes, addresses
 from app.services.platform import notification_policy, notification_prefs, user_tokens
 from app.db.request_context import Unattributed
 
@@ -160,7 +161,7 @@ async def enqueue_account_letter(
     user: User,
     pieces: email_service.EmailPieces,
     *,
-    notice: str | None = None,
+    change: dict[str, Any] | None = None,
     also_to: Sequence[str] = (),
 ) -> None:
     """Write down a letter about the account's own security.
@@ -169,8 +170,9 @@ async def enqueue_account_letter(
     nothing in the account's notification settings holds or drops it. One row
     per address, so each copy retries on its own: every address the account
     has proved, and ``also_to`` beside them for an address it no longer holds.
-    ``notice`` names the account notice the letter is, and the worker gives
-    each copy to one of the account's own addresses a link that answers it. Written on a system session of its own,
+    ``change`` names the account notice the letter is and what undoing it
+    does; the worker decides, as it sends each copy, what that copy's link
+    may do. Written on a system session of its own,
     because it is raised once the change it reports has been committed.
     """
     from app.db.session import SystemSessionLocal
@@ -192,11 +194,7 @@ async def enqueue_account_letter(
                         "category": NotificationCategory.account.value,
                         "security": True,
                         "recipient_encrypted": encrypt_field(address, SALT_EMAIL),
-                        # A link speaks for an address of the account's, so
-                        # an address it no longer holds gets none.
-                        "change": (
-                            {"notice": notice} if notice and address in own else None
-                        ),
+                        "change": change,
                         "locale": getattr(user, "locale", None) or "en",
                         "subject": pieces.subject,
                         "headline": pieces.headline,
@@ -456,7 +454,10 @@ async def _send_one(
                         link = await _answer_link(
                             session, user=user, change=row.change, recipient=recipient
                         )
-                        link_label = email_t("accountNotice.notMe", locale=row_locale)
+                        if link is not None:
+                            link_label = email_t(
+                                "accountNotice.notMe", locale=row_locale
+                            )
                 html_body, text_body = email_service.render_single(
                     email_service.EmailPieces(
                         subject=row.subject,
@@ -512,19 +513,54 @@ async def _send_one(
 
 async def _answer_link(
     session: AsyncSession, *, user: User, change: dict[str, Any], recipient: str
-) -> str:
-    """The "This wasn't me" link for one copy of an account letter.
+) -> str | None:
+    """The "This wasn't me" link for one copy of an account letter, or none.
+
+    A copy to an address the account still holds proved may sign it out, and
+    undo where :func:`account_changes.may_undo` allows. A copy to the address
+    a removal took away may only put it back, and gets no link otherwise; nor
+    does a copy to any other address the account no longer holds.
 
     Its own token, minted as the copy is sent so no raw token is ever stored,
     and committed first so the link never names one that was not kept. It
-    records the address it went to.
+    records the address it went to and that address's proof time, which the
+    link is held to when it is used.
     """
+    digest = hash_email(addresses.normalize(recipient))
+    held = (
+        await session.exec(
+            select(UserEmail).where(
+                UserEmail.user_id == user.id,
+                UserEmail.email_hash == digest,
+                UserEmail.verified_at.is_not(None),
+            )
+        )
+    ).first()
+    removed = account_changes.removed_address(change)
+    if held is not None:
+        proved_at, removed_copy = held.verified_at, False
+    elif removed is not None and hash_email(addresses.normalize(removed)) == digest:
+        proved_at = datetime.fromisoformat(change["undo"]["proved_at"])
+        removed_copy = True
+    else:
+        return None
+    may_undo = account_changes.may_undo(
+        change, proved_at=proved_at, removed_copy=removed_copy
+    )
+    if removed_copy and not may_undo:
+        return None
     token = await user_tokens.create_token(
         session,
         user_id=user.id,
         purpose=UserTokenPurpose.account_change,
         expires_minutes=ANSWER_LINK_MINUTES,
-        change={**change, "recipient": hash_email(addresses.normalize(recipient))},
+        change={
+            **change,
+            "recipient": digest,
+            "recipient_proved_at": proved_at.isoformat() if proved_at else None,
+            "removed_copy": removed_copy,
+            "may_undo": may_undo,
+        },
     )
     return email_service.account_change_link(token)
 

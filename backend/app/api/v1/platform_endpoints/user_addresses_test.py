@@ -494,16 +494,23 @@ async def test_proving_an_address_somebody_just_proved_is_refused(
 
 def _record_letters(monkeypatch) -> tuple[list[str], list[list[str]]]:
     """The subjects queued to the account, and the addresses each named
-    beside the account's own."""
+    beside the account's own. What each letter could undo is kept in
+    ``undone``."""
     queued: list[str] = []
     also: list[list[str]] = []
+    undone.clear()
 
-    async def queue(user, pieces, *, notice=None, also_to=()) -> None:
+    async def queue(user, pieces, *, change=None, also_to=()) -> None:
         queued.append(pieces.subject)
         also.append(list(also_to))
+        undone.append(((change or {}).get("undo") or {}).get("kind"))
 
     monkeypatch.setattr(email_outbox, "enqueue_account_letter", queue)
     return queued, also
+
+
+#: What each letter recorded could be undone, in the order they were queued.
+undone: list[str | None] = []
 
 
 def _subject(change: str) -> str:
@@ -605,6 +612,7 @@ async def test_moving_the_primary_tells_the_account(
         )
         assert moved.status_code == 200, moved.text
     assert queued == [_subject("primary")]
+    assert undone == ["primary"]
 
 
 async def test_a_removed_address_is_told_as_well_as_the_account(
@@ -643,4 +651,5 @@ async def test_a_removed_address_is_told_as_well_as_the_account(
         assert gone.status_code == 204, gone.text
 
     assert queued == [_subject("removed")]
+    assert undone == ["removed"]
     assert also == [["proved-goes@example.com"]]
