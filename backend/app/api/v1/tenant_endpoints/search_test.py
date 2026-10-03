@@ -58,7 +58,7 @@ async def test_a_person_is_found_where_they_are_mentioned(
     ada = await acting_user(guild_role=GuildRole.member, guild=a.guild)
     membership = ada.membership
     assert membership is not None
-    membership.display_name = "Countess"
+    membership.display_name = "Ada Countess"
     session.add(membership)
     await session.commit()
     await create_task(
@@ -88,6 +88,7 @@ async def test_a_person_is_found_where_they_are_mentioned(
     assert await found(f"{ada.user.username}#{ada.user.discriminator:04d}") == both
     assert await found("countess budget") == ["budget review"]
     assert await found("budget -countess") == []
+    assert await found('budget -"ada countess"') == []
 
     membership.display_name = "Duchess"
     session.add(membership)
@@ -98,6 +99,7 @@ async def test_a_person_is_found_where_they_are_mentioned(
     await session.delete(membership)
     await session.commit()
     assert await found("duchess") == []
+    assert await found(ada.user.username) == []
 
 
 async def test_it_finds_across_tools_in_one_query(

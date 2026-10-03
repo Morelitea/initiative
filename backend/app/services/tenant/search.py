@@ -27,7 +27,7 @@ from app.core.tools import Tool
 from app.db.app_rls import SEARCH_ENTRY_READ_SCOPE
 from app.db.guild_standing import ActorContext, InstallContext
 from app.db.search_index import MENTION_LEXEME, entity_types
-from app.models.platform.user_profile_view import MemberProfile
+from app.models.platform.user_profile_view import GuildMember
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.search_entry import SearchEntry
 from app.schemas.tenant.search import SearchHit, SearchResults, SearchSuggestion
@@ -180,22 +180,31 @@ def _trailing_prefix(query: str) -> tuple[str, Optional[str]]:
     return head, last
 
 
-#: A quoted phrase, or anything else up to a space: the terms
-#: ``websearch_to_tsquery`` reads.
-_TERM = re.compile(r'"([^"]*)"|(\S+)')
+#: A quoted phrase, excluded or not, or anything else up to a space: the
+#: terms ``websearch_to_tsquery`` reads.
+_TERM = re.compile(r'-?"([^"]*)"|(\S+)')
 #: A run of letters and digits, as the ``simple`` parser reads a word.
 _WORD = re.compile(r"[^\W_]+")
 
 
+def _term(word: str) -> Optional[str]:
+    """A word as a term that could name somebody: without an exclusion's ``-``
+    or a stray quote, and ``None`` for an operator or a word holding no
+    letters or digits."""
+    term = word.lstrip("-").strip('"')
+    if term.lower() in _WEBSEARCH_OPERATORS or not _WORD.search(term):
+        return None
+    return term
+
+
 def _typed_terms(query: str) -> list[str]:
     """What was typed, as terms each parsing alone to the subtree it parses to
-    within the whole: a quoted phrase with its quotes, and every other word
-    without an exclusion's ``-``. Operators and terms holding no word are left
-    out, as they name nobody."""
+    within the whole: a quoted phrase with its quotes, and every other word as
+    :func:`_term` reads it."""
     terms = []
     for phrase, word in _TERM.findall(query):
-        term = f'"{phrase}"' if phrase else word.lstrip("-").strip('"')
-        if term.lower() not in _WEBSEARCH_OPERATORS and _WORD.search(term):
+        term = f'"{phrase}"' if _WORD.search(phrase) else _term(word)
+        if term is not None:
             terms.append(term)
     return terms
 
@@ -208,28 +217,28 @@ def _people_named(term: str) -> ColumnElement:
     community or of their handle as it is shown (``jordan#0042``), as the term
     would match those written in text. Whole words, never a prefix: three
     letters typed would otherwise name everyone whose name starts with them.
-    The members are the routed community's own.
+    The members are the routed community's own, and only those.
     """
     from app.services.platform.users import visible_to_other_people
 
     handle = func.concat(
-        MemberProfile.username,
+        GuildMember.username,
         "#",
-        func.lpad(cast(MemberProfile.discriminator, String), 4, "0"),
+        func.lpad(cast(GuildMember.discriminator, String), 4, "0"),
     )
-    names = func.concat_ws(" ", MemberProfile.display_name, handle)
+    names = func.concat_ws(" ", GuildMember.display_name, handle)
     # A name holding the term holds each of its words, so testing one as a
     # substring first leaves only those few names to parse.
     word = max(_WORD.findall(term), key=len)
     return cast(
         select(
             func.string_agg(
-                func.quote_literal(MENTION_LEXEME + cast(MemberProfile.id, String)),
+                func.quote_literal(MENTION_LEXEME + cast(GuildMember.id, String)),
                 " | ",
             )
         )
         .where(
-            visible_to_other_people(),
+            visible_to_other_people(GuildMember.status),
             names.ilike(f"%{word}%"),
             func.to_tsvector("simple", names).op("@@")(
                 func.websearch_to_tsquery("simple", term)
@@ -240,22 +249,17 @@ def _people_named(term: str) -> ColumnElement:
     )
 
 
-def _with_people(parsed, terms: Iterable[str], prefix: Optional[str] = None):
-    """``parsed`` with each term also matching a mention of anybody it names.
+def _with_people(parsed, targets: Iterable[tuple[ColumnElement, str]]):
+    """``parsed`` with each target also matching a mention of anybody its term
+    names.
 
-    Applied to the parsed query rather than to the text, so a phrase, an ``or``
-    and an exclusion keep what they meant: ``-ada`` leaves out a mention of Ada
-    as well as the word. Each term is parsed alone by the function that parsed
-    the whole, which gives the subtree the rewrite has to find — a handle such
-    as ``brave-otter`` parses to a phrase of its parts. ``prefix`` is the last
-    word where it is matched as a prefix, and names whoever it names whole.
+    A target is the subtree of ``parsed`` one typed term became, beside that
+    term as typed, which is what names a person: a handle such as
+    ``brave-otter`` parses to a phrase of its parts, and a word matched as a
+    prefix names whoever it names whole. Applied to the parsed query rather
+    than to the text, so a phrase, an ``or`` and an exclusion keep what they
+    meant: ``-ada`` leaves out a mention of Ada as well as the word.
     """
-    targets = [
-        (func.websearch_to_tsquery("simple", term), term)
-        for term in dict.fromkeys(terms)
-    ]
-    if prefix is not None:
-        targets.append((func.to_tsquery("simple", f"{prefix}:*"), prefix))
     for target, term in targets:
         mentioned = target.op("||", return_type=TSQUERY)(_people_named(term))
         parsed = func.ts_rewrite(
@@ -285,7 +289,15 @@ def _tsquery(query: str):
         parsed = func.to_tsquery("simple", f"{prefix}:*")
         if head.strip():
             parsed = func.websearch_to_tsquery("simple", head).op("&&")(parsed)
-    return _with_people(parsed, _typed_terms(head), prefix)
+    # Each term parsed alone by the function that parsed the whole gives the
+    # subtree it became there.
+    targets = [
+        (func.websearch_to_tsquery("simple", term), term)
+        for term in dict.fromkeys(_typed_terms(head))
+    ]
+    if prefix is not None:
+        targets.append((func.to_tsquery("simple", f"{prefix}:*"), prefix))
+    return _with_people(parsed, targets)
 
 
 @dataclass(frozen=True)
@@ -678,16 +690,18 @@ def prefix_tsquery(text: str):
     Tokens are reduced to alphanumerics, so nothing a person types reaches
     ``to_tsquery`` as syntax.
     """
-    tokens = _prefix_words(text)
+    tokens = _prefix_tokens(text)
     if not tokens:
         return None
-    return func.to_tsquery("simple", " & ".join([*tokens[:-1], f"{tokens[-1]}:*"]))
+    return func.to_tsquery("simple", " & ".join(tokens))
 
 
-def _prefix_words(text: str) -> list[str]:
-    """The words of ``text`` :func:`prefix_tsquery` matches."""
+def _prefix_tokens(text: str) -> list[str]:
+    """Each word of ``text`` as :func:`prefix_tsquery` matches it: its letters
+    and digits, the last one as a prefix."""
     tokens = ["".join(c for c in part if c.isalnum()) for part in text.split()]
-    return [t for t in tokens if t]
+    tokens = [t for t in tokens if t]
+    return [*tokens[:-1], f"{tokens[-1]}:*"] if tokens else []
 
 
 def tool_search_clause(
@@ -716,8 +730,17 @@ def tool_search_clause(
         # a caller would read as "the filter was ignored".
         return false()
     if not isinstance(context, InstallContext) or context.holds("members:read"):
-        *words, last = _prefix_words(search)
-        parsed = _with_people(parsed, words, last)
+        # The same words, typed: ``brave-otter`` is matched as ``braveotter``
+        # but names somebody as itself.
+        typed = (part for part in search.split() if any(map(str.isalnum, part)))
+        parsed = _with_people(
+            parsed,
+            (
+                (func.to_tsquery("simple", token), term)
+                for token, part in zip(_prefix_tokens(search), typed)
+                if (term := _term(part)) is not None
+            ),
+        )
     return id_col.in_(
         select(SearchEntry.entity_id).where(
             SearchEntry.entity_type == tool.value,

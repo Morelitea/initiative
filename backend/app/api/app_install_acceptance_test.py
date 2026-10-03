@@ -882,12 +882,12 @@ async def test_a_mention_names_a_person_by_reference_and_by_name_under_members_r
     # What is derived from the text shows the name only as the text does.
     assert posted["excerpt"] == f"Over to {name}".strip()
     assert listed["items"][0]["description_excerpt"] == f"Over to @{name}"
-    # A word of the person's handle finds what mentions them only for an app
-    # that may read names.
+    # The person's handle finds what mentions them only for an app that may
+    # read names.
     found = await client.get(
         guild_url(guild_id, "/documents/"),
         headers=headers,
-        params={"search": seat.user.username.split("-")[0]},
+        params={"search": seat.user.username},
     )
     assert found.status_code == 200, found.text
     assert len(found.json()["items"]) == int(reads_names)
