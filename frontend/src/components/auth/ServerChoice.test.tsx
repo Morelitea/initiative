@@ -12,7 +12,7 @@ import { renderWithProviders } from "@/__tests__/helpers/render";
 import { getSelfHostedAddress, setSelfHostedAddress } from "@/lib/serverStorage";
 import { freshAnswers, readStartDraft, saveStartDraft } from "@/lib/startFlow";
 
-import { ServerChip, ServerPicker } from "./ServerChoice";
+import { ServerChip, ServerPicker, ServerSubtitle } from "./ServerChoice";
 
 const mocks = vi.hoisted(() => ({ clearStart: vi.fn() }));
 
@@ -29,6 +29,39 @@ describe("ServerChip", () => {
     expect(screen.getByText(/^self-hosted$/i)).toBeInTheDocument();
     expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  });
+});
+
+describe("ServerSubtitle", () => {
+  it("names the browser's own server without a menu", () => {
+    renderWithProviders(<ServerSubtitle />, { server: { isNativePlatform: false } });
+
+    expect(screen.getByText(/^sign in to/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^server$/i })).not.toBeInTheDocument();
+  });
+
+  it("opens the address from the app's server menu", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<ServerSubtitle />, {
+      server: {
+        isNativePlatform: true,
+        serverUrl: "http://10.0.2.2:8000/api/v1",
+        getServerOrigin: () => "http://10.0.2.2:8000",
+      },
+    });
+
+    const menu = screen.getByRole("button", { name: /^server$/i });
+    expect(menu).toHaveTextContent("10.0.2.2:8000");
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+
+    await user.click(menu);
+    expect(screen.getByRole("menuitem", { name: /initiative cloud/i })).toHaveAttribute(
+      "aria-disabled",
+      "true"
+    );
+    await user.click(screen.getByRole("menuitem", { name: /your own server/i }));
+
+    expect(screen.getByRole("textbox", { name: /server address/i })).toBeInTheDocument();
   });
 });
 
