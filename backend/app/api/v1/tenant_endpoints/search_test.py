@@ -43,7 +43,7 @@ async def test_it_finds_a_task(client, session, acting_user: ActingUser) -> None
     a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     await create_task(session, a.project, title="quarterly vendor renewal")
 
-    body = await _search(client, a, q="vendor renewal")
+    body = await _search(client, a, search="vendor renewal")
     assert [h["title"] for h in body["items"]] == ["quarterly vendor renewal"]
     assert body["total_count"] == 1
 
@@ -77,7 +77,7 @@ async def test_a_person_is_found_where_they_are_mentioned(
 
     async def found(q: str) -> list[str]:
         # What matched, not the close titles offered when nothing did.
-        body = await _search(client, a, q=q)
+        body = await _search(client, a, search=q)
         return [] if body["fuzzy"] else sorted(h["title"] for h in body["items"])
 
     both = ["budget review", "minutes"]
@@ -112,7 +112,7 @@ async def test_it_finds_across_tools_in_one_query(
     await create_document(session, a.initiative, a.user, name="renewal doc")
     await create_tag(session, a.guild, name="renewal")
 
-    body = await _search(client, a, q="renewal")
+    body = await _search(client, a, search="renewal")
     assert {h["entity_type"] for h in body["items"]} == {"task", "document", "tag"}
 
 
@@ -123,7 +123,7 @@ async def test_a_hit_carries_what_it_takes_to_reach_it(
     a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     task = await create_task(session, a.project, title="routable")
 
-    hit = (await _search(client, a, q="routable"))["items"][0]
+    hit = (await _search(client, a, search="routable"))["items"][0]
     assert hit["entity_type"] == "task"
     assert hit["entity_id"] == task.id
     assert hit["tool"] == "project"
@@ -153,7 +153,7 @@ async def test_a_body_match_returns_a_snippet(
             }
         },
     )
-    hit = (await _search(client, a, q="renewal window"))["items"][0]
+    hit = (await _search(client, a, search="renewal window"))["items"][0]
     assert hit["title"] == "Handbook"
     assert "renewal" in (hit["snippet"] or "")
 
@@ -171,8 +171,8 @@ async def test_it_returns_only_what_the_caller_may_see(
     )
     await create_task(session, a.project, title="restricted renewal")
 
-    assert (await _search(client, a, q="restricted"))["total_count"] == 1
-    assert (await _search(client, b, q="restricted"))["items"] == []
+    assert (await _search(client, a, search="restricted"))["total_count"] == 1
+    assert (await _search(client, b, search="restricted"))["items"] == []
 
 
 async def test_the_total_counts_what_the_caller_may_see(
@@ -190,8 +190,8 @@ async def test_the_total_counts_what_the_caller_may_see(
     for n in range(3):
         await create_task(session, a.project, title=f"renewal {n}")
 
-    assert (await _search(client, b, q="renewal"))["total_count"] == 0
-    mine = await _search(client, a, q="renewal", page_size=2)
+    assert (await _search(client, b, search="renewal"))["total_count"] == 0
+    mine = await _search(client, a, search="renewal", page_size=2)
     assert mine["total_count"] == 3
     assert len(mine["items"]) == 2
     assert mine["has_next"] is True
@@ -204,18 +204,18 @@ async def test_it_can_be_narrowed_by_type_and_initiative(
     await create_task(session, a.project, title="narrow me")
     await create_document(session, a.initiative, a.user, name="narrow me too")
 
-    only_tasks = await _search(client, a, q="narrow", types=["task"])
+    only_tasks = await _search(client, a, search="narrow", types=["task"])
     assert {h["entity_type"] for h in only_tasks["items"]} == {"task"}
 
     elsewhere = await _search(
-        client, a, q="narrow", initiative_id=a.initiative.id + 999
+        client, a, search="narrow", initiative_id=a.initiative.id + 999
     )
     assert elsewhere["items"] == []
 
 
 async def test_an_empty_query_is_not_an_error(client, acting_user: ActingUser) -> None:
     a = await acting_user(guild_role=CommunityRole.admin)
-    body = await _search(client, a, q="   ")
+    body = await _search(client, a, search="   ")
     assert body == {
         "items": [],
         "total_count": 0,
@@ -234,7 +234,7 @@ async def test_suggest_returns_titles_to_jump_to(
     task = await create_task(session, a.project, title="jump target")
 
     response = await client.get(
-        a.g("/search/suggest"), headers=a.headers, params={"q": "jump"}
+        a.g("/search/suggest"), headers=a.headers, params={"search": "jump"}
     )
     assert response.status_code == 200, response.text
     rows = response.json()
@@ -258,7 +258,7 @@ async def test_comments_are_reached_by_asking_for_them(
     )
 
     unasked = await client.get(
-        a.g("/search/"), headers=a.headers, params={"q": "vendor confirmed"}
+        a.g("/search/"), headers=a.headers, params={"search": "vendor confirmed"}
     )
     assert unasked.status_code == 200, unasked.text
     assert unasked.json()["items"] == []
@@ -266,7 +266,7 @@ async def test_comments_are_reached_by_asking_for_them(
     asked = await client.get(
         a.g("/search/"),
         headers=a.headers,
-        params={"q": "vendor confirmed", "types": ["comment"]},
+        params={"search": "vendor confirmed", "types": ["comment"]},
     )
     assert asked.status_code == 200, asked.text
     items = asked.json()["items"]
@@ -289,7 +289,7 @@ async def test_suggest_narrows_to_the_types_it_is_given(
     tags_only = await client.get(
         a.g("/search/suggest"),
         headers=a.headers,
-        params={"q": "riverside", "types": ["tag"]},
+        params={"search": "riverside", "types": ["tag"]},
     )
     assert tags_only.status_code == 200, tags_only.text
     assert [r["entity_id"] for r in tags_only.json()] == [tag.id]
@@ -303,7 +303,7 @@ async def test_an_unknown_type_is_refused_rather_than_ignored(
     a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
 
     response = await client.get(
-        a.g("/search/"), headers=a.headers, params={"q": "x", "types": ["invoice"]}
+        a.g("/search/"), headers=a.headers, params={"search": "x", "types": ["invoice"]}
     )
     assert response.status_code == 422, response.text
 
@@ -318,7 +318,7 @@ async def test_the_last_word_matches_as_a_prefix(
 
     for query in ("thro", "barricade thro"):
         response = await client.get(
-            a.g("/search/"), headers=a.headers, params={"q": query}
+            a.g("/search/"), headers=a.headers, params={"search": query}
         )
         assert response.status_code == 200, response.text
         assert response.json()["total_count"] == 1, f"{query} found nothing"
@@ -340,7 +340,7 @@ async def test_what_the_reader_asked_for_exactly_is_left_exact(
         response = await client.get(
             a.g("/search/"),
             headers=a.headers,
-            params={"q": query},
+            params={"search": query},
         )
         assert response.status_code == 200, response.text
         assert response.json()["fuzzy"] is True, f"{query} was widened"
@@ -356,7 +356,7 @@ async def test_a_typo_is_offered_the_closest_titles(
     await create_task(session, a.project, title="Barricade the Throne")
 
     response = await client.get(
-        a.g("/search/"), headers=a.headers, params={"q": "thrne"}
+        a.g("/search/"), headers=a.headers, params={"search": "thrne"}
     )
     assert response.status_code == 200, response.text
     body = response.json()
@@ -372,7 +372,7 @@ async def test_a_search_that_works_is_never_flagged_as_close(
     await create_task(session, a.project, title="Barricade the Throne")
 
     response = await client.get(
-        a.g("/search/"), headers=a.headers, params={"q": "throne"}
+        a.g("/search/"), headers=a.headers, params={"search": "throne"}
     )
     assert response.status_code == 200, response.text
     assert response.json()["fuzzy"] is False
@@ -385,7 +385,7 @@ async def test_nothing_close_stays_nothing(
     await create_task(session, a.project, title="Barricade the Throne")
 
     response = await client.get(
-        a.g("/search/"), headers=a.headers, params={"q": "zzzzqqq"}
+        a.g("/search/"), headers=a.headers, params={"search": "zzzzqqq"}
     )
     assert response.status_code == 200, response.text
     body = response.json()
@@ -401,7 +401,7 @@ async def test_a_non_member_cannot_search_the_guild(
     await create_task(session, a.project, title="private renewal")
 
     response = await client.get(
-        a.g("/search/"), headers=outsider.headers, params={"q": "renewal"}
+        a.g("/search/"), headers=outsider.headers, params={"search": "renewal"}
     )
     assert response.status_code == 403
 
@@ -431,13 +431,13 @@ async def test_suggest_offers_only_titles_that_match(
     await create_document(session, a.initiative, a.user, name="Renewal calendar")
 
     response = await client.get(
-        a.g("/search/suggest"), headers=a.headers, params={"q": "renewal"}
+        a.g("/search/suggest"), headers=a.headers, params={"search": "renewal"}
     )
     assert response.status_code == 200, response.text
     assert [r["title"] for r in response.json()] == ["Renewal calendar"]
 
     # ...while the full search still finds the body match.
-    body = await _search(client, a, q="renewal")
+    body = await _search(client, a, search="renewal")
     assert {h["title"] for h in body["items"]} == {"Handbook", "Renewal calendar"}
 
 
@@ -449,7 +449,7 @@ async def test_suggest_matches_a_partly_typed_word(
     await create_task(session, a.project, title="vendor renewal")
 
     response = await client.get(
-        a.g("/search/suggest"), headers=a.headers, params={"q": "ven"}
+        a.g("/search/suggest"), headers=a.headers, params={"search": "ven"}
     )
     assert [r["title"] for r in response.json()] == ["vendor renewal"]
 
@@ -465,7 +465,7 @@ async def test_paging_does_not_repeat_or_drop_a_hit(
 
     seen: list[int] = []
     for number in (1, 2, 3):
-        page = await _search(client, a, q="renewal", page=number, page_size=2)
+        page = await _search(client, a, search="renewal", page=number, page_size=2)
         seen.extend(h["entity_id"] for h in page["items"])
     assert len(seen) == 6
     assert len(set(seen)) == 6
@@ -485,11 +485,11 @@ async def test_archived_work_is_kept_back_until_it_is_asked_for(
         archived_at=datetime.now(timezone.utc),
     )
 
-    default = await _search(client, a, q="shelved")
+    default = await _search(client, a, search="shelved")
     assert [h["entity_id"] for h in default["items"]] == [live.id]
     assert default["total_count"] == 1
 
-    asked = await _search(client, a, q="shelved", include_archived=True)
+    asked = await _search(client, a, search="shelved", include_archived=True)
     assert {h["entity_id"] for h in asked["items"]} == {live.id, filed.id}
 
 
@@ -503,16 +503,18 @@ async def test_templates_are_found_by_name_and_pickable_on_their_own(
         session, a.initiative, a.user, name="kickoff notes template", is_template=True
     )
 
-    both = await _search(client, a, q="kickoff")
+    both = await _search(client, a, search="kickoff")
     assert {h["entity_id"] for h in both["items"]} == {real.id, blank.id}
 
     assert [
         h["entity_id"]
-        for h in (await _search(client, a, q="kickoff", is_template=True))["items"]
+        for h in (await _search(client, a, search="kickoff", is_template=True))["items"]
     ] == [blank.id]
     assert [
         h["entity_id"]
-        for h in (await _search(client, a, q="kickoff", is_template=False))["items"]
+        for h in (await _search(client, a, search="kickoff", is_template=False))[
+            "items"
+        ]
     ] == [real.id]
 
 
@@ -531,7 +533,7 @@ async def test_suggest_narrows_to_one_initiative(
     response = await client.get(
         a.g("/search/suggest"),
         headers=a.headers,
-        params={"q": "shared", "initiative_id": a.initiative.id},
+        params={"search": "shared", "initiative_id": a.initiative.id},
     )
     assert response.status_code == 200, response.text
     assert [r["entity_id"] for r in response.json()] == [here.id]
@@ -550,7 +552,7 @@ async def test_suggest_leaves_archived_work_out(
     )
 
     response = await client.get(
-        a.g("/search/suggest"), headers=a.headers, params={"q": "lantern"}
+        a.g("/search/suggest"), headers=a.headers, params={"search": "lantern"}
     )
     assert response.status_code == 200, response.text
     assert response.json() == []
@@ -575,7 +577,7 @@ async def test_a_template_picker_is_a_wider_net_not_a_looser_one(
     response = await client.get(
         other.g("/search/suggest"),
         headers=other.headers,
-        params={"q": "private", "types": ["document"], "is_template": True},
+        params={"search": "private", "types": ["document"], "is_template": True},
     )
     assert response.status_code == 200, response.text
     assert private_template.id not in {r["entity_id"] for r in response.json()}
@@ -672,13 +674,13 @@ async def test_a_scheduled_notice_is_not_searchable_until_it_goes_up(
         scheduled_for=datetime.now(timezone.utc) - timedelta(minutes=1),
     )
 
-    assert (await _search(client, a, q="embargoed"))["items"] == []
+    assert (await _search(client, a, search="embargoed"))["items"] == []
 
     await route_session_to_guild(session, a.guild.id)
     await publish_due_posts(session, now=datetime.now(timezone.utc))
     await session.commit()
 
-    body = await _search(client, a, q="embargoed")
+    body = await _search(client, a, search="embargoed")
     assert [h["entity_id"] for h in body["items"]] == [draft.id]
 
 
@@ -710,7 +712,7 @@ async def test_typing_its_name_does_not_find_it_either(
         a.g("/search/suggest"),
         headers=a.headers,
         params={
-            "q": "riverside",
+            "search": "riverside",
             "types": ["document"],
             "subject": f"document:{subject.id}",
         },
@@ -776,7 +778,7 @@ async def test_a_suggestion_says_whether_it_is_yours_to_change(
     await session.commit()
 
     response = await client.get(
-        a.g("/search/suggest"), headers=a.headers, params={"q": "Read only"}
+        a.g("/search/suggest"), headers=a.headers, params={"search": "Read only"}
     )
     assert response.status_code == 200, response.text
     by_id = {row["entity_id"]: row for row in response.json()}
@@ -801,7 +803,7 @@ async def test_a_suggestion_says_what_it_lives_in(
 
     rows = [
         row
-        for row in await _suggest(client, a, q="Do a thing", types="task")
+        for row in await _suggest(client, a, search="Do a thing", types="task")
         if row["title"] == "Do a thing"
     ]
     assert len(rows) == 2
@@ -817,7 +819,7 @@ async def test_a_tool_does_not_live_in_itself(
     a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await create_project(session, a.initiative, a.user, name="Harvest")
 
-    rows = await _suggest(client, a, q="Harvest", types="project")
+    rows = await _suggest(client, a, search="Harvest", types="project")
     assert [row["tool_title"] for row in rows] == [None]
     assert [row["initiative_name"] for row in rows] == [a.initiative.name]
 

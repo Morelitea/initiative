@@ -74,7 +74,7 @@ async def search_community(
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
-    q: str = Query(description="What to search for.", max_length=1000),
+    search: str = Query(description="What to search for.", max_length=1000),
     types: Optional[List[SearchEntityType]] = Query(
         default=None, description=_TYPE_DESCRIPTION
     ),
@@ -95,7 +95,7 @@ async def search_community(
     """
     return await search_service.search(
         session,
-        query=q,
+        query=search,
         filters=search_service.Filters(
             types=types,
             initiative_id=initiative_id,
@@ -147,7 +147,7 @@ async def recent_community(
 async def suggest_community(
     session: ActorSessionDep,
     guild_context: SuggestByEntityType,
-    q: str = Query(description="What to jump to.", max_length=200),
+    search: str = Query(description="What to jump to.", max_length=200),
     types: Optional[List[SearchEntityType]] = Query(
         default=None, description=_TYPE_DESCRIPTION
     ),
@@ -174,7 +174,7 @@ async def suggest_community(
     try:
         return await search_service.suggest(
             session,
-            query=q,
+            query=search,
             user_id=guild_context.user_id,
             filters=search_service.Filters(
                 types=types,

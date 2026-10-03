@@ -162,7 +162,7 @@ describe("query-keys guild scoping", () => {
       const guildScoped = survives(["/api/v1/c/5/projects/"]);
       const kept = [
         ["/api/v1/communities/"],
-        ["/api/v1/communities/directory", { q: "chess" }],
+        ["/api/v1/communities/directory", { search: "chess" }],
         ["/api/v1/access-grants/queue", { status: "pending" }],
         ["/api/v1/me"],
         ["/api/v1/me/tasks", { page: 1 }],

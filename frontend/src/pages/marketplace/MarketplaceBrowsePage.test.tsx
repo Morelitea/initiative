@@ -133,7 +133,7 @@ describe("MarketplaceBrowsePage", () => {
     await user.type(await screen.findByRole("textbox"), "burndown");
 
     await waitFor(() =>
-      expect(listingsFor).toHaveBeenCalledWith(expect.objectContaining({ q: "burndown" }))
+      expect(listingsFor).toHaveBeenCalledWith(expect.objectContaining({ search: "burndown" }))
     );
   });
 

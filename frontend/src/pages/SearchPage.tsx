@@ -126,7 +126,7 @@ export function SearchPage() {
   const indexTypes = categoryEntityTypes(tab);
   const results = useGuildSearch(
     {
-      q: query,
+      search: query,
       types: indexTypes ?? TOOL_ENTITY_TYPES,
       page,
       page_size: PAGE_SIZE,

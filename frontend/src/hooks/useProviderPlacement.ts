@@ -44,7 +44,7 @@ export const usePlacementCommunities = (
   query: string,
   options?: QueryOpts<PlacementCommunityRead[]>
 ) => {
-  const params = { provider_id: providerId, q: query.trim() || undefined };
+  const params = { provider_id: providerId, search: query.trim() || undefined };
   return useQuery<PlacementCommunityRead[]>({
     queryKey: getListPlacementCommunitiesQueryKey(params),
     queryFn: () => listPlacementCommunities(params),
