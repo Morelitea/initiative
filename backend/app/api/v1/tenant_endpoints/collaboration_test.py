@@ -142,6 +142,7 @@ async def test_a_handover_merges_into_the_room_and_saves_both_views(
         yjs_state=stored,
     )
     drawn = {**WHITEBOARD, "elements": [{"id": "drawn offline"}]}
+    stamped = doc.updated_at
     offline = Doc()
     offline.apply_update(stored)
     offline.apply_update(await body_states.WHITEBOARD.apply(stored, drawn))
@@ -162,6 +163,8 @@ async def test_a_handover_merges_into_the_room_and_saves_both_views(
     ).one()
     assert saved.content == drawn
     assert await body_states.WHITEBOARD.render(saved.yjs_state or b"") == drawn
+    # Saved as an edit is, so a device's older unsaved copy reads as older.
+    assert saved.updated_at > stamped
 
 
 async def test_an_editor_body_is_rendered_by_the_server_not_the_tab(

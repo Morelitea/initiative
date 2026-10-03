@@ -547,10 +547,8 @@ class CollaborationManager:
         spec = resource_for(room.resource_type)
         revision, state = room.snapshot()
         content = await room.body.render(state) if room.body is not None else None
-        values: Dict[str, Any] = {
-            YJS_STATE_COLUMN: state,
-            YJS_UPDATED_COLUMN: datetime.now(timezone.utc),
-        }
+        now = datetime.now(timezone.utc)
+        values: Dict[str, Any] = {YJS_STATE_COLUMN: state, YJS_UPDATED_COLUMN: now}
         if content is not None:
             # Imported here rather than at module scope: the sync reaches back
             # into this registry to retire idle rooms.
@@ -571,6 +569,10 @@ class CollaborationManager:
                 )
                 fixed = None
             values[spec.content_column] = fixed if fixed else content
+            # The body changed, as much as a PATCH of it would have changed
+            # it: a reader judging what it holds against the row's age (a
+            # device's unsaved scene, a list sorted by recent edits) sees it.
+            values["updated_at"] = now
         try:
             result = await session.exec(
                 sa_update(spec.model)
