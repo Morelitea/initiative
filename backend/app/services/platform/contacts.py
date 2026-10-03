@@ -210,7 +210,7 @@ async def guild_sections(
     ordered = [sections[gid] for gid in guild_ids if gid in sections]
     for section in ordered:
         for item in section.items:
-            item.shared_guild_ids = shared.get(item.id, [])
+            item.shared_community_ids = shared.get(item.id, [])
     return ordered
 
 

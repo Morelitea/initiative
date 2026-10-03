@@ -228,7 +228,9 @@ def test_every_tool_read_schema_reports_the_comment_switch():
     schema = app.openapi()
     for tool in Tool:
         pattern = re.compile(
-            r"^/api/v1/c/\{guild_id\}/" + re.escape(tool.route_segment) + r"/\{\w+\}$"
+            r"^/api/v1/c/\{community_id\}/"
+            + re.escape(tool.route_segment)
+            + r"/\{\w+\}$"
         )
         detail = next(
             (
@@ -311,7 +313,7 @@ def test_the_generic_tool_tags_route_is_the_only_tool_set_tags_surface():
 def test_every_tool_mounts_its_list_route():
     # A tool's guild-wide list is mounted from TOOL_LISTS for every tool
     # (tenant_endpoints/tool_lists.py), which also feeds the one sidebar-counts
-    # route. The operation-id stem is asserted too: it is the generated
+    # route. The operation id is asserted too: it is the generated
     # frontend client's function name, so a tool that loses its list — or
     # gains a hand-written copy somewhere else — fails here rather than
     # silently changing the client.
@@ -323,8 +325,8 @@ def test_every_tool_mounts_its_list_route():
     spec = app.openapi()
     for tool in Tool:
         segment = tool.route_segment
-        listing = spec["paths"][f"/api/v1/c/{{guild_id}}/{segment}/"]["get"]
-        assert listing["operationId"].startswith(f"list_{tool.plural}_"), tool
+        listing = spec["paths"][f"/api/v1/c/{{community_id}}/{segment}/"]["get"]
+        assert listing["operationId"] == f"list_{tool.plural}", tool
         # Every tool is taggable, so every list narrows by tag.
         assert "tag_ids" in {p["name"] for p in listing["parameters"]}, tool
 
@@ -333,7 +335,7 @@ def test_every_tool_mounts_the_grants_route():
     # Sharing is one route, mounted from the resource-access registry for every
     # tool (tenant_endpoints/tool_grants.py). The exact equality means a tool
     # that loses it — or a hand-written copy added back somewhere else — fails
-    # here. The operation-id stem is asserted too: it is the generated frontend
+    # here. The operation id is asserted too: it is the generated frontend
     # client's function name.
     from app.api.resource_access import RESOURCE_ACCESS
     from app.main import app
@@ -341,7 +343,7 @@ def test_every_tool_mounts_the_grants_route():
     spec = app.openapi()
     mounted = {path for path in spec["paths"] if path.endswith("/grants")}
     expected = {
-        f"/api/v1/c/{{guild_id}}/{tool.route_segment}"
+        f"/api/v1/c/{{community_id}}/{tool.route_segment}"
         f"/{{{RESOURCE_ACCESS[tool].path_param}}}/grants"
         for tool in Tool
     }
@@ -349,12 +351,12 @@ def test_every_tool_mounts_the_grants_route():
 
     for tool in Tool:
         path = (
-            f"/api/v1/c/{{guild_id}}/{tool.route_segment}"
+            f"/api/v1/c/{{community_id}}/{tool.route_segment}"
             f"/{{{RESOURCE_ACCESS[tool].path_param}}}/grants"
         )
         item = spec["paths"][path]
         assert set(item) == {"put"}, tool
-        assert item["put"]["operationId"].startswith(f"set_{tool.value}_grants"), tool
+        assert item["put"]["operationId"] == f"set_{tool.value}_grants", tool
 
 
 def test_every_tool_mounts_its_cross_guild_list_route():
@@ -363,7 +365,7 @@ def test_every_tool_mounts_its_cross_guild_list_route():
     # calendars each carried a hand-written copy of it until this registry took
     # them over, so the count is asserted as well as the presence: a tool that
     # loses its list, or grows a second one anywhere else under /me, fails here
-    # rather than silently changing the client. The operation-id stem is the
+    # rather than silently changing the client. The operation id is the
     # generated frontend client's function name.
     from app.api.v1.tenant_endpoints.me_tools import MY_TOOL_LISTS
     from app.main import app
@@ -379,9 +381,9 @@ def test_every_tool_mounts_its_cross_guild_list_route():
     for tool in Tool:
         path = f"/api/v1/me/{tool.route_segment}"
         listing = spec["paths"][path]["get"]
-        stem = f"list_my_{tool.plural}_"
-        assert listing["operationId"].startswith(stem), tool
-        assert sum(oid.startswith(stem) for oid in operation_ids) == 1, tool
+        name = f"list_my_{tool.plural}"
+        assert listing["operationId"] == name, tool
+        assert operation_ids.count(name) == 1, tool
 
 
 def test_tool_models_spell_the_shared_columns_the_same():

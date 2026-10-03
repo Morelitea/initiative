@@ -277,8 +277,8 @@ async def test_shared_guilds_named_on_every_appearance(
         assert [item["id"] for item in section["items"]] == [other.id]
         # Every appearance names the full set, in rail order; the chip is what
         # drops the section's own guild.
-        assert section["items"][0]["shared_guild_ids"] == expected
-        assert elsewhere.id not in section["items"][0]["shared_guild_ids"]
+        assert section["items"][0]["shared_community_ids"] == expected
+        assert elsewhere.id not in section["items"][0]["shared_community_ids"]
 
 
 async def test_shared_guilds_stable_across_pages(
@@ -305,14 +305,14 @@ async def test_shared_guilds_stable_across_pages(
 
     page_one = await client.get(f"{SECTIONS}?page=1&page_size=2", headers=a.headers)
     small_section = _section(page_one.json(), small.id)
-    assert small_section["items"][0]["shared_guild_ids"] == expected
+    assert small_section["items"][0]["shared_community_ids"] == expected
     # ...and ``other`` is not even on the big guild's first page.
     assert other.id not in [i["id"] for i in _section(page_one.json(), big.id)["items"]]
 
     page_three = await client.get(f"{SECTIONS}?page=3&page_size=2", headers=a.headers)
     big_section = _section(page_three.json(), big.id)
     assert [i["id"] for i in big_section["items"]] == [other.id]
-    assert big_section["items"][0]["shared_guild_ids"] == expected
+    assert big_section["items"][0]["shared_community_ids"] == expected
 
 
 # --- search -----------------------------------------------------------------
