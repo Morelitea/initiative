@@ -910,7 +910,7 @@ export const CommunitySidebar = ({ isHomeMode = false }: { isHomeMode?: boolean 
       // (SidebarGroup/SidebarMenuItem). Without a positive z-index here the
       // sticky rail (and its absolutely-positioned flyout) would paint beneath
       // those later-in-DOM siblings, bleeding the content through the flyout.
-      className="sticky top-0 z-30 flex max-h-screen w-20 flex-col items-center gap-3 border-r bg-sidebar px-2 pb-4"
+      className="sticky top-0 z-30 flex max-h-dvh w-20 flex-col items-center gap-3 border-r bg-sidebar px-2 pb-4"
       style={{ paddingTop: "calc(var(--safe-area-inset-top) + 1rem)" }}
       onTouchStart={handleRailTouchStart}
       onTouchMove={handleRailTouchMove}
@@ -1051,7 +1051,7 @@ export const CommunitySidebar = ({ isHomeMode = false }: { isHomeMode?: boolean 
             // Overlay the whole sidebar (rail + content column): stay anchored
             // at the rail's left edge and span the full sidebar width — on
             // mobile the drawer width, on desktop --sidebar-width.
-            className="absolute top-0 left-0 z-40 flex h-screen w-[var(--sidebar-width-mobile,90vw)] flex-col border-r bg-sidebar shadow-lg lg:w-[var(--sidebar-width,20rem)]"
+            className="absolute top-0 left-0 z-40 flex h-dvh w-[var(--sidebar-width-mobile,90vw)] flex-col border-r bg-sidebar shadow-lg lg:w-[var(--sidebar-width,20rem)]"
             style={{
               transform: panelTransform,
               transition: drag ? "none" : `transform ${FLYOUT_TRANSITION_MS}ms ${FLYOUT_EASING}`,

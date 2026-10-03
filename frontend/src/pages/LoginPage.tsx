@@ -13,7 +13,7 @@ import type { LoginProviderEntry } from "@/api/generated/initiativeAPI.schemas";
 import { EmailOtpCard } from "@/components/auth/EmailOtpCard";
 import { PasskeyRelayCard } from "@/components/auth/PasskeyRelayCard";
 import { ProviderMark } from "@/components/auth/ProviderMark";
-import { ServerPicker } from "@/components/auth/ServerChoice";
+import { ServerPicker, ServerSubtitle } from "@/components/auth/ServerChoice";
 import { SignInFrame } from "@/components/auth/SignInFrame";
 import { Button } from "@/components/ui/button";
 import {
@@ -414,13 +414,19 @@ const SignInCard = () => {
     <SignInFrame>
       <Card className="w-full max-w-md shadow-lg">
         <CardHeader>
-          <CardTitle>{challenge ? t("secondFactor.title") : t("login.title")}</CardTitle>
+          <CardTitle className="text-2xl">
+            {challenge ? t("secondFactor.title") : t("login.title")}
+          </CardTitle>
           <CardDescription>
-            {challenge
-              ? useRecoveryCode
-                ? t("secondFactor.recoverySubtitle")
-                : t("secondFactor.subtitle")
-              : t("login.subtitle")}
+            {challenge ? (
+              useRecoveryCode ? (
+                t("secondFactor.recoverySubtitle")
+              ) : (
+                t("secondFactor.subtitle")
+              )
+            ) : (
+              <ServerSubtitle />
+            )}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -595,9 +601,6 @@ const SignInCard = () => {
               </Link>
             </p>
           ) : null}
-        </CardFooter>
-        <CardFooter>
-          <ServerPicker className="w-full" />
         </CardFooter>
       </Card>
     </SignInFrame>

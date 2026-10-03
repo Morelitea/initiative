@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The server prepares documents for live editing**, and live editing works across several copies of the server. **Server operators:** the editor helper uses about 90 MB while running; see **Running more than one copy**.
 - **Changing your email addresses asks you to confirm it's you.**
 - **The phone and desktop apps stay signed in for ninety days** of not being used, and show as one row each in your sessions. An app last opened before 0.70 asks you to sign in once.
+- **The sign-in page says which server you're signing in to.** In the phone app, tap its name to switch servers.
 - **API access is set per member.** A community's superadmin turns one person's personal API keys on or off from the **API access** column in **Community settings › Users**, which stops keys they already made too. It replaces the community-wide switch on the **Security** tab and, like it, applies only where the server grants the community the security standard. Members of a community that had keys switched off start with them off. Personal API keys never reach a community through an access grant.
 - **Rate limits count per account, not per network**, so people sharing an office address no longer share a limit or lock each other out.
 - **Links in notification emails sent before this release no longer open.** Open the notification in the app instead.
@@ -45,6 +46,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **On a phone browser, the sidebar's bottom row is no longer hidden behind the browser's toolbar.**
 - **Image captions in documents and wiki pages are saved.**
 - **`RATE_LIMIT_STORAGE_URI` accepts a `redis://` URL.**
 - **The phone and desktop apps keep your messages when a session times out**, and message notifications reach current phones again.
