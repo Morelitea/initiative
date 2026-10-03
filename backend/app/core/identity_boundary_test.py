@@ -27,8 +27,7 @@ from app.core.identity_boundary import (
 from app.core.messages import AppMessages
 from app.db.guild_standing import named_ref_candidates
 from app.models.platform.identity_ref import IdentityEntity
-from app.schemas.platform.user import AppMemberRead, UserPublic
-from app.services.platform.user_avatars import avatar_url
+from app.schemas.platform.user import UserPublic
 
 
 _GUILD = 7
@@ -254,38 +253,41 @@ def test_only_app_references_are_candidates():
 
 
 # ---------------------------------------------------------------------------
-# members:read
+# A person, as an install receives them
 # ---------------------------------------------------------------------------
 
 
-def test_a_member_for_an_install_is_a_reference_a_handle_a_name_and_a_picture():
-    public = UserPublic(
-        id=11,
-        username="ada",
-        discriminator=1234,
-        display_name="Ada Lovelace",
-        avatar_url="https://pictures.example/ada.png",
-    )
-    member = AppMemberRead.from_public(public)
-    assert set(AppMemberRead.model_fields) == {
-        "id",
-        "username",
-        "discriminator",
-        "display_name",
-        "avatar_url",
-    }
-    assert member.avatar_url == "https://pictures.example/ada.png"
+_ADA = UserPublic(
+    id=11,
+    username="ada",
+    discriminator=1234,
+    display_name="Ada Lovelace",
+    avatar_url="https://pictures.example/ada.png",
+)
+
+
+@pytest.mark.parametrize(
+    ("reads_names", "names"),
+    [
+        (
+            True,
+            {"username": "ada", "discriminator": 1234, "display_name": "Ada Lovelace"},
+        ),
+        (False, {}),
+    ],
+)
+def test_a_person_reaches_an_install_by_reference_and_by_name_under_members_read(
+    reads_names, names
+):
     with boundary_scope():
-        boundary = _boundary()
+        boundary = _boundary(reads_names=reads_names)
         admit_install(boundary)
         boundary.phase = BoundaryPhase.response
-        dumped = member.model_dump(mode="json")
-    assert dumped["id"] == f"{boundary.nonce}:u:11"
-    assert "email" not in dumped
+        dumped = _ADA.model_dump(mode="json")
+    assert dumped == {"id": f"{boundary.nonce}:u:11", **names}
 
 
-def test_a_picture_this_api_serves_is_not_passed_to_an_install():
-    public = UserPublic(
-        id=11, username="ada", discriminator=1234, avatar_url=avatar_url(11, "ab" * 32)
-    )
-    assert AppMemberRead.from_public(public).avatar_url is None
+def test_a_person_reads_a_person_whole():
+    dumped = _ADA.model_dump(mode="json")
+    assert dumped["id"] == 11
+    assert dumped["avatar_url"] == "https://pictures.example/ada.png"

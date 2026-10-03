@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 from pydantic import ConfigDict, Field
 
+from app.core.identity_boundary import GuildId, PersonId
 from app.models.tenant.wiki import WikiPageOrder, WikiReadingWidth
 from app.schemas.base import SanitizedBaseModel, TitleStr
 from app.schemas.query import PageMeta
@@ -187,7 +188,7 @@ class WikiPageSummary(SanitizedBaseModel):
 
     id: int
     wiki_id: int
-    guild_id: int
+    guild_id: GuildId
     #: Which of the two things this row is. A document keeps its own id, so a
     #: client keys rows on the pair rather than on the number alone.
     kind: WikiPageKind = WikiPageKind.page
@@ -200,7 +201,7 @@ class WikiPageSummary(SanitizedBaseModel):
     is_draft: bool = False
     title: str
     slug: str
-    created_by: int | None = None
+    created_by: PersonId | None = None
     created_at: datetime
     updated_at: datetime
     #: What is written on the page, so the navigation can nest it without

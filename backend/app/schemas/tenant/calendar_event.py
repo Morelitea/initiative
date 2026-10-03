@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import List, Mapping, Optional, Sequence, TYPE_CHECKING
+from typing import Any, List, Mapping, Optional, Sequence, TYPE_CHECKING
 
-from pydantic import ConfigDict, Field, model_validator
+from pydantic import ConfigDict, Field, PrivateAttr, field_serializer, model_validator
 
 from app.core import recurrence
-from app.core.identity_boundary import GuildId, PersonId
+from app.core.identity_boundary import GuildId, PersonId, names_withheld
 from app.core.relationships import Related
 from app.schemas.base import SanitizedBaseModel, TitleStr
 from app.schemas.recurrence import EventRule, OccurrenceScope
@@ -21,7 +21,7 @@ from app.schemas.tenant.property import (
 from app.schemas.tenant.archive import ContentCan
 from app.schemas.tenant.tag import TagSummary, annotated_tags
 from app.schemas.tenant.tool import from_row
-from app.schemas.platform.user import AvatarUrl, UserPublic
+from app.schemas.platform.user import AppPerson, PersonShape, UserPublic
 from app.core.user_display import display_name
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -135,7 +135,7 @@ class CalendarEventUpdate(PropertiesOnUpdate):
     occurrence: Optional[datetime] = None
 
 
-class CalendarEventAttendeePreview(SanitizedBaseModel):
+class CalendarEventAttendeePreview(PersonShape):
     """Compact per-attendee snapshot for list responses.
 
     Carries the id + avatar fields the SPA needs to render tinted,
@@ -150,7 +150,21 @@ class CalendarEventAttendeePreview(SanitizedBaseModel):
 
     user_id: PersonId
     name: str
-    avatar_url: AvatarUrl = None
+    avatar_url: Optional[str] = None
+    #: The person ``name`` was drawn from, for an installed app's response.
+    _person: Optional[AppPerson] = PrivateAttr(default=None)
+
+    @classmethod
+    def of(cls, user: Any) -> "CalendarEventAttendeePreview":
+        """The preview of ``user``, an attendee's person row."""
+        preview = cls(
+            user_id=user.id, name=display_name(user), avatar_url=user.avatar_url
+        )
+        preview._person = AppPerson.model_validate(user, from_attributes=True)
+        return preview
+
+    def app_person(self) -> AppPerson:
+        return self._person or AppPerson(id=self.user_id)
 
 
 class CalendarEventSummary(CalendarEventBase):
@@ -185,6 +199,11 @@ class CalendarEventSummary(CalendarEventBase):
     can: ContentCan = Field(default_factory=ContentCan)
     created_at: datetime
     updated_at: datetime
+
+    @field_serializer("attendee_names")
+    def _attendee_names_out(self, names: List[str]) -> List[str]:
+        """An installed app reads people's names under ``members:read`` only."""
+        return [] if names_withheld() else names
 
 
 class CalendarEventRead(CalendarEventSummary):
@@ -262,15 +281,9 @@ def serialize_calendar_event_summary(
     for att in attendees_list:
         user = getattr(att, "user", None)
         if user:
-            display = display_name(user)
-            names.append(display)
-            previews.append(
-                CalendarEventAttendeePreview(
-                    user_id=user.id,
-                    name=display,
-                    avatar_url=user.avatar_url,
-                )
-            )
+            preview = CalendarEventAttendeePreview.of(user)
+            names.append(preview.name)
+            previews.append(preview)
     return from_row(
         CalendarEventSummary,
         event,
@@ -303,7 +316,7 @@ def serialize_calendar_event(
         else ([], [])
     )
     return CalendarEventRead(
-        **summary.model_dump(),
+        **dict(summary),
         attendees=_serialize_attendees(event, answers or {}),
         documents=_serialize_documents(documents),
         overridden_fields=list(event.overridden_fields or []),

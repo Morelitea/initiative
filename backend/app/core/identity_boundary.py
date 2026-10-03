@@ -55,8 +55,8 @@ __all__ = [
     "admit_install",
     "boundary_scope",
     "current_install_boundary",
+    "names_withheld",
     "responding_to_install",
-    "serialize_person_id",
 ]
 
 
@@ -84,14 +84,16 @@ class InstallBoundary:
     ``guild_id`` and ``install_id`` are the routed community and install,
     ``guild_ref`` what the install calls that community, and ``named`` the
     references the request named that resolve in the install's sector.
-    ``session`` is the request's routed session, on which the route class
-    resolves what the response names.
+    ``reads_names`` is whether the install holds ``members:read``, which is
+    what lets it read people's names. ``session`` is the request's routed
+    session, on which the route class resolves what the response names.
     """
 
     guild_id: int
     install_id: int
     guild_ref: Optional[str]
     named: Mapping[str, tuple[IdentityEntity, int]]
+    reads_names: bool = False
     session: Any = None
     phase: BoundaryPhase = BoundaryPhase.input
     #: Marks a value the response names. Random per request, so nothing a
@@ -182,6 +184,13 @@ def responding_to_install() -> bool:
     return _boundary_in(BoundaryPhase.response) is not None
 
 
+def names_withheld() -> bool:
+    """Whether a value being serialized now goes out to an installed app that
+    does not hold ``members:read``, which knows people only by its references."""
+    boundary = _boundary_in(BoundaryPhase.response)
+    return boundary is not None and not boundary.reads_names
+
+
 # --- The two types --------------------------------------------------------------
 
 
@@ -210,11 +219,6 @@ def _serializer(entity: IdentityEntity):
 
     return serialize
 
-
-#: A person's id as a response carries it: the row id for a person, the
-#: install's reference for an installed app. For a field whose person id sits
-#: inside a value no :data:`PersonId` field describes.
-serialize_person_id = _serializer(IdentityEntity.user)
 
 #: The schema each type publishes, in both modes: an integer, which is what a
 #: person sends and receives, marked with what it names so the app API's

@@ -10,7 +10,7 @@ from app.schemas.base import RichTextStr, SanitizedBaseModel, TitleStr
 from app.schemas.query import PageMeta
 from app.schemas.recurrence import OccurrenceScope, TaskRule
 
-from app.schemas.platform.user import AvatarUrl, UserPublic
+from app.schemas.platform.user import PersonShape, UserPublic
 from app.schemas.tenant.initiative import InitiativeSummary
 from app.schemas.tenant.task_status import TaskStatusRead
 from app.schemas.tenant.tag import TagSummary
@@ -24,7 +24,7 @@ from app.models.tenant.task import TaskPriority
 from app.models.platform.user import UserStatus
 
 
-class TaskAssigneeSummary(SanitizedBaseModel):
+class TaskAssigneeSummary(PersonShape):
     """Minimal assignee data for task lists.
 
     A person appears here, so it follows the same two rules every other
@@ -41,7 +41,7 @@ class TaskAssigneeSummary(SanitizedBaseModel):
     username: str
     discriminator: int
     display_name: Optional[str] = None
-    avatar_url: AvatarUrl = None
+    avatar_url: Optional[str] = None
     status: UserStatus = UserStatus.active
 
 

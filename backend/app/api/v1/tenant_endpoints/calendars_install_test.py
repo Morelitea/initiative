@@ -323,7 +323,8 @@ async def test_invites_attendees_by_reference_in_its_own_name(
     body = response.json()
     assert [a["user_id"] for a in body["attendees"]] == [reference]
     assert body["attendees"][0]["user"]["id"] == reference
-    assert [p["user_id"] for p in body["attendee_previews"]] == [reference]
+    assert body["attendees"][0]["user"]["username"] == attendee.user.username
+    assert body["attendee_previews"] == [body["attendees"][0]["user"]]
     assert_names_nobody(response.text, [seat.user.id, attendee.user.id, guild_id])
 
     await drain_notices()

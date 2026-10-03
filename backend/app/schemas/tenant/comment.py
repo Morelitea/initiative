@@ -10,11 +10,11 @@ from pydantic import ConfigDict, Field, computed_field, field_validator, model_v
 from app.schemas.base import RichTextStr, SanitizedBaseModel
 from app.schemas.tenant.reaction import ReactionGroup
 from app.models.platform.user import Presence
-from app.schemas.platform.user import AvatarUrl, ProfileDecorations
+from app.schemas.platform.user import PersonShape, ProfileDecorations
 from app.services.platform import presence
 
 
-class CommentAuthor(SanitizedBaseModel):
+class CommentAuthor(PersonShape):
     """Who wrote a comment.
 
     An address never reaches a guild, so there is none here; the handle names
@@ -32,7 +32,7 @@ class CommentAuthor(SanitizedBaseModel):
     username: str
     discriminator: int
     display_name: Optional[str] = None
-    avatar_url: AvatarUrl = None
+    avatar_url: Optional[str] = None
     profile_decorations: ProfileDecorations = Field(default_factory=ProfileDecorations)
 
     @computed_field(return_type=Presence)  # type: ignore[misc]
