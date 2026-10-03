@@ -1,12 +1,12 @@
 import { useTranslation } from "react-i18next";
 import { Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 
-import type { GuildTaskBreakdown } from "@/api/generated/initiativeAPI.schemas";
+import type { CommunityTaskBreakdown } from "@/api/generated/initiativeAPI.schemas";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ChartContainer, ChartTooltipContent } from "@/components/ui/chart";
 
 interface GuildBreakdownChartProps {
-  data: GuildTaskBreakdown[];
+  data: CommunityTaskBreakdown[];
 }
 
 const COLORS = [

@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import type {
-  GuildNarrowingPending,
+  CommunityNarrowingPending,
   PlacementCommunityRead,
   PlacementInitiativeRead,
   ProviderPlacementResponse,
@@ -125,8 +125,8 @@ export const useDeletePlacementRule = () => {
 };
 
 /** Every community whose claim to a domain or tenant is waiting for an answer. */
-export const usePlacementRequests = (options?: QueryOpts<GuildNarrowingPending[]>) => {
-  return useQuery<GuildNarrowingPending[]>({
+export const usePlacementRequests = (options?: QueryOpts<CommunityNarrowingPending[]>) => {
+  return useQuery<CommunityNarrowingPending[]>({
     queryKey: getListPlacementRequestsApiV1SettingsPlacementRequestsGetQueryKey(),
     queryFn: () => listPlacementRequestsApiV1SettingsPlacementRequestsGet(),
     ...options,

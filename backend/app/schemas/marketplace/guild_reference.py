@@ -10,7 +10,7 @@ from app.models.platform.identity_ref import REF_MAX_LENGTH, IdentityPurpose
 from app.schemas.base import SanitizedBaseModel
 
 
-class GuildReferenceRequest(SanitizedBaseModel):
+class CommunityReferenceRequest(SanitizedBaseModel):
     """A reference the caller holds, and the sector it wants the same guild in.
 
     ``purpose`` names a sector rather than a party, and cannot name ``app``: an
@@ -36,7 +36,7 @@ class InstallationReferenceRequest(SanitizedBaseModel):
     )
 
 
-class GuildReferenceRead(SanitizedBaseModel):
+class CommunityReferenceRead(SanitizedBaseModel):
     """The same guild, named in the sector that was asked for."""
 
     purpose: IdentityPurpose

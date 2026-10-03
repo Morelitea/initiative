@@ -12,7 +12,7 @@ import io
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.services.content_sockets import sockets
 from app.testing.sockets import FakeWebSocket, settle, watch_events_bus
 from app.services.tenant import room_sink
@@ -60,7 +60,7 @@ class _Room:
 async def test_a_picture_arriving_tells_the_room_about_its_gallery(
     client: AsyncClient, acting_user, session
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _galleries_enabled(session, a.initiative)
     gallery = await create_gallery(session, a.initiative, a.user)
 
@@ -89,7 +89,7 @@ async def test_a_picture_arriving_tells_the_room_about_its_gallery(
 async def test_retagging_and_removing_a_picture_each_tell_the_room(
     client: AsyncClient, acting_user, session
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _galleries_enabled(session, a.initiative)
     gallery = await create_gallery(session, a.initiative, a.user)
     image = await create_gallery_image(session, gallery, a.user, write_blob=False)
@@ -121,7 +121,7 @@ async def test_retagging_and_removing_a_picture_each_tell_the_room(
 async def test_a_comment_on_a_gallery_names_it_as_the_parent(
     client: AsyncClient, acting_user, session
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _galleries_enabled(session, a.initiative)
     gallery = await create_gallery(session, a.initiative, a.user)
 

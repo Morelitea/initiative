@@ -27,7 +27,7 @@ from sqlmodel import select
 from app.core.encryption import SALT_APP_INSTALLS_CURSOR, decrypt_field, encrypt_field
 from app.db import session as db_session
 from app.models.platform.app_install import HOOK_ROUTE_MAX_LENGTH, AppInstall
-from app.models.platform.guild import LIVE_STATUS_VALUES, Guild, GuildStatus
+from app.models.platform.guild import LIVE_STATUS_VALUES, Guild, CommunityStatus
 from app.models.tenant.guild_app import GuildApp
 from app.services.tenant.app_config import connection_by_id
 
@@ -177,7 +177,7 @@ async def routed(listing_uid: str, route_value: str) -> list[IndexedInstall]:
             AppInstall.listing_uid == listing_uid,
             AppInstall.hook_route == route_value,
             AppInstall.enabled.is_(True),
-            Guild.status == GuildStatus.active.value,
+            Guild.status == CommunityStatus.active.value,
         )
         .order_by(AppInstall.guild_id)
     )

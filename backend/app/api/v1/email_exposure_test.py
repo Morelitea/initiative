@@ -40,12 +40,12 @@ SELF_SHAPES = {
 #: Shapes that carry an address field and mask it. Each has a validator
 #: applying ``app.core.email_masking.mask_email``; adding a name here means
 #: having added that validator.
-MASKED_SHAPES = {"OperatorUserRead", "AccessGrantRead", "GuildInviteRead"}
+MASKED_SHAPES = {"OperatorUserRead", "AccessGrantRead", "CommunityInviteRead"}
 
 #: Shapes that carry a deployment's contact address: one an operator published
 #: so people can write to it, not an account's stored address. It is served in
 #: full, because a masked contact cannot be written to.
-CONTACT_SHAPES = {"AccountTimeOutRead", "GuildRead", "IntakeSettingsRead"}
+CONTACT_SHAPES = {"AccountTimeOutRead", "CommunityRead", "IntakeSettingsRead"}
 
 
 def _operations() -> Iterable[tuple[str, str, dict]]:

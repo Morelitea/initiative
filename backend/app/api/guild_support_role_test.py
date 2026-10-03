@@ -23,7 +23,7 @@ from app.models.platform.access_grant import (
     AccessGrantPurpose,
     SettingsLevel,
 )
-from app.models.platform.guild import GuildMembership, GuildRole
+from app.models.platform.guild import GuildMembership, CommunityRole
 from app.models.platform.user import UserRole
 from app.testing import (
     create_guild,
@@ -94,7 +94,7 @@ async def test_scoped_grant_synthesizes_support_role(session: AsyncSession):
     await _live_grant(session, user=support, guild=guild, level="read")
 
     ctx = await _load_guild_context(session, support, guild.id)
-    assert ctx.role == GuildRole.support
+    assert ctx.role == CommunityRole.support
     assert ctx.is_pam is True
 
 
@@ -108,7 +108,7 @@ async def test_an_operators_own_grant_is_support_too(session: AsyncSession):
     await _live_grant(session, user=operator, guild=guild2, level="read_write")
 
     ctx = await _load_guild_context(session, operator, guild2.id)
-    assert ctx.role == GuildRole.support
+    assert ctx.role == CommunityRole.support
     assert ctx.is_pam is True
 
 
@@ -132,7 +132,7 @@ async def test_a_content_grant_alone_does_not_reach_guild_settings(
     The two axes are asked for separately and answered separately, so a grant
     on one says nothing about the other.
     """
-    admin = await acting_user(guild_role=GuildRole.admin)
+    admin = await acting_user(guild_role=CommunityRole.admin)
 
     support = await create_user(session, role=UserRole.support)
     await _live_grant(session, user=support, guild=admin.guild, level="read_write")
@@ -147,7 +147,7 @@ async def test_support_read_grant_reads_guild_settings(
 ):
     """A grantee holding the seat's rung can READ the guild AI settings
     surface (the connection list)."""
-    admin = await acting_user(guild_role=GuildRole.admin)
+    admin = await acting_user(guild_role=CommunityRole.admin)
 
     support = await create_user(session, role=UserRole.support)
     await _live_grant(session, user=support, guild=admin.guild, level="read")
@@ -168,7 +168,7 @@ async def test_the_admin_rung_does_not_reach_the_ai_settings_surface(
     may sign in to it, so it answers to the seat rather than to running the
     place day to day.
     """
-    admin = await acting_user(guild_role=GuildRole.admin)
+    admin = await acting_user(guild_role=CommunityRole.admin)
 
     support = await create_user(session, role=UserRole.support)
     await _live_grant(session, user=support, guild=admin.guild, level="read")
@@ -186,7 +186,7 @@ async def test_support_read_grant_cannot_write_guild_settings(
 ):
     """The seat's rung admits them to read; changing a connection asks for a
     read_write content grant beside it, so a read grant is refused by name."""
-    admin = await acting_user(guild_role=GuildRole.admin)
+    admin = await acting_user(guild_role=CommunityRole.admin)
 
     support = await create_user(session, role=UserRole.support)
     await _live_grant(session, user=support, guild=admin.guild, level="read")
@@ -210,7 +210,7 @@ async def test_support_read_write_grant_writes_guild_settings(
     user, so NOT break-glass — can WRITE the guild AI settings surface (the
     guild_<id>_support role has DML on guild_ai_connections; a read grant on
     _ro does not)."""
-    admin = await acting_user(guild_role=GuildRole.admin)
+    admin = await acting_user(guild_role=CommunityRole.admin)
 
     support = await create_user(session, role=UserRole.support)
     await _live_grant(session, user=support, guild=admin.guild, level="read_write")
@@ -232,7 +232,7 @@ async def test_plain_member_still_denied_guild_settings(
 ):
     """A plain member is denied, so none of the above loosened the surface for
     the community's own ordinary members."""
-    a = await acting_user(guild_role=GuildRole.member)
+    a = await acting_user(guild_role=CommunityRole.member)
     resp = await client.get(_ai_url(a.guild.id), headers=a.headers)
     assert resp.status_code == 403
     assert resp.json()["detail"] == GuildMessages.GUILD_SUPERADMIN_REQUIRED
@@ -248,8 +248,8 @@ async def test_guild_admin_cannot_assign_support_role(
 ):
     """The member-facing role endpoint rejects ``support``: it is synthesized
     for a grant and never stored as a membership role."""
-    admin = await acting_user(guild_role=GuildRole.admin)
-    member = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
+    admin = await acting_user(guild_role=CommunityRole.admin)
+    member = await acting_user(guild_role=CommunityRole.member, guild=admin.guild)
 
     resp = await client.patch(
         f"/api/v1/communities/{admin.guild.id}/members/{member.user.id}",
@@ -270,8 +270,8 @@ async def test_guild_admin_can_promote_member_to_admin(
 ):
     """A guild admin still promotes a member — the role write now runs on the
     system engine (the guild role holds no UPDATE on guild_memberships)."""
-    admin = await acting_user(guild_role=GuildRole.admin)
-    member = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
+    admin = await acting_user(guild_role=CommunityRole.admin)
+    member = await acting_user(guild_role=CommunityRole.member, guild=admin.guild)
     guild_id = admin.guild.id
     member_user_id = member.user.id
 
@@ -291,7 +291,7 @@ async def test_guild_admin_can_promote_member_to_admin(
             )
         )
     ).one()
-    assert updated.role == GuildRole.admin
+    assert updated.role == CommunityRole.admin
 
 
 async def test_plain_member_cannot_change_guild_roles(
@@ -299,9 +299,9 @@ async def test_plain_member_cannot_change_guild_roles(
 ):
     """A plain member cannot promote anyone — the guild-admin gate holds, and the
     shared guild role no longer has a DB write to fall back on."""
-    admin = await acting_user(guild_role=GuildRole.admin)
-    member = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
-    other = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
+    admin = await acting_user(guild_role=CommunityRole.admin)
+    member = await acting_user(guild_role=CommunityRole.member, guild=admin.guild)
+    other = await acting_user(guild_role=CommunityRole.member, guild=admin.guild)
 
     resp = await client.patch(
         f"/api/v1/communities/{admin.guild.id}/members/{other.user.id}",

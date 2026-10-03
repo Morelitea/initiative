@@ -43,9 +43,9 @@ import {
 import {
   BannerFade,
   BannerTextAlign,
-  type GuildBannerRead,
-  type GuildBannerWrite,
-  type GuildRead,
+  type CommunityBannerRead,
+  type CommunityBannerWrite,
+  type CommunityRead,
 } from "@/api/generated/initiativeAPI.schemas";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -71,13 +71,13 @@ type Busy = "icon" | "banner" | "look" | null;
  * *impression* of each setting rather than its exact geometry — enough to
  * choose between them, which is what a preview is for.
  */
-const PREVIEW_FADE: Record<GuildBannerRead["fade"], string | undefined> = {
+const PREVIEW_FADE: Record<CommunityBannerRead["fade"], string | undefined> = {
   none: undefined,
   weak: "linear-gradient(to bottom, #000 65%, transparent 100%)",
   strong: "linear-gradient(to bottom, #000 15%, transparent 100%)",
 };
 
-export const GuildArtworkPanel = ({ guild }: { guild: GuildRead }) => {
+export const GuildArtworkPanel = ({ guild }: { guild: CommunityRead }) => {
   const { t } = useTranslation(["guilds", "common"]);
   const { refreshGuilds, updateGuildInState } = useGuilds();
   const [busy, setBusy] = useState<Busy>(null);
@@ -96,7 +96,7 @@ export const GuildArtworkPanel = ({ guild }: { guild: GuildRead }) => {
   }, [guild.banner]);
 
   /** Show a change, without writing it — for a picker still being dragged. */
-  const draftLook = (change: Partial<GuildBannerWrite>) =>
+  const draftLook = (change: Partial<CommunityBannerWrite>) =>
     setDraft((current) => ({ ...current, ...change }));
 
   /**
@@ -108,7 +108,7 @@ export const GuildArtworkPanel = ({ guild }: { guild: GuildRead }) => {
    * clearing anything, because a banner is never colourless and never without
    * a layout.
    */
-  const commitLook = (change: Partial<GuildBannerWrite> | null) => {
+  const commitLook = (change: Partial<CommunityBannerWrite> | null) => {
     const banner = change && { ...draft, ...change };
     if (banner) setDraft(banner);
     void run("look", async () =>
@@ -129,12 +129,12 @@ export const GuildArtworkPanel = ({ guild }: { guild: GuildRead }) => {
   });
 
   /** Every write here answers with the whole guild, so state is replaced, not patched. */
-  const applied = async (updated: GuildRead) => {
+  const applied = async (updated: CommunityRead) => {
     updateGuildInState(updated);
     await refreshGuilds();
   };
 
-  const run = async (kind: Exclude<Busy, null>, work: () => Promise<GuildRead>) => {
+  const run = async (kind: Exclude<Busy, null>, work: () => Promise<CommunityRead>) => {
     setBusy(kind);
     try {
       await applied(await work());

@@ -26,7 +26,7 @@ from app.core.app_access_token import seal_install_token
 from app.core.app_scopes import ALL_SCOPES
 
 from app.core.tools import Tool
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.tenant.app_placement import AppPlacement
 from app.models.tenant.document import Document
 from app.models.tenant.guild_app import GuildApp
@@ -146,7 +146,7 @@ async def install_app(
 
     The pinned manifest requests ``requested``, every scope by default, so
     the grant is what decides what a token carries."""
-    seat = await acting_user(guild_role=GuildRole.superadmin, initiative=True)
+    seat = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
     unplaced = await create_initiative(session, seat.guild, seat.user, name="B")
     app = await create_guild_app(
         session,

@@ -13,7 +13,7 @@ from app.core.intake import IntakeStream, meta
 from app.core.messages import SupportMessages, TicketMessages
 from app.db.session import set_rls_context
 from app.models.platform.app_setting import AppSetting
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.platform.guild_administration import GuildAdministration
 from app.models.tenant.comment import Comment, CommentAudience
 from app.models.tenant.intake import IntakeBinding, IntakeCase
@@ -102,7 +102,7 @@ async def operations(session):
 async def test_support_is_off_until_the_operator_turns_it_on(client, acting_user):
     """The default, and not a community admin's to change: the deployment that
     would receive the requests decides it is staffing them."""
-    member = await acting_user(guild_role=GuildRole.member)
+    member = await acting_user(guild_role=CommunityRole.member)
     response = await _ask(client, member, member.guild.id)
     assert response.status_code == 403, response.text
     assert response.json()["detail"] == SupportMessages.NOT_AVAILABLE
@@ -111,7 +111,7 @@ async def test_support_is_off_until_the_operator_turns_it_on(client, acting_user
 async def test_a_member_can_ask_for_help(client, session, acting_user, operations):
     """Every member, not only an admin: the person who needs help is rarely
     the person who administers anything."""
-    member = await acting_user(guild_role=GuildRole.member)
+    member = await acting_user(guild_role=CommunityRole.member)
     await _set_support(session, member.guild.id, True)
 
     response = await _ask(
@@ -133,7 +133,7 @@ async def test_the_case_names_who_asked_and_where_from(
 ):
     """So whoever picks it up can reach them without the endpoint resolving
     anybody."""
-    member = await acting_user(guild_role=GuildRole.member)
+    member = await acting_user(guild_role=CommunityRole.member)
     await _set_support(session, member.guild.id, True)
     assert (await _ask(client, member, member.guild.id)).status_code == 202
 
@@ -157,7 +157,7 @@ async def test_the_case_names_who_asked_and_where_from(
 async def test_asking_where_nothing_is_bound_says_so(client, session, acting_user):
     """Support is on, but the deployment routes nothing. The asker is told,
     rather than being thanked for a request that reached nobody."""
-    member = await acting_user(guild_role=GuildRole.member)
+    member = await acting_user(guild_role=CommunityRole.member)
     await _set_support(session, member.guild.id, True)
 
     response = await _ask(client, member, member.guild.id)
@@ -169,9 +169,9 @@ async def test_a_stranger_cannot_ask_on_a_community_they_are_not_in(
     client, session, acting_user, operations
 ):
     """The guild gate, which is not this endpoint's to re-decide."""
-    host = await acting_user(guild_role=GuildRole.admin)
+    host = await acting_user(guild_role=CommunityRole.admin)
     await _set_support(session, host.guild.id, True)
-    outsider = await acting_user(guild_role=GuildRole.member)
+    outsider = await acting_user(guild_role=CommunityRole.member)
 
     response = await _ask(client, outsider, host.guild.id)
     assert response.status_code == 403, response.text
@@ -203,7 +203,7 @@ async def test_the_help_form_is_offered_once_both_halves_are_there(
     Both halves have to hold: a form that can only answer "nowhere to send it"
     is worse than the address it would have replaced.
     """
-    member = await acting_user(guild_role=GuildRole.member)
+    member = await acting_user(guild_role=CommunityRole.member)
 
     assert (await _offered(client, member, member.guild.id))["support"][
         "mode"
@@ -217,7 +217,7 @@ async def test_the_help_form_is_offered_once_both_halves_are_there(
 async def test_no_form_is_offered_where_nothing_is_bound(client, session, acting_user):
     """Entitled, but the deployment routes nothing — so no form that would
     503, and with no address set, nothing at all."""
-    member = await acting_user(guild_role=GuildRole.member)
+    member = await acting_user(guild_role=CommunityRole.member)
     await _set_support(session, member.guild.id, True)
 
     offered = await _offered(client, member, member.guild.id)
@@ -230,7 +230,7 @@ async def test_without_a_form_the_streams_address_is_offered(
     """Where nothing is set up to receive a stream, its address is the way to
     reach the people who run the deployment — the stream's own, else the
     general one, never another stream's."""
-    member = await acting_user(guild_role=GuildRole.member)
+    member = await acting_user(guild_role=CommunityRole.member)
     await _set_contacts(
         session, general="ops@example.org", security="security@example.org"
     )
@@ -245,7 +245,7 @@ async def test_a_report_is_always_a_form(client, session, acting_user):
     """A community's own content goes to its own moderators and needs no
     platform, so the report form is there whatever the deployment set up —
     with the address beside it for a report the platform would have to take."""
-    member = await acting_user(guild_role=GuildRole.member)
+    member = await acting_user(guild_role=CommunityRole.member)
     await _set_contacts(session, moderation="trust@example.org")
 
     offered = await _offered(client, member)
@@ -256,9 +256,9 @@ async def test_help_is_offered_only_from_a_community_the_reader_is_in(
     client, session, acting_user, operations
 ):
     """Whether somebody may ask from a community is asked as them."""
-    host = await acting_user(guild_role=GuildRole.admin)
+    host = await acting_user(guild_role=CommunityRole.admin)
     await _set_support(session, host.guild.id, True)
-    outsider = await acting_user(guild_role=GuildRole.member)
+    outsider = await acting_user(guild_role=CommunityRole.member)
 
     offered = await _offered(client, outsider, host.guild.id)
     assert offered["support"]["mode"] == "none"
@@ -267,7 +267,7 @@ async def test_help_is_offered_only_from_a_community_the_reader_is_in(
 async def test_a_blank_request_is_refused(client, session, acting_user, operations):
     """Whitespace is characters, so the length bound alone admits a case whose
     title and description are blank on the board somebody works from."""
-    member = await acting_user(guild_role=GuildRole.member)
+    member = await acting_user(guild_role=CommunityRole.member)
     await _set_support(session, member.guild.id, True)
 
     response = await _ask(client, member, member.guild.id, subject="   ", body="\t\n ")
@@ -278,7 +278,7 @@ async def test_what_is_stored_is_what_was_meant(
     client, session, acting_user, operations
 ):
     """Trimmed on the way in, so the queue reads the words and not the padding."""
-    member = await acting_user(guild_role=GuildRole.member)
+    member = await acting_user(guild_role=CommunityRole.member)
     await _set_support(session, member.guild.id, True)
     assert (
         await _ask(client, member, member.guild.id, subject="  Padded  ")
@@ -300,7 +300,7 @@ async def test_one_account_can_only_file_so_often(
     from app.core import intake
     from app.core.rate_limit import limiter
 
-    member = await acting_user(guild_role=GuildRole.member)
+    member = await acting_user(guild_role=CommunityRole.member)
     await _set_support(session, member.guild.id, True)
     monkeypatch.setitem(
         intake.STREAMS,
@@ -329,7 +329,7 @@ async def test_one_account_holds_only_so_many_open_cases(
 ):
     """The cap is read from the cases themselves, so closing one makes room at
     once."""
-    member = await acting_user(guild_role=GuildRole.member)
+    member = await acting_user(guild_role=CommunityRole.member)
     await _set_support(session, member.guild.id, True)
     cap = meta(IntakeStream.support).max_open_per_filer
     assert cap is not None
@@ -364,7 +364,7 @@ async def test_the_case_is_connected_to_who_asked_and_opens_with_their_words(
     """The asker is recorded as the case's filer, with their subject, and what
     they wrote opens the case under their name, said to them — the start of
     the conversation with them rather than a description somebody rewrites."""
-    member = await acting_user(guild_role=GuildRole.member)
+    member = await acting_user(guild_role=CommunityRole.member)
     await _set_support(session, member.guild.id, True)
     response = await _ask(
         client, member, member.guild.id, subject="Lost my phone", body="Help."

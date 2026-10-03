@@ -26,7 +26,7 @@ from app.core.app_access_token import seal_install_token
 from app.core.audit_events import AuditEventType
 from app.core.config import settings
 from app.core.messages import AppDataMessages, AppHubMessages
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.tenant.app_member_consent import AppMemberConsent
 from app.models.tenant.app_placement import AppPlacement
 from app.models.tenant.guild_app import GuildApp
@@ -260,7 +260,7 @@ async def _member(
 ):
     """A member of the placed initiative who let the caller act as them."""
     member = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=installed.guild,
         initiative=installed.placed,
         initiative_role="member",

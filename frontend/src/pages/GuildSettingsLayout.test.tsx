@@ -4,9 +4,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { buildGuild, buildUser, guildCan } from "@/__tests__/factories";
 import { renderPage } from "@/__tests__/helpers/render";
 import type {
-  GuildAuthOption,
-  GuildBillingSummaryRead,
-  GuildRole,
+  CommunityAuthOption,
+  CommunityBillingSummaryRead,
+  CommunityRole,
 } from "@/api/generated/initiativeAPI.schemas";
 import type { useAppConfig as useAppConfigType } from "@/hooks/useAppConfig";
 import type { useGuildBillingSummary as useGuildBillingSummaryType } from "@/hooks/useGuildBillingSummary";
@@ -14,10 +14,10 @@ import type { GuildEntry } from "@/hooks/useGuilds";
 
 // What this member is in this community, and what the operator has granted it.
 // Flipped per test.
-let guildRole: GuildRole = "superadmin";
+let guildRole: CommunityRole = "superadmin";
 let grantSettingsLevel: "admin" | "superadmin" | null = null;
 let reachesContent = true;
-let authOptions: GuildAuthOption[] = ["restrictions", "providers"];
+let authOptions: CommunityAuthOption[] = ["restrictions", "providers"];
 // The server's answer to whether the settings may be changed; left unset, the
 // factory answers the way the server does for a member.
 let canWriteSettings: boolean | undefined;
@@ -25,7 +25,7 @@ let canWriteSettings: boolean | undefined;
 let billing: { url: string } | null = null;
 
 // What the billing service said of the plan; undefined is "not asked".
-let summary: GuildBillingSummaryRead | undefined;
+let summary: CommunityBillingSummaryRead | undefined;
 
 vi.mock(import("@/hooks/useAppConfig"), async (importOriginal) => ({
   ...(await importOriginal()),
@@ -145,7 +145,7 @@ describe("GuildSettingsLayout", () => {
     expect(await screen.findByRole("tab", { name: /security/i })).toBeInTheDocument();
   });
 
-  it.each<[GuildAuthOption]>([["providers"], ["restrictions"]])(
+  it.each<[CommunityAuthOption]>([["providers"], ["restrictions"]])(
     "offers it on the %s grant alone",
     async (option) => {
       // The two grants are independent, and either one puts something on the

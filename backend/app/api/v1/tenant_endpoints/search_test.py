@@ -12,7 +12,7 @@ from collections.abc import Awaitable, Callable
 from datetime import datetime, timedelta, timezone
 
 
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.services.tenant.post_publication import publish_due_posts
 from app.testing import (
     create_resource_grant,
@@ -40,7 +40,7 @@ async def _search(client, actor: Actor, **params) -> dict:
 
 
 async def test_it_finds_a_task(client, session, acting_user: ActingUser) -> None:
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     await create_task(session, a.project, title="quarterly vendor renewal")
 
     body = await _search(client, a, q="vendor renewal")
@@ -54,8 +54,8 @@ async def test_a_person_is_found_where_they_are_mentioned(
     """By the words that name them now, with no name written in the text: their
     name in this community, or their handle. A name they no longer have, or a
     person no longer here, finds nothing."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
-    ada = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
+    ada = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
     membership = ada.membership
     assert membership is not None
     membership.display_name = "Ada Countess"
@@ -107,7 +107,7 @@ async def test_it_finds_across_tools_in_one_query(
     client, session, acting_user: ActingUser
 ) -> None:
     """The point of the whole thing: one query, not one per tool."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     await create_task(session, a.project, title="renewal task")
     await create_document(session, a.initiative, a.user, name="renewal doc")
     await create_tag(session, a.guild, name="renewal")
@@ -120,7 +120,7 @@ async def test_a_hit_carries_what_it_takes_to_reach_it(
     client, session, acting_user: ActingUser
 ) -> None:
     """A task is opened through its project, so the hit has to name it."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     task = await create_task(session, a.project, title="routable")
 
     hit = (await _search(client, a, q="routable"))["items"][0]
@@ -134,7 +134,7 @@ async def test_a_hit_carries_what_it_takes_to_reach_it(
 async def test_a_body_match_returns_a_snippet(
     client, session, acting_user: ActingUser
 ) -> None:
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await create_document(
         session,
         a.initiative,
@@ -162,9 +162,9 @@ async def test_it_returns_only_what_the_caller_may_see(
     client, session, acting_user: ActingUser
 ) -> None:
     """A member of the initiative holding no grant on the project."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     b = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="member",
@@ -180,9 +180,9 @@ async def test_the_total_counts_what_the_caller_may_see(
 ) -> None:
     """The count is a predicate in the same statement, so it matches the rows —
     a pager built on it does not stop early or promise a page that is empty."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     b = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="member",
@@ -199,7 +199,7 @@ async def test_the_total_counts_what_the_caller_may_see(
 async def test_it_can_be_narrowed_by_type_and_initiative(
     client, session, acting_user: ActingUser
 ) -> None:
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     await create_task(session, a.project, title="narrow me")
     await create_document(session, a.initiative, a.user, name="narrow me too")
 
@@ -213,7 +213,7 @@ async def test_it_can_be_narrowed_by_type_and_initiative(
 
 
 async def test_an_empty_query_is_not_an_error(client, acting_user: ActingUser) -> None:
-    a = await acting_user(guild_role=GuildRole.admin)
+    a = await acting_user(guild_role=CommunityRole.admin)
     body = await _search(client, a, q="   ")
     assert body == {
         "items": [],
@@ -227,7 +227,7 @@ async def test_an_empty_query_is_not_an_error(client, acting_user: ActingUser) -
 async def test_suggest_returns_titles_to_jump_to(
     client, session, acting_user: ActingUser
 ) -> None:
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     task = await create_task(session, a.project, title="jump target")
 
     response = await client.get(
@@ -246,7 +246,7 @@ async def test_comments_are_reached_by_asking_for_them(
     """Comments are out of the default scope — the busiest table in a guild is
     not something every bare query should pay for — so a caller names the type,
     which is what the results page's own tab does."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     task = await create_task(session, a.project, title="stage build")
     # Its opening is its title, which leaves out a mention the cut goes through.
     opening = "the vendor confirmed the platform " + "." * 101 + " "
@@ -279,7 +279,7 @@ async def test_suggest_narrows_to_the_types_it_is_given(
 ) -> None:
     """The palette's tabs and the results page ask the same question, so the
     palette can be on one slice while the guild holds matches in another."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     await create_task(session, a.project, title="riverside")
     tag = await create_tag(session, a.guild, name="riverside")
 
@@ -297,7 +297,7 @@ async def test_an_unknown_type_is_refused_rather_than_ignored(
 ) -> None:
     """The accepted set is declared, so a name that is not one of them is a bad
     request — not a search that quietly returns everything."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
 
     response = await client.get(
         a.g("/search/"), headers=a.headers, params={"q": "x", "types": ["invoice"]}
@@ -310,7 +310,7 @@ async def test_the_last_word_matches_as_a_prefix(
 ) -> None:
     """A results page searches as its reader types, so the word being typed is
     usually half-finished. Whole-word matching alone reads as nothing found."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     await create_task(session, a.project, title="Barricade the Throne")
 
     for query in ("thro", "barricade thro"):
@@ -330,7 +330,7 @@ async def test_what_the_reader_asked_for_exactly_is_left_exact(
     Both fall through to the close-match answer, which is itself the proof: a
     widened query would have matched exactly and never got there.
     """
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     await create_task(session, a.project, title="Barricade the Throne")
 
     for query in ('"barricade thro"', "barricade -throne"):
@@ -349,7 +349,7 @@ async def test_a_typo_is_offered_the_closest_titles(
     """Whole-word matching cannot answer a misspelling, so a search that finds
     nothing offers what is closest — flagged, so the reader is told which of
     the two they are reading."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     await create_task(session, a.project, title="Barricade the Throne")
 
     response = await client.get(
@@ -365,7 +365,7 @@ async def test_a_search_that_works_is_never_flagged_as_close(
     client, session, acting_user: ActingUser
 ) -> None:
     """The suggestion never blends into a search that worked."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     await create_task(session, a.project, title="Barricade the Throne")
 
     response = await client.get(
@@ -378,7 +378,7 @@ async def test_a_search_that_works_is_never_flagged_as_close(
 async def test_nothing_close_stays_nothing(
     client, session, acting_user: ActingUser
 ) -> None:
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     await create_task(session, a.project, title="Barricade the Throne")
 
     response = await client.get(
@@ -393,8 +393,8 @@ async def test_nothing_close_stays_nothing(
 async def test_a_non_member_cannot_search_the_guild(
     client, session, acting_user: ActingUser
 ) -> None:
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
-    outsider = await acting_user(guild_role=GuildRole.admin)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
+    outsider = await acting_user(guild_role=CommunityRole.admin)
     await create_task(session, a.project, title="private renewal")
 
     response = await client.get(
@@ -408,7 +408,7 @@ async def test_suggest_offers_only_titles_that_match(
 ) -> None:
     """The palette shows titles, so a hit whose title shows nothing of what was
     typed reads as a mistake — even when the word is genuinely in the body."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await create_document(
         session,
         a.initiative,
@@ -442,7 +442,7 @@ async def test_suggest_matches_a_partly_typed_word(
     client, session, acting_user: ActingUser
 ) -> None:
     """A palette answers while you are still typing."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     await create_task(session, a.project, title="vendor renewal")
 
     response = await client.get(
@@ -456,7 +456,7 @@ async def test_paging_does_not_repeat_or_drop_a_hit(
 ) -> None:
     """Rank and timestamp both tie across these, so the order has to be total
     or a row shows on two pages and another on none."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     for n in range(6):
         await create_task(session, a.project, title=f"renewal item {n}")
 
@@ -473,7 +473,7 @@ async def test_archived_work_is_kept_back_until_it_is_asked_for(
 ) -> None:
     """Archived work stays indexed and out of the way — a search that says so
     reaches it."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     live = await create_task(session, a.project, title="shelved cabinet")
     filed = await create_task(
         session,
@@ -494,7 +494,7 @@ async def test_templates_are_found_by_name_and_pickable_on_their_own(
     client, session, acting_user: ActingUser
 ) -> None:
     """A template is ordinary content to a search and a category to a picker."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     real = await create_document(session, a.initiative, a.user, name="kickoff notes")
     blank = await create_document(
         session, a.initiative, a.user, name="kickoff notes template", is_template=True
@@ -518,10 +518,10 @@ async def test_suggest_narrows_to_one_initiative(
 ) -> None:
     """A picker inside an initiative offers that initiative — a mention has to
     reach something the reader of the comment can open."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     here = await create_task(session, a.project, title="shared name")
     b = await acting_user(
-        guild_role=GuildRole.admin, guild=a.guild, initiative=True, project=True
+        guild_role=CommunityRole.admin, guild=a.guild, initiative=True, project=True
     )
     await create_task(session, b.project, title="shared name")
 
@@ -538,7 +538,7 @@ async def test_suggest_leaves_archived_work_out(
     client, session, acting_user: ActingUser
 ) -> None:
     """A picker offers somewhere to put work, so it offers live work."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     await create_task(
         session,
         a.project,
@@ -558,12 +558,12 @@ async def test_a_template_picker_is_a_wider_net_not_a_looser_one(
 ) -> None:
     """Templates are picked across the whole community, under the same gates as
     everything else — a template the caller holds no grant on stays invisible."""
-    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
     private_template = await create_document(
         session, owner.initiative, owner.user, name="Private Template", is_template=True
     )
     other = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=owner.guild,
         initiative=owner.initiative,
         initiative_role="member",
@@ -599,7 +599,7 @@ async def test_recent_answers_what_a_picker_opens_with(
 ) -> None:
     """A picker opens before anything is typed, which the search cannot answer:
     it matches words, and there are none yet."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     await create_task(session, a.project, title="older")
     await create_task(session, a.project, title="newer")
 
@@ -612,7 +612,7 @@ async def test_recent_takes_the_same_narrowing_the_search_does(
 ) -> None:
     """What a picker suggests and what it finds must be the same set of things,
     or picking from the list offers what typing could not."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     await create_task(session, a.project, title="a task")
     await create_document(session, a.initiative, a.user)
 
@@ -630,9 +630,9 @@ async def test_recent_stops_at_the_same_gate_the_search_does(
 ) -> None:
     """Suggestions are content, so they answer under the sharing that governs
     the things themselves."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     b = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="member",
@@ -653,7 +653,7 @@ async def test_a_scheduled_notice_is_not_searchable_until_it_goes_up(
     other, and ``published_at`` is one of the columns the trigger watches. So
     the statement that publishes is the statement that indexes.
     """
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     initiative = a.initiative
     assert initiative is not None
     initiative.posts_enabled = True
@@ -684,7 +684,7 @@ async def test_a_picker_is_not_offered_the_thing_it_is_writing_in(
 ) -> None:
     """A comment on a document, and the document itself, both compose inside
     something. Naming it would point at the page the words are already on."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     subject = await create_document(session, a.initiative, a.user, name="the page")
     other = await create_document(session, a.initiative, a.user, name="another page")
 
@@ -699,7 +699,7 @@ async def test_typing_its_name_does_not_find_it_either(
 ) -> None:
     """The list a picker opens with and what typing finds are the same set of
     things, so both leave the subject out."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     subject = await create_document(session, a.initiative, a.user, name="riverside")
     other = await create_document(session, a.initiative, a.user, name="riverside annex")
 
@@ -721,7 +721,7 @@ async def test_only_the_subject_itself_is_left_out(
 ) -> None:
     """Its kind and its id together — a task numbered the same as the document
     being written in is a different thing and still offered."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     doc = await create_document(session, a.initiative, a.user, name="the page")
     task = await create_task(session, a.project, title="the job")
 
@@ -738,7 +738,7 @@ async def test_a_subject_that_names_nothing_narrows_nothing(
 ) -> None:
     """Stored content outlives the build that wrote it. A reference this build
     cannot read costs the exclusion, not the answer."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     doc = await create_document(session, a.initiative, a.user, name="the page")
 
     offered = await _recent(client, a, types="document", subject="sandwich:3")
@@ -754,9 +754,11 @@ async def test_a_suggestion_says_whether_it_is_yours_to_change(
     offering "this blocks that" needs to know whether the thing being pointed at
     is one the reader may change — not merely one they may open.
     """
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     b = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="member",
@@ -788,7 +790,7 @@ async def test_a_suggestion_says_what_it_lives_in(
 ) -> None:
     """Two tasks of the same name in different projects are two different
     tasks, and a picker offering both has to say which is which."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     first = await create_project(session, a.initiative, a.user, name="Harvest")
     second = await create_project(session, a.initiative, a.user, name="Winterhold")
     await create_task(session, first, title="Do a thing")
@@ -809,7 +811,7 @@ async def test_a_tool_does_not_live_in_itself(
 ) -> None:
     """A project's own sharing gate is the project, so naming its container
     would only repeat its title back."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await create_project(session, a.initiative, a.user, name="Harvest")
 
     rows = await _suggest(client, a, q="Harvest", types="project")
@@ -822,7 +824,7 @@ async def test_recents_say_where_they_live_too(
 ) -> None:
     """A picker that has not been typed in yet shows recents, and they are the
     same rows — so they cannot be less legible than the ones typing finds."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     project = await create_project(session, a.initiative, a.user, name="Harvest")
     await create_task(session, project, title="Do a thing")
 

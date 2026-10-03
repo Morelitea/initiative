@@ -16,7 +16,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.messages import UserMessages
 from app.core.tools import Tool
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.tenant.app_placement import AppPlacement
 from app.models.tenant.guild_app import GuildApp
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
@@ -93,7 +93,7 @@ async def _unowned_ids(client: AsyncClient, admin: Any) -> set[int]:
 async def test_a_live_apps_content_is_owned_and_a_claim_leaves_it(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     app = await _app(session, admin, granted=_WRITES_PROJECTS)
     project = await _owned_by_app(session, admin, app)
 
@@ -113,7 +113,7 @@ async def test_a_live_apps_content_is_owned_and_a_claim_leaves_it(
 async def test_a_switched_off_apps_content_is_unowned_while_it_is_off(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     app = await _app(session, admin, granted=_WRITES_PROJECTS)
     project = await _owned_by_app(session, admin, app)
 
@@ -132,7 +132,7 @@ async def test_a_switched_off_apps_content_is_unowned_while_it_is_off(
 async def test_uninstalling_leaves_its_content_unowned(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     app = await _app(session, admin, granted=_WRITES_PROJECTS)
     project = await _owned_by_app(session, admin, app)
 
@@ -148,7 +148,7 @@ async def test_a_claim_of_a_switched_off_apps_content_keeps_it_writing(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """The app is the owner being replaced, so it keeps write."""
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     app = await _app(session, admin, granted=_WRITES_PROJECTS, enabled=True)
     project = await _owned_by_app(session, admin, app)
     await route_session_to_guild(session, admin.guild.id)
@@ -187,7 +187,7 @@ async def test_a_claim_of_a_switched_off_apps_content_keeps_it_writing(
 
 async def _members_project(session: AsyncSession, admin: Any, acting_user) -> tuple:
     member = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=admin.guild,
         initiative=admin.initiative,
         initiative_role="member",
@@ -199,7 +199,7 @@ async def _members_project(session: AsyncSession, admin: Any, acting_user) -> tu
 async def test_a_members_content_goes_to_an_app_that_may_own_it(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     app = await _app(session, admin, granted=_WRITES_PROJECTS)
     member, project = await _members_project(session, admin, acting_user)
 
@@ -227,7 +227,7 @@ async def test_a_members_content_goes_to_an_app_that_may_own_it(
 async def test_the_unowned_pile_goes_to_an_app_that_may_own_it(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     app = await _app(session, admin, granted=_WRITES_PROJECTS)
     project = await create_project(session, admin.initiative, admin.user)
     await route_session_to_guild(session, admin.guild.id)
@@ -254,7 +254,7 @@ async def test_the_unowned_pile_goes_to_an_app_that_may_own_it(
 async def test_content_is_not_handed_to_an_app_that_may_not_own_it(
     client: AsyncClient, session: AsyncSession, acting_user, why: str
 ):
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     app = await _app(
         session,
         admin,
@@ -287,7 +287,7 @@ async def test_an_app_placed_elsewhere_takes_none_of_a_mixed_pile(
 ):
     """Eligibility is for every item moved: one project in an initiative the app
     is not placed in keeps the whole move from happening."""
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     app = await _app(session, admin, granted=_WRITES_PROJECTS)
     member, placed_project = await _members_project(session, admin, acting_user)
     elsewhere = await create_initiative(session, admin.guild, admin.user, name="B")
@@ -307,7 +307,7 @@ async def test_an_app_placed_elsewhere_takes_none_of_a_mixed_pile(
 async def test_a_transfer_names_exactly_one_recipient(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     app = await _app(session, admin, granted=_WRITES_PROJECTS)
     for body in ({}, {"new_owner_id": admin.user.id, "new_owner_app_id": app.id}):
         response = await client.post(
@@ -326,7 +326,7 @@ async def test_a_transfer_names_exactly_one_recipient(
 async def test_the_read_models_name_the_owning_app(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     app = await _app(session, admin, granted=["projects:write", "documents:write"])
     project = await _owned_by_app(session, admin, app)
     document = await create_document(session, admin.initiative, admin.user)
@@ -369,7 +369,7 @@ async def test_the_read_models_name_the_owning_app(
 async def test_a_person_owner_is_named_and_no_app_is(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     document = await create_document(session, admin.initiative, admin.user)
 
     doc = await client.get(admin.g(f"/documents/{document.id}"), headers=admin.headers)

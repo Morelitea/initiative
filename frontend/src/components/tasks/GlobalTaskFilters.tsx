@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import type {
-  GuildRead,
+  CommunityRead,
   TaskPriority,
   TaskStatusCategory,
 } from "@/api/generated/initiativeAPI.schemas";
@@ -24,7 +24,7 @@ interface GlobalTaskFiltersProps {
   setPropertyFilters: (filters: PropertyFilterCondition[]) => void;
   filtersOpen: boolean;
   setFiltersOpen: (open: boolean) => void;
-  guilds: GuildRead[];
+  guilds: CommunityRead[];
   /** Resets every filter back to this page's baseline selection. */
   onClear?: () => void;
   /** How many filters are currently set — tells "Clear all" whether it has

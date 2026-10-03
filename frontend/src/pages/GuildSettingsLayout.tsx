@@ -90,7 +90,7 @@ export const GuildSettingsLayout = () => {
 
   // A read-only guild shows the admin a prominent notice pointing them to the
   // platform operator (the status reaches admins only — see the backend
-  // GuildRead serialization). A suspended one never reaches settings at all.
+  // CommunityRead serialization). A suspended one never reaches settings at all.
   const statusNotice =
     activeGuild?.status === "read_only"
       ? {

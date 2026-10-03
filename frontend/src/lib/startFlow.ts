@@ -8,7 +8,7 @@
  * browser finishes the job.
  */
 
-import type { GuildCategory, NewCommunity } from "@/api/generated/initiativeAPI.schemas";
+import type { CommunityCategory, NewCommunity } from "@/api/generated/initiativeAPI.schemas";
 import { createInitiativeApiV1CGuildIdInitiativesPost } from "@/api/generated/initiatives/initiatives";
 import { createProjectApiV1CGuildIdProjectsPost } from "@/api/generated/projects/projects";
 import { invalidate, q } from "@/api/query-keys";
@@ -23,7 +23,7 @@ export interface StartAnswers {
   path: StartPath;
   inviteCode: string;
   /** Join: the directory shelves to open on; none opens all of them. */
-  categories: GuildCategory[];
+  categories: CommunityCategory[];
   communityName: string;
   description: string;
   initiativeName: string;

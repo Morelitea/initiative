@@ -12,7 +12,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildBanner, buildUser } from "@/__tests__/factories";
 import { renderPage } from "@/__tests__/helpers/render";
-import type { CommunityGuildRead } from "@/api/generated/initiativeAPI.schemas";
+import type { DirectoryCommunityRead } from "@/api/generated/initiativeAPI.schemas";
 
 import { CommunitiesPage } from "./CommunitiesPage";
 
@@ -37,7 +37,7 @@ vi.mock("@/hooks/useAppConfig", () => ({
   }),
 }));
 
-const community = (overrides: Partial<CommunityGuildRead> = {}): CommunityGuildRead => ({
+const community = (overrides: Partial<DirectoryCommunityRead> = {}): DirectoryCommunityRead => ({
   id: 1,
   name: "Riverside Players",
   description: "Community theatre.",
@@ -62,7 +62,10 @@ const renderDirectory = (
 
 /** The infinite-query shape the page reads: pages of items plus the paging
  *  flags. `total` is how many matched, so it can exceed what is loaded. */
-const directoryResult = (items: CommunityGuildRead[], overrides: Record<string, unknown> = {}) => ({
+const directoryResult = (
+  items: DirectoryCommunityRead[],
+  overrides: Record<string, unknown> = {}
+) => ({
   data: { pages: [{ items, total: items.length }] },
   isLoading: false,
   isError: false,

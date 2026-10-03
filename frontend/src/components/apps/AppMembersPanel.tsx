@@ -26,11 +26,11 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
+  type CommunityAppConnectionSummary,
+  type CommunityAppMemberConnection,
+  type CommunityAppMemberConsent,
   ConsentAccess,
   ConsentStatus,
-  type GuildAppConnectionSummary,
-  type GuildAppMemberConnection,
-  type GuildAppMemberConsent,
 } from "@/api/generated/initiativeAPI.schemas";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -189,10 +189,10 @@ export function AppMembersPanel({ appId, enabled }: AppMembersPanelProps) {
 }
 
 /** Whether an answer still stands or still waits: the ones an admin can end. */
-const isOpen = (consent: GuildAppMemberConsent) =>
+const isOpen = (consent: CommunityAppMemberConsent) =>
   consent.status === ConsentStatus.granted || consent.status === ConsentStatus.pending;
 
-function consentStatusKey(consent: GuildAppMemberConsent) {
+function consentStatusKey(consent: CommunityAppMemberConsent) {
   switch (consent.status) {
     case ConsentStatus.granted:
       return consent.granted_access === ConsentAccess.read_write
@@ -224,7 +224,7 @@ function MemberConsents({
 }: {
   appId: number;
   /** The answers of the members on this page. */
-  consents: GuildAppMemberConsent[];
+  consents: CommunityAppMemberConsent[];
   /** Across every member, not just this page. */
   allowedCount: number;
   anyOpen: boolean;
@@ -235,7 +235,7 @@ function MemberConsents({
   const revokeAll = useRevokeAllConsents(appId);
   const [confirming, setConfirming] = useState(false);
 
-  const byMember = new Map<number, GuildAppMemberConsent[]>();
+  const byMember = new Map<number, CommunityAppMemberConsent[]>();
   for (const consent of consents) {
     byMember.set(consent.user_id, [...(byMember.get(consent.user_id) ?? []), consent]);
   }
@@ -343,8 +343,8 @@ function ConnectionMembers({
   nameFor,
 }: {
   appId: number;
-  summary: GuildAppConnectionSummary;
-  items: GuildAppMemberConnection[];
+  summary: CommunityAppConnectionSummary;
+  items: CommunityAppMemberConnection[];
   nameFor: (userId: number) => string;
 }) {
   const { t, i18n } = useTranslation(["apps", "common"]);
@@ -361,13 +361,13 @@ function ConnectionMembers({
     onError: (error: unknown) => toast.error(getErrorMessage(error, "apps:error")),
   });
 
-  const revokeMember = (item: GuildAppMemberConnection) =>
+  const revokeMember = (item: CommunityAppMemberConnection) =>
     revoke.mutate(
       { userId: item.user_id, connectionId: item.connection_id },
       notify(t("apps:members.revoked"))
     );
 
-  const toggleBlock = (item: GuildAppMemberConnection) =>
+  const toggleBlock = (item: CommunityAppMemberConnection) =>
     block.mutate(
       { userId: item.user_id, connectionId: item.connection_id, blocked: item.blocked },
       notify(t(item.blocked ? "apps:members.unblocked" : "apps:members.blockedDone"))

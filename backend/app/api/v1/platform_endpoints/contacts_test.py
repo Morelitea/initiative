@@ -8,7 +8,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.app_setting import AppSetting
-from app.models.platform.guild import Guild, GuildRole
+from app.models.platform.guild import Guild, CommunityRole
 from app.models.platform.profile_favorite import ProfileFavorite
 from app.models.platform.user import User, UserStatus
 from app.models.platform.user_dm_settings import DmPolicy
@@ -148,7 +148,7 @@ async def test_a_section_names_the_other_people_who_are_still_here(
 ):
     """The caller is not their own contact, and a suspended account leaves the
     roster — count and all."""
-    a = await acting_user(guild_role=GuildRole.member)
+    a = await acting_user(guild_role=CommunityRole.member)
     other = await _join(session, a.guild)
 
     response = await client.get(SECTIONS, headers=a.headers)
@@ -170,7 +170,7 @@ async def test_sections_page_within_each_guild(
 ):
     """Paging is per section — a flat offset across a merged list would not
     mean anything for a grouped response."""
-    a = await acting_user(guild_role=GuildRole.member)
+    a = await acting_user(guild_role=CommunityRole.member)
     for index in range(5):
         await _join(session, a.guild, username=f"member{index}")
 
@@ -209,7 +209,7 @@ async def test_both_ways_of_listing_someone_draw_them_the_same(
     """A row draws somebody the way every other surface does — and favorites
     come from the profile view rather than the roster walk, so they are their
     own path to the same answer."""
-    a = await acting_user(guild_role=GuildRole.member)
+    a = await acting_user(guild_role=CommunityRole.member)
     other = await _join(
         session, a.guild, profile_decorations={"frame": "core.gold", "trophies": []}
     )
@@ -323,7 +323,7 @@ async def test_search_finds_someone_past_the_first_page(
 ):
     """The reason search is server-side: a client filter over the loaded page
     could not reach this person."""
-    a = await acting_user(guild_role=GuildRole.member)
+    a = await acting_user(guild_role=CommunityRole.member)
     for index in range(6):
         await _join(session, a.guild, username=f"aaa{index}")
     target = await _join(session, a.guild, username="zzzneedle")
@@ -487,8 +487,8 @@ async def test_a_favorites_list_is_private(
     bystander, and the admin of a guild the starrer is in. It is the starrer's
     list, and a guild admin runs the guild rather than anyone's contacts.
     """
-    admin = await acting_user(guild_role=GuildRole.admin)
-    starrer = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
+    admin = await acting_user(guild_role=CommunityRole.admin)
+    starrer = await acting_user(guild_role=CommunityRole.member, guild=admin.guild)
     onlooker = await acting_user()
     subject = await create_user(session)
 

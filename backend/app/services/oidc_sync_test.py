@@ -11,7 +11,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.db.session import set_rls_context
-from app.models.platform.guild import GuildMembership, GuildRole
+from app.models.platform.guild import GuildMembership, CommunityRole
 from app.models.platform.platform_provider_default import PlatformProviderDefault
 from app.models.platform.oidc_claim_mapping import (
     ClaimRuleAuthor,
@@ -78,7 +78,7 @@ async def test_claim_mapped_role_survives_auto_join(session: AsyncSession):
             claim_value="engineering",
             target_type=OIDCMappingTargetType.initiative,
             guild_id=guild.id,
-            guild_role=GuildRole.member.value,
+            guild_role=CommunityRole.member.value,
             initiative_id=initiative.id,
             initiative_role_id=pm_role.id,
         )
@@ -111,7 +111,7 @@ async def _guild_rule(session: AsyncSession, *, provider_id: int, guild_id: int)
             claim_value="staff",
             target_type=OIDCMappingTargetType.guild,
             guild_id=guild_id,
-            guild_role=GuildRole.member.value,
+            guild_role=CommunityRole.member.value,
         )
     )
 
@@ -261,7 +261,7 @@ async def test_auto_join_still_covers_what_the_claims_do_not(session: AsyncSessi
             claim_value="engineering",
             target_type=OIDCMappingTargetType.initiative,
             guild_id=guild.id,
-            guild_role=GuildRole.member.value,
+            guild_role=CommunityRole.member.value,
             initiative_id=mapped.id,
             initiative_role_id=mapped_pm.id,
         )
@@ -321,7 +321,7 @@ async def test_one_providers_sign_in_leaves_anothers_memberships_alone(
             claim_value="staff",
             target_type=OIDCMappingTargetType.guild,
             guild_id=corp_guild.id,
-            guild_role=GuildRole.member.value,
+            guild_role=CommunityRole.member.value,
         )
     )
     session.add(
@@ -330,7 +330,7 @@ async def test_one_providers_sign_in_leaves_anothers_memberships_alone(
             claim_value="vendors",
             target_type=OIDCMappingTargetType.guild,
             guild_id=partner_guild.id,
-            guild_role=GuildRole.member.value,
+            guild_role=CommunityRole.member.value,
         )
     )
     await session.commit()
@@ -403,7 +403,7 @@ async def test_deleting_the_last_rule_hands_back_what_it_granted(
         claim_value="staff",
         target_type=OIDCMappingTargetType.guild,
         guild_id=guild.id,
-        guild_role=GuildRole.member.value,
+        guild_role=CommunityRole.member.value,
     )
     session.add(rule)
     await session.commit()
@@ -462,7 +462,7 @@ async def test_stale_provider_claim_preserves_a_promoted_superadmin(
         claim_value="staff",
         target_type=OIDCMappingTargetType.guild,
         guild_id=guild.id,
-        guild_role=GuildRole.member.value,
+        guild_role=CommunityRole.member.value,
     )
     session.add(rule)
     await session.commit()
@@ -487,7 +487,7 @@ async def test_stale_provider_claim_preserves_a_promoted_superadmin(
             )
         )
     ).one()
-    membership.role = GuildRole.superadmin
+    membership.role = CommunityRole.superadmin
     session.add(membership)
     await session.delete(await session.get(OIDCClaimMapping, rule.id))
     await session.commit()
@@ -512,7 +512,7 @@ async def test_stale_provider_claim_preserves_a_promoted_superadmin(
         )
     ).one_or_none()
     assert preserved is not None
-    assert preserved.role == GuildRole.superadmin
+    assert preserved.role == CommunityRole.superadmin
     assert result.guilds_removed == []
 
 
@@ -562,7 +562,7 @@ async def test_claim_sync_keeps_an_under_age_answer_out_of_a_listed_guild(
             claim_value="engineering",
             target_type=OIDCMappingTargetType.guild,
             guild_id=guild.id,
-            guild_role=GuildRole.member.value,
+            guild_role=CommunityRole.member.value,
         )
     )
     await session.commit()
@@ -598,7 +598,7 @@ async def _provider_rule(
             provider_id=provider_id,
             target_type=OIDCMappingTargetType.guild,
             guild_id=guild_id,
-            guild_role=GuildRole.member.value,
+            guild_role=CommunityRole.member.value,
             **{"claim_value": "staff", **kw},
         )
     )

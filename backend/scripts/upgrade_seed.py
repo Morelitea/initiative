@@ -28,7 +28,7 @@ sys.path.insert(0, str(Path.cwd()))
 from sqlalchemy.ext.asyncio import create_async_engine  # noqa: E402
 from sqlmodel.ext.asyncio.session import AsyncSession  # noqa: E402
 
-from app.models.platform.guild import GuildRole  # noqa: E402
+from app.models.platform.guild import CommunityRole  # noqa: E402
 from app.models.tenant.task import Task  # noqa: E402
 import app.testing as testing  # noqa: E402
 from app.testing import (  # noqa: E402
@@ -62,7 +62,7 @@ async def seed(session: AsyncSession) -> None:
     guild = await create_guild(session, creator=owner)
     await create_guild_membership(session, user=member, guild=guild)
     await create_guild_membership(
-        session, user=await create_user(session), guild=guild, role=GuildRole.admin
+        session, user=await create_user(session), guild=guild, role=CommunityRole.admin
     )
 
     initiative = await create_initiative(session, guild, owner)

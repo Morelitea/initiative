@@ -5,7 +5,7 @@ per-guild schemas. These tests assert it routes into the guild schema rather
 than reading the empty ``public`` backup (which returned all-zero dashboards).
 """
 
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.tenant.task import TaskStatusCategory
 from app.services.tenant import stats_service
 from app.testing import (
@@ -24,7 +24,9 @@ async def test_user_stats_reads_guild_schema(session):
     the unrouted (public) schema this is 0 — the dashboard-zeros regression."""
     user = await create_user(session, email="stats-user@example.com")
     guild = await create_guild(session, creator=user)
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=user, guild=guild, role=CommunityRole.admin
+    )
     initiative = await create_initiative(session, guild, user, name="Stats Init")
     project = await create_project(session, initiative, user)
 
@@ -57,7 +59,7 @@ async def test_user_stats_all_guilds_aggregates(session):
     for n, count in (("A", 1), ("B", 2)):
         guild = await create_guild(session, creator=user)
         await create_guild_membership(
-            session, user=user, guild=guild, role=GuildRole.admin
+            session, user=user, guild=guild, role=CommunityRole.admin
         )
         initiative = await create_initiative(session, guild, user, name=f"Init {n}")
         project = await create_project(session, initiative, user)

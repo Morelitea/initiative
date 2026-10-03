@@ -18,7 +18,7 @@ import { Loader2 } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { CommunityGuildRead } from "@/api/generated/initiativeAPI.schemas";
+import type { DirectoryCommunityRead } from "@/api/generated/initiativeAPI.schemas";
 import { AgeConfirmationDialog } from "@/components/guilds/AgeConfirmationDialog";
 import { GuildCardFace } from "@/components/guilds/GuildCardFace";
 import { GuildAvatar } from "@/components/guilds/GuildSidebar";
@@ -32,7 +32,7 @@ import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { guildPath } from "@/lib/guildUrl";
 
-export const CommunityCard = ({ guild }: { guild: CommunityGuildRead }) => {
+export const CommunityCard = ({ guild }: { guild: DirectoryCommunityRead }) => {
   const { t } = useTranslation(["guilds", "common"]);
   const navigate = useNavigate();
   const { refreshGuilds, switchGuild } = useGuilds();

@@ -23,7 +23,7 @@ from app.core.auth_context import (
     set_satisfied_providers,
 )
 from app.db.session import set_rls_context
-from app.models.platform.guild import Guild, GuildRole
+from app.models.platform.guild import Guild, CommunityRole
 from app.models.platform.guild_auth_policy import GuildAuthPolicy
 from app.models.platform.user import User, UserRole
 from app.models.tenant.project import Project
@@ -77,7 +77,7 @@ def _settings(guild_id: int) -> str:
 async def test_the_seat_sets_reads_and_clears_the_policy(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    seat = await acting_user(guild_role=GuildRole.superadmin)
+    seat = await acting_user(guild_role=CommunityRole.superadmin)
     provider = await create_auth_provider(session, slug="corp")
     await create_guild_provider_connection(session, guild=seat.guild, provider=provider)
     headers = _sat_headers(seat.user, [provider.id])
@@ -114,7 +114,7 @@ async def test_the_seat_sets_reads_and_clears_the_policy(
 async def test_non_admin_cannot_manage_policy(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    member = await acting_user(guild_role=GuildRole.member)
+    member = await acting_user(guild_role=CommunityRole.member)
     provider = await create_auth_provider(session, slug="corp")
 
     response = await client.patch(
@@ -166,7 +166,7 @@ async def test_a_requirement_names_a_working_provider_of_this_communitys(
     provider has to be one the deployment still offers. A requirement naming
     anything else is refused, and so is one that names nothing at all —
     ``required`` has to require something."""
-    seat = await acting_user(guild_role=GuildRole.superadmin)
+    seat = await acting_user(guild_role=CommunityRole.superadmin)
     provider_id = await name_a_provider(session, seat.guild)
     body: dict[str, object] = {"policy": "required"}
     if provider_id is not None:
@@ -186,7 +186,7 @@ async def test_policy_requires_admin_own_session_to_satisfy(
 ):
     """An admin can only require a provider their own session has satisfied —
     proving it works and keeping them from locking out their guild."""
-    seat = await acting_user(guild_role=GuildRole.superadmin)
+    seat = await acting_user(guild_role=CommunityRole.superadmin)
     provider = await create_auth_provider(session, slug="corp")
     await create_guild_provider_connection(session, guild=seat.guild, provider=provider)
 
@@ -215,7 +215,7 @@ async def test_without_the_entitlement_a_requirement_is_read_and_lifted_only(
     Lifting only ever admits more, so it carries none of the gating the setting
     path does."""
     guild = await create_guild(session, auth_options=[])
-    seat = await acting_user(guild_role=GuildRole.superadmin, guild=guild)
+    seat = await acting_user(guild_role=CommunityRole.superadmin, guild=guild)
     provider = await create_auth_provider(session, slug="corp")
     await create_guild_auth_policy(session, guild, provider)
     headers = _sat_headers(seat.user, [provider.id])
@@ -262,7 +262,7 @@ async def test_a_required_provider_steps_up_every_session_that_lacks_it(
     turning the operator toggle OFF closes the config surface and leaves
     enforcement where it was (parity with the posture gate — management is
     gated, enforcement is not)."""
-    member = await acting_user(guild_role=GuildRole.member)
+    member = await acting_user(guild_role=CommunityRole.member)
     provider = await create_auth_provider(session, slug="corp")
     await create_guild_auth_policy(session, member.guild, provider)
     satisfied = _sat_headers(member.user, [provider.id])
@@ -315,7 +315,7 @@ async def test_the_step_up_challenge_is_not_what_an_ordinary_401_says(
 async def test_open_guild_admits_any_session(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    member = await acting_user(guild_role=GuildRole.member)
+    member = await acting_user(guild_role=CommunityRole.member)
 
     response = await client.get(member.g("/initiatives/"), headers=member.headers)
     assert response.status_code == 200
@@ -365,7 +365,7 @@ async def test_a_credential_that_records_no_sign_in_satisfies_no_requirement(
     requirement takes — one named provider, or any of this community's — it
     gets the answer every unsatisfied session gets, and the challenge names
     what would serve it."""
-    member = await acting_user(guild_role=GuildRole.member)
+    member = await acting_user(guild_role=CommunityRole.member)
     await require_a_sign_in(session, member.guild)
     headers = await _an_api_key(client, session, member.user)
 
@@ -381,8 +381,8 @@ async def test_a_credential_that_records_no_sign_in_satisfies_no_requirement(
 async def _a_seat_and_a_requirement(session: AsyncSession, acting_user) -> Actor:
     """A community with a standing requirement, one superadmin holding it, and
     an ordinary admin beside them. Returns the keyholder."""
-    keyholder = await acting_user(guild_role=GuildRole.superadmin)
-    await acting_user(guild_role=GuildRole.admin, guild=keyholder.guild)
+    keyholder = await acting_user(guild_role=CommunityRole.superadmin)
+    await acting_user(guild_role=CommunityRole.admin, guild=keyholder.guild)
     provider = await create_auth_provider(session, slug="corp")
     await create_guild_auth_policy(session, keyholder.guild, provider)
     return keyholder
@@ -396,7 +396,7 @@ async def test_an_ordinary_admin_reads_the_connections_and_writes_neither(
     signs in through. Deciding who may enter, and through which providers, is
     not, and neither is reading the sign-in rules."""
     keyholder = await _a_seat_and_a_requirement(session, acting_user)
-    admin = await acting_user(guild_role=GuildRole.admin, guild=keyholder.guild)
+    admin = await acting_user(guild_role=CommunityRole.admin, guild=keyholder.guild)
     guild_id = keyholder.guild.id
     connections = f"/api/v1/communities/{guild_id}/auth/connections"
 
@@ -474,7 +474,9 @@ async def test_the_last_seat_stays_even_with_no_requirement(
     assert refused.json()["detail"] == "CANNOT_VACATE_LAST_SUPERADMIN"
 
     # A second holder is what frees the first.
-    second = await acting_user(guild_role=GuildRole.superadmin, guild=keyholder.guild)
+    second = await acting_user(
+        guild_role=CommunityRole.superadmin, guild=keyholder.guild
+    )
     allowed = await client.patch(
         f"/api/v1/communities/{keyholder.guild.id}/members/{keyholder.user.id}",
         headers=second.headers,
@@ -508,7 +510,7 @@ async def test_me_aggregate_includes_policy_guild_only_when_satisfied(
     guild's content appears exactly when the session satisfies its provider —
     and its RLS keeps an unsatisfied session's aggregate empty for that guild
     without failing the whole request."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
     await create_document(session, a.initiative, a.user, name="open doc")
 
     # The same person in a second community, which requires a sign-in.
@@ -537,7 +539,7 @@ async def test_ws_token_sat_gates_policy_guild(session: AsyncSession, acting_use
     """The WebSocket join path: ``authenticate_ws_token`` records the token's
     ``sat``, and the ``establish_guild_access`` that follows applies the guild
     auth-policy gate to the socket exactly as REST would."""
-    member = await acting_user(guild_role=GuildRole.member)
+    member = await acting_user(guild_role=CommunityRole.member)
     provider = await create_auth_provider(session, slug="corp")
     await create_guild_auth_policy(session, member.guild, provider)
     guild_id, provider_id = member.guild.id, provider.id
@@ -571,7 +573,7 @@ async def test_ws_token_carries_the_passkey_to_the_gate(
     ``authenticate_ws_token`` records what the session's ``amr`` proved, and
     the ``establish_guild_access`` that follows reads it — so a socket is
     admitted on the terms a page is."""
-    member = await acting_user(guild_role=GuildRole.member)
+    member = await acting_user(guild_role=CommunityRole.member)
     session.add(
         GuildAuthPolicy(
             guild_id=member.guild.id, policy="required", require_methods=["passkey"]
@@ -598,7 +600,7 @@ async def test_ws_token_carries_the_passkey_to_the_gate(
 async def test_system_sentinel_passes_policy_gate(session: AsyncSession, acting_user):
     """User-attributed system work (export/import workers) passes the gate via
     the explicit sentinel — its enqueueing request already satisfied it."""
-    member = await acting_user(guild_role=GuildRole.member)
+    member = await acting_user(guild_role=CommunityRole.member)
     provider = await create_auth_provider(session, slug="corp")
     await create_guild_auth_policy(session, member.guild, provider)
     guild_id = member.guild.id
@@ -647,7 +649,7 @@ async def test_db_layer_blocks_unsatisfied_session(
     does not answer the policy sees ZERO content rows. Satisfied sessions, the
     user-attributed system sentinel, and pure system routings (no user) all see
     the rows."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     provider = await create_auth_provider(session, slug="corp")
     await create_guild_auth_policy(session, a.guild, provider)
     user_id, guild_id = a.user.id, a.guild.id
@@ -689,7 +691,7 @@ async def test_a_grantee_answers_the_rule_a_member_does(
     """A content grant reaches the community's work, and the community's
     sign-in rule governs that work whoever reaches it. The database answers
     for the grantee's routing as it does for a member's."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     provider = await create_auth_provider(session, slug="corp")
     await create_guild_auth_policy(session, a.guild, provider)
     operator = await create_user(session, role=UserRole.operator)
@@ -797,7 +799,7 @@ async def test_the_gate_and_the_database_agree_on_every_rule(
 
     Every shape a rule can take, against every standing a session can have.
     """
-    member = await acting_user(guild_role=GuildRole.member)
+    member = await acting_user(guild_role=CommunityRole.member)
     provider = await create_auth_provider(session, slug="corp")
     await create_guild_provider_connection(
         session,
@@ -1048,7 +1050,7 @@ async def _a_community_asking_for(
     session: AsyncSession, acting_user, ask: Ask
 ) -> Actor:
     """A member of a community whose rule names ``ask``."""
-    member = await acting_user(guild_role=GuildRole.member)
+    member = await acting_user(guild_role=CommunityRole.member)
     session.add(
         GuildAuthPolicy(
             guild_id=member.guild.id, policy="required", require_methods=[ask.method]
@@ -1155,7 +1157,7 @@ async def test_the_ask_is_written_only_by_a_session_that_has_met_it(
     before it binds anybody, so an ask is only ever written by somebody it
     already applies to. One code for four different asks, so the header is
     what tells the page which line of the form the refusal is about."""
-    seat = await acting_user(guild_role=GuildRole.superadmin)
+    seat = await acting_user(guild_role=CommunityRole.superadmin)
     # Whatever the ask needs of the community is in place, so the seat's own
     # session is the only thing standing between the form and the row.
     met = await ask.met_by(session, seat.guild, seat.user)
@@ -1185,7 +1187,7 @@ async def test_a_community_cannot_ask_for_what_the_deployment_withholds(
     login methods, and the header names the one that is not on it."""
     from app.services.platform import app_settings as app_settings_service
 
-    seat = await acting_user(guild_role=GuildRole.superadmin)
+    seat = await acting_user(guild_role=CommunityRole.superadmin)
     headers = await ask.met_by(session, seat.guild, seat.user)
     row = await app_settings_service.get_app_settings(session)
     assert ask.withheld_by_the_deployment is not None
@@ -1215,7 +1217,7 @@ async def test_a_community_is_told_when_the_deployment_asks_everybody(
     from app.models.platform.user_totp import UserTotp
     from app.services.platform import app_settings as app_settings_service
 
-    seat = await acting_user(guild_role=GuildRole.superadmin)
+    seat = await acting_user(guild_role=CommunityRole.superadmin)
     # Under ``everyone`` this admin is asked for a factor like anybody else,
     # so they hold one — which is the state the page is read in.
     session.add(UserTotp(user_id=seat.user.id, confirmed_at=datetime.now(timezone.utc)))
@@ -1251,7 +1253,7 @@ async def test_a_community_asks_for_a_factor_without_asking_about_arrival(
     community's own while it holds ``restrictions``, a sign-in rule's while it
     holds ``providers``. Withdrawn, the rule stays set and stops applying;
     granted back, it applies again."""
-    seat = await acting_user(guild_role=GuildRole.superadmin)
+    seat = await acting_user(guild_role=CommunityRole.superadmin)
     await guild_administration(session, seat.guild, auth_options=["restrictions"])
     # A session that has presented one; the seat has to answer its own ask.
     headers = _bearer(get_auth_token(seat.user, amr=[SECOND_FACTOR_AMR]))
@@ -1302,7 +1304,7 @@ async def test_a_refused_rule_leaves_the_communitys_others_as_they_were(
     """One change across the seat's rules: switching keys off beside a factor
     the seat has not presented is refused as a whole, and a mixed change the
     seat meets is written as a whole."""
-    seat = await acting_user(guild_role=GuildRole.superadmin)
+    seat = await acting_user(guild_role=CommunityRole.superadmin)
     await guild_administration(session, seat.guild, auth_options=["restrictions"])
     body = {"allow_api_keys": False, "require_second_factor": True}
 

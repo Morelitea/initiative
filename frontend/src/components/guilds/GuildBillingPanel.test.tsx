@@ -4,14 +4,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildGuild, guildCan } from "@/__tests__/factories";
 import { renderWithProviders } from "@/__tests__/helpers/render";
-import type { GuildBillingSummaryRead } from "@/api/generated/initiativeAPI.schemas";
+import type { CommunityBillingSummaryRead } from "@/api/generated/initiativeAPI.schemas";
 
 // Mutable state the mocked hooks read, so each test can vary billing config,
 // the active guild, and what the summary route answered.
 const state = vi.hoisted(() => ({
   guild: null as ReturnType<typeof Object> | null,
   billing: null as { url: string } | null,
-  summary: undefined as GuildBillingSummaryRead | undefined,
+  summary: undefined as CommunityBillingSummaryRead | undefined,
   summaryError: false,
 }));
 
@@ -35,7 +35,7 @@ vi.mock("@/hooks/useGuildBillingSummary", () => ({
 
 import { GuildBillingPanel } from "./GuildBillingPanel";
 
-const EMPTY: GuildBillingSummaryRead = {
+const EMPTY: CommunityBillingSummaryRead = {
   available: true,
   tier_name: null,
   trial_ends_on: null,

@@ -21,7 +21,7 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
-  GuildNarrowingPending,
+  CommunityNarrowingPending,
   HTTPValidationError,
   ListPlacementCommunitiesApiV1SettingsPlacementCommunitiesGetParams,
   PlacementCommunityRead,
@@ -208,7 +208,7 @@ export const listPlacementRequestsApiV1SettingsPlacementRequestsGet = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<GuildNarrowingPending[]>(
+  return apiMutator<CommunityNarrowingPending[]>(
     { url: `/api/v1/settings/placement/requests`, method: "GET", signal },
     options
   );

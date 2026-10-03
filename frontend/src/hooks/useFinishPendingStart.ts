@@ -2,7 +2,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
-import { type GuildCategory, Tool } from "@/api/generated/initiativeAPI.schemas";
+import { type CommunityCategory, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { useAuth } from "@/hooks/useAuth";
 import { useGuilds } from "@/hooks/useGuilds";
 import { toast } from "@/lib/chesterToast";
@@ -40,7 +40,7 @@ export const useLandOnStarter = () => {
 export const useOpenDirectory = () => {
   const navigate = useNavigate();
   return useCallback(
-    (categories: GuildCategory[]) =>
+    (categories: CommunityCategory[]) =>
       navigate({
         to: "/communities",
         search: categories.length ? { category: categories } : {},

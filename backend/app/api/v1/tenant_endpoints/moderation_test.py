@@ -9,7 +9,7 @@ from sqlmodel import select
 from app.core.moderation import ReportOutcome, ReportVenue
 from app.core.tools import Tool
 from app.db.session import set_rls_context
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.core.intake import CaseField, IntakeStream
 from app.models.platform.app_setting import AppSetting
 from app.models.tenant.intake import IntakeBinding, IntakeCase
@@ -102,15 +102,17 @@ async def scene(session, acting_user):
     The moderator is not the initiative's creator: the standing that opens this
     surface is the role's "Full access" flag, not having made the place.
     """
-    owner = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    owner = await acting_user(
+        guild_role=CommunityRole.admin, initiative=True, project=True
+    )
     mod = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=owner.guild,
         initiative=owner.initiative,
         initiative_role="moderator",
     )
     member = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=owner.guild,
         initiative=owner.initiative,
         initiative_role="member",
@@ -298,7 +300,7 @@ async def test_settling_closes_it_and_answers_with_the_whole_card(
 async def test_a_second_reporter_joins_the_open_report(client, session, scene):
     another = await create_user(session)
     await create_guild_membership(
-        session, user=another, guild=scene["guild"], role=GuildRole.member
+        session, user=another, guild=scene["guild"], role=CommunityRole.member
     )
     await create_initiative_member(
         session, scene["initiative"], another, role_name="member"
@@ -628,7 +630,7 @@ async def test_a_guild_admin_reads_it_without_being_in_the_initiative(
 ):
     admin = await create_user(session)
     await create_guild_membership(
-        session, user=admin, guild=scene["guild"], role=GuildRole.admin
+        session, user=admin, guild=scene["guild"], role=CommunityRole.admin
     )
     await set_rls_context(session, Unattributed())
 

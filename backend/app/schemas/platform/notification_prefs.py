@@ -97,7 +97,7 @@ class NotificationCategoryRead(SanitizedBaseModel):
     defaults: dict[Channel, bool]
 
 
-class GuildNotificationSettings(SanitizedBaseModel):
+class CommunityNotificationSettings(SanitizedBaseModel):
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     guild_id: int
@@ -122,7 +122,7 @@ class NotificationPreferencesRead(SanitizedBaseModel):
     pause: Optional[PauseRead] = None
     #: Whether to hold off while the account is plainly already looking.
     respect_presence: bool = True
-    guilds: list[GuildNotificationSettings] = Field(default_factory=list)
+    guilds: list[CommunityNotificationSettings] = Field(default_factory=list)
 
 
 class NotificationChannelSet(SanitizedBaseModel):

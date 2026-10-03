@@ -53,7 +53,7 @@ from app.services.notifications import (
     reminder_scan,
 )
 from app.services.guild_sweeps import Scan, each_guild
-from app.models.platform.guild import Guild, GuildRole
+from app.models.platform.guild import Guild, CommunityRole
 from app.testing import (
     guild_of,
     create_calendar,
@@ -109,7 +109,7 @@ async def _add_attendee(session, initiative, event, user, *, rsvp=RSVPStatus.pen
     # enforces — you can only attend events in initiatives you belong to).
     guild = await session.get(Guild, guild_of(event))
     await create_guild_membership(
-        session, user=user, guild=guild, role=GuildRole.member
+        session, user=user, guild=guild, role=CommunityRole.member
     )
     await create_initiative_member(session, initiative, user, role_name="member")
 
@@ -414,7 +414,9 @@ async def _overdue_task_in_new_guild(
     """Give ``user`` an overdue task assigned to them in a brand-new guild, so a
     user in several guilds has overdue work spread across guild schemas."""
     guild = await create_guild(session, creator=user)
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=user, guild=guild, role=CommunityRole.admin
+    )
     initiative = await create_initiative(session, guild, user, name=label)
     project = await create_project(
         session,
@@ -719,7 +721,9 @@ async def _assignment_item_in_new_guild(
     # guild INSERT into public.guilds isn't RLS-denied.
     await set_rls_context(session, Unattributed())
     guild = await create_guild(session, creator=user)
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=user, guild=guild, role=CommunityRole.admin
+    )
     initiative = await create_initiative(session, guild, user, name=label)
     project = await create_project(session, initiative, user, name=f"{label} Project")
     status = TaskStatus(
@@ -1087,7 +1091,9 @@ async def _reaction_item_in_new_guild(
     # guild INSERT into public.guilds isn't RLS-denied.
     await set_rls_context(session, Unattributed())
     guild = await create_guild(session, creator=user)
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=user, guild=guild, role=CommunityRole.admin
+    )
     initiative = await create_initiative(session, guild, user, name=label)
     project = await create_project(session, initiative, user, name=f"{label} Project")
     task = await create_task(session, project)

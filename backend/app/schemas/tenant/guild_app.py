@@ -40,7 +40,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from app.db.guild_standing import GuildContext
 
 
-class GuildAppInstall(SanitizedBaseModel):
+class CommunityAppInstall(SanitizedBaseModel):
     """Install a listing into this guild, with the seat's consent.
 
     The definition comes from the catalog, and the content the install creates
@@ -68,7 +68,7 @@ class GuildAppInstall(SanitizedBaseModel):
     role_kinds: List[str] = Field(default_factory=lambda: ["moderator"], max_length=10)
 
 
-class GuildAppUpdate(SanitizedBaseModel):
+class CommunityAppUpdate(SanitizedBaseModel):
     name: Optional[str] = Field(default=None, min_length=1, max_length=255)
     #: Turning an app off hides it without touching what it created.
     enabled: Optional[bool] = None
@@ -81,7 +81,7 @@ class GuildAppUpdate(SanitizedBaseModel):
     placed_initiative_ids: Optional[List[int]] = None
 
 
-class GuildAppConfigUpdate(SanitizedBaseModel):
+class CommunityAppConfigUpdate(SanitizedBaseModel):
     """Guild-scoped connection values, keyed by connection then field.
 
     A key sent as ``null`` clears that value; a key left out is untouched, so a
@@ -98,7 +98,7 @@ class GuildAppConfigUpdate(SanitizedBaseModel):
     values: Dict[str, Dict[str, Any]] = {}
 
 
-class GuildAppArtifact(SanitizedBaseModel):
+class CommunityAppArtifact(SanitizedBaseModel):
     """One thing an install produced."""
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
@@ -107,7 +107,7 @@ class GuildAppArtifact(SanitizedBaseModel):
     id: int
 
 
-class GuildAppConnectionRead(SanitizedBaseModel):
+class CommunityAppConnectionRead(SanitizedBaseModel):
     """One connection of an install, as the current viewer sees it.
 
     ``has_value`` is the whole of what is disclosed about stored values. For a
@@ -168,7 +168,7 @@ class AppPlacementUpdate(SanitizedBaseModel):
     role_ids: List[int] = Field(default_factory=list, max_length=200)
 
 
-class GuildAppScopesUpdate(SanitizedBaseModel):
+class CommunityAppScopesUpdate(SanitizedBaseModel):
     """The scopes the seat grants an install, as the whole set.
 
     Each must be one the app's manifest requests and one this deployment
@@ -194,7 +194,7 @@ class AppSurfaceAccessRead(SanitizedBaseModel):
     openable_initiatives: List[int] = []
 
 
-class GuildAppRead(SanitizedBaseModel):
+class CommunityAppRead(SanitizedBaseModel):
     model_config = ConfigDict(
         from_attributes=True, json_schema_serialization_defaults_required=True
     )
@@ -211,7 +211,7 @@ class GuildAppRead(SanitizedBaseModel):
     auto_update: bool = True
     #: What the install produced — for a tool instance, the row it created, so
     #: the sidebar can link straight to it.
-    artifacts: List[GuildAppArtifact] = []
+    artifacts: List[CommunityAppArtifact] = []
     #: Whether a guild admin still has a guild-scoped connection to fill in.
     needs_config: bool = False
     #: What the app reported about the configuration it was given.
@@ -264,7 +264,7 @@ class GuildAppRead(SanitizedBaseModel):
     updated_at: datetime
 
 
-class GuildAppConsentRead(SanitizedBaseModel):
+class CommunityAppConsentRead(SanitizedBaseModel):
     """One request from this app to act as the viewer, and their answer.
 
     ``label`` is the app's own description of what it wants to do, shown as
@@ -287,14 +287,14 @@ class GuildAppConsentRead(SanitizedBaseModel):
     revoked_at: Optional[datetime] = None
 
 
-class GuildAppConsentAnswer(SanitizedBaseModel):
+class CommunityAppConsentAnswer(SanitizedBaseModel):
     """Allow a request, at ``access``: never more than the app asked for.
     Declining is withdrawing a request that was never granted."""
 
     access: ConsentAccess
 
 
-class GuildAppMemberConsent(GuildAppConsentRead):
+class CommunityAppMemberConsent(CommunityAppConsentRead):
     """One member's answer to one of the app's requests, in the seat's Members
     view."""
 
@@ -310,7 +310,7 @@ class AppSurfaceSummary(SanitizedBaseModel):
     name: Dict[str, str] = {}
 
 
-class GuildAppUpgradeAsks(SanitizedBaseModel):
+class CommunityAppUpgradeAsks(SanitizedBaseModel):
     """A version that asks for more than the install holds.
 
     ``added_scopes`` are grantable scopes neither the grant nor the pinned
@@ -327,7 +327,7 @@ class GuildAppUpgradeAsks(SanitizedBaseModel):
     declined: bool = False
 
 
-class GuildAppUpgrade(SanitizedBaseModel):
+class CommunityAppUpgrade(SanitizedBaseModel):
     """The seat's consent to a version that asks for more.
 
     ``version`` is the version the seat was shown; if the catalog offers a
@@ -340,23 +340,23 @@ class GuildAppUpgrade(SanitizedBaseModel):
     add_scopes: List[str] = Field(default_factory=list, max_length=64)
 
 
-class GuildAppDecline(SanitizedBaseModel):
+class CommunityAppDecline(SanitizedBaseModel):
     """Keep the pinned version, and stop being asked about this one."""
 
     version: str = Field(max_length=32)
 
 
-class GuildAppDetail(GuildAppRead):
+class CommunityAppDetail(CommunityAppRead):
     """An install plus its connections, for the settings page.
 
     Separate from the list payload because the connection blocks carry the whole
     pinned form and the sidebar has no use for it.
     """
 
-    connections: List[GuildAppConnectionRead] = []
+    connections: List[CommunityAppConnectionRead] = []
     #: The viewer's own answers to this app's requests to act as them, one per
     #: purpose, the app-wide one first. Nobody else's.
-    consents: List[GuildAppConsentRead] = []
+    consents: List[CommunityAppConsentRead] = []
     #: The version this install would move to if it updated now, and absent
     #: when there is none — an install already on the newest, and one whose
     #: listing is gone or has published nothing this build can run, are one
@@ -372,20 +372,20 @@ class GuildAppDetail(GuildAppRead):
     #: What ``update_version`` asks for beyond what the install holds, when it
     #: asks for anything. Absent for a version that asks nothing new, which
     #: applies without consent.
-    pending_update: Optional[GuildAppUpgradeAsks] = None
+    pending_update: Optional[CommunityAppUpgradeAsks] = None
     #: For each ``apps:`` scope above, the requested ones and those the pending
     #: version adds: the name the app it lets this one use goes by, keyed by
     #: that app's public id. Its public id when the catalog has no name for it.
     app_names: Dict[str, str] = {}
 
 
-class GuildAppListResponse(SanitizedBaseModel):
+class CommunityAppListResponse(SanitizedBaseModel):
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
-    items: List[GuildAppRead]
+    items: List[CommunityAppRead]
 
 
-class GuildAppConnectStart(SanitizedBaseModel):
+class CommunityAppConnectStart(SanitizedBaseModel):
     """Where to send the person connecting: the vendor's authorization page,
     or its install page for a connection an organization installs.
 
@@ -401,7 +401,7 @@ class GuildAppConnectStart(SanitizedBaseModel):
     status: str
 
 
-class GuildAppHandoff(SanitizedBaseModel):
+class CommunityAppHandoff(SanitizedBaseModel):
     """A short-lived credential for one of an app's embedded surfaces.
 
     The token reaches the iframe by ``postMessage`` and never a query string,
@@ -419,7 +419,7 @@ class GuildAppHandoff(SanitizedBaseModel):
     surface_id: str
 
 
-class GuildAppMemberConnection(SanitizedBaseModel):
+class CommunityAppMemberConnection(SanitizedBaseModel):
     """One member's connection, in the admin's Members view.
 
     Who connected, as which vendor account, when, and whether they are blocked.
@@ -440,7 +440,7 @@ class GuildAppMemberConnection(SanitizedBaseModel):
     updated_at: datetime
 
 
-class GuildAppConnectionSummary(SanitizedBaseModel):
+class CommunityAppConnectionSummary(SanitizedBaseModel):
     """The aggregate an admin actually wants: how many of the guild connected."""
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
@@ -452,7 +452,7 @@ class GuildAppConnectionSummary(SanitizedBaseModel):
     member_count: int = 0
 
 
-class GuildAppConsentSummary(SanitizedBaseModel):
+class CommunityAppConsentSummary(SanitizedBaseModel):
     """Every member's answers to this app's requests, counted."""
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
@@ -465,21 +465,21 @@ class GuildAppConsentSummary(SanitizedBaseModel):
     open_count: int = 0
 
 
-class GuildAppMembersResponse(PageMeta):
+class CommunityAppMembersResponse(PageMeta):
     """One page of the members who connected to this app or answered it.
 
     ``summary`` and ``consent_summary`` count across every member; ``items``
     and ``consents`` are the rows of the members on this page.
     """
 
-    summary: List[GuildAppConnectionSummary] = []
-    items: List[GuildAppMemberConnection] = []
+    summary: List[CommunityAppConnectionSummary] = []
+    items: List[CommunityAppMemberConnection] = []
     #: The page's members' answers to this app's requests to act as them.
     #: Beside the connections rather than in a view of its own: both answer
     #: "what does this app have of this member's", and an admin governing one
     #: wants the other in the same place.
-    consents: List[GuildAppMemberConsent] = []
-    consent_summary: GuildAppConsentSummary = GuildAppConsentSummary()
+    consents: List[CommunityAppMemberConsent] = []
+    consent_summary: CommunityAppConsentSummary = CommunityAppConsentSummary()
 
 
 # --- serialization ----------------------------------------------------------
@@ -493,7 +493,7 @@ def serialize_guild_app(
     avatar_url: Optional[str] = None,
     placements: Sequence[Any] = (),
     artifacts: Sequence[Dict[str, Any]] = (),
-) -> GuildAppRead:
+) -> CommunityAppRead:
     """One install as the client sees it.
 
     ``install_state`` is what this deployment's registration says about the app
@@ -513,7 +513,7 @@ def serialize_guild_app(
     )
     features = definition.get("features")
     service_state = install_state or InstallState()
-    return GuildAppRead(
+    return CommunityAppRead(
         id=app.id,
         guild_id=context.guild_id,
         listing_uid=app.listing_uid,
@@ -522,7 +522,7 @@ def serialize_guild_app(
         name=app.name,
         enabled=app.enabled,
         auto_update=app.auto_update,
-        artifacts=[GuildAppArtifact(**artifact) for artifact in artifacts],
+        artifacts=[CommunityAppArtifact(**artifact) for artifact in artifacts],
         needs_config=state.needs_config,
         config_state=state.state,
         config_state_detail=state.detail,
@@ -559,7 +559,7 @@ def serialize_connection(
     *,
     member_row: Any = None,
     holds_seat: bool = False,
-) -> GuildAppConnectionRead:
+) -> CommunityAppConnectionRead:
     """One connection block for the viewer looking at it.
 
     A guild-scoped connection reads its presence off the install row; a
@@ -588,7 +588,7 @@ def serialize_connection(
         if isinstance(field, dict)
     }
     readable = scope != "static" or holds_seat
-    return GuildAppConnectionRead(
+    return CommunityAppConnectionRead(
         id=connection_id,
         scope=scope,
         label=connection.get("label") or {},
@@ -626,7 +626,7 @@ def serialize_guild_app_detail(
     artifacts: Sequence[Dict[str, Any]] = (),
     consent_rows: Sequence[Any] = (),
     app_names: Optional[Dict[str, str]] = None,
-) -> GuildAppDetail:
+) -> CommunityAppDetail:
     """The install and its connections, from the viewer's own perspective.
 
     ``update_offer`` (an ``app_updates.UpdateOffer``) is resolved by the
@@ -649,7 +649,7 @@ def serialize_guild_app_detail(
         )
         for connection in app_config_service.definition_connections(app.definition)
     ]
-    return GuildAppDetail(
+    return CommunityAppDetail(
         **base.model_dump(),
         connections=connections,
         consents=[serialize_consent(row) for row in consent_rows],
@@ -665,7 +665,7 @@ def serialize_guild_app_detail(
 
 def upgrade_asks_read(version: str, asks: Any, *, declined: bool = False):
     """What a version asks for, as the client reads it."""
-    return GuildAppUpgradeAsks(
+    return CommunityAppUpgradeAsks(
         version=version,
         added_scopes=list(asks.added_scopes),
         added_surfaces=[
@@ -682,7 +682,7 @@ def upgrade_asks_read(version: str, asks: Any, *, declined: bool = False):
     )
 
 
-def serialize_upgrade_asks(app: Any, offer: Any) -> Optional[GuildAppUpgradeAsks]:
+def serialize_upgrade_asks(app: Any, offer: Any) -> Optional[CommunityAppUpgradeAsks]:
     """The offered version's asks, or ``None`` when it asks nothing new."""
     if offer is None or not offer.asks.asks_more:
         return None
@@ -691,8 +691,8 @@ def serialize_upgrade_asks(app: Any, offer: Any) -> Optional[GuildAppUpgradeAsks
     )
 
 
-def serialize_member_connection(row: Any) -> GuildAppMemberConnection:
-    return GuildAppMemberConnection(
+def serialize_member_connection(row: Any) -> CommunityAppMemberConnection:
+    return CommunityAppMemberConnection(
         connection_id=row.connection_id,
         user_id=row.user_id,
         status=row.status,
@@ -704,8 +704,8 @@ def serialize_member_connection(row: Any) -> GuildAppMemberConnection:
     )
 
 
-def serialize_consent(row: Any) -> GuildAppConsentRead:
-    return GuildAppConsentRead(
+def serialize_consent(row: Any) -> CommunityAppConsentRead:
+    return CommunityAppConsentRead(
         id=row.id,
         purpose=row.purpose,
         label=row.label,
@@ -721,7 +721,7 @@ def serialize_consent(row: Any) -> GuildAppConsentRead:
     )
 
 
-def serialize_member_consent(row: Any) -> GuildAppMemberConsent:
-    return GuildAppMemberConsent(
+def serialize_member_consent(row: Any) -> CommunityAppMemberConsent:
+    return CommunityAppMemberConsent(
         **serialize_consent(row).model_dump(), user_id=row.user_id
     )

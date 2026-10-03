@@ -30,7 +30,7 @@ from app.core.app_access_token import (
 from app.core.messages import AppMessages, AuthMessages, GuildAppMessages
 from app.db.guild_standing import InstallContext
 from app.main import app
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.platform.notification import Notification, NotificationType
 from app.models.tenant.document import Document
 from app.models.tenant.initiative import InitiativeMember
@@ -92,7 +92,7 @@ def _installation_token(installed: InstalledApp, **overrides) -> str:
 
 async def _member(acting_user, installed: InstalledApp):
     return await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=installed.guild,
         initiative=installed.placed,
         initiative_role="member",
@@ -257,7 +257,7 @@ async def test_a_request_bound_to_an_initiative_names_a_member_of_it(
     installed = await install_app(
         session, acting_user, role_session, granted=["documents:read"]
     )
-    outsider = await acting_user(guild_role=GuildRole.member, guild=installed.guild)
+    outsider = await acting_user(guild_role=CommunityRole.member, guild=installed.guild)
     outsider_ref = await _ref(installed, outsider.user.id)
 
     bound = await _ask(

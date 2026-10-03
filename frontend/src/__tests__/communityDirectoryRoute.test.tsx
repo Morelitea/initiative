@@ -16,7 +16,7 @@ import { createRouter } from "@tanstack/react-router";
 import { screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { CommunityGuildRead } from "@/api/generated/initiativeAPI.schemas";
+import type { DirectoryCommunityRead } from "@/api/generated/initiativeAPI.schemas";
 import { AppSidebar } from "@/components/AppSidebar";
 import { GuildSidebar } from "@/components/guilds/GuildSidebar";
 import { SidebarProvider } from "@/components/ui/sidebar";
@@ -44,7 +44,7 @@ vi.mock("@/hooks/useCommunities", () => ({
   useJoinCommunityGuild: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 
-const community: CommunityGuildRead = {
+const community: DirectoryCommunityRead = {
   id: 7,
   name: "Riverside Players",
   description: "Community theatre.",

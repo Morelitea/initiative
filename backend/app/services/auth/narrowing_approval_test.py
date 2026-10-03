@@ -7,8 +7,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.guild_provider_connection import GuildProviderConnection
 from app.schemas.platform.settings import (
-    GuildProviderConnectionCreate,
-    GuildProviderConnectionUpdate,
+    CommunityProviderConnectionCreate,
+    CommunityProviderConnectionUpdate,
 )
 from app.services.auth import guild_provider_connections as connections
 from app.services.auth import narrowing_approval
@@ -41,7 +41,7 @@ async def test_a_new_connection_is_not_agreed_yet(session: AsyncSession):
 
     await connections.create_connection(
         session,
-        GuildProviderConnectionCreate(
+        CommunityProviderConnectionCreate(
             provider_id=provider.id,
             claim=NARROWED_CLAIM,
             claim_values=[NARROWED_VALUE],
@@ -98,7 +98,7 @@ async def test_writing_different_values_asks_again(session: AsyncSession):
     await connections.update_connection(
         session,
         row.id,
-        GuildProviderConnectionUpdate(claim_values=["somewhere-else.example"]),
+        CommunityProviderConnectionUpdate(claim_values=["somewhere-else.example"]),
         guild_id=row.guild_id,
         actor_user_id=staff.id,
     )
@@ -121,7 +121,7 @@ async def test_writing_the_same_values_keeps_the_agreement(session: AsyncSession
     await connections.update_connection(
         session,
         row.id,
-        GuildProviderConnectionUpdate(auto_join=True),
+        CommunityProviderConnectionUpdate(auto_join=True),
         guild_id=row.guild_id,
         actor_user_id=staff.id,
     )

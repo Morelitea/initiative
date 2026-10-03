@@ -12,7 +12,7 @@ import json
 import pytest
 
 from app.core.audit_events import AuditEventType
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.services import ai_settings as ai_settings_service
 from app.testing.audit import emitted
 
@@ -181,7 +181,7 @@ async def test_a_community_connection_is_recorded_against_its_community(
 ):
     owner = await acting_user()
     await _set_mode(client, owner, "guild")
-    seat = await acting_user(guild_role=GuildRole.superadmin, initiative=True)
+    seat = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
     seat_id, guild_id = seat.user.id, seat.guild.id
     capfd.readouterr()
 
@@ -222,7 +222,7 @@ async def test_a_community_connection_edit_that_changes_nothing_records_nothing(
 ):
     owner = await acting_user()
     await _set_mode(client, owner, "guild")
-    seat = await acting_user(guild_role=GuildRole.superadmin, initiative=True)
+    seat = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
 
     created = await client.post(
         seat.g("/settings/ai/connections"),
@@ -246,7 +246,7 @@ async def test_a_refused_connection_write_records_nothing(client, acting_user, c
     """Running a community is not the seat that connects it to a provider."""
     owner = await acting_user()
     await _set_mode(client, owner, "guild")
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     capfd.readouterr()
 
     refused = await client.post(

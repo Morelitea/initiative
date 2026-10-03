@@ -21,7 +21,7 @@ import { Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { GuildClaimRuleRead } from "@/api/generated/initiativeAPI.schemas";
+import type { CommunityClaimRuleRead } from "@/api/generated/initiativeAPI.schemas";
 import { ProviderMark } from "@/components/auth/ProviderMark";
 import {
   describePlacementMatch,
@@ -77,7 +77,7 @@ export const GuildClaimRulesSection = ({ guildId }: { guildId: number }) => {
   const [guildRole, setGuildRole] = useState("member");
   const [initiativeId, setInitiativeId] = useState<string>(COMMUNITY_ONLY);
   const [initiativeRoleId, setInitiativeRoleId] = useState("");
-  const [removing, setRemoving] = useState<GuildClaimRuleRead | null>(null);
+  const [removing, setRemoving] = useState<CommunityClaimRuleRead | null>(null);
 
   const rules = rulesQuery.data?.rules ?? [];
   const providerRules = rulesQuery.data?.provider_rules ?? [];

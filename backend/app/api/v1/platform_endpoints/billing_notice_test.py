@@ -23,7 +23,7 @@ from app.api.v1.platform_endpoints.billing_test import (
     _post,
 )
 from app.models.platform.billing import BillingEventLog
-from app.models.platform.guild import GuildRole, GuildStatus
+from app.models.platform.guild import CommunityRole, CommunityStatus
 from app.models.platform.notification import Notification, NotificationType
 from app.core.notification_categories import NotificationCategory
 from app.services.platform import email_outbox, identity_refs, notice_outbox
@@ -58,13 +58,13 @@ async def _community(session: AsyncSession):
     admin = await create_user(session, email="admin@example.com")
     gone = await create_user(session, email="gone@example.com")
     await create_guild_membership(
-        session, user=owner, guild=guild, role=GuildRole.superadmin
+        session, user=owner, guild=guild, role=CommunityRole.superadmin
     )
     await create_guild_membership(
-        session, user=other_seat, guild=guild, role=GuildRole.superadmin
+        session, user=other_seat, guild=guild, role=CommunityRole.superadmin
     )
     await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
+        session, user=admin, guild=guild, role=CommunityRole.admin
     )
     return guild.id, owner.id, other_seat.id, admin.id, gone.id
 
@@ -271,7 +271,7 @@ async def test_a_replayed_event_tells_nobody_twice(
     ]
 
 
-@pytest.mark.parametrize("status", [GuildStatus.deleted, GuildStatus.suspended])
+@pytest.mark.parametrize("status", [CommunityStatus.deleted, CommunityStatus.suspended])
 async def test_a_deleted_or_suspended_community_is_recorded_and_told_nothing(
     client: AsyncClient, session: AsyncSession, letters, status
 ):

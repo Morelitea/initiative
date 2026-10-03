@@ -7,7 +7,7 @@ import type {
   OwnershipTransferRequest,
   OwnershipTransferResponse,
   Tool,
-  UserGuildMember,
+  UserCommunityMember,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
   claimUnownedContentApiV1CGuildIdUsersUnownedContentClaimPost,
@@ -68,7 +68,7 @@ interface TransferContentOwnershipDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** Whose content moves. Null claims everything nobody owns instead. */
-  member: UserGuildMember | null;
+  member: UserCommunityMember | null;
   /** Pre-selected recipient — the acting admin. */
   defaultRecipient?: MemberLike | null;
   onSuccess?: () => void;

@@ -69,22 +69,22 @@ from app.models.tenant.initiative import Initiative
 from app.schemas.tenant.guild_app import (
     AppPlacementRead,
     AppPlacementUpdate,
-    GuildAppScopesUpdate,
-    GuildAppConfigUpdate,
-    GuildAppConnectionSummary,
-    GuildAppConsentSummary,
-    GuildAppConnectStart,
-    GuildAppConsentAnswer,
-    GuildAppConsentRead,
-    GuildAppDecline,
-    GuildAppDetail,
-    GuildAppHandoff,
-    GuildAppInstall,
-    GuildAppListResponse,
-    GuildAppMembersResponse,
-    GuildAppRead,
-    GuildAppUpdate,
-    GuildAppUpgrade,
+    CommunityAppScopesUpdate,
+    CommunityAppConfigUpdate,
+    CommunityAppConnectionSummary,
+    CommunityAppConsentSummary,
+    CommunityAppConnectStart,
+    CommunityAppConsentAnswer,
+    CommunityAppConsentRead,
+    CommunityAppDecline,
+    CommunityAppDetail,
+    CommunityAppHandoff,
+    CommunityAppInstall,
+    CommunityAppListResponse,
+    CommunityAppMembersResponse,
+    CommunityAppRead,
+    CommunityAppUpdate,
+    CommunityAppUpgrade,
     serialize_consent,
     serialize_guild_app,
     serialize_guild_app_detail,
@@ -318,7 +318,7 @@ def _connection_or_404(app: GuildApp, connection_id: str) -> dict:
 
 async def _read(
     session: AsyncSession, app: GuildApp, context: GuildContext
-) -> GuildAppRead:
+) -> CommunityAppRead:
     """One install as the list reads it."""
     return serialize_guild_app(
         app,
@@ -339,7 +339,7 @@ async def _detail(
     user_id: int,
     *,
     offer: Optional[app_updates_service.UpdateOffer] = None,
-) -> GuildAppDetail:
+) -> CommunityAppDetail:
     """One install with its connections and consents, as ``user_id`` sees it.
 
     ``offer`` is the update offered, read here when not given.
@@ -376,12 +376,12 @@ async def _member_rows(session, *, app_id: int, user_id: int) -> dict:
 # ---------------------------------------------------------------------------
 
 
-@router.get("/", response_model=GuildAppListResponse)
+@router.get("/", response_model=CommunityAppListResponse)
 async def list_guild_apps(
     session: RLSSessionDep,
     current_user: CurrentUser,
     guild_context: GuildContextDep,
-) -> GuildAppListResponse:
+) -> CommunityAppListResponse:
     """Every app installed in this guild, enabled or not.
 
     Disabled ones are included so an admin can find and re-enable them; the
@@ -402,7 +402,7 @@ async def list_guild_apps(
     artifacts = await guild_apps_service.artifacts_by_install(
         session, [app.id for app in apps]
     )
-    return GuildAppListResponse(
+    return CommunityAppListResponse(
         items=[
             serialize_guild_app(
                 app,
@@ -419,13 +419,13 @@ async def list_guild_apps(
     )
 
 
-@router.get("/{app_id}", response_model=GuildAppDetail)
+@router.get("/{app_id}", response_model=CommunityAppDetail)
 async def get_guild_app(
     app_id: int,
     session: RLSSessionDep,
     current_user: CurrentUser,
     guild_context: GuildContextDep,
-) -> GuildAppDetail:
+) -> CommunityAppDetail:
     """One install with its connections, from the caller's own perspective.
 
     Any member may read this: the per-member connection blocks report the
@@ -437,13 +437,13 @@ async def get_guild_app(
     return await _detail(session, app, guild_context, current_user.id)
 
 
-@router.post("/", response_model=GuildAppRead, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=CommunityAppRead, status_code=status.HTTP_201_CREATED)
 async def install_guild_app(
-    payload: GuildAppInstall,
+    payload: CommunityAppInstall,
     session: SeatWriteSessionDep,
     current_user: CurrentUser,
     guild_context: SeatWriteContextDep,
-) -> GuildAppRead:
+) -> CommunityAppRead:
     """Install a listing as a guild app.
 
     The request names a listing; everything stored comes from the catalog row
@@ -539,15 +539,15 @@ async def install_guild_app(
     return installed
 
 
-@router.post("/{app_id}/upgrade", response_model=GuildAppDetail)
+@router.post("/{app_id}/upgrade", response_model=CommunityAppDetail)
 async def upgrade_guild_app(
     app_id: int,
     session: SeatWriteSessionDep,
     current_user: CurrentUser,
     guild_context: SeatWriteContextDep,
     background_tasks: BackgroundTasks,
-    payload: Optional[GuildAppUpgrade] = None,
-) -> GuildAppDetail:
+    payload: Optional[CommunityAppUpgrade] = None,
+) -> CommunityAppDetail:
     """Re-pin an installed app to its listing's current version, now.
 
     The button an admin presses when their guild has turned automatic updates
@@ -656,14 +656,14 @@ async def upgrade_guild_app(
     return await _detail(session, app, guild_context, current_user.id)
 
 
-@router.post("/{app_id}/upgrade/decline", response_model=GuildAppDetail)
+@router.post("/{app_id}/upgrade/decline", response_model=CommunityAppDetail)
 async def decline_guild_app_upgrade(
     app_id: int,
-    payload: GuildAppDecline,
+    payload: CommunityAppDecline,
     session: SeatWriteSessionDep,
     current_user: CurrentUser,
     guild_context: SeatWriteContextDep,
-) -> GuildAppDetail:
+) -> CommunityAppDetail:
     """Keep the pinned version, and stop being asked about this one.
 
     The install goes on running the version it has, with the grant it has.
@@ -699,14 +699,14 @@ async def decline_guild_app_upgrade(
     return await _detail(session, app, guild_context, current_user.id, offer=offer)
 
 
-@router.patch("/{app_id}", response_model=GuildAppRead)
+@router.patch("/{app_id}", response_model=CommunityAppRead)
 async def update_guild_app(
     app_id: int,
-    payload: GuildAppUpdate,
+    payload: CommunityAppUpdate,
     session: SeatWriteSessionDep,
     current_user: CurrentUser,
     guild_context: SeatWriteContextDep,
-) -> GuildAppRead:
+) -> CommunityAppRead:
     """Rename an app, place it, choose how it updates, or turn it off.
 
     Renaming is always allowed — a guild may call an app whatever it likes.
@@ -819,14 +819,14 @@ async def _drop_install_refs(guild_id: int, install_id: int) -> None:
 # ---------------------------------------------------------------------------
 
 
-@router.put("/{app_id}/config", response_model=GuildAppDetail)
+@router.put("/{app_id}/config", response_model=CommunityAppDetail)
 async def update_guild_app_config(
     app_id: int,
-    payload: GuildAppConfigUpdate,
+    payload: CommunityAppConfigUpdate,
     session: SeatWriteSessionDep,
     current_user: CurrentUser,
     guild_context: SeatWriteContextDep,
-) -> GuildAppDetail:
+) -> CommunityAppDetail:
     """Set the guild-wide values an app's connections ask for.
 
     Validated against the *pinned* definition, so what an install accepts is the
@@ -909,14 +909,14 @@ async def put_guild_app_placement(
     return AppPlacementRead(initiative_id=initiative_id, role_ids=after)
 
 
-@router.put("/{app_id}/scopes", response_model=GuildAppRead)
+@router.put("/{app_id}/scopes", response_model=CommunityAppRead)
 async def put_guild_app_scopes(
     app_id: int,
-    payload: GuildAppScopesUpdate,
+    payload: CommunityAppScopesUpdate,
     session: SeatWriteSessionDep,
     current_user: CurrentUser,
     guild_context: SeatWriteContextDep,
-) -> GuildAppRead:
+) -> CommunityAppRead:
     """Grant the install exactly these scopes.
 
     Each must be one the app's manifest requests and one the deployment's
@@ -959,14 +959,14 @@ async def put_guild_app_scopes(
 # ---------------------------------------------------------------------------
 
 
-@router.post("/{app_id}/handoff/{surface_id}", response_model=GuildAppHandoff)
+@router.post("/{app_id}/handoff/{surface_id}", response_model=CommunityAppHandoff)
 async def create_guild_app_handoff(
     app_id: int,
     surface_id: str,
     session: RLSSessionDep,
     current_user: CurrentUser,
     guild_context: GuildContextDep,
-) -> GuildAppHandoff:
+) -> CommunityAppHandoff:
     """Mint the short-lived credential for one of this app's embedded surfaces.
 
     Whether the surface may be opened is decided here, under the caller's real
@@ -995,7 +995,7 @@ async def create_guild_app_handoff(
 
 @initiative_router.post(
     "/initiatives/{initiative_id}/apps/{app_id}/handoff/{surface_id}",
-    response_model=GuildAppHandoff,
+    response_model=CommunityAppHandoff,
     tags=["apps"],
 )
 async def create_initiative_app_handoff(
@@ -1005,7 +1005,7 @@ async def create_initiative_app_handoff(
     session: RLSSessionDep,
     current_user: CurrentUser,
     guild_context: GuildContextDep,
-) -> GuildAppHandoff:
+) -> CommunityAppHandoff:
     """Mint the credential for a surface opened inside one initiative.
 
     The install is the guild's — there is one of it, not one per initiative —
@@ -1034,13 +1034,13 @@ async def create_initiative_app_handoff(
     return _handoff_response(handoff)
 
 
-def _handoff_response(handoff: handoff_service.EmbedHandoff) -> GuildAppHandoff:
+def _handoff_response(handoff: handoff_service.EmbedHandoff) -> CommunityAppHandoff:
     """The same answer either route gives.
 
     The initiative is not in it: it is a claim in the token, and the browser
     already knows which initiative it is looking at.
     """
-    return GuildAppHandoff(
+    return CommunityAppHandoff(
         handoff_token=handoff.token,
         expires_in_seconds=handoff.expires_in_seconds,
         embed_url=handoff.embed_url,
@@ -1057,7 +1057,7 @@ def _handoff_response(handoff: handoff_service.EmbedHandoff) -> GuildAppHandoff:
 
 @router.post(
     "/{app_id}/connections/{connection_id}/connect",
-    response_model=GuildAppConnectStart,
+    response_model=CommunityAppConnectStart,
 )
 async def connect_guild_app(
     app_id: int,
@@ -1065,7 +1065,7 @@ async def connect_guild_app(
     session: RLSSessionDep,
     current_user: CurrentUser,
     guild_context: GuildContextDep,
-) -> GuildAppConnectStart:
+) -> CommunityAppConnectStart:
     """Start the vendor flow behind one connection.
 
     Two kinds run through here, and the connection's scope decides which:
@@ -1140,7 +1140,7 @@ async def connect_guild_app(
         )
     except flows_service.ConnectionFlowError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.code) from exc
-    return GuildAppConnectStart(
+    return CommunityAppConnectStart(
         connection_id=connection_id,
         connect_url=connect_url,
         status=current_status,
@@ -1210,16 +1210,16 @@ async def _own_consent(
     return row
 
 
-@router.put("/{app_id}/consents/{consent_id}", response_model=GuildAppConsentRead)
+@router.put("/{app_id}/consents/{consent_id}", response_model=CommunityAppConsentRead)
 async def grant_my_consent(
     app_id: int,
     consent_id: int,
-    payload: GuildAppConsentAnswer,
+    payload: CommunityAppConsentAnswer,
     session: RLSSessionDep,
     current_user: CurrentUser,
     guild_context: GuildContextDep,
     credential: Annotated[str, Depends(require_first_party_session)],
-) -> GuildAppConsentRead:
+) -> CommunityAppConsentRead:
     """Allow this app to act as you for one of its requests, at ``access``.
 
     Never more than the app asked for. Acts on the caller alone and takes no
@@ -1278,7 +1278,7 @@ async def revoke_my_consent(
 # ---------------------------------------------------------------------------
 
 
-@router.get("/{app_id}/members", response_model=GuildAppMembersResponse)
+@router.get("/{app_id}/members", response_model=CommunityAppMembersResponse)
 async def list_guild_app_members(
     app_id: int,
     session: SeatSessionDep,
@@ -1286,7 +1286,7 @@ async def list_guild_app_members(
     guild_context: SeatContextDep,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
-) -> GuildAppMembersResponse:
+) -> CommunityAppMembersResponse:
     """Who has connected which of this app's per-member connections, and who
     answered its requests to act as them — a page of members at a time.
 
@@ -1305,14 +1305,14 @@ async def list_guild_app_members(
     ).one()
     tallies = await connections_service.connection_tallies(session, app_id=app.id)
 
-    summary: list[GuildAppConnectionSummary] = []
+    summary: list[CommunityAppConnectionSummary] = []
     for connection in app_config_service.definition_connections(app.definition):
         if connection.get("scope") != "interactive":
             continue
         connection_id = connection.get("id") or ""
         connected, blocked = tallies.get(connection_id, (0, 0))
         summary.append(
-            GuildAppConnectionSummary(
+            CommunityAppConnectionSummary(
                 connection_id=connection_id,
                 label=connection.get("label") or {},
                 connected_count=connected,
@@ -1344,7 +1344,7 @@ async def list_guild_app_members(
         session, install_id=app.id, user_ids=user_ids
     )
     consent_tallies = await consents_service.consent_tallies(session, install_id=app.id)
-    return GuildAppMembersResponse(
+    return CommunityAppMembersResponse(
         **build_paginated_response(
             [serialize_member_connection(row) for row in rows],
             total_count,
@@ -1352,7 +1352,7 @@ async def list_guild_app_members(
             page_size,
             summary=summary,
             consents=[serialize_member_consent(row) for row in consents],
-            consent_summary=GuildAppConsentSummary(
+            consent_summary=CommunityAppConsentSummary(
                 member_count=consent_tallies.members,
                 allowed_count=consent_tallies.allowed,
                 open_count=consent_tallies.open,

@@ -34,7 +34,7 @@ from app.schemas.platform.operator import (
     PlatformRoleUpdate,
     OperatorUserDeleteRequest,
     OperatorDeletionEligibilityResponse,
-    GuildBlockerInfo,
+    CommunityBlockerInfo,
 )
 from app.core.messages import (
     OperatorMessages,
@@ -937,7 +937,7 @@ async def check_user_deletion_eligibility(
         can_delete=can_delete,
         blockers=blockers,
         guild_blockers=[
-            GuildBlockerInfo(guild_id=guild_id, guild_name=guild_name)
+            CommunityBlockerInfo(guild_id=guild_id, guild_name=guild_name)
             for guild_id, guild_name in await guilds_service.stranded_seats(
                 session, user_id=user_id
             )

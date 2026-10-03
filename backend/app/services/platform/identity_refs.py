@@ -23,7 +23,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlmodel import delete, select, update
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.platform.guild import Guild, GuildStatus
+from app.models.platform.guild import Guild, CommunityStatus
 from app.models.platform.identity_ref import (
     REF_ENTROPY_BYTES,
     REF_GRACE_PERIOD,
@@ -518,7 +518,7 @@ async def purge_orphaned_sector_refs(session: AsyncSession) -> int:
             ~exists(
                 select(Guild.id).where(
                     Guild.id == IdentityRef.sector_guild_id,
-                    Guild.status != GuildStatus.deleted.value,
+                    Guild.status != CommunityStatus.deleted.value,
                 )
             ),
         )

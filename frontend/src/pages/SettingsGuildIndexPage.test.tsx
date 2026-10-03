@@ -3,11 +3,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildGuild, buildUser, guildCan } from "@/__tests__/factories";
 import { renderPage } from "@/__tests__/helpers/render";
-import type { GuildRole } from "@/api/generated/initiativeAPI.schemas";
+import type { CommunityRole } from "@/api/generated/initiativeAPI.schemas";
 import type { useAppConfig as useAppConfigType } from "@/hooks/useAppConfig";
 import type { GuildEntry } from "@/hooks/useGuilds";
 
-let guildRole: GuildRole = "superadmin";
+let guildRole: CommunityRole = "superadmin";
 let billing: { url: string } | null = null;
 
 vi.mock(import("@/hooks/useAppConfig"), async (importOriginal) => ({

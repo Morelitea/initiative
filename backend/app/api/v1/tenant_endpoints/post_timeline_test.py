@@ -12,7 +12,7 @@ from datetime import datetime, timedelta, timezone
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.testing import (
     assign_tag,
     create_post,
@@ -52,7 +52,7 @@ async def _board(session: AsyncSession, actor):
 async def test_the_rail_lists_a_months_notices_newest_first(
     client: AsyncClient, acting_user, session
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _board(session, a)
 
     response = await client.get(
@@ -68,7 +68,7 @@ async def test_the_rail_lists_a_months_notices_newest_first(
 
 
 async def test_a_months_count_is_its_notices(client: AsyncClient, acting_user, session):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _posts_enabled(session, a.initiative)
     for day in (2, 9, 16):
         await create_post(
@@ -96,7 +96,7 @@ async def test_the_anchor_lands_on_the_months_first_notice(
     """The rail's anchor is the newest instant in the month, so asking the feed
     for "at or before this" puts that month at the top rather than the one
     above it."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     made = await _board(session, a)
 
     rail = await client.get(
@@ -123,7 +123,7 @@ async def test_the_month_boundary_is_cut_in_the_readers_zone(
 ):
     """A notice posted at 23:00 UTC on the 31st is the 1st in Auckland, and a
     reader there should find it filed under the month they posted it in."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _posts_enabled(session, a.initiative)
     await create_post(
         session,
@@ -153,7 +153,7 @@ async def test_the_rail_shows_only_months_the_reader_can_open(
 ):
     """The rail and the feed run through one scoping helper, so a month whose
     only notice is a draft is not a stop on somebody else's rail."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _posts_enabled(session, a.initiative)
     await create_post(
         session,
@@ -164,7 +164,7 @@ async def test_the_rail_shows_only_months_the_reader_can_open(
         scheduled_for=datetime.now(timezone.utc) + timedelta(days=40),
     )
     reader = await acting_user(
-        guild_role=GuildRole.member, guild=a.guild, initiative=a.initiative
+        guild_role=CommunityRole.member, guild=a.guild, initiative=a.initiative
     )
 
     author = await client.get(
@@ -188,10 +188,10 @@ async def test_the_rail_narrows_with_the_filters(
     """The rail is a picture of the feed as it stands: with the unread filter
     on, a month that is fully read has nothing to offer, and with a tag or a
     property only the months holding a notice that carries it."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     made = await _board(session, a)
     reader = await acting_user(
-        guild_role=GuildRole.member, guild=a.guild, initiative=a.initiative
+        guild_role=CommunityRole.member, guild=a.guild, initiative=a.initiative
     )
     board = await client.get(
         a.g("/posts/"),
@@ -238,7 +238,7 @@ async def test_the_rail_narrows_with_the_filters(
 async def test_the_rail_follows_the_archive_view(
     client: AsyncClient, acting_user, session
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     made = await _board(session, a)
     made["jan"].archived_at = datetime.now(timezone.utc)
     session.add(made["jan"])
@@ -268,7 +268,7 @@ async def test_an_anchored_board_is_strictly_chronological(
     """A pin says what matters now. A reader who has jumped to January is
     reading what mattered then, so the pinned band steps aside rather than
     following them into every month they visit."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     made = await _board(session, a)
     pinned = await client.put(
         a.g(f"/posts/{made['mar'].id}/pin"), headers=a.headers, json={"pinned": True}
@@ -294,7 +294,7 @@ async def test_an_anchored_board_is_strictly_chronological(
 async def test_the_anchor_is_inclusive(client: AsyncClient, acting_user, session):
     """The instant a rail names is a notice's own, so the notice it names has
     to be the first one back — not the one just above it."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _board(session, a)
 
     response = await client.get(
@@ -309,7 +309,7 @@ async def test_the_anchor_is_inclusive(client: AsyncClient, acting_user, session
 async def test_anchoring_keeps_the_other_filters(
     client: AsyncClient, acting_user, session
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _board(session, a)
 
     response = await client.get(
@@ -330,7 +330,7 @@ async def test_a_zone_that_is_not_one_falls_back_to_utc(
 ):
     """The zone only draws month lines; a browser sending one the server does
     not know still gets its rail, cut in UTC."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _board(session, a)
 
     responses = [
@@ -352,7 +352,7 @@ async def test_a_lifted_pin_is_still_in_its_own_month(
     """The board lifts a pin to the top, but the rail counts it where it was
     written — otherwise pinning a notice would empty its month from the rail
     and add a phantom to whichever month is current."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     made = await _board(session, a)
     await client.put(
         a.g(f"/posts/{made['jan'].id}/pin"), headers=a.headers, json={"pinned": True}

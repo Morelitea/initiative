@@ -13,11 +13,11 @@ import {
 import type {
   AccountDeletionRequest,
   AccountDeletionResponse,
+  CommunityRole,
   ExportUsersCsvApiV1CGuildIdUsersExportCsvGetParams,
-  GuildRole,
   ListUsersApiV1CGuildIdUsersGetParams,
   Tool,
-  UserGuildMemberListResponse,
+  UserCommunityMemberListResponse,
   UserRead,
   UserSummary,
 } from "@/api/generated/initiativeAPI.schemas";
@@ -56,10 +56,10 @@ import type { QueryOpts } from "@/types/query";
  */
 export const useUsers = (
   params: ListUsersApiV1CGuildIdUsersGetParams,
-  options?: QueryOpts<UserGuildMemberListResponse>
+  options?: QueryOpts<UserCommunityMemberListResponse>
 ) => {
   const guildId = useActiveGuildId();
-  return useQuery<UserGuildMemberListResponse>({
+  return useQuery<UserCommunityMemberListResponse>({
     queryKey: getListUsersApiV1CGuildIdUsersGetQueryKey(guildId, params),
     queryFn: () => listUsersApiV1CGuildIdUsersGet(guildId, params),
     // Keep the page on screen while the next one (or the next search) loads.
@@ -366,7 +366,7 @@ export const useDeleteOwnAccount = (
     options
   );
 
-type UpdateGuildMembershipVars = { guildId: number; userId: number; role: GuildRole };
+type UpdateGuildMembershipVars = { guildId: number; userId: number; role: CommunityRole };
 
 export const useUpdateGuildMembership = (options?: MutationOpts<void, UpdateGuildMembershipVars>) =>
   useApiMutation<void, UpdateGuildMembershipVars>(

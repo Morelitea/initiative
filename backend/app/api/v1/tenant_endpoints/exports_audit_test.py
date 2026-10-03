@@ -16,7 +16,7 @@ from httpx import AsyncClient
 
 from app.core.audit_events import AuditEventType
 from app.core.config import settings
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.testing import emitted
 
 
@@ -28,7 +28,9 @@ def _tmp_uploads(monkeypatch, tmp_path):
 async def test_exporting_an_initiative_records_the_job_that_carries_it(
     client: AsyncClient, acting_user, capfd
 ):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     capfd.readouterr()
 
     response = await client.get(
@@ -56,7 +58,7 @@ async def test_exporting_an_initiative_records_the_job_that_carries_it(
 async def test_exporting_a_guild_records_its_own_event(
     client: AsyncClient, acting_user, capfd
 ):
-    a = await acting_user(guild_role=GuildRole.superadmin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
     capfd.readouterr()
 
     response = await client.get(
@@ -91,8 +93,8 @@ async def test_exporting_a_guild_records_its_own_event(
 async def test_a_refused_guild_export_records_nothing(
     client: AsyncClient, acting_user, capfd
 ):
-    seat = await acting_user(guild_role=GuildRole.superadmin, initiative=True)
-    admin = await acting_user(guild_role=GuildRole.admin, guild=seat.guild)
+    seat = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, guild=seat.guild)
     capfd.readouterr()
 
     response = await client.get(admin.g("/exports/community"), headers=admin.headers)

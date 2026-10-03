@@ -32,7 +32,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core import metrics
 from app.db import cohorts
 from app.db.session import set_rls_context
-from app.models.platform.guild import LIVE_STATUS_VALUES, Guild, GuildStatus
+from app.models.platform.guild import LIVE_STATUS_VALUES, Guild, CommunityStatus
 from app.db.request_context import SystemGuild, Unattributed
 
 logger = logging.getLogger(__name__)
@@ -56,7 +56,7 @@ class Scope(Enum):
 
     def admits(self, status: str, *, provisioned: bool) -> bool:
         if self is Scope.ACTIVE:
-            return status == GuildStatus.active.value
+            return status == CommunityStatus.active.value
         if self is Scope.LIVE:
             return status in LIVE_STATUS_VALUES
         return provisioned

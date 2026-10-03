@@ -28,13 +28,13 @@ import {
   upgradeGuildAppApiV1CGuildIdAppsAppIdUpgradePost,
 } from "@/api/generated/apps/apps";
 import type {
+  CommunityAppConfigUpdateValues,
+  CommunityAppConnectStart,
+  CommunityAppConsentRead,
+  CommunityAppDetail,
+  CommunityAppMembersResponse,
+  CommunityAppUpgrade,
   ConsentAccess,
-  GuildAppConfigUpdateValues,
-  GuildAppConnectStart,
-  GuildAppConsentRead,
-  GuildAppDetail,
-  GuildAppMembersResponse,
-  GuildAppUpgrade,
 } from "@/api/generated/initiativeAPI.schemas";
 import { invalidate, q } from "@/api/query-keys";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
@@ -47,7 +47,7 @@ export const guildAppMembersKey = (guildId: number, appId: number) =>
 
 export const useGuildAppDetail = (appId: number) => {
   const guildId = useActiveGuildId();
-  return useQuery<GuildAppDetail>({
+  return useQuery<CommunityAppDetail>({
     queryKey: guildAppDetailKey(guildId, appId),
     queryFn: () => getGuildAppApiV1CGuildIdAppsAppIdGet(guildId, appId),
   });
@@ -57,7 +57,7 @@ export const useGuildAppDetail = (appId: number) => {
 /** One page of the members who connected to the app or answered it. */
 export const useGuildAppMembers = (appId: number, page: number, enabled: boolean) => {
   const guildId = useActiveGuildId();
-  return useQuery<GuildAppMembersResponse>({
+  return useQuery<CommunityAppMembersResponse>({
     queryKey: [...guildAppMembersKey(guildId, appId), page],
     queryFn: () => listGuildAppMembersApiV1CGuildIdAppsAppIdMembersGet(guildId, appId, { page }),
     placeholderData: keepPreviousData,
@@ -74,7 +74,7 @@ export const useGuildAppMembers = (appId: number, page: number, enabled: boolean
  *  key left out is untouched. */
 export const useUpdateAppConfig = (appId: number) => {
   const guildId = useActiveGuildId();
-  return useMutation<GuildAppDetail, unknown, GuildAppConfigUpdateValues>({
+  return useMutation<CommunityAppDetail, unknown, CommunityAppConfigUpdateValues>({
     mutationFn: (values) =>
       updateGuildAppConfigApiV1CGuildIdAppsAppIdConfigPut(guildId, appId, { values }),
     onSuccess: () => invalidate(q.apps()),
@@ -84,7 +84,7 @@ export const useUpdateAppConfig = (appId: number) => {
 /** Apply the offered version; pass the seat's consent when it asks for more. */
 export const useUpgradeApp = (appId: number) => {
   const guildId = useActiveGuildId();
-  return useMutation<GuildAppDetail, unknown, GuildAppUpgrade | undefined>({
+  return useMutation<CommunityAppDetail, unknown, CommunityAppUpgrade | undefined>({
     mutationFn: (consent) =>
       upgradeGuildAppApiV1CGuildIdAppsAppIdUpgradePost(guildId, appId, consent),
     // Refreshed on failure too: a refusal means the offer moved, and the panel
@@ -96,7 +96,7 @@ export const useUpgradeApp = (appId: number) => {
 /** Keep the pinned version and stop being asked about this one. */
 export const useDeclineAppUpgrade = (appId: number) => {
   const guildId = useActiveGuildId();
-  return useMutation<GuildAppDetail, unknown, string>({
+  return useMutation<CommunityAppDetail, unknown, string>({
     mutationFn: (version) =>
       declineGuildAppUpgradeApiV1CGuildIdAppsAppIdUpgradeDeclinePost(guildId, appId, { version }),
     onSettled: () => invalidate(q.apps()),
@@ -105,7 +105,7 @@ export const useDeclineAppUpgrade = (appId: number) => {
 
 export const useConnectApp = (appId: number) => {
   const guildId = useActiveGuildId();
-  return useMutation<GuildAppConnectStart, unknown, string>({
+  return useMutation<CommunityAppConnectStart, unknown, string>({
     mutationFn: (connectionId) =>
       connectGuildAppApiV1CGuildIdAppsAppIdConnectionsConnectionIdConnectPost(
         guildId,
@@ -210,7 +210,7 @@ export interface ConsentAnswer {
 /** Answer one of the app's requests to act as you. */
 export const useGrantAppConsent = (appId: number) => {
   const guildId = useActiveGuildId();
-  return useMutation<GuildAppConsentRead, unknown, ConsentAnswer>({
+  return useMutation<CommunityAppConsentRead, unknown, ConsentAnswer>({
     mutationFn: ({ consentId, access }) =>
       grantMyConsentApiV1CGuildIdAppsAppIdConsentsConsentIdPut(guildId, appId, consentId, {
         access,

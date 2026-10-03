@@ -7,7 +7,7 @@ from sqlmodel import delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.audit_events import AuditEventType
-from app.models.platform.guild import GUILD_ADMIN_ROLES, GuildMembership, GuildRole
+from app.models.platform.guild import GUILD_ADMIN_ROLES, GuildMembership, CommunityRole
 from app.services import audit as audit_service
 from app.services.auth import guild_provider_connections as guild_connections
 from app.services.guild_sweeps import Scope, each_guild
@@ -30,8 +30,8 @@ logger = logging.getLogger(__name__)
 
 # Role priority for conflict resolution: higher wins
 _GUILD_ROLE_PRIORITY = {
-    GuildRole.member.value: 0,
-    GuildRole.admin.value: 1,
+    CommunityRole.member.value: 0,
+    CommunityRole.admin.value: 1,
 }
 
 #: How every membership this module moves came to move. A reconciliation runs
@@ -284,7 +284,7 @@ async def sync_oidc_assignments(
                 select(GuildMembership.guild_id, GuildMembership.role).where(
                     GuildMembership.user_id == user_id,
                     GuildMembership.oidc_provider_id == provider_id,
-                    GuildMembership.role != GuildRole.superadmin,
+                    GuildMembership.role != CommunityRole.superadmin,
                 )
             )
         ).all()
@@ -331,9 +331,9 @@ async def sync_oidc_assignments(
             if (
                 desired is not None
                 and membership.oidc_provider_id == provider_id
-                and membership.role != GuildRole.superadmin
+                and membership.role != CommunityRole.superadmin
             ):
-                role = GuildRole(desired)
+                role = CommunityRole(desired)
                 if membership.role != role:
                     membership.role = role
                     session.add(membership)
@@ -358,7 +358,9 @@ async def sync_oidc_assignments(
                     guild_id,
                 )
                 continue
-            role = GuildRole(desired) if desired is not None else GuildRole.member
+            role = (
+                CommunityRole(desired) if desired is not None else CommunityRole.member
+            )
             await _create_guild_membership(
                 session,
                 user_id=user_id,
@@ -526,7 +528,7 @@ async def _create_guild_membership(
     *,
     user_id: int,
     guild_id: int,
-    role: GuildRole,
+    role: CommunityRole,
     provider_id: int,
 ) -> GuildMembership:
     from sqlalchemy import func as sa_func

@@ -61,7 +61,7 @@ from app.models.platform.guild import (
     LIVE_STATUS_VALUES,
     Guild,
     GuildMembership,
-    GuildStatus,
+    CommunityStatus,
 )
 from app.models.platform.access_grant import AccessLevel
 from app.models.tenant.guild_app import GuildApp
@@ -803,7 +803,7 @@ async def _load_for_flow(
     if (
         guild is None
         or guild.status not in LIVE_STATUS_VALUES
-        or guild.status == GuildStatus.read_only.value
+        or guild.status == CommunityStatus.read_only.value
     ):
         return None
     if state.user_id is not None:

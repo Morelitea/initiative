@@ -17,7 +17,7 @@ import type {
   UseQueryResult,
 } from "@tanstack/react-query";
 
-import type { GuildStorageUsageRead, HTTPValidationError } from "../initiativeAPI.schemas";
+import type { CommunityStorageUsageRead, HTTPValidationError } from "../initiativeAPI.schemas";
 
 import { apiMutator } from "../../mutator";
 import type { ErrorType } from "../../mutator";
@@ -47,7 +47,7 @@ export const readStorageUsageApiV1CGuildIdStorageUsageGet = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<GuildStorageUsageRead>(
+  return apiMutator<CommunityStorageUsageRead>(
     { url: `/api/v1/c/${guildId}/storage/usage`, method: "GET", signal },
     options
   );

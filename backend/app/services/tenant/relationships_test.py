@@ -24,7 +24,7 @@ from app.core.relationships import (
 )
 from app.core.search import SearchEntityType
 from app.testing.schema_harness import route_session_to_guild
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.tenant.relationship import EntityRelationship
 from app.services.tenant import relationships
 from app.services.tenant.relationships import Endpoint
@@ -82,7 +82,9 @@ def test_symmetric_types_declare_no_direction():
 
 
 async def test_self_loop_is_refused(session: AsyncSession, acting_user):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     task = await create_task(session, a.project)
     await route_session_to_guild(session, a.guild.id)
 
@@ -98,7 +100,9 @@ async def test_self_loop_is_refused(session: AsyncSession, acting_user):
 async def test_symmetric_edge_is_stored_once_whichever_way_it_is_asked_for(
     session: AsyncSession, acting_user
 ):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     doc = await create_document(session, a.initiative, a.user)
     await route_session_to_guild(session, a.guild.id)
 
@@ -135,7 +139,9 @@ async def test_symmetric_edge_is_stored_once_whichever_way_it_is_asked_for(
 async def test_a_part_may_belong_to_two_wholes(session: AsyncSession, acting_user):
     """The table records what it is given. One-parent is a picker's rule, and a
     task somebody wants in two epics is an ambiguity worth keeping."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     part = await create_task(session, a.project, title="Shared step")
     first = await create_task(session, a.project, title="Epic one")
     second = await create_task(session, a.project, title="Epic two")
@@ -162,7 +168,9 @@ async def test_a_dependency_loop_is_stored_and_reported_by_walk(
 ):
     """Two people each saying the other's task must go first is the strongest
     coupling evidence the system gets. It is recorded, and found when read."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     first = await create_task(session, a.project, title="A")
     second = await create_task(session, a.project, title="B")
     await route_session_to_guild(session, a.guild.id)
@@ -199,7 +207,9 @@ async def test_a_multi_hop_walk_is_refused_for_a_non_transitive_type(
 ):
     """*A related to B* and *B related to C* says nothing about A and C, so
     walking it would return something that reads like a result and is not."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     task = await create_task(session, a.project)
     await route_session_to_guild(session, a.guild.id)
 
@@ -220,7 +230,9 @@ async def test_a_multi_hop_walk_is_refused_for_a_non_transitive_type(
 async def test_a_manual_removal_is_remembered_and_the_pair_is_re_linkable(
     session: AsyncSession, acting_user
 ):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     doc = await create_document(session, a.initiative, a.user)
     row = await create_relationship(
         session,
@@ -265,7 +277,9 @@ async def test_a_content_edge_is_deleted_rather_than_tombstoned(
     """Editing the sentence that implied a link asserts nothing. Counting that
     as "these are not related" would bury the real signal in noise shaped
     exactly like it."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     doc = await create_document(session, a.initiative, a.user)
     row = await create_relationship(
         session,
@@ -298,7 +312,7 @@ async def test_an_edge_is_invisible_to_a_reader_who_clears_only_one_end(
     initiative does not learn that a project of theirs is attached to a document
     of another initiative they are not in."""
     owner = await acting_user(
-        guild_role=GuildRole.member, initiative=True, project=True
+        guild_role=CommunityRole.member, initiative=True, project=True
     )
     # A document in a DIFFERENT initiative of the same guild. The owner is in
     # both; the reader below is in only one.
@@ -319,7 +333,7 @@ async def test_an_edge_is_invisible_to_a_reader_who_clears_only_one_end(
 
     # A guild member in the project's initiative but not the document's.
     reader = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=owner.guild,
         initiative=owner.initiative,
         initiative_role="member",
@@ -336,7 +350,9 @@ async def test_a_tag_edge_is_still_gated_by_the_other_end(
 ):
     """A tag is guild-level and every member sees every tag, so the tag end
     admits anyone. The task end is what decides, and it still does."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     tag = await create_tag(session, a.guild)
     task = await create_task(session, a.project)
 
@@ -359,7 +375,9 @@ async def test_a_tag_edge_is_still_gated_by_the_other_end(
 async def test_purging_an_endpoint_takes_its_edges_including_tombstones(
     session: AsyncSession, acting_user
 ):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     doc = await create_document(session, a.initiative, a.user)
     live = await create_relationship(
         session,
@@ -407,8 +425,8 @@ async def test_two_guilds_events_do_not_share_attachments(
     event; merging these dicts across guilds is what this guards against."""
     from app.services.tenant.ical_service import documents_for_events
 
-    first = await acting_user(guild_role=GuildRole.member, initiative=True)
-    second = await acting_user(guild_role=GuildRole.member, initiative=True)
+    first = await acting_user(guild_role=CommunityRole.member, initiative=True)
+    second = await acting_user(guild_role=CommunityRole.member, initiative=True)
 
     events = []
     for actor in (first, second):

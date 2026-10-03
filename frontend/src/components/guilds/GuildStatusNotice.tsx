@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { GuildStatus } from "@/api/generated/initiativeAPI.schemas";
+import { CommunityStatus } from "@/api/generated/initiativeAPI.schemas";
 import { ContactDialog } from "@/components/tickets/ContactDialog";
 import { FileTicketDialog } from "@/components/tickets/FileTicketDialog";
 import {
@@ -27,7 +27,7 @@ const seenThisSession = (key: string): boolean => getSessionItem(SEEN_KEY_PREFIX
 const markSeenThisSession = (key: string) => setSessionItem(SEEN_KEY_PREFIX + key, "1");
 
 export const guildStatusNoticeApplies = (guild: GuildEntry): boolean =>
-  guild.accessType !== "grant" && guild.can.seat && guild.status === GuildStatus.read_only;
+  guild.accessType !== "grant" && guild.can.seat && guild.status === CommunityStatus.read_only;
 
 type Stage = "notice" | "help" | "closed";
 

@@ -1,8 +1,8 @@
 import type {
   Capability,
   OwnedDecoration,
+  UserCommunityMember,
   UserEmailRead,
-  UserGuildMember,
   UserProfile,
   UserPublic,
   UserRead,
@@ -174,7 +174,9 @@ export function buildUser(overrides: Partial<UserRead> = {}): UserRead {
   };
 }
 
-export function buildUserGuildMember(overrides: Partial<UserGuildMember> = {}): UserGuildMember {
+export function buildUserGuildMember(
+  overrides: Partial<UserCommunityMember> = {}
+): UserCommunityMember {
   counter++;
   const guildRole = overrides.guild_role ?? "member";
   return {

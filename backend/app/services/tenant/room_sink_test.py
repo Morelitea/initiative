@@ -12,7 +12,7 @@ from datetime import datetime, timedelta, timezone
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.tenant.event_outbox import EventOutbox
 from app.services.content_sockets import sockets
 from app.testing.sockets import FakeWebSocket, settle, watch_events_bus
@@ -73,7 +73,7 @@ class _Watcher:
 
 
 async def test_a_write_reaches_the_room_it_belongs_to(session, acting_user):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
 
     async with _Watcher(a.guild.id, a.initiative.id) as watcher:
         task = await create_task(session, a.project)
@@ -88,7 +88,7 @@ async def test_a_write_reaches_the_room_it_belongs_to(session, acting_user):
 async def test_the_frame_carries_identifiers_and_nothing_else(session, acting_user):
     """Identifiers, an action and the columns it touched, and nothing a reader
     would not fetch anyway."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
 
     async with _Watcher(a.guild.id, a.initiative.id) as watcher:
         task = await create_task(session, a.project, title="Move the session")
@@ -110,7 +110,7 @@ async def test_the_frame_carries_identifiers_and_nothing_else(session, acting_us
 
 
 async def test_a_comment_names_its_thread_and_the_project(session, acting_user):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
 
     async with _Watcher(a.guild.id, a.initiative.id) as watcher:
         task = await create_task(session, a.project)
@@ -130,7 +130,7 @@ async def test_another_initiatives_room_hears_nothing(session, acting_user):
     """The room key is (guild, initiative), and the sink routes by it."""
     from app.testing import create_initiative
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     elsewhere = await create_initiative(session, a.guild, a.user)
 
     async with _Watcher(a.guild.id, elsewhere.id) as watcher:
@@ -145,7 +145,7 @@ async def test_a_guild_wide_change_reaches_a_member_of_no_initiative(
 ):
     """A tag belongs to no initiative and every member can already read it, so
     it goes to the guild's sockets rather than to a room."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
 
     async with _Watcher(a.guild.id) as watcher:
         tag = await create_tag(session, a.guild)
@@ -159,7 +159,7 @@ async def test_a_guild_wide_change_reaches_a_member_of_no_initiative(
 async def test_a_first_connect_is_told_nothing(session, acting_user):
     """Whoever just arrived fetched as they mounted; the log before that is not
     theirs to hear."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     await create_task(session, a.project)
     await create_document(session, a.initiative, a.user)
 
@@ -168,7 +168,7 @@ async def test_a_first_connect_is_told_nothing(session, acting_user):
 
 
 async def test_nothing_is_read_for_a_guild_nobody_is_watching(session, acting_user):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     await create_task(session, a.project)
 
     room_sink._delivered.pop(a.guild.id, None)
@@ -179,7 +179,7 @@ async def test_nothing_is_read_for_a_guild_nobody_is_watching(session, acting_us
 
 async def test_what_is_remembered_is_pruned_to_the_window(session, acting_user):
     """The record of what has been sent is the window, so it cannot grow."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
 
     async with _Watcher(a.guild.id, a.initiative.id) as watcher:
         await create_task(session, a.project)
@@ -205,7 +205,7 @@ async def test_what_is_remembered_is_pruned_to_the_window(session, acting_user):
 async def test_leaving_drops_the_mark(session, acting_user):
     """So the next socket to arrive is brought up to the log's end rather than
     told everything that happened while nobody was looking."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
 
     async with _Watcher(a.guild.id, a.initiative.id):
         assert a.guild.id in room_sink._delivered
@@ -215,7 +215,7 @@ async def test_leaving_drops_the_mark(session, acting_user):
 
 
 async def test_the_same_change_is_not_sent_twice_by_the_sweep(session, acting_user):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
 
     async with _Watcher(a.guild.id, a.initiative.id) as watcher:
         await create_task(session, a.project)
@@ -253,7 +253,7 @@ async def test_a_change_below_one_already_sent_is_still_delivered(session, actin
     never raised — the reconnect case. The sweep has to go back for it, and to
     not repeat the one already sent.
     """
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
 
     async with _Watcher(a.guild.id, a.initiative.id) as watcher:
         earlier = await create_task(session, a.project)
@@ -274,7 +274,7 @@ async def test_a_change_below_one_already_sent_is_still_delivered(session, actin
 
 async def test_a_hint_names_the_transaction_it_is_raised_for(session, acting_user):
     """The prompt path: no watermark, just the rows that transaction wrote."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
 
     async with _Watcher(a.guild.id, a.initiative.id) as watcher:
         task = await create_task(session, a.project)
@@ -292,7 +292,7 @@ async def test_a_gap_in_the_hints_tells_the_room_to_read_the_guild(
     """Hints reach only whoever is listening, and a transaction older than the
     window cannot be found by reading it. When the bus has come up again since
     the last pass, the room is told that much rather than a list of ids."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
 
     async with _Watcher(a.guild.id, a.initiative.id) as watcher:
         await create_task(session, a.project)
@@ -308,7 +308,7 @@ async def test_a_gap_in_the_hints_tells_the_room_to_read_the_guild(
 
 async def test_a_steady_bus_names_the_ids(session, acting_user):
     """The counterpart: no gap, so the frame is precise."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
 
     async with _Watcher(a.guild.id, a.initiative.id) as watcher:
         task = await create_task(session, a.project)
@@ -390,7 +390,7 @@ async def _age_the_log(session: AsyncSession, guild_id: int) -> None:
 
 async def test_a_socket_that_missed_something_is_told_so(session, acting_user):
     """The one question a reconnect asks, answered on the socket's own session."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     await _age_the_log(session, a.guild.id)
 
     assert await room_sink.missed_while_away(session, 5) is False
@@ -402,7 +402,7 @@ async def test_a_socket_that_missed_something_is_told_so(session, acting_user):
 
 async def test_a_change_older_than_the_gap_is_not_news(session, acting_user):
     """A tab away for a moment is not told about the hour before it."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     await create_task(session, a.project)
     await _age_the_log(session, a.guild.id)
 
@@ -411,7 +411,7 @@ async def test_a_change_older_than_the_gap_is_not_news(session, acting_user):
 
 async def test_a_long_enough_gap_is_answered_without_reading(session, acting_user):
     """Past the bound the log cannot say, so the answer is the honest one."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     await _age_the_log(session, a.guild.id)
 
     assert (
@@ -429,8 +429,8 @@ async def test_a_new_member_hears_the_initiative_without_reconnecting(
     rooms should be without anything about the session itself moving — so
     nothing would prompt the reconnect that fixes it.
     """
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
-    b = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
+    b = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
 
     # In the guild with a tab open, and in no initiative: no rooms at all.
     async with _Watcher(a.guild.id, user_id=b.user.id) as watcher:
@@ -448,10 +448,10 @@ async def test_a_new_member_hears_the_initiative_without_reconnecting(
 
 async def test_a_roster_change_does_not_evict_a_watcher(session, acting_user):
     """A socket can be in a room for a reason the roster does not show."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
-    b = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
+    b = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
     # A guild admin reaches every initiative without being on any roster.
-    admin = await acting_user(guild_role=GuildRole.admin, guild=a.guild)
+    admin = await acting_user(guild_role=CommunityRole.admin, guild=a.guild)
 
     async with _Watcher(a.guild.id, a.initiative.id, user_id=admin.user.id) as watcher:
         await create_initiative_member(session, a.initiative, b.user)

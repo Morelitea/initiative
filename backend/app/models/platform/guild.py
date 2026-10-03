@@ -27,7 +27,7 @@ if TYPE_CHECKING:  # pragma: no cover
 MEMBER_DISPLAY_NAME_MAX_LENGTH = 64
 
 
-class GuildStatus(str, Enum):
+class CommunityStatus(str, Enum):
     """Lifecycle status of a guild.
 
     The first four are operator-set from the platform Guilds tab (platform
@@ -81,34 +81,34 @@ class GuildStatus(str, Enum):
 #: Stated once, as a set, because the question is asked in a dozen places and
 #: every one of them should have the same answer.
 #: ``guild_soft_delete_test`` holds the set and the resolver together.
-LIVE_STATUSES: frozenset[GuildStatus] = frozenset(
-    {GuildStatus.active, GuildStatus.read_only}
+LIVE_STATUSES: frozenset[CommunityStatus] = frozenset(
+    {CommunityStatus.active, CommunityStatus.read_only}
 )
 
 #: The statuses an operator may set from the Guilds tab, in the order the
 #: control lists them (least → most restrictive). ``deleted`` is absent by
 #: derivation rather than by a second hand-written list.
-OPERATOR_SETTABLE_STATUSES: tuple[GuildStatus, ...] = (
-    GuildStatus.active,
-    GuildStatus.read_only,
-    GuildStatus.on_hold,
-    GuildStatus.suspended,
+OPERATOR_SETTABLE_STATUSES: tuple[CommunityStatus, ...] = (
+    CommunityStatus.active,
+    CommunityStatus.read_only,
+    CommunityStatus.on_hold,
+    CommunityStatus.suspended,
 )
 
 #: The statuses the billing service may write. ``suspended`` is the platform
 #: operator's time out and ``deleted`` belongs to deletion, so neither is here —
 #: and a guild already in either takes no status write from billing at all.
-BILLING_SETTABLE_STATUSES: frozenset[GuildStatus] = frozenset(
-    {GuildStatus.active, GuildStatus.read_only, GuildStatus.on_hold}
+BILLING_SETTABLE_STATUSES: frozenset[CommunityStatus] = frozenset(
+    {CommunityStatus.active, CommunityStatus.read_only, CommunityStatus.on_hold}
 )
 
 
 def operator_status_choices(
-    status: GuildStatus,
+    status: CommunityStatus,
     *,
-    billing_status: GuildStatus | None,
+    billing_status: CommunityStatus | None,
     billing_managed: bool,
-) -> tuple[GuildStatus, ...]:
+) -> tuple[CommunityStatus, ...]:
     """The statuses the operator may move a guild at ``status`` to.
 
     Where billing sets plans, the operator's one status is the time out: into
@@ -117,20 +117,20 @@ def operator_status_choices(
     restoring it is not a status change. The triggers of migration 0364 hold
     the database to the same rule.
     """
-    if status is GuildStatus.deleted:
+    if status is CommunityStatus.deleted:
         return ()
     if not billing_managed:
         return OPERATOR_SETTABLE_STATUSES
-    if status is GuildStatus.suspended:
-        return (billing_status or GuildStatus.active, GuildStatus.suspended)
-    return (status, GuildStatus.suspended)
+    if status is CommunityStatus.suspended:
+        return (billing_status or CommunityStatus.active, CommunityStatus.suspended)
+    return (status, CommunityStatus.suspended)
 
 
 def restore_status_choices(
     *,
-    billing_status: GuildStatus | None,
+    billing_status: CommunityStatus | None,
     billing_managed: bool,
-) -> tuple[GuildStatus, ...]:
+) -> tuple[CommunityStatus, ...]:
     """The statuses a deleted guild may be restored at.
 
     The choices that lift a suspension: where billing sets plans, the status
@@ -139,7 +139,7 @@ def restore_status_choices(
     holds the database to the same rule.
     """
     return operator_status_choices(
-        GuildStatus.suspended,
+        CommunityStatus.suspended,
         billing_status=billing_status,
         billing_managed=billing_managed,
     )
@@ -148,8 +148,8 @@ def restore_status_choices(
 #: The statuses whose guild is absent from every member's guild list, its
 #: admins' included. A suspended guild is not here: its admins keep a closed
 #: entry.
-UNLISTED_STATUSES: frozenset[GuildStatus] = frozenset(
-    {GuildStatus.on_hold, GuildStatus.deleted}
+UNLISTED_STATUSES: frozenset[CommunityStatus] = frozenset(
+    {CommunityStatus.on_hold, CommunityStatus.deleted}
 )
 
 #: :data:`LIVE_STATUSES` as the strings the column stores, so one set answers
@@ -158,7 +158,7 @@ UNLISTED_STATUSES: frozenset[GuildStatus] = frozenset(
 LIVE_STATUS_VALUES: frozenset[str] = frozenset(s.value for s in LIVE_STATUSES)
 
 
-class GuildCategory(str, Enum):
+class CommunityCategory(str, Enum):
     """A subject a guild can file itself under in the community directory.
 
     A closed vocabulary rather than free-form tags: the directory's job is to
@@ -281,7 +281,7 @@ class Guild(SQLModel, table=True):
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),
     )
-    # Lifecycle status (see GuildStatus). Stored as a plain string with a CHECK
+    # Lifecycle status (see CommunityStatus). Stored as a plain string with a CHECK
     # constraint (the access_grants pattern) rather than a Postgres enum.
     #
     # Alone among the operator-set fields it lives here rather than on
@@ -289,9 +289,9 @@ class Guild(SQLModel, table=True):
     # read_only -> frozen writes) off a guild row the request already loads, so
     # moving it would buy a join on the hottest path in the app.
     status: str = Field(
-        default=GuildStatus.active.value,
+        default=CommunityStatus.active.value,
         sa_column=Column(
-            String(16), nullable=False, server_default=GuildStatus.active.value
+            String(16), nullable=False, server_default=CommunityStatus.active.value
         ),
     )
     # When the status last changed; NULL until the first operator change.
@@ -306,7 +306,7 @@ class Guild(SQLModel, table=True):
         default=False,
         sa_column=Column(Boolean, nullable=False, server_default="false"),
     )
-    # Which shelves the guild files itself under (see GuildCategory). A listed
+    # Which shelves the guild files itself under (see CommunityCategory). A listed
     # guild must be on at least one — a card nobody can find by browsing is not
     # a listing — which the ck_guilds_community_categories CHECK enforces.
     categories: List[str] = Field(
@@ -414,7 +414,7 @@ class Guild(SQLModel, table=True):
     )
 
 
-class GuildRole(str, Enum):
+class CommunityRole(str, Enum):
     admin = "admin"
     member = "member"
     # Above ``admin``: everything an admin reaches, plus the guild's sign-in
@@ -438,7 +438,7 @@ class GuildRole(str, Enum):
     # and the ``superadmin`` settings grant beside it is read separately.
     support = "support"
 
-    def reaches(self, rung: "GuildRole") -> bool:
+    def reaches(self, rung: "CommunityRole") -> bool:
         """Whether this rung carries what ``rung`` carries.
 
         The community's ladder asked as a comparison rather than as a set per
@@ -455,26 +455,26 @@ class GuildRole(str, Enum):
 #: community, and nothing it holds comes from being on this list.
 #:
 #: One ordering, in one place. Asking whether a rung carries another's
-#: authority is :meth:`GuildRole.reaches`, and every set below derives from it
+#: authority is :meth:`CommunityRole.reaches`, and every set below derives from it
 #: rather than restating which rungs are which.
-GUILD_LADDER: tuple[GuildRole, ...] = (
-    GuildRole.support,
-    GuildRole.member,
-    GuildRole.admin,
-    GuildRole.superadmin,
+GUILD_LADDER: tuple[CommunityRole, ...] = (
+    CommunityRole.support,
+    CommunityRole.member,
+    CommunityRole.admin,
+    CommunityRole.superadmin,
 )
 
 #: Roles that carry a guild admin's authority — the ladder from ``admin`` up.
 #: Kept as a set because that is how most callers ask; it is derived, so the
 #: day a rung is added between them there is nothing here to remember.
-GUILD_ADMIN_ROLES: frozenset[GuildRole] = frozenset(
-    role for role in GuildRole if role.reaches(GuildRole.admin)
+GUILD_ADMIN_ROLES: frozenset[CommunityRole] = frozenset(
+    role for role in CommunityRole if role.reaches(CommunityRole.admin)
 )
 
 #: What an ordinary guild admin may hand out. ``support`` is never persisted at
 #: all, and ``superadmin`` is passed on only by somebody already holding it.
-GUILD_ASSIGNABLE_ROLES: frozenset[GuildRole] = frozenset(
-    {GuildRole.admin, GuildRole.member}
+GUILD_ASSIGNABLE_ROLES: frozenset[CommunityRole] = frozenset(
+    {CommunityRole.admin, CommunityRole.member}
 )
 
 
@@ -482,10 +482,12 @@ GUILD_ASSIGNABLE_ROLES: frozenset[GuildRole] = frozenset(
 #: for the length of a PAM request and never stored, so it is the one value
 #: that is not here — derived rather than listed, so a role added to the enum
 #: is a stored role unless it is deliberately excluded.
-GUILD_STORED_ROLES: frozenset[GuildRole] = frozenset(GuildRole) - {GuildRole.support}
+GUILD_STORED_ROLES: frozenset[CommunityRole] = frozenset(CommunityRole) - {
+    CommunityRole.support
+}
 
 
-def assignable_roles(by: GuildRole) -> frozenset[GuildRole]:
+def assignable_roles(by: CommunityRole) -> frozenset[CommunityRole]:
     """Which roles ``by`` may set on somebody else inside the guild.
 
     A superadmin passes the seat on; an ordinary admin cannot, and cannot
@@ -493,8 +495,8 @@ def assignable_roles(by: GuildRole) -> frozenset[GuildRole]:
     superadmin settings grant seats somebody the same way a superadmin
     membership does.
     """
-    if by == GuildRole.superadmin:
-        return GUILD_ASSIGNABLE_ROLES | {GuildRole.superadmin}
+    if by == CommunityRole.superadmin:
+        return GUILD_ASSIGNABLE_ROLES | {CommunityRole.superadmin}
     return GUILD_ASSIGNABLE_ROLES
 
 
@@ -510,12 +512,12 @@ class GuildMembership(SQLModel, table=True):
 
     guild_id: int = Field(foreign_key="guilds.id", ondelete="CASCADE", primary_key=True)
     user_id: int = Field(foreign_key="users.id", ondelete="CASCADE", primary_key=True)
-    role: GuildRole = Field(
-        default=GuildRole.member,
+    role: CommunityRole = Field(
+        default=CommunityRole.member,
         sa_column=Column(
-            SQLEnum(GuildRole, name="guild_role"),
+            SQLEnum(CommunityRole, name="guild_role"),
             nullable=False,
-            server_default=GuildRole.member.value,
+            server_default=CommunityRole.member.value,
         ),
     )
     joined_at: datetime = Field(

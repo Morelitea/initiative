@@ -39,7 +39,7 @@ class ContactRead(UserSummary):
     shared_guild_ids: List[int] = Field(default_factory=list)
 
 
-class ContactGuildSection(SanitizedBaseModel):
+class ContactCommunitySection(SanitizedBaseModel):
     """One guild's roster, as one accordion section."""
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
@@ -62,7 +62,7 @@ class ContactSectionsResponse(SanitizedBaseModel):
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
-    sections: List[ContactGuildSection]
+    sections: List[ContactCommunitySection]
     page: int
     page_size: int
 

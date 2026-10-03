@@ -26,13 +26,13 @@ import type {
   CaptchaSettingsResponse,
   CaptchaSettingsUpdate,
   ChangelogResponse,
+  CommunityNarrowingPending,
   CommunitySettingsResponse,
   CommunitySettingsUpdate,
   EmailSettingsResponse,
   EmailSettingsUpdate,
   FCMConfigResponse,
   GetChangelogApiV1ChangelogGetParams,
-  GuildNarrowingPending,
   InterfaceSettingsResponse,
   InterfaceSettingsUpdate,
   ListPlatformGuildStorageApiV1SettingsCommunitiesGetParams,
@@ -41,10 +41,10 @@ import type {
   OIDCSettingsResponse,
   PlatformAuthSettingsResponse,
   PlatformAuthSettingsUpdate,
-  PlatformGuildRestore,
-  PlatformGuildStorageListResponse,
-  PlatformGuildStorageRead,
-  PlatformGuildStorageUpdate,
+  PlatformCommunityRestore,
+  PlatformCommunityStorageListResponse,
+  PlatformCommunityStorageRead,
+  PlatformCommunityStorageUpdate,
   PlatformProviderDefaultRead,
   PlatformProviderDefaultUpdate,
   PushSettingsResponse,
@@ -123,9 +123,9 @@ export const useAuthProviders = (options?: QueryOpts<AuthProviderOwnerRead[]>) =
 /** What a community says its own arrivals look like, for the operator. */
 export const useGuildNarrowings = (
   guildId: number,
-  options?: QueryOpts<GuildNarrowingPending[]>
+  options?: QueryOpts<CommunityNarrowingPending[]>
 ) => {
-  return useQuery<GuildNarrowingPending[]>({
+  return useQuery<CommunityNarrowingPending[]>({
     queryKey: getReadGuildNarrowingsApiV1SettingsCommunitiesGuildIdNarrowingsGetQueryKey(guildId),
     queryFn: () => readGuildNarrowingsApiV1SettingsCommunitiesGuildIdNarrowingsGet(guildId),
     ...options,
@@ -135,9 +135,9 @@ export const useGuildNarrowings = (
 /** Agree that a community's claim values are its own, or withdraw that. */
 export const useAgreeGuildNarrowing = (
   guildId: number,
-  options?: MutationOpts<GuildNarrowingPending, { connectionId: number; agreed: boolean }>
+  options?: MutationOpts<CommunityNarrowingPending, { connectionId: number; agreed: boolean }>
 ) =>
-  useApiMutation<GuildNarrowingPending, { connectionId: number; agreed: boolean }>(
+  useApiMutation<CommunityNarrowingPending, { connectionId: number; agreed: boolean }>(
     {
       mutationFn: ({ connectionId, agreed }) =>
         agreeGuildNarrowingApiV1SettingsCommunitiesGuildIdNarrowingsConnectionIdPut(
@@ -212,9 +212,9 @@ export const useFcmConfig = () => {
  */
 export const usePlatformGuilds = (
   params: ListPlatformGuildStorageApiV1SettingsCommunitiesGetParams,
-  options?: QueryOpts<PlatformGuildStorageListResponse>
+  options?: QueryOpts<PlatformCommunityStorageListResponse>
 ) => {
-  return useQuery<PlatformGuildStorageListResponse>({
+  return useQuery<PlatformCommunityStorageListResponse>({
     queryKey: getListPlatformGuildStorageApiV1SettingsCommunitiesGetQueryKey(params),
     queryFn: () => listPlatformGuildStorageApiV1SettingsCommunitiesGet(params),
     placeholderData: keepPreviousData,
@@ -483,9 +483,12 @@ export const useStartStorageBackfill = (
   );
 
 export const useRestoreGuild = (
-  options?: MutationOpts<PlatformGuildStorageRead, { guildId: number; data: PlatformGuildRestore }>
+  options?: MutationOpts<
+    PlatformCommunityStorageRead,
+    { guildId: number; data: PlatformCommunityRestore }
+  >
 ) =>
-  useApiMutation<PlatformGuildStorageRead, { guildId: number; data: PlatformGuildRestore }>(
+  useApiMutation<PlatformCommunityStorageRead, { guildId: number; data: PlatformCommunityRestore }>(
     {
       mutationFn: ({ guildId, data }) =>
         restorePlatformGuildApiV1SettingsCommunitiesGuildIdRestorePost(guildId, data),
@@ -496,11 +499,14 @@ export const useRestoreGuild = (
 
 export const useUpdateGuildStorage = (
   options?: MutationOpts<
-    PlatformGuildStorageRead,
-    { guildId: number; data: PlatformGuildStorageUpdate }
+    PlatformCommunityStorageRead,
+    { guildId: number; data: PlatformCommunityStorageUpdate }
   >
 ) =>
-  useApiMutation<PlatformGuildStorageRead, { guildId: number; data: PlatformGuildStorageUpdate }>(
+  useApiMutation<
+    PlatformCommunityStorageRead,
+    { guildId: number; data: PlatformCommunityStorageUpdate }
+  >(
     {
       mutationFn: ({ guildId, data }) =>
         updatePlatformGuildStorageApiV1SettingsCommunitiesGuildIdPatch(

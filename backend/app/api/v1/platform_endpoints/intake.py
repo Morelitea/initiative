@@ -28,7 +28,7 @@ from app.schemas.platform.intake import (
     IntakeContactUpdate,
     IntakeOptionsRead,
     IntakeSettingsRead,
-    OperationsGuildUpdate,
+    OperationsCommunityUpdate,
 )
 from app.services.platform import intake_setup
 from app.services.platform.intake_setup import BindingView
@@ -115,7 +115,7 @@ async def read_intake_options(
 
 @router.put("/intake/community", response_model=IntakeSettingsRead)
 async def update_operations_guild(
-    payload: OperationsGuildUpdate,
+    payload: OperationsCommunityUpdate,
     session: SystemSessionDep,
     _owner: ConfigManageDep,
 ) -> IntakeSettingsRead:

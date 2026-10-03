@@ -9,7 +9,7 @@ from datetime import datetime, timedelta, timezone
 from app.core.capabilities import ROLE_MAX_GRANT_MINUTES
 from app.core.tools import Tool
 from app.models.platform.access_grant import AccessGrant
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.testing import (
     Actor,
     create_counter_group,
@@ -139,7 +139,7 @@ async def test_queue_live_filter_excludes_expired(
 ):
     """``live=true`` on the approver queue drops approved-but-expired grants so
     the active list pages accurately."""
-    host = await acting_user("owner", guild_role=GuildRole.admin)
+    host = await acting_user("owner", guild_role=CommunityRole.admin)
     support = await acting_user("support")
     await _approved_grant(session, grantee=support, host=host, reason="live one")
     await _approved_grant(
@@ -281,7 +281,7 @@ async def test_a_grant_reaches_a_tools_content_not_who_it_is_shared_with(
 ):
     """A read_write grant carries content read/write, so managing a tool's
     members is answered as a plain 403 with the tool's own code."""
-    host = await acting_user("owner", guild_role=GuildRole.admin, initiative=True)
+    host = await acting_user("owner", guild_role=CommunityRole.admin, initiative=True)
     support = await acting_user("support")
     target = await acting_user()
     resource = await make(session, host.initiative, host.user)
@@ -304,7 +304,7 @@ async def test_grantee_sees_guild_content(
     endpoints — not just RLS, but the app-layer membership filters too (the
     'empty guild' bug)."""
     host = await acting_user(
-        "owner", guild_role=GuildRole.admin, initiative=True, project=True
+        "owner", guild_role=CommunityRole.admin, initiative=True, project=True
     )
     support = await acting_user("support")
     await _approved_grant(session, grantee=support, host=host)
@@ -368,7 +368,7 @@ async def test_a_scoped_read_write_grant_cannot_author_tools(
     an operator; a grant reaches existing content, and authoring is not part of
     it whoever holds it.
     """
-    host = await acting_user("owner", guild_role=GuildRole.admin, initiative=True)
+    host = await acting_user("owner", guild_role=CommunityRole.admin, initiative=True)
     grantee = await acting_user(tier)
     await _approved_grant(session, grantee=grantee, host=host, level="read_write")
 
@@ -397,13 +397,13 @@ async def test_grant_read_carries_guild_status(
     operator sees they're acting in a suspended / read-only guild (surfaced in
     the access banner). Not disclosed to plain members — this is operator
     context."""
-    from app.models.platform.guild import GuildStatus
+    from app.models.platform.guild import CommunityStatus
 
-    host = await acting_user("owner", guild_role=GuildRole.admin)
+    host = await acting_user("owner", guild_role=CommunityRole.admin)
     support = await acting_user("support")
     await _approved_grant(session, grantee=support, host=host)
 
-    host.guild.status = GuildStatus.suspended.value
+    host.guild.status = CommunityStatus.suspended.value
     session.add(host.guild)
     await session.commit()
 
@@ -427,7 +427,7 @@ async def test_the_queue_is_read_by_approvers_on_their_own_tier(
 ):
     """The queue is its own route behind ``access.approve``, read on the
     caller's platform tier: an approver sees somebody else's grant, named."""
-    host = await acting_user("owner", guild_role=GuildRole.admin)
+    host = await acting_user("owner", guild_role=CommunityRole.admin)
     support = await acting_user("support")
     grant = await _approved_grant(session, grantee=support, host=host)
     reader = await acting_user(tier)
@@ -446,7 +446,7 @@ async def test_a_grantee_reads_their_own_grant_and_not_somebody_elses(
 ):
     """One grant, read on the caller's tier: its holder lists it with the
     community it names; another requester is not shown it."""
-    host = await acting_user("owner", guild_role=GuildRole.admin)
+    host = await acting_user("owner", guild_role=CommunityRole.admin)
     support = await acting_user("support")
     other = await acting_user("support")
     grant = await _approved_grant(session, grantee=support, host=host)
@@ -518,8 +518,8 @@ async def test_a_grant_past_its_window_is_marked_expired(
     from app.services.platform import access_grants as service
     from app.testing.audit import emitted
 
-    host = await acting_user(guild_role=GuildRole.admin)
-    other_host = await acting_user(guild_role=GuildRole.admin)
+    host = await acting_user(guild_role=CommunityRole.admin)
+    other_host = await acting_user(guild_role=CommunityRole.admin)
     grantee = await acting_user("support")
     lapsed = await _approved_grant(
         session, grantee=grantee, host=host, expires_in=timedelta(minutes=-5)
@@ -552,7 +552,7 @@ async def test_a_revoked_grant_is_not_recorded_as_expiring(
     from app.services.platform import access_grants as service
     from app.testing.audit import emitted
 
-    host = await acting_user(guild_role=GuildRole.admin)
+    host = await acting_user(guild_role=CommunityRole.admin)
     grantee = await acting_user("support")
     revoked = await _approved_grant(
         session, grantee=grantee, host=host, expires_in=timedelta(minutes=-5)

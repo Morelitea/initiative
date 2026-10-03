@@ -14,7 +14,7 @@ from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.tenant.gallery import GalleryImage, GalleryImageVersion
 from app.models.tenant.resource_grant import ResourceAccessLevel
 from app.models.tenant.upload import Upload
@@ -52,7 +52,7 @@ def _upload(name: str = "shot.png", data: bytes | None = None, **fields):
 async def test_create_gallery(client: AsyncClient, acting_user, session):
     """Creating seeds the creator's owner grant plus the default all-members
     read grant."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _galleries_enabled(session, a.initiative)
 
     response = await client.post(
@@ -78,7 +78,7 @@ async def test_create_gallery(client: AsyncClient, acting_user, session):
 async def test_create_requires_feature_enabled(
     client: AsyncClient, acting_user, session
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     a.initiative.galleries_enabled = False
     session.add(a.initiative)
     await session.commit()
@@ -97,10 +97,10 @@ async def test_create_requires_the_create_permission(
     client: AsyncClient, acting_user, session
 ):
     """A plain member cannot open a gallery unless their role says so."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _galleries_enabled(session, a.initiative)
     b = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="member",
@@ -121,7 +121,7 @@ async def test_list_carries_newest_picture_as_cover(
 ):
     """A list of galleries is itself visual: each row shows a picture, the
     newest unless one was chosen."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _galleries_enabled(session, a.initiative)
     gallery = await create_gallery(session, a.initiative, a.user, name="Store assets")
     older = await create_gallery_image(
@@ -160,7 +160,7 @@ async def test_list_carries_newest_picture_as_cover(
 async def test_preview_is_capped_at_the_newest_few(
     client: AsyncClient, acting_user, session
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _galleries_enabled(session, a.initiative)
     gallery = await create_gallery(session, a.initiative, a.user)
     base = datetime(2026, 3, 1, tzinfo=timezone.utc)
@@ -185,7 +185,7 @@ async def test_preview_is_capped_at_the_newest_few(
 async def test_cover_must_be_one_of_the_gallerys_own(
     client: AsyncClient, acting_user, session
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _galleries_enabled(session, a.initiative)
     gallery = await create_gallery(session, a.initiative, a.user)
     other = await create_gallery(session, a.initiative, a.user)
@@ -205,11 +205,11 @@ async def test_update_and_delete_follow_the_dac_levels(
     client: AsyncClient, acting_user, session
 ):
     """Write access renames; only the owner deletes."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _galleries_enabled(session, a.initiative)
     gallery = await create_gallery(session, a.initiative, a.user, name="Before")
     b = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="member",
@@ -236,12 +236,12 @@ async def test_update_and_delete_follow_the_dac_levels(
 async def test_a_member_without_a_grant_cannot_see_it(
     client: AsyncClient, acting_user, session
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _galleries_enabled(session, a.initiative)
     gallery = await create_gallery(session, a.initiative, a.user)
     await strip_non_owner_grants(session, gallery, a.user.id)
     b = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="member",
@@ -261,7 +261,7 @@ async def test_a_member_without_a_grant_cannot_see_it(
 
 
 async def test_counts_by_initiative(client: AsyncClient, acting_user, session):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _galleries_enabled(session, a.initiative)
     await create_gallery(session, a.initiative, a.user)
     await create_gallery(session, a.initiative, a.user)
@@ -280,7 +280,7 @@ async def test_counts_by_initiative(client: AsyncClient, acting_user, session):
 async def test_upload_a_picture(client: AsyncClient, acting_user, session):
     """An upload is identified from its bytes: the size comes from the PNG
     header, not from anything the client said."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _galleries_enabled(session, a.initiative)
     gallery = await create_gallery(session, a.initiative, a.user)
 
@@ -310,7 +310,7 @@ async def test_upload_a_picture(client: AsyncClient, acting_user, session):
 async def test_a_large_picture_gets_a_thumbnail(
     client: AsyncClient, acting_user, session
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _galleries_enabled(session, a.initiative)
     gallery = await create_gallery(session, a.initiative, a.user)
 
@@ -333,7 +333,7 @@ async def test_upload_refuses_what_is_not_a_raster_image(
 ):
     """An SVG is a document rather than a picture, and a mislabelled text file
     is nothing at all; both are refused on their bytes."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _galleries_enabled(session, a.initiative)
     gallery = await create_gallery(session, a.initiative, a.user)
 
@@ -403,7 +403,7 @@ async def test_upload_refuses_what_the_decoder_will_not_read(
     A truncated PNG passes the first gate and must not pass the second — it
     would sit on the wall as a picture nothing can draw, served at full size
     to every viewer for want of a thumbnail."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _galleries_enabled(session, a.initiative)
     gallery = await create_gallery(session, a.initiative, a.user)
 
@@ -431,7 +431,7 @@ async def test_a_jump_lands_on_the_month_whichever_way_the_list_reads(
 ):
     """The rail hands back both ends of a month. Newest first the page walks
     back from the last picture in it; oldest first, forward from the first."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _galleries_enabled(session, a.initiative)
     gallery = await create_gallery(session, a.initiative, a.user)
     for month, days in ((1, (5, 20)), (3, (2, 9, 27)), (5, (11,))):
@@ -477,11 +477,11 @@ async def test_a_jump_lands_on_the_month_whichever_way_the_list_reads(
 async def test_upload_needs_write_access_on_the_gallery(
     client: AsyncClient, acting_user, session
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _galleries_enabled(session, a.initiative)
     gallery = await create_gallery(session, a.initiative, a.user)
     b = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="member",
@@ -503,7 +503,7 @@ async def test_upload_needs_write_access_on_the_gallery(
 async def test_pictures_page_newest_first_and_anchor(
     client: AsyncClient, acting_user, session
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _galleries_enabled(session, a.initiative)
     gallery = await create_gallery(session, a.initiative, a.user)
     base = datetime(2026, 3, 1, tzinfo=timezone.utc)
@@ -558,7 +558,7 @@ async def test_pictures_page_newest_first_and_anchor(
 async def test_the_timeline_groups_pictures_by_month(
     client: AsyncClient, acting_user, session
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _galleries_enabled(session, a.initiative)
     gallery = await create_gallery(session, a.initiative, a.user)
     for when in (
@@ -585,7 +585,7 @@ async def test_pictures_filter_by_tag_and_search(
 ):
     """Tags on a picture are ANY-of, and the search box reads title, caption
     and filename."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _galleries_enabled(session, a.initiative)
     gallery = await create_gallery(session, a.initiative, a.user)
     picked = await create_tag(session, a.guild, name="picked")
@@ -650,7 +650,7 @@ async def test_pictures_filter_by_tag_and_search(
 async def test_a_picture_is_reached_only_through_its_gallery(
     client: AsyncClient, acting_user, session
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _galleries_enabled(session, a.initiative)
     gallery = await create_gallery(session, a.initiative, a.user)
     other = await create_gallery(session, a.initiative, a.user)
@@ -667,7 +667,7 @@ async def test_a_picture_is_reached_only_through_its_gallery(
 async def test_removing_a_picture_trashes_it_and_clears_the_cover(
     client: AsyncClient, acting_user, session
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _galleries_enabled(session, a.initiative)
     gallery = await create_gallery(session, a.initiative, a.user)
     image = await create_gallery_image(session, gallery, a.user, write_blob=False)
@@ -696,7 +696,7 @@ async def test_removing_a_picture_trashes_it_and_clears_the_cover(
 async def test_bulk_delete_trashes_a_selection_or_nothing(
     client: AsyncClient, acting_user, session
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _galleries_enabled(session, a.initiative)
     gallery = await create_gallery(session, a.initiative, a.user)
     other = await create_gallery(session, a.initiative, a.user)
@@ -736,12 +736,12 @@ async def test_bulk_delete_trashes_a_selection_or_nothing(
 async def test_bulk_delete_needs_write_access(
     client: AsyncClient, acting_user, session
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _galleries_enabled(session, a.initiative)
     gallery = await create_gallery(session, a.initiative, a.user)
     image = await create_gallery_image(session, gallery, a.user, write_blob=False)
     b = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="member",
@@ -762,7 +762,7 @@ async def test_bulk_tags_on_pictures_go_through_the_gallery(
     """The shared bulk-tag endpoint takes pictures, authorized by their
     gallery's write gate; a picture from a gallery the caller cannot write
     refuses the whole request."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _galleries_enabled(session, a.initiative)
     gallery = await create_gallery(session, a.initiative, a.user)
     first = await create_gallery_image(session, gallery, a.user, write_blob=False)
@@ -788,7 +788,7 @@ async def test_bulk_tags_on_pictures_go_through_the_gallery(
     )
 
     b = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="member",
@@ -813,7 +813,7 @@ async def test_bulk_tags_on_pictures_go_through_the_gallery(
 async def test_versions_replace_the_picture_and_keep_history(
     client: AsyncClient, acting_user, session
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _galleries_enabled(session, a.initiative)
     gallery = await create_gallery(session, a.initiative, a.user)
     image = await create_gallery_image(session, gallery, a.user, width=4, height=4)
@@ -846,7 +846,7 @@ async def test_versions_replace_the_picture_and_keep_history(
 async def test_deleting_the_current_version_promotes_the_previous(
     client: AsyncClient, acting_user, session
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _galleries_enabled(session, a.initiative)
     gallery = await create_gallery(session, a.initiative, a.user)
     image = await create_gallery_image(session, gallery, a.user, width=4, height=4)
@@ -888,12 +888,12 @@ async def test_deleting_a_version_is_the_owners_call(
     client: AsyncClient, acting_user, session
 ):
     """Write access replaces a picture; destroying its history is the owner's."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _galleries_enabled(session, a.initiative)
     gallery = await create_gallery(session, a.initiative, a.user)
     image = await create_gallery_image(session, gallery, a.user)
     b = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="member",
@@ -926,7 +926,7 @@ async def test_deleting_a_version_is_the_owners_call(
 async def test_trashing_a_gallery_takes_its_pictures(
     client: AsyncClient, acting_user, session
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _galleries_enabled(session, a.initiative)
     gallery = await create_gallery(session, a.initiative, a.user)
     image = await create_gallery_image(session, gallery, a.user, write_blob=False)
@@ -949,7 +949,7 @@ async def test_a_copy_has_its_pictures_and_its_cover(
 ):
     from app.testing import route_session_to_guild
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _galleries_enabled(session, a.initiative)
     gallery = await create_gallery(session, a.initiative, a.user)
     cover = await create_gallery_image(session, gallery, a.user, write_blob=False)

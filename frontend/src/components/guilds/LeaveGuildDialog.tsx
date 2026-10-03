@@ -7,8 +7,8 @@ import {
   leaveGuildApiV1CommunitiesGuildIdLeaveDelete,
 } from "@/api/generated/communities/communities";
 import type {
-  GuildRead,
-  LeaveGuildEligibilityResponse,
+  CommunityRead,
+  LeaveCommunityEligibilityResponse,
 } from "@/api/generated/initiativeAPI.schemas";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
@@ -26,7 +26,7 @@ import { toast } from "@/lib/chesterToast";
 import type { DialogProps } from "@/types/dialog";
 
 interface LeaveGuildDialogProps extends DialogProps {
-  guild: GuildRead;
+  guild: CommunityRead;
 }
 
 /**
@@ -40,7 +40,7 @@ export const LeaveGuildDialog = ({ guild, open, onOpenChange }: LeaveGuildDialog
   const { guilds, refreshGuilds, switchGuild, activeGuildId } = useGuilds();
   const [loading, setLoading] = useState(true);
   const [leaving, setLeaving] = useState(false);
-  const [eligibility, setEligibility] = useState<LeaveGuildEligibilityResponse | null>(null);
+  const [eligibility, setEligibility] = useState<LeaveCommunityEligibilityResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -57,7 +57,7 @@ export const LeaveGuildDialog = ({ guild, open, onOpenChange }: LeaveGuildDialog
       try {
         const data = (await checkLeaveEligibilityApiV1CommunitiesGuildIdLeaveEligibilityGet(
           guild.id
-        )) as unknown as LeaveGuildEligibilityResponse;
+        )) as unknown as LeaveCommunityEligibilityResponse;
         setEligibility(data);
       } catch (err) {
         console.error("Failed to check leave eligibility", err);

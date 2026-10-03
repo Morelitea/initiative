@@ -25,14 +25,14 @@ import {
   updateGuildProviderConnectionApiV1CommunitiesGuildIdAuthConnectionsConnectionIdPatch,
 } from "@/api/generated/community-provider-connections/community-provider-connections";
 import type {
+  CommunityAuthSettingsRead,
+  CommunityAuthSettingsUpdate,
+  CommunityClaimRuleCreate,
+  CommunityClaimRulesResponse,
+  CommunityProviderConnectionCreate,
+  CommunityProviderConnectionRead,
+  CommunityProviderConnectionUpdate,
   ConnectableProviderRead,
-  GuildAuthSettingsRead,
-  GuildAuthSettingsUpdate,
-  GuildClaimRuleCreate,
-  GuildClaimRulesResponse,
-  GuildProviderConnectionCreate,
-  GuildProviderConnectionRead,
-  GuildProviderConnectionUpdate,
   LoginProvidersResponse,
 } from "@/api/generated/initiativeAPI.schemas";
 import type { QueryOpts } from "@/types/query";
@@ -67,9 +67,9 @@ export const useGuildLoginProviders = (
 /** The complete Authentication settings available to a settings superadmin. */
 export const useGuildAuthSettings = (
   guildId: number,
-  options?: QueryOpts<GuildAuthSettingsRead>
+  options?: QueryOpts<CommunityAuthSettingsRead>
 ) => {
-  return useQuery<GuildAuthSettingsRead>({
+  return useQuery<CommunityAuthSettingsRead>({
     queryKey: getGetGuildAuthSettingsApiV1CommunitiesGuildIdAuthSettingsGetQueryKey(guildId),
     queryFn: () => getGuildAuthSettingsApiV1CommunitiesGuildIdAuthSettingsGet(guildId),
     enabled: guildId > 0,
@@ -85,7 +85,7 @@ export const useGuildAuthSettings = (
 export const useUpdateGuildAuthSettings = (guildId: number) => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: GuildAuthSettingsUpdate) =>
+    mutationFn: (data: CommunityAuthSettingsUpdate) =>
       updateGuildAuthSettingsApiV1CommunitiesGuildIdAuthSettingsPatch(guildId, data),
     onSuccess: () =>
       queryClient.invalidateQueries({
@@ -97,9 +97,9 @@ export const useUpdateGuildAuthSettings = (guildId: number) => {
 /** Which of the platform's providers this community counts as its own. */
 export const useGuildProviderConnections = (
   guildId: number,
-  options?: QueryOpts<GuildProviderConnectionRead[]>
+  options?: QueryOpts<CommunityProviderConnectionRead[]>
 ) => {
-  return useQuery<GuildProviderConnectionRead[]>({
+  return useQuery<CommunityProviderConnectionRead[]>({
     queryKey:
       getListGuildProviderConnectionsApiV1CommunitiesGuildIdAuthConnectionsGetQueryKey(guildId),
     queryFn: () => listGuildProviderConnectionsApiV1CommunitiesGuildIdAuthConnectionsGet(guildId),
@@ -157,7 +157,7 @@ const useInvalidateConnections = (guildId: number) => {
 export const useConnectProvider = (guildId: number) => {
   const invalidate = useInvalidateConnections(guildId);
   return useMutation({
-    mutationFn: (data: GuildProviderConnectionCreate) =>
+    mutationFn: (data: CommunityProviderConnectionCreate) =>
       createGuildProviderConnectionApiV1CommunitiesGuildIdAuthConnectionsPost(guildId, data),
     onSuccess: invalidate,
   });
@@ -171,7 +171,7 @@ export const useUpdateProviderConnection = (guildId: number) => {
       data,
     }: {
       connectionId: number;
-      data: GuildProviderConnectionUpdate;
+      data: CommunityProviderConnectionUpdate;
     }) =>
       updateGuildProviderConnectionApiV1CommunitiesGuildIdAuthConnectionsConnectionIdPatch(
         guildId,
@@ -197,9 +197,9 @@ export const useDisconnectProvider = (guildId: number) => {
 /** Where this community places the people its providers vouch for. */
 export const useGuildClaimRules = (
   guildId: number,
-  options?: QueryOpts<GuildClaimRulesResponse>
+  options?: QueryOpts<CommunityClaimRulesResponse>
 ) => {
-  return useQuery<GuildClaimRulesResponse>({
+  return useQuery<CommunityClaimRulesResponse>({
     queryKey: getListGuildClaimRulesApiV1CommunitiesGuildIdAuthRulesGetQueryKey(guildId),
     queryFn: () => listGuildClaimRulesApiV1CommunitiesGuildIdAuthRulesGet(guildId),
     enabled: guildId > 0,
@@ -219,7 +219,7 @@ const useInvalidateClaimRules = (guildId: number) => {
 export const useCreateClaimRule = (guildId: number) => {
   const invalidate = useInvalidateClaimRules(guildId);
   return useMutation({
-    mutationFn: (data: GuildClaimRuleCreate) =>
+    mutationFn: (data: CommunityClaimRuleCreate) =>
       createGuildClaimRuleApiV1CommunitiesGuildIdAuthRulesPost(guildId, data),
     onSuccess: invalidate,
   });

@@ -10,7 +10,7 @@ initiative-membership for non-admin guild roles.
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.tenant.project import Project
 from app.testing import (
     create_resource_grant,
@@ -34,7 +34,7 @@ async def test_non_admin_member_sees_only_their_initiatives_content(
     guild = await create_guild(session, creator=owner)
     admin = owner
     await create_guild_membership(
-        session, user=member, guild=guild, role=GuildRole.member
+        session, user=member, guild=guild, role=CommunityRole.member
     )
     init_a = await create_initiative(session, guild, owner, name="Alpha")
     init_b = await create_initiative(session, guild, owner, name="Bravo")

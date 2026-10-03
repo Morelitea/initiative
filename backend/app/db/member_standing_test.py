@@ -21,7 +21,7 @@ from sqlmodel import select
 from app.api.deps import InstallAccessError
 from app.db.guild_standing import InstallContext
 from app.db.schema_provisioning import guild_schema_name, GuildRoleKind, guild_role_name
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.platform.user import User, UserStatus
 from app.models.tenant.app_member_consent import AppMemberConsent, ConsentAccess
 from app.models.tenant.document import Document, DocumentType
@@ -41,7 +41,7 @@ _NOW = datetime.now(timezone.utc)
 async def _member(acting_user, installed: InstalledApp, *, role: str = "member"):
     """An ordinary member of the initiative the install is placed in."""
     return await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=installed.guild,
         initiative=installed.placed,
         initiative_role=role,

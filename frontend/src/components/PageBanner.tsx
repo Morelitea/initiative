@@ -24,7 +24,7 @@
 
 import { type CSSProperties, type ReactNode, useLayoutEffect, useRef, useState } from "react";
 
-import type { GuildBannerRead } from "@/api/generated/initiativeAPI.schemas";
+import type { CommunityBannerRead } from "@/api/generated/initiativeAPI.schemas";
 import { readableTextShadow } from "@/lib/contrastColor";
 import { cn } from "@/lib/utils";
 
@@ -131,7 +131,10 @@ export const useFullBleed = <T extends HTMLElement>() => {
 const FADE_OVERLAP = 24;
 /** Below this many CSS pixels of content area, a banner is on a phone. */
 const COMPACT_WIDTH = 640;
-const FADES: Record<Exclude<GuildBannerRead["fade"], "none">, { narrow: number; wide: number }> = {
+const FADES: Record<
+  Exclude<CommunityBannerRead["fade"], "none">,
+  { narrow: number; wide: number }
+> = {
   weak: { narrow: 28, wide: 48 },
   strong: { narrow: 96, wide: 224 },
 };
@@ -150,7 +153,7 @@ export type PageBannerProps = {
    * Built by `renderableBanner`, which resolves the picture's URL and answers
    * for a header that has no guild banner of its own.
    */
-  banner: GuildBannerRead;
+  banner: CommunityBannerRead;
   /** Chips for the banner's top-right corner — a guild's roster and room counts. */
   badges?: ReactNode;
   /** Alt text for the picture; empty for artwork that says nothing. */

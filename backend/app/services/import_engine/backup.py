@@ -311,7 +311,7 @@ async def apply_backup(
     :func:`zip_bounds.open_zip`."""
     from app.api.deps import establish_guild_access
     from app.services.import_engine.importers import IMPORTERS
-    from app.models.platform.guild import GuildRole
+    from app.models.platform.guild import CommunityRole
     from app.services.platform import guilds as guilds_service
     from app.services.tenant import initiatives as initiatives_service
 
@@ -331,7 +331,7 @@ async def apply_backup(
             membership = await guilds_service.get_membership(
                 session, guild_id=guild_id, user_id=user.id
             )
-            if membership is None or membership.role is not GuildRole.superadmin:
+            if membership is None or membership.role is not CommunityRole.superadmin:
                 raise ImportEngineError(
                     ImportEngineMessages.IMPORT_SUPERADMIN_REQUIRED, status_code=403
                 )

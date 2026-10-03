@@ -9,15 +9,15 @@ cleaned up, and a stale row alone would not grant access anyway
 
 from httpx import AsyncClient
 
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 
 
 async def test_initiative_removal_ends_document_access(
     client: AsyncClient, acting_user
 ):
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     member = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=admin.guild,
         initiative=admin.initiative,
         initiative_role="member",

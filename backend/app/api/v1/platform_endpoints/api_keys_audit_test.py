@@ -11,7 +11,7 @@ from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.audit_events import AuditEventType
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.testing import emitted
 from app.testing.factories import (
     create_guild,
@@ -73,7 +73,7 @@ async def test_a_key_bound_to_one_community_records_which(
     guild = await create_guild(session)
     guild_id = guild.id
     await create_guild_membership(
-        session, user=user, guild=guild, role=GuildRole.member
+        session, user=user, guild=guild, role=CommunityRole.member
     )
     capfd.readouterr()
 

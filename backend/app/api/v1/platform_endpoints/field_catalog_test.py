@@ -10,7 +10,7 @@ neither can drift from the thing it describes.
 import pytest
 
 from app.api.v1.platform_endpoints.field_catalog import read_query_vocabulary
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.services.fields import dataset
 from app.services.fields.registry import dataset_names
 from app.services.query.resolve import QueryError, resolve
@@ -57,7 +57,7 @@ class TestTheVocabularyIsTheValidatorsOwn:
 
 class TestReadingIt:
     async def test_a_member_can_read_the_vocabulary(self, client, acting_user):
-        actor = await acting_user(guild_role=GuildRole.member)
+        actor = await acting_user(guild_role=CommunityRole.member)
         response = await client.get("/api/v1/query/vocabulary", headers=actor.headers)
         assert response.status_code == 200
         body = response.json()
@@ -67,7 +67,7 @@ class TestReadingIt:
     async def test_it_takes_no_guild(self, client, acting_user):
         """It describes the deployment rather than anybody's rows, so it is not
         addressed inside a guild — the same answer everywhere."""
-        actor = await acting_user(guild_role=GuildRole.member)
+        actor = await acting_user(guild_role=CommunityRole.member)
         response = await client.get("/api/v1/query/vocabulary", headers=actor.headers)
         assert response.status_code == 200
 
@@ -76,7 +76,7 @@ class TestReadingIt:
         assert response.status_code == 401
 
     async def test_the_field_catalog_names_its_dataset(self, client, acting_user):
-        actor = await acting_user(guild_role=GuildRole.member)
+        actor = await acting_user(guild_role=CommunityRole.member)
         response = await client.get("/api/v1/fields/tasks", headers=actor.headers)
         assert response.status_code == 200
         body = response.json()
@@ -84,6 +84,6 @@ class TestReadingIt:
         assert {field["name"] for field in body["fields"]} >= {"title", "priority"}
 
     async def test_a_dataset_nobody_declared_is_refused(self, client, acting_user):
-        actor = await acting_user(guild_role=GuildRole.member)
+        actor = await acting_user(guild_role=CommunityRole.member)
         response = await client.get("/api/v1/fields/pg_shadow", headers=actor.headers)
         assert response.status_code == 422

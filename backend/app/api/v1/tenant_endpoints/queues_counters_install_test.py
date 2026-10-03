@@ -507,7 +507,7 @@ async def test_a_member_tokens_copy_keeps_the_item_naming_its_member(
     from datetime import datetime, timezone
 
     from app.core.app_access_token import seal_install_token
-    from app.models.platform.guild import GuildRole
+    from app.models.platform.guild import CommunityRole
     from app.models.tenant.app_member_consent import AppMemberConsent, ConsentAccess
     from app.testing import grant_role_permission
     from app.testing.app_clients import CLIENT
@@ -516,7 +516,9 @@ async def test_a_member_tokens_copy_keeps_the_item_naming_its_member(
     installed = await install_app(session, acting_user, role_session, granted=scopes)
     await _switch_on(session, installed.placed)
     member = await acting_user(
-        guild_role=GuildRole.member, guild=installed.guild, initiative=installed.placed
+        guild_role=CommunityRole.member,
+        guild=installed.guild,
+        initiative=installed.placed,
     )
     await grant_role_permission(session, installed.placed, "create_queues")
     queue = await create_queue(session, installed.placed, installed.seat.user)

@@ -20,8 +20,8 @@ import {
   listCommunityGuildsApiV1CommunitiesDirectoryGet,
 } from "@/api/generated/communities/communities";
 import type {
-  CommunityGuildPage,
-  GuildRead,
+  CommunityRead,
+  DirectoryCommunityPage,
   ListCommunityGuildsApiV1CommunitiesDirectoryGetParams,
 } from "@/api/generated/initiativeAPI.schemas";
 
@@ -44,7 +44,7 @@ export type CommunityFilters = Omit<
  *  no directory — the endpoint refuses it there, and a refusal is not a result
  *  worth rendering. */
 export const useCommunityGuilds = (filters: CommunityFilters, options?: { enabled?: boolean }) =>
-  useInfiniteQuery<CommunityGuildPage>({
+  useInfiniteQuery<DirectoryCommunityPage>({
     queryKey: getListCommunityGuildsApiV1CommunitiesDirectoryGetQueryKey(filters),
     queryFn: ({ pageParam, signal }) =>
       listCommunityGuildsApiV1CommunitiesDirectoryGet(
@@ -68,7 +68,7 @@ export const useCommunityGuilds = (filters: CommunityFilters, options?: { enable
 
 export const useJoinCommunityGuild = () => {
   const queryClient = useQueryClient();
-  return useMutation<GuildRead, unknown, number>({
+  return useMutation<CommunityRead, unknown, number>({
     mutationFn: (guildId: number) =>
       joinCommunityGuildApiV1CommunitiesDirectoryGuildIdJoinPost(guildId),
     // The bare path is a prefix of every filter combination: a card that was

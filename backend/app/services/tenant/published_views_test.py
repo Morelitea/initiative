@@ -13,7 +13,7 @@ from sqlmodel import select
 
 from app.core.messages import DashboardMessages
 from app.core.tools import Tool
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.platform.user import UserStatus
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.testing import create_project, create_task
@@ -78,10 +78,10 @@ class TestWhatAReaderSees:
     async def test_a_reader_sees_the_publishers_rows_through_the_dashboard(
         self, client, session, acting_user
     ):
-        author = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        author = await acting_user(guild_role=CommunityRole.admin, initiative=True)
         await dashboards_on(session, author.initiative)
         reader = await acting_user(
-            guild_role=GuildRole.member,
+            guild_role=CommunityRole.member,
             guild=author.guild,
             initiative=author.initiative,
             initiative_role="member",
@@ -115,10 +115,10 @@ class TestWhatAReaderSees:
         """The grant is read *through* one dashboard. Everywhere else — the
         project's own endpoint, a query the reader writes, another dashboard —
         it says nothing."""
-        author = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        author = await acting_user(guild_role=CommunityRole.admin, initiative=True)
         await dashboards_on(session, author.initiative)
         reader = await acting_user(
-            guild_role=GuildRole.member,
+            guild_role=CommunityRole.member,
             guild=author.guild,
             initiative=author.initiative,
             initiative_role="member",
@@ -161,10 +161,10 @@ class TestWhatAReaderSees:
         """What runs is the statement stored on the widget. A reader supplies
         no SQL to this path at all, so the published rows are only ever reached
         through the question somebody published."""
-        author = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        author = await acting_user(guild_role=CommunityRole.admin, initiative=True)
         await dashboards_on(session, author.initiative)
         reader = await acting_user(
-            guild_role=GuildRole.member,
+            guild_role=CommunityRole.member,
             guild=author.guild,
             initiative=author.initiative,
             initiative_role="member",
@@ -202,10 +202,10 @@ class TestWhatItWillNotDo:
         Authoring a dashboard is not a way to hand on access nobody gave you:
         what is published is the publisher's own reach.
         """
-        owner = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        owner = await acting_user(guild_role=CommunityRole.admin, initiative=True)
         await dashboards_on(session, owner.initiative)
         author = await acting_user(
-            guild_role=GuildRole.member,
+            guild_role=CommunityRole.member,
             guild=owner.guild,
             initiative=owner.initiative,
             initiative_role="member",
@@ -234,7 +234,7 @@ class TestWhatItWillNotDo:
     ):
         """One set of numbers for everybody, and ``me`` is what makes a
         statement answer differently per person. The two cannot both hold."""
-        author = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        author = await acting_user(guild_role=CommunityRole.admin, initiative=True)
         await dashboards_on(session, author.initiative)
         project = await create_project(session, author.initiative, author.user)
         dashboard_id = await make_dashboard(
@@ -257,10 +257,10 @@ class TestWhatItWillNotDo:
     ):
         """The statement decides which published rows a reader sees, so
         changing one is the act of writing it."""
-        author = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        author = await acting_user(guild_role=CommunityRole.admin, initiative=True)
         await dashboards_on(session, author.initiative)
         editor = await acting_user(
-            guild_role=GuildRole.member,
+            guild_role=CommunityRole.member,
             guild=author.guild,
             initiative=author.initiative,
             initiative_role="member",
@@ -293,7 +293,7 @@ class TestWhatItWillNotDo:
         )
 
     async def test_the_author_may_still_edit_it(self, client, session, acting_user):
-        author = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        author = await acting_user(guild_role=CommunityRole.admin, initiative=True)
         await dashboards_on(session, author.initiative)
         project = await create_project(session, author.initiative, author.user)
         dashboard_id = await make_dashboard(client, author)
@@ -316,10 +316,10 @@ class TestWhatItWillNotDo:
     ):
         """A dashboard reads and never writes. The grant is stored at read and
         the access function refuses it for a write whatever else is true."""
-        author = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        author = await acting_user(guild_role=CommunityRole.admin, initiative=True)
         await dashboards_on(session, author.initiative)
         reader = await acting_user(
-            guild_role=GuildRole.member,
+            guild_role=CommunityRole.member,
             guild=author.guild,
             initiative=author.initiative,
             initiative_role="member",
@@ -350,10 +350,10 @@ class TestTheReaderCannotBeSmuggledIn:
     async def test_a_config_override_does_not_publish_the_reader(
         self, client, session, acting_user
     ):
-        author = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        author = await acting_user(guild_role=CommunityRole.admin, initiative=True)
         await dashboards_on(session, author.initiative)
         reader = await acting_user(
-            guild_role=GuildRole.member,
+            guild_role=CommunityRole.member,
             guild=author.guild,
             initiative=author.initiative,
             initiative_role="member",
@@ -403,7 +403,7 @@ class TestTheReaderCannotBeSmuggledIn:
         """If a statement names the reader, the tile under the notice is
         answering from that reader's own access — so the notice has to stop
         saying the figures are shared, whatever route the statement took."""
-        author = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        author = await acting_user(guild_role=CommunityRole.admin, initiative=True)
         await dashboards_on(session, author.initiative)
         project = await create_project(session, author.initiative, author.user)
         dashboard_id = await make_dashboard(client, author)
@@ -449,10 +449,10 @@ class TestTheReaderCannotBeSmuggledIn:
         take the notice away — a reader would keep seeing rows beyond their own
         access with nothing on the page saying so.
         """
-        author = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        author = await acting_user(guild_role=CommunityRole.admin, initiative=True)
         await dashboards_on(session, author.initiative)
         reader = await acting_user(
-            guild_role=GuildRole.member,
+            guild_role=CommunityRole.member,
             guild=author.guild,
             initiative=author.initiative,
             initiative_role="member",
@@ -501,10 +501,10 @@ class TestItFailsClosedOnTheAuthor:
     async def test_a_suspended_author_publishes_nothing(
         self, client, session, acting_user
     ):
-        author = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        author = await acting_user(guild_role=CommunityRole.admin, initiative=True)
         await dashboards_on(session, author.initiative)
         reader = await acting_user(
-            guild_role=GuildRole.member,
+            guild_role=CommunityRole.member,
             guild=author.guild,
             initiative=author.initiative,
             initiative_role="member",
@@ -541,16 +541,16 @@ class TestItFailsClosedOnTheAuthor:
     async def test_an_author_who_left_the_guild_publishes_nothing(
         self, client, session, acting_user
     ):
-        owner = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        owner = await acting_user(guild_role=CommunityRole.admin, initiative=True)
         await dashboards_on(session, owner.initiative)
         author = await acting_user(
-            guild_role=GuildRole.admin,
+            guild_role=CommunityRole.admin,
             guild=owner.guild,
             initiative=owner.initiative,
             initiative_role="member",
         )
         reader = await acting_user(
-            guild_role=GuildRole.member,
+            guild_role=CommunityRole.member,
             guild=owner.guild,
             initiative=owner.initiative,
             initiative_role="member",
@@ -578,7 +578,7 @@ class TestTheGrantItself:
     async def test_it_is_stored_as_a_read_by_the_person_publishing(
         self, client, session, acting_user
     ):
-        author = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        author = await acting_user(guild_role=CommunityRole.admin, initiative=True)
         await dashboards_on(session, author.initiative)
         project = await create_project(session, author.initiative, author.user)
         dashboard_id = await make_dashboard(client, author)
@@ -607,10 +607,10 @@ class TestTheGrantItself:
     ):
         """A client that predates published views saves the sharing panel and
         must not take one away by doing so."""
-        author = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        author = await acting_user(guild_role=CommunityRole.admin, initiative=True)
         await dashboards_on(session, author.initiative)
         other = await acting_user(
-            guild_role=GuildRole.member,
+            guild_role=CommunityRole.member,
             guild=author.guild,
             initiative=author.initiative,
             initiative_role="member",
@@ -642,7 +642,7 @@ class TestTheGrantItself:
     async def test_publishing_an_empty_list_takes_it_back(
         self, client, session, acting_user
     ):
-        author = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        author = await acting_user(guild_role=CommunityRole.admin, initiative=True)
         await dashboards_on(session, author.initiative)
         project = await create_project(session, author.initiative, author.user)
         dashboard_id = await make_dashboard(client, author)
@@ -666,7 +666,7 @@ class TestTheGrantItself:
         assert detail.json()["published_over"] == []
 
     async def test_it_says_which_widget_has_no_statement(self, client, acting_user):
-        actor = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        actor = await acting_user(guild_role=CommunityRole.admin, initiative=True)
         dashboard_id = await make_dashboard(client, actor)
         missing = await client.get(
             actor.g(f"/dashboards/{dashboard_id}/widgets/nope/query"),

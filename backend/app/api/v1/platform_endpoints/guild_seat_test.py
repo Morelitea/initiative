@@ -9,7 +9,7 @@ from sqlalchemy.exc import DBAPIError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.db.session import set_rls_context
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.testing.factories import (
     create_guild,
     create_guild_membership,
@@ -46,10 +46,10 @@ async def test_the_seat_is_read_from_postgres_not_from_the_enum(
     seat = await create_user(session)
     admin = await create_user(session)
     await create_guild_membership(
-        session, user=seat, guild=guild, role=GuildRole.superadmin
+        session, user=seat, guild=guild, role=CommunityRole.superadmin
     )
     await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
+        session, user=admin, guild=guild, role=CommunityRole.admin
     )
     await session.commit()
 
@@ -77,10 +77,10 @@ async def test_postgres_refuses_the_write_to_anyone_but_the_seat(
     seat = await create_user(session)
     admin = await create_user(session)
     await create_guild_membership(
-        session, user=seat, guild=guild, role=GuildRole.superadmin
+        session, user=seat, guild=guild, role=CommunityRole.superadmin
     )
     await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
+        session, user=admin, guild=guild, role=CommunityRole.admin
     )
     await session.commit()
 
@@ -128,10 +128,10 @@ async def test_billing_is_the_seats_too(
     seat = await create_user(session)
     admin = await create_user(session)
     await create_guild_membership(
-        session, user=seat, guild=guild, role=GuildRole.superadmin
+        session, user=seat, guild=guild, role=CommunityRole.superadmin
     )
     await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
+        session, user=admin, guild=guild, role=CommunityRole.admin
     )
     await session.commit()
 
@@ -163,10 +163,10 @@ async def test_the_seat_deletes_the_community_and_then_itself(
     seat = await create_user(session)
     guild = await create_guild(session, name="Winding Down", creator=seat)
     await create_guild_membership(
-        session, user=seat, guild=guild, role=GuildRole.superadmin
+        session, user=seat, guild=guild, role=CommunityRole.superadmin
     )
     await create_guild_membership(
-        session, user=await create_user(session), guild=guild, role=GuildRole.member
+        session, user=await create_user(session), guild=guild, role=CommunityRole.member
     )
     await session.commit()
     headers = get_auth_headers(seat)

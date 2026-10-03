@@ -12,7 +12,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.audit_events import AuditEventType
 from app.core.tools import Tool
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.services.tenant import ownership as ownership_service
 from app.testing import TOOL_FACTORIES, emitted, route_session_to_guild
 from app.testing.factories import (
@@ -45,10 +45,10 @@ async def test_exporting_a_roster_is_recorded_with_its_count(
     admin_id = admin.id
     member = await create_user(session)
     await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
+        session, user=admin, guild=guild, role=CommunityRole.admin
     )
     await create_guild_membership(
-        session, user=member, guild=guild, role=GuildRole.member
+        session, user=member, guild=guild, role=CommunityRole.member
     )
     capfd.readouterr()
 
@@ -71,7 +71,7 @@ async def test_an_export_that_matched_nobody_records_nothing(
     guild = await create_guild(session)
     admin = await create_user(session)
     await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
+        session, user=admin, guild=guild, role=CommunityRole.admin
     )
     capfd.readouterr()
 
@@ -93,10 +93,10 @@ async def test_removing_a_member_is_recorded_against_the_admin_who_did_it(
     member = await create_user(session)
     member_id = member.id
     await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
+        session, user=admin, guild=guild, role=CommunityRole.admin
     )
     await create_guild_membership(
-        session, user=member, guild=guild, role=GuildRole.member
+        session, user=member, guild=guild, role=CommunityRole.member
     )
     capfd.readouterr()
 
@@ -119,7 +119,7 @@ async def test_removing_someone_who_is_not_a_member_records_nothing(
     admin = await create_user(session)
     outsider = await create_user(session)
     await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
+        session, user=admin, guild=guild, role=CommunityRole.admin
     )
     capfd.readouterr()
 
@@ -136,9 +136,9 @@ async def test_removing_someone_who_is_not_a_member_records_nothing(
 async def test_a_transfer_records_one_move_counted_by_tool(
     client: AsyncClient, session: AsyncSession, acting_user, capfd
 ):
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     member = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=admin.guild,
         initiative=admin.initiative,
         initiative_role="member",
@@ -166,7 +166,7 @@ async def test_a_transfer_records_one_move_counted_by_tool(
 async def test_a_claim_records_the_move_with_no_previous_owner(
     client: AsyncClient, session: AsyncSession, acting_user, capfd
 ):
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     project = await TOOL_FACTORIES[Tool.project](session, admin.initiative, admin.user)
     await route_session_to_guild(session, admin.guild.id)
     await ownership_service.set_resource_owner(
@@ -196,9 +196,9 @@ async def test_a_claim_records_the_move_with_no_previous_owner(
 async def test_a_transfer_that_moved_nothing_records_nothing(
     client: AsyncClient, acting_user, capfd
 ):
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     member = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=admin.guild,
         initiative=admin.initiative,
         initiative_role="member",

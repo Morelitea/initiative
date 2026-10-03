@@ -26,7 +26,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.db.session import routed_guild_id
 from app.core.messages import ImportEngineMessages
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.platform.user import User
 from app.models.tenant.import_job import ImportJob, ImportJobStatus
 from app.models.tenant.initiative import Initiative
@@ -117,7 +117,7 @@ async def load_target_initiative(
     membership = await guilds_service.get_membership(
         session, guild_id=guild_id, user_id=user.id
     )
-    is_admin = membership is not None and membership.role.reaches(GuildRole.admin)
+    is_admin = membership is not None and membership.role.reaches(CommunityRole.admin)
     if not is_admin:
         has_perm = await rls_service.check_initiative_permission(
             session,

@@ -96,7 +96,7 @@ from app.models.platform.user import (
     UserRole,
     UserStatus,
 )
-from app.models.platform.guild import Guild, GuildInvite, GuildRole
+from app.models.platform.guild import Guild, GuildInvite, CommunityRole
 from app.schemas.platform.token import Token
 from app.schemas.platform.second_factor import SecondFactorChallengeAnswer
 from app.schemas.platform.auth import (
@@ -546,7 +546,7 @@ async def _register_account(
                 session,
                 guild_id=guild.id,
                 user_id=user.id,
-                role=GuildRole.member,
+                role=CommunityRole.member,
             )
             await session.commit()
             await cohorts.settle(session)

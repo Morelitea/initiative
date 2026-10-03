@@ -16,8 +16,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.models.platform.guild import (
     Guild,
     GuildMembership,
-    GuildRole,
-    GuildStatus,
+    CommunityRole,
+    CommunityStatus,
 )
 from app.models.platform.user import UserRole
 from app.models.tenant.initiative import InitiativeMember
@@ -82,7 +82,7 @@ async def _a_listed_guild(
 async def _admin_of(session: AsyncSession, acting_user, **guild_fields):
     """A guild plus the headers of one of its admins."""
     guild = await create_guild(session, **guild_fields)
-    admin = await acting_user(guild_role=GuildRole.admin, guild=guild)
+    admin = await acting_user(guild_role=CommunityRole.admin, guild=guild)
     return guild, admin.headers
 
 
@@ -133,9 +133,9 @@ async def test_the_directory_re_checks_a_listed_guild_before_offering_it(
         await guild_administration(session, guild, max_users=1)
     else:
         guild.status = (
-            GuildStatus.suspended.value
+            CommunityStatus.suspended.value
             if condition == "suspended"
-            else GuildStatus.read_only.value
+            else CommunityStatus.read_only.value
         )
         session.add(guild)
         await session.commit()
@@ -156,7 +156,7 @@ async def test_directory_card_carries_only_published_fields(
     guild = await create_guild(
         session, name="Riverside Players", description="Community theatre."
     )
-    await acting_user(guild_role=GuildRole.member, guild=guild)
+    await acting_user(guild_role=CommunityRole.member, guild=guild)
     await _list_as_community(session, guild, categories=["art", "writing"])
 
     response = await client.get(
@@ -180,7 +180,7 @@ async def test_directory_flags_guilds_the_caller_is_already_in(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     joined = await _a_listed_guild(session, name="Open Table")
-    browser = await acting_user(guild_role=GuildRole.member, guild=joined)
+    browser = await acting_user(guild_role=CommunityRole.member, guild=joined)
     await _a_listed_guild(session, name="Somewhere Else")
 
     response = await client.get(
@@ -260,7 +260,7 @@ async def test_directory_lists_the_busiest_guilds_first(
     await _a_listed_guild(session, name="Aardvark Club")
     busy = await _a_listed_guild(session, name="Zebra Hall")
     for _ in range(3):
-        await acting_user(guild_role=GuildRole.member, guild=busy)
+        await acting_user(guild_role=CommunityRole.member, guild=busy)
 
     response = await client.get(
         "/api/v1/communities/directory", headers=browser.headers
@@ -282,7 +282,7 @@ async def test_directory_searches_every_guild_not_only_a_loaded_page(
     browser = await acting_user("member")
     busy = await _a_listed_guild(session, name="Crowded Hall")
     for _ in range(3):
-        await acting_user(guild_role=GuildRole.member, guild=busy)
+        await acting_user(guild_role=CommunityRole.member, guild=busy)
     await _a_listed_guild(session, name="Dice Goblins")
 
     response = await client.get(
@@ -335,7 +335,7 @@ async def test_joining_a_listed_guild_needs_no_invite_and_repeats_harmlessly(
 
     assert first.status_code == 200
     assert first.json()["id"] == guild.id
-    assert first.json()["role"] == GuildRole.member.value
+    assert first.json()["role"] == CommunityRole.member.value
     assert second.status_code == 200
     memberships = (
         await session.exec(
@@ -345,7 +345,7 @@ async def test_joining_a_listed_guild_needs_no_invite_and_repeats_harmlessly(
             )
         )
     ).all()
-    assert [m.role for m in memberships] == [GuildRole.member]
+    assert [m.role for m in memberships] == [CommunityRole.member]
 
 
 @pytest.mark.parametrize(
@@ -373,7 +373,7 @@ async def test_a_guild_the_directory_would_not_show_cannot_be_joined(
     else:
         guild = await _a_listed_guild(session, name="Open Table")
         if condition == "suspended":
-            guild.status = GuildStatus.suspended.value
+            guild.status = CommunityStatus.suspended.value
             session.add(guild)
             await session.commit()
         elif condition == "one seat":
@@ -403,7 +403,7 @@ async def test_join_respects_the_member_cap(
     joiner = await acting_user("member")
     guild = await _a_listed_guild(session, name="Open Table")
     for _ in range(2):
-        await acting_user(guild_role=GuildRole.member, guild=guild)
+        await acting_user(guild_role=CommunityRole.member, guild=guild)
     await guild_administration(session, guild, max_users=2)
 
     response = await client.post(
@@ -418,7 +418,7 @@ async def test_a_member_cannot_opt_the_guild_in(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     guild = await create_guild(session, name="Open Table")
-    member = await acting_user(guild_role=GuildRole.member, guild=guild)
+    member = await acting_user(guild_role=CommunityRole.member, guild=guild)
 
     response = await client.patch(
         f"/api/v1/communities/{guild.id}",
@@ -809,10 +809,10 @@ async def test_a_profile_names_only_the_listed_communities(
     listed = await _a_listed_guild(session)
     private = await create_guild(session)
     subject = await acting_user(
-        guild_role=GuildRole.member, guild=listed, username="tinker"
+        guild_role=CommunityRole.member, guild=listed, username="tinker"
     )
     await create_guild_membership(session, user=subject.user, guild=private)
-    reader = await acting_user(guild_role=GuildRole.member, guild=listed)
+    reader = await acting_user(guild_role=CommunityRole.member, guild=listed)
 
     response = await client.get(
         f"/api/v1/users/{subject.user.username}{subject.user.discriminator:04d}/communities",
@@ -831,7 +831,7 @@ async def test_a_profile_names_no_communities_where_the_directory_is_off(
     """Nothing is published on a deployment that publishes nothing."""
     listed = await _a_listed_guild(session)
     subject = await acting_user(
-        guild_role=GuildRole.member, guild=listed, username="tinker"
+        guild_role=CommunityRole.member, guild=listed, username="tinker"
     )
     reader = await acting_user("member")
     await _switch_directory_off(session)
@@ -1053,7 +1053,7 @@ async def test_belonging_somewhere_never_holds_an_unanswered_account_up(
         else await create_guild(session, name="Just Us")
     )
     a = await acting_user(
-        guild_role=GuildRole.member, guild=guild, age_confirmed_at=None
+        guild_role=CommunityRole.member, guild=guild, age_confirmed_at=None
     )
 
     response = await client.get("/api/v1/me", headers=a.headers)
@@ -1076,7 +1076,7 @@ async def test_an_account_that_answered_under_age_keeps_its_communities(
     """
     invited = await create_guild(session, name="Just Us")
     a = await acting_user(
-        guild_role=GuildRole.member, guild=invited, age_confirmed_at=None
+        guild_role=CommunityRole.member, guild=invited, age_confirmed_at=None
     )
     await client.post(
         "/api/v1/me/age-confirmation",
@@ -1168,7 +1168,7 @@ async def test_a_guild_holding_an_under_age_member_cannot_be_listed(
     onto the shelf is the one moment that can be reconciled."""
     guild, admin_headers = await _admin_of(session, acting_user, name="Just Us")
     member = await acting_user(
-        guild_role=GuildRole.member, guild=guild, age_confirmed_at=None
+        guild_role=CommunityRole.member, guild=guild, age_confirmed_at=None
     )
     await client.post(
         "/api/v1/me/age-confirmation",
@@ -1202,7 +1202,9 @@ async def test_an_unanswered_member_does_not_stop_a_guild_being_listed(
     private guild could ever be listed at all.
     """
     guild, admin_headers = await _admin_of(session, acting_user, name="Just Us")
-    await acting_user(guild_role=GuildRole.member, guild=guild, age_confirmed_at=None)
+    await acting_user(
+        guild_role=CommunityRole.member, guild=guild, age_confirmed_at=None
+    )
 
     response = await client.patch(
         f"/api/v1/communities/{guild.id}",
@@ -1230,7 +1232,7 @@ async def test_an_already_listed_guild_is_not_re_checked_on_an_unrelated_edit(
     guild, admin_headers = await _admin_of(session, acting_user, name="Open Table")
     await _list_as_community(session, guild)
     member = await acting_user(
-        guild_role=GuildRole.member, guild=guild, age_confirmed_at=None
+        guild_role=CommunityRole.member, guild=guild, age_confirmed_at=None
     )
     await client.post(
         "/api/v1/me/age-confirmation",
@@ -1292,7 +1294,7 @@ async def test_a_listed_community_asks_its_own_members_before_letting_them_in(
         else await create_guild(session, name="Just Us")
     )
     a = await acting_user(
-        guild_role=GuildRole.member, guild=guild, age_confirmed_at=None
+        guild_role=CommunityRole.member, guild=guild, age_confirmed_at=None
     )
     if answer != "unanswered":
         await client.post(
@@ -1323,7 +1325,7 @@ async def test_being_asked_by_one_community_does_not_close_another(
     """
     listed = await _a_listed_guild(session, name="Open Table")
     a = await acting_user(
-        guild_role=GuildRole.member, guild=listed, age_confirmed_at=None
+        guild_role=CommunityRole.member, guild=listed, age_confirmed_at=None
     )
     private = await create_guild(session, name="Just Us")
     await create_guild_membership(session, user=a.user, guild=private)

@@ -9,7 +9,10 @@ import { screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { renderPage } from "@/__tests__/helpers/render";
-import type { GuildRosterMember, GuildRosterResponse } from "@/api/generated/initiativeAPI.schemas";
+import type {
+  CommunityRosterMember,
+  CommunityRosterResponse,
+} from "@/api/generated/initiativeAPI.schemas";
 import { SidebarProvider } from "@/components/ui/sidebar";
 
 import { PeopleSection } from "./PeopleSection";
@@ -34,7 +37,7 @@ vi.mock("@/hooks/useDirectMessages", async (importOriginal) => ({
   }),
 }));
 
-const member = (overrides: Partial<GuildRosterMember>): GuildRosterMember => ({
+const member = (overrides: Partial<CommunityRosterMember>): CommunityRosterMember => ({
   id: 1,
   username: "someone",
   discriminator: 1234,
@@ -49,8 +52,8 @@ const member = (overrides: Partial<GuildRosterMember>): GuildRosterMember => ({
 });
 
 const page = (
-  items: GuildRosterMember[],
-  presence_counts: GuildRosterResponse["presence_counts"],
+  items: CommunityRosterMember[],
+  presence_counts: CommunityRosterResponse["presence_counts"],
   has_next = false
 ) =>
   mocks.roster.mockReturnValue({

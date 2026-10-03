@@ -4,11 +4,14 @@ import {
   getReadGuildPaymentIssueApiV1CommunitiesGuildIdBillingPaymentIssueGetQueryKey,
   readGuildPaymentIssueApiV1CommunitiesGuildIdBillingPaymentIssueGet,
 } from "@/api/generated/communities/communities";
-import type { GuildPaymentIssueRead } from "@/api/generated/initiativeAPI.schemas";
+import type { CommunityPaymentIssueRead } from "@/api/generated/initiativeAPI.schemas";
 import type { QueryOpts } from "@/types/query";
 
-export const useGuildPaymentIssue = (guildId: number, options?: QueryOpts<GuildPaymentIssueRead>) =>
-  useQuery<GuildPaymentIssueRead>({
+export const useGuildPaymentIssue = (
+  guildId: number,
+  options?: QueryOpts<CommunityPaymentIssueRead>
+) =>
+  useQuery<CommunityPaymentIssueRead>({
     queryKey:
       getReadGuildPaymentIssueApiV1CommunitiesGuildIdBillingPaymentIssueGetQueryKey(guildId),
     queryFn: () => readGuildPaymentIssueApiV1CommunitiesGuildIdBillingPaymentIssueGet(guildId),

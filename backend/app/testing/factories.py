@@ -58,8 +58,8 @@ from app.models.tenant.comment import Comment
 from app.models.tenant.counter import Counter, CounterGroup
 from app.models.tenant.document import Document, DocumentType
 from app.models.platform.access_grant import AccessGrant
-from app.models.platform.guild import Guild, GuildMembership, GuildRole
-from app.core.guild_auth_options import GuildAuthOption
+from app.models.platform.guild import Guild, GuildMembership, CommunityRole
+from app.core.guild_auth_options import CommunityAuthOption
 from app.models.platform.guild_administration import GuildAdministration
 from app.services.marketplace import app_installs
 from app.services.marketplace import catalog as marketplace_catalog
@@ -242,7 +242,7 @@ async def create_guild(
     # ``auth_options=[]`` to exercise the ungranted paths, or a shorter list to
     # exercise one option without the other.
     administration_data: dict[str, Any] = {
-        "auth_options": [option.value for option in GuildAuthOption],
+        "auth_options": [option.value for option in CommunityAuthOption],
         **{
             field: overrides.pop(field)
             for field in ("max_storage_bytes", "max_users", "tier_name", "auth_options")
@@ -251,7 +251,7 @@ async def create_guild(
     }
     # Accepts the enum or its value, like every other enum a factory takes.
     administration_data["auth_options"] = [
-        option.value if isinstance(option, GuildAuthOption) else option
+        option.value if isinstance(option, CommunityAuthOption) else option
         for option in administration_data["auth_options"]
     ]
     if creator is None:
@@ -355,7 +355,7 @@ async def create_guild_membership(
     session: AsyncSession,
     user: User | None = None,
     guild: Guild | None = None,
-    role: GuildRole = GuildRole.member,
+    role: CommunityRole = CommunityRole.member,
     commit: bool = True,
     **overrides: Any,
 ) -> GuildMembership:
@@ -378,7 +378,7 @@ async def create_guild_membership(
             session,
             user=test_user,
             guild=test_guild,
-            role=GuildRole.admin
+            role=CommunityRole.admin
         )
     """
     if user is None:

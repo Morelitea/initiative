@@ -23,7 +23,7 @@ from app.api.deps import (
     require_guild_roles,
     CurrentUser,
 )
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.schemas.ai_settings import (
     AIConnectionCreate,
     AIConnectionResponse,
@@ -45,13 +45,13 @@ router = APIRouter()
 # same seat rather than to running the community day to day. A settings grant
 # at the superadmin rung stands in for the seat, as it does everywhere else.
 GuildSeatContext = Annotated[
-    GuildContext, Depends(require_guild_roles(GuildRole.superadmin, settings=True))
+    GuildContext, Depends(require_guild_roles(CommunityRole.superadmin, settings=True))
 ]
 # Changing a connection also asks a grantee for a read_write content grant
 # beside the rung.
 GuildSeatWriteContext = Annotated[
     GuildContext,
-    Depends(require_guild_roles(GuildRole.superadmin, settings=True, write=True)),
+    Depends(require_guild_roles(CommunityRole.superadmin, settings=True, write=True)),
 ]
 GuildMemberContext = Annotated[GuildContext, Depends(get_guild_membership)]
 

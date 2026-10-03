@@ -24,7 +24,7 @@ import {
   createGuildAppHandoffApiV1CGuildIdAppsAppIdHandoffSurfaceIdPost,
   createInitiativeAppHandoffApiV1CGuildIdInitiativesInitiativeIdAppsAppIdHandoffSurfaceIdPost,
 } from "@/api/generated/apps/apps";
-import type { GuildAppHandoff } from "@/api/generated/initiativeAPI.schemas";
+import type { CommunityAppHandoff } from "@/api/generated/initiativeAPI.schemas";
 import {
   EditorSkeleton,
   SkeletonPillRow,
@@ -73,7 +73,7 @@ export function GuildAppPage({ appId, initiativeId }: GuildAppPageProps) {
   // for.
   const activeId = active?.id ?? null;
 
-  const [handoff, setHandoff] = useState<GuildAppHandoff | null>(null);
+  const [handoff, setHandoff] = useState<CommunityAppHandoff | null>(null);
   const [error, setError] = useState<string | null>(null);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   // Whether the token we hold has already been handed over. A later `ready`
@@ -97,7 +97,7 @@ export function GuildAppPage({ appId, initiativeId }: GuildAppPageProps) {
             initiativeId,
             appId,
             activeId ?? ""
-          )) as unknown as Promise<GuildAppHandoff>,
+          )) as unknown as Promise<CommunityAppHandoff>,
     [guildId, initiativeId, appId, activeId]
   );
 
@@ -169,7 +169,7 @@ export function GuildAppPage({ appId, initiativeId }: GuildAppPageProps) {
     // cannot tell them apart.
     let cancelled = false;
 
-    const send = (target: Window, token: GuildAppHandoff) => {
+    const send = (target: Window, token: CommunityAppHandoff) => {
       target.postMessage(
         {
           type: HANDOFF,

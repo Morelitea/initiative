@@ -8,7 +8,7 @@ Endpoints and services should check a capability via
 ``app.api.deps``) so the privilege ladder can change without touching every
 call site.
 
-This is deliberately separate from *guild* roles (``GuildRole``) and
+This is deliberately separate from *guild* roles (``CommunityRole``) and
 *initiative* roles, which are scoped tenancy concepts. Capabilities here are
 about platform-wide privilege.
 """

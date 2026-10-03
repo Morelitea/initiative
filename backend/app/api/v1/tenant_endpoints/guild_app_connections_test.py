@@ -36,7 +36,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.encryption import SALT_APP_CONFIG, encrypt_field
 from app.core.messages import GuildAppMessages, GuildMessages, MarketplaceMessages
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.tenant.guild_app_user_connection import GuildAppUserConnection
 from app.services.marketplace.registration_lookup import invalidate_registrations
 from app.services.tenant import app_revocation
@@ -242,7 +242,7 @@ class TestInstallKind:
             kind="app",
             definition=SERVICE_DEFINITION,
         )
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
         response = await client.post(
             a.g("/apps/"), headers=a.headers, json={"listing_uid": uid}
         )
@@ -258,7 +258,7 @@ class TestInstallIsNotGatedOnAConnection:
         self, client: AsyncClient, acting_user, session: AsyncSession
     ):
         """Nobody has to connect for the install to be valid."""
-        a = await acting_user(guild_role=GuildRole.admin)
+        a = await acting_user(guild_role=CommunityRole.admin)
         app = await _install(session, a, MEMBER_ONLY_DEFINITION)
 
         response = await client.get(a.g(f"/apps/{app.id}"), headers=a.headers)
@@ -272,7 +272,7 @@ class TestInstallIsNotGatedOnAConnection:
     async def test_a_guild_credential_is_reported_as_outstanding(
         self, client: AsyncClient, acting_user, session: AsyncSession
     ):
-        a = await acting_user(guild_role=GuildRole.admin)
+        a = await acting_user(guild_role=CommunityRole.admin)
         app = await _install(session, a)
         body = (await client.get(a.g(f"/apps/{app.id}"), headers=a.headers)).json()
         assert body["needs_config"] is True
@@ -287,7 +287,7 @@ class TestConfig:
     async def test_a_secret_is_stored_and_echoed_only_as_presence(
         self, client: AsyncClient, acting_user, session: AsyncSession
     ):
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
         app = await _install(session, a)
 
         response = await client.put(
@@ -310,7 +310,7 @@ class TestConfig:
     ):
         """The seat reads back what it set, to edit it; an administrator below
         the seat and a member are told only that it is there."""
-        seat = await acting_user(guild_role=GuildRole.superadmin)
+        seat = await acting_user(guild_role=CommunityRole.superadmin)
         app = await _install(session, seat)
         response = await client.put(
             seat.g(f"/apps/{app.id}/config"),
@@ -318,8 +318,8 @@ class TestConfig:
             json={"values": {"admin": VALID_ADMIN_VALUES}},
         )
         assert response.status_code == 200, response.text
-        admin = await acting_user(guild_role=GuildRole.admin, guild=seat.guild)
-        member = await acting_user(guild_role=GuildRole.member, guild=seat.guild)
+        admin = await acting_user(guild_role=CommunityRole.admin, guild=seat.guild)
+        member = await acting_user(guild_role=CommunityRole.member, guild=seat.guild)
 
         for viewer, values in (
             (seat, {"shop_domain": "example.test"}),
@@ -336,7 +336,7 @@ class TestConfig:
     async def test_the_secret_is_not_in_the_list_payload_either(
         self, client: AsyncClient, acting_user, session: AsyncSession
     ):
-        a = await acting_user(guild_role=GuildRole.admin)
+        a = await acting_user(guild_role=CommunityRole.admin)
         app = await _install(session, a)
         await client.put(
             a.g(f"/apps/{app.id}/config"),
@@ -349,9 +349,9 @@ class TestConfig:
     async def test_configuring_is_a_guild_admin_action(
         self, client: AsyncClient, acting_user, session: AsyncSession
     ):
-        a = await acting_user(guild_role=GuildRole.admin)
+        a = await acting_user(guild_role=CommunityRole.admin)
         app = await _install(session, a)
-        member = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+        member = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
 
         response = await client.put(
             member.g(f"/apps/{app.id}/config"),
@@ -364,7 +364,7 @@ class TestConfig:
     async def test_values_are_validated_against_the_pinned_schema(
         self, client: AsyncClient, acting_user, session: AsyncSession
     ):
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
         app = await _install(session, a)
 
         response = await client.put(
@@ -378,7 +378,7 @@ class TestConfig:
     async def test_an_unknown_connection_is_refused(
         self, client: AsyncClient, acting_user, session: AsyncSession
     ):
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
         app = await _install(session, a)
         response = await client.put(
             a.g(f"/apps/{app.id}/config"),
@@ -392,7 +392,7 @@ class TestConfig:
         self, client: AsyncClient, acting_user, session: AsyncSession
     ):
         """It is that member's to make, and the app writes the result."""
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
         app = await _install(session, a)
         response = await client.put(
             a.g(f"/apps/{app.id}/config"),
@@ -405,7 +405,7 @@ class TestConfig:
     async def test_a_required_field_left_empty_is_refused(
         self, client: AsyncClient, acting_user, session: AsyncSession
     ):
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
         app = await _install(session, a)
         response = await client.put(
             a.g(f"/apps/{app.id}/config"),
@@ -420,7 +420,7 @@ class TestConfig:
     ):
         """Whatever the app said about the old values is not an answer about
         the new ones."""
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
         app = await create_guild_app(
             session,
             a.guild,
@@ -445,7 +445,7 @@ class TestConfig:
         session: AsyncSession,
         recorded_revocations,
     ):
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
         app = await _install(session, a)
         await client.put(
             a.g(f"/apps/{app.id}/config"),
@@ -478,9 +478,9 @@ class TestConnect:
         Initiative runs the flow, so the address is the vendor's authorization
         endpoint with this deployment's client and callback, and nothing is
         stored until the vendor sends the member back."""
-        a = await acting_user(guild_role=GuildRole.admin)
+        a = await acting_user(guild_role=CommunityRole.admin)
         app = await _install(session, a)
-        member = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+        member = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
 
         response = await client.post(
             member.g(f"/apps/{app.id}/connections/github/connect"),
@@ -513,7 +513,7 @@ class TestConnect:
         The scope is not what decides this — a guild-wide connection may run a
         flow of its own. Declaring one is.
         """
-        a = await acting_user(guild_role=GuildRole.admin)
+        a = await acting_user(guild_role=CommunityRole.admin)
         app = await _install(session, a)
         response = await client.post(
             a.g(f"/apps/{app.id}/connections/admin/connect"), headers=a.headers
@@ -526,7 +526,7 @@ class TestConnect:
     ):
         """One credential for everybody, obtained rather than typed: the seat is
         sent to the vendor's install page first."""
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
         app = await _install(session, a, definition=WORKSPACE_DEFINITION)
 
         response = await client.post(
@@ -553,9 +553,9 @@ class TestConnect:
     ):
         """The install it produces is the guild's boundary, which is the seat's
         to decide, exactly as typing the same connection would be."""
-        a = await acting_user(guild_role=GuildRole.admin)
+        a = await acting_user(guild_role=CommunityRole.admin)
         app = await _install(session, a, definition=WORKSPACE_DEFINITION)
-        member = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+        member = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
 
         response = await client.post(
             member.g(f"/apps/{app.id}/connections/workspace/connect"),
@@ -574,7 +574,7 @@ class TestConnect:
             public_id="tests.bare",
             base_url="https://bare.example.test",
         )
-        a = await acting_user(guild_role=GuildRole.admin)
+        a = await acting_user(guild_role=CommunityRole.admin)
         app = await _install(
             session,
             a,
@@ -593,7 +593,7 @@ class TestConnect:
     async def test_an_unknown_connection_is_a_404(
         self, client: AsyncClient, acting_user, session: AsyncSession
     ):
-        a = await acting_user(guild_role=GuildRole.admin)
+        a = await acting_user(guild_role=CommunityRole.admin)
         app = await _install(session, a)
         response = await client.post(
             a.g(f"/apps/{app.id}/connections/nope/connect"), headers=a.headers
@@ -604,7 +604,7 @@ class TestConnect:
     async def test_a_disabled_app_accepts_no_new_connections(
         self, client: AsyncClient, acting_user, session: AsyncSession
     ):
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
         app = await _install(session, a)
         await client.patch(
             a.g(f"/apps/{app.id}"), headers=a.headers, json={"enabled": False}
@@ -623,9 +623,9 @@ class TestConnect:
         session: AsyncSession,
         recorded_revocations,
     ):
-        a = await acting_user(guild_role=GuildRole.admin)
+        a = await acting_user(guild_role=CommunityRole.admin)
         app = await _install(session, a)
-        member = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+        member = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
         await _connected(session, member, app)
 
         response = await client.delete(
@@ -648,10 +648,10 @@ class TestConnectionVisibility:
         """One member's vendor account is not another member's business. The
         gate is the table's own-row policy, so there is no endpoint branch that
         could be forgotten."""
-        a = await acting_user(guild_role=GuildRole.admin)
+        a = await acting_user(guild_role=CommunityRole.admin)
         app = await _install(session, a)
-        first = await acting_user(guild_role=GuildRole.member, guild=a.guild)
-        second = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+        first = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
+        second = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
 
         await _connected(session, first, app)
 
@@ -666,9 +666,9 @@ class TestConnectionVisibility:
     async def test_the_connecting_member_sees_their_own(
         self, client: AsyncClient, acting_user, session: AsyncSession
     ):
-        a = await acting_user(guild_role=GuildRole.admin)
+        a = await acting_user(guild_role=CommunityRole.admin)
         app = await _install(session, a)
-        member = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+        member = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
         await _connected(session, member, app)
 
         body = (
@@ -682,9 +682,9 @@ class TestConnectionVisibility:
     async def test_a_member_may_not_read_the_members_view(
         self, client: AsyncClient, acting_user, session: AsyncSession
     ):
-        a = await acting_user(guild_role=GuildRole.admin)
+        a = await acting_user(guild_role=CommunityRole.admin)
         app = await _install(session, a)
-        member = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+        member = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
 
         response = await client.get(
             member.g(f"/apps/{app.id}/members"), headers=member.headers
@@ -697,10 +697,10 @@ class TestConnectionVisibility:
     ):
         """Admins have full authority over their guild, and knowing who reaches
         an outside system through it is part of that."""
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
         app = await _install(session, a)
-        first = await acting_user(guild_role=GuildRole.member, guild=a.guild)
-        second = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+        first = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
+        second = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
         for actor in (first, second):
             await _connected(session, actor, app)
 
@@ -736,9 +736,9 @@ class TestConnectionVisibility:
     ):
         """Revoking beats reading: no admin workflow needs the bytes, and the
         handle is between the platform and the app."""
-        a = await acting_user(guild_role=GuildRole.admin)
+        a = await acting_user(guild_role=CommunityRole.admin)
         app = await _install(session, a)
-        member = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+        member = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
         started = await _connected(session, member, app)
         ref = started.connection_ref
 
@@ -749,10 +749,10 @@ class TestConnectionVisibility:
     async def test_another_guilds_admin_sees_nothing(
         self, client: AsyncClient, acting_user, session: AsyncSession
     ):
-        a = await acting_user(guild_role=GuildRole.admin)
+        a = await acting_user(guild_role=CommunityRole.admin)
         app = await _install(session, a)
         await _connected(session, a, app)
-        stranger = await acting_user(guild_role=GuildRole.admin)
+        stranger = await acting_user(guild_role=CommunityRole.admin)
 
         response = await client.get(
             stranger.g(f"/apps/{app.id}"), headers=stranger.headers
@@ -773,9 +773,9 @@ class TestGovernance:
         session: AsyncSession,
         recorded_revocations,
     ):
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
         app = await _install(session, a)
-        member = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+        member = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
         await _connected(session, member, app)
 
         response = await client.delete(
@@ -789,9 +789,9 @@ class TestGovernance:
     async def test_a_revoked_member_may_connect_again(
         self, client: AsyncClient, acting_user, session: AsyncSession
     ):
-        a = await acting_user(guild_role=GuildRole.admin)
+        a = await acting_user(guild_role=CommunityRole.admin)
         app = await _install(session, a)
-        member = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+        member = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
         await _connected(session, member, app)
         await client.delete(
             a.g(f"/apps/{app.id}/members/{member.user.id}/connections/github"),
@@ -811,9 +811,9 @@ class TestGovernance:
         session: AsyncSession,
         recorded_revocations,
     ):
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
         app = await _install(session, a)
-        member = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+        member = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
         await _connected(session, member, app)
 
         blocked = await client.post(
@@ -833,9 +833,9 @@ class TestGovernance:
     async def test_a_block_leaves_a_tombstone_holding_no_values(
         self, client: AsyncClient, acting_user, session: AsyncSession
     ):
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
         app = await _install(session, a)
-        member = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+        member = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
         await _connected(session, member, app)
         await client.post(
             a.g(f"/apps/{app.id}/members/{member.user.id}/connections/github/block"),
@@ -852,9 +852,9 @@ class TestGovernance:
     async def test_a_member_can_be_blocked_before_ever_connecting(
         self, client: AsyncClient, acting_user, session: AsyncSession
     ):
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
         app = await _install(session, a)
-        member = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+        member = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
 
         response = await client.post(
             a.g(f"/apps/{app.id}/members/{member.user.id}/connections/github/block"),
@@ -870,9 +870,9 @@ class TestGovernance:
     async def test_lifting_a_block_lets_them_connect_again(
         self, client: AsyncClient, acting_user, session: AsyncSession
     ):
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
         app = await _install(session, a)
-        member = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+        member = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
         await client.post(
             a.g(f"/apps/{app.id}/members/{member.user.id}/connections/github/block"),
             headers=a.headers,
@@ -898,7 +898,7 @@ class TestGovernance:
     ):
         """For a suspected compromise: reacting fast should not cost the guild
         its configuration."""
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
         app = await _install(session, a)
         await client.put(
             a.g(f"/apps/{app.id}/config"),
@@ -906,7 +906,7 @@ class TestGovernance:
             json={"values": {"admin": VALID_ADMIN_VALUES}},
         )
         members = [
-            await acting_user(guild_role=GuildRole.member, guild=a.guild)
+            await acting_user(guild_role=CommunityRole.member, guild=a.guild)
             for _ in range(2)
         ]
         for member in members:
@@ -926,10 +926,10 @@ class TestGovernance:
     async def test_governance_is_admin_only(
         self, client: AsyncClient, acting_user, session: AsyncSession
     ):
-        a = await acting_user(guild_role=GuildRole.admin)
+        a = await acting_user(guild_role=CommunityRole.admin)
         app = await _install(session, a)
-        member = await acting_user(guild_role=GuildRole.member, guild=a.guild)
-        other = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+        member = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
+        other = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
 
         base = f"/apps/{app.id}/members/{other.user.id}/connections/github"
         assert (
@@ -969,7 +969,7 @@ class TestUpgrade:
             version="1.0.0",
             definition=_tool_definition(),
         )
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
         installed = await client.post(
             a.g("/apps/"), headers=a.headers, json={"listing_uid": UPGRADE_UID}
         )
@@ -1015,7 +1015,7 @@ class TestUpgrade:
             version="1.0.0",
             definition=SERVICE_DEFINITION,
         )
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
         installed = await client.post(
             a.g("/apps/"), headers=a.headers, json={"listing_uid": uid}
         )
@@ -1054,7 +1054,7 @@ class TestUpgrade:
             kind="app",
             definition=_tool_definition(),
         )
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
         installed = await client.post(
             a.g("/apps/"),
             headers=a.headers,
@@ -1069,9 +1069,9 @@ class TestUpgrade:
     async def test_upgrading_is_admin_only(
         self, client: AsyncClient, acting_user, session: AsyncSession
     ):
-        a = await acting_user(guild_role=GuildRole.admin)
+        a = await acting_user(guild_role=CommunityRole.admin)
         app = await _install(session, a)
-        member = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+        member = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
         response = await client.post(
             member.g(f"/apps/{app.id}/upgrade"), headers=member.headers
         )
@@ -1085,7 +1085,7 @@ class TestUpgrade:
 
 async def _connected_member(client, acting_user, session, admin):
     app = await _install(session, admin)
-    member = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
+    member = await acting_user(guild_role=CommunityRole.member, guild=admin.guild)
     await _connected(session, member, app)
     return app, member
 
@@ -1100,7 +1100,7 @@ class TestUninstallKillsAccess:
     ):
         """An uninstalled app still receiving a guild's data is the thing this
         prevents — so the values go, and the app is told."""
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
         app, member = await _connected_member(client, acting_user, session, a)
         await client.put(
             a.g(f"/apps/{app.id}/config"),
@@ -1121,7 +1121,7 @@ class TestUninstallKillsAccess:
         self, client: AsyncClient, acting_user, session: AsyncSession
     ):
         """A block on an app that is no longer installed constrains nothing."""
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
         app, member = await _connected_member(client, acting_user, session, a)
         await client.post(
             a.g(f"/apps/{app.id}/members/{member.user.id}/connections/github/block"),
@@ -1140,7 +1140,7 @@ class TestRelationshipCascades:
         session: AsyncSession,
         recorded_revocations,
     ):
-        a = await acting_user(guild_role=GuildRole.admin)
+        a = await acting_user(guild_role=CommunityRole.admin)
         _, member = await _connected_member(client, acting_user, session, a)
 
         response = await client.delete(
@@ -1157,7 +1157,7 @@ class TestRelationshipCascades:
         session: AsyncSession,
         recorded_revocations,
     ):
-        a = await acting_user(guild_role=GuildRole.admin)
+        a = await acting_user(guild_role=CommunityRole.admin)
         _, member = await _connected_member(client, acting_user, session, a)
 
         response = await client.delete(
@@ -1171,8 +1171,8 @@ class TestRelationshipCascades:
         self, client: AsyncClient, acting_user, session: AsyncSession
     ):
         """Their access elsewhere is a relationship that has not ended."""
-        a = await acting_user(guild_role=GuildRole.admin)
-        b = await acting_user(guild_role=GuildRole.admin)
+        a = await acting_user(guild_role=CommunityRole.admin)
+        b = await acting_user(guild_role=CommunityRole.admin)
         _, member = await _connected_member(client, acting_user, session, a)
         app_b = await _install(session, b)
         await _connected(session, b, app_b)
@@ -1188,7 +1188,7 @@ class TestRelationshipCascades:
     ):
         """Somebody removed and later re-invited must not come back with the
         block quietly lifted."""
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
         app, member = await _connected_member(client, acting_user, session, a)
         await client.post(
             a.g(f"/apps/{app.id}/members/{member.user.id}/connections/github/block"),
@@ -1212,7 +1212,7 @@ class TestRelationshipCascades:
         """The DROP would take the rows silently, leaving vendor grants
         outliving the guild that authorized them."""
         # Deleting a community belongs to the seat.
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
         await _connected_member(client, acting_user, session, a)
 
         response = await client.request(
@@ -1237,8 +1237,8 @@ class TestAccountDeletionSweep:
         recorded_revocations,
     ):
         """One sweep across all their memberships, not a per-guild chore."""
-        admin_a = await acting_user(guild_role=GuildRole.admin)
-        admin_b = await acting_user(guild_role=GuildRole.admin)
+        admin_a = await acting_user(guild_role=CommunityRole.admin)
+        admin_b = await acting_user(guild_role=CommunityRole.admin)
         _, member = await _connected_member(client, acting_user, session, admin_a)
 
         # The same person, in a second guild, connected there too.

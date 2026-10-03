@@ -14,7 +14,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.audit_events import AuditEventType
 from app.main import app
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.platform.notification import Notification, NotificationType
 from app.models.platform.user import UserRole, UserStatus
 from app.testing import (
@@ -138,7 +138,7 @@ class TestSuspension:
         member = await create_user(session)
         guild = await create_guild(session, creator=member)
         await create_guild_membership(
-            session, user=member, guild=guild, role=GuildRole.admin
+            session, user=member, guild=guild, role=CommunityRole.admin
         )
         return moderator, member, guild
 
@@ -221,7 +221,7 @@ class TestSuspension:
         moderator, member, guild = moderator_and_member
         onlooker = await create_user(session)
         await create_guild_membership(
-            session, user=onlooker, guild=guild, role=GuildRole.member
+            session, user=onlooker, guild=guild, role=CommunityRole.member
         )
 
         await self._suspend(client, moderator, member)
@@ -237,7 +237,7 @@ class TestSuspension:
         moderator, member, guild = moderator_and_member
         onlooker = await create_user(session)
         await create_guild_membership(
-            session, user=onlooker, guild=guild, role=GuildRole.member
+            session, user=onlooker, guild=guild, role=CommunityRole.member
         )
 
         await self._suspend(client, moderator, member)
@@ -537,7 +537,9 @@ class TestTheAggregateRoutes:
     @pytest.fixture
     async def suspended_with_work(self, client, session, acting_user):
         moderator = await create_user(session, role=UserRole.moderator)
-        a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+        a = await acting_user(
+            guild_role=CommunityRole.admin, initiative=True, project=True
+        )
         return moderator, a
 
     async def test_my_tasks_is_refused_once_suspended(

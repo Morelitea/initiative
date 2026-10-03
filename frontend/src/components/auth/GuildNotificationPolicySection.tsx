@@ -15,7 +15,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { GuildAuthSettingsUpdate } from "@/api/generated/initiativeAPI.schemas";
+import type { CommunityAuthSettingsUpdate } from "@/api/generated/initiativeAPI.schemas";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -34,7 +34,7 @@ export const GuildNotificationPolicySection = ({ guildId }: { guildId: number })
   if (!saved) return null;
 
   // Each switch saves as it is flipped, sending only its own answer.
-  const flip = (patch: GuildAuthSettingsUpdate) => {
+  const flip = (patch: CommunityAuthSettingsUpdate) => {
     setError(null);
     update.mutate(patch, {
       onSuccess: () => {

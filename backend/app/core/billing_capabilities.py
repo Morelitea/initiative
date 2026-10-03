@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Iterable
 
-from app.core.guild_auth_options import GuildAuthOption
+from app.core.guild_auth_options import CommunityAuthOption
 
 
 #: May upload banner artwork — ``guild_administration.banner_image_enabled``.
@@ -19,9 +19,9 @@ SECURITY_STANDARDS = "security_standards"
 
 #: Capability name -> the sign-in option it grants. Every other capability is a
 #: column of its own; these two share one array.
-_AUTH_OPTIONS: dict[str, GuildAuthOption] = {
-    GUILD_SIGN_IN: GuildAuthOption.providers,
-    SECURITY_STANDARDS: GuildAuthOption.restrictions,
+_AUTH_OPTIONS: dict[str, CommunityAuthOption] = {
+    GUILD_SIGN_IN: CommunityAuthOption.providers,
+    SECURITY_STANDARDS: CommunityAuthOption.restrictions,
 }
 
 #: Every name this build understands. Used by the tests that keep the two

@@ -16,7 +16,7 @@ import type {
   IntakeOptionsRead,
   IntakeSettingsRead,
   IntakeStream,
-  OperationsGuildUpdate,
+  OperationsCommunityUpdate,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
   deleteBindingApiV1SettingsIntakeStreamDelete,
@@ -59,9 +59,9 @@ const refreshIntake = () =>
   invalidate(q.intakeSettings(), q.intakeOptions(), q.ticketAvailability());
 
 export const useUpdateOperationsGuild = (
-  options?: MutationOpts<IntakeSettingsRead, OperationsGuildUpdate>
+  options?: MutationOpts<IntakeSettingsRead, OperationsCommunityUpdate>
 ) =>
-  useApiMutation<IntakeSettingsRead, OperationsGuildUpdate>(
+  useApiMutation<IntakeSettingsRead, OperationsCommunityUpdate>(
     {
       mutationFn: (data) => updateOperationsGuildApiV1SettingsIntakeCommunityPut(data),
       invalidate: refreshIntake,

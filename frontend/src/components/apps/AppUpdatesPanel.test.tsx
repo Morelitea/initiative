@@ -14,7 +14,7 @@ import { screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { renderPage } from "@/__tests__/helpers/render";
-import type { GuildAppDetail } from "@/api/generated/initiativeAPI.schemas";
+import type { CommunityAppDetail } from "@/api/generated/initiativeAPI.schemas";
 
 import { AppUpdatesPanel } from "./AppUpdatesPanel";
 
@@ -35,14 +35,14 @@ vi.mock("@/hooks/useGuildAppDetail", () => ({
   useDeclineAppUpgrade: () => ({ isPending: false, mutate: declined }),
 }));
 
-const app = (overrides: Partial<GuildAppDetail>) =>
+const app = (overrides: Partial<CommunityAppDetail>) =>
   ({
     id: 7,
     name: "Community calendar",
     listing_version: "1.0.0",
     auto_update: true,
     ...overrides,
-  }) as unknown as GuildAppDetail;
+  }) as unknown as CommunityAppDetail;
 
 beforeEach(() => {
   patched.length = 0;

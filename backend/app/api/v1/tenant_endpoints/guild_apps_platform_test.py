@@ -43,7 +43,7 @@ from app.core.messages import (
     InitiativeMessages,
 )
 from app.models.platform.publisher import Publisher
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.services.marketplace.app_refs import ensure_app_guild_ref, ensure_app_ref
 from app.services.marketplace.registration_lookup import invalidate_registrations
 from app.services.tenant.guild_apps import set_placed_initiatives, set_placement_roles
@@ -199,7 +199,7 @@ class TestInstallState:
     async def test_a_registered_app_is_available(
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
     ):
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
         await _installed(session, a)
 
         items = (await client.get(a.g("/apps/"), headers=a.headers)).json()["items"]
@@ -211,7 +211,7 @@ class TestInstallState:
     ):
         """Deactivating stops the app in every guild. The install stays — this
         is a stop, not a teardown — and says it is doing nothing."""
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
         await _installed(session, a)
         await _mark(session, registration, enabled=False)
 
@@ -223,7 +223,7 @@ class TestInstallState:
     ):
         """Installed here, wired up nowhere: nothing it offers can be reached,
         and the read says so rather than showing a working app."""
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
         await _installed(session, a)
 
         items = (await client.get(a.g("/apps/"), headers=a.headers)).json()["items"]
@@ -240,7 +240,7 @@ class TestInstallState:
     ):
         """Availability is the one definition of live: switched on, its
         publisher switched on, and a key set to verify against."""
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
         await _installed(session, a)
         await _take_out_of_service(session, registration, how)
 
@@ -257,7 +257,7 @@ class TestMandatory:
     async def test_a_guild_admin_cannot_uninstall_one(
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
     ):
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
         app = await _installed(session, a)
         await _mark(session, registration, mandatory=True)
 
@@ -271,7 +271,7 @@ class TestMandatory:
     async def test_the_seat_cannot_disable_one(
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
     ):
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
         app = await _installed(session, a)
         await _mark(session, registration, mandatory=True)
 
@@ -286,7 +286,7 @@ class TestMandatory:
     ):
         """A guild may call it whatever it likes; what it cannot do is make it
         go away."""
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
         app = await _installed(session, a)
         await _mark(session, registration, mandatory=True)
 
@@ -302,7 +302,7 @@ class TestMandatory:
     ):
         """Nothing is deleted when an app stops being compulsory: the same
         install becomes an ordinary one a guild admin may now remove."""
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
         app = await _installed(session, a)
         await _mark(session, registration, mandatory=True)
         await _mark(session, registration, mandatory=False)
@@ -319,7 +319,7 @@ class TestMandatory:
     ):
         """Mandatory constrains guild admins, not the operator: a deactivated
         registration stops a mandatory app exactly like any other."""
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
         app = await _installed(session, a)
         await _mark(session, registration, mandatory=True, enabled=False)
 
@@ -351,9 +351,9 @@ class TestHandoff:
     ):
         """At the community level only the guild's admins open a surface,
         whether or not it is marked ``admin_only``."""
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
         app = await _installed(session, a)
-        member = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+        member = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
 
         response = await client.post(
             member.g(f"/apps/{app.id}/handoff/board"), headers=member.headers
@@ -364,7 +364,7 @@ class TestHandoff:
     async def test_a_guild_admin_opens_a_community_level_surface(
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
     ):
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
         app = await _installed(session, a)
 
         response = await client.post(
@@ -390,7 +390,7 @@ class TestHandoff:
             base_url="http://widgetco.internal:8200",
             embed_origin="https://widgetco.example.test",
         )
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
         app = await _installed(session, a)
 
         response = await client.post(
@@ -408,7 +408,7 @@ class TestHandoff:
         """And nothing else about the person: an app receives an identity here
         because a human is opening a surface, not a profile it never asked
         for."""
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
         app = await _installed(session, a)
 
         body = (
@@ -449,9 +449,9 @@ class TestHandoff:
     async def test_a_member_may_not_open_an_admin_surface(
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
     ):
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
         app = await _installed(session, a)
-        member = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+        member = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
 
         response = await client.post(
             member.g(f"/apps/{app.id}/handoff/console"), headers=member.headers
@@ -462,7 +462,7 @@ class TestHandoff:
     async def test_a_guild_admin_may_open_an_admin_surface(
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
     ):
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
         app = await _installed(session, a)
 
         response = await client.post(
@@ -476,9 +476,9 @@ class TestHandoff:
         """The route has to agree with the surface before anyone is measured:
         this route names no initiative, so a surface declared only for one is
         not found here, for everyone."""
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
         app = await _installed(session, a)
-        member = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+        member = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
 
         for actor in (member, a):
             response = await client.post(
@@ -495,10 +495,10 @@ class TestHandoff:
         The surface renders in both scopes. Inside an initiative the placement's
         roles decide; out here only admins open it.
         """
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
         app = await _installed(session, a)
         pm = await acting_user(
-            guild_role=GuildRole.member, guild=a.guild, initiative=True
+            guild_role=CommunityRole.member, guild=a.guild, initiative=True
         )
 
         response = await client.post(
@@ -510,7 +510,7 @@ class TestHandoff:
     async def test_a_guild_admin_opens_it_guild_wide(
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
     ):
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
         app = await _installed(session, a)
 
         response = await client.post(
@@ -521,7 +521,7 @@ class TestHandoff:
     async def test_an_undeclared_surface_is_a_404(
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
     ):
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
         app = await _installed(session, a)
         response = await client.post(
             a.g(f"/apps/{app.id}/handoff/nope"), headers=a.headers
@@ -532,7 +532,7 @@ class TestHandoff:
     async def test_an_unregistered_app_mints_nothing(
         self, client: AsyncClient, acting_user, session: AsyncSession
     ):
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
         app = await _installed(session, a)
         response = await client.post(
             a.g(f"/apps/{app.id}/handoff/board"), headers=a.headers
@@ -550,7 +550,7 @@ class TestHandoff:
         how: str,
     ):
         """The mint reads the same definition of live as the data plane."""
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
         app = await _installed(session, a)
         await _take_out_of_service(session, registration, how)
 
@@ -591,7 +591,7 @@ class TestInitiativeHandoff:
 
     async def _member(self, acting_user, a, role: str = "member"):
         return await acting_user(
-            guild_role=GuildRole.member,
+            guild_role=CommunityRole.member,
             guild=a.guild,
             initiative=a.initiative,
             initiative_role=role,
@@ -600,7 +600,7 @@ class TestInitiativeHandoff:
     async def test_a_role_the_placement_allows_opens_it(
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
     ):
-        a = await acting_user(guild_role=GuildRole.superadmin, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
         app = await _installed(session, a)
         await _allow(session, a, app, a.initiative.id, "member")
         member = await self._member(acting_user, a)
@@ -620,7 +620,7 @@ class TestInitiativeHandoff:
     async def test_a_moderator_is_told_so_in_the_token(
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
     ):
-        a = await acting_user(guild_role=GuildRole.superadmin, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
         app = await _installed(session, a, placed=[a.initiative.id])
         moderator = await self._member(acting_user, a, role="moderator")
 
@@ -639,7 +639,7 @@ class TestInitiativeHandoff:
     ):
         """A project manager manages the initiative without "Full access", and
         moderating takes both."""
-        a = await acting_user(guild_role=GuildRole.superadmin, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
         app = await _installed(session, a)
         await _allow(session, a, app, a.initiative.id, "project_manager")
         manager = await self._member(acting_user, a, role="project_manager")
@@ -657,10 +657,10 @@ class TestInitiativeHandoff:
     ):
         """An admin rung below the seat carries the same fact: the claim is the
         standing's admin leg, not the seat."""
-        a = await acting_user(guild_role=GuildRole.superadmin, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
         app = await _installed(session, a, placed=[a.initiative.id])
         admin = await acting_user(
-            guild_role=GuildRole.admin,
+            guild_role=CommunityRole.admin,
             guild=a.guild,
             initiative=a.initiative,
             initiative_role="member",
@@ -678,7 +678,7 @@ class TestInitiativeHandoff:
     ):
         """Placed with the moderator role only, so a plain member of the same
         initiative is refused — and told it is their role, not the app."""
-        a = await acting_user(guild_role=GuildRole.superadmin, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
         app = await _installed(session, a, placed=[a.initiative.id])
         member = await self._member(acting_user, a)
 
@@ -695,7 +695,7 @@ class TestInitiativeHandoff:
     async def test_a_placement_with_no_role_admits_only_admins(
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
     ):
-        a = await acting_user(guild_role=GuildRole.superadmin, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
         app = await _installed(session, a)
         await _allow(session, a, app, a.initiative.id)
         moderator = await self._member(acting_user, a, "moderator")
@@ -715,7 +715,7 @@ class TestInitiativeHandoff:
     ):
         """Not placed is not found, for the admin as much as for anyone: the
         seat's answer to where the app belongs, not a rule about who."""
-        a = await acting_user(guild_role=GuildRole.superadmin, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
         app = await _installed(session, a)
         member = await self._member(acting_user, a)
 
@@ -731,7 +731,7 @@ class TestInitiativeHandoff:
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
     ):
         """``admin_only`` outranks the placement's roles."""
-        a = await acting_user(guild_role=GuildRole.superadmin, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
         app = await _installed(session, a)
         await _allow(session, a, app, a.initiative.id, "member", "moderator")
         member = await self._member(acting_user, a)
@@ -746,7 +746,7 @@ class TestInitiativeHandoff:
     async def test_an_admin_only_surface_opens_for_an_admin(
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
     ):
-        a = await acting_user(guild_role=GuildRole.superadmin, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
         app = await _installed(session, a, placed=[a.initiative.id])
 
         response = await client.post(
@@ -759,7 +759,7 @@ class TestInitiativeHandoff:
     ):
         """The route's answer, not the caller's — so an app can scope what it
         shows without trusting a parameter or asking a second question."""
-        a = await acting_user(guild_role=GuildRole.superadmin, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
         app = await _installed(session, a, placed=[a.initiative.id])
 
         body = (
@@ -781,7 +781,7 @@ class TestInitiativeHandoff:
     ):
         """Absent rather than null: "which initiative is this?" has one answer
         guild-wide, not two shapes that both mean none."""
-        a = await acting_user(guild_role=GuildRole.superadmin, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
         app = await _installed(session, a, placed=[a.initiative.id])
 
         body = (
@@ -794,9 +794,9 @@ class TestInitiativeHandoff:
     ):
         """Opening a surface in an initiative means reaching the initiative,
         under the same scope rule that governs its content."""
-        a = await acting_user(guild_role=GuildRole.superadmin, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
         app = await _installed(session, a, placed=[a.initiative.id])
-        outsider = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+        outsider = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
 
         response = await client.post(
             self._path(outsider, a.initiative.id, app.id, "inside"),
@@ -808,10 +808,10 @@ class TestInitiativeHandoff:
     async def test_a_role_in_another_initiative_says_nothing_about_this_one(
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
     ):
-        a = await acting_user(guild_role=GuildRole.superadmin, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
         app = await _installed(session, a, placed=[a.initiative.id])
         elsewhere = await acting_user(
-            guild_role=GuildRole.member, guild=a.guild, initiative=True
+            guild_role=CommunityRole.member, guild=a.guild, initiative=True
         )
 
         response = await client.post(
@@ -826,8 +826,10 @@ class TestInitiativeHandoff:
     ):
         """Nothing blocks a guild admin inside their own guild — not initiative
         membership, and not the roles a placement allows."""
-        owner = await acting_user(guild_role=GuildRole.member, initiative=True)
-        admin = await acting_user(guild_role=GuildRole.superadmin, guild=owner.guild)
+        owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
+        admin = await acting_user(
+            guild_role=CommunityRole.superadmin, guild=owner.guild
+        )
         app = await _installed(session, admin, placed=[owner.initiative.id])
 
         response = await client.post(
@@ -841,7 +843,7 @@ class TestInitiativeHandoff:
     ):
         """The mirror of the guild route's refusal. A surface that never asked
         to render in an initiative must not pick one up as a claim."""
-        a = await acting_user(guild_role=GuildRole.superadmin, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
         app = await _installed(session, a, placed=[a.initiative.id])
 
         for surface in ("board", "console"):
@@ -876,11 +878,11 @@ class TestOpenability:
     async def test_the_read_agrees_with_the_handoff(
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
     ):
-        a = await acting_user(guild_role=GuildRole.superadmin, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
         app = await _installed(session, a)
         await _allow(session, a, app, a.initiative.id, "member")
         member = await acting_user(
-            guild_role=GuildRole.member,
+            guild_role=CommunityRole.member,
             guild=a.guild,
             initiative=a.initiative,
             initiative_role="member",
@@ -910,11 +912,11 @@ class TestOpenability:
     async def test_a_member_is_offered_only_the_placements_they_hold_a_role_in(
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
     ):
-        a = await acting_user(guild_role=GuildRole.superadmin, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
         app = await _installed(session, a)
         await _allow(session, a, app, a.initiative.id, "member")
         member = await acting_user(
-            guild_role=GuildRole.member,
+            guild_role=CommunityRole.member,
             guild=a.guild,
             initiative=a.initiative,
             initiative_role="member",
@@ -956,7 +958,7 @@ class TestPlacement:
     ):
         """An ordinary app is never placed on its own: each placement is the
         seat's consent for that initiative."""
-        a = await acting_user(guild_role=GuildRole.superadmin, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
         await _installed(session, a)
 
         body = (await client.get(a.g("/apps/"), headers=a.headers)).json()
@@ -965,7 +967,7 @@ class TestPlacement:
     async def test_the_seat_places_it_with_the_moderator_role(
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
     ):
-        a = await acting_user(guild_role=GuildRole.superadmin, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
         app = await _installed(session, a)
         moderator = await get_moderator_role(session, initiative_id=a.initiative.id)
         assert moderator is not None
@@ -986,7 +988,7 @@ class TestPlacement:
     async def test_leaving_placement_out_leaves_it_alone(
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
     ):
-        a = await acting_user(guild_role=GuildRole.superadmin, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
         app = await _installed(session, a, placed=[a.initiative.id])
 
         response = await client.patch(
@@ -1004,7 +1006,7 @@ class TestPlacement:
         borrowed from another guild: initiative ids are per-guild, so the two
         guilds' numbering can coincide and a borrowed id would only be refused
         when the numbers happened to differ."""
-        a = await acting_user(guild_role=GuildRole.superadmin, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
         app = await _installed(session, a)
 
         response = await client.patch(
@@ -1018,9 +1020,9 @@ class TestPlacement:
     async def test_a_member_does_not_place_apps(
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
     ):
-        a = await acting_user(guild_role=GuildRole.superadmin, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
         app = await _installed(session, a)
-        member = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+        member = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
 
         response = await client.patch(
             member.g(f"/apps/{app.id}"),
@@ -1034,9 +1036,9 @@ class TestPlacement:
     ):
         """And not for the admin who placed it either — this is where the app
         goes, which is their own answer rather than a rule about them."""
-        a = await acting_user(guild_role=GuildRole.superadmin, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
         other = await acting_user(
-            guild_role=GuildRole.superadmin, guild=a.guild, initiative=True
+            guild_role=CommunityRole.superadmin, guild=a.guild, initiative=True
         )
         app = await _installed(session, a, placed=[a.initiative.id])
 
@@ -1061,7 +1063,7 @@ class TestPlacement:
     async def test_placement_leaves_the_guild_wide_surface_alone(
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
     ):
-        a = await acting_user(guild_role=GuildRole.superadmin, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
         app = await _installed(session, a, placed=[a.initiative.id])
         await client.patch(
             a.g(f"/apps/{app.id}"),
@@ -1093,7 +1095,7 @@ class TestPlacementRoutes:
     async def test_the_seat_places_an_app_with_chosen_roles(
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
     ):
-        a = await acting_user(guild_role=GuildRole.superadmin, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
         app = await _installed(session, a)
         member_role = await _role_id(session, a, a.initiative.id, "member")
 
@@ -1115,7 +1117,7 @@ class TestPlacementRoutes:
     async def test_putting_again_replaces_the_roles(
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
     ):
-        a = await acting_user(guild_role=GuildRole.superadmin, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
         app = await _installed(session, a, placed=[a.initiative.id])
         member_role = await _role_id(session, a, a.initiative.id, "member")
 
@@ -1133,9 +1135,9 @@ class TestPlacementRoutes:
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
     ):
         """As on the app read itself: placement is where the app belongs."""
-        a = await acting_user(guild_role=GuildRole.superadmin, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
         app = await _installed(session, a, placed=[a.initiative.id])
-        admin = await acting_user(guild_role=GuildRole.admin, guild=a.guild)
+        admin = await acting_user(guild_role=CommunityRole.admin, guild=a.guild)
 
         placements = await self._placements(client, admin, app.id)
         assert [p["initiative_id"] for p in placements] == [a.initiative.id]
@@ -1143,9 +1145,9 @@ class TestPlacementRoutes:
     async def test_an_admin_below_the_seat_does_not_place(
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
     ):
-        a = await acting_user(guild_role=GuildRole.superadmin, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
         app = await _installed(session, a, placed=[a.initiative.id])
-        admin = await acting_user(guild_role=GuildRole.admin, guild=a.guild)
+        admin = await acting_user(guild_role=CommunityRole.admin, guild=a.guild)
 
         put = await client.put(
             self._path(admin, app.id, a.initiative.id),
@@ -1158,9 +1160,9 @@ class TestPlacementRoutes:
     async def test_a_role_of_another_initiative_is_refused(
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
     ):
-        a = await acting_user(guild_role=GuildRole.superadmin, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
         other = await acting_user(
-            guild_role=GuildRole.superadmin, guild=a.guild, initiative=True
+            guild_role=CommunityRole.superadmin, guild=a.guild, initiative=True
         )
         app = await _installed(session, a)
         foreign = await _role_id(session, a, other.initiative.id, "member")
@@ -1176,7 +1178,7 @@ class TestPlacementRoutes:
     async def test_an_initiative_this_guild_does_not_have_is_refused(
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
     ):
-        a = await acting_user(guild_role=GuildRole.superadmin, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
         app = await _installed(session, a)
 
         response = await client.put(
@@ -1201,7 +1203,7 @@ class TestScopesRoute:
     async def test_the_seat_grants_what_is_requested_and_allowed(
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
     ):
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
         app = await _installed(session, a)
         await _mark(session, registration, scope_ceiling=self.CEILING)
 
@@ -1223,7 +1225,7 @@ class TestScopesRoute:
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
     ):
         """``tags:read`` is within the ceiling but the app never asked."""
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
         app = await _installed(session, a)
         await _mark(session, registration, scope_ceiling=self.CEILING)
 
@@ -1238,7 +1240,7 @@ class TestScopesRoute:
     ):
         """``projects:write`` is requested, but the deployment does not allow
         it."""
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
         app = await _installed(session, a)
         await _mark(session, registration, scope_ceiling=self.CEILING)
 
@@ -1256,7 +1258,7 @@ class TestScopesRoute:
         """``projects:write`` is requested and above the ceiling, so it is
         requested but not grantable; ``tags:read`` is allowed but never asked
         for, so it is neither."""
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
         app = await _installed(session, a)
         await _mark(session, registration, scope_ceiling=self.CEILING)
 
@@ -1275,7 +1277,7 @@ class TestScopesRoute:
     async def test_nothing_is_grantable_without_a_registration(
         self, client: AsyncClient, acting_user, session: AsyncSession
     ):
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
         app = await _installed(session, a)
 
         read = (await client.get(a.g(f"/apps/{app.id}"), headers=a.headers)).json()
@@ -1289,11 +1291,11 @@ class TestScopesRoute:
     async def test_only_the_seat_grants(
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
     ):
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
         app = await _installed(session, a)
         await _mark(session, registration, scope_ceiling=self.CEILING)
 
-        for role in (GuildRole.admin, GuildRole.member):
+        for role in (CommunityRole.admin, CommunityRole.member):
             actor = await acting_user(guild_role=role, guild=a.guild)
             response = await client.put(
                 self._path(actor, app.id),
@@ -1316,7 +1318,7 @@ class TestHandoffWithoutASigningKey:
         """The app platform's keypair has no fallback: an unconfigured
         deployment refuses rather than minting a token no app can verify."""
         monkeypatch.setattr(settings, "APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM", None)
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
         app = await _installed(session, a)
 
         response = await client.post(
@@ -1387,7 +1389,7 @@ class TestConnectLaunch:
     async def test_the_url_is_the_vendors_authorization_endpoint(
         self, client: AsyncClient, acting_user, session: AsyncSession
     ):
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
         app = await self._install(session, a)
 
         response = await client.post(
@@ -1418,7 +1420,7 @@ class TestConnectLaunch:
     async def test_an_unregistered_app_sends_nobody_anywhere(
         self, client: AsyncClient, acting_user, session: AsyncSession
     ):
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
         app = await create_guild_app(
             session,
             a.guild,
@@ -1439,7 +1441,7 @@ class TestConnectLaunch:
     async def test_a_deactivated_registration_sends_nobody_anywhere(
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
     ):
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
         app = await self._install(session, a)
         await _mark(session, registration, enabled=False)
 
@@ -1466,7 +1468,7 @@ class TestUninstallStopsDeliveries:
 
         from app.models.tenant.webhook_subscription import WebhookSubscription
 
-        a = await acting_user(guild_role=GuildRole.superadmin, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
         app = await _installed(session, a)
 
         now = datetime.now(timezone.utc)
@@ -1523,7 +1525,7 @@ class TestUninstallStopsDeliveries:
             webhook_subscriptions as webhook_subscriptions_service,
         )
 
-        a = await acting_user(guild_role=GuildRole.superadmin, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
         app = await _installed(session, a)
 
         now = datetime.now(timezone.utc)

@@ -147,7 +147,7 @@ async def _resolve_scope(
     from sqlmodel import select
 
     from app.models.tenant.initiative import Initiative
-    from app.models.platform.guild import GuildRole
+    from app.models.platform.guild import CommunityRole
     from app.services.membership import initiative_scope_clause
     from app.services.platform import guilds as guilds_service
 
@@ -160,7 +160,7 @@ async def _resolve_scope(
         # The seat itself, held outright: the same rule the create endpoint
         # applies, re-asked here so a job outlives the request under the
         # authority it was started with and no other.
-        if membership is None or membership.role is not GuildRole.superadmin:
+        if membership is None or membership.role is not CommunityRole.superadmin:
             raise ExportError(
                 ExportMessages.EXPORT_SUPERADMIN_REQUIRED, status_code=403
             )
@@ -402,7 +402,7 @@ async def _build_scope(
     from app.schemas.tenant.backup_export import (
         BACKUP_SCHEMA_VERSION,
         BackupManifest,
-        ManifestGuild,
+        ManifestCommunity,
         ManifestInitiative,
     )
 
@@ -433,7 +433,7 @@ async def _build_scope(
             exported_at=datetime.now(timezone.utc),
             exported_by_handle=handle_of(user),
             source_instance_url=settings.APP_URL,
-            guild=ManifestGuild(
+            guild=ManifestCommunity(
                 id=guild_id,
                 name=guild.name if guild else "",
                 description=guild.description if guild else None,
@@ -1219,7 +1219,7 @@ class _ScopeBuilder:
         """
         if self.mode != "backup":
             return
-        from app.schemas.tenant.backup_export import ManifestGuildSection
+        from app.schemas.tenant.backup_export import ManifestCommunitySection
         from app.services.export.guild_sections import SectionContext, sections_for
 
         # The manifest's own list, so anything a section leaves out is
@@ -1245,7 +1245,9 @@ class _ScopeBuilder:
                 )
             )
             self.guild_sections.append(
-                ManifestGuildSection(key=section.key, path=section.path, count=count)
+                ManifestCommunitySection(
+                    key=section.key, path=section.path, count=count
+                )
             )
 
     async def add_remaining_uploads(self) -> None:

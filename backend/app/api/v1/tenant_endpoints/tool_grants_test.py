@@ -31,7 +31,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.tools import Tool
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.tenant.initiative import InitiativeRoleModel
 from app.testing import create_tool_entity, enable_all_tools
 
@@ -49,10 +49,10 @@ async def _entity(session: AsyncSession, actor, tool: Tool):
 async def test_the_owner_shares_it_with_somebody(
     client: AsyncClient, session: AsyncSession, acting_user, tool: Tool
 ):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
     entity = await _entity(session, a, tool)
     b = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="member",
@@ -78,7 +78,7 @@ async def test_the_owner_shares_it_with_somebody(
 async def test_a_role_can_be_named_instead_of_a_person(
     client: AsyncClient, session: AsyncSession, acting_user, tool: Tool
 ):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
     entity = await _entity(session, a, tool)
     member_role = (
         await session.exec(
@@ -106,10 +106,10 @@ async def test_a_reader_cannot_reshare_it(
     client: AsyncClient, session: AsyncSession, acting_user, tool: Tool
 ):
     """Sharing is a write on the thing shared, so reading it is not enough."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
     entity = await _entity(session, a, tool)
     b = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="member",
@@ -129,9 +129,9 @@ async def test_someone_outside_the_initiative_gets_the_tools_not_found(
 ):
     """A guild member who is not in the initiative reaches none of its content,
     and the refusal is in the tool's own words."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
     entity = await _entity(session, a, tool)
-    outsider = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+    outsider = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
 
     response = await client.put(
         outsider.g(f"/{tool.route_segment}/{entity.id}/grants"),
@@ -151,10 +151,10 @@ async def test_the_room_is_told_that_sharing_moved(
     change's name, never the new sharing itself."""
     from app.services.content_sockets import resource_room, sockets
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
     entity = await _entity(session, a, tool)
     b = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="member",

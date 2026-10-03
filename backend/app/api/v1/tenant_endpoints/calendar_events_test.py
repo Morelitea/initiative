@@ -23,7 +23,7 @@ from app.core.messages import (
     PropertyMessages,
     RelationshipMessages,
 )
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.platform.notification import Notification, NotificationType
 from app.models.tenant.calendar_event import CalendarEvent
 from app.models.tenant.property import PropertyValue
@@ -102,9 +102,9 @@ async def _setup_organizer_and_attendee(session, acting_user):
 
     Returns ``(organizer, attendee, guild, initiative, calendar)`` where
     organizer and attendee are ``Actor`` instances (``.user``/``.headers``)."""
-    organizer = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    organizer = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     attendee = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=organizer.guild,
         initiative=organizer.initiative,
         initiative_role="member",
@@ -117,7 +117,7 @@ async def _setup_event(session, acting_user):
     """admin user, guild, calendars-enabled initiative, calendar, event.
 
     Returns ``(actor, guild, initiative, calendar, event)``."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     calendar = await _enable_calendars(session, a.initiative, a.user)
     event = await create_calendar_event(session, calendar, a.user, title="E")
     return a, a.guild, a.initiative, calendar, event
@@ -656,7 +656,7 @@ async def test_move_event_between_calendars_requires_write_on_both(
 
     # A member with only read on the destination cannot move an event into it.
     member = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=guild,
         initiative=initiative,
         initiative_role="member",
@@ -942,9 +942,9 @@ async def test_guild_entries_filter_events_without_calendar_grant(
     Events carry no grants of their own, so calendar sharing is what decides.
     ``calendar_ids`` narrows the result; it is not how access is resolved.
     """
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     member = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=admin.guild,
         initiative=admin.initiative,
         initiative_role="member",
@@ -984,9 +984,9 @@ async def test_my_calendar_entries_filter_events_without_calendar_grant(
     per-guild read: a non-admin member doesn't see an event in a calendar they
     hold no grant for (even though they're an initiative member and RLS shows
     the row). Events inherit calendar access; they carry no grants of their own."""
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     member = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=admin.guild,
         initiative=admin.initiative,
         initiative_role="member",
@@ -1026,10 +1026,10 @@ async def test_my_calendar_entries_leave_out_what_was_never_shared(
     rather than what their standing could reach — an admin's authority over the
     initiative is untouched, and asking for it by name still returns the event.
     """
-    admin = await acting_user(guild_role=GuildRole.admin)
+    admin = await acting_user(guild_role=CommunityRole.admin)
     # `other` owns the initiative; the admin is NOT a member of it.
     other = await acting_user(
-        guild_role=GuildRole.member, guild=admin.guild, initiative=True
+        guild_role=CommunityRole.member, guild=admin.guild, initiative=True
     )
     initiative = other.initiative
     calendar = await _enable_calendars(session, initiative, other.user)
@@ -1080,7 +1080,7 @@ class TestGuildCalendarEvents:
     """
 
     async def test_events_are_listed(self, client: AsyncClient, acting_user, session):
-        a = await acting_user(guild_role=GuildRole.admin)
+        a = await acting_user(guild_role=CommunityRole.admin)
         calendar = await create_guild_calendar(session, a.guild, a.user)
         await create_calendar_event(session, calendar, a.user, title="Club night")
 
@@ -1095,10 +1095,10 @@ class TestGuildCalendarEvents:
     ):
         """The point of the app: someone in none of the guild's initiatives
         still has the guild's own calendar."""
-        a = await acting_user(guild_role=GuildRole.admin)
+        a = await acting_user(guild_role=CommunityRole.admin)
         calendar = await create_guild_calendar(session, a.guild, a.user)
         await create_calendar_event(session, calendar, a.user, title="Club night")
-        member = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+        member = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
 
         response = await client.get(
             member.g("/calendar-entries/"),
@@ -1113,7 +1113,7 @@ class TestGuildCalendarEvents:
     ):
         """Asked for one initiative's events, a guild calendar has nothing to
         contribute — it belongs to no initiative."""
-        a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
         await _switch_calendars_on(session, a.initiative)
         guild_calendar = await create_guild_calendar(session, a.guild, a.user)
         await create_calendar_event(session, guild_calendar, a.user, title="Club night")
@@ -1131,7 +1131,7 @@ class TestGuildCalendarEvents:
     async def test_the_calendar_is_listed_but_not_under_an_initiative(
         self, client: AsyncClient, acting_user, session
     ):
-        a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
         await _switch_calendars_on(session, a.initiative)
         await create_guild_calendar(session, a.guild, a.user, name="Community calendar")
         await create_calendar(session, a.initiative, a.user, name="Team calendar")
@@ -1155,8 +1155,8 @@ class TestGuildCalendarEvents:
         """An initiative calendar draws attendees from its initiative; a guild
         calendar has none, so the guild is who can attend — including a member
         who belongs to no initiative at all."""
-        a = await acting_user(guild_role=GuildRole.admin)
-        member = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+        a = await acting_user(guild_role=CommunityRole.admin)
+        member = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
         calendar = await create_guild_calendar(session, a.guild, a.user)
 
         response = await client.post(
@@ -1178,8 +1178,8 @@ class TestGuildCalendarEvents:
     async def test_someone_outside_the_guild_cannot_attend(
         self, client: AsyncClient, acting_user, session
     ):
-        a = await acting_user(guild_role=GuildRole.admin)
-        stranger = await acting_user(guild_role=GuildRole.admin)
+        a = await acting_user(guild_role=CommunityRole.admin)
+        stranger = await acting_user(guild_role=CommunityRole.admin)
         calendar = await create_guild_calendar(session, a.guild, a.user)
 
         response = await client.post(
@@ -1201,7 +1201,7 @@ class TestGuildCalendarEvents:
     ):
         """Property definitions belong to an initiative, so an event in no
         initiative holds none; clearing them is still a write it takes."""
-        a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
         definition = await create_property_definition(session, a.initiative)
         calendar = await create_guild_calendar(session, a.guild, a.user)
         event = await create_calendar_event(session, calendar, a.user)
@@ -1224,7 +1224,7 @@ class TestGuildCalendarEvents:
     ):
         """Documents belong to an initiative; a guild calendar holds guild-level
         content only, so an event there cannot link one."""
-        a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
         document = await create_document(session, a.initiative, a.user)
         calendar = await create_guild_calendar(session, a.guild, a.user)
 
@@ -1250,7 +1250,7 @@ class TestGuildCalendarEvents:
     ):
         """Both directions: an event carries its initiative attachments, so a
         move between a guild calendar and an initiative calendar is refused."""
-        a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
         await _switch_calendars_on(session, a.initiative)
         guild_calendar = await create_guild_calendar(session, a.guild, a.user)
         team_calendar = await create_calendar(session, a.initiative, a.user)

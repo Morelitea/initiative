@@ -10,7 +10,7 @@ from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.main import app
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.schemas.tenant.archive import ArchivableType
 from app.testing import create_document, create_queue
 
@@ -61,7 +61,7 @@ def test_every_archivable_tool_has_somewhere_to_be_found():
 async def test_an_archived_tool_is_off_the_list_and_on_the_archived_one(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
     queue = await create_queue(session, a.initiative, a.user)
 
     await client.post(a.g(f"/archive/queue/{queue.id}"), headers=a.headers)
@@ -78,7 +78,7 @@ async def test_an_archived_tool_says_it_can_be_taken_back(
 ):
     """The level is capped at read — that is what turns the edit affordances
     off — so the way out is a separate answer or there is no way out."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
     document = await create_document(session, a.initiative, a.user)
 
     await client.post(a.g(f"/archive/document/{document.id}"), headers=a.headers)
@@ -95,7 +95,7 @@ async def test_an_archived_tool_says_it_can_be_taken_back(
 async def test_a_live_tool_offers_nothing_to_take_back(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
     document = await create_document(session, a.initiative, a.user)
 
     read = await client.get(a.g(f"/documents/{document.id}"), headers=a.headers)
@@ -110,9 +110,9 @@ async def test_a_reader_is_not_offered_the_way_back(
 ):
     """Coming back out is a write, and the answer is the level the reader would
     have had if it were live — which is read."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
     b = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="member",
@@ -140,7 +140,7 @@ async def test_something_archived_with_its_initiative_comes_back_with_it(
 ):
     """Its stamp is the initiative's, so the button belongs on the initiative.
     Offering it here would be offering a write the database refuses."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     queue = await create_queue(session, a.initiative, a.user)
 
     await client.post(a.g(f"/archive/initiative/{a.initiative.id}"), headers=a.headers)
@@ -156,7 +156,7 @@ async def test_the_archived_list_agrees_with_the_detail_about_the_way_back(
 ):
     """A list row and its own page have to answer the same, or the button is
     offered in one place and refused from the other."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     queue = await create_queue(session, a.initiative, a.user)
     await client.post(a.g(f"/archive/initiative/{a.initiative.id}"), headers=a.headers)
 

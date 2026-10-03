@@ -4,7 +4,7 @@ import {
   getReadGuildBillingSummaryApiV1CommunitiesGuildIdBillingSummaryGetQueryKey,
   readGuildBillingSummaryApiV1CommunitiesGuildIdBillingSummaryGet,
 } from "@/api/generated/communities/communities";
-import type { GuildBillingSummaryRead } from "@/api/generated/initiativeAPI.schemas";
+import type { CommunityBillingSummaryRead } from "@/api/generated/initiativeAPI.schemas";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import type { GuildEntry } from "@/hooks/useGuilds";
 import { holdsBillingSeat } from "@/lib/billingSummary";
@@ -22,7 +22,7 @@ import { holdsBillingSeat } from "@/lib/billingSummary";
 export const useGuildBillingSummary = (guild: GuildEntry | null | undefined) => {
   const { billing } = useAppConfig();
   const guildId = guild?.id ?? 0;
-  return useQuery<GuildBillingSummaryRead>({
+  return useQuery<CommunityBillingSummaryRead>({
     queryKey: getReadGuildBillingSummaryApiV1CommunitiesGuildIdBillingSummaryGetQueryKey(guildId),
     queryFn: () => readGuildBillingSummaryApiV1CommunitiesGuildIdBillingSummaryGet(guildId),
     enabled: Boolean(billing) && holdsBillingSeat(guild),

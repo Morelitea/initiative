@@ -29,15 +29,15 @@ import type {
   ApiKeyCreateResponse,
   ApiKeyListResponse,
   BodyUploadMyAvatarApiV1MeAvatarPut,
-  CommunityGuildRead,
+  CommunityRosterResponse,
   CookieConsentRead,
   CookieConsentUpdate,
   DecorationPack,
   DecorationPackListResponse,
   DeletionEligibilityResponse,
+  DirectoryCommunityRead,
   ExportUsersCsvApiV1CGuildIdUsersExportCsvGetParams,
   GetUserStatsApiV1MeStatsGetParams,
-  GuildRosterResponse,
   HTTPValidationError,
   ListRosterApiV1CGuildIdUsersRosterGetParams,
   ListUsersApiV1CGuildIdUsersGetParams,
@@ -46,10 +46,10 @@ import type {
   OwnershipTransferRequest,
   OwnershipTransferResponse,
   SearchUsersApiV1CGuildIdUsersSearchGetParams,
+  UserCommunityMemberListResponse,
   UserEmailCreate,
   UserEmailListResponse,
   UserEmailRead,
-  UserGuildMemberListResponse,
   UserProfile,
   UserRead,
   UserSelfUpdate,
@@ -270,7 +270,7 @@ export const readUserCommunitiesApiV1UsersHandleCommunitiesGet = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<CommunityGuildRead[]>(
+  return apiMutator<DirectoryCommunityRead[]>(
     { url: `/api/v1/users/${handle}/communities`, method: "GET", signal },
     options
   );
@@ -441,7 +441,7 @@ export const listUsersApiV1CGuildIdUsersGet = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<UserGuildMemberListResponse>(
+  return apiMutator<UserCommunityMemberListResponse>(
     { url: `/api/v1/c/${guildId}/users/`, method: "GET", params, signal },
     options
   );
@@ -585,7 +585,7 @@ export function useListUsersApiV1CGuildIdUsersGet<
  * ``GuildContextDep``, membership re-validated per request): the params
  * are additive filters on an already-RLS-gated query, so they only ever
  * narrow the row set. Returns :class:`UserSummary` (no email, roles, or
- * ``initiative_roles`` enrichment) instead of the heavy ``UserGuildMember``.
+ * ``initiative_roles`` enrichment) instead of the heavy ``UserCommunityMember``.
  *
  * Pass ``user_id`` one or more times to resolve a known selection (a picker
  * rehydrating stored ids into names/avatars) rather than searching.
@@ -781,7 +781,7 @@ export const listRosterApiV1CGuildIdUsersRosterGet = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<GuildRosterResponse>(
+  return apiMutator<CommunityRosterResponse>(
     { url: `/api/v1/c/${guildId}/users/roster`, method: "GET", params, signal },
     options
   );

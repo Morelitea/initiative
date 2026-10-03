@@ -26,12 +26,12 @@ from app.models.platform.billing import (
     BillingOp,
     BillingSource,
 )
-from app.models.platform.guild import Guild, GuildMembership, GuildStatus
+from app.models.platform.guild import Guild, GuildMembership, CommunityStatus
 from app.models.platform.guild_administration import GuildAdministration
 from app.schemas.platform.billing import (
     BillingCommunityNotice,
-    BillingGuildTierApply,
-    BillingGuildTierRead,
+    BillingCommunityTierApply,
+    BillingCommunityTierRead,
 )
 
 logger = logging.getLogger(__name__)
@@ -236,7 +236,7 @@ _GUILD_TIER_COLUMNS = (
 
 #: A guild in one of these takes no status write from billing at all.
 _BILLING_UNTOUCHABLE_STATUS_VALUES: frozenset[str] = frozenset(
-    {GuildStatus.suspended.value, GuildStatus.deleted.value}
+    {CommunityStatus.suspended.value, CommunityStatus.deleted.value}
 )
 
 
@@ -330,8 +330,8 @@ async def claim_community_notice(
 
 
 async def apply_guild_tier(
-    session: AsyncSession, payload: BillingGuildTierApply, *, guild_id: int
-) -> BillingGuildTierRead:
+    session: AsyncSession, payload: BillingCommunityTierApply, *, guild_id: int
+) -> BillingCommunityTierRead:
     """Apply a tier-metadata write, exactly once per ``event_id``.
 
     The payload names its guild by the reference billing holds; ``guild_id`` is
@@ -447,12 +447,12 @@ async def apply_guild_tier(
             )
             row = await _select_tier_row(session, guild_id)
 
-    return BillingGuildTierRead(
+    return BillingCommunityTierRead(
         guild_ref=payload.guild_ref,
         tier_name=row.tier_name,
         max_storage_bytes=row.max_storage_bytes,
         max_users=row.max_users,
-        status=GuildStatus(row.status),
+        status=CommunityStatus(row.status),
         feature_keys=billing_capabilities.package_of(
             banner_image_enabled=row.banner_image_enabled,
             support_enabled=row.support_enabled,
@@ -479,7 +479,7 @@ async def guild_display_name(session: AsyncSession, guild_id: int) -> str | None
 
 async def guild_lifecycle_status(
     session: AsyncSession, guild_id: int
-) -> GuildStatus | None:
+) -> CommunityStatus | None:
     """One guild's lifecycle status, ``deleted`` included, or None once purged.
 
     On the billing session, like the name: ``status`` is among the columns the
@@ -488,7 +488,7 @@ async def guild_lifecycle_status(
     status = (
         await session.exec(select(Guild.status).where(Guild.id == guild_id))
     ).one_or_none()
-    return None if status is None else GuildStatus(status)
+    return None if status is None else CommunityStatus(status)
 
 
 async def guild_storage_usage(guild_id: int) -> int:

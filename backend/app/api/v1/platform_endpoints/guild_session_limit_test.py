@@ -7,7 +7,7 @@ the rest of its sign-in configuration.
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.testing.factories import (
     create_guild,
     create_guild_membership,
@@ -22,7 +22,7 @@ async def test_the_seat_switches_the_standard_and_the_guild_list_reads_it(
     admin = await create_user(session)
     guild = await create_guild(session, creator=admin)
     await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.superadmin
+        session, user=admin, guild=guild, role=CommunityRole.superadmin
     )
     headers = get_auth_headers(admin)
 
@@ -60,7 +60,7 @@ async def test_a_member_is_not_told_the_standard(
     admin = await create_user(session)
     guild = await create_guild(session, creator=admin)
     await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.superadmin
+        session, user=admin, guild=guild, role=CommunityRole.superadmin
     )
     await client.patch(
         f"/api/v1/communities/{guild.id}/auth-settings",
@@ -70,7 +70,7 @@ async def test_a_member_is_not_told_the_standard(
 
     member = await create_user(session)
     await create_guild_membership(
-        session, user=member, guild=guild, role=GuildRole.member
+        session, user=member, guild=guild, role=CommunityRole.member
     )
     listed = await client.get("/api/v1/communities/", headers=get_auth_headers(member))
     assert [

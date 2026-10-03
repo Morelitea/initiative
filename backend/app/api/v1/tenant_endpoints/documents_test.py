@@ -12,7 +12,7 @@ from app.models.tenant.document import (
     Document,
     DocumentType,
 )
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.tenant.initiative import InitiativeRoleModel
 from app.models.tenant.resource_grant import ResourceAccessLevel
 from app.testing import (
@@ -58,7 +58,7 @@ async def test_create_refuses_when_documents_are_switched_off(
     """Documents are a tool like any other now: an initiative that has turned
     them off refuses to hold one, and names the reason instead of failing at
     the row."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     a.initiative.documents_enabled = False
     session.add(a.initiative)
     await session.commit()
@@ -79,7 +79,7 @@ async def test_a_guild_admin_does_not_list_documents_of_a_switched_off_initiativ
     """The mirror of the projects case: the RLS leg keeps a guild admin and a
     PAM reader able to reach the rows for maintenance, and the list declines to
     be the place that shows them."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     doc = await create_document(session, a.initiative, a.user)
 
     listed = await client.get(a.g("/documents/"), headers=a.headers)
@@ -99,9 +99,9 @@ async def test_create_document_with_permissions(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """Test creating a document with both role and user permissions."""
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     member = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=admin.guild,
         initiative=admin.initiative,
         initiative_role="member",
@@ -150,7 +150,7 @@ async def test_create_document_defaults_to_all_members_viewer(
     client: AsyncClient, acting_user
 ):
     """Omitting `grants` defaults to Viewer for all initiative members (+ owner)."""
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
 
     payload = {
         "name": "Doc Default Share",
@@ -182,9 +182,9 @@ async def test_duplicate_is_held_to_create_and_keeps_the_sources_sharing(
     """A duplicate is a new document: its maker needs the right to create
     documents, its name must be free, and it is shared with the same people
     as the document it copies."""
-    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
     writer = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=owner.guild,
         initiative=owner.initiative,
         initiative_role="member",
@@ -231,7 +231,7 @@ async def test_download_owner_can_download(
     client: AsyncClient, session: AsyncSession, acting_user
 ) -> None:
     """Document owner can download their file document."""
-    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
 
     doc = await _create_file_document(
         session, initiative=owner.initiative, owner=owner.user, filename="dl_owner.pdf"
@@ -248,7 +248,7 @@ async def test_download_unauthenticated_returns_401(
     client: AsyncClient, session: AsyncSession, acting_user
 ) -> None:
     """Unauthenticated request returns 401."""
-    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
 
     doc = await _create_file_document(
         session, initiative=owner.initiative, owner=owner.user, filename="dl_unauth.pdf"
@@ -261,9 +261,9 @@ async def test_download_guild_member_without_permission_returns_403(
     client: AsyncClient, session: AsyncSession, acting_user
 ) -> None:
     """Guild member with no document permission gets 403."""
-    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
     other = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=owner.guild,
         initiative=owner.initiative,
         initiative_role="member",
@@ -286,9 +286,9 @@ async def test_version_download_answers_like_the_file_download(
 ) -> None:
     """Both download routes load the document the same way, so an initiative
     member the sharing does not reach is answered the same way by each."""
-    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
     other = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=owner.guild,
         initiative=owner.initiative,
         initiative_role="member",
@@ -315,7 +315,7 @@ async def test_download_non_guild_member_returns_404(
     client: AsyncClient, session: AsyncSession, acting_user
 ) -> None:
     """User from a different guild gets 404 (document not visible)."""
-    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
     outsider = await acting_user("member")
 
     doc = await _create_file_document(
@@ -334,9 +334,9 @@ async def test_download_read_permission_grants_access(
     client: AsyncClient, session: AsyncSession, acting_user
 ) -> None:
     """User with explicit read permission can download."""
-    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
     reader = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=owner.guild,
         initiative=owner.initiative,
         initiative_role="member",
@@ -357,7 +357,7 @@ async def test_download_inline_returns_no_attachment_header(
     client: AsyncClient, session: AsyncSession, acting_user
 ) -> None:
     """?inline=1 serves the file without Content-Disposition: attachment."""
-    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
 
     doc = await _create_file_document(
         session, initiative=owner.initiative, owner=owner.user, filename="dl_inline.pdf"
@@ -375,7 +375,7 @@ async def test_download_inline_html_svg_is_same_origin_framable_but_scriptless(
     client: AsyncClient, session: AsyncSession, acting_user, filename: str
 ) -> None:
     """Inline HTML/SVG can be framed by the same-origin viewer but cannot run scripts."""
-    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
 
     doc = await _create_file_document(
         session, initiative=owner.initiative, owner=owner.user, filename=filename
@@ -401,7 +401,7 @@ async def test_download_non_inline_html_svg_keeps_global_deny(
     client: AsyncClient, session: AsyncSession, acting_user, filename: str
 ) -> None:
     """Non-inline HTML/SVG downloads stay attachments and do not relax framing."""
-    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
 
     doc = await _create_file_document(
         session, initiative=owner.initiative, owner=owner.user, filename=filename
@@ -422,7 +422,7 @@ async def test_download_native_document_returns_404(
     client: AsyncClient, acting_user
 ) -> None:
     """Native (non-file) document returns 404 from the download endpoint."""
-    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
 
     response = await client.post(
         owner.g("/documents/"),
@@ -447,7 +447,7 @@ async def test_update_content_clears_yjs_state(
     which then overwrote the freshly-saved content when the user re-enabled
     collaboration (the CollaborationPlugin synced from the old Yjs state).
     """
-    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
 
     create_resp = await client.post(
         owner.g("/documents/"),
@@ -496,7 +496,7 @@ async def test_create_whiteboard_document(client: AsyncClient, acting_user) -> N
     guards against normalize_document_content corrupting whiteboard payloads.
     A file document is not made here: it comes from uploading its file.
     """
-    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
 
     response = await client.post(
         owner.g("/documents/"),
@@ -554,7 +554,7 @@ def test_normalize_native_still_injects_root() -> None:
 async def test_create_smart_link_document(client: AsyncClient, acting_user) -> None:
     """POST /documents/ with document_type='smart_link' stores only the URL,
     and the list reports the URL without the body."""
-    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
     url = "https://www.figma.com/design/abc/Example"
 
     response = await client.post(
@@ -583,7 +583,7 @@ async def test_create_smart_link_document(client: AsyncClient, acting_user) -> N
 async def test_create_smart_link_rejects_missing_url(
     client: AsyncClient, acting_user
 ) -> None:
-    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
 
     response = await client.post(
         owner.g("/documents/"),
@@ -602,7 +602,7 @@ async def test_create_smart_link_rejects_missing_url(
 async def test_create_smart_link_rejects_non_http_url(
     client: AsyncClient, acting_user
 ) -> None:
-    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
 
     response = await client.post(
         owner.g("/documents/"),
@@ -673,7 +673,7 @@ def test_document_content_error_is_value_error() -> None:
 async def test_list_documents_filters_by_ids(client: AsyncClient, session, acting_user):
     """``ids`` narrows the listing to the requested documents so callers can
     hydrate a known set without walking the whole collection."""
-    actor = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    actor = await acting_user(guild_role=CommunityRole.admin, initiative=True)
 
     wanted = await create_document(session, actor.initiative, actor.user)
     other = await create_document(session, actor.initiative, actor.user)
@@ -696,11 +696,11 @@ async def test_list_documents_ids_filter_respects_visibility(
 ):
     """``ids`` is a filter, not a bypass — an id the caller cannot see stays
     invisible."""
-    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
     private_doc = await create_document(session, owner.initiative, owner.user)
 
     other = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=owner.guild,
         initiative=owner.initiative,
         initiative_role="member",
@@ -721,7 +721,7 @@ async def test_list_documents_filters_by_template_and_type(
 ):
     """``is_template``/``document_type`` narrow the listing in SQL so the
     template picker doesn't walk the whole corpus."""
-    actor = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    actor = await acting_user(guild_role=CommunityRole.admin, initiative=True)
 
     native_template = await create_document(
         session, actor.initiative, actor.user, is_template=True
@@ -770,7 +770,7 @@ async def test_the_tag_tree_narrows_by_document_type(
 ):
     """The one filter of its own the counts route reads for documents: the
     tag tree honors the type the list beside it is narrowed to."""
-    actor = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    actor = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await create_document(session, actor.initiative, actor.user, is_template=True)
     await create_document(
         session,
@@ -798,7 +798,7 @@ async def test_the_tag_tree_narrows_by_document_type(
 
 
 async def test_list_documents_rejects_too_many_ids(client: AsyncClient, acting_user):
-    actor = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    actor = await acting_user(guild_role=CommunityRole.admin, initiative=True)
 
     response = await client.get(
         actor.g("/documents/"),
@@ -814,9 +814,9 @@ async def test_document_counts_by_initiative(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """Grouped counts follow the same visibility rules as the document list."""
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     member = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=admin.guild,
         initiative=admin.initiative,
         initiative_role="member",
@@ -855,7 +855,7 @@ async def test_reading_a_document_can_leave_the_body_out(
     """A document's body is the largest thing this API returns, and a caller
     reacting to a change usually does not need it. Everything else is
     unchanged, so one request still answers "what is this document now"."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     document = await create_document(session, a.initiative, a.user)
     document.content = {"root": {"children": [{"type": "paragraph"}]}}
     session.add(document)
@@ -890,7 +890,7 @@ async def test_a_content_patch_against_a_live_document_is_refused(
     """
     from app.services.tenant.collaboration import collaboration_manager
 
-    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
     doc = await create_document(session, owner.initiative, owner.user)
     original = doc.content
 
@@ -917,7 +917,7 @@ async def test_a_live_document_can_still_be_renamed(
     is unrelated to what its editors are doing and still applies."""
     from app.services.tenant.collaboration import collaboration_manager
 
-    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
     doc = await create_document(session, owner.initiative, owner.user)
 
     monkeypatch.setattr(

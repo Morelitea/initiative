@@ -20,7 +20,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.db.schema_provisioning import guild_role_name, platform_role_name
 from app.db.session import set_rls_context
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.platform.user import UserRole
 from app.testing import create_guild, create_guild_membership, create_user, route_as
 from app.db.request_context import Platform, Unattributed
@@ -89,7 +89,7 @@ class TestGuildSession:
         guild = await create_guild(session, creator=admin)
         member = await create_user(session)
         await create_guild_membership(
-            session, user=member, guild=guild, role=GuildRole.member
+            session, user=member, guild=guild, role=CommunityRole.member
         )
         return admin, member, guild
 

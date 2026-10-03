@@ -43,7 +43,7 @@ from app.db.session import routed_guild_id
 from app.core.messages import AppChannelMessages
 from app.db.event_capture import OUTBOX_CHANNEL
 from app.db.session import set_rls_context
-from app.models.platform.guild import LIVE_STATUS_VALUES, Guild, GuildStatus
+from app.models.platform.guild import LIVE_STATUS_VALUES, Guild, CommunityStatus
 from app.models.tenant.app_event_outbox import AppEventOutbox
 from app.models.tenant.guild_app import GuildApp
 from app.models.tenant.guild_app_user_connection import GuildAppUserConnection
@@ -186,7 +186,7 @@ async def load_install(
     if guild is None or guild.status not in LIVE_STATUS_VALUES:
         raise AppChannelError(AppChannelMessages.INSTALL_NOT_FOUND, status_code=404)
 
-    frozen = guild.status == GuildStatus.read_only.value
+    frozen = guild.status == CommunityStatus.read_only.value
     if for_write and frozen:
         raise AppChannelError(AppChannelMessages.GUILD_READ_ONLY, status_code=409)
 

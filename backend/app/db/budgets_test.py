@@ -18,7 +18,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.api.deps import establish_guild_access
 from app.db.authorization import GUILD_FUNCTION_SIGNATURES, READ_FUNCTIONS
 from app.db.schema_provisioning import guild_role_name, guild_schema_name
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.tenant.task import Task
 from app.schemas.query import FilterOp
 from app.services.tenant import properties as properties_service
@@ -197,7 +197,9 @@ async def test_a_property_filter_reads_only_the_listed_rows_values(
     not every value of the property in the community. Each value read is a
     read the policy authorizes, so a filter that read them all would cost a
     small list as much as the largest one."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     small = await create_project(session, a.initiative, a.user)
     stage = await create_property_definition(session, a.initiative, name="Stage")
     await route_session_to_guild(session, a.guild.id)

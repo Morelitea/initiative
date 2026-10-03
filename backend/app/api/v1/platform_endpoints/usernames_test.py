@@ -9,7 +9,7 @@ import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.testing import create_guild, create_guild_membership, create_user
 from app.testing.factories import get_auth_headers
 
@@ -206,11 +206,11 @@ class TestWhatAGuildPayloadSays:
         admin = await create_user(session)
         guild = await create_guild(session, creator=admin)
         await create_guild_membership(
-            session, user=admin, guild=guild, role=GuildRole.admin
+            session, user=admin, guild=guild, role=CommunityRole.admin
         )
         member = await create_user(session, username="member", discriminator=77)
         await create_guild_membership(
-            session, user=member, guild=guild, role=GuildRole.member
+            session, user=member, guild=guild, role=CommunityRole.member
         )
         return admin, member, guild
 
@@ -264,7 +264,7 @@ class TestFindingSomeone:
         admin = await create_user(session, username="zeph", discriminator=9001)
         guild = await create_guild(session, creator=admin)
         await create_guild_membership(
-            session, user=admin, guild=guild, role=GuildRole.admin
+            session, user=admin, guild=guild, role=CommunityRole.admin
         )
         for username, discriminator, display_name in [
             ("jordan", 1234, "Jordan One"),
@@ -279,7 +279,7 @@ class TestFindingSomeone:
                 session,
                 user=member,
                 guild=guild,
-                role=GuildRole.member,
+                role=CommunityRole.member,
                 display_name=display_name,
             )
         return admin, guild
