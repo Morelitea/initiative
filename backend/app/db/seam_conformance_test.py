@@ -405,10 +405,9 @@ async def test_every_socket_admits_through_the_seam(
         "/api/v1/c/{guild_id}/collaboration/documents/{document_id}/collaborate": (
             f"{base}/collaboration/documents/{document.id}/collaborate"
         ),
-        (
-            "/api/v1/c/{guild_id}/collaboration/wikis/{wiki_id}/pages/{page_id}"
-            "/collaborate"
-        ): f"{base}/collaboration/wikis/{wiki.id}/pages/{page.id}/collaborate",
+        "/api/v1/c/{guild_id}/collaboration/wiki-pages/{page_id}/collaborate": (
+            f"{base}/collaboration/wiki-pages/{page.id}/collaborate"
+        ),
     }
     served = {r.path for r in app.routes if isinstance(r, APIWebSocketRoute)}
     stream = "/api/v1/notifications/stream"

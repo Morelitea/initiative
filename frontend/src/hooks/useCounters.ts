@@ -3,14 +3,14 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 
 import {
   addCounterApiV1CGuildIdCounterGroupsGroupIdCountersPost,
-  deleteCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdDelete,
+  deleteCounterApiV1CGuildIdCountersCounterIdDelete,
   duplicateCounterApiV1CGuildIdCountersCounterIdDuplicatePost,
   getReadCounterGroupApiV1CGuildIdCounterGroupsGroupIdGetQueryKey,
   resetAllCountersApiV1CGuildIdCounterGroupsGroupIdResetAllPost,
   resetCounterApiV1CGuildIdCountersCounterIdResetPost,
   setCounterCountApiV1CGuildIdCountersCounterIdSetPost,
   sortCountersApiV1CGuildIdCounterGroupsGroupIdSortPost,
-  updateCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdPatch,
+  updateCounterApiV1CGuildIdCountersCounterIdPatch,
 } from "@/api/generated/counters/counters";
 import type {
   CounterCreate,
@@ -138,12 +138,7 @@ export const useUpdateCounter = (
   return useMutation<CounterRead, Error, UpdateCounterInput, OptimisticContext>({
     ...rest,
     mutationFn: async ({ counterId, data }) =>
-      updateCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdPatch(
-        guildId,
-        groupId,
-        counterId,
-        data
-      ),
+      updateCounterApiV1CGuildIdCountersCounterIdPatch(guildId, counterId, data),
     onMutate: async ({ counterId, data }) => {
       const key = getReadCounterGroupApiV1CGuildIdCounterGroupsGroupIdGetQueryKey(guildId, groupId);
       await queryClient.cancelQueries({ queryKey: key });
@@ -175,11 +170,7 @@ export const useDeleteCounter = (groupId: number, options?: MutationOpts<void, n
   return useMutation<void, Error, number, OptimisticContext>({
     ...rest,
     mutationFn: async (counterId: number) => {
-      await deleteCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdDelete(
-        guildId,
-        groupId,
-        counterId
-      );
+      await deleteCounterApiV1CGuildIdCountersCounterIdDelete(guildId, counterId);
     },
     onMutate: async (counterId) => {
       const key = getReadCounterGroupApiV1CGuildIdCounterGroupsGroupIdGetQueryKey(guildId, groupId);

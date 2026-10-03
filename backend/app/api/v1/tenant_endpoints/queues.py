@@ -153,11 +153,10 @@ async def _serialized_queue_item(
 
 router = APIRouter(route_class=ActorRoute)
 
-#: Flat read-back route, mounted at the guild root. An event envelope names
+#: An item by its own id, mounted at the guild root. An event envelope names
 #: ``(resource_type, id)`` and nothing else, so the resource has to be
 #: addressable by its own id — a nested path would need a parent the envelope
-#: never carries. Writes stay nested under their queue, where the caller is
-#: already working inside one.
+#: never carries. Only adding one names its queue.
 items_router = APIRouter(route_class=ActorRoute)
 
 
@@ -414,9 +413,8 @@ async def add_queue_item(
     return result
 
 
-@router.patch("/{queue_id}/items/{item_id}", response_model=QueueItemRead)
+@items_router.patch("/queue-items/{item_id}", response_model=QueueItemRead)
 async def update_queue_item(
-    queue_id: int,
     item_id: int,
     item_in: QueueItemUpdate,
     session: ActorSessionDep,
@@ -424,9 +422,7 @@ async def update_queue_item(
     guild_context: QueuesWrite,
 ) -> QueueItemRead:
     """Update a queue item. Requires write access on the queue."""
-    item = await resource_access.load_child(
-        session, QueueItem, item_id, access="write", parent_id=queue_id
-    )
+    item = await resource_access.load_child(session, QueueItem, item_id, access="write")
     queue = item.queue
 
     updated = False
@@ -462,13 +458,12 @@ async def update_queue_item(
 
     hydrated_item = await resource_access.reload_child(session, QueueItem, item.id)
     result = await _serialized_queue_item(session, hydrated_item)
-    sockets.signal(routed_guild_id(session), Tool.queue, queue_id, "item_updated")
+    sockets.signal(routed_guild_id(session), Tool.queue, queue.id, "item_updated")
     return result
 
 
-@router.delete("/{queue_id}/items/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
+@items_router.delete("/queue-items/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_queue_item(
-    queue_id: int,
     item_id: int,
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
@@ -477,9 +472,7 @@ async def delete_queue_item(
     """Soft-delete a queue item. Requires write access on the parent queue."""
     from app.services.tenant.soft_delete import trash
 
-    item = await resource_access.load_child(
-        session, QueueItem, item_id, access="write", parent_id=queue_id
-    )
+    item = await resource_access.load_child(session, QueueItem, item_id, access="write")
     queue = cast(Queue, item.queue)
 
     if queue.current_item_id == item.id:
@@ -492,7 +485,7 @@ async def delete_queue_item(
         deleted_by_user_id=current_user.id,
     )
     await session.commit()
-    sockets.signal(routed_guild_id(session), Tool.queue, queue_id, "item_removed")
+    sockets.signal(routed_guild_id(session), Tool.queue, queue.id, "item_removed")
 
 
 # ---------------------------------------------------------------------------

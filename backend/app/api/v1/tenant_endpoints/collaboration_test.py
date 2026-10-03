@@ -171,8 +171,7 @@ async def test_a_wiki_page_takes_a_handover_too(
     page = await create_wiki_page(session, wiki, owner.user)
 
     response = await client.post(
-        f"/api/v1/c/{owner.guild.id}/collaboration/wikis/{wiki.id}/pages/{page.id}"
-        "/collaborate",
+        f"/api/v1/c/{owner.guild.id}/collaboration/wiki-pages/{page.id}/collaborate",
         json=_handover(_typed("a page written offline")),
         headers={"Authorization": f"Bearer {get_auth_token(owner.user)}"},
     )

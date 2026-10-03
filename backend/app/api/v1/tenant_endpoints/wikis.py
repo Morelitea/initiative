@@ -6,15 +6,15 @@ everything after that flows from the wiki's resource-grant DAC
 
 Three things here are the wiki's own rather than the generic tool shape:
 
-* **Pages are content, not tools.** A page is reached only through its wiki —
-  ``/wikis/{id}/pages/…`` — and adding, editing or moving one asks for
-  **write** access on the wiki, the way editing a task asks for write on its
-  project.
+* **Pages are content, not tools.** A page is added under its wiki —
+  ``/wikis/{id}/pages`` — and addressed after that by its own id at
+  ``/wiki-pages/{id}``. Adding, editing or moving one asks for **write** access
+  on the wiki, the way editing a task asks for write on its project.
 * **The tree comes back whole.** ``GET /{id}/pages`` returns every page of a
   wiki, flat and in reading order, because the navigation draws all of it at
   once. The rows carry no bodies, so the payload grows with the number of
   pages rather than with what has been written on them.
-* **A page knows what points at it.** ``GET /{id}/pages/{page_id}/links``
+* **A page knows what points at it.** ``GET /wiki-pages/{id}/links``
   reads the ``relationships`` table both ways — the ``[[ ]]`` links extracted
   from bodies on save, and the connections people drew by hand — which is what
   makes a wiki a web rather than a folder.
@@ -72,7 +72,7 @@ from app.services.tenant import wikis as wikis_service
 
 router = APIRouter(route_class=ActorRoute)
 #: A page addressed by its own id, mounted at the guild root the way a queue
-#: item is — for a caller holding nothing but that id.
+#: item is. Only adding one names its wiki.
 pages_router = APIRouter(route_class=ActorRoute)
 
 CurrentUserDep = Annotated[User, Depends(get_current_active_user)]
@@ -540,18 +540,15 @@ async def duplicate_wiki_page(
     return serialize_wiki_page(copy, context=guild_context)
 
 
-@router.patch("/{wiki_id}/pages/{page_id}", response_model=WikiPageRead)
+@pages_router.patch("/wiki-pages/{page_id}", response_model=WikiPageRead)
 async def update_wiki_page(
-    wiki_id: int,
     page_id: int,
     page_in: WikiPageUpdate,
     session: RLSSessionDep,
     current_user: CurrentUserDep,
     guild_context: GuildContextDep,
 ) -> WikiPageRead:
-    page = await resource_access.load_child(
-        session, WikiPage, page_id, access="write", parent_id=wiki_id
-    )
+    page = await resource_access.load_child(session, WikiPage, page_id, access="write")
     data = page_in.model_dump(exclude_unset=True)
     content_updated = "content" in data and data["content"] is not None
     # A page with a live collaboration room has that room as the writer of its
@@ -615,9 +612,8 @@ async def update_wiki_page(
     return serialize_wiki_page(page, context=guild_context)
 
 
-@router.post("/{wiki_id}/pages/{page_id}/move", response_model=WikiPageRead)
+@pages_router.post("/wiki-pages/{page_id}/move", response_model=WikiPageRead)
 async def move_wiki_page(
-    wiki_id: int,
     page_id: int,
     move: WikiPageMove,
     session: RLSSessionDep,
@@ -629,9 +625,7 @@ async def move_wiki_page(
     Only the page's new neighbours are renumbered: a position means something
     among the pages filed together and nothing across the wiki.
     """
-    page = await resource_access.load_child(
-        session, WikiPage, page_id, access="write", parent_id=wiki_id
-    )
+    page = await resource_access.load_child(session, WikiPage, page_id, access="write")
     wiki = page.wiki
     await wikis_service.validate_reparent(session, page, move.parent_page_id)
     await wikis_service.place_in_list(
@@ -642,9 +636,8 @@ async def move_wiki_page(
     return serialize_wiki_page(page, context=guild_context)
 
 
-@router.delete("/{wiki_id}/pages/{page_id}", status_code=status.HTTP_204_NO_CONTENT)
+@pages_router.delete("/wiki-pages/{page_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_wiki_page(
-    wiki_id: int,
     page_id: int,
     session: RLSSessionDep,
     current_user: CurrentUserDep,
@@ -652,9 +645,7 @@ async def delete_wiki_page(
 ) -> None:
     """Send a page to the trash. Its children go with it — a section is put
     away whole."""
-    page = await resource_access.load_child(
-        session, WikiPage, page_id, access="write", parent_id=wiki_id
-    )
+    page = await resource_access.load_child(session, WikiPage, page_id, access="write")
     # Sub-pages go with it through CASCADE_CHILDREN, the same way a comment
     # thread follows its root.
     await soft_delete_service.trash(
@@ -665,9 +656,8 @@ async def delete_wiki_page(
     await session.commit()
 
 
-@router.get("/{wiki_id}/pages/{page_id}/links", response_model=WikiPageLinks)
+@pages_router.get("/wiki-pages/{page_id}/links", response_model=WikiPageLinks)
 async def read_wiki_page_links(
-    wiki_id: int,
     page_id: int,
     session: RLSSessionDep,
     current_user: CurrentUserDep,
@@ -679,9 +669,7 @@ async def read_wiki_page_links(
     ``[[ ]]`` extractor writes to, so a page that somebody linked to from a
     task knows about it without the task having to say so twice.
     """
-    page = await resource_access.load_child(
-        session, WikiPage, page_id, parent_id=wiki_id
-    )
+    page = await resource_access.load_child(session, WikiPage, page_id)
     outgoing, incoming = await wikis_service.page_links(session, page)
 
     async def _links(rows, *, other: str) -> list[WikiPageLink]:

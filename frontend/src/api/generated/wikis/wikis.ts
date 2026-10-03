@@ -1300,534 +1300,6 @@ export const useMoveWikiDocumentApiV1CGuildIdWikisWikiIdDocumentsDocumentIdMoveP
   );
 };
 /**
- * @summary Update Wiki Page
- */
-export const updateWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdPatch = (
-  guildId: number,
-  wikiId: number,
-  pageId: number,
-  wikiPageUpdate: BodyType<WikiPageUpdate>,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<WikiPageRead>(
-    {
-      url: `/api/v1/c/${guildId}/wikis/${wikiId}/pages/${pageId}`,
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      data: wikiPageUpdate,
-      signal,
-    },
-    options
-  );
-};
-
-export const getUpdateWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdPatchMutationKey = () =>
-  ["updateWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdPatch"] as const;
-
-export const getUpdateWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdPatchMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof updateWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdPatch>>,
-    TError,
-    UpdateWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdPatchMutationVariables,
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof updateWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdPatch>>,
-  TError,
-  UpdateWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdPatchMutationVariables,
-  TContext
-> => {
-  const mutationKey = getUpdateWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdPatchMutationKey();
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof updateWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdPatch>>,
-    UpdateWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdPatchMutationVariables
-  > = (props) => {
-    const { guildId, wikiId, pageId, data } = props ?? {};
-
-    return updateWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdPatch(
-      guildId,
-      wikiId,
-      pageId,
-      data,
-      requestOptions
-    );
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type UpdateWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdPatchMutationResult = NonNullable<
-  Awaited<ReturnType<typeof updateWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdPatch>>
->;
-export type UpdateWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdPatchMutationBody =
-  BodyType<WikiPageUpdate>;
-export type UpdateWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdPatchMutationError =
-  ErrorType<HTTPValidationError>;
-export type UpdateWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdPatchMutationVariables = {
-  guildId: number;
-  wikiId: number;
-  pageId: number;
-  data: BodyType<WikiPageUpdate>;
-};
-
-/**
- * @summary Update Wiki Page
- */
-export const useUpdateWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdPatch = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof updateWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdPatch>>,
-      TError,
-      UpdateWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdPatchMutationVariables,
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof updateWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdPatch>>,
-  TError,
-  UpdateWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdPatchMutationVariables,
-  TContext
-> => {
-  return useMutation(
-    getUpdateWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdPatchMutationOptions(options),
-    queryClient
-  );
-};
-/**
- * Send a page to the trash. Its children go with it — a section is put
- * away whole.
- * @summary Delete Wiki Page
- */
-export const deleteWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdDelete = (
-  guildId: number,
-  wikiId: number,
-  pageId: number,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<void>(
-    { url: `/api/v1/c/${guildId}/wikis/${wikiId}/pages/${pageId}`, method: "DELETE", signal },
-    options
-  );
-};
-
-export const getDeleteWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdDeleteMutationKey = () =>
-  ["deleteWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdDelete"] as const;
-
-export const getDeleteWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdDeleteMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof deleteWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdDelete>>,
-    TError,
-    DeleteWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdDeleteMutationVariables,
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof deleteWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdDelete>>,
-  TError,
-  DeleteWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdDeleteMutationVariables,
-  TContext
-> => {
-  const mutationKey = getDeleteWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdDeleteMutationKey();
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof deleteWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdDelete>>,
-    DeleteWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdDeleteMutationVariables
-  > = (props) => {
-    const { guildId, wikiId, pageId } = props ?? {};
-
-    return deleteWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdDelete(
-      guildId,
-      wikiId,
-      pageId,
-      requestOptions
-    );
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type DeleteWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdDeleteMutationResult = NonNullable<
-  Awaited<ReturnType<typeof deleteWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdDelete>>
->;
-
-export type DeleteWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdDeleteMutationError =
-  ErrorType<HTTPValidationError>;
-export type DeleteWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdDeleteMutationVariables = {
-  guildId: number;
-  wikiId: number;
-  pageId: number;
-};
-
-/**
- * @summary Delete Wiki Page
- */
-export const useDeleteWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdDelete = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof deleteWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdDelete>>,
-      TError,
-      DeleteWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdDeleteMutationVariables,
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof deleteWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdDelete>>,
-  TError,
-  DeleteWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdDeleteMutationVariables,
-  TContext
-> => {
-  return useMutation(
-    getDeleteWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdDeleteMutationOptions(options),
-    queryClient
-  );
-};
-/**
- * File a page and place it there in one request — what a drag is.
- *
- * Only the page's new neighbours are renumbered: a position means something
- * among the pages filed together and nothing across the wiki.
- * @summary Move Wiki Page
- */
-export const moveWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdMovePost = (
-  guildId: number,
-  wikiId: number,
-  pageId: number,
-  wikiPageMove: BodyType<WikiPageMove>,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<WikiPageRead>(
-    {
-      url: `/api/v1/c/${guildId}/wikis/${wikiId}/pages/${pageId}/move`,
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      data: wikiPageMove,
-      signal,
-    },
-    options
-  );
-};
-
-export const getMoveWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdMovePostMutationKey = () =>
-  ["moveWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdMovePost"] as const;
-
-export const getMoveWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdMovePostMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof moveWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdMovePost>>,
-    TError,
-    MoveWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdMovePostMutationVariables,
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof moveWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdMovePost>>,
-  TError,
-  MoveWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdMovePostMutationVariables,
-  TContext
-> => {
-  const mutationKey = getMoveWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdMovePostMutationKey();
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof moveWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdMovePost>>,
-    MoveWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdMovePostMutationVariables
-  > = (props) => {
-    const { guildId, wikiId, pageId, data } = props ?? {};
-
-    return moveWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdMovePost(
-      guildId,
-      wikiId,
-      pageId,
-      data,
-      requestOptions
-    );
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type MoveWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdMovePostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof moveWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdMovePost>>
->;
-export type MoveWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdMovePostMutationBody =
-  BodyType<WikiPageMove>;
-export type MoveWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdMovePostMutationError =
-  ErrorType<HTTPValidationError>;
-export type MoveWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdMovePostMutationVariables = {
-  guildId: number;
-  wikiId: number;
-  pageId: number;
-  data: BodyType<WikiPageMove>;
-};
-
-/**
- * @summary Move Wiki Page
- */
-export const useMoveWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdMovePost = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof moveWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdMovePost>>,
-      TError,
-      MoveWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdMovePostMutationVariables,
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof moveWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdMovePost>>,
-  TError,
-  MoveWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdMovePostMutationVariables,
-  TContext
-> => {
-  return useMutation(
-    getMoveWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdMovePostMutationOptions(options),
-    queryClient
-  );
-};
-/**
- * What this page names, and what names it.
- *
- * The second half is the backlinks. They are read from the same table the
- * ``[[ ]]`` extractor writes to, so a page that somebody linked to from a
- * task knows about it without the task having to say so twice.
- * @summary Read Wiki Page Links
- */
-export const readWikiPageLinksApiV1CGuildIdWikisWikiIdPagesPageIdLinksGet = (
-  guildId: number,
-  wikiId: number,
-  pageId: number,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<WikiPageLinks>(
-    { url: `/api/v1/c/${guildId}/wikis/${wikiId}/pages/${pageId}/links`, method: "GET", signal },
-    options
-  );
-};
-
-export const getReadWikiPageLinksApiV1CGuildIdWikisWikiIdPagesPageIdLinksGetQueryKey = (
-  guildId: number,
-  wikiId: number,
-  pageId: number
-) => {
-  return [`/api/v1/c/${guildId}/wikis/${wikiId}/pages/${pageId}/links`] as const;
-};
-
-export const getReadWikiPageLinksApiV1CGuildIdWikisWikiIdPagesPageIdLinksGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof readWikiPageLinksApiV1CGuildIdWikisWikiIdPagesPageIdLinksGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  guildId: number,
-  wikiId: number,
-  pageId: number,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readWikiPageLinksApiV1CGuildIdWikisWikiIdPagesPageIdLinksGet>>,
-        TError,
-        TData
-      >
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  }
-) => {
-  const { query: queryOptions, request: requestOptions } = options ?? {};
-
-  const queryKey =
-    queryOptions?.queryKey ??
-    getReadWikiPageLinksApiV1CGuildIdWikisWikiIdPagesPageIdLinksGetQueryKey(
-      guildId,
-      wikiId,
-      pageId
-    );
-
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof readWikiPageLinksApiV1CGuildIdWikisWikiIdPagesPageIdLinksGet>>
-  > = ({ signal }) =>
-    readWikiPageLinksApiV1CGuildIdWikisWikiIdPagesPageIdLinksGet(
-      guildId,
-      wikiId,
-      pageId,
-      requestOptions,
-      signal
-    );
-
-  return {
-    queryKey,
-    queryFn,
-    enabled:
-      guildId !== null &&
-      guildId !== undefined &&
-      wikiId !== null &&
-      wikiId !== undefined &&
-      pageId !== null &&
-      pageId !== undefined,
-    ...queryOptions,
-  } as UseQueryOptions<
-    Awaited<ReturnType<typeof readWikiPageLinksApiV1CGuildIdWikisWikiIdPagesPageIdLinksGet>>,
-    TError,
-    TData
-  > & { queryKey: DataTag<QueryKey, TData, TError> };
-};
-
-export type ReadWikiPageLinksApiV1CGuildIdWikisWikiIdPagesPageIdLinksGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof readWikiPageLinksApiV1CGuildIdWikisWikiIdPagesPageIdLinksGet>>
->;
-export type ReadWikiPageLinksApiV1CGuildIdWikisWikiIdPagesPageIdLinksGetQueryError =
-  ErrorType<HTTPValidationError>;
-
-export function useReadWikiPageLinksApiV1CGuildIdWikisWikiIdPagesPageIdLinksGet<
-  TData = Awaited<ReturnType<typeof readWikiPageLinksApiV1CGuildIdWikisWikiIdPagesPageIdLinksGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  guildId: number,
-  wikiId: number,
-  pageId: number,
-  options: {
-    query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readWikiPageLinksApiV1CGuildIdWikisWikiIdPagesPageIdLinksGet>>,
-        TError,
-        TData
-      >
-    > &
-      Pick<
-        DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readWikiPageLinksApiV1CGuildIdWikisWikiIdPagesPageIdLinksGet>>,
-          TError,
-          Awaited<ReturnType<typeof readWikiPageLinksApiV1CGuildIdWikisWikiIdPagesPageIdLinksGet>>
-        >,
-        "initialData"
-      >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadWikiPageLinksApiV1CGuildIdWikisWikiIdPagesPageIdLinksGet<
-  TData = Awaited<ReturnType<typeof readWikiPageLinksApiV1CGuildIdWikisWikiIdPagesPageIdLinksGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  guildId: number,
-  wikiId: number,
-  pageId: number,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readWikiPageLinksApiV1CGuildIdWikisWikiIdPagesPageIdLinksGet>>,
-        TError,
-        TData
-      >
-    > &
-      Pick<
-        UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readWikiPageLinksApiV1CGuildIdWikisWikiIdPagesPageIdLinksGet>>,
-          TError,
-          Awaited<ReturnType<typeof readWikiPageLinksApiV1CGuildIdWikisWikiIdPagesPageIdLinksGet>>
-        >,
-        "initialData"
-      >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadWikiPageLinksApiV1CGuildIdWikisWikiIdPagesPageIdLinksGet<
-  TData = Awaited<ReturnType<typeof readWikiPageLinksApiV1CGuildIdWikisWikiIdPagesPageIdLinksGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  guildId: number,
-  wikiId: number,
-  pageId: number,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readWikiPageLinksApiV1CGuildIdWikisWikiIdPagesPageIdLinksGet>>,
-        TError,
-        TData
-      >
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-/**
- * @summary Read Wiki Page Links
- */
-
-export function useReadWikiPageLinksApiV1CGuildIdWikisWikiIdPagesPageIdLinksGet<
-  TData = Awaited<ReturnType<typeof readWikiPageLinksApiV1CGuildIdWikisWikiIdPagesPageIdLinksGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  guildId: number,
-  wikiId: number,
-  pageId: number,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readWikiPageLinksApiV1CGuildIdWikisWikiIdPagesPageIdLinksGet>>,
-        TError,
-        TData
-      >
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getReadWikiPageLinksApiV1CGuildIdWikisWikiIdPagesPageIdLinksGetQueryOptions(
-    guildId,
-    wikiId,
-    pageId,
-    options
-  );
-
-  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
-    queryKey: DataTag<QueryKey, TData, TError>;
-  };
-
-  return withQueryKey(query, queryOptions.queryKey);
-}
-
-/**
  * One page by its own id, which is all a link to it, a mention or a
  * stored notification names.
  * @summary Read Wiki Page
@@ -2002,6 +1474,202 @@ export function useReadWikiPageApiV1CGuildIdWikiPagesPageIdGet<
 }
 
 /**
+ * @summary Update Wiki Page
+ */
+export const updateWikiPageApiV1CGuildIdWikiPagesPageIdPatch = (
+  guildId: number,
+  pageId: number,
+  wikiPageUpdate: BodyType<WikiPageUpdate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<WikiPageRead>(
+    {
+      url: `/api/v1/c/${guildId}/wiki-pages/${pageId}`,
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      data: wikiPageUpdate,
+      signal,
+    },
+    options
+  );
+};
+
+export const getUpdateWikiPageApiV1CGuildIdWikiPagesPageIdPatchMutationKey = () =>
+  ["updateWikiPageApiV1CGuildIdWikiPagesPageIdPatch"] as const;
+
+export const getUpdateWikiPageApiV1CGuildIdWikiPagesPageIdPatchMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateWikiPageApiV1CGuildIdWikiPagesPageIdPatch>>,
+    TError,
+    UpdateWikiPageApiV1CGuildIdWikiPagesPageIdPatchMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateWikiPageApiV1CGuildIdWikiPagesPageIdPatch>>,
+  TError,
+  UpdateWikiPageApiV1CGuildIdWikiPagesPageIdPatchMutationVariables,
+  TContext
+> => {
+  const mutationKey = getUpdateWikiPageApiV1CGuildIdWikiPagesPageIdPatchMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateWikiPageApiV1CGuildIdWikiPagesPageIdPatch>>,
+    UpdateWikiPageApiV1CGuildIdWikiPagesPageIdPatchMutationVariables
+  > = (props) => {
+    const { guildId, pageId, data } = props ?? {};
+
+    return updateWikiPageApiV1CGuildIdWikiPagesPageIdPatch(guildId, pageId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateWikiPageApiV1CGuildIdWikiPagesPageIdPatchMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateWikiPageApiV1CGuildIdWikiPagesPageIdPatch>>
+>;
+export type UpdateWikiPageApiV1CGuildIdWikiPagesPageIdPatchMutationBody = BodyType<WikiPageUpdate>;
+export type UpdateWikiPageApiV1CGuildIdWikiPagesPageIdPatchMutationError =
+  ErrorType<HTTPValidationError>;
+export type UpdateWikiPageApiV1CGuildIdWikiPagesPageIdPatchMutationVariables = {
+  guildId: number;
+  pageId: number;
+  data: BodyType<WikiPageUpdate>;
+};
+
+/**
+ * @summary Update Wiki Page
+ */
+export const useUpdateWikiPageApiV1CGuildIdWikiPagesPageIdPatch = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof updateWikiPageApiV1CGuildIdWikiPagesPageIdPatch>>,
+      TError,
+      UpdateWikiPageApiV1CGuildIdWikiPagesPageIdPatchMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof updateWikiPageApiV1CGuildIdWikiPagesPageIdPatch>>,
+  TError,
+  UpdateWikiPageApiV1CGuildIdWikiPagesPageIdPatchMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getUpdateWikiPageApiV1CGuildIdWikiPagesPageIdPatchMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Send a page to the trash. Its children go with it — a section is put
+ * away whole.
+ * @summary Delete Wiki Page
+ */
+export const deleteWikiPageApiV1CGuildIdWikiPagesPageIdDelete = (
+  guildId: number,
+  pageId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<void>(
+    { url: `/api/v1/c/${guildId}/wiki-pages/${pageId}`, method: "DELETE", signal },
+    options
+  );
+};
+
+export const getDeleteWikiPageApiV1CGuildIdWikiPagesPageIdDeleteMutationKey = () =>
+  ["deleteWikiPageApiV1CGuildIdWikiPagesPageIdDelete"] as const;
+
+export const getDeleteWikiPageApiV1CGuildIdWikiPagesPageIdDeleteMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteWikiPageApiV1CGuildIdWikiPagesPageIdDelete>>,
+    TError,
+    DeleteWikiPageApiV1CGuildIdWikiPagesPageIdDeleteMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteWikiPageApiV1CGuildIdWikiPagesPageIdDelete>>,
+  TError,
+  DeleteWikiPageApiV1CGuildIdWikiPagesPageIdDeleteMutationVariables,
+  TContext
+> => {
+  const mutationKey = getDeleteWikiPageApiV1CGuildIdWikiPagesPageIdDeleteMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteWikiPageApiV1CGuildIdWikiPagesPageIdDelete>>,
+    DeleteWikiPageApiV1CGuildIdWikiPagesPageIdDeleteMutationVariables
+  > = (props) => {
+    const { guildId, pageId } = props ?? {};
+
+    return deleteWikiPageApiV1CGuildIdWikiPagesPageIdDelete(guildId, pageId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteWikiPageApiV1CGuildIdWikiPagesPageIdDeleteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteWikiPageApiV1CGuildIdWikiPagesPageIdDelete>>
+>;
+
+export type DeleteWikiPageApiV1CGuildIdWikiPagesPageIdDeleteMutationError =
+  ErrorType<HTTPValidationError>;
+export type DeleteWikiPageApiV1CGuildIdWikiPagesPageIdDeleteMutationVariables = {
+  guildId: number;
+  pageId: number;
+};
+
+/**
+ * @summary Delete Wiki Page
+ */
+export const useDeleteWikiPageApiV1CGuildIdWikiPagesPageIdDelete = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof deleteWikiPageApiV1CGuildIdWikiPagesPageIdDelete>>,
+      TError,
+      DeleteWikiPageApiV1CGuildIdWikiPagesPageIdDeleteMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof deleteWikiPageApiV1CGuildIdWikiPagesPageIdDelete>>,
+  TError,
+  DeleteWikiPageApiV1CGuildIdWikiPagesPageIdDeleteMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getDeleteWikiPageApiV1CGuildIdWikiPagesPageIdDeleteMutationOptions(options),
+    queryClient
+  );
+};
+/**
  * Copy the page, without the pages under it, to the end of where it is
  * filed, as "<title> (Copy)", with its tags, links and properties.
  * @summary Duplicate Wiki Page
@@ -2100,6 +1768,289 @@ export const useDuplicateWikiPageApiV1CGuildIdWikiPagesPageIdDuplicatePost = <
     queryClient
   );
 };
+/**
+ * File a page and place it there in one request — what a drag is.
+ *
+ * Only the page's new neighbours are renumbered: a position means something
+ * among the pages filed together and nothing across the wiki.
+ * @summary Move Wiki Page
+ */
+export const moveWikiPageApiV1CGuildIdWikiPagesPageIdMovePost = (
+  guildId: number,
+  pageId: number,
+  wikiPageMove: BodyType<WikiPageMove>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<WikiPageRead>(
+    {
+      url: `/api/v1/c/${guildId}/wiki-pages/${pageId}/move`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: wikiPageMove,
+      signal,
+    },
+    options
+  );
+};
+
+export const getMoveWikiPageApiV1CGuildIdWikiPagesPageIdMovePostMutationKey = () =>
+  ["moveWikiPageApiV1CGuildIdWikiPagesPageIdMovePost"] as const;
+
+export const getMoveWikiPageApiV1CGuildIdWikiPagesPageIdMovePostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof moveWikiPageApiV1CGuildIdWikiPagesPageIdMovePost>>,
+    TError,
+    MoveWikiPageApiV1CGuildIdWikiPagesPageIdMovePostMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof moveWikiPageApiV1CGuildIdWikiPagesPageIdMovePost>>,
+  TError,
+  MoveWikiPageApiV1CGuildIdWikiPagesPageIdMovePostMutationVariables,
+  TContext
+> => {
+  const mutationKey = getMoveWikiPageApiV1CGuildIdWikiPagesPageIdMovePostMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof moveWikiPageApiV1CGuildIdWikiPagesPageIdMovePost>>,
+    MoveWikiPageApiV1CGuildIdWikiPagesPageIdMovePostMutationVariables
+  > = (props) => {
+    const { guildId, pageId, data } = props ?? {};
+
+    return moveWikiPageApiV1CGuildIdWikiPagesPageIdMovePost(guildId, pageId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type MoveWikiPageApiV1CGuildIdWikiPagesPageIdMovePostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof moveWikiPageApiV1CGuildIdWikiPagesPageIdMovePost>>
+>;
+export type MoveWikiPageApiV1CGuildIdWikiPagesPageIdMovePostMutationBody = BodyType<WikiPageMove>;
+export type MoveWikiPageApiV1CGuildIdWikiPagesPageIdMovePostMutationError =
+  ErrorType<HTTPValidationError>;
+export type MoveWikiPageApiV1CGuildIdWikiPagesPageIdMovePostMutationVariables = {
+  guildId: number;
+  pageId: number;
+  data: BodyType<WikiPageMove>;
+};
+
+/**
+ * @summary Move Wiki Page
+ */
+export const useMoveWikiPageApiV1CGuildIdWikiPagesPageIdMovePost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof moveWikiPageApiV1CGuildIdWikiPagesPageIdMovePost>>,
+      TError,
+      MoveWikiPageApiV1CGuildIdWikiPagesPageIdMovePostMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof moveWikiPageApiV1CGuildIdWikiPagesPageIdMovePost>>,
+  TError,
+  MoveWikiPageApiV1CGuildIdWikiPagesPageIdMovePostMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getMoveWikiPageApiV1CGuildIdWikiPagesPageIdMovePostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * What this page names, and what names it.
+ *
+ * The second half is the backlinks. They are read from the same table the
+ * ``[[ ]]`` extractor writes to, so a page that somebody linked to from a
+ * task knows about it without the task having to say so twice.
+ * @summary Read Wiki Page Links
+ */
+export const readWikiPageLinksApiV1CGuildIdWikiPagesPageIdLinksGet = (
+  guildId: number,
+  pageId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<WikiPageLinks>(
+    { url: `/api/v1/c/${guildId}/wiki-pages/${pageId}/links`, method: "GET", signal },
+    options
+  );
+};
+
+export const getReadWikiPageLinksApiV1CGuildIdWikiPagesPageIdLinksGetQueryKey = (
+  guildId: number,
+  pageId: number
+) => {
+  return [`/api/v1/c/${guildId}/wiki-pages/${pageId}/links`] as const;
+};
+
+export const getReadWikiPageLinksApiV1CGuildIdWikiPagesPageIdLinksGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof readWikiPageLinksApiV1CGuildIdWikiPagesPageIdLinksGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  pageId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readWikiPageLinksApiV1CGuildIdWikiPagesPageIdLinksGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getReadWikiPageLinksApiV1CGuildIdWikiPagesPageIdLinksGetQueryKey(guildId, pageId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof readWikiPageLinksApiV1CGuildIdWikiPagesPageIdLinksGet>>
+  > = ({ signal }) =>
+    readWikiPageLinksApiV1CGuildIdWikiPagesPageIdLinksGet(guildId, pageId, requestOptions, signal);
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: guildId !== null && guildId !== undefined && pageId !== null && pageId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof readWikiPageLinksApiV1CGuildIdWikiPagesPageIdLinksGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ReadWikiPageLinksApiV1CGuildIdWikiPagesPageIdLinksGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof readWikiPageLinksApiV1CGuildIdWikiPagesPageIdLinksGet>>
+>;
+export type ReadWikiPageLinksApiV1CGuildIdWikiPagesPageIdLinksGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useReadWikiPageLinksApiV1CGuildIdWikiPagesPageIdLinksGet<
+  TData = Awaited<ReturnType<typeof readWikiPageLinksApiV1CGuildIdWikiPagesPageIdLinksGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  pageId: number,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readWikiPageLinksApiV1CGuildIdWikiPagesPageIdLinksGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof readWikiPageLinksApiV1CGuildIdWikiPagesPageIdLinksGet>>,
+          TError,
+          Awaited<ReturnType<typeof readWikiPageLinksApiV1CGuildIdWikiPagesPageIdLinksGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadWikiPageLinksApiV1CGuildIdWikiPagesPageIdLinksGet<
+  TData = Awaited<ReturnType<typeof readWikiPageLinksApiV1CGuildIdWikiPagesPageIdLinksGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  pageId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readWikiPageLinksApiV1CGuildIdWikiPagesPageIdLinksGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof readWikiPageLinksApiV1CGuildIdWikiPagesPageIdLinksGet>>,
+          TError,
+          Awaited<ReturnType<typeof readWikiPageLinksApiV1CGuildIdWikiPagesPageIdLinksGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadWikiPageLinksApiV1CGuildIdWikiPagesPageIdLinksGet<
+  TData = Awaited<ReturnType<typeof readWikiPageLinksApiV1CGuildIdWikiPagesPageIdLinksGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  pageId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readWikiPageLinksApiV1CGuildIdWikiPagesPageIdLinksGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Read Wiki Page Links
+ */
+
+export function useReadWikiPageLinksApiV1CGuildIdWikiPagesPageIdLinksGet<
+  TData = Awaited<ReturnType<typeof readWikiPageLinksApiV1CGuildIdWikiPagesPageIdLinksGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  pageId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readWikiPageLinksApiV1CGuildIdWikiPagesPageIdLinksGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getReadWikiPageLinksApiV1CGuildIdWikiPagesPageIdLinksGetQueryOptions(
+    guildId,
+    pageId,
+    options
+  );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
 /**
  * @summary Set Wiki Grants
  */

@@ -79,10 +79,9 @@ export const WikiPageView = () => {
   }, [pageId]);
 
   // Live co-editing, over the same room documents use — a page is just
-  // another body the server keeps a Yjs document for. The path names the page
-  // through its wiki, the way every other address for it does.
+  // another body the server keeps a Yjs document for.
   const collaboration = useCollaboration({
-    socketPath: validIds ? `wikis/${wikiId}/pages/${pageId}/collaborate` : null,
+    socketPath: validIds ? `wiki-pages/${pageId}/collaborate` : null,
     // Only while somebody is writing. A wiki is read far more than it is
     // written, so a reader opens no room and costs the server nothing.
     enabled: validIds && editWanted,
@@ -491,7 +490,7 @@ export const WikiPageView = () => {
               at which opening it moves nothing. */}
           {railOpen && railFitsBeside ? (
             <div className="flex w-72 shrink-0 flex-col overflow-y-auto py-6 pr-6">
-              <WikiPageConnections wikiId={wikiId} pageId={pageId} className="min-h-0" />
+              <WikiPageConnections pageId={pageId} className="min-h-0" />
             </div>
           ) : null}
         </div>
@@ -508,7 +507,7 @@ export const WikiPageView = () => {
             <SheetTitle className="sr-only">{t("links.title")}</SheetTitle>
           </SheetHeader>
           <div className="min-h-0 flex-1 overflow-y-auto p-3">
-            <WikiPageConnections wikiId={wikiId} pageId={pageId} className="border-0 shadow-none" />
+            <WikiPageConnections pageId={pageId} className="border-0 shadow-none" />
           </div>
         </SheetContent>
       </Sheet>

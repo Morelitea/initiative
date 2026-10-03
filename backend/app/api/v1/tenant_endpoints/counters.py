@@ -58,11 +58,10 @@ from app.api.content_socket import serve_tool_stream
 
 router = APIRouter(route_class=ActorRoute)
 
-#: A counter's own routes, mounted at the guild root: the read-back and the
-#: three count writes. An event envelope names ``(resource_type, id)`` and
-#: nothing else, so the counter has to be addressable by its own id — a nested
-#: path would need a parent the envelope never carries. Editing and removing a
-#: counter stay nested under its group, where the caller is working inside one.
+#: A counter by its own id, mounted at the guild root. An event envelope names
+#: ``(resource_type, id)`` and nothing else, so the counter has to be
+#: addressable by its own id — a nested path would need a parent the envelope
+#: never carries. Only adding one names its group.
 counters_router = APIRouter(route_class=ActorRoute)
 logger = logging.getLogger(__name__)
 
@@ -257,9 +256,8 @@ async def add_counter(
     return result
 
 
-@router.patch("/{group_id}/counters/{counter_id}", response_model=CounterRead)
+@counters_router.patch("/counters/{counter_id}", response_model=CounterRead)
 async def update_counter(
-    group_id: int,
     counter_id: int,
     counter_in: CounterUpdate,
     session: RLSSessionDep,
@@ -267,7 +265,7 @@ async def update_counter(
     guild_context: GuildContextDep,
 ) -> CounterRead:
     counter = await resource_access.load_child(
-        session, Counter, counter_id, access="write", parent_id=group_id
+        session, Counter, counter_id, access="write"
     )
 
     update_data = counter_in.model_dump(exclude_unset=True)
@@ -329,16 +327,18 @@ async def update_counter(
     hydrated = await resource_access.reload_child(session, Counter, counter.id)
     result = serialize_counter(hydrated, context=guild_context)
     sockets.signal(
-        routed_guild_id(session), Tool.counter_group, group_id, "counter_updated"
+        routed_guild_id(session),
+        Tool.counter_group,
+        counter.counter_group_id,
+        "counter_updated",
     )
     return result
 
 
-@router.delete(
-    "/{group_id}/counters/{counter_id}", status_code=status.HTTP_204_NO_CONTENT
+@counters_router.delete(
+    "/counters/{counter_id}", status_code=status.HTTP_204_NO_CONTENT
 )
 async def delete_counter(
-    group_id: int,
     counter_id: int,
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
@@ -347,7 +347,7 @@ async def delete_counter(
     from app.services.tenant.soft_delete import trash
 
     counter = await resource_access.load_child(
-        session, Counter, counter_id, access="write", parent_id=group_id
+        session, Counter, counter_id, access="write"
     )
     await trash(
         session,
@@ -356,7 +356,10 @@ async def delete_counter(
     )
     await session.commit()
     sockets.signal(
-        routed_guild_id(session), Tool.counter_group, group_id, "counter_removed"
+        routed_guild_id(session),
+        Tool.counter_group,
+        counter.counter_group_id,
+        "counter_removed",
     )
 
 

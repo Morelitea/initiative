@@ -103,16 +103,14 @@ const LinkList = ({ links, heading }: { links: WikiPageLink[]; heading: string }
  * out of it.
  */
 export const WikiPageConnections = ({
-  wikiId,
   pageId,
   className,
 }: {
-  wikiId: number;
   pageId: number;
   className?: string;
 }) => {
   const { t } = useTranslation("wikis");
-  const linksQuery = useWikiPageLinks(wikiId, pageId);
+  const linksQuery = useWikiPageLinks(pageId);
 
   const outgoing = linksQuery.data?.outgoing ?? [];
   const incoming = linksQuery.data?.incoming ?? [];

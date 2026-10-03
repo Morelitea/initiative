@@ -452,7 +452,7 @@ async def test_update_min_max_reclamps_count(client: AsyncClient, acting_user):
     )
 
     response = await client.patch(
-        a.g(f"/counter-groups/{group['id']}/counters/{counter['id']}"),
+        a.g(f"/counters/{counter['id']}"),
         headers=a.headers,
         json={"max": "50"},
     )
@@ -470,7 +470,7 @@ async def test_update_null_non_nullable_fields_is_refused(
 
     for field in ("name", "step", "initial_count", "view_mode", "position"):
         response = await client.patch(
-            a.g(f"/counter-groups/{group['id']}/counters/{counter['id']}"),
+            a.g(f"/counters/{counter['id']}"),
             headers=a.headers,
             json={field: None},
         )
@@ -484,7 +484,7 @@ async def test_update_step_zero_rejected(client: AsyncClient, acting_user):
     counter = await _add_counter(client, a, group["id"])
 
     response = await client.patch(
-        a.g(f"/counter-groups/{group['id']}/counters/{counter['id']}"),
+        a.g(f"/counters/{counter['id']}"),
         headers=a.headers,
         json={"step": "0"},
     )
@@ -525,7 +525,7 @@ async def test_delete_counter_soft_deletes_to_trash(
     counter = await _add_counter(client, a, group["id"], name="HP")
 
     resp = await client.delete(
-        a.g(f"/counter-groups/{group['id']}/counters/{counter['id']}"),
+        a.g(f"/counters/{counter['id']}"),
         headers=a.headers,
     )
     assert resp.status_code == 204
@@ -662,7 +662,7 @@ async def test_fractional_position_sort(client: AsyncClient, acting_user):
 
     # Drop "A" between (would equal 15.0)
     response = await client.patch(
-        a.g(f"/counter-groups/{group_id}/counters/{counter_a['id']}"),
+        a.g(f"/counters/{counter_a['id']}"),
         headers=a.headers,
         json={"position": "15.5"},
     )

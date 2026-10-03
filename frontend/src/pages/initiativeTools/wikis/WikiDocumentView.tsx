@@ -166,7 +166,7 @@ export const WikiDocumentView = () => {
 
           {railOpen && railFitsBeside ? (
             <div className="flex w-72 shrink-0 flex-col overflow-y-auto py-6 pr-6">
-              <WikiPageConnections wikiId={wikiId} pageId={documentId} className="min-h-0" />
+              <WikiPageConnections pageId={documentId} className="min-h-0" />
             </div>
           ) : null}
         </div>
@@ -181,11 +181,7 @@ export const WikiDocumentView = () => {
             <SheetTitle className="sr-only">{t("links.title")}</SheetTitle>
           </SheetHeader>
           <div className="min-h-0 flex-1 overflow-y-auto p-3">
-            <WikiPageConnections
-              wikiId={wikiId}
-              pageId={documentId}
-              className="border-0 shadow-none"
-            />
+            <WikiPageConnections pageId={documentId} className="border-0 shadow-none" />
           </div>
         </SheetContent>
       </Sheet>

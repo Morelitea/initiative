@@ -131,7 +131,7 @@ async def test_a_page_starts_as_a_draft(client: AsyncClient, acting_user, sessio
     assert created.json()["is_draft"] is True
 
     published = await client.patch(
-        a.g(f"/wikis/{wiki.id}/pages/{created.json()['id']}"),
+        a.g(f"/wiki-pages/{created.json()['id']}"),
         headers=a.headers,
         json={"is_draft": False},
     )
@@ -197,7 +197,7 @@ async def test_a_name_goes_back_into_circulation_with_the_trash(
     assert first.json()["slug"] == "step-1"
 
     trashed = await client.delete(
-        a.g(f"/wikis/{wiki.id}/pages/{first.json()['id']}"), headers=a.headers
+        a.g(f"/wiki-pages/{first.json()['id']}"), headers=a.headers
     )
     assert trashed.status_code == 204, trashed.text
 
@@ -221,9 +221,7 @@ async def test_a_page_can_be_renamed_onto_a_trashed_pages_name(
         a.g(f"/wikis/{wiki.id}/pages"), headers=a.headers, json={"title": "Step 1"}
     )
     assert first.status_code == 201, first.text
-    await client.delete(
-        a.g(f"/wikis/{wiki.id}/pages/{first.json()['id']}"), headers=a.headers
-    )
+    await client.delete(a.g(f"/wiki-pages/{first.json()['id']}"), headers=a.headers)
 
     second = await client.post(
         a.g(f"/wikis/{wiki.id}/pages"), headers=a.headers, json={"title": "Untitled"}
@@ -231,7 +229,7 @@ async def test_a_page_can_be_renamed_onto_a_trashed_pages_name(
     assert second.status_code == 201, second.text
 
     renamed = await client.patch(
-        a.g(f"/wikis/{wiki.id}/pages/{second.json()['id']}"),
+        a.g(f"/wiki-pages/{second.json()['id']}"),
         headers=a.headers,
         json={"title": "Step 1"},
     )
@@ -252,7 +250,7 @@ async def test_a_restored_page_takes_its_name_back(
         a.g(f"/wikis/{wiki.id}/pages"), headers=a.headers, json={"title": "Step 1"}
     )
     page_id = page.json()["id"]
-    await client.delete(a.g(f"/wikis/{wiki.id}/pages/{page_id}"), headers=a.headers)
+    await client.delete(a.g(f"/wiki-pages/{page_id}"), headers=a.headers)
 
     restored = await client.post(
         a.g(f"/trash/wiki_page/{page_id}/restore"), headers=a.headers
@@ -278,7 +276,7 @@ async def test_a_restored_page_comes_back_beside_the_one_that_took_its_name(
         a.g(f"/wikis/{wiki.id}/pages"), headers=a.headers, json={"title": "Step 1"}
     )
     page_id = first.json()["id"]
-    await client.delete(a.g(f"/wikis/{wiki.id}/pages/{page_id}"), headers=a.headers)
+    await client.delete(a.g(f"/wiki-pages/{page_id}"), headers=a.headers)
     replacement = await client.post(
         a.g(f"/wikis/{wiki.id}/pages"), headers=a.headers, json={"title": "Step 1"}
     )
@@ -358,7 +356,7 @@ async def test_moving_a_page_renumbers_its_new_siblings(
     moved = await create_wiki_page(session, wiki, a.user, title="Third")
 
     response = await client.post(
-        a.g(f"/wikis/{wiki.id}/pages/{moved.id}/move"),
+        a.g(f"/wiki-pages/{moved.id}/move"),
         headers=a.headers,
         json={"position": 0},
     )
@@ -366,27 +364,6 @@ async def test_moving_a_page_renumbers_its_new_siblings(
 
     tree = await client.get(a.g(f"/wikis/{wiki.id}/pages"), headers=a.headers)
     assert [p["title"] for p in tree.json()["items"]] == ["Third", "First", "Second"]
-
-
-async def test_a_page_from_another_wiki_reads_as_missing(
-    client: AsyncClient, acting_user, session
-):
-    """A page is written through its wiki, so an id from a different one is
-    not found rather than somebody else's page."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    await _wikis_enabled(session, a.initiative)
-    mine = await create_wiki(session, a.initiative, a.user)
-    theirs = await create_wiki(session, a.initiative, a.user)
-    stray = await create_wiki_page(session, theirs, a.user, title="Elsewhere")
-
-    response = await client.patch(
-        a.g(f"/wikis/{mine.id}/pages/{stray.id}"),
-        headers=a.headers,
-        json={"title": "Moved in"},
-    )
-
-    assert response.status_code == 404
-    assert response.json()["detail"] == "WIKI_PAGE_NOT_FOUND"
 
 
 async def test_deleting_a_page_takes_its_sub_pages(
@@ -400,9 +377,7 @@ async def test_deleting_a_page_takes_its_sub_pages(
     doomed = await create_wiki_page(session, wiki, a.user, title="Bar")
     await create_wiki_page(session, wiki, a.user, title="Kitchen")
 
-    response = await client.delete(
-        a.g(f"/wikis/{wiki.id}/pages/{doomed.id}"), headers=a.headers
-    )
+    response = await client.delete(a.g(f"/wiki-pages/{doomed.id}"), headers=a.headers)
     assert response.status_code == 204, response.text
 
     tree = await client.get(a.g(f"/wikis/{wiki.id}/pages"), headers=a.headers)
@@ -512,7 +487,7 @@ async def test_a_drag_files_a_page_and_places_it_in_one_request(
     loose = await create_wiki_page(session, wiki, a.user, title="Travel")
 
     moved = await client.post(
-        a.g(f"/wikis/{wiki.id}/pages/{loose.id}/move"),
+        a.g(f"/wiki-pages/{loose.id}/move"),
         headers=a.headers,
         json={"parent_page_id": parent.id, "position": 0},
     )
@@ -541,7 +516,7 @@ async def test_a_page_cannot_be_filed_under_its_own_descendant(
     )
 
     response = await client.post(
-        a.g(f"/wikis/{wiki.id}/pages/{parent.id}/move"),
+        a.g(f"/wiki-pages/{parent.id}/move"),
         headers=a.headers,
         json={"parent_page_id": child.id, "position": 0},
     )
@@ -559,7 +534,7 @@ async def test_a_page_cannot_be_its_own_parent(
     page = await create_wiki_page(session, wiki, a.user, title="Rules")
 
     response = await client.post(
-        a.g(f"/wikis/{wiki.id}/pages/{page.id}/move"),
+        a.g(f"/wiki-pages/{page.id}/move"),
         headers=a.headers,
         json={"parent_page_id": page.id, "position": 0},
     )
@@ -580,9 +555,7 @@ async def test_trashing_a_page_takes_what_is_filed_under_it(
         session, wiki, a.user, title="Combat", parent_page_id=parent.id
     )
 
-    trashed = await client.delete(
-        a.g(f"/wikis/{wiki.id}/pages/{parent.id}"), headers=a.headers
-    )
+    trashed = await client.delete(a.g(f"/wiki-pages/{parent.id}"), headers=a.headers)
     assert trashed.status_code == 204, trashed.text
 
     listed = await client.get(a.g(f"/wikis/{wiki.id}/pages"), headers=a.headers)
@@ -671,7 +644,7 @@ async def test_a_document_can_be_filed_under_a_page(
     # A page dragged in beside it counts it among its neighbours.
     loose = await create_wiki_page(session, wiki, a.user, title="Travel")
     await client.post(
-        a.g(f"/wikis/{wiki.id}/pages/{loose.id}/move"),
+        a.g(f"/wiki-pages/{loose.id}/move"),
         headers=a.headers,
         json={"parent_page_id": rules.id, "position": 2},
     )
@@ -734,7 +707,7 @@ async def test_a_document_under_a_trashed_page_is_drawn_at_the_top(
         json={"parent_page_id": rules.id, "position": 0},
     )
 
-    await client.delete(a.g(f"/wikis/{wiki.id}/pages/{rules.id}"), headers=a.headers)
+    await client.delete(a.g(f"/wiki-pages/{rules.id}"), headers=a.headers)
     listed = await client.get(a.g(f"/wikis/{wiki.id}/pages"), headers=a.headers)
     (row,) = listed.json()["items"]
     assert row["title"] == "Borrowed" and row["parent_page_id"] is None
@@ -787,7 +760,7 @@ async def test_a_page_can_be_moved_past_a_document(
     )
 
     moved = await client.post(
-        a.g(f"/wikis/{wiki.id}/pages/{first.id}/move"),
+        a.g(f"/wiki-pages/{first.id}/move"),
         headers=a.headers,
         json={"position": 2},
     )
@@ -959,7 +932,7 @@ async def test_a_body_saved_outside_a_live_session_is_refused(
     await _wikis_enabled(session, a.initiative)
     wiki = await create_wiki(session, a.initiative, a.user)
     page = await create_wiki_page(session, wiki, a.user, title="Live")
-    url = a.g(f"/wikis/{wiki.id}/pages/{page.id}")
+    url = a.g(f"/wiki-pages/{page.id}")
     monkeypatch.setattr(
         collaboration_manager, "has_active_collaborators", lambda *_a: True
     )
@@ -990,7 +963,7 @@ async def test_a_body_saved_with_no_session_clears_the_stored_yjs_state(
     )
 
     saved = await client.patch(
-        a.g(f"/wikis/{wiki.id}/pages/{page.id}"),
+        a.g(f"/wiki-pages/{page.id}"),
         headers=a.headers,
         json={"content": {"root": {"children": [], "type": "root"}}},
     )
@@ -1063,15 +1036,13 @@ async def test_a_page_reports_what_links_to_it(
         }
     }
     patched = await client.patch(
-        a.g(f"/wikis/{wiki.id}/pages/{source.id}"),
+        a.g(f"/wiki-pages/{source.id}"),
         headers=a.headers,
         json={"content": body},
     )
     assert patched.status_code == 200, patched.text
 
-    links = await client.get(
-        a.g(f"/wikis/{wiki.id}/pages/{target.id}/links"), headers=a.headers
-    )
+    links = await client.get(a.g(f"/wiki-pages/{target.id}/links"), headers=a.headers)
     assert links.status_code == 200, links.text
     incoming = links.json()["incoming"]
     assert [row["entity_id"] for row in incoming] == [source.id]
@@ -1089,9 +1060,7 @@ async def test_links_are_empty_for_a_page_nothing_names(
     wiki = await create_wiki(session, a.initiative, a.user)
     page = await create_wiki_page(session, wiki, a.user, title="Alone")
 
-    response = await client.get(
-        a.g(f"/wikis/{wiki.id}/pages/{page.id}/links"), headers=a.headers
-    )
+    response = await client.get(a.g(f"/wiki-pages/{page.id}/links"), headers=a.headers)
 
     assert response.status_code == 200, response.text
     assert response.json() == {"outgoing": [], "incoming": []}

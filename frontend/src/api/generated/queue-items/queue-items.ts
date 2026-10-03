@@ -23,11 +23,12 @@ import type {
 import type {
   HTTPValidationError,
   QueueItemRead,
+  QueueItemUpdate,
   ReadQueueItemApiV1CGuildIdQueueItemsItemIdGetParams,
 } from "../initiativeAPI.schemas";
 
 import { apiMutator } from "../../mutator";
-import type { ErrorType } from "../../mutator";
+import type { ErrorType, BodyType } from "../../mutator";
 
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
@@ -231,6 +232,203 @@ export function useReadQueueItemApiV1CGuildIdQueueItemsItemIdGet<
   return withQueryKey(query, queryOptions.queryKey);
 }
 
+/**
+ * Update a queue item. Requires write access on the queue.
+ * @summary Update Queue Item
+ */
+export const updateQueueItemApiV1CGuildIdQueueItemsItemIdPatch = (
+  guildId: number,
+  itemId: number,
+  queueItemUpdate: BodyType<QueueItemUpdate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<QueueItemRead>(
+    {
+      url: `/api/v1/c/${guildId}/queue-items/${itemId}`,
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      data: queueItemUpdate,
+      signal,
+    },
+    options
+  );
+};
+
+export const getUpdateQueueItemApiV1CGuildIdQueueItemsItemIdPatchMutationKey = () =>
+  ["updateQueueItemApiV1CGuildIdQueueItemsItemIdPatch"] as const;
+
+export const getUpdateQueueItemApiV1CGuildIdQueueItemsItemIdPatchMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateQueueItemApiV1CGuildIdQueueItemsItemIdPatch>>,
+    TError,
+    UpdateQueueItemApiV1CGuildIdQueueItemsItemIdPatchMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateQueueItemApiV1CGuildIdQueueItemsItemIdPatch>>,
+  TError,
+  UpdateQueueItemApiV1CGuildIdQueueItemsItemIdPatchMutationVariables,
+  TContext
+> => {
+  const mutationKey = getUpdateQueueItemApiV1CGuildIdQueueItemsItemIdPatchMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateQueueItemApiV1CGuildIdQueueItemsItemIdPatch>>,
+    UpdateQueueItemApiV1CGuildIdQueueItemsItemIdPatchMutationVariables
+  > = (props) => {
+    const { guildId, itemId, data } = props ?? {};
+
+    return updateQueueItemApiV1CGuildIdQueueItemsItemIdPatch(guildId, itemId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateQueueItemApiV1CGuildIdQueueItemsItemIdPatchMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateQueueItemApiV1CGuildIdQueueItemsItemIdPatch>>
+>;
+export type UpdateQueueItemApiV1CGuildIdQueueItemsItemIdPatchMutationBody =
+  BodyType<QueueItemUpdate>;
+export type UpdateQueueItemApiV1CGuildIdQueueItemsItemIdPatchMutationError =
+  ErrorType<HTTPValidationError>;
+export type UpdateQueueItemApiV1CGuildIdQueueItemsItemIdPatchMutationVariables = {
+  guildId: number;
+  itemId: number;
+  data: BodyType<QueueItemUpdate>;
+};
+
+/**
+ * @summary Update Queue Item
+ */
+export const useUpdateQueueItemApiV1CGuildIdQueueItemsItemIdPatch = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof updateQueueItemApiV1CGuildIdQueueItemsItemIdPatch>>,
+      TError,
+      UpdateQueueItemApiV1CGuildIdQueueItemsItemIdPatchMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof updateQueueItemApiV1CGuildIdQueueItemsItemIdPatch>>,
+  TError,
+  UpdateQueueItemApiV1CGuildIdQueueItemsItemIdPatchMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getUpdateQueueItemApiV1CGuildIdQueueItemsItemIdPatchMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Soft-delete a queue item. Requires write access on the parent queue.
+ * @summary Delete Queue Item
+ */
+export const deleteQueueItemApiV1CGuildIdQueueItemsItemIdDelete = (
+  guildId: number,
+  itemId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<void>(
+    { url: `/api/v1/c/${guildId}/queue-items/${itemId}`, method: "DELETE", signal },
+    options
+  );
+};
+
+export const getDeleteQueueItemApiV1CGuildIdQueueItemsItemIdDeleteMutationKey = () =>
+  ["deleteQueueItemApiV1CGuildIdQueueItemsItemIdDelete"] as const;
+
+export const getDeleteQueueItemApiV1CGuildIdQueueItemsItemIdDeleteMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteQueueItemApiV1CGuildIdQueueItemsItemIdDelete>>,
+    TError,
+    DeleteQueueItemApiV1CGuildIdQueueItemsItemIdDeleteMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteQueueItemApiV1CGuildIdQueueItemsItemIdDelete>>,
+  TError,
+  DeleteQueueItemApiV1CGuildIdQueueItemsItemIdDeleteMutationVariables,
+  TContext
+> => {
+  const mutationKey = getDeleteQueueItemApiV1CGuildIdQueueItemsItemIdDeleteMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteQueueItemApiV1CGuildIdQueueItemsItemIdDelete>>,
+    DeleteQueueItemApiV1CGuildIdQueueItemsItemIdDeleteMutationVariables
+  > = (props) => {
+    const { guildId, itemId } = props ?? {};
+
+    return deleteQueueItemApiV1CGuildIdQueueItemsItemIdDelete(guildId, itemId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteQueueItemApiV1CGuildIdQueueItemsItemIdDeleteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteQueueItemApiV1CGuildIdQueueItemsItemIdDelete>>
+>;
+
+export type DeleteQueueItemApiV1CGuildIdQueueItemsItemIdDeleteMutationError =
+  ErrorType<HTTPValidationError>;
+export type DeleteQueueItemApiV1CGuildIdQueueItemsItemIdDeleteMutationVariables = {
+  guildId: number;
+  itemId: number;
+};
+
+/**
+ * @summary Delete Queue Item
+ */
+export const useDeleteQueueItemApiV1CGuildIdQueueItemsItemIdDelete = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof deleteQueueItemApiV1CGuildIdQueueItemsItemIdDelete>>,
+      TError,
+      DeleteQueueItemApiV1CGuildIdQueueItemsItemIdDeleteMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof deleteQueueItemApiV1CGuildIdQueueItemsItemIdDelete>>,
+  TError,
+  DeleteQueueItemApiV1CGuildIdQueueItemsItemIdDeleteMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getDeleteQueueItemApiV1CGuildIdQueueItemsItemIdDeleteMutationOptions(options),
+    queryClient
+  );
+};
 /**
  * Copy the item beside itself, at the same place in the turn order, as
  * "<label> (Copy)", with its person, tags, links and properties.
