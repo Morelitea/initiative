@@ -824,9 +824,6 @@ COMMUNITY_RULES: dict[str, Rule] = {
             entitlement=_RESTRICTIONS,
         ),
         Rule(
-            "allow_api_keys", area="api_access", loose=True, entitlement=_RESTRICTIONS
-        ),
-        Rule(
             "allow_push_notifications",
             area="notifications",
             loose=True,

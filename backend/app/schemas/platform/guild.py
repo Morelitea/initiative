@@ -177,16 +177,13 @@ class CommunityRead(CommunityBase):
     # entitlement), so their settings UI knows which surfaces to offer;
     # ``None`` for non-admin members (they never configure auth).
     auth_options: Optional[List[CommunityAuthOption]] = None
-    # ADMIN-ONLY. Whether a personal API key may be used against this guild.
-    # ``None`` for non-admin members: it is read by the settings surface that
-    # sets it, and nothing a member does depends on the answer.
-    allow_api_keys: Optional[bool] = None
     # ADMIN-ONLY. Whether this guild holds its members to the twelve-hour
-    # session standard. ``None`` for non-admin members, like the one above:
-    # the settings surface that sets it is what reads it.
+    # session standard. ``None`` for non-admin members: the settings surface
+    # that sets it is what reads it, and nothing a member does depends on the
+    # answer.
     enforce_compliance_session: Optional[bool] = None
     # ADMIN-ONLY. Whether reaching this guild asks for a second factor.
-    # ``None`` for non-admin members, like the two above.
+    # ``None`` for non-admin members, like the one above.
     require_second_factor: Optional[bool] = None
     # Community directory opt-in and its subject tags. Guild identity, not
     # administration: every member sees them (they are published to strangers
@@ -504,9 +501,6 @@ class CommunityAuthSettingsRead(SanitizedBaseModel):
 
     auth_options: List[CommunityAuthOption] = Field(default_factory=list)
     auth_policy: CommunityAuthPolicyRead
-    #: Whether a personal API key may reach this community. ``false`` means
-    #: none can be minted into it and none already minted reaches it.
-    allow_api_keys: bool
     #: Whether its members sign in again every twelve hours, whatever the
     #: deployment's own limit says.
     enforce_compliance_session: bool
@@ -536,7 +530,6 @@ class CommunityAuthSettingsUpdate(SanitizedBaseModel):
 
     #: The sign-in requirement, replaced as a whole.
     auth_policy: Optional[CommunityAuthPolicyUpdate] = None
-    allow_api_keys: Optional[bool] = None
     enforce_compliance_session: Optional[bool] = None
     require_second_factor: Optional[bool] = None
     allow_push_notifications: Optional[bool] = None
@@ -603,6 +596,12 @@ class MemberDisplayNameUpdate(SanitizedBaseModel):
     @classmethod
     def _blank_is_none(cls, value: Optional[str]) -> Optional[str]:
         return None if value is None else (value.strip() or None)
+
+
+class MemberApiAccessUpdate(SanitizedBaseModel):
+    """Whether one member's personal API keys reach this community."""
+
+    api_keys_allowed: bool
 
 
 class LeaveCommunityEligibilityResponse(SanitizedBaseModel):

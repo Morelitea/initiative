@@ -240,14 +240,13 @@ async def test_the_seat_writes_only_its_own_switches(engine):
     """The seat changes what its community asks of the people reaching it, and
     nothing else about the community.
 
-    Six columns: whether personal API keys are accepted, whether a second
-    factor is required, whether the session standard is held to, and the three
-    that say what a notification may leave carrying. A name, an icon, an owner
+    Five columns: whether a second factor is required, whether the session
+    standard is held to, and the three that say what a notification may leave
+    carrying. A name, an icon, an owner
     or a lifecycle status is not the seat's, and a new column on ``guilds`` is
     not either until a migration says so.
     """
     writable = {
-        "allow_api_keys",
         "require_second_factor",
         "enforce_compliance_session",
         "allow_push_notifications",

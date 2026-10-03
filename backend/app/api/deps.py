@@ -558,32 +558,38 @@ async def _enforce_guild_auth_policy(
         )
 
 
-async def refuses_api_keys(session: AsyncSession, guild: Guild) -> bool:
-    """Whether ``guild`` refuses personal API keys: switched off, while it
-    holds the ``restrictions`` option that switch needs."""
-    if guild.allow_api_keys:
+async def refuses_api_keys(session: AsyncSession, membership: GuildMembership) -> bool:
+    """Whether ``membership``'s community refuses its member's personal API
+    keys: turned off for them, while the community holds the ``restrictions``
+    option that setting needs."""
+    if membership.api_keys_allowed:
         return False
     return bool(
         await session.scalar(
             select(
                 guild_entitlements.holds_option(
-                    guild.id, CommunityAuthOption.restrictions
+                    membership.guild_id, CommunityAuthOption.restrictions
                 )
             )
         )
     )
 
 
-async def declines_this_credential(session: AsyncSession, guild: Guild) -> bool:
-    """Whether ``guild`` declines the credential this request was made with.
+async def declines_this_credential(
+    session: AsyncSession, membership: GuildMembership
+) -> bool:
+    """Whether the community declines the credential this request was made
+    with.
 
-    True only for a personal API key against a community that refuses them.
-    The key's own ``guild_id`` says nothing here: a key pinned elsewhere and a
-    key pinned nowhere both address this guild the same way. The cross-guild
-    aggregates, which pick their guilds in one query, ask the same question
-    there (see ``app.services.cross_guild``).
+    True only for a personal API key whose holder's API access the community
+    turned off. The key's own ``guild_id`` says nothing here: a key pinned
+    elsewhere and a key pinned nowhere both address this guild the same way.
+    The cross-guild aggregates, which pick their guilds in one query, ask the
+    same question there (see ``app.services.cross_guild``).
     """
-    return auth_context.api_key_credential() and await refuses_api_keys(session, guild)
+    return auth_context.api_key_credential() and await refuses_api_keys(
+        session, membership
+    )
 
 
 def pinned_elsewhere(guild_id: int) -> bool:
@@ -594,19 +600,21 @@ def pinned_elsewhere(guild_id: int) -> bool:
     return pinned is not None and pinned != guild_id
 
 
-async def _enforce_guild_api_access(session: AsyncSession, guild: Guild) -> None:
-    """A community that declines personal API keys is not reached with one.
+async def _enforce_guild_api_access(
+    session: AsyncSession, membership: GuildMembership
+) -> None:
+    """A member whose API access the community turned off does not reach it
+    with a personal API key.
 
-    Runs beside the sign-in gate and binds the same callers — members and
-    grantees alike — because the question is what the request was made with,
-    not who made it.
+    Runs beside the sign-in gate. A grantee holds no membership row, so there
+    is no setting to read, and their keys reach it as a member's do by default.
 
     Covers every path that resolves its guild through
     :func:`_load_guild_context`: REST, uploads and document downloads, the
     realtime sockets and the keepalive. The cross-guild aggregates, which pick
     their guilds themselves, ask the same question where they do it.
     """
-    if await declines_this_credential(session, guild):
+    if await declines_this_credential(session, membership):
         raise GuildAccessError(detail=GuildMessages.COMMUNITY_API_KEYS_REFUSED)
 
 
@@ -751,7 +759,6 @@ async def _load_guild_context(
             ),
         )
         guild, asked = await _read_grant_gate(session, guild_id)
-        await _enforce_guild_api_access(session, guild)
         # What the deployment asks of the account, before what this community
         # asks of the session. Asked here as well as in the dependency above
         # because the sockets, the keepalive and the stream re-check resolve
@@ -789,7 +796,7 @@ async def _load_guild_context(
     )
     if guild.status not in LIVE_STATUS_VALUES and not held_for_payment:
         raise GuildAccessError()
-    await _enforce_guild_api_access(session, guild)
+    await _enforce_guild_api_access(session, membership)
     # A listed community is open to anyone signed in, so the deployment's age
     # question is owed by the people in it — and the ways in that had nobody at
     # a keyboard could not put it to them. It is put here instead: at the door
