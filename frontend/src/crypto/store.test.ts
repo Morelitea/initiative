@@ -405,6 +405,18 @@ describe("the device-registration claim", () => {
     expect(await deviceClaim.take()).not.toBeNull();
   });
 
+  it("empties a store from before claims were recorded, by its device id", async () => {
+    await deviceId.set("device-1");
+    await messageLog.append("conv", { id: "a", body: "only here", at: "", mine: false });
+
+    await deviceClaim.invalidate("device-2");
+    expect(await deviceId.get()).toBe("device-1");
+
+    await deviceClaim.invalidate("device-1");
+    expect(await deviceId.get()).toBeUndefined();
+    expect(await messageLog.get("conv")).toEqual([]);
+  });
+
   it("leaves a claim somebody is already registering under alone", async () => {
     // One tab noticed the revocation first and is mid-registration. A second
     // tab reaching the same conclusion must wait for it, not reopen the claim

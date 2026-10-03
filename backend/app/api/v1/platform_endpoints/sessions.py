@@ -120,9 +120,11 @@ async def revoke_my_session(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=AuthMessages.SESSION_NOT_FOUND,
         )
-    await session_service.revoke_chain(system_session, session_id=session_id)
+    # By what the revocation ended as well as the id asked for: a renewal since
+    # the list was read moved the key store to the chain's live row.
+    ended = await session_service.revoke_chain(system_session, session_id=session_id)
     await dm_transport.withdraw_signed_in(
-        system_session, user_id=current_user.id, session_ids={session_id}
+        system_session, user_id=current_user.id, session_ids=ended | {session_id}
     )
     await audit_service.record(
         system_session,
@@ -153,20 +155,15 @@ async def revoke_my_other_sessions(
     withdrawal and the record commit together.
     """
     current = current_session_row(request)
-    browsers = {
-        row.id
-        for row in await session_service.list_live_for_user(
-            system_session, user_id=current_user.id
-        )
-        if not row.device and row.id != current
-    }
-    await dm_transport.withdraw_signed_in(
-        system_session, user_id=current_user.id, session_ids=browsers
-    )
-    await session_service.revoke_all_for_user(
+    ended = await session_service.revoke_all_for_user(
         system_session,
         user_id=current_user.id,
         except_session_id=str(current) if current is not None else None,
+    )
+    await dm_transport.withdraw_signed_in(
+        system_session,
+        user_id=current_user.id,
+        session_ids={session_id for session_id, device in ended.items() if not device},
     )
     await audit_service.record(
         system_session,

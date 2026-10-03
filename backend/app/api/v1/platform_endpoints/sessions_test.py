@@ -173,6 +173,15 @@ async def test_ending_a_session_stops_it_renewing(
     target = next(row for row in rows if row["label"] == "Firefox on Windows")
     assert target["message_device_id"] == keys
 
+    # It renews after the list was read, which moves its key store to the
+    # chain's new row; ending the row listed still takes it.
+    client.cookies.clear()
+    client.cookies.set("refresh_token", doomed_refresh, path="/api/v1/auth")
+    renewed = await client.post("/api/v1/auth/refresh")
+    assert renewed.status_code == 200
+    doomed_refresh = renewed.cookies.get("refresh_token")
+    client.cookies.clear()
+
     ended = await client.delete(
         f"/api/v1/auth/sessions/{target['id']}", headers=headers
     )

@@ -192,6 +192,7 @@ _REVOKE_CHAIN_SQL = text(
     UPDATE auth_sessions SET revoked_at = :now
     WHERE revoked_at IS NULL
       AND id IN (SELECT id FROM ancestors UNION SELECT id FROM descendants)
+    RETURNING id
     """
 )
 
@@ -574,13 +575,14 @@ async def revoke_chain(
     *,
     session_id: uuid.UUID,
     now: datetime | None = None,
-) -> int:
+) -> set[uuid.UUID]:
     """Revoke every still-live session in ``session_id``'s rotation chain (theft
-    response, or unlink-provider cleanup). Returns the number of rows revoked."""
+    response, or unlink-provider cleanup). Returns the ids it revoked, which
+    include the live row a renewal has moved the chain to."""
     result = await session.exec(
         _REVOKE_CHAIN_SQL, params={"sid": session_id, "now": now or utcnow()}
     )
-    return result.rowcount
+    return {row.id for row in result}
 
 
 async def revoke_all_for_user(
@@ -589,10 +591,11 @@ async def revoke_all_for_user(
     user_id: int,
     now: datetime | None = None,
     except_session_id: str | None = None,
-) -> int:
+) -> dict[uuid.UUID, bool]:
     """Revoke all of a user's live sessions — the refresh-side of "sign out
     everywhere" (paired with the ``users.token_version`` bump that invalidates
-    outstanding access tokens). Returns the number of rows revoked.
+    outstanding access tokens). Returns each revoked id and whether it was a
+    device's session.
 
     ``except_session_id`` spares one, for the caller who asked: a change made
     from a settings page should not sign that page out. Left unset, nothing is
@@ -606,8 +609,8 @@ async def revoke_all_for_user(
     if except_session_id is not None:
         sql += " AND id <> CAST(:keep AS uuid)"
         params["keep"] = except_session_id
-    result = await session.exec(text(sql), params=params)
-    return result.rowcount
+    result = await session.exec(text(sql + " RETURNING id, device"), params=params)
+    return {row.id: row.device for row in result}
 
 
 async def delete_all_for_user(session: AsyncSession, *, user_id: int) -> int:

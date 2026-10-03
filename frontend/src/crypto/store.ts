@@ -372,25 +372,32 @@ export const deviceClaim = {
    * are theirs, and a fresh device can ask them for its history.
    *
    * Only a settled claim naming that exact device is reopened, and the store is
-   * emptied in the same transaction. One already being registered under is left
-   * alone: two tabs noticing the same removal still produce one device between
-   * them, and neither empties the other's new one.
+   * emptied in the same transaction. A store from before claims were recorded
+   * has the device id alone, which is read in the same transaction instead. One
+   * already being registered under is left alone: two tabs noticing the same
+   * removal still produce one device between them, and neither empties the
+   * other's new one.
    */
   invalidate: async (deviceId: string): Promise<void> => {
     const db = await open();
     const cleared = await new Promise<boolean>((resolve, reject) => {
       const transaction = db.transaction(STORE, "readwrite");
       const store = transaction.objectStore(STORE);
-      const request = store.get(DEVICE_CLAIM);
+      const claim = store.get(DEVICE_CLAIM);
+      const recorded = store.get(DEVICE_ID);
       let emptied = false;
-      request.onsuccess = () => {
-        const current = request.result as DeviceClaim | undefined;
-        if (current?.status !== "ready" || current.deviceId !== deviceId) return;
+      recorded.onsuccess = () => {
+        const current = claim.result as DeviceClaim | undefined;
+        const named = current
+          ? current.status === "ready" && current.deviceId === deviceId
+          : recorded.result === deviceId;
+        if (!named) return;
         store.clear();
         store.put({ status: "claiming", at: 0, token: "" } satisfies DeviceClaim, DEVICE_CLAIM);
         emptied = true;
       };
-      request.onerror = () => reject(request.error);
+      claim.onerror = () => reject(claim.error);
+      recorded.onerror = () => reject(recorded.error);
       transaction.oncomplete = () => resolve(emptied);
       transaction.onerror = () => reject(transaction.error);
       transaction.onabort = () => reject(transaction.error);

@@ -256,7 +256,7 @@ async def test_revoke_all_for_user_scoped_to_that_user(session):
     revoked = await session_service.revoke_all_for_user(
         session, user_id=user.id, now=_at(minutes=1)
     )
-    assert revoked == 2
+    assert set(revoked) == {a.session.id, b.session.id}
 
     for issued in (a, b):
         await session.refresh(issued.session)
@@ -278,7 +278,7 @@ async def test_revoke_chain_from_any_member_revokes_all(session):
     revoked = await session_service.revoke_chain(
         session, session_id=r2.session.id, now=_at(minutes=3)
     )
-    assert revoked == 1  # only r3 was still live
+    assert revoked == {r3.session.id}  # only r3 was still live
 
     for issued in (r1, r2, r3):
         await session.refresh(issued.session)
@@ -289,7 +289,7 @@ async def test_revoke_chain_missing_id_is_noop(session):
     revoked = await session_service.revoke_chain(
         session, session_id=uuid.uuid4(), now=_at()
     )
-    assert revoked == 0
+    assert revoked == set()
 
 
 async def test_purge_removes_dead_sessions_and_keeps_live_ones(session):
