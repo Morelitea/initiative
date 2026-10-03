@@ -151,35 +151,17 @@ export const InitiativeDetailPage = ({ tool }: InitiativeDetailPageProps = {}) =
     </SkeletonRegion>
   );
 
-  // Description + facts, rendered inline on wide screens and inside the
-  // mobile disclosure — one definition, so the two can't drift.
-  const headerDetails = (
-    <>
-      {initiative.description ? (
-        <Markdown content={initiative.description} className="text-muted-foreground" />
-      ) : null}
-      {/* One quiet line: the reader's role here, then who else is. Words in a
-          row rather than a pill and a count strip, and nothing standing in
-          for a description nobody wrote. */}
-      <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-muted-foreground text-sm">
-        {roleBadgeLabel ? (
-          <>
-            <span>{roleBadgeLabel}</span>
-            <span aria-hidden>·</span>
-          </>
-        ) : null}
-        <InitiativeMembersPeek initiativeId={initiative.id} memberCount={memberCount} />
-      </p>
-    </>
-  );
+  const description = initiative.description ? (
+    <Markdown content={initiative.description} className="text-muted-foreground" />
+  ) : null;
 
   return (
     <div className="space-y-6">
-      {/* The header is context, not content. On a phone it stays a title row
-          plus the settings gear; the badges, blurb, and counts sit one tap away
-          in the disclosure rather than pushing the tool's list off screen.
-          The row never wraps — a long name wraps its own text instead (it can
-          shrink past its content, hence min-w-0), so the gear stays put. */}
+      {/* The header is context, not content. On a phone it is the title, the
+          settings gear and who is here; the description sits one tap away
+          rather than pushing the tool's list off screen. The row never wraps —
+          a long name wraps its own text instead (it can shrink past its
+          content, hence min-w-0), so the gear stays put. */}
       <div className="flex items-start justify-between gap-4">
         {/* The initiative's colour as a rule down the side of its name: the
             line the sidebar draws under the same initiative's tools. */}
@@ -187,7 +169,19 @@ export const InitiativeDetailPage = ({ tool }: InitiativeDetailPageProps = {}) =
           <h1 className="min-w-0 break-words font-semibold text-3xl tracking-tight">
             {initiative.name}
           </h1>
-          <div className="mt-2 hidden space-y-2 sm:block">{headerDetails}</div>
+          {description ? <div className="mt-2 hidden sm:block">{description}</div> : null}
+          {/* One quiet line: the reader's role here, then who else is. Words in
+              a row rather than a pill and a count strip, shown at every width:
+              who is here is the point of the place. */}
+          <p className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-muted-foreground text-sm">
+            {roleBadgeLabel ? (
+              <>
+                <span>{roleBadgeLabel}</span>
+                <span aria-hidden>·</span>
+              </>
+            ) : null}
+            <InitiativeMembersPeek initiativeId={initiative.id} memberCount={memberCount} />
+          </p>
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
           {canManageInitiative ? (
@@ -210,15 +204,17 @@ export const InitiativeDetailPage = ({ tool }: InitiativeDetailPageProps = {}) =
         </div>
       </div>
 
-      <Collapsible className="group sm:hidden">
-        <CollapsibleTrigger asChild>
-          <Button variant="ghost" size="sm" className="h-8 px-0 text-muted-foreground">
-            {t("common:toolbar.details")}
-            <ChevronDown className="h-4 w-4 transition-transform group-data-[state=open]:rotate-180" />
-          </Button>
-        </CollapsibleTrigger>
-        <CollapsibleContent className="space-y-3 pt-2">{headerDetails}</CollapsibleContent>
-      </Collapsible>
+      {description ? (
+        <Collapsible className="group sm:hidden">
+          <CollapsibleTrigger asChild>
+            <Button variant="ghost" size="sm" className="h-8 px-0 text-muted-foreground">
+              {t("common:description")}
+              <ChevronDown className="h-4 w-4 transition-transform group-data-[state=open]:rotate-180" />
+            </Button>
+          </CollapsibleTrigger>
+          <CollapsibleContent className="pt-2">{description}</CollapsibleContent>
+        </Collapsible>
+      ) : null}
 
       <Tabs value={activeTab}>
         {/* Words on a rule rather than a pill bar, the open one underlined in

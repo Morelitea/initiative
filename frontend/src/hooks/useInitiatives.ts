@@ -182,10 +182,16 @@ export const useInitiativeRoster = (
 export const useInitiativeRosterPages = (
   initiativeId: number,
   search: string,
-  enabled: boolean
+  enabled: boolean,
+  /** Only the members who appear online, idle or busy right now. */
+  online = false
 ) => {
   const communityId = useActiveCommunityId();
-  const params = { search: search.trim() || undefined, page_size: 50 };
+  const params = {
+    search: search.trim() || undefined,
+    ...(online ? { online: true } : {}),
+    page_size: 50,
+  };
   return useInfiniteQuery({
     queryKey: [...getGetInitiativeMembersQueryKey(communityId, initiativeId, params), "pages"],
     queryFn: ({ pageParam }) =>
