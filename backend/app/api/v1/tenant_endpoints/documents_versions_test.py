@@ -87,14 +87,21 @@ async def test_an_app_copies_a_file_document_under_its_uploader(
 ) -> None:
     """An app with the document scopes copies the file a document shows, and
     the copy's version 1 names the file's uploader: an app is never an
-    author."""
+    author. Neither file's stored path reaches the app; a person reads it."""
     scopes = ["documents:read", "documents:write"]
     installed = await install_app(session, acting_user, role_session, granted=scopes)
     # Uploaded documents are shared with the initiative the install is placed
-    # in, and read is enough to copy a template.
+    # in, and read is enough to copy a template. A picture is its own
+    # featured image.
     doc = await _upload_initial_file_doc(
-        client, installed.seat, initiative=installed.placed
+        client,
+        installed.seat,
+        initiative=installed.placed,
+        content=_TINY_PNG,
+        filename="v1.png",
+        content_type="image/png",
     )
+    assert doc["featured_image_url"] == doc["file_url"]
     template = await session.get(Document, doc["id"])
     assert template is not None
     template.is_template = True
@@ -108,7 +115,19 @@ async def test_an_app_copies_a_file_document_under_its_uploader(
 
     assert response.status_code == 201, response.text
     copy = response.json()
-    assert copy["file_url"] != doc["file_url"]
+    assert "file_url" not in copy and "featured_image_url" not in copy
+    assert "/uploads/" not in response.text
+    for path in ("/documents/", f"/documents/{doc['id']}"):
+        read = await client.get(
+            installed.seat.g(path), headers=install_headers(installed, scopes)
+        )
+        assert read.status_code == 200, read.text
+        assert "/uploads/" not in read.text
+    person = await client.get(
+        installed.seat.g(f"/documents/{copy['id']}"), headers=installed.seat.headers
+    )
+    assert person.json()["file_url"].startswith(f"/uploads/{installed.guild.id}/")
+    assert person.json()["file_url"] != doc["file_url"]
     version = (
         await session.exec(
             select(DocumentFileVersion).where(

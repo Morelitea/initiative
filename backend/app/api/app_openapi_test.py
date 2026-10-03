@@ -16,6 +16,7 @@ from app.api.app_openapi import COMMUNITY_PREFIX, build_app_openapi
 from app.db.search_index import written_columns
 from app.api.deps import ActorContext, app_scope, route_app_scope_declaration
 from app.main import app, app_openapi
+from app.services.tenant.attachments import _upload_columns
 
 _APP_DIR = Path(__file__).resolve().parent.parent
 _SCHEMA_REF = "#/components/schemas/"
@@ -206,6 +207,55 @@ def test_every_field_holding_written_text_carries_its_mentions():
     assert found == expected
     marked = [node for node in _nodes(schemas) if "x-mentions" in node]
     assert all(node.get("description") for node in marked)
+
+
+def _received(document: dict[str, Any]) -> set[str]:
+    """The component schemas an operation's response reaches."""
+    schemas = document["components"]["schemas"]
+    pending = [
+        node["$ref"]
+        for item in document["paths"].values()
+        for operation in item.values()
+        for node in _nodes(operation["responses"])
+        if "$ref" in node
+    ]
+    reached: set[str] = set()
+    while pending:
+        name = pending.pop().removeprefix(_SCHEMA_REF)
+        if name not in reached:
+            reached.add(name)
+            pending.extend(n["$ref"] for n in _nodes(schemas[name]) if "$ref" in n)
+    return reached
+
+
+@pytest.mark.always
+def test_no_response_in_the_app_document_holds_a_stored_file_s_path():
+    """A column that holds a stored file's path, beside the ones people write
+    in (``attachments._upload_columns``), is served to people alone. No shape an
+    app receives has a field named for one, and every ``x-upload`` mark sits on
+    a field of its own, which is where it leaves the field out."""
+    written = {column for columns in written_columns().values() for column in columns}
+    paths = {column for _, column in _upload_columns()} - written
+    document = app_openapi()
+    schemas = document["components"]["schemas"]
+    held = {
+        (name, field)
+        for name in _received(document)
+        for field in schemas[name].get("properties", {})
+        if field in paths
+    }
+    assert paths
+    assert not held
+    main = app.openapi()["components"]["schemas"]
+    marks = [node for node in _nodes(main) if "x-upload" in node]
+    fields = [
+        field
+        for schema in main.values()
+        for field in schema.get("properties", {}).values()
+        if "x-upload" in field
+    ]
+    assert marks
+    assert len(marks) == len(fields)
 
 
 def _app_person_writes(node: ast.AST, scope: tuple[str, ...] = ()) -> Iterator[str]:

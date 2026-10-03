@@ -194,25 +194,41 @@ async def test_lists_a_gallery_s_pictures_with_the_read_scope(
     guild_id = installed.guild.id
     await _switch_on(session, TOOLS[1], installed.placed)
     gallery = await create_gallery(session, installed.placed, seat.user)
-    await create_gallery_image(
+    picture = await create_gallery_image(
         session, gallery, seat.user, title="Harbour", write_blob=False
     )
+    file_url = picture.file_url
+    gallery.cover_image_id = picture.id
+    session.add(gallery)
+    await session.commit()
     path = guild_url(guild_id, f"/galleries/{gallery.id}/images")
+    headers = install_headers(installed, ["galleries:read"])
 
-    listed = await client.get(
-        path, headers=install_headers(installed, ["galleries:read"])
-    )
+    listed = await client.get(path, headers=headers)
     assert listed.status_code == 200, listed.text
     (image,) = listed.json()["items"]
     assert image["title"] == "Harbour"
     assert isinstance(image["created_by"], str)
     assert isinstance(image["guild_id"], str)
     assert isinstance(image["uploader"]["id"], str)
-    # A picture's URLs are paths on the community's upload route, which name
-    # the community; everything else names nobody.
-    assert image.pop("file_url").startswith(f"/uploads/{guild_id}/")
-    image.pop("thumbnail_url")
-    assert_names_nobody(str(image), [seat.user.id, guild_id])
+    # A picture's stored paths are left out, and nothing else names anybody.
+    assert "file_url" not in image and "thumbnail_url" not in image
+    assert "/uploads/" not in listed.text
+    assert_names_nobody(listed.text, [seat.user.id, guild_id])
+    for shown in ("/galleries/", f"/galleries/{gallery.id}"):
+        read = await client.get(guild_url(guild_id, shown), headers=headers)
+        assert read.status_code == 200, read.text
+        assert '"image_id":' in read.text
+        assert "/uploads/" not in read.text
+        assert_names_nobody(read.text, [seat.user.id, guild_id])
+
+    # A person reading the same is served the paths.
+    person = await client.get(path, headers=seat.headers)
+    assert person.json()["items"][0]["file_url"] == file_url
+    cover = await client.get(
+        guild_url(guild_id, f"/galleries/{gallery.id}"), headers=seat.headers
+    )
+    assert cover.json()["cover"]["file_url"] == file_url
 
     refused = await client.get(path, headers=install_headers(installed, ["wikis:read"]))
     assert refused.status_code == 403, refused.text

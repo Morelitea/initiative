@@ -32,6 +32,10 @@ the input phase resolves to the row id and Initiative's own name for the
 person; a mention in a response carries a marker, and the person's name only
 when the install holds ``members:read``.
 
+A field marked :data:`UPLOAD_PATH` holds a stored file's path,
+``/uploads/{guild_id}/{name}``, which names the community by its row id and is
+served to people. A person gets it; an install's response leaves it out.
+
 The boundary lives in a context variable that ``ActorRoute`` opens per request,
 so it never outlives the request that set it.
 """
@@ -48,6 +52,7 @@ from enum import Enum
 from typing import Annotated, Any, Optional
 
 from pydantic import (
+    Field,
     GetCoreSchemaHandler,
     GetJsonSchemaHandler,
     PlainSerializer,
@@ -71,6 +76,7 @@ __all__ = [
     "PersonId",
     "STORED_MENTION",
     "UNKNOWN_REFERENCE_ERROR",
+    "UPLOAD_PATH",
     "admit_install",
     "boundary_scope",
     "current_install_boundary",
@@ -441,3 +447,20 @@ class Mentions:
 #: The marks a field type carries: markdown text, and a Lexical editor state.
 MARKDOWN_MENTIONS = Mentions(MentionForm.markdown)
 LEXICAL_MENTIONS = Mentions(MentionForm.lexical)
+
+
+# --- Stored files ---------------------------------------------------------------
+
+
+def _upload_path_withheld(_path: Any) -> bool:
+    return responding_to_install()
+
+
+#: Marks a field holding a stored file's path: ``Annotated[str, UPLOAD_PATH]``,
+#: or ``Annotated[Optional[str], UPLOAD_PATH]``. It marks the field itself, so
+#: it goes on the whole annotation, never inside an ``Optional``. A person gets
+#: the path; an install's response leaves the field out. Its schema carries
+#: ``x-upload``, and the app API's document leaves the field out too.
+UPLOAD_PATH = Field(
+    exclude_if=_upload_path_withheld, json_schema_extra={"x-upload": True}
+)
