@@ -8,6 +8,8 @@ import type {
   RelationshipRead,
 } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { useIsCompactViewport } from "@/hooks/useMediaQuery";
 import { useRelationshipsFor } from "@/hooks/useRelationships";
 import { useCommunityPath } from "@/lib/communityUrl";
 import {
@@ -146,5 +148,35 @@ export const WikiPageConnections = ({
         )}
       </div>
     </aside>
+  );
+};
+
+/** The connections where there is no gutter beside the words for them: a
+ *  drawer from the bottom on a phone, from the side on anything wider. */
+export const WikiConnectionsSheet = ({
+  entity,
+  open,
+  onOpenChange,
+}: {
+  entity: EndpointRef;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) => {
+  const { t } = useTranslation("wikis");
+  const compact = useIsCompactViewport();
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent
+        side={compact ? "bottom" : "right"}
+        className={cn("flex flex-col gap-0 p-0", compact ? "max-h-[85svh]" : "w-full sm:max-w-sm")}
+      >
+        <SheetHeader className="sr-only">
+          <SheetTitle className="sr-only">{t("links.title")}</SheetTitle>
+        </SheetHeader>
+        <div className="min-h-0 flex-1 overflow-y-auto p-2 pt-3">
+          <WikiPageConnections entity={entity} className="border-0 shadow-none" />
+        </div>
+      </SheetContent>
+    </Sheet>
   );
 };
