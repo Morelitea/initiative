@@ -46,7 +46,7 @@ from app.db.query import (
 from app.db.session import require_guild_context, routed_guild_id
 from app.models.platform.guild import Guild
 from app.models.platform.user import User
-from app.models.tenant.comment import Comment
+from app.models.tenant.comment import Comment, in_thread
 from app.models.tenant.project import Project
 from app.models.tenant.property import (
     PropertyDefinition,
@@ -220,6 +220,7 @@ def _comment_count_expression():
     return (
         select(func.count(Comment.id))
         .where(Comment.task_id == Task.id)
+        .where(in_thread())
         .correlate(Task)
         .scalar_subquery()
         .label("comment_count")
@@ -294,6 +295,7 @@ async def _annotate_tasks(
         stmt = (
             select(Comment.task_id, func.count(Comment.id))
             .where(Comment.task_id.in_(tuple(task_ids)))
+            .where(in_thread())
             .group_by(Comment.task_id)
         )
         comment_counts = dict((await session.exec(stmt)).all())
@@ -1199,6 +1201,7 @@ async def _load_comments_for_tasks(
         .where(
             Comment.task_id.in_(task_ids),
             Comment.deleted_at.is_(None),
+            in_thread(),
         )
         .options(selectinload(Comment.author))
         .order_by(Comment.created_at)

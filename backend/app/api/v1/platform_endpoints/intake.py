@@ -17,7 +17,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.v1.platform_endpoints.operator import ConfigManageDep
-from app.core.intake import IntakeStream
+from app.core.intake import IntakeStream, meta
 from app.core.messages import IntakeMessages
 from app.models.platform.guild import Guild
 from app.models.platform.user import User
@@ -48,6 +48,11 @@ def _read(view: BindingView) -> IntakeBindingRead:
         initiative_name=view.initiative_name,
         default_status_id=view.default_status_id,
         default_status_name=view.default_status_name,
+        awaiting_filer_status_id=view.awaiting_filer_status_id,
+        active_status_id=view.active_status_id,
+        conversation=meta(view.stream).conversation,
+        isolated=view.isolated,
+        shares_initiative=view.shares_initiative,
         enabled=view.enabled,
         last_case_at=view.last_case_at,
     )
@@ -170,6 +175,8 @@ async def upsert_binding(
         stream=_stream_or_404(stream),
         project_id=payload.project_id,
         default_status_id=payload.default_status_id,
+        awaiting_filer_status_id=payload.awaiting_filer_status_id,
+        active_status_id=payload.active_status_id,
         enabled=payload.enabled,
     )
     return _read(view)

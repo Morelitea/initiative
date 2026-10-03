@@ -793,7 +793,11 @@ async def drop_guild_schema(conn: AsyncConnection, guild_id: int) -> None:
     await conn.exec_driver_sql("SET lock_timeout = '10s'")
     await conn.exec_driver_sql(f'DROP SCHEMA IF EXISTS "{schema}" CASCADE')
     provisioning_login, _ = settings.database_login("DATABASE_URL")
-    roles = _guild_roles(guild_id)
+    from app.db.filer_access import filer_role_name
+
+    # The filer role is created only in the operations community, but goes
+    # with whichever community holds it.
+    roles = (*_guild_roles(guild_id), filer_role_name(guild_id))
     existing = await _existing_roles(conn, roles)
     for role in roles:
         if role in existing:

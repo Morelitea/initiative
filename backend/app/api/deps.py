@@ -4,6 +4,7 @@ from typing import Annotated, Any, NoReturn, Optional, Sequence
 
 from fastapi import Cookie, Depends, HTTPException, Path, Query, Request, status
 from fastapi.security import OAuth2PasswordBearer
+from sqlalchemy import text as sa_text
 from sqlalchemy.exc import DBAPIError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -70,6 +71,7 @@ from app.db.guild_standing import (
 from app.models.platform.identity_ref import IdentityEntity
 from app.db.schema_provisioning import PLATFORM_SUSPENDED
 from app.db.request_context import (
+    Filer,
     ContentGrantee,
     SignIn,
     Install,
@@ -1296,6 +1298,54 @@ class InstallAccessError(Exception):
     not live, or its community cannot be routed into. The route dependency maps
     it to 401.
     """
+
+
+class FilerAccessError(Exception):
+    """There is no operations community to read a filed case in."""
+
+
+async def establish_filer_access(session: AsyncSession, user: User) -> int:
+    """Route ``session`` as ``user`` reading the cases they filed — the
+    establishment seam for a filer, beside :func:`establish_guild_access`.
+
+    Into the operations community's ``guild_<id>_filer`` role, which is what
+    decides what they read; nothing is looked up for them first, because a
+    filer has no standing to compute. ``session`` comes from that community's
+    cohort on the request engine. Returns the community's id.
+
+    Raises :class:`FilerAccessError` where no operations community is set, or
+    it has no filer role to assume.
+    """
+    from app.services.platform.intake import configured_operations_guild_id
+
+    guild_id = await configured_operations_guild_id()
+    if guild_id is None:
+        raise FilerAccessError("no operations community")
+    try:
+        await set_rls_context(session, Filer(guild_id=guild_id, user_id=int(user.id)))
+        # Their cases, read through the role's own row on intake_cases: the
+        # one read the other filer rows are then keyed on.
+        cases = (
+            await session.exec(
+                sa_text("SELECT task_id FROM intake_cases ORDER BY task_id")
+            )
+        ).all()
+        # End the transaction, which leaves the role, before routing again:
+        # the role holds nothing to write a routing with.
+        await session.rollback()
+        await set_rls_context(
+            session,
+            Filer(
+                guild_id=guild_id,
+                user_id=int(user.id),
+                cases=tuple(row[0] for row in cases),
+            ),
+        )
+    except DBAPIError as exc:
+        clear_rls_context(session)
+        await session.rollback()
+        raise FilerAccessError("operations community cannot be routed") from exc
+    return guild_id
 
 
 async def establish_install_access(

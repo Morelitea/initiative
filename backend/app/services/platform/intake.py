@@ -46,6 +46,7 @@ from app.core.intake import (
 from app.db import cohorts
 from app.db.session import set_rls_context
 from app.models.platform.app_setting import AppSetting
+from app.models.platform.user import User
 from app.models.tenant.comment import Comment, CommentAudience
 from app.models.tenant.intake import DEDUPE_KEY_LENGTH, IntakeBinding, IntakeCase
 from app.models.tenant.project import Project
@@ -132,7 +133,7 @@ async def operations_guild_id(session: AsyncSession) -> Optional[int]:
     return row.operations_guild_id if row is not None else None
 
 
-async def _configured_operations_guild_id() -> Optional[int]:
+async def configured_operations_guild_id() -> Optional[int]:
     """:func:`operations_guild_id`, read on a platform system session."""
     async with cohorts.system_session(None) as session:
         return await operations_guild_id(session)
@@ -175,7 +176,7 @@ async def stream_is_bound(stream: IntakeStream) -> bool:
     routed into it, the way :func:`open_case` does, because the binding lives
     there.
     """
-    guild_id = await _configured_operations_guild_id()
+    guild_id = await configured_operations_guild_id()
     if guild_id is None:
         return False
     async with cohorts.system_session(guild_id) as session:
@@ -408,7 +409,7 @@ async def open_case(
     if dedupe_key is not None and len(dedupe_key) > DEDUPE_KEY_LENGTH:
         raise ValueError("dedupe_key is longer than the column that stores it")
 
-    guild_id = await _configured_operations_guild_id()
+    guild_id = await configured_operations_guild_id()
     if guild_id is None:
         return None
     async with cohorts.system_session(guild_id) as session:
@@ -539,3 +540,68 @@ async def open_case(
             )
         await session.commit()
         return CaseOutcome(task_id=task.id, opened=True)
+
+
+async def add_filer_reply(
+    *,
+    task_id: int,
+    filer: User,
+    words: str,
+    stream: IntakeStream,
+    waiting: bool,
+) -> None:
+    """Write a filer's answer on their case, said to them like the rest of the
+    conversation, and move a case that was waiting on them.
+
+    The caller has already read, through the filer's own access, that the case
+    is theirs and takes an answer now. Written on the writer's session, routed
+    by ``guild_id`` alone; the author is named explicitly, since the routing
+    carries no user. The task's assignees hear of it as they would of any
+    comment on the task.
+    """
+    from app.services.platform import ticket_stream
+    from app.services.tenant.comments import notify_task_assignees
+
+    guild_id = await configured_operations_guild_id()
+    if guild_id is None:
+        return
+    async with cohorts.system_session(guild_id) as session:
+        await set_rls_context(session, SystemGuild(guild_id))
+        comment = Comment(
+            task_id=task_id,
+            content=words,
+            created_by=filer.id,
+            audience=CommentAudience.filer,
+        )
+        session.add(comment)
+        await session.flush()
+        task = (
+            await session.exec(
+                select(Task)
+                .where(Task.id == task_id)
+                .execution_options(populate_existing=True)
+            )
+        ).one_or_none()
+        if task is not None:
+            await notify_task_assignees(
+                session, comment=comment, author=filer, task=task
+            )
+        # Their other tabs follow the same conversation.
+        ticket_stream.queue_ticket_signal(session, filer.id)
+        if waiting:
+            binding = await _binding_for(session, stream)
+            active = binding.active_status_id if binding is not None else None
+            if task is not None and active is not None:
+                # Checked against the task's own project: a case moved
+                # elsewhere keeps its status rather than borrowing one.
+                belongs = (
+                    await session.exec(
+                        select(TaskStatus.id)
+                        .where(TaskStatus.id == active)
+                        .where(TaskStatus.project_id == task.project_id)
+                    )
+                ).first()
+                if belongs is not None:
+                    task.task_status_id = active
+                    session.add(task)
+        await session.commit()

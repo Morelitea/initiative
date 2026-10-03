@@ -297,6 +297,7 @@ CATEGORY_SPECS: Mapping[NotificationCategory, CategorySpec] = {
                 NotificationType.access_grant_approved,
                 NotificationType.access_grant_denied,
                 NotificationType.access_grant_revoked,
+                NotificationType.ticket_updated,
             }
         ),
         group=CategoryGroup.account,

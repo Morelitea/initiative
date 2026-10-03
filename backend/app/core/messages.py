@@ -337,6 +337,8 @@ class ProjectMessages:
 
 class TaskMessages:
     NOT_FOUND = "TASK_NOT_FOUND"
+    #: The task was not opened by an intake stream.
+    NOT_A_CASE = "TASK_NOT_A_CASE"
     MISSING_AFTER_CREATE = "TASK_MISSING_AFTER_CREATE"
     MISSING_AFTER_UPDATE = "TASK_MISSING_AFTER_UPDATE"
     MISSING_AFTER_MOVE = "TASK_MISSING_AFTER_MOVE"
@@ -494,6 +496,9 @@ class CommentMessages:
     AUTHOR_ONLY_DELETE = "COMMENT_AUTHOR_ONLY_DELETE"
     NOT_LINKED = "COMMENT_NOT_LINKED"
     COMMENTS_DISABLED = "COMMENTS_DISABLED"
+    #: Only an operations case with somebody to answer takes a comment said to
+    #: whoever filed it.
+    NOT_SAID_TO_A_FILER = "COMMENT_NOT_SAID_TO_A_FILER"
 
 
 class SharingMessages:
@@ -614,6 +619,8 @@ class TicketMessages:
 
     FILING_TOO_FAST = "TICKET_FILING_TOO_FAST"
     TOO_MANY_OPEN = "TICKET_TOO_MANY_OPEN"
+    NOT_FOUND = "TICKET_NOT_FOUND"
+    REPLY_NOT_TAKEN = "TICKET_REPLY_NOT_TAKEN"
 
 
 class IntakeMessages:
@@ -624,6 +631,9 @@ class IntakeMessages:
     STATUS_NOT_IN_PROJECT = "INTAKE_STATUS_NOT_IN_PROJECT"
     PROJECT_NOT_LIVE = "INTAKE_PROJECT_NOT_LIVE"
     UNKNOWN_STREAM = "INTAKE_UNKNOWN_STREAM"
+    #: A stream that keeps an initiative to itself, or one that would share
+    #: such a stream's initiative.
+    INITIATIVE_SHARED = "INTAKE_INITIATIVE_SHARED"
 
 
 class OperatorMessages:

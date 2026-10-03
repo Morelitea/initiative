@@ -39,6 +39,8 @@ from app.schemas.recurrence import OccurrenceScope
 from app.schemas.tenant.task import (
     ChecklistItem,
     ChecklistItemToggle,
+    CaseMessageRead,
+    TaskCaseRead,
     TaskCreate,
     TaskListResponse,
     TaskMoveRequest,
@@ -46,12 +48,14 @@ from app.schemas.tenant.task import (
     TaskReorderRequest,
     TaskUpdate,
 )
+from app.schemas.platform.user import UserPublic
 from app.services import ai_generation as ai_generation_service
 from app.services import audit as audit_service
 from app.services import notifications as notifications_service
 from app.services.ai_settings import resolve_ai_settings
 from app.services.tenant import archive as archive_service
 from app.services.tenant import attachments as attachments_service
+from app.services.tenant import cases as cases_service
 from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
 from app.services.tenant import task_checklist as checklist_service
@@ -386,6 +390,51 @@ async def read_task(
         _GOVERNING, task.project, current_user, context=guild_context
     )
     return task
+
+
+@router.get("/{task_id}/case", response_model=TaskCaseRead)
+async def read_task_case(
+    task_id: int,
+    session: RLSSessionDep,
+    guild_context: GuildContextDep,
+) -> TaskCaseRead:
+    """How an operations case was filed: its stream, who filed it, and what
+    the stream allows with them. 404 for a task no stream opened."""
+    await resource_access.load_child(session, Task, task_id, access="read")
+    case = await cases_service.read_case(session, task_id)
+    if case is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_A_CASE
+        )
+    return TaskCaseRead(
+        stream=case.stream,
+        opened_at=case.opened_at,
+        filer=(
+            UserPublic.model_validate(case.filer, from_attributes=True)
+            if case.filer is not None
+            else None
+        ),
+        filer_subject=case.filer_subject,
+        conversation=case.conversation,
+        awaiting_filer_status_id=case.awaiting_filer_status_id,
+        active_status_id=case.active_status_id,
+        messages=[
+            CaseMessageRead(
+                id=message.id,
+                author=(
+                    UserPublic.model_validate(message.author, from_attributes=True)
+                    if message.author is not None
+                    else None
+                ),
+                from_requester=(
+                    case.filer is not None and message.created_by == case.filer.id
+                ),
+                content=message.content,
+                created_at=message.created_at,
+            )
+            for message in case.messages
+        ],
+    )
 
 
 @router.patch("/{task_id}", response_model=TaskRead)

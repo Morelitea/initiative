@@ -79,6 +79,10 @@ class IntakeStreamMeta:
     #: cap — where every filing is about something different, a cap would turn
     #: away the second thing somebody saw.
     max_open_per_filer: int | None
+    #: Whether the stream's cases keep an initiative to themselves. Membership
+    #: of an initiative is what lets staff read a case, so a stream whose
+    #: cases name people at risk binds where no other stream's staff work.
+    isolated: bool = False
 
 
 #: Every stream, declared once. ``intake_test`` holds the enum and this map in
@@ -91,6 +95,7 @@ STREAMS: dict[IntakeStream, IntakeStreamMeta] = {
         conversation=Conversation.open,
         filing_rate="5/day",
         max_open_per_filer=10,
+        isolated=True,
     ),
     IntakeStream.moderation: IntakeStreamMeta(
         sources=frozenset({Source.submitted, Source.manual}),
@@ -99,6 +104,7 @@ STREAMS: dict[IntakeStream, IntakeStreamMeta] = {
         conversation=Conversation.none,
         filing_rate="30/hour",
         max_open_per_filer=None,
+        isolated=True,
     ),
     IntakeStream.support: IntakeStreamMeta(
         # Alerted too: a community claiming sign-in claim values opens a

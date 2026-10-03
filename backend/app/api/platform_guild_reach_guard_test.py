@@ -150,6 +150,13 @@ _ALLOWED: dict[tuple[str, str], str] = {
     (f"{_SERVICES}/intake.py", "open_case"): (
         "intake: opens a case in the operations community on the deployment's behalf"
     ),
+    (f"{_SERVICES}/intake.py", "add_filer_reply"): (
+        "intake: writes a filer's answer on a case the filer role has just "
+        "shown is theirs"
+    ),
+    (f"{_SERVICES}/ticket_notices.py", "notify_filers"): (
+        "the scheduled sweep that tells filers their case moved"
+    ),
     (f"{_SERVICES}/intake_setup.py", "bind"): (
         "intake setup: the platform owner's Intake page (config.manage)"
     ),

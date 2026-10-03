@@ -84,6 +84,9 @@ class CommentCreate(CommentBase):
     gallery_id: Optional[int] = Field(default=None, gt=0)
     wiki_id: Optional[int] = Field(default=None, gt=0)
     parent_comment_id: Optional[int] = Field(default=None, gt=0)
+    #: Who it is said to. ``filer`` only on an operations case somebody filed,
+    #: where it is the reply they are shown; ``members`` everywhere else.
+    audience: CommentAudience = CommentAudience.members
 
     @model_validator(mode="after")
     def validate_target(self) -> "CommentCreate":

@@ -11,13 +11,19 @@ up, because either one missing leaves the streams unreachable: the
 deployment's pointer (``app_settings.operations_guild_id``) and a binding per
 stream, each from its committed blueprint the way the operator's own "set this
 up for me" does.
+
+A stream that keeps an initiative to itself (security, moderation) gets one
+of its own, with only the people who would work it in it; the rest share the
+Operations initiative.
 """
 
 from __future__ import annotations
 
+from typing import cast
+
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.intake import IntakeStream
+from app.core.intake import IntakeStream, meta
 from app.db.schema_provisioning import provision_guild
 from app.db.request_context import SystemGuild, Unattributed
 from app.db.session import set_rls_context
@@ -35,6 +41,17 @@ OPERATIONS_GUILD_NAME = "Initiative"
 _OWNER = "Platform Owner"
 _OPERATOR = "Platform Operator"
 _MEMBERS = ["Platform Moderator", "Platform Support", "Platform Member"]
+
+#: Who works each stream that keeps an initiative to itself, beside the owner
+#: who manages it.
+_ISOLATED_STAFF = {
+    IntakeStream.security: [_OPERATOR],
+    IntakeStream.moderation: [_OPERATOR, "Platform Moderator"],
+}
+_ISOLATED_COLORS = {
+    IntakeStream.security: "#7c3aed",
+    IntakeStream.moderation: "#ea580c",
+}
 
 
 async def seed(
@@ -59,17 +76,34 @@ async def seed(
     await session.commit()
     await set_rls_context(session, SystemGuild(guild.id))
     c = Community(key="operations", session=session, ids=ids, users=users, guild=guild)
-    initiative = await initiatives.create_initiative(
+    shared = await initiatives.create_initiative(
         c,
         "operations",
         {
             "name": "Operations",
-            "description": "The deployment's own cases: security, moderation, support and feedback.",
+            "description": "The deployment's own support and feedback cases.",
             "color": "#dc2626",
             "pm": _OWNER,
             "members": [_OPERATOR, *_MEMBERS],
         },
     )
+    initiative_for: dict[IntakeStream, int] = {}
+    for stream in IntakeStream:
+        if not meta(stream).isolated:
+            initiative_for[stream] = cast(int, shared.id)
+            continue
+        own = await initiatives.create_initiative(
+            c,
+            f"operations-{stream.value}",
+            {
+                "name": stream.value.capitalize(),
+                "description": f"The deployment's {stream.value} cases, kept apart from the other streams.",
+                "color": _ISOLATED_COLORS.get(stream, "#dc2626"),
+                "pm": _OWNER,
+                "members": _ISOLATED_STAFF.get(stream, [_OPERATOR]),
+            },
+        )
+        initiative_for[stream] = cast(int, own.id)
     await session.commit()
 
     await set_rls_context(session, Unattributed())
@@ -77,7 +111,10 @@ async def seed(
     await session.commit()
     for stream in IntakeStream:
         await intake_setup.provision_from_blueprint(
-            session, stream=stream, initiative_id=initiative.id, importer=users[_OWNER]
+            session,
+            stream=stream,
+            initiative_id=initiative_for[stream],
+            importer=users[_OWNER],
         )
     # provision_from_blueprint routes into the operations guild to write the
     # binding; hand the session back at the public baseline.

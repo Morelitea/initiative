@@ -9,6 +9,7 @@ from app.core.identity_boundary import GuildId, PersonId
 from app.schemas.base import (
     MentionStr,
     RichMentionStr,
+    RichTextStr,
     SanitizedBaseModel,
     TitleStr,
     reject_null,
@@ -26,6 +27,7 @@ from app.schemas.tenant.property import (
     PropertySummary,
 )
 
+from app.core.intake import Conversation, IntakeStream
 from app.models.tenant.task import TaskPriority
 from app.models.platform.user import UserStatus
 
@@ -281,3 +283,36 @@ class TaskReorderItem(SanitizedBaseModel):
 class TaskReorderRequest(SanitizedBaseModel):
     project_id: int
     items: list[TaskReorderItem]
+
+
+class CaseMessageRead(SanitizedBaseModel):
+    """One part of the conversation with whoever filed a case."""
+
+    id: int
+    #: Who wrote it: the requester, or the person on the team who answered.
+    author: Optional[UserPublic] = None
+    from_requester: bool
+    #: Kept as written, like any comment body.
+    content: RichTextStr
+    created_at: datetime
+
+
+class TaskCaseRead(SanitizedBaseModel):
+    """How an operations case was filed, for the people working it."""
+
+    stream: IntakeStream
+    opened_at: datetime
+    #: Who filed it, where somebody did. Not necessarily a member here.
+    filer: Optional[UserPublic] = None
+    #: What they called it when they filed it. The task's title is the team's.
+    filer_subject: Optional[str] = None
+    #: What the stream allows with the filer: ``open``, ``staff_first`` (the
+    #: team speaks first), or ``none`` — also where nobody filed it.
+    conversation: Conversation
+    #: The binding's statuses that mean "waiting on the filer" and "being
+    #: worked", where it names them.
+    awaiting_filer_status_id: Optional[int] = None
+    active_status_id: Optional[int] = None
+    #: The conversation with the requester, oldest first. Kept apart from the
+    #: task's comments: it is what they read, and only that.
+    messages: List[CaseMessageRead] = Field(default_factory=list)

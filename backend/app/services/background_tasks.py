@@ -195,6 +195,10 @@ def start_background_tasks() -> list[asyncio.Task]:
         HOLD_SWEEP_POLL_SECONDS,
         process_due_holds,
     )
+    from app.services.platform.ticket_notices import (
+        TICKET_NOTICE_POLL_SECONDS,
+        process_ticket_notices,
+    )
     from app.services.marketplace.tuf_registry import (
         process_registry_refresh,
         registry_available,
@@ -296,6 +300,11 @@ def start_background_tasks() -> list[asyncio.Task]:
         ),
         asyncio.create_task(
             _loop_worker(process_due_holds, HOLD_SWEEP_POLL_SECONDS, "held-changes")
+        ),
+        asyncio.create_task(
+            _loop_worker(
+                process_ticket_notices, TICKET_NOTICE_POLL_SECONDS, "ticket-notices"
+            )
         ),
     ]
 
