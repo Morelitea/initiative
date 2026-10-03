@@ -490,7 +490,8 @@ export const TaskEditPage = () => {
     enabled: Boolean(canWriteProject && !projectIsArchived),
   });
   // An initiative that keeps its content in keeps its tasks.
-  const keptIn = useInitiative(project?.initiative_id ?? null).data?.keep_content_in;
+  const initiativeQuery = useInitiative(project?.initiative_id ?? null);
+  const keptIn = initiativeQuery.data?.keep_content_in;
   const writableProjects = useMemo(
     () =>
       (writableProjectsQuery.data?.items ?? []).filter(
@@ -873,7 +874,7 @@ export const TaskEditPage = () => {
         onOpenChange={setIsMoveDialogOpen}
         projects={writableProjects}
         currentProjectId={task?.project_id ?? null}
-        isLoading={writableProjectsQuery.isLoading}
+        isLoading={writableProjectsQuery.isLoading || initiativeQuery.isLoading}
         hasError={Boolean(writableProjectsQuery.isError)}
         isSaving={moveTask.isPending}
         onConfirm={handleMoveTask}
