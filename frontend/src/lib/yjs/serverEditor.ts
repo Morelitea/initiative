@@ -173,39 +173,56 @@ const keyOf = (node: Serialized, without?: "children" | "text") =>
     return value;
   });
 
-/** Past this many pairs to compare, a changed run is matched by position
- *  rather than searched for blocks that moved. */
+/** Past this many pairs to compare, the changed middle of a run is matched
+ *  by position rather than searched for blocks that moved. */
 const MATCH_LIMIT = 1_000_000;
 
 /** Pairs `[i, j]` of equal keys in `was` and `next`, in order, as many as
- *  there can be: the blocks a change kept, wherever they now sit. */
+ *  there can be: the children a change kept, wherever they now sit. The
+ *  unchanged ends are paired first, so only what lies between them is
+ *  searched. */
 function unchangedPairs(was: string[], next: string[]): Array<[number, number]> {
-  if (was.length * next.length > MATCH_LIMIT) return [];
-  const longest = Array.from({ length: was.length + 1 }, () =>
-    new Array<number>(next.length + 1).fill(0)
-  );
-  for (let i = was.length - 1; i >= 0; i--) {
-    for (let j = next.length - 1; j >= 0; j--) {
-      longest[i][j] =
-        was[i] === next[j]
-          ? longest[i + 1][j + 1] + 1
-          : Math.max(longest[i + 1][j], longest[i][j + 1]);
-    }
+  let head = 0;
+  while (head < was.length && head < next.length && was[head] === next[head]) head++;
+  let tail = 0;
+  while (
+    tail < was.length - head &&
+    tail < next.length - head &&
+    was[was.length - 1 - tail] === next[next.length - 1 - tail]
+  ) {
+    tail++;
   }
   const pairs: Array<[number, number]> = [];
-  let i = 0;
-  let j = 0;
-  while (i < was.length && j < next.length) {
-    if (was[i] === next[j]) {
-      pairs.push([i, j]);
-      i++;
-      j++;
-    } else if (longest[i + 1][j] >= longest[i][j + 1]) {
-      i++;
-    } else {
-      j++;
+  for (let k = 0; k < head; k++) pairs.push([k, k]);
+  const midWas = was.slice(head, was.length - tail);
+  const midNext = next.slice(head, next.length - tail);
+  if (midWas.length * midNext.length <= MATCH_LIMIT) {
+    const longest = Array.from({ length: midWas.length + 1 }, () =>
+      new Array<number>(midNext.length + 1).fill(0)
+    );
+    for (let i = midWas.length - 1; i >= 0; i--) {
+      for (let j = midNext.length - 1; j >= 0; j--) {
+        longest[i][j] =
+          midWas[i] === midNext[j]
+            ? longest[i + 1][j + 1] + 1
+            : Math.max(longest[i + 1][j], longest[i][j + 1]);
+      }
+    }
+    let i = 0;
+    let j = 0;
+    while (i < midWas.length && j < midNext.length) {
+      if (midWas[i] === midNext[j]) {
+        pairs.push([head + i, head + j]);
+        i++;
+        j++;
+      } else if (longest[i + 1][j] >= longest[i][j + 1]) {
+        i++;
+      } else {
+        j++;
+      }
     }
   }
+  for (let k = tail; k > 0; k--) pairs.push([was.length - k, next.length - k]);
   return pairs;
 }
 

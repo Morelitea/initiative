@@ -243,6 +243,19 @@ async def test_a_block_a_write_kept_takes_edits_made_to_it_elsewhere():
     assert await _words_of(_merged(state, rewritten, edited)) == ["A", "C!", "D"]
 
 
+async def test_a_long_document_keeps_its_blocks_when_one_is_added():
+    """Past the size where moved blocks are searched for, the unchanged ends
+    are still kept, so an edit made elsewhere to the first block lands."""
+    words = [f"block {n}" for n in range(1200)]
+    state = await editor_engine.bootstrap(_paragraphs(*words))
+
+    appended = await editor_engine.apply(state, _paragraphs(*words, "the end"))
+    edited = await editor_engine.apply(state, _paragraphs("block 0!", *words[1:]))
+
+    merged = await _words_of(_merged(state, appended, edited))
+    assert merged == ["block 0!", *words[1:], "the end"]
+
+
 async def test_content_the_editor_refuses_is_an_error():
     with pytest.raises(EditorError):
         await editor_engine.bootstrap(_document({"type": "no-such-node", "version": 1}))
