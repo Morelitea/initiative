@@ -63,8 +63,8 @@ describe("ExportTasksButton", () => {
   it("polls a queued (202) job and downloads when it finishes", async () => {
     server.use(
       guildHttp.get("/exports/tasks", () => HttpResponse.json(buildJob(), { status: 202 })),
-      guildHttp.get("/exports/:jobId", () => HttpResponse.json(buildJob({ status: "done" }))),
-      guildHttp.get("/exports/:jobId/download", () => pdfResponse())
+      guildHttp.get("/exports/jobs/:jobId", () => HttpResponse.json(buildJob({ status: "done" }))),
+      guildHttp.get("/exports/jobs/:jobId/download", () => pdfResponse())
     );
     renderWithProviders(<ExportTasksButton params={{ conditions: [] }} />);
 
@@ -78,7 +78,7 @@ describe("ExportTasksButton", () => {
   it("surfaces a failed job as an error toast, without downloading", async () => {
     server.use(
       guildHttp.get("/exports/tasks", () => HttpResponse.json(buildJob(), { status: 202 })),
-      guildHttp.get("/exports/:jobId", () =>
+      guildHttp.get("/exports/jobs/:jobId", () =>
         HttpResponse.json(buildJob({ status: "failed", error: "EXPORT_RENDER_FAILED" }))
       )
     );
@@ -166,10 +166,10 @@ describe("ExportTasksButton", () => {
   it("resumes a pending job from storage on mount and downloads it", async () => {
     setItem("exports:pending:1", "9");
     server.use(
-      guildHttp.get("/exports/:jobId", () =>
+      guildHttp.get("/exports/jobs/:jobId", () =>
         HttpResponse.json(buildJob({ id: 9, status: "done" }))
       ),
-      guildHttp.get("/exports/:jobId/download", () => pdfResponse())
+      guildHttp.get("/exports/jobs/:jobId/download", () => pdfResponse())
     );
     renderWithProviders(<ExportTasksButton params={{ conditions: [] }} resumePending />);
 
@@ -185,7 +185,7 @@ describe("ExportTasksButton", () => {
     // when the second instance mounts would download twice.
     setItem("exports:pending:1", "9");
     const jobPoll = vi.fn(() => HttpResponse.json(buildJob({ id: 9, status: "done" })));
-    server.use(guildHttp.get("/exports/:jobId", jobPoll));
+    server.use(guildHttp.get("/exports/jobs/:jobId", jobPoll));
     renderWithProviders(<ExportTasksButton params={{ conditions: [] }} />);
 
     await new Promise((resolve) => setTimeout(resolve, 50));

@@ -51,7 +51,7 @@ function stubJobLifecycle(capture: (url: URL) => void) {
       capture(new URL(request.url));
       return HttpResponse.json({ id: 77, status: "queued" }, { status: 202 });
     }),
-    guildHttp.get("/exports/:jobId", ({ params }) => {
+    guildHttp.get("/exports/jobs/:jobId", ({ params }) => {
       // Fall through for the literal sibling routes (/exports/estimate,
       // /exports/community, /exports/initiative) — only numeric ids are jobs.
       if (Number.isNaN(Number(params.jobId))) {
@@ -72,7 +72,7 @@ function stubJobLifecycle(capture: (url: URL) => void) {
         updated_at: new Date().toISOString(),
       });
     }),
-    guildHttp.get("/exports/:jobId/download", () =>
+    guildHttp.get("/exports/jobs/:jobId/download", () =>
       HttpResponse.text("PK-zip", {
         headers: {
           "Content-Type": "application/zip",
@@ -179,7 +179,7 @@ describe("ExportWizard", () => {
         HttpResponse.json({ id: 88, status: "queued" }, { status: 202 })
       ),
       // The job never finishes during this test — it stays queued.
-      guildHttp.get("/exports/:jobId", ({ params }) => {
+      guildHttp.get("/exports/jobs/:jobId", ({ params }) => {
         if (Number.isNaN(Number(params.jobId))) {
           return undefined;
         }

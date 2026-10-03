@@ -59,7 +59,9 @@ describe("DataJobsTable", () => {
 
   it("interleaves both directions with direction-specific actions", async () => {
     server.use(
-      guildHttp.get("/exports/", () => HttpResponse.json([exportJob({ id: 10, status: "done" })])),
+      guildHttp.get("/exports/jobs", () =>
+        HttpResponse.json([exportJob({ id: 10, status: "done" })])
+      ),
       guildHttp.get("/imports/jobs", () =>
         HttpResponse.json([
           importJob({ id: 20, status: "queued", created_at: iso(0) }),
@@ -88,7 +90,9 @@ describe("DataJobsTable", () => {
 
   it("re-downloads a finished export via the download helper", async () => {
     server.use(
-      guildHttp.get("/exports/", () => HttpResponse.json([exportJob({ id: 10, status: "done" })])),
+      guildHttp.get("/exports/jobs", () =>
+        HttpResponse.json([exportJob({ id: 10, status: "done" })])
+      ),
       guildHttp.get("/imports/jobs", () => HttpResponse.json([]))
     );
     renderWithProviders(<DataJobsTable />);
@@ -99,7 +103,7 @@ describe("DataJobsTable", () => {
   it("cancels a staged/queued import", async () => {
     let cancelled = false;
     server.use(
-      guildHttp.get("/exports/", () => HttpResponse.json([])),
+      guildHttp.get("/exports/jobs", () => HttpResponse.json([])),
       guildHttp.get("/imports/jobs", () =>
         HttpResponse.json([importJob({ id: 20, status: "staged" })])
       ),
@@ -115,7 +119,7 @@ describe("DataJobsTable", () => {
 
   it("clamps a stale done export whose artifact has expired", async () => {
     server.use(
-      guildHttp.get("/exports/", () =>
+      guildHttp.get("/exports/jobs", () =>
         HttpResponse.json([exportJob({ id: 10, status: "done", expires_at: iso(-60_000) })])
       ),
       guildHttp.get("/imports/jobs", () => HttpResponse.json([]))
