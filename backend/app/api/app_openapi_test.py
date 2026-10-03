@@ -106,6 +106,30 @@ def test_every_reference_in_the_app_document_resolves_in_it():
     assert not unresolved
 
 
+def test_json_query_parameters_are_published_as_json():
+    (operation,) = [
+        operation
+        for item in app_openapi()["paths"].values()
+        for operation in item.values()
+        if operation["operationId"] == "list_tasks"
+    ]
+    parameters = {p["name"]: p for p in operation["parameters"]}
+    items = {
+        "conditions": {
+            "anyOf": [
+                {"$ref": f"{_SCHEMA_REF}FilterCondition"},
+                {"$ref": f"{_SCHEMA_REF}FilterGroup"},
+            ]
+        },
+        "sorting": {"$ref": f"{_SCHEMA_REF}SortField"},
+    }
+    for name, item in items.items():
+        assert "schema" not in parameters[name]
+        assert parameters[name]["content"] == {
+            "application/json": {"schema": {"type": "array", "items": item}}
+        }
+
+
 def test_two_app_routes_with_one_name_fail_the_build():
     probe = FastAPI()
 
