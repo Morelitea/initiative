@@ -30,6 +30,7 @@ from app.models.platform.guild import Guild, GuildRole, GuildStatus
 from app.models.tenant.app_placement import AppPlacement
 from app.models.tenant.document import Document
 from app.models.tenant.guild_app import GuildApp
+from app.models.tenant.property import PropertyType
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.services.marketplace import app_refs
 from app.testing import (
@@ -39,6 +40,8 @@ from app.testing import (
     create_document,
     create_guild_calendar,
     create_project,
+    create_property_definition,
+    create_property_value,
     create_task,
     route_as,
     route_as_install,
@@ -637,6 +640,64 @@ async def test_member_search_needs_members_read(
         headers=install_headers(installed, ["documents:read"]),
     )
     assert response.status_code == 403, response.text
+
+
+@pytest.mark.parametrize("reads_names", [True, False])
+async def test_a_person_is_named_to_an_app_only_under_members_read(
+    reads_names, client, session, acting_user, role_session
+):
+    await lift_person_and_guild_ids(session)
+    # A property's definition is read under initiatives:read.
+    reads = ["projects:read", "comments:read", "initiatives:read"]
+    installed = await install_app(
+        session, acting_user, role_session, granted=[*reads, "members:read"]
+    )
+    seat = installed.seat
+    seat.user.avatar_url = "https://pictures.example/seat.png"
+    seat.membership.display_name = "The Seat"
+    session.add_all([seat.user, seat.membership])
+    await session.commit()
+    project = await _open_project(session, installed, installed.placed, "Open A")
+    task = await create_task(session, project, assignees=[seat.user])
+    await create_comment(session, seat.user, task=task)
+    owner = await create_property_definition(
+        session, installed.placed, name="Owner", type=PropertyType.user_reference
+    )
+    await create_property_value(session, task, owner, value_user_id=seat.user.id)
+    headers = install_headers(
+        installed, [*reads, "members:read"] if reads_names else reads
+    )
+    guild_id = installed.guild.id
+
+    responses = [
+        await client.get(guild_url(guild_id, path), headers=headers)
+        for path in (
+            f"/tasks/{task.id}",
+            "/tasks/",
+            f"/comments/?task_id={task.id}",
+        )
+    ]
+    for response in responses:
+        assert response.status_code == 200, response.text
+        assert "pictures.example" not in response.text
+        assert_names_nobody(response.text, [seat.user.id, guild_id])
+    read, listed, comments = (response.json() for response in responses)
+    [property_value] = read["properties"]
+    [on_task] = comments["comments"]
+    people = [
+        read["assignees"][0],
+        listed["items"][0]["assignees"][0],
+        on_task["author"],
+        property_value["value"],
+    ]
+    ref = people[0]["id"]
+    assert isinstance(ref, str)
+    names = {
+        "username": seat.user.username,
+        "discriminator": seat.user.discriminator,
+        "display_name": "The Seat",
+    }
+    assert people == [{"id": ref, **(names if reads_names else {})}] * len(people)
 
 
 async def test_a_write_naming_three_people_costs_the_same_two(

@@ -13,8 +13,10 @@ from typing import Optional
 from pydantic import ConfigDict, Field, field_validator
 
 from app.core.emoji import validate_emoji
+from app.core.identity_boundary import PersonId
 from app.core.reactions import ReactionTarget
 from app.schemas.base import SanitizedBaseModel
+from app.schemas.platform.user import PersonShape
 
 #: The suggested set every surface offers first — GitHub's, which is the set
 #: people already recognize. Not a whitelist: any emoji validates, these are
@@ -31,12 +33,12 @@ SUGGESTED_EMOJI: tuple[str, ...] = (
 )
 
 
-class ReactionUser(SanitizedBaseModel):
+class ReactionUser(PersonShape):
     """Who reacted, named the way comment authors are named."""
 
     model_config = ConfigDict(from_attributes=True)
 
-    id: int
+    id: PersonId
     username: str
     discriminator: int
     display_name: Optional[str] = None

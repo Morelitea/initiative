@@ -77,9 +77,9 @@ export const scopeResourceLabel = (resource: string, t: ScopeT): string => {
 
 /**
  * What granting a scope lets the app do, as a plain sentence: "Read and change
- * projects", "See who is in your community", "Use GitHub in this community". A
- * resource with no sentence of its own is said with its label; an app with no
- * name in `appNames` is said by its public id.
+ * projects", "See who is in your community, by name", "Use GitHub in this
+ * community". A resource with no sentence of its own is said with its label; an
+ * app with no name in `appNames` is said by its public id.
  */
 export const scopeSentence = (scope: string, t: ScopeT, appNames: AppNames = {}): string => {
   const target = appScopeTarget(scope);

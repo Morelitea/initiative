@@ -3059,8 +3059,8 @@ export function useListUsersApiV1CGuildIdUsersGet<
  * rehydrating stored ids into names/avatars) rather than searching.
  *
  * An installed app (``members:read``) names members by its own references
- * and reads what :class:`AppMemberRead` carries: the reference, the handle,
- * the display name set in the community, and a picture hosted elsewhere.
+ * and reads each as an :class:`AppPerson`: the reference, the handle and the
+ * display name set in the community.
  * @summary Search Users
  */
 export const searchUsersApiV1CGuildIdUsersSearchGet = (

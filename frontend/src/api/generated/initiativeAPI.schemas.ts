@@ -1659,7 +1659,7 @@ export interface PropertySummary {
   name: string;
   type: PropertyType;
   options: PropertyOption[] | null;
-  /** Shaped by the property's type. For user_reference, a person: id, username, discriminator, display_name and avatar_url, with id the reader's own reference to them when the reader is an installed app. */
+  /** Shaped by the property's type. For user_reference, a person: id, username, discriminator, display_name and avatar_url, or an AppPerson when the reader is an installed app. */
   value: unknown;
 }
 

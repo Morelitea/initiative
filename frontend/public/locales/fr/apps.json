@@ -285,7 +285,7 @@
         "write": "Voir et modifier qui a accès à quoi"
       },
       "members": {
-        "read": "Voir qui fait partie de votre communauté"
+        "read": "Voir qui fait partie de votre communauté, avec leurs noms"
       },
       "initiatives": {
         "read": "Voir les initiatives de votre communauté",
