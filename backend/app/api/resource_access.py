@@ -62,6 +62,7 @@ from app.services.tenant import counters as counters_service
 from app.services.tenant import dashboards as dashboards_service
 from app.services.tenant import documents as documents_service
 from app.services.tenant import galleries as galleries_service
+from app.services.tenant import initiatives as initiatives_service
 from app.services.tenant import wikis as wikis_service
 from app.services.tenant import posts as posts_service
 from app.services.tenant import named_people
@@ -552,13 +553,43 @@ async def load_child(
                 session, kind, parent_id, None, context, access=access, action=action
             )
         raise _missing(model)
-    parent = next(
+    authorize(kind, _parent(row), context=context, access=access, action=action)
+    return row
+
+
+def _parent(row: Any) -> Any:
+    """The tool a row inside a tool sits in."""
+    model = type(row)
+    column = parent_column(model)
+    return next(
         getattr(row, r.key)
         for r in inspect(model).relationships
         if [c.name for c in r.local_columns] == [column]
     )
-    authorize(kind, parent, context=context, access=access, action=action)
-    return row
+
+
+async def require_stays_in(
+    session: Any, source_initiative_id: Optional[int], initiative_id: Optional[int]
+) -> None:
+    """Refuse taking content of ``source_initiative_id`` into
+    ``initiative_id`` when the source keeps its content in. Every copy and
+    move into another initiative asks it."""
+    if source_initiative_id != initiative_id and (
+        await initiatives_service.keeps_content_in(session, [source_initiative_id])
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=InitiativeMessages.CONTENT_KEPT_IN,
+        )
+
+
+async def require_may_move(session: Any, row: Any, destination: Any) -> None:
+    """Whether ``row``, a row inside a tool, may go into ``destination``,
+    another of its tool: not out of an initiative that keeps its content in
+    (:func:`require_stays_in`)."""
+    await require_stays_in(
+        session, _parent(row).initiative_id, destination.initiative_id
+    )
 
 
 async def reload_child(session: Any, model: type[Child], child_id: int) -> Child:

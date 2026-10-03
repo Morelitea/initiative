@@ -64,6 +64,7 @@ import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
 import { useComments, useCommentsCache } from "@/hooks/useComments";
 import { useDateLocale } from "@/hooks/useDateLocale";
 import { useGuilds } from "@/hooks/useGuilds";
+import { useInitiative } from "@/hooks/useInitiatives";
 import { useReadOnOpen } from "@/hooks/useNotifications";
 import { usePastedImages } from "@/hooks/usePastedImages";
 import { useProject, useProjectTaskStatuses, useWritableProjects } from "@/hooks/useProjects";
@@ -488,7 +489,15 @@ export const TaskEditPage = () => {
   const writableProjectsQuery = useWritableProjects({
     enabled: Boolean(canWriteProject && !projectIsArchived),
   });
-  const writableProjects = writableProjectsQuery.data?.items ?? [];
+  // An initiative that keeps its content in keeps its tasks.
+  const keptIn = useInitiative(project?.initiative_id ?? null).data?.keep_content_in;
+  const writableProjects = useMemo(
+    () =>
+      (writableProjectsQuery.data?.items ?? []).filter(
+        (candidate) => !keptIn || candidate.initiative_id === project?.initiative_id
+      ),
+    [writableProjectsQuery.data, keptIn, project?.initiative_id]
+  );
 
   // What the unsaved-changes guard asks: do the fields still say what the task
   // says? (Kept before the early returns so the guard hooks below run

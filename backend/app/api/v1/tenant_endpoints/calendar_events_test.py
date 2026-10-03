@@ -731,6 +731,20 @@ async def test_a_move_into_another_initiative_drops_property_values(
     assert kept.status_code == 200
     assert await holding_values(definition.id) == sorted([series.id, override.id])
 
+    # An initiative that keeps its content in keeps its events.
+    initiative.keep_content_in = True
+    session.add(initiative)
+    await session.commit()
+    kept_in = await client.patch(
+        a.g(f"/calendar-events/{series.id}"),
+        headers=a.headers,
+        json={"calendar_id": elsewhere.id},
+    )
+    assert kept_in.json()["detail"] == "INITIATIVE_CONTENT_KEPT_IN", kept_in.text
+    initiative.keep_content_in = False
+    session.add(initiative)
+    await session.commit()
+
     moved = await client.patch(
         a.g(f"/calendar-events/{series.id}"),
         headers=a.headers,

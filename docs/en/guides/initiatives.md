@@ -126,7 +126,7 @@ There's a full walkthrough in [Initiative roles](../sharing/initiative-roles.md)
 - **Members** — **Joining**, any waiting requests, and who's in with their roles.
 - **Roles** — make roles and set what they can do.
 - **Properties** — custom fields this initiative's tasks, documents and events can carry.
-- **Export** — download the initiative's data (managers and above). **Keep content in this initiative** stops anyone, admins included, from exporting things from it one at a time or copying them to another initiative. Copies inside it, and this whole-initiative download, carry on as normal.
+- **Export** — download the initiative's data (managers and above). **Keep content in this initiative** stops anyone, admins included, from exporting things from it one at a time, or copying or moving them to another initiative. Copies and moves inside it, and this whole-initiative download, carry on as normal.
 - **Danger zone** — archive, unarchive, delete.
 
 ### Archiving vs. deleting
