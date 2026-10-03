@@ -16,7 +16,7 @@ import { Separator } from "@/components/ui/separator";
 import { Slider } from "@/components/ui/slider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { FOCUS_HORIZON_ANY, FOCUS_PRIORITIES, type useFocusSummary } from "@/hooks/useFocusSummary";
-import { guildPath } from "@/lib/guildUrl";
+import { communityPath } from "@/lib/communityUrl";
 import { entityRefRoute, taskRoute } from "@/lib/tools";
 import { cn } from "@/lib/utils";
 
@@ -24,7 +24,7 @@ type FocusSummaryData = ReturnType<typeof useFocusSummary>;
 
 export type FocusSummaryProps = {
   focus: FocusSummaryData;
-  activeGuildId: number | null;
+  activeCommunityId: number | null;
   /** Reused from the page's table so status resolution has one implementation. */
   changeTaskStatus: (task: TaskListRead, category: TaskStatusCategory) => Promise<void>;
   /** Whether THIS task has a status change in flight, so one row saving leaves
@@ -32,20 +32,20 @@ export type FocusSummaryProps = {
   isUpdatingTask: (task: TaskListRead) => boolean;
 };
 
-const taskHref = (task: TaskListRead, activeGuildId: number | null) => {
-  const guildId = task.community_id ?? activeGuildId;
+const taskHref = (task: TaskListRead, activeCommunityId: number | null) => {
+  const communityId = task.community_id ?? activeCommunityId;
   // A task's URL names its project and initiative; a row missing either
   // resolves through `/go` rather than pointing at an address that isn't one.
   const path =
     task.initiative_id != null
       ? taskRoute(task.initiative_id, task.project_id, task.id)
       : entityRefRoute("task", task.id);
-  return guildId ? guildPath(guildId, path) : path;
+  return communityId ? communityPath(communityId, path) : path;
 };
 
 type FocusRowProps = {
   task: TaskListRead;
-  activeGuildId: number | null;
+  activeCommunityId: number | null;
   isPinned: boolean;
   onTogglePin: () => void;
   onToggleDone: () => void;
@@ -55,7 +55,7 @@ type FocusRowProps = {
 
 const FocusRow = ({
   task,
-  activeGuildId,
+  activeCommunityId,
   isPinned,
   onTogglePin,
   onToggleDone,
@@ -75,7 +75,7 @@ const FocusRow = ({
       />
       <div className="min-w-0 flex-1">
         <Link
-          to={taskHref(task, activeGuildId)}
+          to={taskHref(task, activeCommunityId)}
           className={cn(
             "block truncate font-medium text-sm hover:underline",
             done && "text-muted-foreground line-through"
@@ -175,7 +175,7 @@ const FocusSettings = ({ focus }: { focus: FocusSummaryData }) => {
  */
 export const FocusSummary = ({
   focus,
-  activeGuildId,
+  activeCommunityId,
   changeTaskStatus,
   isUpdatingTask,
 }: FocusSummaryProps) => {
@@ -189,7 +189,7 @@ export const FocusSummary = ({
     <FocusRow
       key={`${task.community_id ?? "none"}:${task.id}`}
       task={task}
-      activeGuildId={activeGuildId}
+      activeCommunityId={activeCommunityId}
       isPinned={focus.isPinned(task)}
       onTogglePin={() => focus.togglePin(task)}
       onToggleDone={() => void changeTaskStatus(task, done ? "in_progress" : "done")}

@@ -10,13 +10,13 @@ import { screen } from "@testing-library/react";
 import { HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
 
-import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
 import { SearchEntityType, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { ToolRelationsPanel } from "@/components/entities/ToolRelationsPanel";
 
-const noLinks = () => server.use(guildHttp.get("/relationships/", () => HttpResponse.json([])));
+const noLinks = () => server.use(communityHttp.get("/relationships/", () => HttpResponse.json([])));
 
 describe("ToolRelationsPanel", () => {
   it("names itself after the tool it sits on", async () => {
@@ -48,7 +48,7 @@ describe("ToolRelationsPanel", () => {
   });
 
   it("takes itself out of the way where a link cannot be made", async () => {
-    // A guild calendar belongs to no initiative, and every link is made inside
+    // A community calendar belongs to no initiative, and every link is made inside
     // one — so there is nothing here to offer but a refusal.
     noLinks();
     const { container } = renderPage(

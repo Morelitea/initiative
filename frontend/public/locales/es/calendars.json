@@ -109,7 +109,7 @@
     "some_other": "{{count}} calendarios",
     "label": "Elige qué calendarios mostrar"
   },
-  "guildScope": {
+  "communityScope": {
     "empty": "Aún no hay calendarios.",
     "emptyHint": "Crea uno para los días festivos, para una reunión periódica o solo para ti."
   },

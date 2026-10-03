@@ -8,8 +8,8 @@ import userEvent from "@testing-library/user-event";
 import { HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
 
-import { buildGuild, buildInitiative } from "@/__tests__/factories";
-import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { buildCommunity, buildInitiative } from "@/__tests__/factories";
+import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
 
@@ -27,11 +27,11 @@ function stubCreate() {
   const rolePatches: Record<string, unknown>[] = [];
   const patchedInitiatives: string[] = [];
   server.use(
-    guildHttp.post("/initiatives/", async ({ request }) => {
+    communityHttp.post("/initiatives/", async ({ request }) => {
       created.push((await request.json()) as Record<string, unknown>);
       return HttpResponse.json(buildInitiative({ id: 7, name: "Apollo" }), { status: 201 });
     }),
-    guildHttp.get("/initiatives/:id/roles", ({ params }) =>
+    communityHttp.get("/initiatives/:id/roles", ({ params }) =>
       // A roles lookup against an initiative that is not the one just created
       // is the bug, so answer it the way the server would: with nothing.
       String(params.id) === "7"
@@ -47,7 +47,7 @@ function stubCreate() {
           ])
         : new HttpResponse(null, { status: 404 })
     ),
-    guildHttp.patch("/initiatives/:id/roles/:roleId", async ({ request, params }) => {
+    communityHttp.patch("/initiatives/:id/roles/:roleId", async ({ request, params }) => {
       patchedInitiatives.push(String(params.id));
       rolePatches.push((await request.json()) as Record<string, unknown>);
       return HttpResponse.json({ id: 2 });
@@ -58,7 +58,10 @@ function stubCreate() {
 
 const renderWizard = () =>
   renderPage(() => <CreateInitiativeWizard open onOpenChange={() => {}} />, {
-    guilds: { activeGuildId: 1, activeGuild: buildGuild({ id: 1, role: "admin" }) },
+    communities: {
+      activeCommunityId: 1,
+      activeCommunity: buildCommunity({ id: 1, role: "admin" }),
+    },
   });
 
 const nameIt = async (name = "Apollo") => {
@@ -200,7 +203,10 @@ describe("CreateInitiativeWizard", () => {
   it("explains what an initiative is when it is the community's first", async () => {
     stubCreate();
     renderPage(() => <CreateInitiativeWizard open isFirst onOpenChange={() => {}} />, {
-      guilds: { activeGuildId: 1, activeGuild: buildGuild({ id: 1, role: "admin" }) },
+      communities: {
+        activeCommunityId: 1,
+        activeCommunity: buildCommunity({ id: 1, role: "admin" }),
+      },
     });
 
     expect(await screen.findByText("Your first initiative")).toBeInTheDocument();

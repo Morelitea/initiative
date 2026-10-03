@@ -2,9 +2,9 @@ import { useParams } from "@tanstack/react-router";
 import { UserX } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
+import { CommunityCard } from "@/components/communities/CommunityCard";
 import { ContactActionButtons } from "@/components/contacts/ContactActionButtons";
 import { ContactActionsMenu } from "@/components/contacts/ContactActionsMenu";
-import { CommunityCard } from "@/components/guilds/CommunityCard";
 import { ReportButton } from "@/components/moderation/ReportButton";
 import { PageBanner } from "@/components/PageBanner";
 import { StatusMessage } from "@/components/StatusMessage";
@@ -121,7 +121,7 @@ export const UserProfilePage = () => {
                 />
                 {/* A profile belongs to no community, so no community is sent
                     with the report and it reaches whoever runs the deployment. */}
-                <ReportButton targetType="user_profile" targetId={profile.id} guildId={null} />
+                <ReportButton targetType="user_profile" targetId={profile.id} communityId={null} />
               </div>
             )}
           </div>
@@ -146,11 +146,11 @@ export const UserProfilePage = () => {
             >
               <section className="space-y-3">
                 <h2 className="px-1 font-medium text-muted-foreground text-sm">
-                  {t("profiles:guilds.title")}
+                  {t("profiles:communities.title")}
                 </h2>
                 <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                  {shelved.map((guild) => (
-                    <CommunityCard key={guild.id} guild={guild} />
+                  {shelved.map((community) => (
+                    <CommunityCard key={community.id} community={community} />
                   ))}
                 </div>
               </section>

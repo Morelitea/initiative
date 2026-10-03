@@ -34,13 +34,13 @@ import { TOOLS, toolDetailRoute } from "@/lib/tools";
 export interface ToolRow {
   id: number;
   /** Which community the row lives in — what makes its address absolute. */
-  guildId: number;
+  communityId: number;
   name: string;
-  /** Guild-relative detail route, e.g. `/projects/12`. */
+  /** Community-relative detail route, e.g. `/projects/12`. */
   href: string;
   /** Leading mark in the name cell — a project's emoji, a calendar's colour. */
   glyph: ReactNode;
-  /** `null` for the guild-level rows a tool allows (calendars). */
+  /** `null` for the community-level rows a tool allows (calendars). */
   initiativeId: number | null;
   tags: TagSummary[];
   updatedAt: string;
@@ -118,15 +118,15 @@ const ColourDot = ({ colour }: { colour: string }) => (
 /**
  * Turn one tool's page of results into table rows.
  *
- * `fallbackGuildId` answers for a row whose payload leaves the community
- * unsaid — the guild-scoped lists, where every row is in the community the
+ * `fallbackCommunityId` answers for a row whose payload leaves the community
+ * unsaid — the community-scoped lists, where every row is in the community the
  * page is already showing.
  */
 export function buildToolRows(
   tool: Tool,
   data: ToolResponses,
-  t: TFunction<"guildHome">,
-  fallbackGuildId: number
+  t: TFunction<"communityHome">,
+  fallbackCommunityId: number
 ): ToolRow[] {
   // Each row addresses its own initiative — a table spanning them (and, on My
   // Tools, spanning communities) needs the whole chain, not just the id.
@@ -139,7 +139,7 @@ export function buildToolRows(
         const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
         return {
           id: project.id,
-          guildId: project.community_id ?? fallbackGuildId,
+          communityId: project.community_id ?? fallbackCommunityId,
           name: project.name,
           href: href(project.id, project.initiative_id),
           glyph: project.icon,
@@ -157,7 +157,7 @@ export function buildToolRows(
     case Tool.document:
       return (data[Tool.document]?.items ?? []).map((document) => ({
         id: document.id,
-        guildId: document.community_id ?? fallbackGuildId,
+        communityId: document.community_id ?? fallbackCommunityId,
         name: document.name,
         href: href(document.id, document.initiative_id),
         glyph: null,
@@ -171,7 +171,7 @@ export function buildToolRows(
     case Tool.queue:
       return (data[Tool.queue]?.items ?? []).map((queue) => ({
         id: queue.id,
-        guildId: queue.community_id ?? fallbackGuildId,
+        communityId: queue.community_id ?? fallbackCommunityId,
         name: queue.name,
         href: href(queue.id, queue.initiative_id),
         glyph: null,
@@ -182,7 +182,7 @@ export function buildToolRows(
     case Tool.counter_group:
       return (data[Tool.counter_group]?.items ?? []).map((group) => ({
         id: group.id,
-        guildId: group.community_id ?? fallbackGuildId,
+        communityId: group.community_id ?? fallbackCommunityId,
         name: group.name,
         href: href(group.id, group.initiative_id),
         glyph: null,
@@ -193,7 +193,7 @@ export function buildToolRows(
     case Tool.calendar:
       return (data[Tool.calendar]?.items ?? []).map((calendar) => ({
         id: calendar.id,
-        guildId: calendar.community_id ?? fallbackGuildId,
+        communityId: calendar.community_id ?? fallbackCommunityId,
         name: calendar.name,
         href: href(calendar.id, calendar.initiative_id),
         glyph: <ColourDot colour={calendar.color} />,
@@ -205,7 +205,7 @@ export function buildToolRows(
     case Tool.dashboard:
       return (data[Tool.dashboard]?.items ?? []).map((dashboard) => ({
         id: dashboard.id,
-        guildId: dashboard.community_id ?? fallbackGuildId,
+        communityId: dashboard.community_id ?? fallbackCommunityId,
         name: dashboard.name,
         href: href(dashboard.id, dashboard.initiative_id),
         glyph: null,
@@ -221,7 +221,7 @@ export function buildToolRows(
     case Tool.post:
       return (data[Tool.post]?.items ?? []).map((post) => ({
         id: post.id,
-        guildId: post.community_id ?? fallbackGuildId,
+        communityId: post.community_id ?? fallbackCommunityId,
         name: post.name,
         href: href(post.id, post.initiative_id),
         glyph: null,
@@ -237,7 +237,7 @@ export function buildToolRows(
     case Tool.gallery:
       return (data[Tool.gallery]?.items ?? []).map((gallery) => ({
         id: gallery.id,
-        guildId: gallery.community_id ?? fallbackGuildId,
+        communityId: gallery.community_id ?? fallbackCommunityId,
         name: gallery.name,
         href: href(gallery.id, gallery.initiative_id),
         glyph: null,
@@ -248,7 +248,7 @@ export function buildToolRows(
     case Tool.wiki:
       return (data[Tool.wiki]?.items ?? []).map((wiki) => ({
         id: wiki.id,
-        guildId: wiki.community_id ?? fallbackGuildId,
+        communityId: wiki.community_id ?? fallbackCommunityId,
         name: wiki.name,
         href: href(wiki.id, wiki.initiative_id),
         glyph: null,

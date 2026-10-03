@@ -1,0 +1,86 @@
+{
+  "title": "Comunidad",
+  "subtitle": "Todo lo de la comunidad, una herramienta a la vez.",
+  "toolRail": "Herramientas de la comunidad",
+  "loading": "Cargando…",
+  "loadError": "No se pudo cargar esta herramienta. Inténtalo de nuevo más tarde.",
+  "communityWide": "Todo la comunidad",
+  "searchPlaceholder": "Buscar por nombre…",
+  "empty": {
+    "title": "Aún no hay nada",
+    "description": "Todavía no existe nada de este tipo en la comunidad, o nada se ha compartido contigo."
+  },
+  "emptyState": {
+    "title": "Todavía no te has unido a ninguna iniciativa",
+    "adminTitle": "Esta comunidad todavía no tiene iniciativas",
+    "description": "Las iniciativas contienen todo lo de una comunidad: proyectos, documentos y lo demás. Únete a una para ver su trabajo.",
+    "adminDescription": "Las iniciativas contienen todo lo de una comunidad: proyectos, documentos y lo demás. Crea la primera para decir para qué es esta comunidad.",
+    "nothingListedTitle": "Nada a lo que unirse todavía",
+    "adminNothingListedTitle": "Crea la primera iniciativa",
+    "nothingListedDescription": "Ninguna iniciativa de esta comunidad está abierta ahora mismo. Un administrador de la comunidad o un gerente de proyecto puede añadirte.",
+    "adminNothingListedDescription": "Ponle nombre a un conjunto de trabajo — un equipo, una campaña, una temporada — y todo lo que le pertenece vivirá dentro."
+  },
+  "directory": {
+    "title": "Iniciativas",
+    "subtitle": "Las tuyas y a las que puedes unirte.",
+    "memberBadge": "Unido",
+    "memberCount_one": "{{count}} miembro",
+    "memberCount_other": "{{count}} miembros",
+    "toolCount": "{{label}}: {{count}}",
+    "groups": {
+      "mine": "Tus iniciativas",
+      "joinable": "Abiertas para unirse"
+    },
+    "join": "Unirse",
+    "joining": "Uniéndote…",
+    "joined": "Te has unido a {{name}}.",
+    "requestToJoin": "Solicitar unirse",
+    "requested": "Solicitado",
+    "pendingRequests_one": "{{count}} esperando para unirse",
+    "pendingRequests_other": "{{count}} esperando para unirse",
+    "policy": {
+      "open": "Abierta a todos los miembros de la comunidad",
+      "request": "Unirse mediante solicitud",
+      "private": "Solo por invitación"
+    },
+    "loadError": "No se pudo cargar lo que ofrece esta comunidad. Inténtalo de nuevo más tarde."
+  },
+  "columns": {
+    "name": "Nombre",
+    "community": "Comunidad",
+    "initiative": "Iniciativa",
+    "tags": "Etiquetas",
+    "updated": "Última actualización",
+    "detail": {
+      "projects": "Progreso",
+      "documents": "Tipo",
+      "calendars": "Descripción",
+      "dashboards": "Origen",
+      "posts": "Vista previa"
+    }
+  },
+  "detail": {
+    "tasksDone": "{{completed}} de {{total}} tareas",
+    "fromMarketplace": "Mercado",
+    "builtHere": "Creado aquí",
+    "documentType": {
+      "native": "Documento",
+      "file": "Archivo",
+      "whiteboard": "Pizarra",
+      "smart_link": "Enlace",
+      "spreadsheet": "Hoja de cálculo"
+    }
+  },
+  "recentComments": {
+    "title": "Comentarios recientes",
+    "noComments": "Aún no hay comentarios",
+    "loadError": "No se pudieron cargar los comentarios recientes. Inténtalo de nuevo más tarde.",
+    "unknownAuthor": "Desconocido",
+    "onTask": "en {{taskTitle}}",
+    "onDocument": "en {{documentTitle}}",
+    "onEntity": "en {{entityName}}",
+    "inProject": "en {{projectName}}",
+    "readMore": "Leer más",
+    "showLess": "Mostrar menos"
+  }
+}

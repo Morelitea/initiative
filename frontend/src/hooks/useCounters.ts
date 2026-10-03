@@ -23,8 +23,8 @@ import type {
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { invalidate, q } from "@/api/query-keys";
 import { TOOL_HOOKS } from "@/hooks/toolHooks";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
-import { useGuildMutation } from "@/hooks/useApiMutation";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
+import { useCommunityMutation } from "@/hooks/useApiMutation";
 import { toast } from "@/lib/chesterToast";
 import {
   optimisticDecrement,
@@ -44,12 +44,12 @@ interface OptimisticContext {
 
 const patchCounterInCache = (
   queryClient: ReturnType<typeof useQueryClient>,
-  guildId: number,
+  communityId: number,
   groupId: number,
   counterId: number,
   patch: Partial<CounterRead> | ((c: CounterRead) => Partial<CounterRead>)
 ): OptimisticContext => {
-  const key = getReadCounterGroupQueryKey(guildId, groupId);
+  const key = getReadCounterGroupQueryKey(communityId, groupId);
   const previousGroup = queryClient.getQueryData<CounterGroupRead>(key);
   queryClient.setQueryData<CounterGroupRead>(key, (old) => {
     if (!old) return old;
@@ -67,12 +67,12 @@ const patchCounterInCache = (
 
 const rollbackGroup = (
   queryClient: ReturnType<typeof useQueryClient>,
-  guildId: number,
+  communityId: number,
   groupId: number,
   context: OptimisticContext | undefined
 ) => {
   if (!context?.previousGroup) return;
-  const key = getReadCounterGroupQueryKey(guildId, groupId);
+  const key = getReadCounterGroupQueryKey(communityId, groupId);
   queryClient.setQueryData<CounterGroupRead>(key, context.previousGroup);
 };
 
@@ -99,9 +99,9 @@ export const useAddCounter = (
   groupId: number,
   options?: MutationOpts<CounterRead, CounterCreate>
 ) =>
-  useGuildMutation<CounterRead, CounterCreate>(
+  useCommunityMutation<CounterRead, CounterCreate>(
     {
-      mutationFn: (guildId, data) => addCounter(guildId, groupId, data),
+      mutationFn: (communityId, data) => addCounter(communityId, groupId, data),
       invalidate: () => invalidateGroupAndList(groupId),
       errorKey: "counterGroups:error",
     },
@@ -109,9 +109,9 @@ export const useAddCounter = (
   );
 
 export const useDuplicateCounter = (groupId: number, options?: MutationOpts<CounterRead, number>) =>
-  useGuildMutation<CounterRead, number>(
+  useCommunityMutation<CounterRead, number>(
     {
-      mutationFn: (guildId, counterId) => duplicateCounter(guildId, counterId),
+      mutationFn: (communityId, counterId) => duplicateCounter(communityId, counterId),
       invalidate: () => invalidateGroupAndList(groupId),
       errorKey: "common:error",
     },
@@ -130,18 +130,18 @@ export const useUpdateCounter = (
   groupId: number,
   options?: MutationOpts<CounterRead, UpdateCounterInput>
 ) => {
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   const queryClient = useQueryClient();
   const { onSuccess, onError, onSettled, onMutate: _ignored, ...rest } = options ?? {};
   return useMutation<CounterRead, Error, UpdateCounterInput, OptimisticContext>({
     ...rest,
-    mutationFn: async ({ counterId, data }) => updateCounter(guildId, counterId, data),
+    mutationFn: async ({ counterId, data }) => updateCounter(communityId, counterId, data),
     onMutate: async ({ counterId, data }) => {
-      const key = getReadCounterGroupQueryKey(guildId, groupId);
+      const key = getReadCounterGroupQueryKey(communityId, groupId);
       await queryClient.cancelQueries({ queryKey: key });
       return patchCounterInCache(
         queryClient,
-        guildId,
+        communityId,
         groupId,
         counterId,
         data as Partial<CounterRead>
@@ -149,7 +149,7 @@ export const useUpdateCounter = (
     },
     onSuccess,
     onError: (err, vars, onMutateResult, context) => {
-      rollbackGroup(queryClient, guildId, groupId, onMutateResult);
+      rollbackGroup(queryClient, communityId, groupId, onMutateResult);
       toast.error(getErrorMessage(err, "counterGroups:error"));
       onError?.(err, vars, onMutateResult, context);
     },
@@ -161,16 +161,16 @@ export const useUpdateCounter = (
 };
 
 export const useDeleteCounter = (groupId: number, options?: MutationOpts<void, number>) => {
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   const queryClient = useQueryClient();
   const { onSuccess, onError, onSettled, onMutate: _ignored, ...rest } = options ?? {};
   return useMutation<void, Error, number, OptimisticContext>({
     ...rest,
     mutationFn: async (counterId: number) => {
-      await deleteCounter(guildId, counterId);
+      await deleteCounter(communityId, counterId);
     },
     onMutate: async (counterId) => {
-      const key = getReadCounterGroupQueryKey(guildId, groupId);
+      const key = getReadCounterGroupQueryKey(communityId, groupId);
       await queryClient.cancelQueries({ queryKey: key });
       const previousGroup = queryClient.getQueryData<CounterGroupRead>(key);
       queryClient.setQueryData<CounterGroupRead>(key, (old) => {
@@ -181,7 +181,7 @@ export const useDeleteCounter = (groupId: number, options?: MutationOpts<void, n
     },
     onSuccess,
     onError: (err, vars, onMutateResult, context) => {
-      rollbackGroup(queryClient, guildId, groupId, onMutateResult);
+      rollbackGroup(queryClient, communityId, groupId, onMutateResult);
       toast.error(getErrorMessage(err, "counterGroups:error"));
       onError?.(err, vars, onMutateResult, context);
     },
@@ -203,22 +203,22 @@ export const useSetCount = (
   groupId: number,
   options?: MutationOpts<CounterRead, SetCountInput>
 ) => {
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   const queryClient = useQueryClient();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
   return useMutation<CounterRead, Error, SetCountInput, OptimisticContext>({
     ...rest,
-    mutationFn: async ({ counterId, data }) => setCounterCount(guildId, counterId, data),
+    mutationFn: async ({ counterId, data }) => setCounterCount(communityId, counterId, data),
     onMutate: async ({ counterId, data }) => {
-      const key = getReadCounterGroupQueryKey(guildId, groupId);
+      const key = getReadCounterGroupQueryKey(communityId, groupId);
       await queryClient.cancelQueries({ queryKey: key });
-      return patchCounterInCache(queryClient, guildId, groupId, counterId, (c) => ({
+      return patchCounterInCache(queryClient, communityId, groupId, counterId, (c) => ({
         count: optimisticSetCount(c, String(data.count)),
       }));
     },
     onSuccess,
     onError: (err, vars, onMutateResult, context) => {
-      rollbackGroup(queryClient, guildId, groupId, onMutateResult);
+      rollbackGroup(queryClient, communityId, groupId, onMutateResult);
       toast.error(getErrorMessage(err, "counterGroups:error"));
       onError?.(err, vars, onMutateResult, context);
     },
@@ -230,29 +230,29 @@ export const useSetCount = (
 };
 
 const makeValueOpHook = (
-  endpoint: (guildId: number, counterId: number) => Promise<CounterRead>,
+  endpoint: (communityId: number, counterId: number) => Promise<CounterRead>,
   computeOptimistic: (counter: CounterRead) => string
 ) => {
   return (groupId: number, options?: MutationOpts<CounterRead, number>) => {
     // eslint-disable-next-line react-hooks/rules-of-hooks
-    const guildId = useActiveGuildId();
+    const communityId = useActiveCommunityId();
     // eslint-disable-next-line react-hooks/rules-of-hooks
     const queryClient = useQueryClient();
     const { onSuccess, onError, onSettled, ...rest } = options ?? {};
     // eslint-disable-next-line react-hooks/rules-of-hooks
     return useMutation<CounterRead, Error, number, OptimisticContext>({
       ...rest,
-      mutationFn: async (counterId: number) => endpoint(guildId, counterId),
+      mutationFn: async (counterId: number) => endpoint(communityId, counterId),
       onMutate: async (counterId) => {
-        const key = getReadCounterGroupQueryKey(guildId, groupId);
+        const key = getReadCounterGroupQueryKey(communityId, groupId);
         await queryClient.cancelQueries({ queryKey: key });
-        return patchCounterInCache(queryClient, guildId, groupId, counterId, (c) => ({
+        return patchCounterInCache(queryClient, communityId, groupId, counterId, (c) => ({
           count: computeOptimistic(c),
         }));
       },
       onError: (...args) => {
         const ctx = args[2] as OptimisticContext | undefined;
-        rollbackGroup(queryClient, guildId, groupId, ctx);
+        rollbackGroup(queryClient, communityId, groupId, ctx);
         toast.error(getErrorMessage(args[0], "counterGroups:error"));
         (onError as any)?.(...args);
       },
@@ -273,14 +273,14 @@ export const useResetAllCounters = (
   groupId: number,
   options?: MutationOpts<CounterGroupRead, void>
 ) => {
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   const queryClient = useQueryClient();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
   return useMutation<CounterGroupRead, Error, void, OptimisticContext>({
     ...rest,
-    mutationFn: async () => resetAllCounters(guildId, groupId),
+    mutationFn: async () => resetAllCounters(communityId, groupId),
     onMutate: async () => {
-      const key = getReadCounterGroupQueryKey(guildId, groupId);
+      const key = getReadCounterGroupQueryKey(communityId, groupId);
       await queryClient.cancelQueries({ queryKey: key });
       const previousGroup = queryClient.getQueryData<CounterGroupRead>(key);
       queryClient.setQueryData<CounterGroupRead>(key, (old) => {
@@ -294,7 +294,7 @@ export const useResetAllCounters = (
     },
     onSuccess,
     onError: (err, vars, onMutateResult, context) => {
-      rollbackGroup(queryClient, guildId, groupId, onMutateResult);
+      rollbackGroup(queryClient, communityId, groupId, onMutateResult);
       toast.error(getErrorMessage(err, "counterGroups:error"));
       onError?.(err, vars, onMutateResult, context);
     },
@@ -326,14 +326,14 @@ export const useSortCounters = (
   groupId: number,
   options?: MutationOpts<CounterGroupRead, CounterSortRequest>
 ) => {
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   const queryClient = useQueryClient();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
   return useMutation<CounterGroupRead, Error, CounterSortRequest, OptimisticContext>({
     ...rest,
-    mutationFn: async (data: CounterSortRequest) => sortCounters(guildId, groupId, data),
+    mutationFn: async (data: CounterSortRequest) => sortCounters(communityId, groupId, data),
     onMutate: async ({ field, direction }) => {
-      const key = getReadCounterGroupQueryKey(guildId, groupId);
+      const key = getReadCounterGroupQueryKey(communityId, groupId);
       await queryClient.cancelQueries({ queryKey: key });
       const previousGroup = queryClient.getQueryData<CounterGroupRead>(key);
       queryClient.setQueryData<CounterGroupRead>(key, (old) => {
@@ -348,7 +348,7 @@ export const useSortCounters = (
     },
     onSuccess,
     onError: (err, vars, onMutateResult, context) => {
-      rollbackGroup(queryClient, guildId, groupId, onMutateResult);
+      rollbackGroup(queryClient, communityId, groupId, onMutateResult);
       toast.error(getErrorMessage(err, "counterGroups:error"));
       onError?.(err, vars, onMutateResult, context);
     },
@@ -384,14 +384,17 @@ const STEP_DEBOUNCE_MS = 300;
  * Server-side rate limiting is the control for that.
  */
 export const useSteppedCount = (groupId: number) => {
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   const queryClient = useQueryClient();
   const timers = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
   // counterId -> value the user is steering toward. Survives refetches until
   // the server confirms it, so in-flight clicks are never lost.
   const pending = useRef<Map<number, string>>(new Map());
 
-  const groupKey = useMemo(() => getReadCounterGroupQueryKey(guildId, groupId), [guildId, groupId]);
+  const groupKey = useMemo(
+    () => getReadCounterGroupQueryKey(communityId, groupId),
+    [communityId, groupId]
+  );
 
   const applyToCache = useCallback(
     (counterId: number, value: string) => {
@@ -411,7 +414,7 @@ export const useSteppedCount = (groupId: number) => {
       const target = pending.current.get(counterId);
       if (target === undefined) return;
       try {
-        await setCounterCount(guildId, counterId, {
+        await setCounterCount(communityId, counterId, {
           count: target,
         });
         // Stop tracking only if no newer clicks landed mid-flight and nothing
@@ -425,7 +428,7 @@ export const useSteppedCount = (groupId: number) => {
         void invalidate(q.counterGroup(groupId));
       }
     },
-    [guildId, groupId]
+    [communityId, groupId]
   );
 
   const flush = useCallback(
@@ -518,7 +521,7 @@ export const useSteppedCount = (groupId: number) => {
         clearTimeout(timer);
         const target = pendingMap.get(counterId);
         if (target !== undefined) {
-          void setCounterCount(guildId, counterId, {
+          void setCounterCount(communityId, counterId, {
             count: target,
           });
         }
@@ -526,7 +529,7 @@ export const useSteppedCount = (groupId: number) => {
       timerMap.clear();
       pendingMap.clear();
     };
-  }, [guildId, groupId]);
+  }, [communityId, groupId]);
 
   return {
     increment: (counter: CounterRead) => step(counter, 1),

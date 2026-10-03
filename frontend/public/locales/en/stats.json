@@ -1,8 +1,8 @@
 {
   "page": {
     "title": "My Stats",
-    "guildFilterPlaceholder": "Select community",
-    "allGuilds": "All Communities",
+    "communityFilterPlaceholder": "Select community",
+    "allCommunities": "All Communities",
     "loading": "Loading stats\u2026",
     "error": "Failed to load stats. Please try again later."
   },
@@ -32,7 +32,7 @@
     "assigned": "Assigned",
     "completed": "Completed"
   },
-  "guildBreakdown": {
+  "communityBreakdown": {
     "title": "Tasks by Community",
     "description": "Completed tasks breakdown by community",
     "noData": "No community data available"

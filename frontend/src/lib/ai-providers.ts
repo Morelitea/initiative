@@ -80,7 +80,7 @@ export const getModelsForProvider = (
   return PROVIDER_CONFIGS[provider]?.defaultModels ?? [];
 };
 
-// Connections are defined either by the platform operator or by a guild admin.
+// Connections are defined either by the platform operator or by a community admin.
 // Members never define a connection (they only attach a personal key), so there
 // is no "user" scope here.
 export type AISettingsScope = "platform" | "community";

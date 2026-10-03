@@ -284,11 +284,11 @@ describe("signed in, making another community in the native app", () => {
       headers: new AxiosHeaders(),
       config: { headers: new AxiosHeaders() },
     };
-    const createGuild = vi.fn().mockRejectedValue(refused);
+    const createCommunity = vi.fn().mockRejectedValue(refused);
     renderPage(() => <StartFlow signedIn />, {
       initialRoute: "/",
       auth: { user: buildUser({ age_confirmed_at: "2026-01-01T00:00:00Z" }) },
-      guilds: { guilds: [], createGuild },
+      communities: { communities: [], createCommunity },
       server: { isNativePlatform: true },
     });
 

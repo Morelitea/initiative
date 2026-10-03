@@ -1,7 +1,7 @@
 import { useNavigate } from "@tanstack/react-router";
 
 import { type AgeChallengeDetail, AUTH_AGE_REQUIRED_EVENT } from "@/api/client";
-import { AgeConfirmationDialog } from "@/components/guilds/AgeConfirmationDialog";
+import { AgeConfirmationDialog } from "@/components/communities/AgeConfirmationDialog";
 import { useAuthChallenge } from "@/hooks/useAuthChallenge";
 
 /**

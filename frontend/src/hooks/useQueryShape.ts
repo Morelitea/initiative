@@ -2,7 +2,7 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import type { QueryShapeResponse } from "@/api/generated/initiativeAPI.schemas";
 import { describeQuery } from "@/api/generated/query/query";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import type { QueryOpts } from "@/types/query";
 
 /**
@@ -16,19 +16,19 @@ import type { QueryOpts } from "@/types/query";
  * The last good answer is kept while a new one is in flight, so the columns a
  * widget is mapped against do not blink away mid-keystroke.
  */
-export const queryShapeKey = (guildId: number, sql: string, initiativeId?: number) =>
-  ["query-describe", guildId, sql, initiativeId ?? null] as const;
+export const queryShapeKey = (communityId: number, sql: string, initiativeId?: number) =>
+  ["query-describe", communityId, sql, initiativeId ?? null] as const;
 
 export const useQueryShape = (
   sql: string | null,
   initiativeId: number | undefined,
   options?: QueryOpts<QueryShapeResponse>
 ) => {
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   return useQuery<QueryShapeResponse>({
-    queryKey: queryShapeKey(guildId, sql ?? "", initiativeId),
+    queryKey: queryShapeKey(communityId, sql ?? "", initiativeId),
     queryFn: () =>
-      describeQuery(guildId, {
+      describeQuery(communityId, {
         sql: sql ?? "",
         initiative_id: initiativeId,
       }),

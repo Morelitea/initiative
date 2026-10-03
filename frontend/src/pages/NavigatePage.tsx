@@ -5,9 +5,9 @@ import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
-import { useGuilds } from "@/hooks/useGuilds";
+import { useCommunities } from "@/hooks/useCommunities";
+import { communityPath, isCommunityScopedPath } from "@/lib/communityUrl";
 import { normalizeLegacyTarget } from "@/lib/entityResolver";
-import { guildPath, isGuildScopedPath } from "@/lib/guildUrl";
 
 const normalizeTarget = (raw: string): string => {
   const decoded = decodeURIComponent(raw);
@@ -23,13 +23,13 @@ const normalizeTarget = (raw: string): string => {
 export const NavigatePage = () => {
   const { t } = useTranslation("nav");
   const { user, loading: authLoading } = useAuth();
-  const { guilds, activeGuildId, switchGuild } = useGuilds();
+  const { communities, activeCommunityId, switchCommunity } = useCommunities();
   const searchParams = useSearch({ strict: false }) as { guild_id?: string; target?: string };
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(true);
 
-  const guildParam = searchParams.guild_id;
+  const communityParam = searchParams.guild_id;
   const targetParam = searchParams.target;
 
   const destination = useMemo(() => {
@@ -52,23 +52,23 @@ export const NavigatePage = () => {
       setIsProcessing(false);
       return;
     }
-    if (!guildParam || !destination) {
+    if (!communityParam || !destination) {
       setError(t("navigate.missingDestination"));
       setIsProcessing(false);
       return;
     }
-    let parsedGuildId = Number(guildParam);
-    if (!Number.isFinite(parsedGuildId)) {
-      parsedGuildId = Number.parseInt(guildParam, 10);
+    let parsedCommunityId = Number(communityParam);
+    if (!Number.isFinite(parsedCommunityId)) {
+      parsedCommunityId = Number.parseInt(communityParam, 10);
     }
-    if (!Number.isFinite(parsedGuildId)) {
-      setError(t("navigate.invalidGuildId"));
+    if (!Number.isFinite(parsedCommunityId)) {
+      setError(t("navigate.invalidCommunityId"));
       setIsProcessing(false);
       return;
     }
 
-    // Check if user has access to this guild
-    const hasAccess = guilds.some((g) => g.id === parsedGuildId);
+    // Check if user has access to this community
+    const hasAccess = communities.some((g) => g.id === parsedCommunityId);
     if (!hasAccess) {
       setError(t("navigate.noAccess"));
       setIsProcessing(false);
@@ -78,16 +78,16 @@ export const NavigatePage = () => {
     setError(null);
     setIsProcessing(true);
 
-    // Redirect to new guild-scoped URL format if the target isn't already guild-scoped
-    const finalDestination = isGuildScopedPath(destination)
+    // Redirect to new community-scoped URL format if the target isn't already community-scoped
+    const finalDestination = isCommunityScopedPath(destination)
       ? destination
-      : guildPath(parsedGuildId, destination);
+      : communityPath(parsedCommunityId, destination);
 
     const performNavigation = async () => {
       try {
-        // Sync guild context in background (but URL already has guild info)
-        if (activeGuildId !== parsedGuildId) {
-          await switchGuild(parsedGuildId);
+        // Sync community context in background (but URL already has community info)
+        if (activeCommunityId !== parsedCommunityId) {
+          await switchCommunity(parsedCommunityId);
         }
         // A query (an event's `?occurrence=`) stays search rather than path.
         router.navigate(
@@ -102,7 +102,17 @@ export const NavigatePage = () => {
       }
     };
     void performNavigation();
-  }, [authLoading, user, guilds, guildParam, activeGuildId, switchGuild, router, destination, t]);
+  }, [
+    authLoading,
+    user,
+    communities,
+    communityParam,
+    activeCommunityId,
+    switchCommunity,
+    router,
+    destination,
+    t,
+  ]);
 
   if (error) {
     return (

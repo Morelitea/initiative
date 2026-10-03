@@ -4,7 +4,7 @@
  * Three links make up that way in, and a test that mounts the page component
  * directly proves none of them: the generated route tree has to register
  * `/communities`, the route's component has to actually load (it is code-split,
- * so it arrives as its own chunk), and the entry in the guild rail has to point
+ * so it arrives as its own chunk), and the entry in the community rail has to point
  * at an address that tree resolves. Break any one of them and clicking the
  * entry renders nothing at all — which is indistinguishable, on screen, from a
  * button that does nothing.
@@ -18,12 +18,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { DirectoryCommunityRead } from "@/api/generated/initiativeAPI.schemas";
 import { AppSidebar } from "@/components/AppSidebar";
-import { GuildSidebar } from "@/components/guilds/GuildSidebar";
+import { CommunitySidebar } from "@/components/communities/CommunitySidebar";
 import { SidebarProvider } from "@/components/ui/sidebar";
-import type { GuildEntry } from "@/hooks/useGuilds";
+import type { CommunityEntry } from "@/hooks/useCommunities";
 import { routeTree } from "@/routeTree.gen";
 
-import { buildBanner, buildGuild } from "./factories";
+import { buildBanner, buildCommunity } from "./factories";
 import { buildRouterContext, renderPage } from "./helpers/render";
 
 const appConfig = vi.hoisted(() => ({ directory: true }));
@@ -39,9 +39,9 @@ vi.mock("@/lib/chesterToast", () => ({
 }));
 
 const directory = vi.fn();
-vi.mock("@/hooks/useCommunities", () => ({
-  useCommunityGuilds: (params: unknown) => directory(params),
-  useJoinCommunityGuild: () => ({ mutateAsync: vi.fn(), isPending: false }),
+vi.mock("@/hooks/useCommunityDirectory", () => ({
+  useDirectoryCommunities: (params: unknown) => directory(params),
+  useJoinDirectoryCommunity: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 
 const community: DirectoryCommunityRead = {
@@ -86,16 +86,20 @@ describe("the community directory's way in", () => {
   });
 
   it("is where the rail's entry points", async () => {
-    const guilds = [
-      { ...buildGuild({ id: 1, name: "Alpha" }), accessType: "member" } as GuildEntry,
+    const communities = [
+      { ...buildCommunity({ id: 1, name: "Alpha" }), accessType: "member" } as CommunityEntry,
     ];
     renderPage(
       () => (
         <SidebarProvider>
-          <GuildSidebar />
+          <CommunitySidebar />
         </SidebarProvider>
       ),
-      { initialRoute: "/c/$guildId", routeParams: { guildId: "1" }, guilds: { guilds } }
+      {
+        initialRoute: "/c/$communityId",
+        routeParams: { communityId: "1" },
+        communities: { communities },
+      }
     );
 
     const link = await screen.findByRole("link", { name: "Join a community" });

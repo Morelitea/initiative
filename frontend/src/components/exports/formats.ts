@@ -119,7 +119,7 @@ export const TOOL_EXPORT_FORMATS: Partial<Record<Tool, ExportFormatOption[]>> = 
 };
 
 // ---------------------------------------------------------------------------
-// Aggregate (initiative / guild) export wizard
+// Aggregate (initiative / community) export wizard
 // ---------------------------------------------------------------------------
 
 /** Wizard tool order: the sidebar's order, filtered to engine-exportable

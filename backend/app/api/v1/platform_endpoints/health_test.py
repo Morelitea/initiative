@@ -270,7 +270,7 @@ async def test_page_views_are_counted_by_route_template(
             or 0.0
         )
 
-    known = "/c/$guildId/i/$initiativeId/projects/$projectId/"
+    known = "/c/$communityId/i/$initiativeId/projects/$projectId/"
     before_known, before_other = views(known), views("other")
 
     monkeypatch.setattr(settings, "METRICS_TOKEN", None)

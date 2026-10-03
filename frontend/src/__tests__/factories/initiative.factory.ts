@@ -116,7 +116,7 @@ export function buildInitiativeRole(
   };
 }
 
-/** One card in the guild's initiative directory (`GET /initiatives/directory`). */
+/** One card in the community's initiative directory (`GET /initiatives/directory`). */
 export function buildInitiativeDirectoryEntry(
   overrides: Partial<InitiativeDirectoryEntry> = {}
 ): InitiativeDirectoryEntry {

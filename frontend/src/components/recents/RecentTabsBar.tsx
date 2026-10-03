@@ -27,7 +27,7 @@ interface RecentTabsBarProps {
 }
 
 /**
- * Sticky-header tabs bar for the most-recently-opened guild-scoped items
+ * Sticky-header tabs bar for the most-recently-opened community-scoped items
  * (projects, documents, queues, counter groups), capped per user by their
  * ``recent_tabs_limit`` interface setting. Replaces the projects-only
  * ``ProjectTabsBar``.

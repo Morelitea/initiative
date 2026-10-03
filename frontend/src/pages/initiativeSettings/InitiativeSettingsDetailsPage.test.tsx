@@ -4,13 +4,13 @@ import { HttpResponse } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
-  buildGuild,
+  buildCommunity,
   buildInitiative,
   buildInitiativeRole,
   buildUser,
   initiativeCan,
 } from "@/__tests__/factories";
-import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
 import type { InitiativeRead, InitiativeRoleRead } from "@/api/generated/initiativeAPI.schemas";
@@ -30,7 +30,7 @@ const MANAGER_ID = 42;
 function stubInitiative(overrides: Partial<InitiativeRead> = {}, patchFails?: [number, string]) {
   const patches: unknown[] = [];
   server.use(
-    guildHttp.get("/initiatives/:id", () =>
+    communityHttp.get("/initiatives/:id", () =>
       HttpResponse.json(
         buildInitiative({
           id: INITIATIVE_ID,
@@ -40,7 +40,7 @@ function stubInitiative(overrides: Partial<InitiativeRead> = {}, patchFails?: [n
         })
       )
     ),
-    guildHttp.patch("/initiatives/:id", async ({ request }) => {
+    communityHttp.patch("/initiatives/:id", async ({ request }) => {
       const body = await request.json();
       patches.push(body);
       if (patchFails) {
@@ -57,8 +57,8 @@ function stubInitiative(overrides: Partial<InitiativeRead> = {}, patchFails?: [n
 function stubRoles(roles: InitiativeRoleRead[]) {
   const patches: { roleId: string; body: unknown }[] = [];
   server.use(
-    guildHttp.get("/initiatives/:id/roles", () => HttpResponse.json(roles)),
-    guildHttp.patch("/initiatives/:id/roles/:roleId", async ({ request, params }) => {
+    communityHttp.get("/initiatives/:id/roles", () => HttpResponse.json(roles)),
+    communityHttp.patch("/initiatives/:id/roles/:roleId", async ({ request, params }) => {
       patches.push({ roleId: String(params.roleId), body: await request.json() });
       return HttpResponse.json(roles[0]);
     })
@@ -88,9 +88,9 @@ const memberRole = (permissions: Record<string, boolean> = {}) =>
 const renderDetails = (role: "admin" | "member" = "admin") =>
   renderPage(InitiativeSettingsDetailsPage, {
     auth: { user: buildUser({ id: MANAGER_ID }) },
-    guilds: { activeGuildId: 1, activeGuild: buildGuild({ id: 1, role }) },
-    initialRoute: "/c/$guildId/i/$initiativeId/settings",
-    routeParams: { guildId: "1", initiativeId: String(INITIATIVE_ID) },
+    communities: { activeCommunityId: 1, activeCommunity: buildCommunity({ id: 1, role }) },
+    initialRoute: "/c/$communityId/i/$initiativeId/settings",
+    routeParams: { communityId: "1", initiativeId: String(INITIATIVE_ID) },
   });
 
 beforeEach(() => {
@@ -208,7 +208,7 @@ describe("InitiativeSettingsDetailsPage", () => {
     it("does not claim a tool reached everyone when the roster could not be read", async () => {
       const initiativePatches = stubInitiative();
       server.use(
-        guildHttp.get("/initiatives/:id/roles", () =>
+        communityHttp.get("/initiatives/:id/roles", () =>
           HttpResponse.json({ detail: "BOOM" }, { status: 500 })
         )
       );

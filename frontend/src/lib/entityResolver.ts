@@ -57,8 +57,8 @@ type Read = <T>(queryKey: readonly unknown[], queryFn: () => Promise<T>) => Prom
 const TOOL_READS: Record<
   Tool,
   {
-    key: (guildId: number, id: number) => readonly unknown[];
-    read: (guildId: number, id: number) => Promise<{ initiative_id?: number | null }>;
+    key: (communityId: number, id: number) => readonly unknown[];
+    read: (communityId: number, id: number) => Promise<{ initiative_id?: number | null }>;
   }
 > = {
   [Tool.project]: {
@@ -99,19 +99,19 @@ const TOOL_READS: Record<
   },
 };
 
-/** The initiative a tool row lives in. `null` is a guild-level row (an
- *  app-installed calendar), which keeps a guild address — not a failure. */
+/** The initiative a tool row lives in. `null` is a community-level row (an
+ *  app-installed calendar), which keeps a community address — not a failure. */
 const toolInitiative = async (
   read: Read,
-  guildId: number,
+  communityId: number,
   tool: Tool,
   id: number
 ): Promise<number | null> => {
   const { key, read: readRow } = TOOL_READS[tool];
-  return (await read(key(guildId, id), () => readRow(guildId, id))).initiative_id ?? null;
+  return (await read(key(communityId, id), () => readRow(communityId, id))).initiative_id ?? null;
 };
 
-type Resolve = (read: Read, guildId: number, id: number) => Promise<string>;
+type Resolve = (read: Read, communityId: number, id: number) => Promise<string>;
 
 /**
  * The kinds that live inside a tool and can be read by their own id, keyed by
@@ -121,24 +121,26 @@ type Resolve = (read: Read, guildId: number, id: number) => Promise<string>;
  * so neither has a resolver.
  */
 const CHILD_RESOLVERS: Partial<Record<keyof typeof PARENT_TOOL, Resolve>> = {
-  task: async (read, guildId, id) => {
-    const task = await read(getReadTaskQueryKey(guildId, id), () => readTask(guildId, id));
+  task: async (read, communityId, id) => {
+    const task = await read(getReadTaskQueryKey(communityId, id), () => readTask(communityId, id));
     // The embedded project summary usually names the initiative; when the
     // task read omits it, the project itself is the authority.
     const initiativeId =
       task.project?.initiative_id ??
-      (await toolInitiative(read, guildId, Tool.project, task.project_id));
+      (await toolInitiative(read, communityId, Tool.project, task.project_id));
     return taskRoute(initiativeId, task.project_id, id);
   },
-  calendar_event: async (read, guildId, id) => {
-    const event = await read(getReadCalendarEventQueryKey(guildId, id), () =>
-      readCalendarEvent(guildId, id)
+  calendar_event: async (read, communityId, id) => {
+    const event = await read(getReadCalendarEventQueryKey(communityId, id), () =>
+      readCalendarEvent(communityId, id)
     );
     return eventRoute(event.initiative_id, event.calendar_id, id);
   },
-  wiki_page: async (read, guildId, id) => {
-    const page = await read(getReadWikiPageQueryKey(guildId, id), () => readWikiPage(guildId, id));
-    const initiativeId = await toolInitiative(read, guildId, Tool.wiki, page.wiki_id);
+  wiki_page: async (read, communityId, id) => {
+    const page = await read(getReadWikiPageQueryKey(communityId, id), () =>
+      readWikiPage(communityId, id)
+    );
+    const initiativeId = await toolInitiative(read, communityId, Tool.wiki, page.wiki_id);
     return wikiPageRoute(initiativeId, page.wiki_id, id);
   },
 };
@@ -152,8 +154,8 @@ const CHILD_RESOLVERS: Partial<Record<keyof typeof PARENT_TOOL, Resolve>> = {
 const RESOLVERS = new Map<string, Resolve>([
   ...TOOLS.map((tool): [string, Resolve] => [
     toolKebabSingular(tool),
-    async (read, guildId, id) =>
-      toolDetailRoute(tool, await toolInitiative(read, guildId, tool, id), id),
+    async (read, communityId, id) =>
+      toolDetailRoute(tool, await toolInitiative(read, communityId, tool, id), id),
   ]),
   ...Object.entries(CHILD_RESOLVERS).map(([kind, resolve]): [string, Resolve] => [
     kind.replaceAll("_", "-"),
@@ -177,13 +179,13 @@ export const entityRefTypeFor = (type: SearchEntityType): string | null => {
 };
 
 /**
- * The guild-relative path an entity lives at, or `null` when it can't be
+ * The community-relative path an entity lives at, or `null` when it can't be
  * resolved — it was deleted, the reader can't see it, or its parent is gone.
- * Callers send `null` to the guild home rather than guessing at an address.
+ * Callers send `null` to the community home rather than guessing at an address.
  */
 export async function resolveEntityPath(
   queryClient: QueryClient,
-  guildId: number,
+  communityId: number,
   refType: string,
   entityId: number
 ): Promise<string | null> {
@@ -194,15 +196,15 @@ export async function resolveEntityPath(
     queryClient.ensureQueryData({ queryKey, queryFn, staleTime: STALE_TIME });
 
   try {
-    return await resolve(read, guildId, entityId);
+    return await resolve(read, communityId, entityId);
   } catch {
-    // Deleted, or the reader can't see it. The caller lands on the guild home.
+    // Deleted, or the reader can't see it. The caller lands on the community home.
     return null;
   }
 }
 
 /**
- * Rewrite a guild-relative path written before tools were addressed inside
+ * Rewrite a community-relative path written before tools were addressed inside
  * their initiative onto the `/go` resolver.
  *
  * Notification rows persist their `target_path`, so links minted by an older
@@ -220,8 +222,8 @@ const LEGACY_TARGETS: Array<[RegExp, (id: string) => string]> = [
   [/^\/initiatives\/(\d+)(\/.*)?$/, (id) => initiativeRoute(Number(id))],
 ];
 
-/** Guild-relative paths that used to name a list page and no longer exist.
- *  (`/initiatives` among them: that list is part of the guild home now.) */
+/** Community-relative paths that used to name a list page and no longer exist.
+ *  (`/initiatives` among them: that list is part of the community home now.) */
 const LEGACY_LISTS = new Set([
   "/initiatives",
   "/tasks",
@@ -235,7 +237,7 @@ const LEGACY_LISTS = new Set([
 ]);
 
 /**
- * App-level (guild-less) paths that a notification may still name.
+ * App-level (community-less) paths that a notification may still name.
  *
  * `/settings/profile` never existed as a route — your account lives under
  * `/profile`. Notification rows persist the path they were written with, so
@@ -247,7 +249,7 @@ const LEGACY_APP_TARGETS = new Map([
   ["/settings/account", "/profile/account"],
 ]);
 
-/** As {@link normalizeLegacyTarget}, for a path that names no guild. */
+/** As {@link normalizeLegacyTarget}, for a path that names no community. */
 export function normalizeAppTarget(path: string): string {
   const normalized = path.startsWith("/") ? path : `/${path}`;
   return LEGACY_APP_TARGETS.get(normalized) ?? normalized;

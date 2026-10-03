@@ -11,11 +11,11 @@ import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { buildDefaultFilterPresets, buildFilterPreset } from "@/__tests__/factories";
-import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { useFilterPresets } from "@/hooks/useFilterPresets";
 
-vi.mock("@/hooks/useActiveGuildId", () => ({ useActiveGuildId: () => 1 }));
+vi.mock("@/hooks/useActiveCommunityId", () => ({ useActiveCommunityId: () => 1 }));
 
 const wrapper = (client: QueryClient) => {
   return ({ children }: { children: ReactNode }) => (
@@ -33,7 +33,7 @@ describe("useFilterPresets", () => {
       },
     });
     server.use(
-      guildHttp.get("/projects/:projectId/filter-presets/", async ({ params }) => {
+      communityHttp.get("/projects/:projectId/filter-presets/", async ({ params }) => {
         const projectId = Number(params.projectId);
         if (projectId === 2) await new Promise((resolve) => setTimeout(resolve, 50));
         return HttpResponse.json({
@@ -63,7 +63,7 @@ describe("useFilterPresets", () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const [all, incomplete, unassigned] = buildDefaultFilterPresets(1);
     server.use(
-      guildHttp.get("/projects/:projectId/filter-presets/", () =>
+      communityHttp.get("/projects/:projectId/filter-presets/", () =>
         HttpResponse.json({
           items: [
             all,

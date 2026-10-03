@@ -5,9 +5,9 @@ import { useTranslation } from "react-i18next";
 import type { SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
 import { useCommentReferences } from "@/components/comments/CommentReferences";
 import { MENTION_BADGE, UserMention } from "@/components/user/UserMention";
-import { useGuilds } from "@/hooks/useGuilds";
+import { useCommunities } from "@/hooks/useCommunities";
+import { communityPath } from "@/lib/communityUrl";
 import { entityRefTypeFor } from "@/lib/entityResolver";
-import { guildPath } from "@/lib/guildUrl";
 import { referenceRef } from "@/lib/smartChips";
 import { entityRefRoute } from "@/lib/tools";
 
@@ -25,7 +25,7 @@ type SpanProps = ComponentPropsWithoutRef<"span"> & { node?: unknown };
 const buildMentionSpan = (linked: boolean) =>
   function MentionSpan({ children, node: _node, ...props }: SpanProps) {
     const { t } = useTranslation(["comments", "search"]);
-    const { activeGuildId } = useGuilds();
+    const { activeCommunityId } = useCommunities();
     const references = useCommentReferences();
 
     const attrs = props as Record<string, string | undefined>;
@@ -67,11 +67,11 @@ const buildMentionSpan = (linked: boolean) =>
       return <span className={MENTION_BADGE}>{text}</span>;
     }
 
-    // Build a guild-scoped link directly instead of using the /navigate redirect.
+    // Build a community-scoped link directly instead of using the /navigate redirect.
     const path = entityRefRoute(refType, Number(id));
     return (
       <Link
-        to={activeGuildId ? guildPath(activeGuildId, path) : path}
+        to={activeCommunityId ? communityPath(activeCommunityId, path) : path}
         className="text-primary hover:underline"
       >
         {text}

@@ -20,16 +20,16 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { ProfileAvatar } from "@/components/user/ProfileAvatar";
 import { UserHoverLink } from "@/components/user/UserHoverLink";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { useDirectMessagesEnabled, useDmSettings } from "@/hooks/useDirectMessages";
-import { useGuildRoster } from "@/hooks/useUsers";
+import { useCommunityRoster } from "@/hooks/useUsers";
 import { isAdminRole } from "@/lib/permissions";
 import { PRESENCE_ORDER, presenceLabelKey } from "@/lib/presence";
 import { getUserDisplayName } from "@/lib/userDisplay";
 import { cn } from "@/lib/utils";
 
 const RosterRow = ({ member }: { member: CommunityRosterMember }) => {
-  const { t } = useTranslation("guilds");
+  const { t } = useTranslation("communities");
   const status = member.custom_status;
   const away = member.presence === "offline";
   return (
@@ -79,15 +79,15 @@ const RosterRow = ({ member }: { member: CommunityRosterMember }) => {
  */
 export const PeopleSection = () => {
   const { t } = useTranslation(["nav", "profiles", "common"]);
-  const roster = useGuildRoster();
-  const guildId = useActiveGuildId();
+  const roster = useCommunityRoster();
+  const communityId = useActiveCommunityId();
   const dmEnabled = useDirectMessagesEnabled();
   const dmSettings = useDmSettings().data;
   const readerHidden =
     dmEnabled &&
     (dmSettings?.dm_policy === "private" ||
       (dmSettings?.dm_policy === "community" &&
-        dmSettings.communities.some((c) => c.community_id === guildId && !c.enabled)));
+        dmSettings.communities.some((c) => c.community_id === communityId && !c.enabled)));
 
   const pages = roster.data?.pages;
   const counts = pages?.[0]?.presence_counts;

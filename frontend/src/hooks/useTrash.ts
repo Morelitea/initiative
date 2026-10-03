@@ -16,17 +16,17 @@ import {
   restoreTrashEntity,
 } from "@/api/generated/trash/trash";
 import { invalidate, q, type Spec } from "@/api/query-keys";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import type { MutationOpts } from "@/types/mutation";
 import type { QueryOpts } from "@/types/query";
 
 // ── Queries ─────────────────────────────────────────────────────────────────
 
 /**
- * One page of the current user's own trashed items across every guild they
+ * One page of the current user's own trashed items across every community they
  * belong to, newest deletion first. Powers the personal trash view on the user
- * settings page — user-scoped, no guild context. Restore/purge are addressed
- * per item via its `guild_id`.
+ * settings page — user-scoped, no community context. Restore/purge are addressed
+ * per item via its `community_id`.
  */
 export const useMyTrashList = (params: ListMyTrashParams, options?: QueryOpts<TrashListResponse>) =>
   useQuery<TrashListResponse>({
@@ -37,18 +37,18 @@ export const useMyTrashList = (params: ListMyTrashParams, options?: QueryOpts<Tr
   });
 
 /**
- * One page of the active guild's trash, newest deletion first — the
- * guild-admin settings view. Regular members never call this (the backend
+ * One page of the active community's trash, newest deletion first — the
+ * community-admin settings view. Regular members never call this (the backend
  * 403s); they use {@link useMyTrashList} instead.
  */
-export const useGuildTrashList = (
+export const useCommunityTrashList = (
   params: ListCommunityTrashParams,
   options?: QueryOpts<TrashListResponse>
 ) => {
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   return useQuery<TrashListResponse>({
-    queryKey: getListCommunityTrashQueryKey(guildId, params),
-    queryFn: () => listCommunityTrash(guildId, params),
+    queryKey: getListCommunityTrashQueryKey(communityId, params),
+    queryFn: () => listCommunityTrash(communityId, params),
     placeholderData: keepPreviousData,
     ...options,
   });
@@ -81,9 +81,9 @@ const RESTORED: Record<EntityType, () => Spec> = {
 };
 
 export type RestoreTrashVars = {
-  // The item's guild — restore is guild-scoped, and the cross-guild /me view
-  // surfaces items from several guilds, so it travels with each row.
-  guildId: number;
+  // The item's community — restore is community-scoped, and the cross-community /me view
+  // surfaces items from several communities, so it travels with each row.
+  communityId: number;
   entityType: EntityType;
   entityId: number;
 };
@@ -97,19 +97,19 @@ export const useRestoreTrashEntity = (
   return useMutation({
     ...rest,
     mutationFn: async ({
-      guildId,
+      communityId,
       entityType,
       entityId,
     }: RestoreTrashVars): Promise<RestoreResponse> =>
-      restoreTrashEntity(guildId, entityType, entityId),
+      restoreTrashEntity(communityId, entityType, entityId),
     onSuccess: (...args) => {
       const [, variables] = args;
-      // Invalidate both trash views (personal /me and the item's guild), every
+      // Invalidate both trash views (personal /me and the item's community), every
       // page of each (the keys without params are prefixes), so the restored
       // row disappears from both.
       void queryClient.invalidateQueries({ queryKey: getListMyTrashQueryKey() });
       void queryClient.invalidateQueries({
-        queryKey: getListCommunityTrashQueryKey(variables.guildId),
+        queryKey: getListCommunityTrashQueryKey(variables.communityId),
       });
       const restored = RESTORED[variables.entityType];
       if (restored) void invalidate(restored());
@@ -123,9 +123,9 @@ export const useRestoreTrashEntity = (
 };
 
 export type PurgeTrashVars = {
-  // Purge is guild-scoped + admin-only; only reachable from the guild view,
+  // Purge is community-scoped + admin-only; only reachable from the community view,
   // but it still travels with the row for consistency with restore.
-  guildId: number;
+  communityId: number;
   entityType: EntityType;
   entityId: number;
 };
@@ -136,14 +136,14 @@ export const usePurgeTrashEntity = (options?: MutationOpts<void, PurgeTrashVars>
 
   return useMutation({
     ...rest,
-    mutationFn: async ({ guildId, entityType, entityId }: PurgeTrashVars) => {
-      await purgeTrashEntity(guildId, entityType, entityId);
+    mutationFn: async ({ communityId, entityType, entityId }: PurgeTrashVars) => {
+      await purgeTrashEntity(communityId, entityType, entityId);
     },
     onSuccess: (...args) => {
       const [, variables] = args;
       void queryClient.invalidateQueries({ queryKey: getListMyTrashQueryKey() });
       void queryClient.invalidateQueries({
-        queryKey: getListCommunityTrashQueryKey(variables.guildId),
+        queryKey: getListCommunityTrashQueryKey(variables.communityId),
       });
       onSuccess?.(...args);
     },

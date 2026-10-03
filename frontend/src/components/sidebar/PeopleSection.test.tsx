@@ -23,11 +23,11 @@ const mocks = vi.hoisted(() => ({
   communities: [] as { community_id: number; enabled: boolean }[],
 }));
 
-vi.mock("@/hooks/useActiveGuildId", () => ({ useActiveGuildId: () => 7 }));
+vi.mock("@/hooks/useActiveCommunityId", () => ({ useActiveCommunityId: () => 7 }));
 
 vi.mock("@/hooks/useUsers", async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
-  useGuildRoster: () => mocks.roster(),
+  useCommunityRoster: () => mocks.roster(),
 }));
 vi.mock("@/hooks/useDirectMessages", async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),

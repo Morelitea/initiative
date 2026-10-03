@@ -88,28 +88,28 @@ export interface AgeChallengeDetail {
 }
 
 /** The factors a community can name as its own requirement. */
-export type GuildFactorKind = "totp" | "passkey";
+export type CommunityFactorKind = "totp" | "passkey";
 
 export interface FactorChallengeDetail {
-  guildId: number | null;
+  communityId: number | null;
   /** True when the deployment itself is asking, rather than a community. The
    *  dialog says so, and offers to sign out rather than to carry on: a
    *  platform refusal is every request, not one page's. */
   platform?: boolean;
   /** Which answer the dialog asks for: a code from the authenticator app, a
    *  passkey, or — for a change to the account's own sign-in — a session
-   *  opened a moment ago. Only a community's own two carry a guild. */
-  kind: GuildFactorKind | "proof";
+   *  opened a moment ago. Only a community's own two carry a community. */
+  kind: CommunityFactorKind | "proof";
 }
 
 export interface StepUpEventDetail {
-  /** Slug of the provider the guild requires (X-Auth-Step-Up header). */
+  /** Slug of the provider the community requires (X-Auth-Step-Up header). */
   providerSlug: string;
   /**
-   * Guild whose login flow serves that provider (X-Auth-Step-Up-Guild
-   * header); null on servers that predate guild-addressed login URLs.
+   * Community whose login flow serves that provider (X-Auth-Step-Up-Guild
+   * header); null on servers that predate community-addressed login URLs.
    */
-  guildId: number | null;
+  communityId: number | null;
 }
 
 let authToken: string | null = null;
@@ -468,7 +468,7 @@ interface RetriableRequestConfig extends AxiosRequestConfig {
   _sessionRefreshRetried?: boolean;
 }
 
-// A guild step-up 401 means "this guild requires another sign-in factor" —
+// A community step-up 401 means "this community requires another sign-in factor" —
 // the session itself is fine, so it must neither trigger a renewal nor the
 // signed-out toast; the page handles it.
 const isStepUpChallenge = (error: { response?: { data?: { detail?: unknown } } }): boolean =>
@@ -505,8 +505,8 @@ const factorChallengeKind = (error: {
   return typeof detail === "string" ? (FACTOR_CHALLENGE_KINDS[detail] ?? null) : null;
 };
 
-// Guild context lives in the request URL (/c/{guildId}/…), per tab — there is
-// no ambient guild context to guard a response against, so the only response
+// Community context lives in the request URL (/c/{communityId}/…), per tab — there is
+// no ambient community context to guard a response against, so the only response
 // concern left is an expired session: try a silent renewal, then surface it.
 apiClient.interceptors.response.use(undefined, async (error) => {
   const config = error.config as RetriableRequestConfig | undefined;
@@ -542,17 +542,19 @@ apiClient.interceptors.response.use(undefined, async (error) => {
       // A proof challenge is the account's own business, and so is the
       // deployment's own rule, so neither names a community.
       const platform = isPlatformFactorChallenge(error);
-      const rawGuildId =
+      const rawCommunityId =
         factorKind === "proof" || platform
           ? null
           : error.response?.headers?.["x-auth-step-up-guild"];
-      const guildId =
-        typeof rawGuildId === "string" && /^\d+$/.test(rawGuildId) ? Number(rawGuildId) : null;
+      const communityId =
+        typeof rawCommunityId === "string" && /^\d+$/.test(rawCommunityId)
+          ? Number(rawCommunityId)
+          : null;
       window.dispatchEvent(
         new CustomEvent<FactorChallengeDetail>(AUTH_FACTOR_REQUIRED_EVENT, {
           // Carried only when it is true: a community's ask is the ordinary
           // one, and says nothing about the deployment.
-          detail: { guildId, kind: factorKind, ...(platform ? { platform: true } : {}) },
+          detail: { communityId, kind: factorKind, ...(platform ? { platform: true } : {}) },
         })
       );
     }
@@ -563,13 +565,15 @@ apiClient.interceptors.response.use(undefined, async (error) => {
     // required provider's sign-in; the request itself still rejects (pages
     // render their error state, nothing retries).
     const providerSlug = error.response?.headers?.["x-auth-step-up"];
-    const rawGuildId = error.response?.headers?.["x-auth-step-up-guild"];
-    const guildId =
-      typeof rawGuildId === "string" && /^\d+$/.test(rawGuildId) ? Number(rawGuildId) : null;
+    const rawCommunityId = error.response?.headers?.["x-auth-step-up-guild"];
+    const communityId =
+      typeof rawCommunityId === "string" && /^\d+$/.test(rawCommunityId)
+        ? Number(rawCommunityId)
+        : null;
     if (typeof providerSlug === "string" && providerSlug && typeof window !== "undefined") {
       window.dispatchEvent(
         new CustomEvent<StepUpEventDetail>(AUTH_STEP_UP_EVENT, {
-          detail: { providerSlug, guildId },
+          detail: { providerSlug, communityId },
         })
       );
     }

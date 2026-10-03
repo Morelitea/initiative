@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import { useGetImportJob } from "@/api/generated/imports/imports";
 import type { ImportJobRead } from "@/api/generated/initiativeAPI.schemas";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { toast } from "@/lib/chesterToast";
 import { getItem, removeItem, setItem } from "@/lib/storage";
 
@@ -13,13 +13,13 @@ const TERMINAL = new Set(["done", "failed", "cancelled", "expired"]);
 // A pending job id survives the component unmounting (navigation) so a
 // return to an adopting view resumes the poll and surfaces the report. A
 // full page reload is covered by the worker's inbox notification instead.
-const pendingKey = (guildId: number) => `imports:pending:${guildId}`;
+const pendingKey = (communityId: number) => `imports:pending:${communityId}`;
 
 export type ImportJobPhase = "idle" | "polling" | "done" | "failed";
 
 export interface UseImportJobOptions {
   /** Adopt a stored pending job on mount. Exactly ONE instance per view may
-   * set this — the guild's pending key is shared, so a second adopter would
+   * set this — the community's pending key is shared, so a second adopter would
    * report the same job twice. */
   resumePending?: boolean;
 }
@@ -31,12 +31,12 @@ export interface UseImportJobOptions {
  * reports identically. */
 export function useImportJob({ resumePending = false }: UseImportJobOptions = {}) {
   const { t } = useTranslation("imports");
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   const [jobId, setJobId] = useState<number | null>(() => {
-    if (!resumePending || !guildId) {
+    if (!resumePending || !communityId) {
       return null;
     }
-    const stored = Number(getItem(pendingKey(guildId)));
+    const stored = Number(getItem(pendingKey(communityId)));
     return Number.isFinite(stored) && stored > 0 ? stored : null;
   });
   // The last terminal row, until the next watch()/reset() — what lets a
@@ -46,7 +46,7 @@ export function useImportJob({ resumePending = false }: UseImportJobOptions = {}
   // though polling re-renders keep delivering it.
   const handledJobs = useRef(new Set<number>());
 
-  const jobQuery = useGetImportJob(guildId, jobId ?? 0, {
+  const jobQuery = useGetImportJob(communityId, jobId ?? 0, {
     query: {
       enabled: jobId != null,
       refetchInterval: (query) => (TERMINAL.has(query.state.data?.status ?? "") ? false : POLL_MS),
@@ -63,21 +63,21 @@ export function useImportJob({ resumePending = false }: UseImportJobOptions = {}
     }
     handledJobs.current.add(jobId);
     setJobId(null);
-    removeItem(pendingKey(guildId));
+    removeItem(pendingKey(communityId));
     setTerminal(job);
     if (job.status === "done") {
       toast.success(t("job.succeeded"));
     } else {
       toast.error(t("job.failed"));
     }
-  }, [job, jobId, guildId, t]);
+  }, [job, jobId, communityId, t]);
 
   /** Start polling a queued job (from a 202 response). */
   const watch = (id: number) => {
     setTerminal(null);
     handledJobs.current.delete(id);
     setJobId(id);
-    setItem(pendingKey(guildId), String(id));
+    setItem(pendingKey(communityId), String(id));
   };
 
   const reset = () => {

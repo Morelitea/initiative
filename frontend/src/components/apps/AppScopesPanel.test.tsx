@@ -23,7 +23,7 @@ const mutate = vi.fn(
   }
 );
 
-vi.mock("@/hooks/useGuildApps", () => ({
+vi.mock("@/hooks/useCommunityApps", () => ({
   useSetAppScopes: () => ({ mutate, isPending: false }),
 }));
 

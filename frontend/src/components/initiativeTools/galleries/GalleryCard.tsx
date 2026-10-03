@@ -11,7 +11,7 @@ import { LazyImage } from "@/components/shared/LazyImage";
 import { TagBadgeList } from "@/components/tags/TagBadge";
 import { Badge } from "@/components/ui/badge";
 import { useRelativeTime } from "@/hooks/useRelativeTime";
-import { useGuildPath } from "@/lib/guildUrl";
+import { useCommunityPath } from "@/lib/communityUrl";
 import { toolDetailRoute } from "@/lib/tools";
 import { resolveUploadUrl } from "@/lib/uploadUrl";
 import { cn } from "@/lib/utils";
@@ -31,7 +31,7 @@ interface GalleryCardProps {
  */
 export const GalleryCard = ({ gallery, className }: GalleryCardProps) => {
   const { t } = useTranslation("galleries");
-  const gp = useGuildPath();
+  const gp = useCommunityPath();
   const relativeUpdatedAt = useRelativeTime(gallery.updated_at);
   // The chosen cover stands alone. Without one, the newest few as a small
   // grid: a wall of forty says what it is better than any one of them would.

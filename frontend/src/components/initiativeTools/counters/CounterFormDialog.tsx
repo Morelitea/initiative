@@ -248,7 +248,7 @@ export const CounterFormDialog = ({
 
           {/* Only for a counter that exists, and saved as they change, like
               its links below. Definitions belong to an initiative, so a
-              guild-level group's counters have none to offer. */}
+              community-level group's counters have none to offer. */}
           {counter && initiativeId != null && (
             <div className="space-y-2 border-t pt-4">
               <Label>{t("properties:title")}</Label>

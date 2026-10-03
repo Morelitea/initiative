@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import { buildComment } from "@/__tests__/factories/comment.factory";
 import { buildUser } from "@/__tests__/factories/user.factory";
-import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
 import type { CommentCreate, SubjectReadRequest } from "@/api/generated/initiativeAPI.schemas";
@@ -17,7 +17,7 @@ import { CommentSection } from "./CommentSection";
 const captureCreate = (): { body: () => CommentCreate | null } => {
   let received: CommentCreate | null = null;
   server.use(
-    guildHttp.post("/comments/", async ({ request }) => {
+    communityHttp.post("/comments/", async ({ request }) => {
       received = (await request.json()) as CommentCreate;
       return HttpResponse.json(buildComment({ content: received.content }), { status: 201 });
     })
@@ -35,7 +35,7 @@ describe("CommentSection", () => {
   it("offers Delete only where the server says the reader may, and asks first", async () => {
     let deleted: string | null = null;
     server.use(
-      guildHttp.delete("/comments/:commentId", ({ params }) => {
+      communityHttp.delete("/comments/:commentId", ({ params }) => {
         deleted = String(params.commentId);
         return new HttpResponse(null, { status: 204 });
       })
@@ -175,7 +175,7 @@ describe("CommentSection", () => {
     expect(marked("My own reply")).toBe(false);
   });
 
-  it("offers no mention suggestions for a guild-level entity", async () => {
+  it("offers no mention suggestions for a community-level entity", async () => {
     renderPage(() => (
       <CommentSection entityType={Tool.calendar} entityId={5} comments={[]} initiativeId={0} />
     ));

@@ -16,7 +16,7 @@ import { screen } from "@testing-library/react";
 import { HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
 
-import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
 import { PostReadersDialog } from "@/components/initiativeTools/posts/PostReadersDialog";
@@ -37,7 +37,7 @@ const page = () => () => <PostReadersDialog open onOpenChange={() => {}} postId=
 describe("PostReadersDialog", () => {
   it("counts both sides and names who has read it", async () => {
     server.use(
-      guildHttp.get("/posts/3/reads", () =>
+      communityHttp.get("/posts/3/reads", () =>
         HttpResponse.json({
           read: [person(1, "reader", { read_at: "2026-03-01T09:00:00Z" })],
           unread: [person(2, "waiting"), person(3, "alsowaiting")],
@@ -54,7 +54,7 @@ describe("PostReadersDialog", () => {
 
   it("says so when a notice has reached everybody it went to", async () => {
     server.use(
-      guildHttp.get("/posts/3/reads", () =>
+      communityHttp.get("/posts/3/reads", () =>
         HttpResponse.json({ read: [person(1, "reader")], unread: [] })
       )
     );

@@ -46,8 +46,8 @@ const renderLayout = ({
       />
     ),
     {
-      initialRoute: `/c/$guildId/i/$initiativeId/queues/$queueId/settings${path}`,
-      routeParams: { guildId: "1", initiativeId: "3", queueId: "7" },
+      initialRoute: `/c/$communityId/i/$initiativeId/queues/$queueId/settings${path}`,
+      routeParams: { communityId: "1", initiativeId: "3", queueId: "7" },
     }
   );
 
@@ -113,7 +113,7 @@ describe("ToolSettingsLayout", () => {
     expect(router.state.location.pathname).toBe("/c/1/i/3/queues/7/settings/task-statuses");
   });
 
-  it("addresses a guild-level entity at its guild route", async () => {
+  it("addresses a community-level entity at its community route", async () => {
     renderPage(
       () => (
         <ToolSettingsLayout
@@ -126,8 +126,8 @@ describe("ToolSettingsLayout", () => {
         />
       ),
       {
-        initialRoute: "/c/$guildId/calendars/$calendarId/settings",
-        routeParams: { guildId: "1", calendarId: "7" },
+        initialRoute: "/c/$communityId/calendars/$calendarId/settings",
+        routeParams: { communityId: "1", calendarId: "7" },
       }
     );
 

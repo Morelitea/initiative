@@ -93,7 +93,7 @@ interface SpreadsheetDocumentEditorProps {
    *  document in place. */
   hasSynced?: boolean;
   /** Read a file into sheets. Supplied by the host, which knows the document
-   *  and guild this editor is showing; absent when import is unavailable. */
+   *  and community this editor is showing; absent when import is unavailable. */
   onImportFile?: (file: File) => Promise<SpreadsheetSheetContent[]>;
   /** Awareness handle from the same provider as ``yDoc``. Used to
    *  publish / observe selected-cell presence rings. */

@@ -110,15 +110,15 @@ export const usePushNotifications = (): UsePushNotificationsReturn => {
             // A path in this app, or nowhere.
             const targetPath = returnPath(data.target_path as string | undefined);
             if (targetPath) {
-              const guildId = data.community_id as string | undefined;
-              if (guildId) {
+              const communityId = data.community_id as string | undefined;
+              if (communityId) {
                 router.navigate({
                   to: "/navigate",
-                  search: { guild_id: guildId, target: targetPath },
+                  search: { guild_id: communityId, target: targetPath },
                 });
               } else {
-                // Cross-guild notifications (e.g. the overdue digest) name an
-                // app-level route with no guild to switch into.
+                // Cross-community notifications (e.g. the overdue digest) name an
+                // app-level route with no community to switch into.
                 router.navigate({ to: targetPath });
               }
             }

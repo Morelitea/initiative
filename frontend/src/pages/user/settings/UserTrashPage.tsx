@@ -8,9 +8,9 @@ export const UserTrashPage = () => {
 
   return (
     <SettingsSection description={t("description")}>
-      {/* Personal, cross-guild "my deletions" view (/me/trash). The
+      {/* Personal, cross-community "my deletions" view (/me/trash). The
           Delete-now purge button is hidden — that action is admin-only and is
-          reached through the guild Settings → Trash tab instead. */}
+          reached through the community Settings → Trash tab instead. */}
       <TrashTable variant="user" showPurgeAction={false} />
     </SettingsSection>
   );

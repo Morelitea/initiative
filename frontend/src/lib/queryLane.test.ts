@@ -27,20 +27,20 @@ function pending<T>(value: T) {
 
 const flush = () => new Promise<void>((done) => setTimeout(done, 0));
 
-const GUILD = 3;
-const OTHER_GUILD = 4;
+const COMMUNITY = 3;
+const OTHER_COMMUNITY = 4;
 
 afterEach(() => {
   vi.useRealTimers();
 });
 
 describe("inQueryLane", () => {
-  it("holds a canvas of reads to the slots the guild actually has", async () => {
+  it("holds a canvas of reads to the slots the community actually has", async () => {
     const reads = [pending(1), pending(2), pending(3), pending(4), pending(5)];
     const started: number[] = [];
 
     const all = reads.map((read, index) =>
-      inQueryLane(GUILD, () => {
+      inQueryLane(COMMUNITY, () => {
         started.push(index);
         return read.promise;
       })
@@ -59,14 +59,14 @@ describe("inQueryLane", () => {
     expect(started).toEqual([0, 1, 2, 3, 4]);
   });
 
-  it("does not make one guild wait behind another's reads", async () => {
-    // The limit being modelled is per guild, so a tab that switches guild must
+  it("does not make one community wait behind another's reads", async () => {
+    // The limit being modelled is per community, so a tab that switches community must
     // not queue the new dashboard behind the old one's still-settling reads.
     const held = [pending("a"), pending("b")];
-    const busy = held.map((read) => inQueryLane(GUILD, () => read.promise));
+    const busy = held.map((read) => inQueryLane(COMMUNITY, () => read.promise));
 
     const elsewhere = vi.fn(() => Promise.resolve("elsewhere"));
-    await expect(inQueryLane(OTHER_GUILD, elsewhere)).resolves.toBe("elsewhere");
+    await expect(inQueryLane(OTHER_COMMUNITY, elsewhere)).resolves.toBe("elsewhere");
 
     for (const read of held) read.settle();
     await Promise.all(busy);
@@ -76,12 +76,12 @@ describe("inQueryLane", () => {
     vi.useFakeTimers();
     const lost = pending("never");
     const blocking = [
-      inQueryLane(GUILD, () => lost.promise),
-      inQueryLane(GUILD, () => lost.promise),
+      inQueryLane(COMMUNITY, () => lost.promise),
+      inQueryLane(COMMUNITY, () => lost.promise),
     ];
     const behind = pending("through");
     const started = vi.fn(() => behind.promise);
-    const queued = inQueryLane(GUILD, started);
+    const queued = inQueryLane(COMMUNITY, started);
 
     await vi.advanceTimersByTimeAsync(14_000);
     expect(started).not.toHaveBeenCalled();
@@ -96,7 +96,7 @@ describe("inQueryLane", () => {
     lost.settle();
     await Promise.all(blocking);
     const next = vi.fn(() => Promise.resolve("free"));
-    await expect(inQueryLane(GUILD, next)).resolves.toBe("free");
+    await expect(inQueryLane(COMMUNITY, next)).resolves.toBe("free");
   });
 
   it("releases a stuck lane's backlog one read at a time, not all at once", async () => {
@@ -106,13 +106,13 @@ describe("inQueryLane", () => {
     vi.useFakeTimers();
     const lost = pending("never");
     const blocking = [
-      inQueryLane(GUILD, () => lost.promise),
-      inQueryLane(GUILD, () => lost.promise),
+      inQueryLane(COMMUNITY, () => lost.promise),
+      inQueryLane(COMMUNITY, () => lost.promise),
     ];
     const backlog = [pending("x"), pending("y"), pending("z")];
     const started: number[] = [];
     const queued = backlog.map((read, index) =>
-      inQueryLane(GUILD, () => {
+      inQueryLane(COMMUNITY, () => {
         started.push(index);
         return read.promise;
       })
@@ -133,14 +133,14 @@ describe("inQueryLane", () => {
   });
 
   it("gives the slot back when a read fails", async () => {
-    const failing = inQueryLane(GUILD, () => Promise.reject(new Error("refused")));
+    const failing = inQueryLane(COMMUNITY, () => Promise.reject(new Error("refused")));
     await expect(failing).rejects.toThrow("refused");
 
     const held = pending("a");
-    const blocking = inQueryLane(GUILD, () => held.promise);
+    const blocking = inQueryLane(COMMUNITY, () => held.promise);
     const after = pending("b");
     const started = vi.fn(() => after.promise);
-    const queued = inQueryLane(GUILD, started);
+    const queued = inQueryLane(COMMUNITY, started);
     await flush();
 
     // One slot is held; the other was handed back, so this one is free to run.
@@ -153,12 +153,12 @@ describe("inQueryLane", () => {
 });
 
 describe("retryWhileBusy", () => {
-  it("comes back when the guild had no free slot", () => {
+  it("comes back when the community had no free slot", () => {
     expect(isQueryBusy(apiError(429, "QUERY_BUSY"))).toBe(true);
     expect(retryWhileBusy(0, apiError(429, "QUERY_BUSY"))).toBe(true);
   });
 
-  it("gives up rather than hammering a guild that stays busy", () => {
+  it("gives up rather than hammering a community that stays busy", () => {
     expect(retryWhileBusy(4, apiError(429, "QUERY_BUSY"))).toBe(false);
   });
 

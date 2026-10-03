@@ -14,7 +14,7 @@ import { getListMyTasksQueryKey, listMyTasks } from "@/api/generated/tasks/tasks
 import { useLiveClockValue } from "@/hooks/useRelativeTime";
 import { useViewPreference } from "@/hooks/useViewPreference";
 
-/** A pinned task, addressed by guild because task ids collide across guilds. */
+/** A pinned task, addressed by community because task ids collide across communities. */
 export type FocusPin = {
   guild_id: number | null;
   task_id: number;
@@ -135,8 +135,8 @@ const OPEN_CATEGORIES = ["backlog", "todo", "in_progress"];
  */
 const FETCH_SIZE = 100;
 
-const pinKey = (guildId: number | null | undefined, taskId: number) =>
-  `${guildId ?? "none"}:${taskId}`;
+const pinKey = (communityId: number | null | undefined, taskId: number) =>
+  `${communityId ?? "none"}:${taskId}`;
 
 /**
  * Conditions for the rule-driven half of the section: open work that has come
@@ -242,8 +242,8 @@ const byDueDate = (a: TaskListRead, b: TaskListRead) => {
  * plus today's completions.
  *
  * Two queries rather than one, deliberately. Pins are addressed by
- * (guild, task) but `/me/tasks` filters run per guild against a shared id
- * space, so an `id IN (…)` leg matches same-numbered tasks in *other* guilds
+ * (community, task) but `/me/tasks` filters run per community against a shared id
+ * space, so an `id IN (…)` leg matches same-numbered tasks in *other* communities
  * too; the pin query over-fetches and is narrowed here. Folding it into the
  * rule query would also push pinned-but-not-urgent work past the fetch window
  * whenever the rules match a lot.

@@ -47,7 +47,7 @@ export interface DashboardWidgetProps {
   /** The dashboard's own initiative — the only one its widgets read from. */
   initiativeId: number | undefined;
   /** The dashboard row itself. Only the `app` source needs it: its data is
-   *  guild-level, so the proxy is told which initiative-scoped surface is
+   *  community-level, so the proxy is told which initiative-scoped surface is
    *  asking and decides against that row's gates. */
   dashboardId?: number;
   canEdit: boolean;
@@ -75,7 +75,7 @@ export function DashboardWidget({
 
   // An app widget's module lives in the install's pinned definition rather than
   // in this build's registry — the seam `WidgetTile.source` exists for. The
-  // catalog is one shared query per guild, so a canvas full of app widgets
+  // catalog is one shared query per community, so a canvas full of app widgets
   // resolves them all from one request.
   //
   // In sample mode it is fetched too, and only then: a preview draws the app's
@@ -233,7 +233,7 @@ export function DashboardWidget({
 }
 
 /** A binding with empty slots — an installed listing before someone points it
- *  at this guild's counter. Not an error, a next step, and one only an author
+ *  at this community's counter. Not an error, a next step, and one only an author
  *  can take. */
 function UnconfiguredNotice({
   canEdit,

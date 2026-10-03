@@ -43,7 +43,7 @@ const CSS_VAR_MAP: Record<keyof ThemeColors, string> = {
  * A color theme's tokens as CSS custom properties (`--background` →
  * `oklch(…)`), for one resolved mode. What {@link useColorTheme} applies to
  * this document, and what an embedded app is handed so it can wear the same
- * palette (see `GuildAppPage`).
+ * palette (see `CommunityAppPage`).
  */
 export const themeCssVariables = (
   colorThemeId: string,
@@ -61,7 +61,7 @@ export const themeCssVariables = (
 /**
  * The palette as an embedded app should wear it: the color theme's tokens
  * plus `--primary` / `--primary-foreground` / `--ring`, which this document
- * derives from the guild accent through the `--accent-<mode>-*` indirection.
+ * derives from the community accent through the `--accent-<mode>-*` indirection.
  * An iframe on another origin cannot read this document's custom properties,
  * so the indirection is resolved here and the result travels as plain colors.
  */

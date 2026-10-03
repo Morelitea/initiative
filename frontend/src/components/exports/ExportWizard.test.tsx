@@ -4,7 +4,7 @@ import { endOfMonth, startOfDay, startOfMonth } from "date-fns";
 import { HttpResponse } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
@@ -38,20 +38,20 @@ const ESTIMATE = {
 };
 
 function stubEstimate(estimate = ESTIMATE) {
-  server.use(guildHttp.get("/exports/estimate", () => HttpResponse.json(estimate)));
+  server.use(communityHttp.get("/exports/estimate", () => HttpResponse.json(estimate)));
 }
 
 function stubJobLifecycle(capture: (url: URL) => void) {
   server.use(
-    guildHttp.get("/exports/community", ({ request }) => {
+    communityHttp.get("/exports/community", ({ request }) => {
       capture(new URL(request.url));
       return HttpResponse.json({ id: 77, status: "queued" }, { status: 202 });
     }),
-    guildHttp.get("/exports/initiative", ({ request }) => {
+    communityHttp.get("/exports/initiative", ({ request }) => {
       capture(new URL(request.url));
       return HttpResponse.json({ id: 77, status: "queued" }, { status: 202 });
     }),
-    guildHttp.get("/exports/jobs/:jobId", ({ params }) => {
+    communityHttp.get("/exports/jobs/:jobId", ({ params }) => {
       // Fall through for the literal sibling routes (/exports/estimate,
       // /exports/community, /exports/initiative) — only numeric ids are jobs.
       if (Number.isNaN(Number(params.jobId))) {
@@ -72,11 +72,11 @@ function stubJobLifecycle(capture: (url: URL) => void) {
         updated_at: new Date().toISOString(),
       });
     }),
-    guildHttp.get("/exports/jobs/:jobId/download", () =>
+    communityHttp.get("/exports/jobs/:jobId/download", () =>
       HttpResponse.text("PK-zip", {
         headers: {
           "Content-Type": "application/zip",
-          "Content-Disposition": 'attachment; filename="guild-backup.zip"',
+          "Content-Disposition": 'attachment; filename="community-backup.zip"',
         },
       })
     )
@@ -96,7 +96,9 @@ describe("ExportWizard", () => {
       sent = url;
     });
 
-    renderWithProviders(<ExportWizard scope={{ kind: "guild" }} open onOpenChange={() => {}} />);
+    renderWithProviders(
+      <ExportWizard scope={{ kind: "community" }} open onOpenChange={() => {}} />
+    );
 
     await userEvent.click(screen.getByRole("button", { name: /importable backup/i }));
 
@@ -175,11 +177,11 @@ describe("ExportWizard", () => {
   it("resumes the running job's progress view on re-open instead of offering a new flow", async () => {
     stubEstimate();
     server.use(
-      guildHttp.get("/exports/community", () =>
+      communityHttp.get("/exports/community", () =>
         HttpResponse.json({ id: 88, status: "queued" }, { status: 202 })
       ),
       // The job never finishes during this test — it stays queued.
-      guildHttp.get("/exports/jobs/:jobId", ({ params }) => {
+      communityHttp.get("/exports/jobs/:jobId", ({ params }) => {
         if (Number.isNaN(Number(params.jobId))) {
           return undefined;
         }
@@ -201,7 +203,7 @@ describe("ExportWizard", () => {
     );
 
     const { rerender } = renderWithProviders(
-      <ExportWizard scope={{ kind: "guild" }} open onOpenChange={() => {}} />
+      <ExportWizard scope={{ kind: "community" }} open onOpenChange={() => {}} />
     );
     await userEvent.click(screen.getByRole("button", { name: /importable backup/i }));
     await screen.findByText("3 items");
@@ -212,8 +214,8 @@ describe("ExportWizard", () => {
     // Close while the job still renders, then re-open: the wizard must land
     // on the progress view for the running job, not the mode step — a second
     // walk-through couldn't start a new job and would silently track this one.
-    rerender(<ExportWizard scope={{ kind: "guild" }} open={false} onOpenChange={() => {}} />);
-    rerender(<ExportWizard scope={{ kind: "guild" }} open onOpenChange={() => {}} />);
+    rerender(<ExportWizard scope={{ kind: "community" }} open={false} onOpenChange={() => {}} />);
+    rerender(<ExportWizard scope={{ kind: "community" }} open onOpenChange={() => {}} />);
 
     expect(await screen.findByText(/preparing your export/i)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /importable backup/i })).not.toBeInTheDocument();
@@ -246,7 +248,9 @@ describe("ExportWizard", () => {
       max_upload_bytes: 268_435_456,
     });
 
-    renderWithProviders(<ExportWizard scope={{ kind: "guild" }} open onOpenChange={() => {}} />);
+    renderWithProviders(
+      <ExportWizard scope={{ kind: "community" }} open onOpenChange={() => {}} />
+    );
     await userEvent.click(screen.getByRole("button", { name: /importable backup/i }));
 
     expect(await screen.findByText(/exceed the 256 MB limit/i)).toBeInTheDocument();
@@ -262,7 +266,7 @@ describe("ExportWizard", () => {
   it("sends each tool's filters with the estimate and the export, archived left out by default", async () => {
     const estimates: URLSearchParams[] = [];
     server.use(
-      guildHttp.get("/exports/estimate", ({ request }) => {
+      communityHttp.get("/exports/estimate", ({ request }) => {
         estimates.push(new URL(request.url).searchParams);
         return HttpResponse.json({
           ...ESTIMATE,
@@ -276,7 +280,9 @@ describe("ExportWizard", () => {
     });
     const user = userEvent.setup();
 
-    renderWithProviders(<ExportWizard scope={{ kind: "guild" }} open onOpenChange={() => {}} />);
+    renderWithProviders(
+      <ExportWizard scope={{ kind: "community" }} open onOpenChange={() => {}} />
+    );
     await user.click(screen.getByRole("button", { name: /importable backup/i }));
     await screen.findByText("3 items");
 
@@ -322,7 +328,7 @@ describe("ExportWizard", () => {
   it("narrows projects and documents by templates, and documents to untagged ones", async () => {
     const estimates: URLSearchParams[] = [];
     server.use(
-      guildHttp.get("/exports/estimate", ({ request }) => {
+      communityHttp.get("/exports/estimate", ({ request }) => {
         estimates.push(new URL(request.url).searchParams);
         return HttpResponse.json(ESTIMATE);
       })
@@ -333,7 +339,9 @@ describe("ExportWizard", () => {
     });
     const user = userEvent.setup();
 
-    renderWithProviders(<ExportWizard scope={{ kind: "guild" }} open onOpenChange={() => {}} />);
+    renderWithProviders(
+      <ExportWizard scope={{ kind: "community" }} open onOpenChange={() => {}} />
+    );
     await user.click(screen.getByRole("button", { name: /importable backup/i }));
     await screen.findByText("3 items");
 
@@ -377,7 +385,7 @@ describe("ExportWizard", () => {
   it("narrows each project's tasks by the task list's filters", async () => {
     const estimates: URLSearchParams[] = [];
     server.use(
-      guildHttp.get("/exports/estimate", ({ request }) => {
+      communityHttp.get("/exports/estimate", ({ request }) => {
         estimates.push(new URL(request.url).searchParams);
         return HttpResponse.json({
           ...ESTIMATE,
@@ -441,7 +449,7 @@ describe("ExportWizard", () => {
   it("exports named calendars in the chosen format, narrowed to a date range", async () => {
     let sent: URLSearchParams | null = null;
     server.use(
-      guildHttp.get("/exports/calendar", ({ request }) => {
+      communityHttp.get("/exports/calendar", ({ request }) => {
         sent = new URL(request.url).searchParams;
         return new HttpResponse("BEGIN:VCALENDAR", {
           headers: { "Content-Type": "text/calendar" },
@@ -484,7 +492,7 @@ describe("ExportWizard", () => {
   it("exports named projects in the chosen format, narrowed to the filtered tasks", async () => {
     let sent: URLSearchParams | null = null;
     server.use(
-      guildHttp.get("/exports/project", ({ request }) => {
+      communityHttp.get("/exports/project", ({ request }) => {
         sent = new URL(request.url).searchParams;
         return new HttpResponse("a,b", { headers: { "Content-Type": "text/csv" } });
       })
@@ -533,7 +541,7 @@ describe("ExportWizard", () => {
   it("goes from format to confirm for a tool whose content has no filter", async () => {
     let sent: URLSearchParams | null = null;
     server.use(
-      guildHttp.get("/exports/queue", ({ request }) => {
+      communityHttp.get("/exports/queue", ({ request }) => {
         sent = new URL(request.url).searchParams;
         return new HttpResponse("a,b", { headers: { "Content-Type": "text/csv" } });
       })

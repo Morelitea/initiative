@@ -31,7 +31,7 @@ describe("useUnreadTree", () => {
     places({ community_id: 7, initiative_id: 9, tool: "project" });
     const result = await tree();
 
-    expect(result.current.hasGuild(7)).toBe(true);
+    expect(result.current.hasCommunity(7)).toBe(true);
     expect(result.current.hasInitiative(7, 9)).toBe(true);
     expect(result.current.hasTool(7, 9, "project")).toBe(true);
   });
@@ -40,7 +40,7 @@ describe("useUnreadTree", () => {
     places({ community_id: 7, initiative_id: 9, tool: "project" });
     const result = await tree();
 
-    expect(result.current.hasGuild(8)).toBe(false);
+    expect(result.current.hasCommunity(8)).toBe(false);
     expect(result.current.hasInitiative(7, 10)).toBe(false);
     expect(result.current.hasTool(7, 9, "document")).toBe(false);
     // The same tool in a different initiative is a different row.
@@ -53,7 +53,7 @@ describe("useUnreadTree", () => {
     places({ community_id: 7, initiative_id: null, tool: null });
     const result = await tree();
 
-    expect(result.current.hasGuild(7)).toBe(true);
+    expect(result.current.hasCommunity(7)).toBe(true);
     expect(result.current.hasInitiative(7, 9)).toBe(false);
   });
 
@@ -64,13 +64,13 @@ describe("useUnreadTree", () => {
     const result = await tree();
 
     expect(result.current.hasAny).toBe(true);
-    expect(result.current.hasGuild(7)).toBe(false);
+    expect(result.current.hasCommunity(7)).toBe(false);
   });
 
   it("lights nothing at all when there is nothing unread", async () => {
     places();
     const { result } = renderHook(() => useUnreadTree(), { wrapper: wrapper() });
     await waitFor(() => expect(result.current.hasAny).toBe(false));
-    expect(result.current.hasGuild(7)).toBe(false);
+    expect(result.current.hasCommunity(7)).toBe(false);
   });
 });

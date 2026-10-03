@@ -17,7 +17,7 @@ import { Card, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { ProgressCircle } from "@/components/ui/progress-circle";
 import { useUnreadTree } from "@/hooks/useUnreadTree";
-import { useGuildPath } from "@/lib/guildUrl";
+import { useCommunityPath } from "@/lib/communityUrl";
 import { InitiativeColorDot, resolveInitiativeColor } from "@/lib/initiativeColors";
 import { initiativeRoute, toolDetailRoute } from "@/lib/tools";
 import { cn } from "@/lib/utils";
@@ -42,7 +42,7 @@ export const ProjectCardLink = ({
   showInitiative = true,
 }: ProjectLinkProps) => {
   const { t } = useTranslation("projects");
-  const gp = useGuildPath();
+  const gp = useCommunityPath();
   const unread = useUnreadTree();
   const initiative = project.initiative;
   const initiativeColor = initiative ? resolveInitiativeColor(initiative.color) : null;
@@ -139,7 +139,7 @@ export const ProjectRowLink = ({
   showInitiative = true,
 }: ProjectLinkProps) => {
   const { t } = useTranslation("projects");
-  const gp = useGuildPath();
+  const gp = useCommunityPath();
   const unread = useUnreadTree();
   const initiativeColor = project.initiative
     ? resolveInitiativeColor(project.initiative.color)
@@ -256,7 +256,7 @@ export const InitiativeLabel = ({
    * click from also triggering the outer link. */
   nested?: boolean;
 }) => {
-  const gp = useGuildPath();
+  const gp = useCommunityPath();
   const navigate = useNavigate();
   if (!initiative) {
     return null;

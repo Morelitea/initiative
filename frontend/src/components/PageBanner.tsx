@@ -1,23 +1,23 @@
 /**
  * A full-width banner with its heading on it.
  *
- * The community directory's own header and a guild's front page are the same
+ * The community directory's own header and a community's front page are the same
  * shape: a 4:1 strip running the width of the content area, a title and a
  * subtitle over it, and a layout that stops being a strip on a phone. That
  * shape lives here once; the two callers differ only in the banner they hand it
- * — the directory its shipped artwork, a guild the one its admin set.
+ * — the directory its shipped artwork, a community the one its admin set.
  *
  * The copy's minimums are what give a banner its height, at every width; the
  * picture covers whatever that comes to. The directory's artwork also fades
  * out along its bottom edge because that fade is painted into the file, which
- * is separate from the fade a guild can ask for here.
+ * is separate from the fade a community can ask for here.
  *
  * A banner that is only a colour is a band, not a hero: it is sized by the
  * copy on it rather than by the viewport, because there is nothing in it to
  * see and a screen-height rectangle of one colour is just a wall.
  *
  * It also rises behind the shell's sticky bar by that bar's own height, so a
- * guild's artwork runs under the recents tabs. Only the picture goes up there:
+ * community's artwork runs under the recents tabs. Only the picture goes up there:
  * the column holding the badges and the copy pads itself back down by the same
  * amount.
  */
@@ -119,7 +119,7 @@ export const useFullBleed = <T extends HTMLElement>() => {
  * The fade begins `extend` plus the same small overlap up from the very
  * bottom: the dissolve covers the whole extra row and reaches a couple of
  * dozen pixels into the banner proper, never further. That is what lets one
- * number serve both a tall photograph and the short band a guild with no
+ * number serve both a tall photograph and the short band a community with no
  * artwork gets — a percentage stop strong enough to matter on the first would
  * wash out the title on the second.
  *
@@ -151,10 +151,10 @@ export type PageBannerProps = {
    * over the tail.
    *
    * Built by `renderableBanner`, which resolves the picture's URL and answers
-   * for a header that has no guild banner of its own.
+   * for a header that has no community banner of its own.
    */
   banner: CommunityBannerRead;
-  /** Chips for the banner's top-right corner — a guild's roster and room counts. */
+  /** Chips for the banner's top-right corner — a community's roster and room counts. */
   badges?: ReactNode;
   /** Alt text for the picture; empty for artwork that says nothing. */
   imageAlt?: string;
@@ -244,7 +244,7 @@ export function PageBanner({
       {/* The corner and the copy share one column: the badges take a row of
           their own at the top, and the copy has whatever is left. They are in
           flow rather than laid over the words because an overlay only clears
-          them by luck — a long name in the short band a guild with no artwork
+          them by luck — a long name in the short band a community with no artwork
           gets wraps straight under a corner that is floating above it. */}
       <div
         style={{
@@ -267,7 +267,7 @@ export function PageBanner({
             : "min-h-24 sm:min-h-32 lg:min-h-36"
         )}
       >
-        {/* The corner, not the copy: these say how big the guild is, which is
+        {/* The corner, not the copy: these say how big the community is, which is
             about the banner rather than part of what it says. Held off the
             right edge by the same distance the page's own content is, so they
             line up with what is below them however wide the shell happens to
@@ -306,7 +306,7 @@ export function PageBanner({
                 "text-neutral-900 [text-shadow:0_0_10px_rgba(255,255,255,0.95),0_0_28px_rgba(255,255,255,0.8)]"
             )}
             // A shadow of the ink's opposite, so the words survive the patch of
-            // artwork the guild's one text colour did not anticipate.
+            // artwork the community's one text colour did not anticipate.
             style={halo ? undefined : { color: ink, textShadow: readableTextShadow(ink) }}
           >
             {title}

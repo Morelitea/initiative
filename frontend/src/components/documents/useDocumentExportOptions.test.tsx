@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { HttpResponse } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 import type { DocumentType } from "@/api/generated/initiativeAPI.schemas";
@@ -79,7 +79,7 @@ describe("a document's export card", () => {
   it("offers spreadsheet formats and sends the engine request", async () => {
     let sent: { format: string | null; ids: string | null } | null = null;
     server.use(
-      guildHttp.get("/exports/document", ({ request }) => {
+      communityHttp.get("/exports/document", ({ request }) => {
         const url = new URL(request.url);
         sent = {
           format: url.searchParams.get("format"),
@@ -106,7 +106,7 @@ describe("a document's export card", () => {
 
   it("names the download from the server's Content-Disposition", async () => {
     server.use(
-      guildHttp.get(
+      communityHttp.get(
         "/exports/document",
         () =>
           new HttpResponse("{}", {
@@ -132,7 +132,7 @@ describe("a document's export card", () => {
   it("renders whiteboard PNG client-side without touching the engine", async () => {
     const engineHit = vi.fn();
     server.use(
-      guildHttp.get("/exports/document", () => {
+      communityHttp.get("/exports/document", () => {
         engineHit();
         return HttpResponse.json({});
       })
@@ -157,7 +157,7 @@ describe("a document's export card", () => {
 
   it("offers a single-format type its one format (file passthrough)", async () => {
     server.use(
-      guildHttp.get(
+      communityHttp.get(
         "/exports/document",
         () =>
           new HttpResponse("bytes", {

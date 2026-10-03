@@ -19,8 +19,8 @@ import {
   updateTag,
 } from "@/api/generated/tags/tags";
 import { invalidate, q } from "@/api/query-keys";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
-import { useGuildMutation } from "@/hooks/useApiMutation";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
+import { useCommunityMutation } from "@/hooks/useApiMutation";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import type { MutationOpts } from "@/types/mutation";
@@ -39,29 +39,29 @@ const invalidateTagBearers = () => {
 };
 
 export const useTags = (options?: { enabled?: boolean }) => {
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   return useQuery<TagRead[]>({
-    queryKey: getListTagsQueryKey(guildId),
-    queryFn: () => listTags(guildId),
+    queryKey: getListTagsQueryKey(communityId),
+    queryFn: () => listTags(communityId),
     staleTime: 60 * 1000,
     enabled: options?.enabled ?? true,
   });
 };
 
 export const useTag = (tagId: number | null) => {
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   return useQuery<TagRead>({
-    queryKey: getGetTagQueryKey(guildId, tagId!),
-    queryFn: () => getTag(guildId, tagId!),
+    queryKey: getGetTagQueryKey(communityId, tagId!),
+    queryFn: () => getTag(communityId, tagId!),
     enabled: !!tagId,
     staleTime: 60 * 1000,
   });
 };
 
 export const useCreateTag = (options?: MutationOpts<TagRead, TagCreate>) =>
-  useGuildMutation<TagRead, TagCreate>(
+  useCommunityMutation<TagRead, TagCreate>(
     {
-      mutationFn: (guildId, data) => createTag(guildId, data),
+      mutationFn: (communityId, data) => createTag(communityId, data),
       invalidate: () => invalidate(q.allTags()),
       errorKey: "tags:createError",
     },
@@ -71,14 +71,14 @@ export const useCreateTag = (options?: MutationOpts<TagRead, TagCreate>) =>
 export const useUpdateTag = (
   options?: MutationOpts<TagRead, { tagId: number; data: TagUpdate }>
 ) => {
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   const { t } = useTranslation("tags");
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
     ...rest,
     mutationFn: async ({ tagId, data }: { tagId: number; data: TagUpdate }) => {
-      return updateTag(guildId, tagId, data);
+      return updateTag(communityId, tagId, data);
     },
     onSuccess: (...args) => {
       toast.success(t("updated"));
@@ -101,14 +101,14 @@ export const useDeleteTag = (
     silent?: boolean;
   }
 ) => {
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   const { t } = useTranslation("tags");
   const { onSuccess, onError, onSettled, silent, ...rest } = options ?? {};
 
   return useMutation({
     ...rest,
     mutationFn: async (tagId: number) => {
-      await deleteTag(guildId, tagId);
+      await deleteTag(communityId, tagId);
     },
     onSuccess: (...args) => {
       if (!silent) {
@@ -127,10 +127,10 @@ export const useDeleteTag = (
 };
 
 export const useTagEntities = (tagId: number | null) => {
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   return useQuery<TaggedEntitiesResponse>({
-    queryKey: getGetTagEntitiesQueryKey(guildId, tagId!),
-    queryFn: () => getTagEntities(guildId, tagId!),
+    queryKey: getGetTagEntitiesQueryKey(communityId, tagId!),
+    queryFn: () => getTagEntities(communityId, tagId!),
     enabled: !!tagId,
     staleTime: 30 * 1000,
   });

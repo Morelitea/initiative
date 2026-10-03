@@ -82,7 +82,7 @@ function renderFocus(prefs: Partial<FocusPreferences> = {}, stored?: unknown) {
     return (
       <FocusSummary
         focus={focus}
-        activeGuildId={1}
+        activeCommunityId={1}
         changeTaskStatus={changeTaskStatus}
         isUpdatingTask={() => false}
       />
@@ -184,8 +184,8 @@ describe("FocusSummary", () => {
       new Date(lowDue.conditions[2].value).getTime()
     );
 
-    // The list spans every guild the user belongs to and answers only to its
-    // own settings — it is not scoped by the guild you happen to be viewing,
+    // The list spans every community the user belongs to and answers only to its
+    // own settings — it is not scoped by the community you happen to be viewing,
     // nor by the task table's filters.
     expect(captured[0].get("conditions")).not.toContain("community_id");
   });
@@ -402,9 +402,9 @@ describe("FocusSummary", () => {
     expect(await screen.findByText("Pinned far-future task")).toBeInTheDocument();
   });
 
-  it("does not mistake a same-numbered task in another guild for the pinned one", async () => {
-    // /me/tasks filters run per guild against a shared id space, so an
-    // `id IN (…)` query returns task 7 from every guild the user belongs to.
+  it("does not mistake a same-numbered task in another community for the pinned one", async () => {
+    // /me/tasks filters run per community against a shared id space, so an
+    // `id IN (…)` query returns task 7 from every community the user belongs to.
     mockMyTasks({
       rules: buildTaskListResponse([]),
       pins: buildTaskListResponse([

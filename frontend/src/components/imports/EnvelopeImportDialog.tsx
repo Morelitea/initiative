@@ -27,7 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { liveInitiatives } from "@/hooks/useInitiativeAccess";
 import { useInitiatives } from "@/hooks/useInitiatives";
@@ -94,7 +94,7 @@ export function EnvelopeImportDialog({
   onImported,
 }: EnvelopeImportDialogProps) {
   const { t } = useTranslation(["imports", "common"]);
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   const { maxUploadBytes } = useAppConfig();
   const initiativesQuery = useInitiatives();
 
@@ -242,7 +242,7 @@ export function EnvelopeImportDialog({
       const response = (
         archive
           ? await archiveMutation.mutateAsync({
-              communityId: guildId,
+              communityId: communityId,
               data: {
                 file: archive,
                 initiative_id: Number(initiativeId),
@@ -250,7 +250,7 @@ export function EnvelopeImportDialog({
               },
             })
           : await importMutation.mutateAsync({
-              communityId: guildId,
+              communityId: communityId,
               data: {
                 envelope: envelope as unknown as Record<string, unknown>,
                 initiative_id: Number(initiativeId),
@@ -301,7 +301,7 @@ export function EnvelopeImportDialog({
     const mapped = Object.fromEntries(Object.entries(peopleMap).filter(([, id]) => id != null));
     try {
       await confirmMutation.mutateAsync({
-        communityId: guildId,
+        communityId: communityId,
         jobId: stagedJob.id,
         data: Object.keys(mapped).length > 0 ? { people_map: mapped } : {},
       });
@@ -317,7 +317,7 @@ export function EnvelopeImportDialog({
   const handleDiscard = async () => {
     if (stagedJob) {
       try {
-        await cancelMutation.mutateAsync({ communityId: guildId, jobId: stagedJob.id });
+        await cancelMutation.mutateAsync({ communityId: communityId, jobId: stagedJob.id });
       } catch {
         // Already expired or started — nothing to cancel, and closing is
         // still the right thing to do.

@@ -152,8 +152,8 @@ import {
   updateWiki,
 } from "@/api/generated/wikis/wikis";
 import { invalidate, q } from "@/api/query-keys";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
-import { useGuildMutation } from "@/hooks/useApiMutation";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
+import { useCommunityMutation } from "@/hooks/useApiMutation";
 import { fetchAllPages } from "@/lib/fetchAllPages";
 import { queryClient } from "@/lib/queryClient";
 import { toolCamelPlural } from "@/lib/tools";
@@ -164,13 +164,17 @@ import type { QueryOpts } from "@/types/query";
 type CacheKey = readonly unknown[];
 
 /** Copies one into an initiative: `POST /{tool}/{id}/duplicate`, one route shape for every tool. */
-type Duplicate = (guildId: number, id: number, data: ToolDuplicateRequest) => Promise<Duplicated>;
+type Duplicate = (
+  communityId: number,
+  id: number,
+  data: ToolDuplicateRequest
+) => Promise<Duplicated>;
 
 /** What a duplicate answers with: the copy's id and where it went. */
 type Duplicated = { id: number; initiative_id: number | null };
 
 /**
- * The narrowing every tool's guild-wide list understands.
+ * The narrowing every tool's community-wide list understands.
  *
  * The nine endpoints accept far more than this between them — a document has
  * tags and a type, a calendar has a scope — but these are the terms they ALL
@@ -191,7 +195,7 @@ export interface ToolListParams {
 }
 
 /**
- * The same, for the cross-guild `/me` twin: no initiative (there is no order
+ * The same, for the cross-community `/me` twin: no initiative (there is no order
  * across communities to put one in), a set of communities instead, and the
  * "only what I wrote" view.
  */
@@ -230,14 +234,14 @@ interface ToolListPage {
  * written once wherever the list is reached from.
  */
 const listQueries = <TList, TMyList, TParams, TMyParams>(endpoints: {
-  listKey: (guildId: number, params?: TParams) => CacheKey;
-  list: (guildId: number, params?: TParams) => Promise<TList>;
+  listKey: (communityId: number, params?: TParams) => CacheKey;
+  list: (communityId: number, params?: TParams) => Promise<TList>;
   myListKey: (params?: TMyParams) => CacheKey;
   myList: (params?: TMyParams) => Promise<TMyList>;
 }) => ({
-  listQuery: (guildId: number, params?: TParams) => ({
-    queryKey: endpoints.listKey(guildId, params),
-    queryFn: () => endpoints.list(guildId, params),
+  listQuery: (communityId: number, params?: TParams) => ({
+    queryKey: endpoints.listKey(communityId, params),
+    queryFn: () => endpoints.list(communityId, params),
   }),
   myListQuery: (params?: TMyParams) => ({
     queryKey: endpoints.myListKey(params),
@@ -246,21 +250,21 @@ const listQueries = <TList, TMyList, TParams, TMyParams>(endpoints: {
 });
 
 /**
- * One page of the tool's guild-wide list.
+ * One page of the tool's community-wide list.
  *
  * `keepPreviousData` keeps the rows on screen while a changed page, search or
  * order is in flight, rather than replacing the table with a loading line on
  * every keystroke.
  */
 const listHook = <TList, TParams>(endpoints: {
-  listKey: (guildId: number, params?: TParams) => CacheKey;
-  list: (guildId: number, params?: TParams) => Promise<TList>;
+  listKey: (communityId: number, params?: TParams) => CacheKey;
+  list: (communityId: number, params?: TParams) => Promise<TList>;
 }) => {
   return (params?: TParams, options?: QueryOpts<TList>) => {
-    const guildId = useActiveGuildId();
+    const communityId = useActiveCommunityId();
     return useQuery<TList>({
-      queryKey: endpoints.listKey(guildId, params),
-      queryFn: () => endpoints.list(guildId, params),
+      queryKey: endpoints.listKey(communityId, params),
+      queryFn: () => endpoints.list(communityId, params),
       placeholderData: keepPreviousData,
       ...options,
     });
@@ -273,15 +277,15 @@ const listHook = <TList, TParams>(endpoints: {
  * further and never widens.
  */
 const detailHook = <TRead>(endpoints: {
-  detailKey: (guildId: number, id: number) => CacheKey;
-  detail: (guildId: number, id: number) => Promise<TRead>;
+  detailKey: (communityId: number, id: number) => CacheKey;
+  detail: (communityId: number, id: number) => Promise<TRead>;
 }) => {
   return (id: number | null, options?: QueryOpts<TRead>) => {
-    const guildId = useActiveGuildId();
+    const communityId = useActiveCommunityId();
     const { enabled: userEnabled = true, ...rest } = options ?? {};
     return useQuery<TRead>({
-      queryKey: endpoints.detailKey(guildId, id!),
-      queryFn: () => endpoints.detail(guildId, id!),
+      queryKey: endpoints.detailKey(communityId, id!),
+      queryFn: () => endpoints.detail(communityId, id!),
       enabled: id !== null && Number.isFinite(id) && userEnabled,
       ...rest,
     });
@@ -290,15 +294,15 @@ const detailHook = <TRead>(endpoints: {
 
 const createHook = <TRead, TCreate>(
   endpoints: {
-    create: (guildId: number, data: TCreate) => Promise<TRead>;
+    create: (communityId: number, data: TCreate) => Promise<TRead>;
     tool: Tool;
   },
   errorKey: string
 ) => {
   return (options?: MutationOpts<TRead, TCreate>) =>
-    useGuildMutation<TRead, TCreate>(
+    useCommunityMutation<TRead, TCreate>(
       {
-        mutationFn: (guildId, data) => endpoints.create(guildId, data),
+        mutationFn: (communityId, data) => endpoints.create(communityId, data),
         invalidate: () => invalidate(q.toolList(endpoints.tool)),
         errorKey,
       },
@@ -321,21 +325,21 @@ interface ToolWriteOptions {
 
 const updateHook = <TRead, TUpdate>(
   endpoints: {
-    update: (guildId: number, id: number, data: TUpdate) => Promise<TRead>;
-    detailKey: (guildId: number, id: number) => CacheKey;
+    update: (communityId: number, id: number, data: TUpdate) => Promise<TRead>;
+    detailKey: (communityId: number, id: number) => CacheKey;
     tool: Tool;
   },
   errorKey: string,
   { seedsDetailOnUpdate = false }: ToolWriteOptions = {}
 ) => {
   return (id: number, options?: MutationOpts<TRead, TUpdate>) => {
-    const guildId = useActiveGuildId();
-    return useGuildMutation<TRead, TUpdate>(
+    const communityId = useActiveCommunityId();
+    return useCommunityMutation<TRead, TUpdate>(
       {
-        mutationFn: (guild, data) => endpoints.update(guild, id, data),
+        mutationFn: (community, data) => endpoints.update(community, id, data),
         invalidate: (updated) => {
           if (seedsDetailOnUpdate) {
-            queryClient.setQueryData(endpoints.detailKey(guildId, id), updated);
+            queryClient.setQueryData(endpoints.detailKey(communityId, id), updated);
           }
           return invalidate(q.tool(endpoints.tool, id));
         },
@@ -348,15 +352,15 @@ const updateHook = <TRead, TUpdate>(
 
 const deleteHook = (
   endpoints: {
-    remove: (guildId: number, id: number) => Promise<void>;
+    remove: (communityId: number, id: number) => Promise<void>;
     tool: Tool;
   },
   errorKey: string
 ) => {
   return (options?: MutationOpts<void, number>) =>
-    useGuildMutation<void, number>(
+    useCommunityMutation<void, number>(
       {
-        mutationFn: (guildId, id) => endpoints.remove(guildId, id),
+        mutationFn: (communityId, id) => endpoints.remove(communityId, id),
         invalidate: () => invalidate(q.toolList(endpoints.tool)),
         errorKey,
       },
@@ -367,15 +371,15 @@ const deleteHook = (
 /** The whole non-owner sharing state at once (unified resource sharing). */
 const grantsHook = <TRead>(
   endpoints: {
-    setGrants: (guildId: number, id: number, grants: ResourceGrantSchema[]) => Promise<TRead>;
+    setGrants: (communityId: number, id: number, grants: ResourceGrantSchema[]) => Promise<TRead>;
     tool: Tool;
   },
   errorKey: string
 ) => {
   return (id: number, options?: MutationOpts<TRead, ResourceGrantSchema[]>) =>
-    useGuildMutation<TRead, ResourceGrantSchema[]>(
+    useCommunityMutation<TRead, ResourceGrantSchema[]>(
       {
-        mutationFn: (guildId, grants) => endpoints.setGrants(guildId, id, grants),
+        mutationFn: (communityId, grants) => endpoints.setGrants(communityId, id, grants),
         invalidate: () => invalidate(q.tool(endpoints.tool, id)),
         errorKey,
       },
@@ -385,16 +389,16 @@ const grantsHook = <TRead>(
 
 /** Everything the generated client offers for a tool with no exceptions. */
 interface ToolEndpoints<TRead, TList, TMyList, TCreate, TUpdate, TParams> {
-  listKey: (guildId: number, params?: TParams) => CacheKey;
-  list: (guildId: number, params?: TParams) => Promise<TList>;
+  listKey: (communityId: number, params?: TParams) => CacheKey;
+  list: (communityId: number, params?: TParams) => Promise<TList>;
   myListKey: (params?: ToolMyListParams) => CacheKey;
   myList: (params?: ToolMyListParams) => Promise<TMyList>;
-  detailKey: (guildId: number, id: number) => CacheKey;
-  detail: (guildId: number, id: number) => Promise<TRead>;
-  create: (guildId: number, data: TCreate) => Promise<TRead>;
-  update: (guildId: number, id: number, data: TUpdate) => Promise<TRead>;
-  remove: (guildId: number, id: number) => Promise<void>;
-  setGrants: (guildId: number, id: number, grants: ResourceGrantSchema[]) => Promise<TRead>;
+  detailKey: (communityId: number, id: number) => CacheKey;
+  detail: (communityId: number, id: number) => Promise<TRead>;
+  create: (communityId: number, data: TCreate) => Promise<TRead>;
+  update: (communityId: number, id: number, data: TUpdate) => Promise<TRead>;
+  remove: (communityId: number, id: number) => Promise<void>;
+  setGrants: (communityId: number, id: number, grants: ResourceGrantSchema[]) => Promise<TRead>;
   duplicate: Duplicate;
   /** Which tool this is — what its writes make stale follows from it. */
   tool: Tool;
@@ -478,8 +482,8 @@ const documentEndpoints = {
   listKey: getListDocumentsQueryKey,
   // `page_size: 0` asks for the complete set, which the server serves in
   // windows; this walks them. A positive page size passes straight through.
-  list: (guildId: number, params?: ListDocumentsParams) =>
-    fetchAllPages(listDocuments, guildId, params ?? {}),
+  list: (communityId: number, params?: ListDocumentsParams) =>
+    fetchAllPages(listDocuments, communityId, params ?? {}),
   myListKey: getListMyDocumentsQueryKey,
   myList: listMyDocuments,
   detailKey: getReadDocumentQueryKey,
@@ -596,7 +600,7 @@ const wikiEndpoints = {
  */
 interface ToolQueries {
   listQuery: (
-    guildId: number,
+    communityId: number,
     params?: ToolListParams
   ) => { queryKey: CacheKey; queryFn: () => Promise<ToolListPage> };
   myListQuery: (params?: ToolMyListParams) => {
@@ -605,7 +609,7 @@ interface ToolQueries {
   };
   /** Makes one from a name and its initiative — what `useCreateTool` sends every tool. */
   create: (
-    guildId: number,
+    communityId: number,
     data: { name: string; initiative_id: number }
   ) => Promise<{ id: number }>;
   /** Copies one into an initiative — what the settings page's duplicate card sends. */
@@ -639,9 +643,9 @@ export const useDuplicateTool = (
   tool: Tool,
   options?: MutationOpts<Duplicated, { id: number; data: ToolDuplicateRequest }>
 ) =>
-  useGuildMutation<Duplicated, { id: number; data: ToolDuplicateRequest }>(
+  useCommunityMutation<Duplicated, { id: number; data: ToolDuplicateRequest }>(
     {
-      mutationFn: (guildId, { id, data }) => TOOL_HOOKS[tool].duplicate(guildId, id, data),
+      mutationFn: (communityId, { id, data }) => TOOL_HOOKS[tool].duplicate(communityId, id, data),
       invalidate: () => invalidate(q.toolList(tool)),
       errorKey: "common:toolSettings.duplicate.error",
     },

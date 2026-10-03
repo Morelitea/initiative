@@ -34,7 +34,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { WizardDialog } from "@/components/ui/wizard-dialog";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { useImportJob } from "@/hooks/useImportJob";
 import { liveInitiatives } from "@/hooks/useInitiativeAccess";
 import { useInitiatives } from "@/hooks/useInitiatives";
@@ -83,7 +83,7 @@ const SOURCES: Source[] = ["backup", "atlassian", "todoist", "ticktick", "vikunj
 /** An Atlassian job this wizard started and has not seen the end of. A fetch
  * runs for minutes and outlives the dialog, so reopening picks it up where it
  * is — still reading, or waiting for review — rather than losing it. */
-const atlassianJobKey = (guildId: number) => `imports:atlassian-job:${guildId}`;
+const atlassianJobKey = (communityId: number) => `imports:atlassian-job:${communityId}`;
 
 type Step =
   | "source"
@@ -125,7 +125,7 @@ type Step =
  */
 export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
   const { t } = useTranslation("imports");
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   const importJob = useImportJob();
 
   const { step, go, commit, back, reset } = useWizard<Step>("source");
@@ -207,7 +207,7 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
       // progress view instead of offering a new flow.
       commit("progress");
     } else {
-      const pending = Number(getItem(atlassianJobKey(guildId)));
+      const pending = Number(getItem(atlassianJobKey(communityId)));
       if (Number.isFinite(pending) && pending > 0) {
         setSource("atlassian");
         setJiraJobId(pending);
@@ -246,10 +246,10 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
     go(picked === "backup" ? "pick" : picked === "atlassian" ? "connect" : "file");
   };
 
-  const forgetJiraJob = () => removeItem(atlassianJobKey(guildId));
+  const forgetJiraJob = () => removeItem(atlassianJobKey(communityId));
 
   const handleJiraStarted = (job: ImportJobRead) => {
-    setItem(atlassianJobKey(guildId), String(job.id));
+    setItem(atlassianJobKey(communityId), String(job.id));
     setJiraJobId(job.id);
     // Past this point the site is being read; the way out is Cancel.
     commit("fetching");
@@ -319,7 +319,7 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
     }
     try {
       const described = await previewMutation.mutateAsync({
-        communityId: guildId,
+        communityId: communityId,
         source,
         data: text,
       });
@@ -345,7 +345,7 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
     }
     go("uploading");
     try {
-      const job = await uploadMutation.mutateAsync({ communityId: guildId, data: { file } });
+      const job = await uploadMutation.mutateAsync({ communityId: communityId, data: { file } });
       setStagedJob(job);
       commit("plan");
     } catch (err) {
@@ -360,7 +360,7 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
     }
     try {
       const response = (await importMutation.mutateAsync({
-        communityId: guildId,
+        communityId: communityId,
         source,
         data: {
           initiative_id: Number(initiativeId),
@@ -407,7 +407,7 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
     const mapped = Object.fromEntries(Object.entries(peopleMap).filter(([, id]) => id != null));
     try {
       const job = await confirmMutation.mutateAsync({
-        communityId: guildId,
+        communityId: communityId,
         jobId: stagedJob.id,
         data: {
           ...(Object.keys(mapped).length > 0 ? { people_map: mapped } : {}),
@@ -430,7 +430,7 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
       return;
     }
     try {
-      await cancelMutation.mutateAsync({ communityId: guildId, jobId: stagedJob.id });
+      await cancelMutation.mutateAsync({ communityId: communityId, jobId: stagedJob.id });
     } catch {
       // Already expired/started — nothing to cancel; closing is still right.
     }
@@ -464,7 +464,7 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
       return null;
     }
     return {
-      guildName: peeked.guild?.name ?? "",
+      communityName: peeked.guild?.name ?? "",
       appVersion: peeked.app_version ?? "",
       exportedAt: formatDateTime(peeked.exported_at),
       initiativeCount: peeked.initiatives?.length ?? 0,
@@ -734,7 +734,7 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
         <div className="space-y-4">
           <div className="space-y-1 rounded-lg border p-3 text-sm">
             <p className="font-medium">
-              {t("wizard.peek.source", { name: peekSummary.guildName })}
+              {t("wizard.peek.source", { name: peekSummary.communityName })}
             </p>
             <p className="text-muted-foreground text-xs">
               {t("wizard.peek.exportedAt", {

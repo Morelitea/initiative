@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { RadioGroupItem } from "@/components/ui/radio-group";
 import { PROVIDER_CONFIGS } from "@/lib/ai-providers";
 
-/** RadioGroup value for a connection within one guild group. */
+/** RadioGroup value for a connection within one community group. */
 export const myConnectionValue = (row: Pick<MyAIConnectionRow, "scope" | "connection_id">) =>
   `${row.scope}:${row.connection_id}`;
 
@@ -82,7 +82,7 @@ export const MemberAIConnectionRow = ({
           <p className="text-muted-foreground text-xs">
             {connection.scope === "platform"
               ? t("memberAI.sharedKeyPlatform")
-              : t("memberAI.sharedKeyGuild")}
+              : t("memberAI.sharedKeyCommunity")}
           </p>
         ) : editing ? (
           <div className="space-y-2">

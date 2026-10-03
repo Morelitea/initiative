@@ -57,7 +57,7 @@ const EMPTY_FORM: ProviderFormState = {
 
 // The mutation surface the section needs — satisfied structurally by the
 // React Query mutation objects the wrappers' domain hooks return, so the
-// operator and guild registries plug in without sharing hook signatures.
+// operator and community registries plug in without sharing hook signatures.
 interface RegistryMutation<TVariables, TResult = unknown> {
   mutate: (
     variables: TVariables,
@@ -84,8 +84,8 @@ export interface ProviderRegistrySectionProps {
 /**
  * One login-provider registry as a settings card: list, create/edit dialog
  * with presets, write-only secret handling, and delete confirmation. The
- * operator registry (platform settings) and each guild's registry (guild
- * settings, per-guild auth) both render through this — only the gates and
+ * operator registry (platform settings) and each community's registry (community
+ * settings, per-community auth) both render through this — only the gates and
  * endpoints differ, supplied by the wrapper's hooks.
  */
 export const ProviderRegistrySection = ({

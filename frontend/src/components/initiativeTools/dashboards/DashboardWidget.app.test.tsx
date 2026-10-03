@@ -109,7 +109,7 @@ const mount = (props: { sampleData?: boolean; dashboardId?: number } = {}) =>
       canEdit={false}
       sampleData={props.sampleData}
     />,
-    { guilds: { activeGuildId: 2 } }
+    { communities: { activeCommunityId: 2 } }
   );
 
 describe("DashboardWidget with an app source", () => {

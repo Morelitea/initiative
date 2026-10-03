@@ -23,7 +23,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { downloadExportArtifact } from "@/lib/exportDownload";
@@ -62,22 +62,22 @@ function exportDisplayStatus(job: ExportJobRead): string {
 }
 
 /** One table for both directions of the Data tab: export and import jobs
- * interleaved newest-first (RLS scopes rows — members their own, guild
+ * interleaved newest-first (RLS scopes rows — members their own, community
  * admins everyone's). Per-row actions stay direction-specific: Download for
  * finished exports, Cancel for staged/queued imports, a report view for
  * terminal imports. Polls while any job of either direction is active. */
 export function DataJobsTable() {
   const { t } = useTranslation(["imports", "exports"]);
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   const [reportJob, setReportJob] = useState<ImportJobRead | null>(null);
 
-  const exportsQuery = useListExportJobs(guildId, {
+  const exportsQuery = useListExportJobs(communityId, {
     query: {
       refetchInterval: (query) =>
         (query.state.data ?? []).some((job) => ACTIVE.has(job.status)) ? POLL_MS : false,
     },
   });
-  const importsQuery = useListImportJobs(guildId, {
+  const importsQuery = useListImportJobs(communityId, {
     query: {
       refetchInterval: (query) =>
         (query.state.data ?? []).some((job) => ACTIVE.has(job.status)) ? POLL_MS : false,
@@ -111,14 +111,14 @@ export function DataJobsTable() {
 
   const handleCancel = async (job: ImportJobRead) => {
     try {
-      await cancelMutation.mutateAsync({ communityId: guildId, jobId: job.id });
+      await cancelMutation.mutateAsync({ communityId: communityId, jobId: job.id });
     } catch (err) {
       // Most often a 409: the job started running between render and click.
       // Surface it instead of the row silently flipping to "running".
       toast.error(getErrorMessage(err, "imports:job.failed"));
     } finally {
       void queryClient.invalidateQueries({
-        queryKey: getListImportJobsQueryKey(guildId),
+        queryKey: getListImportJobsQueryKey(communityId),
       });
     }
   };
@@ -186,7 +186,7 @@ export function DataJobsTable() {
                       aria-label={t("exports:table.download")}
                       onClick={() =>
                         void downloadExportArtifact(
-                          guildId,
+                          communityId,
                           row.job.id,
                           t as (key: string, options?: Record<string, unknown>) => string,
                           row.job.source,

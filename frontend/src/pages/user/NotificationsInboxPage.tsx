@@ -8,7 +8,7 @@ import { notificationLink, notificationText } from "@/components/notifications/n
 import { Button } from "@/components/ui/button";
 import { RelativeTime } from "@/components/ui/relative-time";
 import { useAuth } from "@/hooks/useAuth";
-import { useGuilds } from "@/hooks/useGuilds";
+import { useCommunities } from "@/hooks/useCommunities";
 import {
   useDismissNotification,
   useMarkAllNotificationsRead,
@@ -48,18 +48,18 @@ const dayLabel = (
  * "what is left for me" and "what happened".
  */
 export const NotificationsInboxPage = () => {
-  const { t } = useTranslation(["guilds", "common"]);
+  const { t } = useTranslation(["communities", "common"]);
   const { user } = useAuth();
   const router = useRouter();
   const [filter, setFilter] = useState<Filter>("all");
-  const [guildId, setGuildId] = useState<number | undefined>(undefined);
+  const [communityId, setCommunityId] = useState<number | undefined>(undefined);
 
-  const { guilds } = useGuilds();
+  const { communities } = useCommunities();
   const history = useNotificationHistory({
     enabled: Boolean(user),
     unreadOnly: filter === "unread",
     personalOnly: filter === "personal",
-    guildId,
+    communityId,
   });
 
   const markRead = useMarkNotificationRead();
@@ -83,9 +83,9 @@ export const NotificationsInboxPage = () => {
     return [...buckets.entries()];
   }, [rows]);
 
-  const guildName = (id: number | null | undefined): string | null => {
+  const communityName = (id: number | null | undefined): string | null => {
     if (id === null || id === undefined) return null;
-    return guilds?.find((guild) => guild.id === id)?.name ?? null;
+    return communities?.find((community) => community.id === id)?.name ?? null;
   };
 
   const open = (notification: NotificationRead) => {
@@ -127,19 +127,19 @@ export const NotificationsInboxPage = () => {
             </Button>
           ))}
         </div>
-        {(guilds?.length ?? 0) > 1 && (
+        {(communities?.length ?? 0) > 1 && (
           <select
             className="h-8 rounded-md border bg-background px-2 text-sm"
-            value={guildId ?? ""}
+            value={communityId ?? ""}
             aria-label={t("notifications.inbox.filterByCommunity")}
             onChange={(event) =>
-              setGuildId(event.target.value ? Number(event.target.value) : undefined)
+              setCommunityId(event.target.value ? Number(event.target.value) : undefined)
             }
           >
             <option value="">{t("notifications.inbox.allCommunities")}</option>
-            {guilds?.map((guild) => (
-              <option key={guild.id} value={guild.id}>
-                {guild.name}
+            {communities?.map((community) => (
+              <option key={community.id} value={community.id}>
+                {community.name}
               </option>
             ))}
           </select>
@@ -182,8 +182,8 @@ export const NotificationsInboxPage = () => {
                         )}
                       </p>
                       <p className="mt-1 flex items-center gap-2 text-muted-foreground text-xs">
-                        {guildName(notification.community_id) && (
-                          <span>{guildName(notification.community_id)}</span>
+                        {communityName(notification.community_id) && (
+                          <span>{communityName(notification.community_id)}</span>
                         )}
                         <RelativeTime date={notification.created_at} />
                       </p>

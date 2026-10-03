@@ -1,7 +1,7 @@
 import type { TagSummary, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { setToolTags } from "@/api/generated/tools/tools";
 import { invalidate, q } from "@/api/query-keys";
-import { useGuildMutation } from "@/hooks/useApiMutation";
+import { useCommunityMutation } from "@/hooks/useApiMutation";
 import type { MutationOpts } from "@/types/mutation";
 
 /**
@@ -17,10 +17,10 @@ export const useSetToolTags = (
   tool: Tool,
   options?: MutationOpts<TagSummary[], { id: number; tagIds: number[] }>
 ) =>
-  useGuildMutation<TagSummary[], { id: number; tagIds: number[] }>(
+  useCommunityMutation<TagSummary[], { id: number; tagIds: number[] }>(
     {
-      mutationFn: (guildId, { id, tagIds }) =>
-        setToolTags(guildId, tool, id, {
+      mutationFn: (communityId, { id, tagIds }) =>
+        setToolTags(communityId, tool, id, {
           tag_ids: tagIds,
         }),
       invalidate: (_data, vars) => invalidate(q.tool(tool, vars.id)),

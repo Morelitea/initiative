@@ -151,7 +151,7 @@ const SecondFactorRequirementForm = ({
               onClick={() =>
                 window.dispatchEvent(
                   new CustomEvent<FactorChallengeDetail>(AUTH_FACTOR_REQUIRED_EVENT, {
-                    detail: { guildId: null, kind: "totp" },
+                    detail: { communityId: null, kind: "totp" },
                   })
                 )
               }

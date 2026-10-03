@@ -31,7 +31,7 @@
   },
   "wizard": {
     "titleInitiative": "Exportar iniciativa",
-    "titleGuild": "Exportar comunidad",
+    "titleCommunity": "Exportar comunidad",
     "titleEntities_one": "Exportar {{count}} elemento",
     "titleEntities_other": "Exportar {{count}} elementos",
     "back": "Atrás",
@@ -124,8 +124,8 @@
     }
   },
   "entry": {
-    "guildTitle": "Exportar esta comunidad",
-    "guildDescription": "Descarga los datos de cada iniciativa como copia de seguridad importable o como informe a la carta. Se aplican las reglas de acceso: la exportación contiene lo que puedes ver.",
+    "communityTitle": "Exportar esta comunidad",
+    "communityDescription": "Descarga los datos de cada iniciativa como copia de seguridad importable o como informe a la carta. Se aplican las reglas de acceso: la exportación contiene lo que puedes ver.",
     "initiativeDescription": "Descarga los datos de esta iniciativa como copia de seguridad importable o como informe a la carta. Se aplican las reglas de acceso: la exportación contiene lo que puedes ver.",
     "open": "Exportar…"
   },

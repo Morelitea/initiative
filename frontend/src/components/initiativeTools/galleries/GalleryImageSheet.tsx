@@ -211,7 +211,7 @@ export const GalleryImageSheet = ({
           </div>
 
           {/* Saved as they change, apart from the Save above. Definitions
-              belong to an initiative, so a guild-level gallery has none. */}
+              belong to an initiative, so a community-level gallery has none. */}
           {initiativeId !== null && (
             <div className="space-y-1.5">
               <Label>{t("properties:title")}</Label>

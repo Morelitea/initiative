@@ -9,7 +9,7 @@
  * Works with any Orval-generated list fetcher — pass it inline as the
  * queryFn, no per-resource wrapper needed:
  *
- *   queryFn: () => fetchAllPages(listTasks, guildId, params)
+ *   queryFn: () => fetchAllPages(listTasks, communityId, params)
  *
  * A positive `page_size` passes straight through as a single request, so the
  * same line serves paginated and fetch-all callers alike; only
@@ -38,14 +38,14 @@ export const fetchAllPages = async <
   TParams extends ListWindowParams,
   TResponse extends WindowedListResponse,
 >(
-  fetcher: (guildId: number, params?: TParams) => Promise<TResponse>,
-  guildId: number,
+  fetcher: (communityId: number, params?: TParams) => Promise<TResponse>,
+  communityId: number,
   params: TParams
 ): Promise<TResponse> => {
-  if (params.page_size !== 0) return fetcher(guildId, params);
+  if (params.page_size !== 0) return fetcher(communityId, params);
 
   let page = 1;
-  let response = await fetcher(guildId, { ...params, page });
+  let response = await fetcher(communityId, { ...params, page });
   if (!response.has_next) return response;
 
   const merged = [...response.items];
@@ -55,7 +55,7 @@ export const fetchAllPages = async <
 
   while (response.has_next && page < MAX_PAGES) {
     page += 1;
-    response = await fetcher(guildId, { ...params, page });
+    response = await fetcher(communityId, { ...params, page });
     for (const item of response.items) {
       const id = idOf(item);
       if (id !== undefined) {

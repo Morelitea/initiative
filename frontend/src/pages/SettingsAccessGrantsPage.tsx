@@ -33,7 +33,7 @@ import {
   useRevokeAccessGrant,
 } from "@/hooks/useAccessGrants";
 import { useAuth } from "@/hooks/useAuth";
-import { useGuilds } from "@/hooks/useGuilds";
+import { useCommunities } from "@/hooks/useCommunities";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { minutesLeft } from "@/lib/formatDate";
@@ -53,10 +53,10 @@ const STATUS_VARIANT: Record<
   expired: "outline",
 };
 
-// Always surface the guild id alongside the name so approvers can
-// disambiguate similarly-named guilds (and fall back cleanly when the name
+// Always surface the community id alongside the name so approvers can
+// disambiguate similarly-named communities (and fall back cleanly when the name
 // isn't populated).
-const guildLabel = (grant: { community_name?: string | null; community_id: number }): string =>
+const communityLabel = (grant: { community_name?: string | null; community_id: number }): string =>
   grant.community_name
     ? `${grant.community_name} (#${grant.community_id})`
     : `#${grant.community_id}`;
@@ -140,7 +140,7 @@ const StatusBadge = ({ grant }: { grant: AccessGrantRead }) => {
 const BREAK_GLASS_DURATIONS_MINUTES = [60, 120, 240];
 
 // Self-serve emergency access for data.bypass holders (operator/owner). Unlike a
-// request, this is approved on creation — live immediately, scoped to one guild,
+// request, this is approved on creation — live immediately, scoped to one community,
 // read-only by default, short-lived, and recorded as an audited grant.
 /** The server saying this request had to carry the account's second factor. */
 const isSecondFactorRefusal = (error: unknown): boolean =>
@@ -156,8 +156,8 @@ const BreakGlassSection = () => {
   // auth too: a prompt that produced nothing is reported in the same words
   // the sign-in page uses for it.
   const { t } = useTranslation(["settings", "common", "auth"]);
-  const { refreshGuilds } = useGuilds();
-  const [guildId, setGuildId] = useState("");
+  const { refreshCommunities } = useCommunities();
+  const [communityId, setCommunityId] = useState("");
   // Null until chosen: the offered windows arrive with the requirements below.
   const [chosenDuration, setDuration] = useState<string | null>(null);
   const [reason, setReason] = useState("");
@@ -190,17 +190,17 @@ const BreakGlassSection = () => {
   const breakGlass = useBreakGlass({
     onSuccess: () => {
       toast.success(t("accessGrants.breakGlass.activated"));
-      setGuildId("");
+      setCommunityId("");
       setReason("");
       setCode("");
       setFactorRefused(false);
       setPresenting(false);
       setDuration(null);
-      // A break-glass grant is live immediately. The guild switcher and the
-      // /c/{id} route guard read from the GuildProvider's context list (not
-      // React Query), so refresh it here — otherwise the newly-reachable guild
+      // A break-glass grant is live immediately. The community switcher and the
+      // /c/{id} route guard read from the CommunityProvider's context list (not
+      // React Query), so refresh it here — otherwise the newly-reachable community
       // doesn't appear until a manual reload.
-      void refreshGuilds();
+      void refreshCommunities();
     },
     onError: (err) => {
       if (isSecondFactorRefusal(err)) {
@@ -213,7 +213,7 @@ const BreakGlassSection = () => {
 
   /** The request itself, with whatever answered the factor attached. */
   const issue = (answer: Partial<BreakGlassCreate>) => {
-    const gid = Number.parseInt(guildId, 10);
+    const gid = Number.parseInt(communityId, 10);
     if (!gid || !reason.trim() || !duration) return;
     // No level to choose: breaking glass issues write access to the content
     // and a settings grant at superadmin. Somebody who wants less asks below.
@@ -235,7 +235,7 @@ const BreakGlassSection = () => {
    *  produces goes out with the request, so the key answers this grant rather
    *  than the session the button was pressed on. */
   const presentAKey = async () => {
-    if (!guildId.trim() || !reason.trim()) return;
+    if (!communityId.trim() || !reason.trim()) return;
     setPresenting(true);
     try {
       issue({ passkey: await assertForBreakGlass() });
@@ -256,13 +256,13 @@ const BreakGlassSection = () => {
       <CardContent>
         <form className="grid gap-4 sm:grid-cols-2" onSubmit={submit}>
           <div className="space-y-1">
-            <Label htmlFor="bg-guild">{t("accessGrants.guildIdLabel")}</Label>
+            <Label htmlFor="bg-community">{t("accessGrants.communityIdLabel")}</Label>
             <Input
-              id="bg-guild"
+              id="bg-community"
               type="number"
-              value={guildId}
-              onChange={(e) => setGuildId(e.target.value)}
-              placeholder={t("accessGrants.guildIdPlaceholder")}
+              value={communityId}
+              onChange={(e) => setCommunityId(e.target.value)}
+              placeholder={t("accessGrants.communityIdPlaceholder")}
               required
             />
           </div>
@@ -352,7 +352,7 @@ const RequestSection = () => {
     limits.data?.max_duration_minutes
   );
   const defaultDuration = String(durationOptions.includes(240) ? 240 : (durationOptions[0] ?? ""));
-  const [guildId, setGuildId] = useState("");
+  const [communityId, setCommunityId] = useState("");
   // Two axes, asked for independently. "none" is how you say you do not want
   // one — clearing up after an incident wants both; having a look wants only
   // the first.
@@ -366,7 +366,7 @@ const RequestSection = () => {
   const createRequest = useCreateAccessRequest({
     onSuccess: () => {
       toast.success(t("accessGrants.requestSubmitted"));
-      setGuildId("");
+      setCommunityId("");
       setReason("");
       setDuration(null);
     },
@@ -381,7 +381,7 @@ const RequestSection = () => {
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    const gid = Number.parseInt(guildId, 10);
+    const gid = Number.parseInt(communityId, 10);
     if (!gid || !reason.trim() || !asksForSomething || !duration) return;
     createRequest.mutate({
       community_id: gid,
@@ -403,13 +403,13 @@ const RequestSection = () => {
       <CardContent className="space-y-4">
         <form className="grid gap-4 sm:grid-cols-2" onSubmit={submit}>
           <div className="space-y-1">
-            <Label htmlFor="ag-guild">{t("accessGrants.guildIdLabel")}</Label>
+            <Label htmlFor="ag-community">{t("accessGrants.communityIdLabel")}</Label>
             <Input
-              id="ag-guild"
+              id="ag-community"
               type="number"
-              value={guildId}
-              onChange={(e) => setGuildId(e.target.value)}
-              placeholder={t("accessGrants.guildIdPlaceholder")}
+              value={communityId}
+              onChange={(e) => setCommunityId(e.target.value)}
+              placeholder={t("accessGrants.communityIdPlaceholder")}
               required
             />
           </div>
@@ -488,7 +488,7 @@ const RequestSection = () => {
                   <li key={grant.id} className="flex items-center justify-between gap-3 p-3">
                     <div className="min-w-0">
                       <p className="truncate text-sm">
-                        {guildLabel(grant)} · {grantScope(grant)}
+                        {communityLabel(grant)} · {grantScope(grant)}
                       </p>
                       <p className="truncate text-muted-foreground text-xs">{grant.reason}</p>
                     </div>
@@ -567,7 +567,7 @@ const ApprovalQueue = () => {
                   <div className="min-w-0">
                     <p className="truncate text-sm">
                       {grant.user_email ?? getUserDisplayName({ id: grant.user_id })} →{" "}
-                      {guildLabel(grant)} · {grantScope(grant)} ·{" "}
+                      {communityLabel(grant)} · {grantScope(grant)} ·{" "}
                       {t("accessGrants.minutes", { minutes: grant.requested_duration_minutes })}
                     </p>
                     <p className="truncate text-muted-foreground text-xs">{grant.reason}</p>
@@ -615,7 +615,7 @@ const ApprovalQueue = () => {
                     <div className="min-w-0">
                       <p className="truncate text-sm">
                         {grant.user_email ?? getUserDisplayName({ id: grant.user_id })} →{" "}
-                        {guildLabel(grant)} · {grantScope(grant)}
+                        {communityLabel(grant)} · {grantScope(grant)}
                       </p>
                       {left !== null && (
                         <p className="text-muted-foreground text-xs">

@@ -5,7 +5,7 @@
 import { screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { buildGuild } from "@/__tests__/factories";
+import { buildCommunity } from "@/__tests__/factories";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 import type { CommunityAppDetail } from "@/api/generated/initiativeAPI.schemas";
 
@@ -35,18 +35,25 @@ const detail = {
   ],
 } as unknown as CommunityAppDetail;
 
-vi.mock("@/hooks/useGuildAppDetail", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/hooks/useGuildAppDetail")>()),
-  useGuildAppDetail: () => ({ data: detail, isLoading: false }),
+vi.mock("@/hooks/useCommunityAppDetail", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/hooks/useCommunityAppDetail")>()),
+  useCommunityAppDetail: () => ({ data: detail, isLoading: false }),
 }));
 
 vi.mock("./AppMembersPanel", () => ({ AppMembersPanel: () => null }));
 
 const renderAs = (role: "superadmin" | "admin") => {
-  const guild = buildGuild({ role });
-  renderWithProviders(<AppSettingsDialog appId={3} isGuildAdmin open onOpenChange={() => {}} />, {
-    guilds: { guilds: [guild], activeGuildId: guild.id, activeGuild: guild },
-  });
+  const community = buildCommunity({ role });
+  renderWithProviders(
+    <AppSettingsDialog appId={3} isCommunityAdmin open onOpenChange={() => {}} />,
+    {
+      communities: {
+        communities: [community],
+        activeCommunityId: community.id,
+        activeCommunity: community,
+      },
+    }
+  );
 };
 
 describe("AppSettingsDialog", () => {

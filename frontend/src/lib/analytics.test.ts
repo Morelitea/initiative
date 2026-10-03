@@ -28,7 +28,7 @@ describe("frontend measurement", () => {
   it("sends nothing until started", async () => {
     const { recordPageView } = await load();
 
-    recordPageView("/c/$guildId/projects/$projectId");
+    recordPageView("/c/$communityId/projects/$projectId");
 
     expect(sdk.initializeFaro).not.toHaveBeenCalled();
   });
@@ -54,7 +54,7 @@ describe("frontend measurement", () => {
 
   it("names the page by its route template, never its address", async () => {
     const { labelWithRoute, recordPageView } = await load();
-    recordPageView("/c/$guildId/projects/$projectId");
+    recordPageView("/c/$communityId/projects/$projectId");
 
     const item = {
       type: "event",
@@ -63,7 +63,10 @@ describe("frontend measurement", () => {
     } as unknown as TransportItem;
 
     expect(labelWithRoute(item).meta).toEqual({
-      page: { id: "/c/$guildId/projects/$projectId", url: "/c/$guildId/projects/$projectId" },
+      page: {
+        id: "/c/$communityId/projects/$projectId",
+        url: "/c/$communityId/projects/$projectId",
+      },
       app: {},
     });
   });

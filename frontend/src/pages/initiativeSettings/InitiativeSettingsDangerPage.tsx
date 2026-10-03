@@ -1,7 +1,7 @@
 /**
  * `/settings/danger` — archiving the initiative, and deleting it.
  *
- * Both actions are the guild admin's: the section itself is readable by anyone
+ * Both actions are the community admin's: the section itself is readable by anyone
  * who may configure the initiative (it explains what archiving and deletion
  * mean, and who to ask), while each control stays gated on the standing it
  * actually needs.
@@ -18,14 +18,14 @@ import { useArchiveEntity, useUnarchiveEntity } from "@/hooks/useArchive";
 import { useInitiativeSettings } from "@/hooks/useInitiativeSettings";
 import { useDeleteInitiative } from "@/hooks/useInitiatives";
 import { toast } from "@/lib/chesterToast";
+import { useCommunityPath } from "@/lib/communityUrl";
 import { getErrorMessage } from "@/lib/errorMessage";
-import { useGuildPath } from "@/lib/guildUrl";
 
 export const InitiativeSettingsDangerPage = () => {
   const { t } = useTranslation(["initiatives", "common"]);
-  const gp = useGuildPath();
+  const gp = useCommunityPath();
   const router = useRouter();
-  const { initiativeId, initiative, canManageMembers, canDeleteInitiative, isGuildAdmin } =
+  const { initiativeId, initiative, canManageMembers, canDeleteInitiative, isCommunityAdmin } =
     useInitiativeSettings();
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -55,7 +55,7 @@ export const InitiativeSettingsDangerPage = () => {
     <>
       <InitiativeSettingsDangerTab
         isArchived={initiative.archived_at !== null}
-        canArchiveInitiative={isGuildAdmin}
+        canArchiveInitiative={isCommunityAdmin}
         isArchiving={archiveInitiative.isPending || unarchiveInitiative.isPending}
         onToggleArchive={() =>
           (initiative.archived_at === null ? archiveInitiative : unarchiveInitiative).mutate({
@@ -67,7 +67,7 @@ export const InitiativeSettingsDangerPage = () => {
         isDeleting={deleteInitiative.isPending}
         onDeleteInitiative={() => setShowDeleteConfirm(true)}
       />
-      {/* Shared with the guild settings Initiatives table, so there is a single
+      {/* Shared with the community settings Initiatives table, so there is a single
           delete workflow. */}
       <DeleteInitiativeDialog
         open={showDeleteConfirm}

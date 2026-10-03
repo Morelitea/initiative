@@ -9,7 +9,7 @@ const UserMarketplacePage = lazy(() =>
   }))
 );
 
-// Outside the `/c/$guildId` tree: what is sold here installs to a person, not
+// Outside the `/c/$communityId` tree: what is sold here installs to a person, not
 // to a community, and belongs to them in every community they are in.
 export const Route = createFileRoute("/_serverRequired/_authenticated/marketplace")({
   component: MarketplacePage,

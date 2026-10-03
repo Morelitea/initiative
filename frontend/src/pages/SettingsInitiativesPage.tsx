@@ -29,13 +29,13 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useArchiveEntity, useUnarchiveEntity } from "@/hooks/useArchive";
+import { useCommunities } from "@/hooks/useCommunities";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import { useGuilds } from "@/hooks/useGuilds";
 import { useInitiativeRoles } from "@/hooks/useInitiativeRoles";
 import {
   useAddInitiativeMember,
+  useCommunityInitiatives,
   useDeleteInitiative,
-  useGuildInitiatives,
   useInitiativeManagers,
   useRemoveInitiativeMember,
   useUpdateInitiativeMember,
@@ -48,16 +48,16 @@ import type { AppColumnDef } from "@/lib/table";
 import { getUserDisplayName } from "@/lib/userDisplay";
 import { cn } from "@/lib/utils";
 
-const GUILD_SCOPE: MemberSearchScope = { type: "guild" };
+const COMMUNITY_SCOPE: MemberSearchScope = { type: "community" };
 const NONE: never[] = [];
 
 /**
- * Per-row project-manager picker — how a guild admin staffs an initiative, and
+ * Per-row project-manager picker — how a community admin staffs an initiative, and
  * how they put one in their own sidebar (tick yourself).
  *
  * Ticking someone promotes them: an existing member's role changes, a
  * non-member gets a membership row. Unticking only takes the manager role away
- * — they stay in the initiative with the built-in member role. A guild admin is
+ * — they stay in the initiative with the built-in member role. A community admin is
  * the exception: they cannot hold a standard role, so unticking removes their
  * row (which is also how they leave an initiative they added themselves to).
  */
@@ -69,7 +69,7 @@ const InitiativeManagersCell = ({ initiative }: { initiative: InitiativeRead }) 
   const rolesQuery = useInitiativeRoles(initiative.id);
   const managersQuery = useInitiativeManagers(initiative.id);
 
-  // Candidates are the guild's members matching what was typed, asked of the
+  // Candidates are the community's members matching what was typed, asked of the
   // server once the picker is open.
   const searchQuery = useUserSearch({ search: debouncedQuery, enabled: open });
   const results = useMemo(
@@ -91,8 +91,8 @@ const InitiativeManagersCell = ({ initiative }: { initiative: InitiativeRead }) 
   );
 
   // The current managers lead the list whatever was typed, so each can be
-  // unticked. What unticking does depends on whether they are a guild admin,
-  // which the guild answers by id.
+  // unticked. What unticking does depends on whether they are a community admin,
+  // which the community answers by id.
   const managers = useMemo<MemberLike[]>(
     () => (managersQuery.data ?? []).map((m) => m.user),
     [managersQuery.data]
@@ -101,7 +101,7 @@ const InitiativeManagersCell = ({ initiative }: { initiative: InitiativeRead }) 
   const managerCount = managers.length;
   const managerIdList = useMemo(() => [...managerIds], [managerIds]);
   const knownManagers = useSeenMembers(
-    GUILD_SCOPE,
+    COMMUNITY_SCOPE,
     open ? managerIdList : NONE,
     undefined,
     results
@@ -222,7 +222,7 @@ const InitiativeManagersCell = ({ initiative }: { initiative: InitiativeRead }) 
                   <CommandItem
                     key={candidate.id}
                     value={String(candidate.id)}
-                    // Unticking waits until the guild has said whether this
+                    // Unticking waits until the community has said whether this
                     // manager is one of its admins.
                     disabled={pending || (isManager && !knownManagers.has(candidate.id))}
                     onSelect={() => toggle(candidate.id)}
@@ -244,12 +244,12 @@ const InitiativeManagersCell = ({ initiative }: { initiative: InitiativeRead }) 
 
 export const SettingsInitiativesPage = () => {
   const { t } = useTranslation(["initiatives", "common"]);
-  const { activeGuild } = useGuilds();
-  const isGuildAdmin = Boolean(activeGuild?.can.administer);
+  const { activeCommunity } = useCommunities();
+  const isCommunityAdmin = Boolean(activeCommunity?.can.administer);
 
-  // The guild-wide listing, not the admin's own memberships — this table is
+  // The community-wide listing, not the admin's own memberships — this table is
   // where they manage initiatives they have not joined.
-  const initiativesQuery = useGuildInitiatives({ enabled: isGuildAdmin });
+  const initiativesQuery = useCommunityInitiatives({ enabled: isCommunityAdmin });
   const deleteInitiative = useDeleteInitiative();
   const archiveInitiative = useArchiveEntity();
   const unarchiveInitiative = useUnarchiveEntity();
@@ -377,7 +377,7 @@ export const SettingsInitiativesPage = () => {
     },
   ];
 
-  if (!isGuildAdmin) {
+  if (!isCommunityAdmin) {
     return <p className="text-muted-foreground text-sm">{t("manage.adminRequired")}</p>;
   }
 

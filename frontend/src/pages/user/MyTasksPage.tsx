@@ -24,14 +24,14 @@ import { GlobalTaskFilters } from "@/components/tasks/GlobalTaskFilters";
 import { globalTaskColumns } from "@/components/tasks/globalTaskColumns";
 import { DataTable } from "@/components/ui/data-table";
 import { useAuth } from "@/hooks/useAuth";
+import { useCommunities } from "@/hooks/useCommunities";
 import { useFocusSummary } from "@/hooks/useFocusSummary";
 import { useGlobalTasksTable } from "@/hooks/useGlobalTasksTable";
-import { useGuilds } from "@/hooks/useGuilds";
 import { usePersistedColumnVisibility } from "@/hooks/usePersistedColumnVisibility";
 import { usePersistedTableState } from "@/hooks/usePersistedTableState";
 import { useProperties } from "@/hooks/useProperties";
 import { useViewPreference } from "@/hooks/useViewPreference";
-import { guildPath, useGuildPath } from "@/lib/guildUrl";
+import { communityPath, useCommunityPath } from "@/lib/communityUrl";
 import { getProjectColor } from "@/lib/projectColor";
 import { entityRefRoute, taskRoute } from "@/lib/tools";
 import type { TranslateFn } from "@/types/i18n";
@@ -43,9 +43,9 @@ export const MyTasksPage = () => {
     { value: "table", label: t("projects:tasks.viewTable"), icon: Table2 },
     { value: "calendar", label: t("projects:tasks.viewCalendar"), icon: CalendarDays },
   ];
-  const { guilds } = useGuilds();
+  const { communities } = useCommunities();
   const { user } = useAuth();
-  const gp = useGuildPath();
+  const gp = useCommunityPath();
   const navigate = useNavigate();
 
   const [viewMode, setViewMode] = useState<"table" | "calendar">("table");
@@ -87,6 +87,7 @@ export const MyTasksPage = () => {
   const effectiveColumnVisibility = useMemo(() => {
     const next = { ...columnVisibility };
     if (!("date group" in next)) next["date group"] = false;
+    // "guild" is the community column's id, which the stored state is keyed by.
     if (!("guild" in next)) next["guild"] = false;
     return next;
   }, [columnVisibility]);
@@ -94,7 +95,7 @@ export const MyTasksPage = () => {
   const columns = useMemo(
     () =>
       globalTaskColumns({
-        activeGuildId: table.activeGuildId,
+        activeCommunityId: table.activeCommunityId,
         isUpdatingTask: table.isUpdatingTask,
         changeTaskStatus: table.changeTaskStatus,
         changeTaskStatusById: table.changeTaskStatusById,
@@ -106,7 +107,7 @@ export const MyTasksPage = () => {
         propertyColumns,
       }),
     [
-      table.activeGuildId,
+      table.activeCommunityId,
       table.isUpdatingTask,
       table.changeTaskStatus,
       table.changeTaskStatusById,
@@ -122,7 +123,7 @@ export const MyTasksPage = () => {
   const groupingOptions = useMemo(
     () => [
       { id: "date group", label: t("myTasks.groupByDate") },
-      { id: "guild", label: t("myTasks.groupByGuild") },
+      { id: "guild", label: t("myTasks.groupByCommunity") },
     ],
     [t]
   );
@@ -130,13 +131,13 @@ export const MyTasksPage = () => {
   const calendarEntries = useMemo<CalendarEntry[]>(() => {
     const entries: CalendarEntry[] = [];
     // Reuse the shared builder so start/due markers get the same visual
-    // treatment as the other calendars, injecting guildId into meta for
-    // cross-guild navigation. Not draggable here (no reschedule handler).
+    // treatment as the other calendars, injecting communityId into meta for
+    // cross-community navigation. Not draggable here (no reschedule handler).
     table.displayTasks.forEach((task) => {
       for (const entry of buildTaskCalendarEntries(task, getProjectColor(task.project_id), false)) {
         entries.push({
           ...entry,
-          meta: { ...(entry.meta as Record<string, unknown>), guildId: task.community_id },
+          meta: { ...(entry.meta as Record<string, unknown>), communityId: task.community_id },
         });
       }
     });
@@ -145,16 +146,16 @@ export const MyTasksPage = () => {
 
   const handleEntryClick = (entry: CalendarEntry) => {
     const meta = entry.meta as
-      | { taskId?: number; projectId?: number; initiativeId?: number | null; guildId?: number }
+      | { taskId?: number; projectId?: number; initiativeId?: number | null; communityId?: number }
       | undefined;
     if (!meta?.taskId) return;
-    // A task's URL names its project and initiative. This page spans guilds, so
+    // A task's URL names its project and initiative. This page spans communities, so
     // a row that didn't carry them resolves through `/go` instead of guessing.
     const path =
       meta.projectId != null && meta.initiativeId != null
         ? taskRoute(meta.initiativeId, meta.projectId, meta.taskId)
         : entityRefRoute("task", meta.taskId);
-    void navigate({ to: meta.guildId ? guildPath(meta.guildId, path) : gp(path) });
+    void navigate({ to: meta.communityId ? communityPath(meta.communityId, path) : gp(path) });
   };
 
   return (
@@ -185,7 +186,7 @@ export const MyTasksPage = () => {
 
         <FocusSummary
           focus={focus}
-          activeGuildId={table.activeGuildId}
+          activeCommunityId={table.activeCommunityId}
           changeTaskStatus={table.changeTaskStatus}
           isUpdatingTask={table.isUpdatingTask}
         />
@@ -199,20 +200,20 @@ export const MyTasksPage = () => {
               setStatusFilters={table.setStatusFilters}
               priorityFilters={table.priorityFilters}
               setPriorityFilters={table.setPriorityFilters}
-              guildFilters={table.guildFilters}
-              setGuildFilters={table.setGuildFilters}
+              communityFilters={table.communityFilters}
+              setCommunityFilters={table.setCommunityFilters}
               propertyFilters={table.propertyFilters}
               setPropertyFilters={table.setPropertyFilters}
               filtersOpen={table.filtersOpen}
               setFiltersOpen={table.setFiltersOpen}
-              guilds={guilds}
+              communities={communities}
             />
 
             <div className="relative">
               {/* A refetch is a background event: a status change has already
                   been applied to the rows optimistically, and the reader can go
                   on sorting, paging and checking things off while the
-                  cross-guild aggregate catches up. So this says a refresh is
+                  cross-community aggregate catches up. So this says a refresh is
                   running and takes nothing away — no cover, no pointer events,
                   no dimming of rows that are already correct. */}
               {table.isRefetching ? (

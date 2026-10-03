@@ -284,9 +284,9 @@ All user-facing strings must be externalized for localization. **Never hardcode 
 
 Translation files live in `frontend/public/locales/en/<namespace>.json`. The app uses `i18next-http-backend` to lazy-load namespaces on first use.
 
-**Namespaces**: `common`, `auth`, `nav`, `projects`, `tasks`, `documents`, `initiatives`, `settings`, `tags`, `guilds`, `imports`, `stats`, `landing`, `errors`, `dates`, `access`, `command`, `counterGroups`, `dashboards`, `guildHome`, `calendars`, `properties`, `queues`, `trash`, `search`, `comments`, `announcements`, `myTools`
+**Namespaces**: `common`, `auth`, `nav`, `projects`, `tasks`, `documents`, `initiatives`, `settings`, `tags`, `communities`, `imports`, `stats`, `landing`, `errors`, `dates`, `access`, `command`, `counterGroups`, `dashboards`, `communityHome`, `calendars`, `properties`, `queues`, `trash`, `search`, `comments`, `announcements`, `myTools`
 
-Each tool owns the namespace named after its camel plural (`projects`, `documents`, `queues`, `counterGroups`, `calendars`, `dashboards`) — `lib/tools.test.ts` fails if one is missing. `guildHome` is the guild front page, which is not a tool. `comments` is the cross-tool comment surface (composer, thread, mention help); it is not owned by `documents`, which is where it used to live.
+Each tool owns the namespace named after its camel plural (`projects`, `documents`, `queues`, `counterGroups`, `calendars`, `dashboards`) — `lib/tools.test.ts` fails if one is missing. `communityHome` is the community front page, which is not a tool. `comments` is the cross-tool comment surface (composer, thread, mention help); it is not owned by `documents`, which is where it used to live.
 
 **Rules:**
 
@@ -539,8 +539,8 @@ Platform role defaults: `owner` for public-path actors (`await acting_user()`), 
 **Frontend factories** live in `src/__tests__/factories/` and are pure functions that return typed API response objects. They use auto-incrementing IDs and accept partial overrides via a spread pattern.
 
 Available factories:
-- `buildUser(overrides?)` / `buildUserPublic(overrides?)` / `buildUserGuildMember(overrides?)` — user objects at different detail levels
-- `buildGuild(overrides?)` / `buildGuildInviteStatus(overrides?)` — guild and invite objects
+- `buildUser(overrides?)` / `buildUserPublic(overrides?)` / `buildUserCommunityMember(overrides?)` — user objects at different detail levels
+- `buildCommunity(overrides?)` / `buildCommunityInviteStatus(overrides?)` — community and invite objects
 - `buildInitiative(overrides?)` / `buildInitiativeMember(overrides?)` — initiative objects
 - `buildProject(overrides?)` / `buildProjectPermission(overrides?)` — project objects
 - `buildProjectTaskStatus(overrides?)` / `buildDefaultTaskStatuses(projectId?)` — task status objects (the latter returns all four default statuses)
@@ -552,10 +552,10 @@ Available factories:
 - `resetFactories()` — resets all ID counters (called automatically in test setup)
 
 ```typescript
-import { buildUser, buildGuild, buildProject, buildTask } from "@/__tests__/factories";
+import { buildUser, buildCommunity, buildProject, buildTask } from "@/__tests__/factories";
 
 const user = buildUser({ full_name: "Alice" });
-const guild = buildGuild({ role: "admin" });
+const community = buildCommunity({ role: "admin" });
 const project = buildProject({ owner_id: user.id, name: "My Project" });
 const task = buildTask({ project_id: project.id, priority: "high" });
 ```
@@ -735,8 +735,8 @@ those, but the check reads the file list, so leave released files alone.
 
 ### Rules for writing frontend code
 
-1. **React Query cache keys for the same data must match across components.** If the sidebar uses `["initiatives", guildId]` and a page uses `["initiatives", { guildId }]`, invalidation from one won't reach the other. Use prefix invalidation (`queryKey: ["initiatives"]`) when mutations should refresh all consumers.
-2. **Guild context is in the URL path, not server-held.** Every guild-scoped request addresses its guild as `/api/v1/c/{guildId}/…`; there is no server-held "active guild" (the `users.active_guild_id` column was removed). Guild pages live under the `/c/$guildId` route tree and read the id from the path; `useActiveGuildId()` derives the current guild from the route (it is *not* the removed backend column). Cross-guild "my" views call the dedicated `/api/v1/me/*` endpoints. Separate tabs/windows can therefore operate in different guilds at once.
+1. **React Query cache keys for the same data must match across components.** If the sidebar uses `["initiatives", communityId]` and a page uses `["initiatives", { communityId }]`, invalidation from one won't reach the other. Use prefix invalidation (`queryKey: ["initiatives"]`) when mutations should refresh all consumers.
+2. **Guild context is in the URL path, not server-held.** Every guild-scoped request addresses its guild as `/api/v1/c/{communityId}/…`; there is no server-held "active guild" (the `users.active_guild_id` column was removed). Guild pages live under the `/c/$communityId` route tree and read the id from the path; `useActiveCommunityId()` derives the current guild from the route (it is *not* the removed backend column). Cross-guild "my" views call the dedicated `/api/v1/me/*` endpoints. Separate tabs/windows can therefore operate in different guilds at once.
 3. **Never use `localStorage` directly.** Import `getItem`, `setItem`, `removeItem` from `@/lib/storage` instead. The storage module uses an in-memory cache backed by Capacitor Preferences on native (preventing data loss when the OS clears localStorage) and delegates to localStorage on web. `initStorage()` hydrates the cache before React renders, so all reads are synchronous.
 
 ## Guild Architecture Notes

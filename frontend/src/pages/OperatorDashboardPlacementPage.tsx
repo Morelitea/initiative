@@ -46,10 +46,10 @@ type Editing = { provider: PlacementProviderRead; rule: ProviderPlacementRuleRea
 export const OperatorDashboardPlacementPage = () => {
   const { t } = useTranslation("settings");
   const { user } = useAuth();
-  const canManageGuilds = hasCapability(user, Capability.guildsManage);
+  const canManageCommunities = hasCapability(user, Capability.communitiesManage);
   const canSetEverywhere = hasCapability(user, Capability.configManage);
 
-  const placementQuery = useProviderPlacement({ enabled: canManageGuilds });
+  const placementQuery = useProviderPlacement({ enabled: canManageCommunities });
 
   const [editing, setEditing] = useState<Editing | null>(null);
   const [removing, setRemoving] = useState<ProviderPlacementRuleRead | null>(null);
@@ -81,7 +81,7 @@ export const OperatorDashboardPlacementPage = () => {
       onSettled: () => setRemoving(null),
     });
 
-  if (!canManageGuilds) {
+  if (!canManageCommunities) {
     return <p className="text-muted-foreground text-sm">{t("providerPlacement.platformOnly")}</p>;
   }
 
@@ -309,7 +309,7 @@ const PlacementRequestsCard = () => {
               <div className="min-w-0 space-y-1">
                 <p className="font-medium text-sm">{row.community_name}</p>
                 <p className="text-sm">
-                  {t("guilds.sheet.narrowings.claims", {
+                  {t("communities.sheet.narrowings.claims", {
                     provider: row.provider_display_name,
                     claim: row.claim,
                     values: row.claim_values.join(", "),
@@ -317,8 +317,8 @@ const PlacementRequestsCard = () => {
                 </p>
                 <p className="text-muted-foreground text-xs">
                   {row.auto_join
-                    ? t("guilds.sheet.narrowings.joinsOnArrival")
-                    : t("guilds.sheet.narrowings.admitsOnly")}
+                    ? t("communities.sheet.narrowings.joinsOnArrival")
+                    : t("communities.sheet.narrowings.admitsOnly")}
                 </p>
               </div>
               <Button
@@ -326,19 +326,21 @@ const PlacementRequestsCard = () => {
                 disabled={agree.isPending}
                 onClick={() =>
                   agree.mutate(
-                    { guildId: row.community_id, connectionId: row.connection_id },
+                    { communityId: row.community_id, connectionId: row.connection_id },
                     {
                       onSuccess: () =>
                         toast.success(
                           t("providerPlacement.requests.agreed", { community: row.community_name })
                         ),
                       onError: (err: unknown) =>
-                        toast.error(getErrorMessage(err, "settings:guilds.sheet.narrowings.error")),
+                        toast.error(
+                          getErrorMessage(err, "settings:communities.sheet.narrowings.error")
+                        ),
                     }
                   )
                 }
               >
-                {t("guilds.sheet.narrowings.agree")}
+                {t("communities.sheet.narrowings.agree")}
               </Button>
             </li>
           ))}

@@ -2,7 +2,7 @@
  * What each binding source *is* — the one description of a data view.
  *
  * Three, and they are not variations on a theme. A **query** is a statement
- * over this guild's datasets. A **sheet_range** is a cell range in a
+ * over this community's datasets. A **sheet_range** is a cell range in a
  * spreadsheet document; it answers with the same columns and rows a statement
  * does, and becomes a statement itself once documents are queryable. An **app**
  * is an installed listing's own endpoint, whose parameters are declared in its

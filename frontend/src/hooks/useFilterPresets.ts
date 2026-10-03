@@ -4,7 +4,7 @@
  * {@link useViewPreference} remembers.
  *
  * The list response carries `can_manage`, computed server-side (a project
- * manager, the project owner, or a guild admin). Permission is never derived
+ * manager, the project owner, or a community admin). Permission is never derived
  * client-side, and this is the one request that answers it for the tasks page
  * and the settings tab alike.
  */
@@ -29,8 +29,8 @@ import type {
   FilterPresetUpdate,
 } from "@/api/generated/initiativeAPI.schemas";
 import { invalidate, q } from "@/api/query-keys";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
-import { useGuildMutation } from "@/hooks/useApiMutation";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
+import { useCommunityMutation } from "@/hooks/useApiMutation";
 import type { MutationOpts } from "@/types/mutation";
 import type { QueryOpts } from "@/types/query";
 
@@ -52,7 +52,7 @@ export const useFilterPresets = (
   projectId: number | null,
   options?: QueryOpts<FilterPresetListResponse>
 ) => {
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   const { enabled: userEnabled = true, ...rest } = options ?? {};
   const { t } = useTranslation("projects");
   const localize = useCallback(
@@ -67,8 +67,8 @@ export const useFilterPresets = (
     [t]
   );
   return useQuery<FilterPresetListResponse>({
-    queryKey: getListFilterPresetsQueryKey(guildId, projectId!),
-    queryFn: () => listFilterPresets(guildId, projectId!),
+    queryKey: getListFilterPresetsQueryKey(communityId, projectId!),
+    queryFn: () => listFilterPresets(communityId, projectId!),
     enabled: projectId !== null && Number.isFinite(projectId) && userEnabled,
     // The client keeps previous data by default, which across a project switch
     // would show the last project's presets — and its `can_manage`, which gates
@@ -84,9 +84,9 @@ export const useCreateFilterPreset = (
   projectId: number,
   options?: MutationOpts<FilterPresetRead, FilterPresetCreate>
 ) =>
-  useGuildMutation<FilterPresetRead, FilterPresetCreate>(
+  useCommunityMutation<FilterPresetRead, FilterPresetCreate>(
     {
-      mutationFn: (guildId, data) => createFilterPreset(guildId, projectId, data),
+      mutationFn: (communityId, data) => createFilterPreset(communityId, projectId, data),
       invalidate: () => invalidate(q.projectFilterPresets(projectId)),
       errorKey: "projects:filters.presetSaveError",
     },
@@ -97,10 +97,10 @@ export const useUpdateFilterPreset = (
   projectId: number,
   options?: MutationOpts<FilterPresetRead, { presetId: number; data: FilterPresetUpdate }>
 ) =>
-  useGuildMutation<FilterPresetRead, { presetId: number; data: FilterPresetUpdate }>(
+  useCommunityMutation<FilterPresetRead, { presetId: number; data: FilterPresetUpdate }>(
     {
-      mutationFn: (guildId, { presetId, data }) =>
-        updateFilterPreset(guildId, projectId, presetId, data),
+      mutationFn: (communityId, { presetId, data }) =>
+        updateFilterPreset(communityId, projectId, presetId, data),
       invalidate: () => invalidate(q.projectFilterPresets(projectId)),
       errorKey: "projects:filters.presetSaveError",
     },
@@ -108,9 +108,9 @@ export const useUpdateFilterPreset = (
   );
 
 export const useDeleteFilterPreset = (projectId: number, options?: MutationOpts<void, number>) =>
-  useGuildMutation<void, number>(
+  useCommunityMutation<void, number>(
     {
-      mutationFn: (guildId, presetId) => deleteFilterPreset(guildId, projectId, presetId),
+      mutationFn: (communityId, presetId) => deleteFilterPreset(communityId, projectId, presetId),
       invalidate: () => invalidate(q.projectFilterPresets(projectId)),
       errorKey: "projects:filters.presetDeleteError",
     },
@@ -121,9 +121,9 @@ export const useReorderFilterPresets = (
   projectId: number,
   options?: MutationOpts<FilterPresetRead[], FilterPresetReorderRequest>
 ) =>
-  useGuildMutation<FilterPresetRead[], FilterPresetReorderRequest>(
+  useCommunityMutation<FilterPresetRead[], FilterPresetReorderRequest>(
     {
-      mutationFn: (guildId, data) => reorderFilterPresets(guildId, projectId, data),
+      mutationFn: (communityId, data) => reorderFilterPresets(communityId, projectId, data),
       invalidate: () => invalidate(q.projectFilterPresets(projectId)),
       errorKey: "projects:filters.presetSaveError",
     },

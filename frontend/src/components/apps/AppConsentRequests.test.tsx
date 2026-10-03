@@ -23,8 +23,8 @@ import { AppConsentRequests } from "./AppConsentRequests";
 const grantConsent = vi.fn();
 const revokeConsent = vi.fn();
 
-vi.mock("@/hooks/useGuildAppDetail", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/hooks/useGuildAppDetail")>()),
+vi.mock("@/hooks/useCommunityAppDetail", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/hooks/useCommunityAppDetail")>()),
   useGrantAppConsent: () => ({ mutateAsync: grantConsent, isPending: false }),
   useRevokeAppConsent: () => ({ mutateAsync: revokeConsent, isPending: false }),
 }));

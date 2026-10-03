@@ -6,7 +6,7 @@
  * "You have a new notification", and their destination was dropped because
  * the resolver only honoured a `target_path` that came with a `community_id`.
  * These notices belong to the person rather than to any community, so the
- * server sends no guild with them.
+ * server sends no community with them.
  */
 import { Capacitor } from "@capacitor/core";
 import { describe, expect, it, vi } from "vitest";
@@ -63,8 +63,8 @@ describe("notificationText — account notices", () => {
   it("names who to contact about a hold when there is somebody", () => {
     const named = notice("community_on_hold", { community: "Acme", contact: "help@example.com" });
     const nobody = notice("community_on_hold", { community: "Acme", contact: null });
-    expect(notificationText(named, t)).toContain("notifications.guildOnHoldWithContact");
-    expect(notificationText(nobody, t)).toContain("notifications.guildOnHold");
+    expect(notificationText(named, t)).toContain("notifications.communityOnHoldWithContact");
+    expect(notificationText(nobody, t)).toContain("notifications.communityOnHold");
     expect(notificationText(nobody, t)).not.toContain("WithContact");
   });
 
@@ -75,14 +75,14 @@ describe("notificationText — account notices", () => {
       delete_on: "2026-10-24",
     });
     const line = notificationText(dated, t);
-    expect(line).toContain("notifications.guildOnHoldDeletingWithContact");
+    expect(line).toContain("notifications.communityOnHoldDeletingWithContact");
     expect(line).toContain("2026");
     expect(
       notificationText(
         notice("community_on_hold", { community: "Acme", delete_on: "2026-10-24" }),
         t
       )
-    ).toContain("notifications.guildOnHoldDeleting(");
+    ).toContain("notifications.communityOnHoldDeleting(");
   });
 
   it("says when a trial ends, that it has, and that a new community is ready", () => {
@@ -90,14 +90,14 @@ describe("notificationText — account notices", () => {
       notice("community_trial_ending", { community: "Acme", trial_ends_on: "2026-10-08" }),
       t
     );
-    expect(ending).toContain("notifications.guildTrialEnding");
+    expect(ending).toContain("notifications.communityTrialEnding");
     expect(ending).toContain("Acme");
     expect(ending).toContain("2026");
     expect(notificationText(notice("community_trial_ended", { community: "Acme" }), t)).toContain(
-      "notifications.guildTrialEnded"
+      "notifications.communityTrialEnded"
     );
     expect(notificationText(notice("community_welcome", { community: "Acme" }), t)).toBe(
-      'notifications.guildWelcome({"community":"Acme"})'
+      'notifications.communityWelcome({"community":"Acme"})'
     );
   });
 
@@ -109,12 +109,12 @@ describe("notificationText — account notices", () => {
           notice("community_trial_ending", { community: "Acme", trial_ends_on: "2026-10-08" }),
           t
         )
-      ).toContain("notifications.guildTrialEndingInApp(");
+      ).toContain("notifications.communityTrialEndingInApp(");
       expect(notificationText(notice("community_trial_ended", { community: "Acme" }), t)).toBe(
-        'notifications.guildTrialEndedInApp({"community":"Acme"})'
+        'notifications.communityTrialEndedInApp({"community":"Acme"})'
       );
       expect(notificationText(notice("community_welcome", { community: "Acme" }), t)).toBe(
-        'notifications.guildWelcomeInApp({"community":"Acme"})'
+        'notifications.communityWelcomeInApp({"community":"Acme"})'
       );
     } finally {
       native.mockRestore();
@@ -137,7 +137,7 @@ describe("notificationText — account notices", () => {
   });
 });
 
-describe("notificationLink — a target_path without a guild", () => {
+describe("notificationLink — a target_path without a community", () => {
   it("takes an account notice to the account screen", () => {
     expect(notificationLink(notice("username_changed", { target_path: "/profile/account" }))).toBe(
       "/profile/account"
@@ -155,7 +155,7 @@ describe("notificationLink — a target_path without a guild", () => {
     );
   });
 
-  it("keeps scoping a path that does name a guild", () => {
+  it("keeps scoping a path that does name a community", () => {
     expect(
       notificationLink(notice("post_published", { community_id: 7, target_path: "/posts/3" }))
     ).toBe("/c/7/posts/3");

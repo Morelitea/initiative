@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { HttpResponse } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 
@@ -30,7 +30,7 @@ import { peekBackupManifest } from "@/lib/backupPeek";
 
 const MANIFEST = {
   type: "guild-backup",
-  guild: { name: "Old Guild" },
+  guild: { name: "Old Community" },
   app_version: "0.56.0",
   exported_at: "2026-07-15T00:00:00Z",
   initiatives: [{ id: 1, name: "Lore", tools: {} }],
@@ -46,7 +46,7 @@ const STAGED_JOB = {
   params: {},
   status: "staged",
   plan: {
-    source_community_name: "Old Guild",
+    source_community_name: "Old Community",
     initiatives: [
       {
         source_id: 1,
@@ -94,15 +94,15 @@ describe("ImportWizard", () => {
     let confirmed = false;
     let pollCount = 0;
     server.use(
-      guildHttp.post("/imports/backup", () => {
+      communityHttp.post("/imports/backup", () => {
         uploaded = true;
         return HttpResponse.json(STAGED_JOB, { status: 201 });
       }),
-      guildHttp.post("/imports/jobs/:jobId/confirm", () => {
+      communityHttp.post("/imports/jobs/:jobId/confirm", () => {
         confirmed = true;
         return HttpResponse.json({ ...STAGED_JOB, status: "queued" });
       }),
-      guildHttp.get("/imports/jobs/:jobId", () => {
+      communityHttp.get("/imports/jobs/:jobId", () => {
         pollCount += 1;
         // First poll running, then done.
         if (pollCount < 2) {
@@ -129,7 +129,7 @@ describe("ImportWizard", () => {
     pickFile();
 
     // Local peek preview — nothing uploaded yet.
-    expect(await screen.findByText(/Backup of Old Guild/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Backup of Old Community/i)).toBeInTheDocument();
     expect(screen.getByText(/2\.4 MB/)).toBeInTheDocument();
     expect(uploaded).toBe(false);
 
@@ -154,7 +154,7 @@ describe("ImportWizard", () => {
     );
     let uploaded = false;
     server.use(
-      guildHttp.post("/imports/backup", () => {
+      communityHttp.post("/imports/backup", () => {
         uploaded = true;
         return HttpResponse.json(STAGED_JOB, { status: 201 });
       })
@@ -181,7 +181,7 @@ describe("ImportWizard", () => {
     // reopening lands on its review once it has been staged.
     localStorage.setItem("imports:atlassian-job:1", "77");
     server.use(
-      guildHttp.get("/imports/jobs/:jobId", () =>
+      communityHttp.get("/imports/jobs/:jobId", () =>
         HttpResponse.json({
           ...STAGED_JOB,
           id: 77,
@@ -216,8 +216,8 @@ describe("ImportWizard", () => {
       },
     };
     server.use(
-      guildHttp.get("/imports/jobs/:jobId", () => HttpResponse.json(staged)),
-      guildHttp.post("/imports/jobs/:jobId/confirm", async ({ request }) => {
+      communityHttp.get("/imports/jobs/:jobId", () => HttpResponse.json(staged)),
+      communityHttp.post("/imports/jobs/:jobId/confirm", async ({ request }) => {
         confirmBody = (await request.json()) as Record<string, unknown>;
         return HttpResponse.json({ ...staged, status: "queued" });
       })
@@ -234,7 +234,7 @@ describe("ImportWizard", () => {
   it("picks a Confluence fetch back up and shows what the spaces hold", async () => {
     localStorage.setItem("imports:atlassian-job:1", "78");
     server.use(
-      guildHttp.get("/imports/jobs/:jobId", () =>
+      communityHttp.get("/imports/jobs/:jobId", () =>
         HttpResponse.json({
           ...STAGED_JOB,
           id: 78,

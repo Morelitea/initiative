@@ -46,8 +46,8 @@ const setRoles = vi.fn(
   }
 );
 
-vi.mock("@/hooks/useGuildApps", () => ({
-  useUpdateGuildApp: () => ({ mutateAsync }),
+vi.mock("@/hooks/useCommunityApps", () => ({
+  useUpdateCommunityApp: () => ({ mutateAsync }),
   useSetAppPlacementRoles: () => ({ mutate: setRoles, isPending: false }),
 }));
 

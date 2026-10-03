@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import type { DocumentSummary } from "@/api/generated/initiativeAPI.schemas";
 import { invalidate, q } from "@/api/query-keys";
 import { BulkEditTagsDialog as GenericBulkEditTagsDialog } from "@/components/shared/BulkEditTagsDialog";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import type { DialogWithSuccessProps } from "@/types/dialog";
 
 interface BulkEditDocumentTagsDialogProps extends DialogWithSuccessProps {
@@ -13,7 +13,7 @@ interface BulkEditDocumentTagsDialogProps extends DialogWithSuccessProps {
 
 export function BulkEditTagsDialog({ documents, ...dialogProps }: BulkEditDocumentTagsDialogProps) {
   const { t } = useTranslation(["documents", "common"]);
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
 
   const labels = useMemo(
     () => ({
@@ -40,7 +40,7 @@ export function BulkEditTagsDialog({ documents, ...dialogProps }: BulkEditDocume
       {...dialogProps}
       items={documents}
       targetType="document"
-      guildId={guildId}
+      communityId={communityId}
       onInvalidate={() => void invalidate(q.allDocuments())}
       labels={labels}
     />

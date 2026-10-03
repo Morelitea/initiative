@@ -1,5 +1,5 @@
 {
-  "placeholder": "In {{activeGuildName}} suchen...",
+  "placeholder": "In {{activeCommunityName}} suchen...",
   "noResults": "Keine Ergebnisse gefunden.",
   "groups": {
     "actions": "Aktionen",
@@ -28,7 +28,7 @@
     "myMessages": "Meine Nachrichten",
     "myStats": "Meine Statistiken",
     "mySettings": "Meine Einstellungen",
-    "guildSettings": "Community-Einstellungen",
+    "communitySettings": "Community-Einstellungen",
     "allInitiatives": "Alle Initiativen",
     "platformSettings": "Plattformeinstellungen",
     "operatorDashboard": "Operator-Dashboard"

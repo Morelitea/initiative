@@ -1,7 +1,7 @@
 /**
  * The project-manager picker on Settings › Initiatives.
  *
- * This table is a guild admin's way into an initiative they have not joined:
+ * This table is a community admin's way into an initiative they have not joined:
  * their sidebar lists only their own memberships, so taking the project manager
  * role here is what brings one into it.
  */
@@ -11,14 +11,14 @@ import { HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
 
 import {
-  buildGuild,
+  buildCommunity,
   buildInitiative,
   buildInitiativeMember,
   buildPage,
   buildUserPublic,
   buildUserSummary,
 } from "@/__tests__/factories";
-import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
 
@@ -51,20 +51,20 @@ const MEMBER_ROLE = {
 function stubTable(managers: ReturnType<typeof buildInitiativeMember>[]) {
   const calls: { method: string; url: string; body?: unknown }[] = [];
   server.use(
-    guildHttp.get("/initiatives/", () =>
+    communityHttp.get("/initiatives/", () =>
       HttpResponse.json([buildInitiative({ id: INITIATIVE_ID, name: "Apollo", member_count: 3 })])
     ),
     // Only the managers: an answer to anything wider would hand the picker
     // people who are not.
-    guildHttp.get("/initiatives/:id/members", ({ request }) =>
+    communityHttp.get("/initiatives/:id/members", ({ request }) =>
       new URL(request.url).searchParams.get("is_manager") === "true"
         ? HttpResponse.json(buildPage(managers))
         : HttpResponse.json({ detail: "unexpected roster read" }, { status: 400 })
     ),
-    guildHttp.get("/initiatives/:id/roles", () => HttpResponse.json([PM_ROLE, MEMBER_ROLE])),
-    // The guild's member search — what the picker offers, and how it learns
-    // whether a manager is a guild admin.
-    guildHttp.get("/users/search", () =>
+    communityHttp.get("/initiatives/:id/roles", () => HttpResponse.json([PM_ROLE, MEMBER_ROLE])),
+    // The community's member search — what the picker offers, and how it learns
+    // whether a manager is a community admin.
+    communityHttp.get("/users/search", () =>
       HttpResponse.json(
         buildPage([
           buildUserSummary({
@@ -82,15 +82,15 @@ function stubTable(managers: ReturnType<typeof buildInitiativeMember>[]) {
         ])
       )
     ),
-    guildHttp.post("/initiatives/:id/members", async ({ request }) => {
+    communityHttp.post("/initiatives/:id/members", async ({ request }) => {
       calls.push({ method: "POST", url: "members", body: await request.json() });
       return HttpResponse.json(buildInitiative({ id: INITIATIVE_ID }));
     }),
-    guildHttp.patch("/initiatives/:id/members/:userId", async ({ request, params }) => {
+    communityHttp.patch("/initiatives/:id/members/:userId", async ({ request, params }) => {
       calls.push({ method: "PATCH", url: String(params.userId), body: await request.json() });
       return HttpResponse.json(buildInitiative({ id: INITIATIVE_ID }));
     }),
-    guildHttp.delete("/initiatives/:id/members/:userId", ({ params }) => {
+    communityHttp.delete("/initiatives/:id/members/:userId", ({ params }) => {
       calls.push({ method: "DELETE", url: String(params.userId) });
       return new HttpResponse(null, { status: 204 });
     })
@@ -99,9 +99,13 @@ function stubTable(managers: ReturnType<typeof buildInitiativeMember>[]) {
 }
 
 const render = () => {
-  const guild = buildGuild({ id: 1, role: "admin" });
+  const community = buildCommunity({ id: 1, role: "admin" });
   renderPage(() => <SettingsInitiativesPage />, {
-    guilds: { guilds: [guild], activeGuildId: guild.id, activeGuild: guild },
+    communities: {
+      communities: [community],
+      activeCommunityId: community.id,
+      activeCommunity: community,
+    },
   });
 };
 
@@ -133,7 +137,7 @@ describe("SettingsInitiativesPage project managers", () => {
     });
     const asked: number[] = [];
     server.use(
-      guildHttp.get("/initiatives/:id/members", ({ request }) => {
+      communityHttp.get("/initiatives/:id/members", ({ request }) => {
         const page = Number(new URL(request.url).searchParams.get("page"));
         asked.push(page);
         // The first ask for page 2 lands after a change: past the end, so the
@@ -154,7 +158,7 @@ describe("SettingsInitiativesPage project managers", () => {
 
   // The same call promotes someone already in it: the server moves an existing
   // member onto the role it names rather than adding them twice.
-  it("adds a guild admin who is in no initiative as its project manager", async () => {
+  it("adds a community admin who is in no initiative as its project manager", async () => {
     const calls = stubTable([]);
     const user = userEvent.setup();
     render();
@@ -190,7 +194,7 @@ describe("SettingsInitiativesPage project managers", () => {
     });
   });
 
-  it("unticking a guild admin takes their membership away, since they hold no other role", async () => {
+  it("unticking a community admin takes their membership away, since they hold no other role", async () => {
     const calls = stubTable([
       buildInitiativeMember({
         user: buildUserPublic({ id: ADMIN_ID, username: "ada" }),

@@ -78,7 +78,7 @@ export const AIConnectionDialog = ({
           <DialogDescription>
             {scope === "platform"
               ? t("aiConnections.platformDialogDescription")
-              : t("aiConnections.guildDialogDescription")}
+              : t("aiConnections.communityDialogDescription")}
           </DialogDescription>
         </DialogHeader>
 

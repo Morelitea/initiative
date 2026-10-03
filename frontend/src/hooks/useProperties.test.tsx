@@ -9,11 +9,11 @@ import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { buildPropertyDefinition } from "@/__tests__/factories";
-import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { useAppendPropertyOption } from "@/hooks/useProperties";
 
-vi.mock("@/hooks/useActiveGuildId", () => ({ useActiveGuildId: () => 1 }));
+vi.mock("@/hooks/useActiveCommunityId", () => ({ useActiveCommunityId: () => 1 }));
 
 const wrapper = ({ children }: { children: ReactNode }) => (
   <QueryClientProvider client={new QueryClient()}>{children}</QueryClientProvider>
@@ -28,7 +28,7 @@ describe("useAppendPropertyOption", () => {
 
   const answering = (options: { value: string; label: string; color: null }[]) =>
     server.use(
-      guildHttp.patch("/property-definitions/:id", () =>
+      communityHttp.patch("/property-definitions/:id", () =>
         HttpResponse.json({
           definition: { ...definition, options },
           orphaned_value_count: 0,

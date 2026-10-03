@@ -46,8 +46,8 @@ import { useAIEnabled } from "@/hooks/useAIEnabled";
 import { useAuth } from "@/hooks/useAuth";
 import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
 import { useCollaboration } from "@/hooks/useCollaboration";
+import { useCommunities } from "@/hooks/useCommunities";
 import { useDocument, useSetDocumentCache, useUpdateDocument } from "@/hooks/useDocuments";
-import { useGuilds } from "@/hooks/useGuilds";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import { useReadOnOpen } from "@/hooks/useNotifications";
 import { useRecordRecentView } from "@/hooks/useRecents";
@@ -55,7 +55,7 @@ import { useRelativeTime } from "@/hooks/useRelativeTime";
 import { useServerForm } from "@/hooks/useServerForm";
 import { uploadAttachment } from "@/lib/attachmentUtils";
 import { toast } from "@/lib/chesterToast";
-import { useGuildPath } from "@/lib/guildUrl";
+import { useCommunityPath } from "@/lib/communityUrl";
 import { findNewMentions } from "@/lib/mentionUtils";
 import { getItem, setItem } from "@/lib/storage";
 import { toolListRoute, toolSettingsRoute } from "@/lib/tools";
@@ -65,16 +65,16 @@ import { CollaborationError } from "@/lib/yjs/CollaborationProvider";
 
 export const DocumentDetailPage = () => {
   const { t } = useTranslation(["documents", "properties", "common"]);
-  const { guildId: guildIdParam, documentId } = useParams({ strict: false }) as {
-    guildId: string;
+  const { communityId: communityIdParam, documentId } = useParams({ strict: false }) as {
+    communityId: string;
     documentId: string;
   };
   const parsedId = Number(documentId);
   const setDocumentCache = useSetDocumentCache();
   const { user, token } = useAuth();
-  const { activeGuildId } = useGuilds();
-  const guildId = Number(guildIdParam);
-  const gp = useGuildPath();
+  const { activeCommunityId } = useCommunities();
+  const communityId = Number(communityIdParam);
+  const gp = useCommunityPath();
   const sidePanel = useDocumentSidePanel();
   const outline = useDocumentOutline();
   const { isEnabled: isAIEnabled } = useAIEnabled();
@@ -154,7 +154,7 @@ export const DocumentDetailPage = () => {
 
   // Track recently viewed documents so the layout header tabs bar can surface
   // them. Mirrors the pattern in ProjectDetailPage.
-  const recordViewMutation = useRecordRecentView("document", guildId);
+  const recordViewMutation = useRecordRecentView("document", communityId);
   const viewedDocumentId = documentQuery.data?.id;
   useReadOnOpen(Tool.document, viewedDocumentId);
   useEffect(() => {
@@ -212,7 +212,7 @@ export const DocumentDetailPage = () => {
   const editedJson = useMemo(() => JSON.stringify(editedBody), [editedBody]);
   // What a save carries for the body: the edit, or the saved body echoed back.
   const contentForSave = (editedBody ?? saved) as Record<string, unknown>;
-  // Server-computed: already capped at "read" when the guild's content is
+  // Server-computed: already capped at "read" when the community's content is
   // frozen (read_only lifecycle status) or access is via a read-level grant.
   // Write or owner may also moderate the document's comments.
   const canEditDocument = Boolean(user) && Boolean(document?.can.edit);
@@ -264,7 +264,7 @@ export const DocumentDetailPage = () => {
         editedBody as SerializedEditorState | undefined
       );
       if (newMentionIds.length > 0) {
-        notifyMentions(guildId, parsedId, {
+        notifyMentions(communityId, parsedId, {
           mentioned_user_ids: newMentionIds,
         }).catch((err) => console.error("Failed to notify mentions:", err));
       }
@@ -414,29 +414,29 @@ export const DocumentDetailPage = () => {
     };
   }, [canEditDocument, isDirty, parsedId, title, contentForSave, featuredImageUrl]);
 
-  // Hold token and activeGuildId in refs so the flush closure always sees
+  // Hold token and activeCommunityId in refs so the flush closure always sees
   // the latest values without the effect needing to re-run on JWT rotation.
   // Without this, a token refresh would trigger the cleanup → flush() →
   // null the pending ref, and the ref-populating effect wouldn't re-run
   // (its deps didn't change), silently dropping the next pending save.
   const tokenRef = useRef(token);
-  const activeGuildIdRef = useRef(activeGuildId);
+  const activeCommunityIdRef = useRef(activeCommunityId);
   useEffect(() => {
     tokenRef.current = token;
   }, [token]);
   useEffect(() => {
-    activeGuildIdRef.current = activeGuildId;
-  }, [activeGuildId]);
+    activeCommunityIdRef.current = activeCommunityId;
+  }, [activeCommunityId]);
 
   useEffect(() => {
     const flush = () => {
       const pending = pendingSavePayloadRef.current;
-      if (!pending || !tokenRef.current || !activeGuildIdRef.current) return;
+      if (!pending || !tokenRef.current || !activeCommunityIdRef.current) return;
       const isAbsolute = API_BASE_URL.startsWith("http://") || API_BASE_URL.startsWith("https://");
       const baseUrl = isAbsolute ? API_BASE_URL : `${window.location.origin}${API_BASE_URL}`;
-      // The guild rides in the path (`/c/{guildId}/`) — guild context is per-tab
-      // from the URL; the page required entering this document's guild.
-      const url = `${baseUrl}/c/${activeGuildIdRef.current}/documents/${pending.documentId}`;
+      // The community rides in the path (`/c/{communityId}/`) — community context is per-tab
+      // from the URL; the page required entering this document's community.
+      const url = `${baseUrl}/c/${activeCommunityIdRef.current}/documents/${pending.documentId}`;
       fetch(url, {
         method: "PATCH",
         headers: {
@@ -527,7 +527,7 @@ export const DocumentDetailPage = () => {
     }
     setIsUploadingFeaturedImage(true);
     try {
-      const response = await uploadAttachment(guildId, file);
+      const response = await uploadAttachment(communityId, file);
       setFeaturedImageUrl(response.url);
       isAutosaveRef.current = true;
       saveNow({ featured_image_url: response.url });

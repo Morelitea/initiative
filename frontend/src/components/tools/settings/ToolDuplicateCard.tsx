@@ -40,7 +40,7 @@ import { useDuplicateTool } from "@/hooks/toolHooks";
 import { useToolCreateAccess } from "@/hooks/useInitiativeAccess";
 import { useInitiative } from "@/hooks/useInitiatives";
 import { toast } from "@/lib/chesterToast";
-import { useGuildPath } from "@/lib/guildUrl";
+import { useCommunityPath } from "@/lib/communityUrl";
 import { toolDetailRoute } from "@/lib/tools";
 
 /** Whether this viewer may copy it: write on it, or read on a template, which
@@ -52,7 +52,7 @@ export const canUseDuplicateCard = (tool: Tool, entity: ToolSettingsEntity): boo
 export const ToolDuplicateCard = () => {
   const { t } = useTranslation("common");
   const router = useRouter();
-  const gp = useGuildPath();
+  const gp = useCommunityPath();
   const { tool, entity } = useToolSettings();
   const { creatableInitiatives: creatable } = useToolCreateAccess(tool);
   // An initiative that keeps its content in is copied only beside itself, so

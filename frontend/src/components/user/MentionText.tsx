@@ -7,7 +7,7 @@ interface MentionTextProps {
   /** Plain words that may mention people, `@[](42)`. */
   text: string;
   /** The community the text was written in, where a list spans several. */
-  guildId?: number;
+  communityId?: number;
   /** Render the people as plain words — see `UserHoverLink`. */
   disableLink?: boolean;
 }
@@ -21,7 +21,7 @@ interface MentionTextProps {
  * again would read meaning into a stray `*`. The list it sits in resolves the
  * people (`MentionedPeopleScope`).
  */
-export const MentionText = ({ text, guildId, disableLink }: MentionTextProps) => {
+export const MentionText = ({ text, communityId, disableLink }: MentionTextProps) => {
   const parts: ReactNode[] = [];
   let end = 0;
   for (const match of text.matchAll(USER_MENTION_PATTERN)) {
@@ -32,7 +32,7 @@ export const MentionText = ({ text, guildId, disableLink }: MentionTextProps) =>
         key={match.index}
         userId={Number(id)}
         fallback={label}
-        guildId={guildId}
+        communityId={communityId}
         disableLink={disableLink}
       />
     );

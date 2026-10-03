@@ -58,7 +58,7 @@ type Step = "choose" | "address" | "credentials" | "options";
 const STEP_ORDER: Step[] = ["choose", "address", "credentials", "options"];
 
 /** The mutation surface, satisfied structurally by either registry's hooks so
- *  the operator and guild wrappers plug in without sharing a hook signature. */
+ *  the operator and community wrappers plug in without sharing a hook signature. */
 export interface WizardMutation<TVariables, TResult = unknown> {
   mutate: (
     variables: TVariables,

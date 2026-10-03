@@ -2,13 +2,13 @@
  * Reading the marketplace catalog.
  *
  * The catalog is one shared surface addressed by globally unique ids, and no
- * listing carries a guild — but *which* of it a guild is offered does depend on
- * the guild asking: a dashboard an app ships with itself appears only where the
- * app is installed. So every read here is guild-addressed and keyed per guild,
+ * listing carries a community — but *which* of it a community is offered does depend on
+ * the community asking: a dashboard an app ships with itself appears only where the
+ * app is installed. So every read here is community-addressed and keyed per community,
  * the shelf and a single listing alike, and the answer a card gives is the
  * answer the page it opens gives.
  *
- * Whether a listing is *installed here* is a separate per-guild question the
+ * Whether a listing is *installed here* is a separate per-community question the
  * dashboards and apps endpoints answer; the surface merges those in client-side.
  */
 
@@ -27,7 +27,7 @@ import {
   readMarketplaceListing,
   resolveMarketplaceListing,
 } from "@/api/generated/marketplace/marketplace";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import type { QueryOpts } from "@/types/query";
 
 /** The catalog changes when a deployment is upgraded or a registry refresh
@@ -38,10 +38,10 @@ export const useMarketplaceListings = (
   params?: ListMarketplaceListingsParams,
   options?: QueryOpts<MarketplaceListingPage>
 ) => {
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   return useQuery<MarketplaceListingPage>({
-    queryKey: getListMarketplaceListingsQueryKey(guildId, params),
-    queryFn: () => listMarketplaceListings(guildId, params),
+    queryKey: getListMarketplaceListingsQueryKey(communityId, params),
+    queryFn: () => listMarketplaceListings(communityId, params),
     // Typing keeps the previous page on screen while the next one loads, so the
     // grid does not blank out on every keystroke.
     placeholderData: keepPreviousData,
@@ -54,11 +54,11 @@ export const useMarketplaceListing = (
   publicId: string | null,
   options?: QueryOpts<MarketplaceListingDetail>
 ) => {
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   const { enabled: userEnabled = true, ...rest } = options ?? {};
   return useQuery<MarketplaceListingDetail>({
-    queryKey: getReadMarketplaceListingQueryKey(guildId, publicId ?? ""),
-    queryFn: () => readMarketplaceListing(guildId, publicId as string),
+    queryKey: getReadMarketplaceListingQueryKey(communityId, publicId ?? ""),
+    queryFn: () => readMarketplaceListing(communityId, publicId as string),
     enabled: Boolean(publicId) && userEnabled,
     staleTime: CATALOG_STALE_MS,
     ...rest,
@@ -76,14 +76,14 @@ export const useMarketplaceListingByUid = (
   uid: string | null | undefined,
   options?: QueryOpts<MarketplaceListingDetail>
 ) => {
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   const { enabled: userEnabled = true, ...rest } = options ?? {};
   return useQuery<MarketplaceListingDetail>({
-    queryKey: getResolveMarketplaceListingQueryKey(guildId, uid ?? ""),
-    queryFn: () => resolveMarketplaceListing(guildId, uid as string),
+    queryKey: getResolveMarketplaceListingQueryKey(communityId, uid ?? ""),
+    queryFn: () => resolveMarketplaceListing(communityId, uid as string),
     enabled: Boolean(uid) && userEnabled,
     staleTime: CATALOG_STALE_MS,
-    // A listing this guild cannot take is a real answer for an installed
+    // A listing this community cannot take is a real answer for an installed
     // dashboard — withdrawn, or an app it no longer has — not something to
     // retry.
     retry: false,

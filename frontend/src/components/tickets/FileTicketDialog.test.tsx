@@ -43,7 +43,7 @@ const report = (props: Partial<FileTicketDialogProps> = {}) =>
       open
       onOpenChange={() => {}}
       ticket={{ stream: "moderation", targetType: "comment", targetId: 42 }}
-      guildId={3}
+      communityId={3}
       {...props}
     />,
     { auth: { user: buildUser() } }
@@ -99,7 +99,7 @@ describe("FileTicketDialog", () => {
     it("sends no community when the reporter is not in one", async () => {
       report({
         ticket: { stream: "moderation", targetType: "user_profile", targetId: 7 },
-        guildId: null,
+        communityId: null,
       });
       const user = userEvent.setup();
 
@@ -161,7 +161,7 @@ describe("FileTicketDialog", () => {
           open
           onOpenChange={() => {}}
           ticket={{ stream: "moderation", targetType: "comment", targetId: 42 }}
-          guildId={3}
+          communityId={3}
         />
       );
 
@@ -176,7 +176,7 @@ describe("FileTicketDialog", () => {
           open
           onOpenChange={() => {}}
           ticket={{ stream: "support" }}
-          guildId={3}
+          communityId={3}
         />,
         { auth: { user: buildUser() } }
       );

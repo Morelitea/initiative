@@ -4,7 +4,7 @@ import { HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
 
 import { buildPropertyDefinition, buildPropertyOption } from "@/__tests__/factories/properties";
-import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 import { type PropertyDefinitionRead, PropertyType } from "@/api/generated/initiativeAPI.schemas";
@@ -165,7 +165,7 @@ describe("PropertyInput", () => {
       // The picker is scoped to the property's initiative (default id 1) and
       // fetches a slim, paginated UserSummary page when opened.
       server.use(
-        guildHttp.get("/initiatives/:initiativeId/members/search", () =>
+        communityHttp.get("/initiatives/:initiativeId/members/search", () =>
           HttpResponse.json({
             items: [
               {
@@ -307,7 +307,7 @@ describe("PropertyInput", () => {
       });
       const bodies: unknown[] = [];
       server.use(
-        guildHttp.patch("/property-definitions/:id", async ({ request }) => {
+        communityHttp.patch("/property-definitions/:id", async ({ request }) => {
           const body = await request.json();
           bodies.push(body);
           return HttpResponse.json({

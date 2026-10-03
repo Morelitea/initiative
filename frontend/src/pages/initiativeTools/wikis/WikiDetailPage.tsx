@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useReadOnOpen } from "@/hooks/useNotifications";
 import { useCreateWikiPage, useWiki, useWikiPages } from "@/hooks/useWikis";
-import { useGuildPath } from "@/lib/guildUrl";
+import { useCommunityPath } from "@/lib/communityUrl";
 import { toolListRoute, wikiPageRoute } from "@/lib/tools";
 
 /**
@@ -24,7 +24,7 @@ import { toolListRoute, wikiPageRoute } from "@/lib/tools";
  */
 export const WikiDetailPage = () => {
   const { t } = useTranslation(["wikis", "common"]);
-  const gp = useGuildPath();
+  const gp = useCommunityPath();
   const { wikiId: wikiIdParam, initiativeId: initiativeIdParam } = useParams({
     strict: false,
   }) as { wikiId?: string; initiativeId?: string };

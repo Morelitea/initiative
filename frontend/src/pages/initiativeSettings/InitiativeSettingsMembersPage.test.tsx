@@ -10,7 +10,7 @@ import { HttpResponse } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
-  buildGuild,
+  buildCommunity,
   buildInitiative,
   buildInitiativeMember,
   buildInitiativeRole,
@@ -20,7 +20,7 @@ import {
   buildUserSummary,
   initiativeCan,
 } from "@/__tests__/factories";
-import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
 import type { InitiativeMemberRead, InitiativeRead } from "@/api/generated/initiativeAPI.schemas";
@@ -51,8 +51,8 @@ function stubInitiative(
 ) {
   const patches: unknown[] = [];
   server.use(
-    guildHttp.get("/initiatives/:id/members", () => HttpResponse.json(buildPage(members))),
-    guildHttp.get("/initiatives/:id", () =>
+    communityHttp.get("/initiatives/:id/members", () => HttpResponse.json(buildPage(members))),
+    communityHttp.get("/initiatives/:id", () =>
       HttpResponse.json(
         buildInitiative({
           id: INITIATIVE_ID,
@@ -64,8 +64,8 @@ function stubInitiative(
         })
       )
     ),
-    guildHttp.get("/initiatives/:id/roles", () => HttpResponse.json([])),
-    guildHttp.patch("/initiatives/:id", async ({ request }) => {
+    communityHttp.get("/initiatives/:id/roles", () => HttpResponse.json([])),
+    communityHttp.patch("/initiatives/:id", async ({ request }) => {
       const body = await request.json();
       patches.push(body);
       if (patchFails) {
@@ -79,16 +79,16 @@ function stubInitiative(
 }
 
 /** A membership that makes the signed-in user a manager of the initiative —
- *  the standing that reaches these settings without being a guild admin. */
+ *  the standing that reaches these settings without being a community admin. */
 const managerMembership = () =>
   buildInitiativeMember({ user: buildUserPublic({ id: MANAGER_ID }), is_manager: true });
 
 const renderMembers = (role: "admin" | "member" = "admin") =>
   renderPage(InitiativeSettingsMembersPage, {
     auth: { user: buildUser({ id: MANAGER_ID }) },
-    guilds: { activeGuildId: 1, activeGuild: buildGuild({ id: 1, role }) },
-    initialRoute: "/c/$guildId/i/$initiativeId/settings/members",
-    routeParams: { guildId: "1", initiativeId: String(INITIATIVE_ID) },
+    communities: { activeCommunityId: 1, activeCommunity: buildCommunity({ id: 1, role }) },
+    initialRoute: "/c/$communityId/i/$initiativeId/settings/members",
+    routeParams: { communityId: "1", initiativeId: String(INITIATIVE_ID) },
   });
 
 beforeEach(() => {
@@ -155,7 +155,7 @@ describe("InitiativeSettingsMembersPage", () => {
     // asks of the initiative by id rather than reading its whole roster.
     const lookedUp: string[][] = [];
     server.use(
-      guildHttp.get("/initiatives/:id/members/search", ({ request }) => {
+      communityHttp.get("/initiatives/:id/members/search", ({ request }) => {
         const ids = new URL(request.url).searchParams.getAll("user_id");
         lookedUp.push(ids);
         return HttpResponse.json(
@@ -164,7 +164,7 @@ describe("InitiativeSettingsMembersPage", () => {
           )
         );
       }),
-      guildHttp.get("/initiatives/:id/roles", () =>
+      communityHttp.get("/initiatives/:id/roles", () =>
         HttpResponse.json([
           buildInitiativeRole({ id: 20, name: "member", display_name: "Member" }),
           buildInitiativeRole({
@@ -175,7 +175,7 @@ describe("InitiativeSettingsMembersPage", () => {
           }),
         ])
       ),
-      guildHttp.get("/users/search", ({ request }) => {
+      communityHttp.get("/users/search", ({ request }) => {
         searches.push(new URL(request.url).searchParams.get("search"));
         return HttpResponse.json(
           buildPage([
@@ -184,7 +184,7 @@ describe("InitiativeSettingsMembersPage", () => {
           ])
         );
       }),
-      guildHttp.post("/initiatives/:id/members", async ({ request }) => {
+      communityHttp.post("/initiatives/:id/members", async ({ request }) => {
         added.push(await request.json());
         return HttpResponse.json(buildInitiative({ id: INITIATIVE_ID }));
       })
@@ -209,7 +209,7 @@ describe("InitiativeSettingsMembersPage", () => {
   });
 
   /**
-   * Auto-join enrols every future guild member on arrival. It is a guild
+   * Auto-join enrols every future community member on arrival. It is a community
    * admin's decision, and the server holds it to a single pair — auto-join with
    * "anyone can join" — so the interesting cases are all about who is offered
    * it, and about never assembling a combination the server would refuse.

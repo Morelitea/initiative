@@ -47,7 +47,7 @@ export const NativeUpdateRequiredDialog = ({
   minNativeVersion,
   onClose,
 }: NativeUpdateRequiredDialogProps) => {
-  const { t } = useTranslation("guilds");
+  const { t } = useTranslation("communities");
   // A desktop app that can replace itself offers to, and to keep doing so.
   const [canUpdate, setCanUpdate] = useState(false);
   const [always, setAlways] = useState(true);

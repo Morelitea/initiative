@@ -25,8 +25,8 @@ import {
 import { getListRelationshipsQueryKey } from "@/api/generated/relationships/relationships";
 import { invalidate, q } from "@/api/query-keys";
 import { createRelationship, listRelated, removeRelationship } from "@/api/relationships";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
-import { useGuildMutation } from "@/hooks/useApiMutation";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
+import { useCommunityMutation } from "@/hooks/useApiMutation";
 import type { MutationOpts } from "@/types/mutation";
 
 /**
@@ -37,7 +37,7 @@ import type { MutationOpts } from "@/types/mutation";
  * than asking seven times. See `groupEdges` in `@/lib/relationships`.
  */
 export const useRelationshipsFor = (entity: EndpointRef, options?: { enabled?: boolean }) => {
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   const params = {
     entity: `${entity.type}:${entity.id}`,
     relationship_type: null,
@@ -45,8 +45,8 @@ export const useRelationshipsFor = (entity: EndpointRef, options?: { enabled?: b
     direction: "both" as const,
   };
   return useQuery<RelationshipRead[]>({
-    queryKey: getListRelationshipsQueryKey(guildId, params),
-    queryFn: () => listRelated(guildId, entity, null, null, "both"),
+    queryKey: getListRelationshipsQueryKey(communityId, params),
+    queryFn: () => listRelated(communityId, entity, null, null, "both"),
     ...options,
   });
 };
@@ -86,9 +86,9 @@ export const useRelate = (
   anchor?: ToolRef | null,
   options?: MutationOpts<RelationshipRead, RelationshipCreate>
 ) =>
-  useGuildMutation<RelationshipRead, RelationshipCreate>(
+  useCommunityMutation<RelationshipRead, RelationshipCreate>(
     {
-      mutationFn: (guildId, body) => createRelationship(guildId, body),
+      mutationFn: (communityId, body) => createRelationship(communityId, body),
       invalidate: (data) => invalidateEdge(anchor, toolRefOf(data.other)),
       errorKey: "relations:addError",
     },
@@ -105,9 +105,9 @@ export const useUnrelate = (
   anchor?: ToolRef | null,
   options?: MutationOpts<void, RelationshipRead>
 ) =>
-  useGuildMutation<void, RelationshipRead>(
+  useCommunityMutation<void, RelationshipRead>(
     {
-      mutationFn: (guildId, row) => removeRelationship(guildId, row.id),
+      mutationFn: (communityId, row) => removeRelationship(communityId, row.id),
       invalidate: (_data, row) => invalidateEdge(anchor, toolRefOf(row.other)),
       errorKey: "relations:removeError",
     },
@@ -172,7 +172,7 @@ export const useRelationsNeighbourhood = (
   hops: number,
   options?: { enabled?: boolean; includeTags?: boolean }
 ): Neighbourhood => {
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   const enabled = options?.enabled ?? true;
   const includeTags = options?.includeTags ?? false;
 
@@ -192,13 +192,13 @@ export const useRelationsNeighbourhood = (
 
   /** One entity's edges, as a query `useQueries` can be handed. */
   const ask = (ref: EndpointRef, active: boolean) => ({
-    queryKey: getListRelationshipsQueryKey(guildId, {
+    queryKey: getListRelationshipsQueryKey(communityId, {
       entity: keyOf(ref),
       relationship_type: null,
       other_type: null,
       direction: "both" as const,
     }),
-    queryFn: () => listRelated(guildId, ref, null, null, "both"),
+    queryFn: () => listRelated(communityId, ref, null, null, "both"),
     enabled: active,
   });
 

@@ -29,7 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useGuilds } from "@/hooks/useGuilds";
+import { useCommunities } from "@/hooks/useCommunities";
 import { useCreateApiKey, useDeleteApiKey, useMyApiKeys } from "@/hooks/useSecurity";
 import { toast } from "@/lib/chesterToast";
 import { formatDateTime } from "@/lib/formatDate";
@@ -55,11 +55,11 @@ const NewApiKeyDialog = ({
   onOpenChange: (open: boolean) => void;
 }) => {
   const { t } = useTranslation(["settings", "common"]);
-  const { guilds } = useGuilds();
+  const { communities } = useCommunities();
   const [name, setName] = useState("");
   const [expiresAtInput, setExpiresAtInput] = useState("");
   const [readOnly, setReadOnly] = useState(false);
-  const [guildId, setGuildId] = useState<string>("all");
+  const [communityId, setCommunityId] = useState<string>("all");
   const [secret, setSecret] = useState<string | null>(null);
 
   const close = () => {
@@ -67,7 +67,7 @@ const NewApiKeyDialog = ({
     setName("");
     setExpiresAtInput("");
     setReadOnly(false);
-    setGuildId("all");
+    setCommunityId("all");
     setSecret(null);
   };
 
@@ -95,8 +95,8 @@ const NewApiKeyDialog = ({
         payload.expires_at = parsed.toISOString();
       }
     }
-    if (guildId !== "all") {
-      payload.community_id = Number(guildId);
+    if (communityId !== "all") {
+      payload.community_id = Number(communityId);
     }
     createKey.mutate(payload);
   };
@@ -146,21 +146,21 @@ const NewApiKeyDialog = ({
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="api-key-guild">{t("security.guildLabel")}</Label>
-              <Select value={guildId} onValueChange={setGuildId}>
-                <SelectTrigger id="api-key-guild">
+              <Label htmlFor="api-key-community">{t("security.communityLabel")}</Label>
+              <Select value={communityId} onValueChange={setCommunityId}>
+                <SelectTrigger id="api-key-community">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">{t("security.guildAllGuilds")}</SelectItem>
-                  {guilds.map((guild) => (
-                    <SelectItem key={guild.id} value={String(guild.id)}>
-                      {guild.name}
+                  <SelectItem value="all">{t("security.communityAllCommunities")}</SelectItem>
+                  {communities.map((community) => (
+                    <SelectItem key={community.id} value={String(community.id)}>
+                      {community.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-muted-foreground text-xs">{t("security.guildHelp")}</p>
+              <p className="text-muted-foreground text-xs">{t("security.communityHelp")}</p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="api-key-expiration">{t("security.expirationLabel")}</Label>
@@ -208,8 +208,9 @@ export const UserSettingsSecurityPage = () => {
   const [creating, setCreating] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<ApiKeyMetadata | null>(null);
 
-  const { guilds } = useGuilds();
-  const guildName = (id: number) => guilds.find((guild) => guild.id === id)?.name ?? String(id);
+  const { communities } = useCommunities();
+  const communityName = (id: number) =>
+    communities.find((community) => community.id === id)?.name ?? String(id);
 
   const apiKeysQuery = useMyApiKeys();
   const apiKeys = apiKeysQuery.data?.keys ?? [];
@@ -284,7 +285,9 @@ export const UserSettingsSecurityPage = () => {
                         ) : null}
                         {key.community_id != null ? (
                           <Badge variant="outline">
-                            {t("security.scopeGuild", { guild: guildName(key.community_id) })}
+                            {t("security.scopeCommunity", {
+                              community: communityName(key.community_id),
+                            })}
                           </Badge>
                         ) : null}
                         {!key.read_only && key.community_id == null ? (

@@ -9,7 +9,7 @@ import { useServer } from "@/hooks/useServer";
 import { getErrorMessage } from "@/lib/errorMessage";
 
 /**
- * `/c/$guildId/billing?page=…`: mints a portal handoff for the community and
+ * `/c/$communityId/billing?page=…`: mints a portal handoff for the community and
  * replaces this tab with the portal, so Back does not land here again.
  *
  * The app on a phone goes nowhere and says only that plans are not changed
@@ -17,8 +17,8 @@ import { getErrorMessage } from "@/lib/errorMessage";
  * outside their own checkout, so it names no browser, portal or link.
  */
 export const BillingForwardPage = () => {
-  const { t } = useTranslation("guilds");
-  const { guildId } = useParams({ strict: false }) as { guildId?: string };
+  const { t } = useTranslation("communities");
+  const { communityId } = useParams({ strict: false }) as { communityId?: string };
   const { page } = useSearch({ strict: false }) as { page?: BillingPortalPage };
   const { isNativePlatform } = useServer();
   const { billing, isLoading, portalUrl } = useBillingPortal();
@@ -26,7 +26,7 @@ export const BillingForwardPage = () => {
   // Once per visit, StrictMode's second effect included: each request mints a token.
   const started = useRef(false);
 
-  const id = Number(guildId);
+  const id = Number(communityId);
   const target: BillingPortalPage = page === "upgrade" ? "upgrade" : "manage";
 
   useEffect(() => {
@@ -40,7 +40,7 @@ export const BillingForwardPage = () => {
       .then((url) => {
         if (url) window.location.replace(url);
       })
-      .catch((err: unknown) => setError(getErrorMessage(err, "guilds:billingForward.error")));
+      .catch((err: unknown) => setError(getErrorMessage(err, "communities:billingForward.error")));
   }, [billing, id, isLoading, isNativePlatform, portalUrl, t, target]);
 
   const message = (icon: React.ReactNode, title: string, description: string) => (

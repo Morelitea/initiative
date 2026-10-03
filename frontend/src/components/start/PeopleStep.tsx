@@ -20,20 +20,20 @@ const celebrate = () => {
 
 /** The new community's first invite link, to copy and send. */
 export const PeopleStep = ({
-  guildId,
+  communityId,
   origin,
   planButton,
   onDone,
   doneLabel,
 }: {
-  guildId: number;
+  communityId: number;
   origin: string;
   /** Shown when a plan was picked but its tab could not be opened. */
   planButton?: () => void;
   onDone: () => void;
   doneLabel: string;
 }) => {
-  const { t } = useTranslation(["auth", "common", "guilds"]);
+  const { t } = useTranslation(["auth", "common", "communities"]);
   const [link, setLink] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
   const asked = useRef(false);
@@ -43,15 +43,15 @@ export const PeopleStep = ({
     asked.current = true;
     celebrate();
     // One link for the whole group, so it takes any number of people.
-    createCommunityInvite(guildId, { max_uses: null })
+    createCommunityInvite(communityId, { max_uses: null })
       .then((invite) => setLink(`${origin}/invite/${encodeURIComponent(invite.code)}`))
       .catch(() => setFailed(true));
-  }, [guildId, origin]);
+  }, [communityId, origin]);
 
   const copy = async () => {
     if (!link) return;
     await navigator.clipboard.writeText(link);
-    toast.success(t("guilds:inviteLinkCopied"));
+    toast.success(t("communities:inviteLinkCopied"));
   };
 
   return (

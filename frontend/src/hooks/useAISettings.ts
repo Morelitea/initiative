@@ -43,7 +43,7 @@ import type {
   PlatformAIModeUpdate,
 } from "@/api/generated/initiativeAPI.schemas";
 import { invalidate, q } from "@/api/query-keys";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { queryClient } from "@/lib/queryClient";
 import type { MutationOpts } from "@/types/mutation";
 import type { QueryOpts } from "@/types/query";
@@ -54,26 +54,26 @@ const invalidateConnectionSurfaces = (scope: ConnectionScope) =>
   Promise.all([
     scope === "platform"
       ? invalidate(q.platformAIConnections())
-      : invalidate(q.guildAIConnections()),
+      : invalidate(q.communityAIConnections()),
     invalidate(q.memberAI()),
     invalidate(q.resolvedAISettings()),
   ]);
 
 /**
- * A member-scoped change (key or preference) refreshes that guild's member view
+ * A member-scoped change (key or preference) refreshes that community's member view
  * plus the resolved config the "generate with AI" buttons read. Keyed on the
- * explicit guild rather than the tab's active guild: the personal "My AI keys"
- * view manages any guild the user belongs to, which may not be the active one.
+ * explicit community rather than the tab's active community: the personal "My AI keys"
+ * view manages any community the user belongs to, which may not be the active one.
  */
-const invalidateMemberSurfaces = (guildId: number) =>
+const invalidateMemberSurfaces = (communityId: number) =>
   Promise.all([
     queryClient.invalidateQueries({
-      queryKey: getGetMemberAiQueryKey(guildId),
+      queryKey: getGetMemberAiQueryKey(communityId),
     }),
     queryClient.invalidateQueries({
-      queryKey: getGetResolvedAiSettingsQueryKey(guildId),
+      queryKey: getGetResolvedAiSettingsQueryKey(communityId),
     }),
-    // The personal "My AI" page aggregates every guild, so a per-guild write
+    // The personal "My AI" page aggregates every community, so a per-community write
     // must refresh it too.
     invalidate(q.myAI()),
   ]);
@@ -97,7 +97,7 @@ export const useUpdatePlatformAIMode = (
     mutationFn: (data: PlatformAIModeUpdate) => updatePlatformAiMode(data),
     onSuccess: (...args) => {
       // A mode change flips every downstream surface (connections, member view,
-      // resolved) across the active guild — flush the whole AI family.
+      // resolved) across the active community — flush the whole AI family.
       void invalidate(q.allAISettings());
       onSuccess?.(...args);
     },
@@ -173,27 +173,27 @@ export const useFetchPlatformConnectionModels = (
   });
 };
 
-// ── Guild connections (guild-scoped) ──────────────────────────────────────────
+// ── Community connections (community-scoped) ──────────────────────────────────────────
 
-export const useGuildConnections = (options?: QueryOpts<AIConnectionResponse[]>) => {
-  const guildId = useActiveGuildId();
+export const useCommunityConnections = (options?: QueryOpts<AIConnectionResponse[]>) => {
+  const communityId = useActiveCommunityId();
   const { enabled: userEnabled = true, ...rest } = options ?? {};
   return useQuery<AIConnectionResponse[]>({
-    queryKey: getListCommunityConnectionsQueryKey(guildId),
-    queryFn: () => listCommunityConnections(guildId),
-    enabled: userEnabled && guildId > 0,
+    queryKey: getListCommunityConnectionsQueryKey(communityId),
+    queryFn: () => listCommunityConnections(communityId),
+    enabled: userEnabled && communityId > 0,
     ...rest,
   });
 };
 
-export const useCreateGuildConnection = (
+export const useCreateCommunityConnection = (
   options?: MutationOpts<AIConnectionResponse, AIConnectionCreate>
 ) => {
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   const { onSuccess, ...rest } = options ?? {};
   return useMutation({
     ...rest,
-    mutationFn: (data: AIConnectionCreate) => createCommunityConnection(guildId, data),
+    mutationFn: (data: AIConnectionCreate) => createCommunityConnection(communityId, data),
     onSuccess: (...args) => {
       void invalidateConnectionSurfaces("community");
       onSuccess?.(...args);
@@ -201,15 +201,15 @@ export const useCreateGuildConnection = (
   });
 };
 
-export const useUpdateGuildConnection = (
+export const useUpdateCommunityConnection = (
   options?: MutationOpts<AIConnectionResponse, { connectionId: number; data: AIConnectionUpdate }>
 ) => {
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   const { onSuccess, ...rest } = options ?? {};
   return useMutation({
     ...rest,
     mutationFn: ({ connectionId, data }: { connectionId: number; data: AIConnectionUpdate }) =>
-      updateCommunityConnection(guildId, connectionId, data),
+      updateCommunityConnection(communityId, connectionId, data),
     onSuccess: (...args) => {
       void invalidateConnectionSurfaces("community");
       onSuccess?.(...args);
@@ -217,12 +217,12 @@ export const useUpdateGuildConnection = (
   });
 };
 
-export const useDeleteGuildConnection = (options?: MutationOpts<void, number>) => {
-  const guildId = useActiveGuildId();
+export const useDeleteCommunityConnection = (options?: MutationOpts<void, number>) => {
+  const communityId = useActiveCommunityId();
   const { onSuccess, ...rest } = options ?? {};
   return useMutation({
     ...rest,
-    mutationFn: (connectionId: number) => deleteCommunityConnection(guildId, connectionId),
+    mutationFn: (connectionId: number) => deleteCommunityConnection(communityId, connectionId),
     onSuccess: (...args) => {
       void invalidateConnectionSurfaces("community");
       onSuccess?.(...args);
@@ -230,31 +230,33 @@ export const useDeleteGuildConnection = (options?: MutationOpts<void, number>) =
   });
 };
 
-export const useTestGuildConnection = (
+export const useTestCommunityConnection = (
   options?: MutationOpts<AIConnectionTestResponse, number>
 ) => {
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   return useMutation({
     ...options,
-    mutationFn: (connectionId: number) => testCommunityConnection(guildId, connectionId),
+    mutationFn: (connectionId: number) => testCommunityConnection(communityId, connectionId),
   });
 };
 
-export const useFetchGuildConnectionModels = (options?: MutationOpts<AIModelsResponse, number>) => {
-  const guildId = useActiveGuildId();
+export const useFetchCommunityConnectionModels = (
+  options?: MutationOpts<AIModelsResponse, number>
+) => {
+  const communityId = useActiveCommunityId();
   return useMutation({
     ...options,
-    mutationFn: (connectionId: number) => fetchCommunityConnectionModels(guildId, connectionId),
+    mutationFn: (connectionId: number) => fetchCommunityConnectionModels(communityId, connectionId),
   });
 };
 
-// ── My AI (cross-guild personal aggregate) ────────────────────────────────────
+// ── My AI (cross-community personal aggregate) ────────────────────────────────────
 
 /**
  * Flat list of every AI connection available to the current user across all
- * their guilds (`GET /me/ai`) — one server-side aggregate, no per-guild fan-out.
- * Powers the personal "My AI" page; writes still go through the guild-scoped
- * member hooks below, keyed by each row's `guild_id`.
+ * their communities (`GET /me/ai`) — one server-side aggregate, no per-community fan-out.
+ * Powers the personal "My AI" page; writes still go through the community-scoped
+ * member hooks below, keyed by each row's `community_id`.
  */
 export const useMyAI = (options?: QueryOpts<MyAIConnectionRow[]>) => {
   return useQuery<MyAIConnectionRow[]>({
@@ -264,74 +266,74 @@ export const useMyAI = (options?: QueryOpts<MyAIConnectionRow[]>) => {
   });
 };
 
-// ── Member view + preferences (guild-scoped) ──────────────────────────────────
+// ── Member view + preferences (community-scoped) ──────────────────────────────────
 //
-// These take an explicit `guildId` rather than reading the tab's active guild:
+// These take an explicit `communityId` rather than reading the tab's active community:
 // the personal "My AI keys" view lives outside the `/c/{id}` route tree and
-// manages whichever guild the user picks, which need not be the active one.
+// manages whichever community the user picks, which need not be the active one.
 
-export const useMemberAI = (guildId: number, options?: QueryOpts<MemberAIView>) => {
+export const useMemberAI = (communityId: number, options?: QueryOpts<MemberAIView>) => {
   const { enabled: userEnabled = true, ...rest } = options ?? {};
   return useQuery<MemberAIView>({
-    queryKey: getGetMemberAiQueryKey(guildId),
-    queryFn: () => getMemberAi(guildId),
-    enabled: userEnabled && guildId > 0,
+    queryKey: getGetMemberAiQueryKey(communityId),
+    queryFn: () => getMemberAi(communityId),
+    enabled: userEnabled && communityId > 0,
     ...rest,
   });
 };
 
 export const useSetMemberKey = (
-  guildId: number,
+  communityId: number,
   options?: MutationOpts<MemberAIView, MemberAIKeyUpdate>
 ) => {
   const { onSuccess, ...rest } = options ?? {};
   return useMutation({
     ...rest,
-    mutationFn: (data: MemberAIKeyUpdate) => setMemberKey(guildId, data),
+    mutationFn: (data: MemberAIKeyUpdate) => setMemberKey(communityId, data),
     onSuccess: (...args) => {
-      void invalidateMemberSurfaces(guildId);
+      void invalidateMemberSurfaces(communityId);
       onSuccess?.(...args);
     },
   });
 };
 
 export const useDeleteMemberKey = (
-  guildId: number,
+  communityId: number,
   options?: MutationOpts<MemberAIView, { scope: ConnectionScope; connectionId: number }>
 ) => {
   const { onSuccess, ...rest } = options ?? {};
   return useMutation({
     ...rest,
     mutationFn: ({ scope, connectionId }: { scope: ConnectionScope; connectionId: number }) =>
-      deleteMemberKey(guildId, scope, connectionId),
+      deleteMemberKey(communityId, scope, connectionId),
     onSuccess: (...args) => {
-      void invalidateMemberSurfaces(guildId);
+      void invalidateMemberSurfaces(communityId);
       onSuccess?.(...args);
     },
   });
 };
 
 export const useSetMemberPref = (
-  guildId: number,
+  communityId: number,
   options?: MutationOpts<MemberAIView, MemberAIPrefUpdate>
 ) => {
   const { onSuccess, ...rest } = options ?? {};
   return useMutation({
     ...rest,
-    mutationFn: (data: MemberAIPrefUpdate) => setMemberPref(guildId, data),
+    mutationFn: (data: MemberAIPrefUpdate) => setMemberPref(communityId, data),
     onSuccess: (...args) => {
-      void invalidateMemberSurfaces(guildId);
+      void invalidateMemberSurfaces(communityId);
       onSuccess?.(...args);
     },
   });
 };
 
 export const useTestMemberAI = (
-  guildId: number,
+  communityId: number,
   options?: MutationOpts<AIConnectionTestResponse, void>
 ) => {
   return useMutation({
     ...options,
-    mutationFn: () => testMemberAi(guildId),
+    mutationFn: () => testMemberAi(communityId),
   });
 };

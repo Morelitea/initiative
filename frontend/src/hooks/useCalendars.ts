@@ -22,8 +22,8 @@ export const useSetCalendarGrants = calendars.useSetGrants;
 
 // ── Queries ─────────────────────────────────────────────────────────────────
 
-/** Cross-guild variant for the My Calendar grouping panel — every calendar
- * visible to the user across their guilds, in one request. */
+/** Cross-community variant for the My Calendar grouping panel — every calendar
+ * visible to the user across their communities, in one request. */
 export const useMyCalendars = (
   params?: ListMyCalendarsParams,
   options?: QueryOpts<CalendarListResponse>

@@ -1,7 +1,7 @@
 /**
- * The guild's installed apps, above its initiatives.
+ * The community's installed apps, above its initiatives.
  *
- * Apps are guild-wide surfaces, so they sit above the initiatives rather than
+ * Apps are community-wide surfaces, so they sit above the initiatives rather than
  * inside any of them. What shows depends on who is looking:
  *
  * - **Apps installed** — one entry each, for everyone. Whether a member may do
@@ -12,13 +12,13 @@
  *   pointing at; what differs is the invitation at the bottom.
  *
  * A surface names the audience it is for, and an entry is only offered to a
- * reader who is in it — an app whose only guild-wide surface is for admins does
+ * reader who is in it — an app whose only community-wide surface is for admins does
  * not take a row for a member. The mint settles the same question again under
  * the caller's own session; this is about not pointing at a closed door.
  *
- * Disabled apps are hidden here and stay visible in guild settings, which is
+ * Disabled apps are hidden here and stay visible in community settings, which is
  * where an admin turns them back on. So are apps whose service is not set up on
- * this server — an entry that opens nothing is worse than no entry, and guild
+ * this server — an entry that opens nothing is worse than no entry, and community
  * settings is where that state is explained.
  *
  * **Every entry does something.** An app with a surface opens it; an app with
@@ -56,38 +56,38 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { useGuildApps } from "@/hooks/useGuildApps";
-import { appHasConnections, guildAppPath } from "@/lib/appSurfaces";
-import { useGuildPath } from "@/lib/guildUrl";
+import { useCommunityApps } from "@/hooks/useCommunityApps";
+import { appHasConnections, communityAppPath } from "@/lib/appSurfaces";
+import { useCommunityPath } from "@/lib/communityUrl";
 import { resolveArtworkUrl } from "@/lib/uploadUrl";
 import { cn } from "@/lib/utils";
 
 export interface AppsSectionProps {
-  isGuildAdmin: boolean;
+  isCommunityAdmin: boolean;
   /** Persisted open/closed state, keyed like the other sidebar sections. */
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
-export function AppsSection({ isGuildAdmin, open, onOpenChange }: AppsSectionProps) {
+export function AppsSection({ isCommunityAdmin, open, onOpenChange }: AppsSectionProps) {
   const { t } = useTranslation(["apps", "nav"]);
-  const gp = useGuildPath();
-  const appsQuery = useGuildApps();
+  const gp = useCommunityPath();
+  const appsQuery = useCommunityApps();
   const [showInert, setShowInert] = useState(false);
 
   // `available` is false when an app's service is not set up on this server, or
   // the operator switched it off: there is nothing behind the entry, so it does
-  // not appear. Guild settings still lists it, which is where that is said.
+  // not appear. Community settings still lists it, which is where that is said.
   const apps = (appsQuery.data?.items ?? []).filter(
     (app) => app.enabled && app.available !== false
   );
 
   // An app with somewhere to go leads; one with nothing to open waits under
-  // "show more" so a guild that installs many widget providers still has a
+  // "show more" so a community that installs many widget providers still has a
   // readable sidebar. A surface the server says this reader cannot open is not
   // somewhere they can go, so for them it does not count as one.
   const actionable = apps.filter(
-    (app) => guildAppPath(app) !== null || appHasConnections(app.definition)
+    (app) => communityAppPath(app) !== null || appHasConnections(app.definition)
   );
   const inert = apps.filter((app) => !actionable.includes(app));
 
@@ -129,11 +129,11 @@ export function AppsSection({ isGuildAdmin, open, onOpenChange }: AppsSectionPro
             {apps.length ? (
               <SidebarMenu>
                 {actionable.map((app) => (
-                  <AppEntry key={app.id} app={app} isGuildAdmin={isGuildAdmin} />
+                  <AppEntry key={app.id} app={app} isCommunityAdmin={isCommunityAdmin} />
                 ))}
                 {showInert &&
                   inert.map((app) => (
-                    <AppEntry key={app.id} app={app} isGuildAdmin={isGuildAdmin} />
+                    <AppEntry key={app.id} app={app} isCommunityAdmin={isCommunityAdmin} />
                   ))}
                 {inert.length > 0 && (
                   <SidebarMenuItem>
@@ -167,8 +167,12 @@ export function AppsSection({ isGuildAdmin, open, onOpenChange }: AppsSectionPro
               <SidebarMenuItem>
                 <SidebarMenuButton asChild size="sm">
                   <Link to={gp("/marketplace")} search={{ kind: ListingKind.app }}>
-                    {isGuildAdmin ? <Plus className="h-4 w-4" /> : <Store className="h-4 w-4" />}
-                    <span>{isGuildAdmin ? t("apps:add") : t("apps:browse")}</span>
+                    {isCommunityAdmin ? (
+                      <Plus className="h-4 w-4" />
+                    ) : (
+                      <Store className="h-4 w-4" />
+                    )}
+                    <span>{isCommunityAdmin ? t("apps:add") : t("apps:browse")}</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -180,11 +184,11 @@ export function AppsSection({ isGuildAdmin, open, onOpenChange }: AppsSectionPro
   );
 }
 
-function AppEntry({ app, isGuildAdmin }: { app: CommunityAppRead; isGuildAdmin: boolean }) {
+function AppEntry({ app, isCommunityAdmin }: { app: CommunityAppRead; isCommunityAdmin: boolean }) {
   const { t } = useTranslation(["apps"]);
-  const gp = useGuildPath();
+  const gp = useCommunityPath();
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const path = guildAppPath(app);
+  const path = communityAppPath(app);
   // The listing's own artwork, small. Every listing has one — a listing that
   // ships none is published with the app's own mark — so there is nothing to
   // fall back to.
@@ -221,7 +225,7 @@ function AppEntry({ app, isGuildAdmin }: { app: CommunityAppRead; isGuildAdmin: 
       </Tooltip>
       <AppSettingsDialog
         appId={app.id}
-        isGuildAdmin={isGuildAdmin}
+        isCommunityAdmin={isCommunityAdmin}
         open={settingsOpen}
         onOpenChange={setSettingsOpen}
       />

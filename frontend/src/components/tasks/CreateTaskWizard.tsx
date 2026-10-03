@@ -7,9 +7,9 @@ import { type ProjectRead, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { WizardDialog } from "@/components/ui/wizard-dialog";
-import { useGuildInitiativeSteps } from "@/hooks/useGuildInitiativeSteps";
+import { useCommunityInitiativeSteps } from "@/hooks/useCommunityInitiativeSteps";
 import { useGlobalProjects } from "@/hooks/useProjects";
-import { guildPath } from "@/lib/guildUrl";
+import { communityPath } from "@/lib/communityUrl";
 import { getItem, removeItem, setItem } from "@/lib/storage";
 import { toolDetailRoute } from "@/lib/tools";
 
@@ -26,6 +26,7 @@ export function getOpenCreateTaskWizard() {
 const STORAGE_KEY = "initiative-last-task-project";
 
 interface LastUsedProject {
+  // Stored on the device under these names, so a saved shortcut still reads.
   guildId: number;
   guildName: string;
   initiativeId: number;
@@ -80,7 +81,7 @@ export const CreateTaskWizard = () => {
       setItem(STORAGE_KEY, JSON.stringify(target));
       setOpen(false);
       void router.navigate({
-        to: guildPath(
+        to: communityPath(
           target.guildId,
           toolDetailRoute(Tool.project, target.initiativeId, target.projectId)
         ),
@@ -96,10 +97,10 @@ export const CreateTaskWizard = () => {
     setProjectPage(1);
   }, []);
 
-  // A task is child content of a project, so the guild and initiative steps
+  // A task is child content of a project, so the community and initiative steps
   // offer wherever content can be written; the project step then applies the
   // precise per-project check.
-  const steps = useGuildInitiativeSteps({
+  const steps = useCommunityInitiativeSteps({
     ns: "tasks",
     open,
     authors: null,
@@ -111,17 +112,17 @@ export const CreateTaskWizard = () => {
     onInitiative: startProjectStep,
     next: { step: "select-project", description: t("createWizard.selectProject") },
   });
-  const { guild, initiative } = steps;
+  const { community, initiative } = steps;
 
   // ── Data fetching ───────────────────────────────────────────────────────
 
-  const projectsEnabled = steps.step === "select-project" && !!guild;
+  const projectsEnabled = steps.step === "select-project" && !!community;
 
   // Track a "generation" that increments when filters change, so we can
   // distinguish stale accumulated data from the current filter set.
   const [projectGen, setProjectGen] = useState(0);
   const prevFilterKey = useRef("");
-  const filterKey = `${guild?.id}-${initiative?.id}-${projectSearch}`;
+  const filterKey = `${community?.id}-${initiative?.id}-${projectSearch}`;
   if (filterKey !== prevFilterKey.current) {
     prevFilterKey.current = filterKey;
     setProjectGen((g) => g + 1);
@@ -130,7 +131,7 @@ export const CreateTaskWizard = () => {
 
   const projectsQuery = useGlobalProjects(
     {
-      community_ids: guild ? [guild.id] : undefined,
+      community_ids: community ? [community.id] : undefined,
       search: projectSearch || undefined,
       page_size: 25,
       page: projectPage,
@@ -167,7 +168,7 @@ export const CreateTaskWizard = () => {
     <WizardDialog open={open} onOpenChange={setOpen} className="sm:max-w-md" {...steps.dialog}>
       {steps.body}
 
-      {steps.step === "select-project" && guild && initiative && (
+      {steps.step === "select-project" && community && initiative && (
         <div className="space-y-2">
           <div className="relative">
             <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -196,8 +197,8 @@ export const CreateTaskWizard = () => {
                   className="flex w-full items-center gap-3 rounded-lg border p-3 text-left transition-colors hover:bg-accent"
                   onClick={() =>
                     navigateToProject({
-                      guildId: guild.id,
-                      guildName: guild.name,
+                      guildId: community.id,
+                      guildName: community.name,
                       initiativeId: initiative.id,
                       initiativeName: initiative.name,
                       projectId: project.id,

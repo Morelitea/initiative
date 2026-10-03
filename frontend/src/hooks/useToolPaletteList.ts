@@ -14,7 +14,7 @@
 import { useQuery } from "@tanstack/react-query";
 
 import type { ToolListParams } from "@/hooks/toolHooks";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 
 export interface ToolPaletteListOptions {
   /** Only fetch while the palette is open for an authenticated user. */
@@ -23,12 +23,12 @@ export interface ToolPaletteListOptions {
 
 export const useToolPaletteList = <TPage>(
   listQuery: (
-    guildId: number,
+    communityId: number,
     params?: ToolListParams
   ) => { queryKey: readonly unknown[]; queryFn: () => Promise<TPage> },
   params: ToolListParams | undefined,
   { enabled }: ToolPaletteListOptions
 ) => {
-  const guildId = useActiveGuildId();
-  return useQuery({ ...listQuery(guildId, params), enabled, staleTime: 60_000 });
+  const communityId = useActiveCommunityId();
+  return useQuery({ ...listQuery(communityId, params), enabled, staleTime: 60_000 });
 };

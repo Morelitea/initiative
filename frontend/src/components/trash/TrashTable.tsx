@@ -17,7 +17,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  useGuildTrashList,
+  useCommunityTrashList,
   useMyTrashList,
   usePurgeTrashEntity,
   useRestoreTrashEntity,
@@ -26,10 +26,10 @@ import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 
 /**
- * `user` — the viewer's own deletions across every guild (personal settings).
- * `guild` — everything in the active guild's trash (guild-admin settings).
+ * `user` — the viewer's own deletions across every community (personal settings).
+ * `community` — everything in the active community's trash (community-admin settings).
  */
-type TrashVariant = "user" | "guild";
+type TrashVariant = "user" | "community";
 
 /** Rows per page. */
 const TRASH_PAGE_SIZE = 25;
@@ -49,8 +49,8 @@ export const TrashTable = ({ variant, showPurgeAction }: TrashTableProps) => {
   const [page, setPage] = useState(1);
   const params = { page, page_size: TRASH_PAGE_SIZE };
   const myTrash = useMyTrashList(params, { enabled: variant === "user" });
-  const guildTrash = useGuildTrashList(params, { enabled: variant === "guild" });
-  const { data, isLoading } = variant === "user" ? myTrash : guildTrash;
+  const communityTrash = useCommunityTrashList(params, { enabled: variant === "community" });
+  const { data, isLoading } = variant === "user" ? myTrash : communityTrash;
 
   // Restoring or purging the last row of the last page leaves that page empty;
   // step back to the one before rather than showing nothing.
@@ -63,7 +63,7 @@ export const TrashTable = ({ variant, showPurgeAction }: TrashTableProps) => {
     | { open: false }
     | {
         open: true;
-        guildId: number;
+        communityId: number;
         entityType: EntityType;
         entityId: number;
         name: string;
@@ -105,7 +105,7 @@ export const TrashTable = ({ variant, showPurgeAction }: TrashTableProps) => {
 
   const handleRestoreClick = (item: TrashItem) => {
     restoreMutation.mutate({
-      guildId: item.community_id,
+      communityId: item.community_id,
       entityType: item.entity_type,
       entityId: item.entity_id,
     });
@@ -114,7 +114,7 @@ export const TrashTable = ({ variant, showPurgeAction }: TrashTableProps) => {
   const handlePurgeConfirm = () => {
     if (!purgeConfirm.open) return;
     purgeMutation.mutate({
-      guildId: purgeConfirm.guildId,
+      communityId: purgeConfirm.communityId,
       entityType: purgeConfirm.entityType,
       entityId: purgeConfirm.entityId,
     });
@@ -169,7 +169,7 @@ export const TrashTable = ({ variant, showPurgeAction }: TrashTableProps) => {
                         onClick={() =>
                           setPurgeConfirm({
                             open: true,
-                            guildId: item.community_id,
+                            communityId: item.community_id,
                             entityType: item.entity_type,
                             entityId: item.entity_id,
                             name: item.name || `#${item.entity_id}`,

@@ -26,7 +26,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { getErrorCode, getErrorMessage, messageForCode } from "@/lib/errorMessage";
 import { formatBytes } from "@/lib/fileUtils";
 
@@ -119,7 +119,7 @@ export interface AtlassianConnectStepProps {
  * connecting and looking around are one request. */
 export function AtlassianConnectStep({ onConnected, onUseExport }: AtlassianConnectStepProps) {
   const { t } = useTranslation("imports");
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   const connect = useConnectAtlassian();
   const [siteUrl, setSiteUrl] = useState("");
   const [email, setEmail] = useState("");
@@ -131,7 +131,7 @@ export function AtlassianConnectStep({ onConnected, onUseExport }: AtlassianConn
     setError(null);
     try {
       const response = await connect.mutateAsync({
-        communityId: guildId,
+        communityId: communityId,
         data: { site_url: siteUrl.trim(), email: email.trim(), api_token: apiToken },
       });
       const projects = response.jira?.available ? (response.jira.projects ?? []) : [];
@@ -233,7 +233,7 @@ export interface AtlassianExportStepProps {
  * site is — the same review follows. */
 export function AtlassianExportStep({ initiatives, onStarted }: AtlassianExportStepProps) {
   const { t } = useTranslation("imports");
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   const start = useStartConfluenceExportImport();
   const [file, setFile] = useState<File | null>(null);
   const [initiativeId, setInitiativeId] = useState<string>("");
@@ -252,7 +252,7 @@ export function AtlassianExportStep({ initiatives, onStarted }: AtlassianExportS
     setError(null);
     try {
       const job = await start.mutateAsync({
-        communityId: guildId,
+        communityId: communityId,
         data: {
           file,
           initiative_id: Number(chosen),
@@ -424,7 +424,7 @@ export function AtlassianChooseStep({
   onStarted,
 }: AtlassianChooseStepProps) {
   const { t } = useTranslation("imports");
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   const start = useStartAtlassianImport();
   const projectTicks = useTicks();
   const spaceTicks = useTicks();
@@ -454,7 +454,7 @@ export function AtlassianChooseStep({
     setError(null);
     try {
       const job = await start.mutateAsync({
-        communityId: guildId,
+        communityId: communityId,
         data: {
           ...connection.credentials,
           initiative_id: Number(chosen),
@@ -580,9 +580,9 @@ export interface AtlassianFetchingStepProps {
  * when it is reopened. */
 export function AtlassianFetchingStep({ jobId, onStaged, onStopped }: AtlassianFetchingStepProps) {
   const { t } = useTranslation("imports");
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   const cancel = useCancelImportJob();
-  const jobQuery = useGetImportJob(guildId, jobId, {
+  const jobQuery = useGetImportJob(communityId, jobId, {
     query: {
       refetchInterval: (query) =>
         FETCHING.has(query.state.data?.status ?? "queued") ? FETCH_POLL_MS : false,
@@ -598,7 +598,7 @@ export function AtlassianFetchingStep({ jobId, onStaged, onStopped }: AtlassianF
 
   const handleCancel = async () => {
     try {
-      await cancel.mutateAsync({ communityId: guildId, jobId });
+      await cancel.mutateAsync({ communityId: communityId, jobId });
     } catch {
       // Already over; stopping is still the right answer.
     }

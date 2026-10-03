@@ -357,7 +357,7 @@ describe("silent session renewal", () => {
         headers: { "X-Auth-Step-Up": "corp", "X-Auth-Step-Up-Guild": "1" },
       },
       AUTH_STEP_UP_EVENT,
-      { providerSlug: "corp", guildId: 1 },
+      { providerSlug: "corp", communityId: 1 },
     ],
     [
       "COMMUNITY_AUTH_FACTOR_REQUIRED as a challenge naming the factor",
@@ -368,7 +368,7 @@ describe("silent session renewal", () => {
         headers: { "X-Auth-Step-Up-Guild": "7" },
       },
       AUTH_FACTOR_REQUIRED_EVENT,
-      { guildId: 7, kind: "totp" },
+      { communityId: 7, kind: "totp" },
     ],
     [
       "COMMUNITY_AUTH_PASSKEY_REQUIRED as a challenge naming the factor",
@@ -379,13 +379,13 @@ describe("silent session renewal", () => {
         headers: { "X-Auth-Step-Up-Guild": "7" },
       },
       AUTH_FACTOR_REQUIRED_EVENT,
-      { guildId: 7, kind: "passkey" },
+      { communityId: 7, kind: "passkey" },
     ],
     [
       "the deployment's own ask, which names no community",
       { path: "/communities/", status: 401, detail: "PLATFORM_AUTH_FACTOR_REQUIRED" },
       AUTH_FACTOR_REQUIRED_EVENT,
-      { guildId: null, kind: "totp", platform: true },
+      { communityId: null, kind: "totp", platform: true },
     ],
     [
       "a change that wants a session opened a moment ago, which is the account's own",
@@ -396,7 +396,7 @@ describe("silent session renewal", () => {
         detail: "RECENT_PROOF_REQUIRED",
       },
       AUTH_FACTOR_REQUIRED_EVENT,
-      { guildId: null, kind: "proof" },
+      { communityId: null, kind: "proof" },
     ],
   ])("announces %s", async (_label, challenge, event, detail) => {
     const posted = challenge.method === "post";

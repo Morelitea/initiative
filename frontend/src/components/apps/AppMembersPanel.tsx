@@ -1,5 +1,5 @@
 /**
- * Who reaches an outside system through this guild, and the levers for it.
+ * Who reaches an outside system through this community, and the levers for it.
  *
  * Installing an app is an admin decision, and so is who may use it. What an
  * admin gets here is governance, not inspection: which member connected as
@@ -46,12 +46,12 @@ import {
 } from "@/components/ui/table";
 import {
   useBlockMemberConnection,
-  useGuildAppMembers,
+  useCommunityAppMembers,
   useRevokeAllConnections,
   useRevokeAllConsents,
   useRevokeMemberConnection,
   useRevokeMemberConsents,
-} from "@/hooks/useGuildAppDetail";
+} from "@/hooks/useCommunityAppDetail";
 import { useUserSearch } from "@/hooks/useUsers";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
@@ -60,14 +60,14 @@ import { localized } from "@/lib/widgets/widgetMeta";
 
 export interface AppMembersPanelProps {
   appId: number;
-  /** Rendered only for guild admins; the server refuses everyone else anyway. */
+  /** Rendered only for community admins; the server refuses everyone else anyway. */
   enabled: boolean;
 }
 
 export function AppMembersPanel({ appId, enabled }: AppMembersPanelProps) {
   const { t } = useTranslation(["apps", "common"]);
   const [page, setPage] = useState(1);
-  const membersQuery = useGuildAppMembers(appId, page, enabled);
+  const membersQuery = useCommunityAppMembers(appId, page, enabled);
   const summary = membersQuery.data?.summary ?? [];
   const items = membersQuery.data?.items ?? [];
   const consents = membersQuery.data?.consents ?? [];
