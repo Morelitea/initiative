@@ -220,7 +220,7 @@ async def test_a_community_can_be_set_to_say_less(client, acting_user):
     )
 
     assert response.status_code == 200
-    listed = {g["guild_id"]: g for g in response.json()["guilds"]}
+    listed = {g["community_id"]: g for g in response.json()["communities"]}
     assert listed[a.guild.id]["level"] == "personal"
 
 
@@ -391,12 +391,12 @@ async def test_search_users_returns_slim_paginated_envelope(client, acting_user)
         "avatar_url",
         "status",
         "profile_decorations",
-        "guild_role",
+        "community_role",
     }
     # Asserted as a value, not only as a key. The schema leaves it unset, so a
     # key-set check passes just as happily on an endpoint that never fills it
     # in -- which is the state this test was written against.
-    assert summary["guild_role"] == "member"
+    assert summary["community_role"] == "member"
     # Nobody set a name in this guild.
     assert summary["display_name"] is None
 
@@ -434,7 +434,9 @@ async def test_search_users_says_where_each_member_stands(client, acting_user):
     response = await client.get(admin.g("/users/search"), headers=admin.headers)
     assert response.status_code == 200, response.text
 
-    roles = {item["username"]: item["guild_role"] for item in response.json()["items"]}
+    roles = {
+        item["username"]: item["community_role"] for item in response.json()["items"]
+    }
     assert roles[admin.user.username] == "admin"
     assert roles[member.user.username] == "member"
 

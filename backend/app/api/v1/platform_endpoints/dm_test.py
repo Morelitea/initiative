@@ -38,7 +38,7 @@ async def test_settings_come_back_with_every_community_switched_on(
     assert response.status_code == 200, response.text
     body = response.json()
     assert body["dm_policy"] == "private"
-    assert [c["guild_id"] for c in body["communities"]] == [a.guild.id]
+    assert [c["community_id"] for c in body["communities"]] == [a.guild.id]
     assert body["communities"][0]["enabled"] is True
 
 

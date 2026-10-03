@@ -952,7 +952,7 @@ async def summaries_with_guild_role(
         summary = UserSummary.model_validate(user)
         role = roles.get(user.id)
         if role is not None:
-            summary.guild_role = role.value
+            summary.community_role = role.value
         summaries.append(summary)
     return summaries
 

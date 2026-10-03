@@ -77,7 +77,7 @@ async def test_support_requests_owner_approves_and_the_queue_masks_addresses(
     grant = requested.json()
     assert grant["status"] == "pending"
     assert grant["is_live"] is False
-    assert grant["guild_name"] == guild.name
+    assert grant["community_name"] == guild.name
     grant_id = grant["id"]
 
     # The owner sees it in the full queue (which requires access.approve).
@@ -409,8 +409,8 @@ async def test_grant_read_carries_guild_status(
 
     mine = await client.get(f"{GRANTS}?mine=true", headers=support.headers)
     assert mine.status_code == 200, mine.text
-    rows = [g for g in mine.json() if g["guild_id"] == host.guild.id]
-    assert rows and rows[0]["guild_status"] == "suspended"
+    rows = [g for g in mine.json() if g["community_id"] == host.guild.id]
+    assert rows and rows[0]["community_status"] == "suspended"
 
 
 @pytest.mark.parametrize(
@@ -437,7 +437,7 @@ async def test_the_queue_is_read_by_approvers_on_their_own_tier(
     assert queue.status_code == expected, queue.text
     if expected == 200:
         row = next(g for g in queue.json() if g["id"] == grant.id)
-        assert row["guild_name"] == host.guild.name
+        assert row["community_name"] == host.guild.name
         assert row["user_email"] is not None
 
 
@@ -454,7 +454,7 @@ async def test_a_grantee_reads_their_own_grant_and_not_somebody_elses(
     own = await client.get(GRANTS, headers=support.headers)
     assert own.status_code == 200, own.text
     row = next(g for g in own.json() if g["id"] == grant.id)
-    assert row["guild_name"] == host.guild.name
+    assert row["community_name"] == host.guild.name
 
     listed = await client.get(GRANTS, headers=other.headers)
     assert listed.status_code == 200, listed.text

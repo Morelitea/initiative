@@ -341,7 +341,7 @@ async def list_users(
     items = []
     for user, guild_role, oidc_provider_id, display_name in rows:
         member = UserCommunityMember.model_validate(user)
-        member.guild_role = guild_role.value
+        member.community_role = guild_role.value
         member.oidc_managed = oidc_provider_id is not None
         member.display_name = display_name
         member.initiative_roles = getattr(user, "initiative_roles", [])
@@ -409,7 +409,7 @@ async def _search_members_for_app(
 def _membership_standing(role: CommunityRole | None) -> dict[str, object]:
     """The membership field a picker row carries: the rung, which is both what
     a row shows and what a surface asks the ladder about."""
-    return {"guild_role": role.value if role is not None else None}
+    return {"community_role": role.value if role is not None else None}
 
 
 @guild_router.get("/search", response_model=UserSummaryListResponse)
