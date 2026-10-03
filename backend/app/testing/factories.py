@@ -1473,14 +1473,17 @@ async def create_dashboard(
     return dashboard
 
 
-def lexical_body(text: str) -> dict[str, Any]:
+def lexical_body(
+    text: str, *, mentioning: int | str | None = None, name: str = ""
+) -> dict[str, Any]:
     """The smallest valid Lexical editor state holding one paragraph.
 
     Spelled out here rather than in each test so a post body in a test is the
     same shape the editor actually saves — which is what the search extractor
-    and the excerpt walk both read.
+    and the excerpt walk both read. ``mentioning`` ends the paragraph with a
+    mention of that person, written as ``name``.
     """
-    return {
+    body = {
         "root": {
             "type": "root",
             "format": "",
@@ -1509,6 +1512,17 @@ def lexical_body(text: str) -> dict[str, Any]:
             ],
         }
     }
+    if mentioning is not None:
+        body["root"]["children"][0]["children"].append(
+            {
+                "type": "mention",
+                "mentionName": name,
+                "mentionUserId": mentioning,
+                "text": name,
+                "version": 1,
+            }
+        )
+    return body
 
 
 async def create_post(
