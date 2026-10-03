@@ -3230,6 +3230,8 @@ async def test_guild_backup_carries_the_community_itself(
     assert not any("@" in json.dumps(m) for m in members)
     # A name is exported only where one was set, never the handle in its place.
     assert [m["name"] for m in members if m["user_id"] == a.user.id] == [None]
+    # Whose personal API keys reach the community travels with each member.
+    assert {m["api_keys_allowed"] for m in members} == {True}
 
     manifest = json.loads(archive.read("manifest.json"))
     assert {s["key"] for s in manifest["guild_sections"]} >= {
