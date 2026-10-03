@@ -24,12 +24,12 @@ export const NavigatePage = () => {
   const { t } = useTranslation("nav");
   const { user, loading: authLoading } = useAuth();
   const { communities, activeCommunityId, switchCommunity } = useCommunities();
-  const searchParams = useSearch({ strict: false }) as { guild_id?: string; target?: string };
+  const searchParams = useSearch({ strict: false }) as { community_id?: string; target?: string };
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(true);
 
-  const communityParam = searchParams.guild_id;
+  const communityParam = searchParams.community_id;
   const targetParam = searchParams.target;
 
   const destination = useMemo(() => {

@@ -114,7 +114,7 @@ export const usePushNotifications = (): UsePushNotificationsReturn => {
               if (communityId) {
                 router.navigate({
                   to: "/navigate",
-                  search: { guild_id: communityId, target: targetPath },
+                  search: { community_id: communityId, target: targetPath },
                 });
               } else {
                 // Cross-community notifications (e.g. the overdue digest) name an
