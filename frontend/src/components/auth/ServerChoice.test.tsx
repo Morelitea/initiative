@@ -1,7 +1,7 @@
 /**
- * Where a sign-in goes, under every signed-out card. A browser, and a page a
- * link opened for one server, show the kind of server; signing in or up in
- * the app picks one and keeps the address it was given.
+ * Where a sign-in goes. A browser, and a page a link opened for one server,
+ * show the kind of server as a chip; signing in or up in the app picks one
+ * inside the card and keeps the address it was given.
  */
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -12,7 +12,7 @@ import { renderWithProviders } from "@/__tests__/helpers/render";
 import { getSelfHostedAddress, setSelfHostedAddress } from "@/lib/serverStorage";
 import { freshAnswers, readStartDraft, saveStartDraft } from "@/lib/startFlow";
 
-import { ServerChoice } from "./ServerChoice";
+import { ServerChip, ServerPicker } from "./ServerChoice";
 
 const mocks = vi.hoisted(() => ({ clearStart: vi.fn() }));
 
@@ -22,17 +22,21 @@ vi.mock("@/lib/startFlow", async (importOriginal) => {
   return { ...actual, clearStart: () => mocks.clearStart() };
 });
 
-describe("ServerChoice", () => {
-  it.each([
-    ["a browser, even where it signs in", false, true],
-    ["the app, where it does not sign in", true, false],
-  ])("shows %s its server without letting it change", (_, isNativePlatform, pick) => {
-    renderWithProviders(<ServerChoice pick={pick} />, { server: { isNativePlatform } });
+describe("ServerChip", () => {
+  it("shows the kind of server without letting it change", () => {
+    renderWithProviders(<ServerChip />);
 
-    const server = screen.getByRole("combobox", { name: /^server$/i });
-    expect(server).toBeDisabled();
-    expect(server).toHaveTextContent(/self-hosted/i);
+    expect(screen.getByText(/^self-hosted$/i)).toBeInTheDocument();
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  });
+});
+
+describe("ServerPicker", () => {
+  it("shows nothing in a browser, which is on its server already", () => {
+    renderWithProviders(<ServerPicker />, { server: { isNativePlatform: false } });
+
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
   });
 
   it("moves the app to another self-hosted server, signed out of the last", async () => {
@@ -42,7 +46,7 @@ describe("ServerChoice", () => {
     const logout = vi.fn();
     const setServerUrl = vi.fn();
     const testServerConnection = vi.fn().mockResolvedValue({ valid: true });
-    renderWithProviders(<ServerChoice pick />, {
+    renderWithProviders(<ServerPicker />, {
       auth: { user: buildUser(), logout },
       server: {
         isNativePlatform: true,
@@ -69,7 +73,7 @@ describe("ServerChoice", () => {
 
   it("says the app is connected to the address it shows", () => {
     setSelfHostedAddress("https://home.example.com");
-    renderWithProviders(<ServerChoice pick />, {
+    renderWithProviders(<ServerPicker />, {
       server: { isNativePlatform: true, serverUrl: "https://home.example.com/api/v1" },
     });
 
@@ -81,7 +85,7 @@ describe("ServerChoice", () => {
     mocks.clearStart.mockRejectedValueOnce(new Error("storage unavailable"));
     const logout = vi.fn();
     const setServerUrl = vi.fn();
-    renderWithProviders(<ServerChoice pick />, {
+    renderWithProviders(<ServerPicker />, {
       auth: { user: buildUser(), logout },
       server: {
         isNativePlatform: true,

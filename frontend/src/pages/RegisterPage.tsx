@@ -3,6 +3,7 @@ import { type FormEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { LegalNotice } from "@/components/auth/LegalNotice";
+import { ServerPicker } from "@/components/auth/ServerChoice";
 import { SignInFrame } from "@/components/auth/SignInFrame";
 import { RecoveryCodesPanel } from "@/components/settings/RecoveryCodesPanel";
 import { type HandleCheck, UsernameField } from "@/components/UsernameField";
@@ -230,6 +231,7 @@ export const RegisterPage = () => {
               {infoMessage ? <p className="text-primary text-sm">{infoMessage}</p> : null}
             </form>
           )}
+          {recoveryCodes ? null : <ServerPicker className="mt-6 border-t pt-4" />}
         </CardContent>
         <CardFooter className="text-muted-foreground text-sm">
           {t("register.haveAccount")}{" "}

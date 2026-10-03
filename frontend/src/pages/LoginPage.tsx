@@ -13,6 +13,7 @@ import type { LoginProviderEntry } from "@/api/generated/initiativeAPI.schemas";
 import { EmailOtpCard } from "@/components/auth/EmailOtpCard";
 import { PasskeyRelayCard } from "@/components/auth/PasskeyRelayCard";
 import { ProviderMark } from "@/components/auth/ProviderMark";
+import { ServerPicker } from "@/components/auth/ServerChoice";
 import { SignInFrame } from "@/components/auth/SignInFrame";
 import { Button } from "@/components/ui/button";
 import {
@@ -54,12 +55,24 @@ const FALLBACK_DEVICE_NAME = "Mobile Device";
 const flag = (value: unknown): string => String(value ?? "");
 
 export const LoginPage = () => {
+  const { t } = useTranslation("auth");
   const { isNativePlatform, isServerConfigured, serverUrl } = useServer();
 
   // The app needs a server before anything else can load, so until it has
-  // one the frame's server choice is all there is.
+  // one the server is all the card asks for.
   if (isNativePlatform && !isServerConfigured) {
-    return <SignInFrame pickServer />;
+    return (
+      <SignInFrame pickServer>
+        <Card className="w-full max-w-md shadow-lg">
+          <CardHeader>
+            <CardTitle>{t("server.title")}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ServerPicker />
+          </CardContent>
+        </Card>
+      </SignInFrame>
+    );
   }
   // Another server is another sign-in, so the card starts over.
   return <SignInCard key={serverUrl ?? "web"} />;
@@ -576,6 +589,7 @@ const SignInCard = () => {
               {error ? <p className="text-destructive text-sm">{error}</p> : null}
             </form>
           )}
+          <ServerPicker className="mt-6 border-t pt-4" />
         </CardContent>
         <CardFooter className="flex flex-col items-start gap-2 text-muted-foreground text-sm">
           {passwordLoginEnabled ? (

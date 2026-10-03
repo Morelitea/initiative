@@ -24,6 +24,7 @@ import { useBootstrapStatus } from "@/api/generated/auth/auth";
 import { getInviteStatus } from "@/api/generated/communities/communities";
 import type { CommunityInviteStatus, CommunityRead } from "@/api/generated/initiativeAPI.schemas";
 import { EmailOtpCard } from "@/components/auth/EmailOtpCard";
+import { ServerPicker } from "@/components/auth/ServerChoice";
 import { SignInFrame } from "@/components/auth/SignInFrame";
 import { useAgeConfirmation } from "@/components/auth/useAgeConfirmation";
 import { RecoveryCodesPanel } from "@/components/settings/RecoveryCodesPanel";
@@ -726,6 +727,7 @@ const StartSteps = ({
           ) : null}
           {footer}
         </WizardFrame>
+        {signedIn ? null : <ServerPicker className="border-t pt-4" />}
       </Card>
     </SignInFrame>
   );
