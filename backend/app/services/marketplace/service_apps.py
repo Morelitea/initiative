@@ -1427,6 +1427,56 @@ def _vendor_request(
     return cleaned
 
 
+def _request_or_steps(
+    raw: dict[str, Any],
+    cleaned: dict[str, Any],
+    *,
+    what: str,
+    auth_header: str,
+    connection_ids: set[str] | None,
+) -> set[str]:
+    """A declarative endpoint's or ``after_connect``'s one request, or its
+    steps, each reading only the steps before it, written onto ``cleaned``.
+    Answers the step names, which its map and predicates may read."""
+    request, steps_raw = raw.get("request"), raw.get("steps")
+    if (request is None) == (steps_raw is None):
+        fail(f"{what}: gives exactly one of 'request' and 'steps'")
+    names: set[str] = set()
+    if request is not None:
+        cleaned["request"] = _vendor_request(
+            request,
+            what=f"{what} request",
+            auth_header=auth_header,
+            connection_ids=connection_ids,
+            steps=names,
+        )
+        return names
+    rows = require_list(steps_raw, f"{what} steps", MAX_STEPS)
+    if not rows:
+        fail(f"{what} steps names at least one step")
+    steps: list[dict[str, Any]] = []
+    for index, entry in enumerate(rows):
+        step = require_mapping(entry, f"{what} steps.{index}")
+        name = check_identifier(step.get("name"), what=f"{what} steps.{index}.name")
+        if name in names:
+            fail(f"{what}: {name!r} names two steps")
+        steps.append(
+            {
+                "name": name,
+                "request": _vendor_request(
+                    step.get("request"),
+                    what=f"{what} steps.{index}.request",
+                    auth_header=auth_header,
+                    connection_ids=connection_ids,
+                    steps=set(names),
+                ),
+            }
+        )
+        names.add(name)
+    cleaned["steps"] = steps
+    return names
+
+
 def _status_match(raw: Any, *, what: str) -> int | str:
     """One HTTP status, or a range of a hundred (``"4xx"``)."""
     if raw in STATUS_RANGES:
@@ -1447,20 +1497,22 @@ def _after_connect(raw: Any, *, what: str, auth_header: str) -> bool | dict[str,
     if raw is None or isinstance(raw, bool):
         return raw is True
     after = require_mapping(raw, what)
-    cleaned: dict[str, Any] = {
-        "request": _vendor_request(
-            after.get("request"),
-            what=f"{what}.request",
-            auth_header=auth_header,
-            connection_ids=None,
-        ),
-        "map": _checked(after.get("map"), what=f"{what}.map"),
-    }
+    cleaned: dict[str, Any] = {}
+    names = _request_or_steps(
+        after,
+        cleaned,
+        what=what,
+        auth_header=auth_header,
+        connection_ids=None,
+    )
+    cleaned["map"] = _checked(after.get("map"), what=f"{what}.map", steps=names)
     refuse_when, code = after.get("refuse_when"), after.get("code")
     if (refuse_when is None) != (code is None):
         fail(f"{what}: a refusal gives both 'refuse_when' and the 'code' it answers")
     if refuse_when is not None:
-        cleaned["refuse_when"] = _checked(refuse_when, what=f"{what}.refuse_when")
+        cleaned["refuse_when"] = _checked(
+            refuse_when, what=f"{what}.refuse_when", steps=names
+        )
         cleaned["code"] = check_identifier(code, what=f"{what}.code")
     return cleaned
 
@@ -1508,44 +1560,13 @@ def _declarative_endpoint(
 ) -> None:
     """A declarative read or write: its request or steps, its map and its
     error rules, written onto ``cleaned``."""
-    request, steps_raw = endpoint.get("request"), endpoint.get("steps")
-    if (request is None) == (steps_raw is None):
-        fail(
-            f"{what}: a declarative endpoint gives exactly one of 'request' and 'steps'"
-        )
-    names: set[str] = set()
-    if request is not None:
-        cleaned["request"] = _vendor_request(
-            request,
-            what=f"{what} request",
-            auth_header=auth_header,
-            connection_ids=connection_ids,
-            steps=names,
-        )
-    else:
-        rows = require_list(steps_raw, f"{what} steps", MAX_STEPS)
-        if not rows:
-            fail(f"{what} steps names at least one step")
-        steps: list[dict[str, Any]] = []
-        for index, entry in enumerate(rows):
-            step = require_mapping(entry, f"{what} steps.{index}")
-            name = check_identifier(step.get("name"), what=f"{what} steps.{index}.name")
-            if name in names:
-                fail(f"{what}: {name!r} names two steps")
-            steps.append(
-                {
-                    "name": name,
-                    "request": _vendor_request(
-                        step.get("request"),
-                        what=f"{what} steps.{index}.request",
-                        auth_header=auth_header,
-                        connection_ids=connection_ids,
-                        steps=set(names),
-                    ),
-                }
-            )
-            names.add(name)
-        cleaned["steps"] = steps
+    names = _request_or_steps(
+        endpoint,
+        cleaned,
+        what=what,
+        auth_header=auth_header,
+        connection_ids=connection_ids,
+    )
     cleaned["map"] = _checked(endpoint.get("map"), what=f"{what} map", steps=names)
 
     known = {*cleaned.get("unavailable", []), *PLATFORM_CODES, TRANSIENT_CODE}
