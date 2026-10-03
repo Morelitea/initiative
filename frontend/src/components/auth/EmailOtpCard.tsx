@@ -21,8 +21,16 @@ import { apiClient } from "@/api/client";
 import type { EmailOtpRegister, Token } from "@/api/generated/initiativeAPI.schemas";
 import { CaptchaWidget } from "@/components/auth/CaptchaWidget";
 import { LegalNotice } from "@/components/auth/LegalNotice";
+import { ServerChip } from "@/components/auth/ServerChoice";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAppConfig } from "@/hooks/useAppConfig";
@@ -261,6 +269,9 @@ export const EmailOtpCard = ({ onCancel, onSignedIn, inviteCode, registration }:
           </form>
         ) : null}
       </CardContent>
+      <CardFooter>
+        <ServerChip />
+      </CardFooter>
     </Card>
   );
 };

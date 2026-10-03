@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { apiClient } from "@/api/client";
+import { ServerChip } from "@/components/auth/ServerChoice";
 import { SignInFrame } from "@/components/auth/SignInFrame";
 import { Button } from "@/components/ui/button";
 import {
@@ -65,6 +66,9 @@ export const VerifyEmailPage = () => {
               {t("verifyEmail.needToRegister")}
             </Link>
           )}
+        </CardFooter>
+        <CardFooter>
+          <ServerChip />
         </CardFooter>
       </Card>
     </SignInFrame>
