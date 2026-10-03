@@ -225,7 +225,6 @@ async def remove_password(
 
 
 @router.post("/password/recover", response_model=VerificationSendResponse)
-@limiter.limit("5/15minutes")
 async def recover_with_code(
     request: Request,
     session: SessionDep,

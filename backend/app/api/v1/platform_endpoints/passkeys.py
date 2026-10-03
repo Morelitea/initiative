@@ -413,7 +413,6 @@ async def remove_passkey(
 )
 # Every load of a sign-in page on a browser that offers a passkey in its
 # autofill spends one of these, so the ceiling is well above the button's.
-@limiter.limit("60/15minutes")
 async def begin_passkey_sign_in(
     request: Request,
     session: SessionDep,
@@ -442,7 +441,6 @@ async def begin_passkey_sign_in(
 
 
 @router.post("/passkeys/authenticate/finish", response_model=PasskeySignInResult)
-@limiter.limit("10/15minutes")
 async def finish_passkey_sign_in(
     request: Request,
     response: Response,

@@ -864,6 +864,9 @@ def _resolve_static_file(path: str) -> Path | None:
 
 
 @app.get("/{full_path:path}", include_in_schema=False)
+# The app's own files: read from disk and unchanged once built, and a first
+# visit asks for a hundred of them.
+@limiter.exempt
 async def serve_spa(full_path: str) -> FileResponse:
     if _is_reserved_path(full_path):
         raise HTTPException(status_code=404)

@@ -214,7 +214,6 @@ async def send_sign_in_code(
 
 
 @router.post("/email-otp/verify", response_model=Token)
-@limiter.limit("10/15minutes")
 async def verify_sign_in_code(
     request: Request,
     response: Response,
@@ -342,7 +341,6 @@ async def verify_sign_in_code(
     response_model=Token,
     status_code=status.HTTP_201_CREATED,
 )
-@limiter.limit("5/15minutes")
 async def register_with_code(
     request: Request,
     response: Response,

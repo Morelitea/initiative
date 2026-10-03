@@ -244,7 +244,6 @@ class RegisteredAccount:
 
 
 @router.post("/register", response_model=UserRead, status_code=status.HTTP_201_CREATED)
-@limiter.limit("5/15minutes")
 async def register_user(
     request: Request,
     user_in: UserCreate,
@@ -630,7 +629,6 @@ async def _passkey_sign_up_allowed(session: AsyncSession) -> None:
 
 
 @router.post("/register/passkey/begin", response_model=PasskeyRegistrationOptions)
-@limiter.limit("5/15minutes")
 async def begin_passkey_sign_up(
     request: Request,
     payload: PasskeySignUpStart,
@@ -677,7 +675,6 @@ async def begin_passkey_sign_up(
     response_model=PasskeySignUpResult,
     status_code=status.HTTP_201_CREATED,
 )
-@limiter.limit("5/15minutes")
 async def finish_passkey_sign_up(
     request: Request,
     response: Response,
@@ -927,7 +924,6 @@ async def answer_second_factor(
 
 
 @router.post("/refresh", response_model=Token)
-@limiter.limit("60/minute")
 async def refresh_access_token(
     request: Request,
     response: Response,
@@ -1021,7 +1017,6 @@ async def refresh_access_token(
 
 
 @router.get("/username-suggestions", response_model=UsernameSuggestionsResponse)
-@limiter.limit("30/minute")
 async def suggest_usernames(
     request: Request,
     session: SystemSessionDep,
@@ -1038,7 +1033,6 @@ async def suggest_usernames(
 
 
 @router.get("/username-available", response_model=UsernameAvailabilityResponse)
-@limiter.limit("60/minute")
 async def check_username_available(
     request: Request,
     session: SystemSessionDep,
@@ -1196,7 +1190,6 @@ async def issue_upload_token(
 
 
 @router.post("/native/token", response_model=Token)
-@limiter.limit("20/15minutes")
 async def redeem_native_sign_in(
     request: Request,
     system_session: SystemSessionDep,
@@ -1512,7 +1505,6 @@ async def list_guild_login_providers(
 
 
 @router.get("/{provider_slug}/login")
-@limiter.limit("20/minute")
 async def provider_login(
     request: Request,
     session: SessionDep,
@@ -1906,7 +1898,6 @@ async def _complete_provider_login(
 
 
 @router.get("/{provider_slug}/callback")
-@limiter.limit("20/minute")
 async def provider_callback(
     request: Request,
     session: SessionDep,
@@ -1925,7 +1916,6 @@ async def provider_callback(
 
 
 @router.post("/verification/confirm", response_model=VerificationSendResponse)
-@limiter.limit("5/15minutes")
 async def confirm_verification(
     request: Request,
     system_session: SystemSessionDep,
@@ -2070,7 +2060,6 @@ async def request_password_reset(
 
 
 @router.post("/password/reset", response_model=VerificationSendResponse)
-@limiter.limit("5/15minutes")
 async def reset_password(
     request: Request,
     payload: PasswordResetSubmit,

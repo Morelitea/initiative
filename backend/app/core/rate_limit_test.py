@@ -352,14 +352,15 @@ class TestDefaultLimitOnTheRealApp:
         assert (await client.get("/api/v1/version")).status_code == 200
         assert (await client.get("/api/v1/version")).status_code == 429
 
-    async def test_a_decorated_route_takes_its_own_limit_instead(self, client):
+    async def test_a_decorated_route_takes_its_own_limit_instead(self, client, session):
         """A route carrying ``@limiter.limit`` is left to its decorator rather
         than also counted against the default, so one set ABOVE the default is
-        not quietly held down to it. ``/auth/username-available`` asks for 60 a
+        not quietly held down to it. ``/auth/upload-token`` asks for 60 a
         minute, so under a 1-a-minute default it still answers a second time."""
-        path = "/api/v1/auth/username-available?username=someone"
-        assert (await client.get(path)).status_code == 200
-        assert (await client.get(path)).status_code == 200
+        headers = get_auth_headers(await create_user(session))
+        for _ in range(2):
+            response = await client.post("/api/v1/auth/upload-token", headers=headers)
+            assert response.status_code == 200, response.text
 
     async def test_accounts_behind_one_address_each_get_their_own_allowance(
         self, client, session
@@ -396,3 +397,7 @@ class TestDefaultLimitOnTheRealApp:
     async def test_an_exempt_route_takes_no_limit_at_all(self, client):
         assert (await client.get("/api/v1/healthz")).status_code == 200
         assert (await client.get("/api/v1/healthz")).status_code == 200
+
+    async def test_the_apps_own_files_take_no_limit(self, client):
+        for _ in range(2):
+            assert (await client.get("/assets/index.js")).status_code != 429
