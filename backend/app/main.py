@@ -340,7 +340,9 @@ class _DefaultRateLimit(SlowAPIMiddleware):
             # Nothing to read a marker off, so a mount is limited like any
             # undecorated route — by the URL it was asked for.
             handler = None
-        elif _should_exempt(request_limiter, endpoint):
+        elif _should_exempt(request_limiter, endpoint) or _is_app_file(
+            request, endpoint
+        ):
             return await call_next(request)
         else:
             handler = endpoint
@@ -863,10 +865,17 @@ def _resolve_static_file(path: str) -> Path | None:
     return None
 
 
+def _is_app_file(request: Request, endpoint: object) -> bool:
+    """Whether the request is for one of the app's own built files, which take
+    no limit: they are read from disk, unchanged once built, and a first visit
+    asks for over a hundred. A path that falls back to the index is counted."""
+    return (
+        endpoint is serve_spa
+        and _resolve_static_file(request.url.path.lstrip("/")) is not None
+    )
+
+
 @app.get("/{full_path:path}", include_in_schema=False)
-# The app's own files: read from disk and unchanged once built, and a first
-# visit asks for a hundred of them.
-@limiter.exempt
 async def serve_spa(full_path: str) -> FileResponse:
     if _is_reserved_path(full_path):
         raise HTTPException(status_code=404)

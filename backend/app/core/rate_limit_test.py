@@ -398,6 +398,18 @@ class TestDefaultLimitOnTheRealApp:
         assert (await client.get("/api/v1/healthz")).status_code == 200
         assert (await client.get("/api/v1/healthz")).status_code == 200
 
-    async def test_the_apps_own_files_take_no_limit(self, client):
+    async def test_the_apps_own_files_take_no_limit(
+        self, client, tmp_path, monkeypatch
+    ):
+        """A built file is served without counting; a path that falls back to
+        the index is counted like any other request."""
+        from app import main
+
+        (tmp_path / "assets").mkdir()
+        (tmp_path / "assets" / "index.js").write_text("")
+        monkeypatch.setattr(main, "static_path", tmp_path)
+        monkeypatch.setattr(main, "static_root", tmp_path.resolve())
         for _ in range(2):
-            assert (await client.get("/assets/index.js")).status_code != 429
+            assert (await client.get("/assets/index.js")).status_code == 200
+        assert (await client.get("/no-such-page")).status_code != 429
+        assert (await client.get("/no-such-page")).status_code == 429
