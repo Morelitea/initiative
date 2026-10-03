@@ -34,7 +34,11 @@ in a response carries a marker.
 
 A field marked :data:`UPLOAD_PATH` holds a stored file's path,
 ``/uploads/{guild_id}/{name}``, which names the community by its row id and is
-served to people. A person gets it; an install's response leaves it out.
+served to people. A person gets it; in an install's response it is ``""``, and
+an outside URL the field holds instead is as it is. Text
+marked :class:`Mentions` can show a stored file too, as an image or a link: in
+an install's response the address of each one this deployment serves is left
+empty (:data:`UPLOAD_PATH_SHAPE`).
 
 The boundary lives in a context variable that ``ActorRoute`` opens per request,
 so it never outlives the request that set it.
@@ -49,10 +53,11 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 from enum import Enum
+from functools import lru_cache
 from typing import Annotated, Any, Optional
+from urllib.parse import urlsplit
 
 from pydantic import (
-    Field,
     GetCoreSchemaHandler,
     GetJsonSchemaHandler,
     PlainSerializer,
@@ -62,6 +67,7 @@ from pydantic import (
 from pydantic.json_schema import JsonSchemaValue
 from pydantic_core import PydanticCustomError, core_schema
 
+from app.core.config import settings
 from app.core.messages import AppMessages
 from app.models.platform.identity_ref import IdentityEntity
 
@@ -77,6 +83,7 @@ __all__ = [
     "STORED_MENTION",
     "UNKNOWN_REFERENCE_ERROR",
     "UPLOAD_PATH",
+    "UPLOAD_PATH_SHAPE",
     "admit_install",
     "boundary_scope",
     "current_install_boundary",
@@ -314,14 +321,21 @@ def written_mention_refs(text: str) -> list[str]:
     return _WRITTEN_MENTION.findall(text)
 
 
-def _rewrite_nodes(value: Any, rewrite: Callable[[dict[str, Any]], Any]) -> Any:
+def _rewrite_nodes(
+    value: Any,
+    rewrite: Callable[[dict[str, Any]], Any],
+    text: Optional[Callable[[str], str]] = None,
+) -> Any:
     """``value`` copied, with every node that names a person in
-    ``mentionUserId`` passed through ``rewrite``."""
+    ``mentionUserId`` passed through ``rewrite``, and every string through
+    ``text`` when one is given."""
     if isinstance(value, list):
-        return [_rewrite_nodes(item, rewrite) for item in value]
+        return [_rewrite_nodes(item, rewrite, text) for item in value]
+    if isinstance(value, str) and text is not None:
+        return text(value)
     if not isinstance(value, dict):
         return value
-    walked = {key: _rewrite_nodes(child, rewrite) for key, child in value.items()}
+    walked = {key: _rewrite_nodes(child, rewrite, text) for key, child in value.items()}
     return walked if walked.get(_MENTION_ID) is None else rewrite(walked)
 
 
@@ -360,9 +374,13 @@ def _markdown_in(value: Any, boundary: InstallBoundary) -> Any:
 def _markdown_out(value: Any, boundary: InstallBoundary) -> Any:
     if not isinstance(value, str):
         return value
-    return STORED_MENTION.sub(
-        lambda match: f"@[]({boundary.mark(IdentityEntity.user, int(match.group(2)))})",
-        value,
+    return _without_paths(
+        STORED_MENTION.sub(
+            lambda match: (
+                f"@[]({boundary.mark(IdentityEntity.user, int(match.group(2)))})"
+            ),
+            value,
+        )
     )
 
 
@@ -380,7 +398,7 @@ def _lexical_out(value: Any, boundary: InstallBoundary) -> Any:
             return node
         return node | {_MENTION_ID: boundary.mark(IdentityEntity.user, user_id)}
 
-    return _rewrite_nodes(value, marked)
+    return _rewrite_nodes(value, marked, _without_paths)
 
 
 _TRANSLATIONS = {
@@ -395,8 +413,9 @@ class Mentions:
 
     A mention in the request is stored by row id with no name
     (:func:`without_mention_names`). For an install it names a reference, and
-    a mention in the response names the install's reference. The field's
-    schema carries ``x-mentions``, which the app API's document describes.
+    a mention in the response names the install's reference; a stored file the
+    value shows comes without its path. The field's schema carries
+    ``x-mentions``, which the app API's document describes.
     """
 
     form: MentionForm
@@ -444,15 +463,70 @@ LEXICAL_MENTIONS = Mentions(MentionForm.lexical)
 # --- Stored files ---------------------------------------------------------------
 
 
-def _upload_path_withheld(_path: Any) -> bool:
-    return responding_to_install()
+#: A stored file's path, ``/uploads/{guild_id}/{name}``, as a pattern.
+UPLOAD_PATH_SHAPE = r"/uploads/\d+/[\w.-]+"
+
+#: Characters an address goes on with: a path after one is part of it.
+_ADDRESS_CHARS = r"\w.~%+@:/?#=&-"
 
 
-#: Marks a field holding a stored file's path: ``Annotated[str, UPLOAD_PATH]``,
-#: or ``Annotated[Optional[str], UPLOAD_PATH]``. It marks the field itself, so
-#: it goes on the whole annotation, never inside an ``Optional``. A person gets
-#: the path; an install's response leaves the field out. Its schema carries
-#: ``x-upload``, and the app API's document leaves the field out too.
-UPLOAD_PATH = Field(
-    exclude_if=_upload_path_withheld, json_schema_extra={"x-upload": True}
-)
+@lru_cache(maxsize=4)
+def _stored_file_address(app_url: str) -> re.Pattern[str]:
+    """A stored file's address in text: its path on its own, or behind this
+    deployment's origin (``app_url``, with its path when it has one), with any
+    query and fragment, up to a space, a bracket or the end of the text."""
+    own = urlsplit(app_url.strip())
+    origin = rf"(?<![{_ADDRESS_CHARS}])"
+    if own.netloc:
+        prefix = re.escape(own.path.rstrip("/"))
+        origin = rf"(?:https?://(?i:{re.escape(own.netloc)})(?:{prefix})?|{origin})"
+    return re.compile(rf"{origin}{UPLOAD_PATH_SHAPE}(?:[?#][^\s()<>]*)?")
+
+
+def _without_paths(text: str) -> str:
+    """``text`` with each stored file's address emptied: ``![alt]()``,
+    ``[name]()``, a node's ``"src": ""``. An address on another site stays."""
+    return _stored_file_address(settings.APP_URL).sub("", text)
+
+
+@dataclass(frozen=True)
+class UploadPath:
+    """Marks a field holding a stored file's path, or an outside URL.
+
+    For a person the value passes through as it is. In an install's response a
+    stored file's path, the whole value, is ``""``; an outside URL is as it is,
+    and ``None`` stays ``None``. The field's schema carries ``x-upload``, which
+    the app API's document describes.
+    """
+
+    def __get_pydantic_core_schema__(
+        self, source: Any, handler: GetCoreSchemaHandler
+    ) -> core_schema.CoreSchema:
+        schema = handler(source).copy()
+        schema["serialization"] = core_schema.wrap_serializer_function_ser_schema(
+            self._serialize
+        )
+        return schema
+
+    def __get_pydantic_json_schema__(
+        self, schema: core_schema.CoreSchema, handler: GetJsonSchemaHandler
+    ) -> JsonSchemaValue:
+        json_schema = handler(schema)
+        json_schema["x-upload"] = True
+        return json_schema
+
+    def _serialize(
+        self, value: Any, handler: core_schema.SerializerFunctionWrapHandler
+    ) -> Any:
+        if (
+            isinstance(value, str)
+            and responding_to_install()
+            and _stored_file_address(settings.APP_URL).fullmatch(value)
+        ):
+            value = ""
+        return handler(value)
+
+
+#: The mark on a field holding a file's path: ``Annotated[str, UPLOAD_PATH]``,
+#: or ``Annotated[Optional[str], UPLOAD_PATH]``.
+UPLOAD_PATH = UploadPath()
