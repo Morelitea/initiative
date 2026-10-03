@@ -4,6 +4,7 @@ import { getAuthToken } from "@/api/client";
 import { invalidate, q } from "@/api/query-keys";
 import { useAuth } from "@/hooks/useAuth";
 import { refreshNotifications } from "@/hooks/useNotifications";
+import { type AlertFrame, receiveAlert } from "@/lib/desktopAlerts";
 import { openLiveSocket } from "@/lib/liveSocket";
 import { buildApiWsUrl } from "@/lib/wsUrl";
 
@@ -173,7 +174,7 @@ export const useNotificationStream = () => {
         }
       },
       onFrame: (payload) => {
-        const frame = payload as { resource?: string; action?: string };
+        const frame = payload as { resource?: string; action?: string } & AlertFrame;
         // Several channels over one socket. A frame carries nothing but which
         // one it is; what it means is a refetch, and the refetch is where
         // anything is actually decided.
@@ -186,6 +187,9 @@ export const useNotificationStream = () => {
           resync();
         } else if (frame.resource === "notification") {
           void refreshNotifications(frame.action);
+        } else if (frame.resource === "alert") {
+          // The desktop app's system notifications; nothing else reads them.
+          receiveAlert(frame);
         } else if (frame.resource === "account") {
           refreshAccount();
         } else if (frame.resource === "contacts") {

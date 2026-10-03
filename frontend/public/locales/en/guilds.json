@@ -240,6 +240,15 @@
     "logOut": "Log out"
   },
   "notifications": {
+    "desktop": {
+      "app": "Initiative",
+      "open": "Open Initiative",
+      "quit": "Quit Initiative",
+      "unread_one": "Initiative: {{count}} unread",
+      "unread_other": "Initiative: {{count}} unread",
+      "summary_one": "{{count}} notification waited for you",
+      "summary_other": "{{count}} notifications waited for you"
+    },
     "title": "Notifications",
     "markAllRead": "Mark all read",
     "loadingNotifications": "Loading notifications…",

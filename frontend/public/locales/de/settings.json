@@ -307,6 +307,14 @@
       "description": "Verhindert, dass sich der Bildschirm dieses Geräts verdunkelt oder sperrt, solange die App geöffnet ist. Diese Einstellung wird nur auf diesem Gerät gespeichert.",
       "unsupported": "Dein Browser unterstützt das Aktivhalten des Bildschirms nicht."
     },
+    "desktopKeepRunning": {
+      "label": "Weiterlaufen, wenn das Fenster geschlossen wird",
+      "description": "Bleibt im Infobereich, damit Benachrichtigungen weiter ankommen. Beenden über das Symbol im Infobereich. Nur auf diesem Computer gespeichert."
+    },
+    "desktopOpenAtLogin": {
+      "label": "Beim Start des Computers öffnen",
+      "description": "Startet Initiative, wenn du dich an diesem Computer anmeldest. Nur auf diesem Computer gespeichert."
+    },
     "desktopAutoUpdate": {
       "label": "App automatisch aktualisieren",
       "description": "Wenn dein Server eine neuere Desktop-App braucht, wird sie heruntergeladen und beim Neustart installiert. Nur auf diesem Computer gespeichert."

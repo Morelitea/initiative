@@ -307,6 +307,14 @@
       "description": "Prevent this device's screen from dimming or locking while the app is open. This setting is saved on this device only.",
       "unsupported": "Your browser does not support keeping the screen awake."
     },
+    "desktopKeepRunning": {
+      "label": "Keep running when the window closes",
+      "description": "Stay in the tray so notifications still arrive. Quit from the tray icon. Saved on this computer only."
+    },
+    "desktopOpenAtLogin": {
+      "label": "Open when the computer starts",
+      "description": "Start Initiative when you sign in to this computer. Saved on this computer only."
+    },
     "desktopAutoUpdate": {
       "label": "Update the app automatically",
       "description": "When your server needs a newer desktop app, download it and install it on restart. Saved on this computer only."

@@ -1,3 +1,4 @@
+export { Desktop } from "./desktop.mjs";
 export { DesktopUpdater } from "./desktopUpdater.mjs";
 export { CapacitorUpdater } from "./updater.mjs";
 

@@ -240,6 +240,15 @@
     "logOut": "Cerrar sesión"
   },
   "notifications": {
+    "desktop": {
+      "app": "Initiative",
+      "open": "Abrir Initiative",
+      "quit": "Salir de Initiative",
+      "unread_one": "Initiative: {{count}} sin leer",
+      "unread_other": "Initiative: {{count}} sin leer",
+      "summary_one": "{{count}} notificación te estaba esperando",
+      "summary_other": "{{count}} notificaciones te estaban esperando"
+    },
     "title": "Notificaciones",
     "markAllRead": "Marcar todo como leído",
     "loadingNotifications": "Cargando notificaciones…",

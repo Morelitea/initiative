@@ -307,6 +307,14 @@
       "description": "Evita que la pantalla de este dispositivo se atenúe o se bloquee mientras la aplicación está abierta. Esta preferencia se guarda solo en este dispositivo.",
       "unsupported": "Tu navegador no admite mantener la pantalla activa."
     },
+    "desktopKeepRunning": {
+      "label": "Seguir en marcha al cerrar la ventana",
+      "description": "Se queda en la bandeja para que las notificaciones sigan llegando. Sal desde el icono de la bandeja. Solo se guarda en este ordenador."
+    },
+    "desktopOpenAtLogin": {
+      "label": "Abrir al iniciar el ordenador",
+      "description": "Inicia Initiative cuando entras en este ordenador. Solo se guarda en este ordenador."
+    },
     "desktopAutoUpdate": {
       "label": "Actualizar la aplicación automáticamente",
       "description": "Cuando tu servidor necesite una aplicación de escritorio más reciente, se descarga y se instala al reiniciar. Solo se guarda en este ordenador."
