@@ -41,7 +41,9 @@ from app.services.tenant.collaboration import (
     CollaborationManager,
     collaboration_manager,
 )
+from app.services.tenant import collaboration as collaboration_module
 from app.services.tenant.collaborative_resources import resource_for
+from app.services.content_sockets import resource_room
 from app.models.platform.guild import CommunityRole
 from app.models.platform.user import UserRole
 from app.services import permissions as permissions_service
@@ -227,6 +229,86 @@ async def test_an_editor_body_with_no_state_has_it_made_once(
     assert saved.yjs_state is not None
     assert first.get_state() == second.get_state() == saved.yjs_state
     assert _words(await editor_engine.render(saved.yjs_state)) == "as it was saved"
+
+
+async def _a_process_editing(owner, doc_id: int, role_session):
+    """One process's manager and its room for a spreadsheet, as a second
+    replica of the server would hold it."""
+    routed = await role_session("app_user")
+    await route_as(routed, user_id=owner.user.id, guild_id=owner.guild.id)
+    manager = CollaborationManager()
+    room = await manager.get_or_create_room(
+        owner.guild.id, SearchEntityType.document.value, doc_id, routed
+    )
+    room.hold()  # somebody is in it
+    return manager, room
+
+
+async def _set_cell(room, cell: str, value: str) -> None:
+    workbook = await body_states.SPREADSHEET.render(room.get_state())
+    assert workbook is not None
+    workbook["sheets"][0]["cells"][cell] = value
+    room.apply_update(await body_states.SPREADSHEET.apply(room.get_state(), workbook))
+
+
+async def test_two_processes_saving_one_body_keep_each_others_edits(
+    session: AsyncSession, acting_user, role_session
+) -> None:
+    """Each save merges what the other saved before writing, so the row ends
+    up holding both processes' edits, not the last writer's."""
+    owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
+    doc = await create_document(
+        session, owner.initiative, owner.user, document_type=DocumentType.spreadsheet
+    )
+    one, room_one = await _a_process_editing(owner, doc.id, role_session)
+    two, room_two = await _a_process_editing(owner, doc.id, role_session)
+    await _set_cell(room_one, "0:0", "from one")
+    await _set_cell(room_two, "1:1", "from two")
+
+    await one.save(room_one)
+    await two.save(room_two)
+
+    saved = (
+        await session.exec(
+            select(Document)
+            .where(Document.id == doc.id)
+            .options(undefer(Document.content), undefer(Document.yjs_state))
+        )
+    ).one()
+    assert saved.content["sheets"][0]["cells"] == {"0:0": "from one", "1:1": "from two"}
+    rendered = await body_states.SPREADSHEET.render(saved.yjs_state or b"")
+    assert rendered == saved.content
+
+
+async def test_a_room_takes_what_another_process_saved_on_the_next_sweep(
+    session: AsyncSession, acting_user, role_session, monkeypatch
+) -> None:
+    """Editors on one replica see a save made on another within a sweep, and
+    the room has nothing of its own to write back for it."""
+    owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
+    doc = await create_document(
+        session, owner.initiative, owner.user, document_type=DocumentType.spreadsheet
+    )
+    here, watching = await _a_process_editing(owner, doc.id, role_session)
+    elsewhere, editing = await _a_process_editing(owner, doc.id, role_session)
+    sent: list[tuple] = []
+    monkeypatch.setattr(
+        collaboration_module.sockets,
+        "emit_bytes",
+        lambda key, data, exclude=None: sent.append((key, data)),
+    )
+    await _set_cell(editing, "2:2", "from elsewhere")
+    await elsewhere.save(editing)
+
+    await here.persist_dirty_rooms()
+
+    workbook = await body_states.SPREADSHEET.render(watching.get_state())
+    assert workbook is not None
+    assert workbook["sheets"][0]["cells"] == {"2:2": "from elsewhere"}
+    assert [key for key, _ in sent] == [
+        resource_room(owner.guild.id, SearchEntityType.document.value, doc.id)
+    ]
+    assert watching.is_dirty is False
 
 
 async def test_a_wiki_page_takes_a_handover_too(

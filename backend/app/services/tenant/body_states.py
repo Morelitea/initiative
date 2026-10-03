@@ -336,6 +336,14 @@ _BY_KIND: dict[str, BodyState] = {
 }
 
 
+def for_row(row: Any) -> Optional[BodyState]:
+    """How a stored row's body moves between its views: a document's by its
+    type, a wiki page's as prose."""
+    from app.models.tenant.document import Document
+
+    return for_kind(row.document_type) if isinstance(row, Document) else LEXICAL
+
+
 def for_kind(kind: Any) -> Optional[BodyState]:
     """How a body of ``kind`` — a document type, or ``"native"`` for any
     Lexical body — moves between its views; ``None`` for one with no live

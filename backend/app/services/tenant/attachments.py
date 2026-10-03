@@ -635,6 +635,8 @@ async def claim_uploads(
     from app.db.initiative_rls import INITIATIVE_PATHS
     from app.db.session import guild_context, install_context
     from app.models.tenant.upload import Upload
+    from app.services.tenant import body_states
+    from app.services.tenant.collaboration import written_into
     from app.services.tenant.collaborative_resources import YJS_STATE_COLUMN
 
     await session.flush()
@@ -736,10 +738,19 @@ async def claim_uploads(
             if value != getattr(row, column):
                 setattr(row, column, value)
                 flag_modified(row, column)
-                if YJS_STATE_COLUMN in type(row).__table__.c:
+                if column == "content" and YJS_STATE_COLUMN in type(row).__table__.c:
                     # The editor loads its stored state before the column, so
-                    # it starts again from the rewritten one.
-                    setattr(row, YJS_STATE_COLUMN, None)
+                    # the rewrite is written into it: a live session merges it
+                    # in, and the next one opens on it.
+                    await session.refresh(row, [YJS_STATE_COLUMN])
+                    body = body_states.for_row(row)
+                    setattr(
+                        row,
+                        YJS_STATE_COLUMN,
+                        await written_into(body, getattr(row, YJS_STATE_COLUMN), value)
+                        if body is not None
+                        else None,
+                    )
     await session.flush()
 
 

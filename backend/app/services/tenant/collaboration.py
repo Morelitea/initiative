@@ -24,6 +24,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, Optional, Tuple
 
 from pycrdt import Doc
+from sqlalchemy import func
 from sqlalchemy import update as sa_update
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlmodel import select
@@ -78,6 +79,10 @@ class CollaborationRoom:
         self._holds = 0
         #: Everyone who has changed the document in this room.
         self.writers: set[int] = set()
+        #: The digest of the stored state this room last read or wrote. A row
+        #: holding another one was written since — by a room in another
+        #: process, or a write outside any room — and that is merged in.
+        self.stored_digest: Optional[str] = None
         # A room dropped from the registry. Nothing should reach one — the
         # registry only drops rooms with no connections — but a write that does
         # would go nowhere, so it says so instead of swallowing it.
@@ -158,6 +163,7 @@ class CollaborationRoom:
                     state = await _bootstrapped(
                         self.guild_id, self.resource_type, self.resource_id, self.body
                     )
+                self.stored_digest = _digest(state)
                 await self.initialize_from_db(yjs_state=state)
             self._loaded = True
 
@@ -258,6 +264,16 @@ class CollaborationRoom:
                 self.guild_id, self.resource_type, self.resource_id
             )
 
+    def take_stored(self, stored: bytes) -> None:
+        """Merge a stored state written since this room read it, and hand
+        what it adds to everyone here."""
+        before = self.doc.get_state()
+        self.apply_update(stored)
+        sockets.emit_bytes(
+            resource_room(self.guild_id, self.resource_type, self.resource_id),
+            bytes([MSG_UPDATE]) + bytes(self.doc.get_update(before)),
+        )
+
     def snapshot(self) -> Tuple[int, bytes]:
         """The revision being written, and the state it is."""
         return self._revision, self.get_state()
@@ -270,6 +286,11 @@ class CollaborationRoom:
         """
         if revision > self._persisted_revision:
             self._persisted_revision = revision
+
+
+def _digest(state: Optional[bytes]) -> Optional[str]:
+    """A stored state's digest, as Postgres's ``md5`` gives it."""
+    return hashlib.md5(state, usedforsecurity=False).hexdigest() if state else None
 
 
 def _merged(state: bytes, update: bytes) -> bytes:
@@ -532,7 +553,13 @@ class CollaborationManager:
         await self.remove_room(guild_id, resource_type, resource_id)
 
     async def _write_room(self, room: CollaborationRoom, session: AsyncSession) -> None:
-        """Write both views of one room in a single statement.
+        """Bring one room and its row together: merge into the room what was
+        stored since it last looked, then write both views of it in a single
+        statement if it has edits of its own.
+
+        Several processes can each hold a room for one body. Each merges what
+        the others saved before writing, under the row's lock, so a save keeps
+        every process's edits rather than the last one's.
 
         ``content`` is the server's rendering of the state. A state that
         renders no body leaves the column as it stands rather than blanking
@@ -545,6 +572,34 @@ class CollaborationManager:
         self, room: CollaborationRoom, session: AsyncSession
     ) -> None:
         spec = resource_for(room.resource_type)
+        state_column = getattr(spec.model, YJS_STATE_COLUMN)
+        this_row = spec.model.id == room.resource_id
+        # Where the room stood before this save waits on the database: an edit
+        # arriving meanwhile is the room's own, and is written.
+        before = room.snapshot()[0]
+        own_edits = room.is_dirty
+        stored = (
+            await session.exec(
+                select(spec.model.id, func.md5(state_column))
+                .where(this_row)
+                .with_for_update()
+            )
+        ).one_or_none()
+        digest = stored[1] if stored is not None else None
+        newer = None
+        if digest is not None and digest != room.stored_digest:
+            newer = (await session.exec(select(state_column).where(this_row))).one()
+        own_edits = own_edits or room.snapshot()[0] != before
+        if newer is not None:
+            room.take_stored(newer)
+            room.stored_digest = digest
+        if not own_edits and not (stored is not None and digest is None):
+            # Everything the room holds is stored. A row whose state was
+            # cleared is written again: the room's is the document its editors
+            # hold.
+            room.mark_persisted(room.snapshot()[0])
+            await session.commit()
+            return
         revision, state = room.snapshot()
         content = await room.body.render(state) if room.body is not None else None
         now = datetime.now(timezone.utc)
@@ -591,6 +646,7 @@ class CollaborationManager:
             await session.commit()
             if result.rowcount:
                 room.mark_persisted(revision)
+                room.stored_digest = _digest(state)
                 logger.debug(
                     f"Persisted Yjs state for {room.resource_type} {room.resource_id}"
                 )
@@ -611,16 +667,22 @@ class CollaborationManager:
             await session.rollback()
 
     async def persist_dirty_rooms(self) -> int:
-        """Write every room that has changed since it was last written, then
-        retire the ones nobody is in.
+        """Write every room that has changed since it was last written, bring
+        every room somebody is in up to date with what is stored, then retire
+        the ones nobody is in.
 
-        Returns how many were written. A room nobody has touched costs nothing
-        to keep open, and one nobody is in any more — its last save failed, or
-        the connection that left could not finish — is retired here once it is
-        saved, rather than held for the life of the process.
+        Returns how many rooms it saved or brought up to date. A room somebody
+        is in takes what another process saved within one sweep. One nobody is
+        in any more — its last save failed, or the connection that left could
+        not finish — is retired here once it is saved, rather than held for the
+        life of the process.
         """
         async with self._lock:
-            targets = [room for room in self._rooms.values() if room.is_dirty]
+            targets = [
+                room
+                for room in self._rooms.values()
+                if room.is_dirty or not room.is_empty()
+            ]
         for room in targets:
             try:
                 await self.save(room)
