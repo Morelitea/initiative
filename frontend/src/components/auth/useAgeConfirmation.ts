@@ -34,7 +34,7 @@ export const useAgeConfirmation = (onConfirmed?: () => void) => {
     setSubmitting(true);
     setError(null);
     try {
-      await apiClient.post("/users/me/age-confirmation", { birthdate });
+      await apiClient.post("/me/age-confirmation", { birthdate });
       await refreshUser();
       // The answer is a gate rather than a preference: who may reach this
       // account, who it may reach, and whether it has a messaging policy at

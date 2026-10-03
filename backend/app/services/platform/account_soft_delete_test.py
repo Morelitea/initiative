@@ -34,7 +34,7 @@ PASSWORD = "testpassword123"
 
 async def _delete_own_account(client: AsyncClient, user: User) -> None:
     response = await client.post(
-        "/api/v1/users/me/delete-account",
+        "/api/v1/me/delete-account",
         headers=get_auth_headers(user),
         json={
             "action": "soft_delete",
@@ -408,7 +408,7 @@ async def test_deactivating_still_drops_memberships(
     await create_guild_membership(session, user=user, guild=guild)
 
     response = await client.post(
-        "/api/v1/users/me/delete-account",
+        "/api/v1/me/delete-account",
         headers=get_auth_headers(user),
         json={
             "action": "deactivate",

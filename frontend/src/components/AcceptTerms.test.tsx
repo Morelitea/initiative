@@ -63,7 +63,7 @@ describe("AcceptTerms", () => {
 
     await userEvent.click(screen.getByRole("button", { name: /i agree/i }));
 
-    await waitFor(() => expect(post).toHaveBeenCalledWith("/users/me/legal-acceptance"));
+    await waitFor(() => expect(post).toHaveBeenCalledWith("/me/legal-acceptance"));
     // The screen is drawn from the account's own record, so it only goes away
     // once the account has been read again.
     expect(refreshUser).toHaveBeenCalled();

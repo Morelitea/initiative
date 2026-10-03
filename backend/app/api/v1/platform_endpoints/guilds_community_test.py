@@ -927,7 +927,7 @@ async def test_the_age_a_birthdate_states_is_what_the_answer_turns_on(
     birthdate = make_birthdate()
 
     response = await client.post(
-        "/api/v1/users/me/age-confirmation",
+        "/api/v1/me/age-confirmation",
         json={"birthdate": birthdate},
         headers=a.headers,
     )
@@ -970,7 +970,7 @@ async def test_join_refuses_an_account_that_has_not_confirmed_its_age(
     guild = await _a_listed_guild(session, name="Open Table")
     if prior_answer == "answered under age":
         await client.post(
-            "/api/v1/users/me/age-confirmation",
+            "/api/v1/me/age-confirmation",
             json={"birthdate": _birthdate_for_age(9)},
             headers=a.headers,
         )
@@ -997,7 +997,7 @@ async def test_confirming_age_lets_the_same_account_join(
     assert refused.status_code == 403
 
     confirmed = await client.post(
-        "/api/v1/users/me/age-confirmation",
+        "/api/v1/me/age-confirmation",
         json={"birthdate": ADULT_BIRTHDATE},
         headers=a.headers,
     )
@@ -1056,7 +1056,7 @@ async def test_belonging_somewhere_never_holds_an_unanswered_account_up(
         guild_role=GuildRole.member, guild=guild, age_confirmed_at=None
     )
 
-    response = await client.get("/api/v1/users/me", headers=a.headers)
+    response = await client.get("/api/v1/me", headers=a.headers)
 
     assert response.status_code == 200
     assert response.json()["age_confirmed_at"] is None
@@ -1079,7 +1079,7 @@ async def test_an_account_that_answered_under_age_keeps_its_communities(
         guild_role=GuildRole.member, guild=invited, age_confirmed_at=None
     )
     await client.post(
-        "/api/v1/users/me/age-confirmation",
+        "/api/v1/me/age-confirmation",
         json={"birthdate": _birthdate_for_age(9)},
         headers=a.headers,
     )
@@ -1148,7 +1148,7 @@ async def test_an_answered_under_age_account_cannot_be_put_in_a_listed_guild(
     """
     a = await acting_user("member", age_confirmed_at=None)
     await client.post(
-        "/api/v1/users/me/age-confirmation",
+        "/api/v1/me/age-confirmation",
         json={"birthdate": _birthdate_for_age(9)},
         headers=a.headers,
     )
@@ -1171,7 +1171,7 @@ async def test_a_guild_holding_an_under_age_member_cannot_be_listed(
         guild_role=GuildRole.member, guild=guild, age_confirmed_at=None
     )
     await client.post(
-        "/api/v1/users/me/age-confirmation",
+        "/api/v1/me/age-confirmation",
         json={"birthdate": _birthdate_for_age(9)},
         headers=member.headers,
     )
@@ -1233,7 +1233,7 @@ async def test_an_already_listed_guild_is_not_re_checked_on_an_unrelated_edit(
         guild_role=GuildRole.member, guild=guild, age_confirmed_at=None
     )
     await client.post(
-        "/api/v1/users/me/age-confirmation",
+        "/api/v1/me/age-confirmation",
         json={"birthdate": _birthdate_for_age(9)},
         headers=member.headers,
     )
@@ -1296,7 +1296,7 @@ async def test_a_listed_community_asks_its_own_members_before_letting_them_in(
     )
     if answer != "unanswered":
         await client.post(
-            "/api/v1/users/me/age-confirmation",
+            "/api/v1/me/age-confirmation",
             json={
                 "birthdate": (
                     ADULT_BIRTHDATE if answer == "confirmed" else _birthdate_for_age(9)
@@ -1345,12 +1345,12 @@ async def test_confirming_twice_keeps_the_first_answer(
     a = await acting_user("member", age_confirmed_at=None)
 
     first = await client.post(
-        "/api/v1/users/me/age-confirmation",
+        "/api/v1/me/age-confirmation",
         json={"birthdate": ADULT_BIRTHDATE},
         headers=a.headers,
     )
     second = await client.post(
-        "/api/v1/users/me/age-confirmation",
+        "/api/v1/me/age-confirmation",
         json={"birthdate": ADULT_BIRTHDATE},
         headers=a.headers,
     )
@@ -1367,12 +1367,12 @@ async def test_the_answer_stands_against_a_second_try(
     a = await acting_user("member", age_confirmed_at=None)
 
     await client.post(
-        "/api/v1/users/me/age-confirmation",
+        "/api/v1/me/age-confirmation",
         json={"birthdate": _birthdate_for_age(9)},
         headers=a.headers,
     )
     second = await client.post(
-        "/api/v1/users/me/age-confirmation",
+        "/api/v1/me/age-confirmation",
         json={"birthdate": ADULT_BIRTHDATE},
         headers=a.headers,
     )
@@ -1407,7 +1407,7 @@ async def test_the_date_is_not_kept_anywhere(
     birthdate = _birthdate_for_age(years)
 
     response = await client.post(
-        "/api/v1/users/me/age-confirmation",
+        "/api/v1/me/age-confirmation",
         json={"birthdate": birthdate},
         headers=a.headers,
     )
@@ -1449,7 +1449,7 @@ async def test_lifting_an_age_block_is_a_platform_capability(
     """The way back from a mistyped year, and who holds it."""
     subject = await acting_user("member", age_confirmed_at=None)
     await client.post(
-        "/api/v1/users/me/age-confirmation",
+        "/api/v1/me/age-confirmation",
         json={"birthdate": _birthdate_for_age(9)},
         headers=subject.headers,
     )
@@ -1467,7 +1467,7 @@ async def test_lifting_an_age_block_is_a_platform_capability(
 
     # And the question is answerable again, from scratch.
     retry = await client.post(
-        "/api/v1/users/me/age-confirmation",
+        "/api/v1/me/age-confirmation",
         json={"birthdate": ADULT_BIRTHDATE},
         headers=subject.headers,
     )

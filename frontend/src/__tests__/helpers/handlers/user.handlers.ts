@@ -3,7 +3,7 @@ import { HttpResponse, http } from "msw";
 import { buildUser } from "@/__tests__/factories";
 
 export const userHandlers = [
-  http.get("/api/v1/users/me", () => {
+  http.get("/api/v1/me", () => {
     return HttpResponse.json(buildUser());
   }),
   // View preference writes are debounced, and flushed again on unmount — which

@@ -48,7 +48,7 @@ describe("confirming an age", () => {
     await waitFor(() => expect(result.current.birthdate).toBe("1990-01-01"));
     await result.current.confirm();
 
-    expect(post).toHaveBeenCalledWith("/users/me/age-confirmation", {
+    expect(post).toHaveBeenCalledWith("/me/age-confirmation", {
       birthdate: "1990-01-01",
     });
     expect(refreshUser).toHaveBeenCalled();

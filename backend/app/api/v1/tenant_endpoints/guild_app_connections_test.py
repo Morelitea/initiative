@@ -1249,7 +1249,7 @@ class TestAccountDeletionSweep:
         )
 
         response = await client.post(
-            "/api/v1/users/me/delete-account",
+            "/api/v1/me/delete-account",
             headers=member.headers,
             json={
                 "password": "testpassword123",

@@ -52,7 +52,7 @@ async def test_a_key_does_not_register_a_device(
     """A device is registered in the person's own sign-in."""
     user = await create_user(session)
     create = await client.post(
-        "/api/v1/users/me/api-keys",
+        "/api/v1/me/api-keys",
         headers=get_auth_headers(user),
         json={"name": "Pinned"},
     )

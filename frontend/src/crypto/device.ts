@@ -12,7 +12,7 @@ import {
   topUpKeysApiV1MeDmOneTimeKeysPost as topUpKeys,
 } from "@/api/generated/direct-messages/direct-messages";
 import type { DmConversationRead, DmDeviceRead } from "@/api/generated/initiativeAPI.schemas";
-import { readUsersMeApiV1UsersMeGet as readMe } from "@/api/generated/users/users";
+import { readMeApiV1MeGet as readMe } from "@/api/generated/users/users";
 
 import { ratchet, stopRatchet } from "./client";
 import { withAccount } from "./sessions";

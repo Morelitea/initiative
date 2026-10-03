@@ -1482,7 +1482,7 @@ export interface BodyUploadListingPictureApiV1MarketplaceLocalMediaPost {
   file: Blob;
 }
 
-export interface BodyUploadMyAvatarApiV1UsersMeAvatarPut {
+export interface BodyUploadMyAvatarApiV1MeAvatarPut {
   file: Blob;
 }
 
@@ -6451,7 +6451,7 @@ export interface UserInitiativeRole {
  * somebody has quoted at you, which is what the column is read for.
  *
  * Masking lives on the shape rather than in each operator route: subclassing
- * keeps ``/users/me`` — where the reader is the address's owner — on plain
+ * keeps ``/me`` — where the reader is the address's owner — on plain
  * ``UserRead``, while every operator route that returns an account gets the
  * masked form without opting in.
  */
@@ -11514,19 +11514,6 @@ export type ListMyTrashApiV1MeTrashGetParams = {
   page_size?: number;
 };
 
-export type GetUserStatsApiV1MeStatsGetParams = {
-  /**
-   * Optional guild ID to filter stats
-   */
-  guild_id?: number | null;
-  /**
-   * Number of days to analyze
-   * @minimum 1
-   * @maximum 365
-   */
-  days?: number;
-};
-
 export type ListContactSectionsApiV1MeContactsGetParams = {
   /**
    * Narrows every section. Matches the handle, plus the real name in a guild that shows names; type a whole handle (`foobar#1234`) to pin one person.
@@ -11569,4 +11556,17 @@ export type CollectQueueApiV1MeDmQueueGetParams = {
 
 export type CollectVerificationApiV1MeDmVerificationGetParams = {
   device_id: string;
+};
+
+export type GetUserStatsApiV1MeStatsGetParams = {
+  /**
+   * Optional guild ID to filter stats
+   */
+  guild_id?: number | null;
+  /**
+   * Number of days to analyze
+   * @minimum 1
+   * @maximum 365
+   */
+  days?: number;
 };

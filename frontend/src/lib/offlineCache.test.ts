@@ -25,7 +25,7 @@ describe("guildIdOfPath", () => {
   });
 
   it("is null for a platform path", () => {
-    expect(guildIdOfPath("/api/v1/users/me")).toBeNull();
+    expect(guildIdOfPath("/api/v1/me")).toBeNull();
   });
 
   it("does not match a guild-looking segment further along the path", () => {
@@ -42,7 +42,7 @@ describe("isPersistablePath", () => {
 
   it("keeps the cross-guild reads the home screens are built from", () => {
     expect(isPersistablePath("/api/v1/me/tasks")).toBe(true);
-    expect(isPersistablePath("/api/v1/users/me")).toBe(true);
+    expect(isPersistablePath("/api/v1/me")).toBe(true);
     expect(isPersistablePath("/api/v1/communities")).toBe(true);
   });
 
@@ -131,7 +131,7 @@ describe("shardOfQueryKey", () => {
   });
 
   it("files everything else under the platform shard", () => {
-    expect(shardOfQueryKey(["/api/v1/users/me"])).toBe("platform");
+    expect(shardOfQueryKey(["/api/v1/me"])).toBe("platform");
     expect(shardOfQueryKey(["/api/v1/me/tasks", { page: 1 }])).toBe("platform");
     expect(shardOfQueryKey([{ scope: "guild-app" }])).toBe("platform");
   });

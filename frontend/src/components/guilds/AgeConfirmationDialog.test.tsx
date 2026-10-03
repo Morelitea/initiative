@@ -93,7 +93,7 @@ describe("AgeConfirmationDialog", () => {
     await userEvent.click(screen.getByRole("button", { name: "Confirm and join" }));
 
     await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
-    expect(post).toHaveBeenCalledWith("/users/me/age-confirmation", {
+    expect(post).toHaveBeenCalledWith("/me/age-confirmation", {
       birthdate: "1990-05-04",
     });
   });
