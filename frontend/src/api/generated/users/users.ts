@@ -4258,6 +4258,210 @@ export const useDeleteUserApiV1CGuildIdUsersUserIdDelete = <
   );
 };
 /**
+ * Serve the picture a member of this community uploaded.
+ *
+ * Where an installed app's ``avatar_url`` for a person points: the person is
+ * named by the app's reference for them. The same bytes and caching as the
+ * profile picture route, and a 404 for a digest that is not the member's
+ * current picture, or for somebody who is not a member here.
+ * @summary Read Member Avatar
+ */
+export const readMemberAvatarApiV1CGuildIdMembersPersonAvatarDigestGet = (
+  guildId: number,
+  person: number,
+  digest: string,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<Blob>(
+    {
+      url: `/api/v1/c/${guildId}/members/${person}/avatar/${digest}`,
+      method: "GET",
+      responseType: "blob",
+      signal,
+    },
+    options
+  );
+};
+
+export const getReadMemberAvatarApiV1CGuildIdMembersPersonAvatarDigestGetQueryKey = (
+  guildId: number,
+  person: number,
+  digest: string
+) => {
+  return [`/api/v1/c/${guildId}/members/${person}/avatar/${digest}`] as const;
+};
+
+export const getReadMemberAvatarApiV1CGuildIdMembersPersonAvatarDigestGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof readMemberAvatarApiV1CGuildIdMembersPersonAvatarDigestGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  person: number,
+  digest: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readMemberAvatarApiV1CGuildIdMembersPersonAvatarDigestGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getReadMemberAvatarApiV1CGuildIdMembersPersonAvatarDigestGetQueryKey(guildId, person, digest);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof readMemberAvatarApiV1CGuildIdMembersPersonAvatarDigestGet>>
+  > = ({ signal }) =>
+    readMemberAvatarApiV1CGuildIdMembersPersonAvatarDigestGet(
+      guildId,
+      person,
+      digest,
+      requestOptions,
+      signal
+    );
+
+  return {
+    queryKey,
+    queryFn,
+    enabled:
+      guildId !== null &&
+      guildId !== undefined &&
+      person !== null &&
+      person !== undefined &&
+      digest !== null &&
+      digest !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof readMemberAvatarApiV1CGuildIdMembersPersonAvatarDigestGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ReadMemberAvatarApiV1CGuildIdMembersPersonAvatarDigestGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof readMemberAvatarApiV1CGuildIdMembersPersonAvatarDigestGet>>
+>;
+export type ReadMemberAvatarApiV1CGuildIdMembersPersonAvatarDigestGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useReadMemberAvatarApiV1CGuildIdMembersPersonAvatarDigestGet<
+  TData = Awaited<ReturnType<typeof readMemberAvatarApiV1CGuildIdMembersPersonAvatarDigestGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  person: number,
+  digest: string,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readMemberAvatarApiV1CGuildIdMembersPersonAvatarDigestGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof readMemberAvatarApiV1CGuildIdMembersPersonAvatarDigestGet>>,
+          TError,
+          Awaited<ReturnType<typeof readMemberAvatarApiV1CGuildIdMembersPersonAvatarDigestGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadMemberAvatarApiV1CGuildIdMembersPersonAvatarDigestGet<
+  TData = Awaited<ReturnType<typeof readMemberAvatarApiV1CGuildIdMembersPersonAvatarDigestGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  person: number,
+  digest: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readMemberAvatarApiV1CGuildIdMembersPersonAvatarDigestGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof readMemberAvatarApiV1CGuildIdMembersPersonAvatarDigestGet>>,
+          TError,
+          Awaited<ReturnType<typeof readMemberAvatarApiV1CGuildIdMembersPersonAvatarDigestGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadMemberAvatarApiV1CGuildIdMembersPersonAvatarDigestGet<
+  TData = Awaited<ReturnType<typeof readMemberAvatarApiV1CGuildIdMembersPersonAvatarDigestGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  person: number,
+  digest: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readMemberAvatarApiV1CGuildIdMembersPersonAvatarDigestGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Read Member Avatar
+ */
+
+export function useReadMemberAvatarApiV1CGuildIdMembersPersonAvatarDigestGet<
+  TData = Awaited<ReturnType<typeof readMemberAvatarApiV1CGuildIdMembersPersonAvatarDigestGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  person: number,
+  digest: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readMemberAvatarApiV1CGuildIdMembersPersonAvatarDigestGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getReadMemberAvatarApiV1CGuildIdMembersPersonAvatarDigestGetQueryOptions(
+    guildId,
+    person,
+    digest,
+    options
+  );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
  * Get comprehensive statistics for the current user.
  * @summary Get User Stats
  */

@@ -125,7 +125,8 @@ async def _translate(boundary: InstallBoundary, response: Response) -> Response:
             raise RuntimeError("a reference the response names was not resolved")
         return ref.encode()
 
-    # A marker is a whole value, or sits inside text that mentions somebody.
+    # A marker is a whole value, or sits inside text: a mention, or the path to
+    # a person's picture.
     marker = re.compile(re.escape(boundary.nonce.encode()) + rb":([a-z]):(\d+)")
     translated = marker.sub(substitute, bytes(body))
     response.body = translated
