@@ -75,7 +75,7 @@ describe("the billing forwarder", () => {
     expect(await screen.findByText("Opening the billing portal…")).toBeInTheDocument();
     await waitFor(() =>
       expect(replace).toHaveBeenCalledWith(
-        "https://billing.example/upgrade?guild=7&lang=en#handoff=tok%2F1"
+        "https://billing.example/upgrade?community=7&lang=en#handoff=tok%2F1"
       )
     );
     expect(minted).toHaveBeenCalledTimes(1);

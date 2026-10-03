@@ -17,7 +17,7 @@ const mint = vi.fn();
 
 vi.mock("@/api/generated/apps/apps", () => ({
   createCommunityAppHandoff: (_guildId: number, _appId: number, surfaceId: string) =>
-    mint(surfaceId, { scope: "guild" }),
+    mint(surfaceId, { scope: "community" }),
   createInitiativeAppHandoff: (
     _guildId: number,
     initiativeId: number,

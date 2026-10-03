@@ -1154,11 +1154,11 @@ async def test_guild_billing_handoff_succeeds_for_admin(
     payload = jwt.decode(body["handoff_token"], options={"verify_signature": False})
     assert payload["aud"] == BILLING_PORTAL_AUDIENCE
     assert payload["iss"] == "initiative"
-    assert payload["guild_role"] == "admin"
+    assert payload["community_role"] == "admin"
     # The pair is named by reference and by nothing else, `sub` included.
     assert payload["sub"] == payload["user_ref"]
     assert payload["user_ref"].startswith("ubil_")
-    assert payload["guild_ref"].startswith("gbil_")
+    assert payload["community_ref"].startswith("gbil_")
     assert "guild_id" not in payload
 
 

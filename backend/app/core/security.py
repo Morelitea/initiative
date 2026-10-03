@@ -489,29 +489,12 @@ BILLING_PORTAL_AUDIENCE = "initiative:billing-portal"
 # disagree.
 BILLING_PORTAL_HANDOFF_LIFETIME = timedelta(seconds=60)
 
-BILLING_HANDOFF_GUILD_NAME_MAX = 120
-
-
-def _handoff_display_name(guild_name: str | None) -> str | None:
-    """The community name as a handoff carries it, or ``None`` for no name.
-
-    Trimmed and truncated. This is a label to print, so shortening one is a
-    cosmetic loss; letting it through unbounded is a broken session.
-    """
-    trimmed = (guild_name or "").strip()
-    if not trimmed:
-        return None
-    if len(trimmed) <= BILLING_HANDOFF_GUILD_NAME_MAX:
-        return trimmed
-    return trimmed[: BILLING_HANDOFF_GUILD_NAME_MAX - 1].rstrip() + "…"
-
 
 def create_billing_portal_handoff_token(
     *,
     guild_role: str,
     user_ref: str,
     guild_ref: str,
-    guild_name: str | None = None,
     expires_in: timedelta = BILLING_PORTAL_HANDOFF_LIFETIME,
 ) -> tuple[str, int]:
     """Mint the billing-portal handoff token (RS256; raises if unconfigured).
@@ -530,13 +513,10 @@ def create_billing_portal_handoff_token(
         "iss": "initiative",
         "iat": int(now.timestamp()),
         "exp": now + expires_in,
-        "guild_role": guild_role,
+        "community_role": guild_role,
         "user_ref": user_ref,
-        "guild_ref": guild_ref,
+        "community_ref": guild_ref,
     }
-    display_name = _handoff_display_name(guild_name)
-    if display_name:
-        payload["guild_name"] = display_name
     key, algorithm, kid = _resolve_handoff_signing_material()
     headers: dict[str, Any] | None = {"kid": kid} if kid else None
     token = jwt.encode(payload, key, algorithm=algorithm, headers=headers)
@@ -656,7 +636,6 @@ def create_billing_support_handoff_token(
     grant_id: int | str,
     user_ref: str,
     guild_ref: str,
-    guild_name: str | None = None,
     approver_ref: str | None = None,
     expires_in: timedelta = BILLING_SUPPORT_HANDOFF_LIFETIME,
     console: str = BILLING_SUPPORT_CONSOLE,
@@ -690,11 +669,8 @@ def create_billing_support_handoff_token(
         "exp": int((now + lifetime).timestamp()),
         "grant_id": str(grant_id),
         "user_ref": user_ref,
-        "guild_ref": guild_ref,
+        "community_ref": guild_ref,
     }
-    display_name = _handoff_display_name(guild_name)
-    if display_name:
-        payload["guild_name"] = display_name
     if approver_ref is not None:
         payload["approver"] = approver_ref
     token = jwt.encode(payload, secret, algorithm="HS256", headers={"kid": kid})

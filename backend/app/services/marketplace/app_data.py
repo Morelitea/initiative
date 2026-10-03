@@ -868,8 +868,7 @@ async def _call_app(
                     )
                 )
             )
-        # What this install calls the guild. The token and the body name it
-        # the same way, because it is the only name the app has for it.
+        # What this install calls the guild, which the token carries.
         guild_ref = await ensure_app_guild_ref(guild_id=guild_id, app_install_id=app.id)
         try:
             token, _ = mint_context_token(
@@ -902,7 +901,6 @@ async def _call_app(
                 content=json.dumps(
                     {
                         "endpoint": endpoint_id,
-                        "guild_ref": guild_ref,
                         "params": dict(params),
                     }
                 ).encode("utf-8"),

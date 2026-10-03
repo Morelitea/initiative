@@ -267,7 +267,7 @@ async def config_payload(session: AsyncSession, app: GuildApp) -> dict[str, Any]
 
     state = app_config_service.config_state(app)
     return {
-        "guild_ref": await _install_guild_ref(session, app),
+        "community_ref": await _install_guild_ref(session, app),
         "install_id": app.id,
         "listing_uid": app.listing_uid,
         "listing_version": app.listing_version,
@@ -402,7 +402,7 @@ async def report_config_state(
     await session.commit()
     await session.refresh(app)
     return {
-        "guild_ref": await _install_guild_ref(session, app),
+        "community_ref": await _install_guild_ref(session, app),
         "install_id": app.id,
         "config_state": app.config_state,
         "config_state_detail": app.config_state_detail,

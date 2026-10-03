@@ -99,7 +99,7 @@ def _service_definition(**overrides) -> dict:
             {
                 "id": "runs",
                 "path": "/embed/runs",
-                "scopes": ["guild", "initiative"],
+                "scopes": ["community", "initiative"],
                 "admin_only": False,
                 "name": {"en": "Runs"},
             },
@@ -421,7 +421,7 @@ class TestHandoff:
         )
         # The guild by reference for the same reason as the subject below: an
         # index names a row to us, not an entity to somebody else.
-        assert claims["guild_ref"] == await ensure_app_guild_ref(
+        assert claims["community_ref"] == await ensure_app_guild_ref(
             guild_id=a.guild.id, app_install_id=app.id
         )
         assert "guild_id" not in claims
@@ -433,7 +433,7 @@ class TestHandoff:
             "initiative-handoff+jwt"
         )
         # Whether the viewer administers the community, and no other role.
-        assert claims["guild_admin"] is True
+        assert claims["community_admin"] is True
         # Opened at community level, there is no initiative to moderate.
         assert "initiative_id" not in claims
         assert "initiative_moderator" not in claims
@@ -614,7 +614,7 @@ class TestInitiativeHandoff:
         assert claims["initiative_id"] == a.initiative.id
         # A member opening it through the placement does not administer the
         # community or moderate the initiative, and the token says so.
-        assert claims["guild_admin"] is False
+        assert claims["community_admin"] is False
         assert claims["initiative_moderator"] is False
 
     async def test_a_moderator_is_told_so_in_the_token(
@@ -632,7 +632,7 @@ class TestInitiativeHandoff:
         assert response.status_code == 200, response.text
         claims = self._claims(response.json())
         assert claims["initiative_moderator"] is True
-        assert claims["guild_admin"] is False
+        assert claims["community_admin"] is False
 
     async def test_a_project_manager_does_not_moderate(
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
@@ -671,7 +671,7 @@ class TestInitiativeHandoff:
         )
 
         assert response.status_code == 200, response.text
-        assert self._claims(response.json())["guild_admin"] is True
+        assert self._claims(response.json())["community_admin"] is True
 
     async def test_a_role_the_placement_does_not_allow_is_refused(
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
@@ -769,7 +769,7 @@ class TestInitiativeHandoff:
         ).json()
         claims = self._claims(body)
         assert claims["initiative_id"] == a.initiative.id
-        assert claims["guild_ref"] == await ensure_app_guild_ref(
+        assert claims["community_ref"] == await ensure_app_guild_ref(
             guild_id=a.guild.id, app_install_id=app.id
         )
         assert "guild_id" not in claims
@@ -897,7 +897,7 @@ class TestOpenability:
                     actor.g(f"/apps/{app.id}/handoff/{surface}"), headers=actor.headers
                 )
                 assert (guild_wide.status_code == 200) is access[surface][
-                    "openable_guild_wide"
+                    "openable_community_wide"
                 ], (surface, guild_wide.text)
                 inside = await client.post(
                     actor.g(
@@ -925,13 +925,13 @@ class TestOpenability:
         access = await self._access(client, member, app.id)
         assert access["inside"]["openable_initiatives"] == [a.initiative.id]
         assert access["runs"]["openable_initiatives"] == [a.initiative.id]
-        assert access["runs"]["openable_guild_wide"] is False
+        assert access["runs"]["openable_community_wide"] is False
         assert access["settings"]["openable_initiatives"] == []
-        assert access["board"]["openable_guild_wide"] is False
+        assert access["board"]["openable_community_wide"] is False
 
         admin_access = await self._access(client, a, app.id)
         assert admin_access["settings"]["openable_initiatives"] == [a.initiative.id]
-        assert admin_access["board"]["openable_guild_wide"] is True
+        assert admin_access["board"]["openable_community_wide"] is True
 
 
 class TestPlacement:

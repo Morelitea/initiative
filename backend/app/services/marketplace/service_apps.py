@@ -149,9 +149,9 @@ FIELD_TYPES: frozenset[str] = contract.enum("fieldType")
 PARAM_TYPES: frozenset[str] = contract.enum("paramType")
 
 #: Where a surface renders. Not a choice between the two: a surface may declare
-#: either, or both, and one that declares both gets a guild-wide entry *and* an
+#: either, or both, and one that declares both gets a community-wide entry *and* an
 #: entry inside each initiative — the same page, told which initiative it was
-#: opened in. Closed, and defaulting to ``["guild"]``, so an app that says
+#: opened in. Closed, and defaulting to ``["community"]``, so an app that says
 #: nothing keeps the placement it already had.
 SURFACE_SCOPES: frozenset[str] = contract.enum("surfaceScope")
 
@@ -2213,12 +2213,12 @@ def _sample_data(raw: Any, *, sources: list[str], what: str) -> dict[str, Any]:
 def _scopes(raw: Any, *, what: str) -> list[str]:
     """Where a surface asked to render, canonically.
 
-    Absent means ``["guild"]`` — the placement every embed had before there was
+    Absent means ``["community"]`` — the placement every embed had before there was
     anywhere else to put one. Sorted and de-duplicated, so re-publishing the
     same manifest produces the same document.
     """
     if raw is None:
-        return ["guild"]
+        return ["community"]
     declared = require_list(raw, f"{what} scopes", len(SURFACE_SCOPES))
     scopes: set[str] = set()
     for entry in declared:
@@ -2647,21 +2647,21 @@ def normalize_service_app_definition(
         cleaned["dashboards"] = dashboards
 
     # After the endpoints, because it names one of them. A summary is a read:
-    # it reports where this guild stands, and a deployment that renders it is
+    # it reports where this community stands, and a deployment that renders it is
     # drawing an answer, not asking the app to do anything.
-    summary = body.get("guild_summary")
+    summary = body.get("community_summary")
     if summary is not None:
         summary_id = _endpoint_id(
             summary,
             service_public_id=app_public_id,
-            what="service app: guild_summary",
+            what="service app: community_summary",
         )
         if summary_id not in readable_ids:
             fail(
-                f"service app: guild_summary names {summary_id!r}, which is not "
+                f"service app: community_summary names {summary_id!r}, which is not "
                 "an endpoint this app answers reads on"
             )
-        cleaned["guild_summary"] = summary_id
+        cleaned["community_summary"] = summary_id
 
     default_name = clean_text(
         body.get("default_name"),

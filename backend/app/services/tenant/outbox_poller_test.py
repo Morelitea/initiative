@@ -482,7 +482,7 @@ def test_the_envelope_names_the_guild_and_the_actor_by_reference():
         subscription, 500, [_row(1, 500)], guild_ref=_GUILD_REF, actor_ref=_ACTOR_REF
     )
 
-    assert envelope["guild_ref"] == _GUILD_REF
+    assert envelope["community_ref"] == _GUILD_REF
     assert envelope["actor_ref"] == _ACTOR_REF
     assert "guild_id" not in envelope
     assert "actor_user_id" not in envelope

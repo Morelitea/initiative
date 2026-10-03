@@ -229,7 +229,7 @@
       "sharing": "Uso compartido",
       "members": "Miembros",
       "initiatives": "Iniciativas",
-      "guild": "Comunidad"
+      "community": "Comunidad"
     },
     "sentences": {
       "projects": {
@@ -291,7 +291,7 @@
         "read": "Ver las iniciativas de tu comunidad",
         "moderate": "Actuar como moderador en las iniciativas donde está ubicada"
       },
-      "guild": {
+      "community": {
         "admin": "Actuar como administrador en toda tu comunidad"
       },
       "fallback": {

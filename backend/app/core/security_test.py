@@ -123,55 +123,15 @@ def test_billing_portal_handoff_carries_admin_claims_and_distinct_audience(
     payload = _decode_unverified(token)
     assert payload["aud"] == security.BILLING_PORTAL_AUDIENCE
     assert payload["iss"] == "initiative"
-    assert payload["guild_role"] == "admin"
+    assert payload["community_role"] == "admin"
     assert payload["jti"] and isinstance(payload["jti"], str)
     # The two are named by reference and by nothing else — `sub` carries the
     # user's, and no row id of ours appears anywhere in the claims.
     assert payload["sub"] == "ubil_test42"
     assert payload["user_ref"] == "ubil_test42"
-    assert payload["guild_ref"] == "gbil_test7"
+    assert payload["community_ref"] == "gbil_test7"
     assert "guild_id" not in payload
-
-
-def test_billing_portal_handoff_names_the_community_only_when_given_a_name(
-    handoff_signing_key,
-):
-    named, _ = security.create_billing_portal_handoff_token(
-        guild_role="admin",
-        user_ref="ubil_test42",
-        guild_ref="gbil_test7",
-        guild_name="The Mushroom Council",
-    )
-    assert _decode_unverified(named)["guild_name"] == "The Mushroom Council"
-
-    unnamed, _ = security.create_billing_portal_handoff_token(
-        guild_role="admin",
-        user_ref="ubil_test42",
-        guild_ref="gbil_test7",
-    )
-    assert "guild_name" not in _decode_unverified(unnamed)
-
-    # A guild name has no length limit of its own, and this claim ends up in
-    # billing's session cookie — which a browser drops over about 4 KB. So it is
-    # bounded here, where it is written, rather than trusted to be short.
-    long_name, _ = security.create_billing_portal_handoff_token(
-        guild_role="admin",
-        user_ref="ubil_test42",
-        guild_ref="gbil_test7",
-        guild_name="m" * 5000,
-    )
-    carried = _decode_unverified(long_name)["guild_name"]
-    assert len(carried) == security.BILLING_HANDOFF_GUILD_NAME_MAX
-    assert carried.endswith("…")
-
-    # Whitespace is not a name.
-    blank, _ = security.create_billing_portal_handoff_token(
-        guild_role="admin",
-        user_ref="ubil_test42",
-        guild_ref="gbil_test7",
-        guild_name="   ",
-    )
-    assert "guild_name" not in _decode_unverified(blank)
+    assert "guild_name" not in payload
 
 
 def test_billing_portal_handoff_refuses_to_mint_without_private_key(monkeypatch):

@@ -93,11 +93,11 @@ async def test_it_names_the_same_guild_in_the_sector_asked_for(
     await session.commit()
     own = await _callers_own_ref(session, guild)
 
-    response = await _ask(client, {"guild_ref": own, "purpose": "billing"})
+    response = await _ask(client, {"community_ref": own, "purpose": "billing"})
 
     assert response.status_code == 200, response.text
-    assert response.json() == {"purpose": "billing", "guild_ref": expected}
-    assert response.json()["guild_ref"] != own
+    assert response.json() == {"purpose": "billing", "community_ref": expected}
+    assert response.json()["community_ref"] != own
 
 
 async def test_a_reference_that_is_not_the_callers_own_is_refused(
@@ -118,7 +118,9 @@ async def test_a_reference_that_is_not_the_callers_own_is_refused(
     # A reference for an install that is not the bundled service's.
     someone_elses = await ensure_app_guild_ref(guild_id=guild.id, app_install_id=98765)
 
-    response = await _ask(client, {"guild_ref": someone_elses, "purpose": "billing"})
+    response = await _ask(
+        client, {"community_ref": someone_elses, "purpose": "billing"}
+    )
 
     assert response.status_code == 404
     assert response.json()["detail"] == BundledChannelMessages.UNKNOWN_GUILD
@@ -138,7 +140,7 @@ async def test_a_sector_inside_a_guild_is_not_answerable(
     guild = await create_guild(session, creator=user)
     own = await _callers_own_ref(session, guild)
 
-    response = await _ask(client, {"guild_ref": own, "purpose": purpose})
+    response = await _ask(client, {"community_ref": own, "purpose": purpose})
 
     assert response.status_code == 400
     assert response.json()["detail"] == BundledChannelMessages.SECTOR_NOT_ANSWERABLE
@@ -155,7 +157,7 @@ async def test_a_sector_that_has_never_named_the_guild_is_not_minted_one(
     guild = await create_guild(session, creator=user)
     own = await _callers_own_ref(session, guild)
 
-    response = await _ask(client, {"guild_ref": own, "purpose": "billing"})
+    response = await _ask(client, {"community_ref": own, "purpose": "billing"})
 
     assert response.status_code == 404
     assert response.json()["detail"] == BundledChannelMessages.NO_SUCH_NAME
@@ -179,7 +181,7 @@ async def test_a_caller_without_the_secret_is_refused(
     own = await _callers_own_ref(session, guild)
 
     response = await _ask(
-        client, {"guild_ref": own, "purpose": "billing"}, secret="not-the-secret"
+        client, {"community_ref": own, "purpose": "billing"}, secret="not-the-secret"
     )
 
     assert response.status_code == 403
@@ -197,7 +199,7 @@ async def test_a_signature_from_another_moment_is_refused(
 
     response = await _ask(
         client,
-        {"guild_ref": own, "purpose": "billing"},
+        {"community_ref": own, "purpose": "billing"},
         at=int(time.time()) - 3600,
     )
 
@@ -212,7 +214,9 @@ async def test_a_deployment_that_ships_no_bundled_service_is_inert(
     retryable, which is what the rest of this surface answers too."""
     monkeypatch.setattr(config_module.settings, "BUNDLED_SERVICE_SHARED_SECRET", None)
 
-    response = await _ask(client, {"guild_ref": "gapp_whatever", "purpose": "billing"})
+    response = await _ask(
+        client, {"community_ref": "gapp_whatever", "purpose": "billing"}
+    )
 
     assert response.status_code == 503
     assert response.json()["detail"] == BundledChannelMessages.NOT_CONFIGURED
@@ -224,7 +228,7 @@ async def test_a_deployment_that_ships_no_bundled_service_is_inert(
         pytest.param(b"not json at all", id="not-json"),
         pytest.param(b'{"purpose": "billing"}', id="no-reference"),
         pytest.param(
-            b'{"guild_ref": "gapp_x", "purpose": "sideways"}', id="no-such-sector"
+            b'{"community_ref": "gapp_x", "purpose": "sideways"}', id="no-such-sector"
         ),
     ],
 )
@@ -315,7 +319,7 @@ async def test_a_token_whose_registration_carries_the_sector_is_answered(
     response = await client.post(ROUTE, json={"purpose": "billing"}, headers=headers)
 
     assert response.status_code == 200, response.text
-    assert response.json() == {"purpose": "billing", "guild_ref": billing}
+    assert response.json() == {"purpose": "billing", "community_ref": billing}
 
 
 async def test_a_token_naming_its_own_reference_for_the_guild_is_answered(
@@ -325,11 +329,11 @@ async def test_a_token_naming_its_own_reference_for_the_guild_is_answered(
     own = await ensure_app_guild_ref(guild_id=guild.id, app_install_id=app.id)
 
     response = await client.post(
-        ROUTE, json={"purpose": "billing", "guild_ref": own}, headers=headers
+        ROUTE, json={"purpose": "billing", "community_ref": own}, headers=headers
     )
 
     assert response.status_code == 200, response.text
-    assert response.json()["guild_ref"] == billing
+    assert response.json()["community_ref"] == billing
 
 
 async def test_a_token_naming_another_guild_is_refused(
@@ -341,7 +345,7 @@ async def test_a_token_naming_another_guild_is_refused(
     elsewhere = await ensure_app_guild_ref(guild_id=other.id, app_install_id=98765)
 
     response = await client.post(
-        ROUTE, json={"purpose": "billing", "guild_ref": elsewhere}, headers=headers
+        ROUTE, json={"purpose": "billing", "community_ref": elsewhere}, headers=headers
     )
 
     assert response.status_code == 404

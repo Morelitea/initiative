@@ -6,7 +6,7 @@ an app holds at any moment is an answer to the call in front of it rather than a
 standing key to a deployment. Three properties are worth stating because they
 are what the shape buys:
 
-* **Guild-pinned and per-call.** ``guild_ref`` is a claim, not a parameter, and
+* **Guild-pinned and per-call.** ``community_ref`` is a claim, not a parameter, and
   the token is minted for the request it accompanies. An app never holds a
   credential naming more than one guild, and never holds one for long.
 * **It carries no person.** There is no ``sub``, no email, no display name. Where
@@ -165,7 +165,7 @@ def mint_context_token(
         "aud": app_platform_audience(public_id),
         "iat": int(now.timestamp()),
         "exp": now + lifetime,
-        "guild_ref": guild_ref,
+        "community_ref": guild_ref,
         "app_install_id": app_install_id,
         "scope": scope,
     }

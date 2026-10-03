@@ -12,7 +12,7 @@ BANNER_IMAGE = "banner_image"
 HELP_REQUESTS = "help_requests"
 #: May say which of the deployment's providers are its own, what their groups
 #: mean, and whether members must arrive that way — ``auth_options.providers``.
-GUILD_SIGN_IN = "guild_sign_in"
+COMMUNITY_SIGN_IN = "community_sign_in"
 #: May refuse personal API keys and hold members to the session standard —
 #: ``auth_options.restrictions``.
 SECURITY_STANDARDS = "security_standards"
@@ -20,7 +20,7 @@ SECURITY_STANDARDS = "security_standards"
 #: Capability name -> the sign-in option it grants. Every other capability is a
 #: column of its own; these two share one array.
 _AUTH_OPTIONS: dict[str, CommunityAuthOption] = {
-    GUILD_SIGN_IN: CommunityAuthOption.providers,
+    COMMUNITY_SIGN_IN: CommunityAuthOption.providers,
     SECURITY_STANDARDS: CommunityAuthOption.restrictions,
 }
 

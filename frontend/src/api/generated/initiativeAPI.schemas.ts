@@ -9331,7 +9331,7 @@ export interface WebhookSubscriptionCreate {
  */
 export interface WebhookSubscriptionCreated {
   id: number;
-  guild_ref: string;
+  community_ref: string;
   initiative_id: number | null;
   created_by_ref: string | null;
   target_url: string;
@@ -9355,7 +9355,7 @@ export interface WebhookSubscriptionCreated {
  */
 export interface WebhookSubscriptionRead {
   id: number;
-  guild_ref: string;
+  community_ref: string;
   initiative_id: number | null;
   created_by_ref: string | null;
   target_url: string;
@@ -9999,7 +9999,7 @@ export type IssueAppAccessTokenBodyLevel =
 
 export const IssueAppAccessTokenBodyLevel = {
   moderator: "moderator",
-  guild_admin: "guild_admin",
+  community_admin: "community_admin",
 } as const;
 
 export type IssueAppAccessTokenBody = {

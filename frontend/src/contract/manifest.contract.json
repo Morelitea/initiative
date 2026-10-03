@@ -134,10 +134,10 @@
       "members:read",
       "initiatives:read",
       "initiatives:moderate",
-      "guild:admin"
+      "community:admin"
     ],
     "surfaceScope": [
-      "guild",
+      "community",
       "initiative"
     ],
     "embedCapability": [
@@ -644,7 +644,7 @@
         },
         "scope": {
           "enum": "connectionScope",
-          "description": "Who the credential belongs to. 'static' is one credential the whole guild uses; 'interactive' is each member's own account at a vendor that authorizes people. It does not say how the credential is obtained: a static connection with a 'flow' is still one credential for the whole guild, run by an admin through the vendor's own pages rather than typed into a form. An interactive connection always declares a 'flow'."
+          "description": "Who the credential belongs to. 'static' is one credential the whole community uses; 'interactive' is each member's own account at a vendor that authorizes people. It does not say how the credential is obtained: a static connection with a 'flow' is still one credential for the whole community, run by an admin through the vendor's own pages rather than typed into a form. An interactive connection always declares a 'flow'."
         },
         "label": {
           "ref": "localizedText"
@@ -1136,9 +1136,9 @@
             "enum": "surfaceScope"
           },
           "default": [
-            "guild"
+            "community"
           ],
-          "description": "Where the surface renders. Declaring both gives it a guild-wide entry and an entry inside each initiative."
+          "description": "Where the surface renders. Declaring both gives it a community-wide entry and an entry inside each initiative."
         },
         "admin_only": {
           "type": "boolean",
@@ -1855,9 +1855,9 @@
           "ref": "endpoint"
         }
       },
-      "guild_summary": {
+      "community_summary": {
         "ref": "namespacedId",
-        "description": "A read endpoint whose declared returns describe this guild's standing with your service \u2014 what it has used, what it is allowed. A deployment may render them on the guild's own settings page, beside its own figures. Whether it does is the deployment's decision and not this manifest's: an app the operator did not ship is declaring where it would like to appear, which is not the same as appearing."
+        "description": "A read endpoint whose declared returns describe this community's standing with your service \u2014 what it has used, what it is allowed. A deployment may render them on the community's own settings page, beside its own figures. Whether it does is the deployment's decision and not this manifest's: an app the operator did not ship is declaring where it would like to appear, which is not the same as appearing."
       },
       "widgets": {
         "type": "array",
@@ -1879,7 +1879,7 @@
         "items": {
           "ref": "bundledDashboard"
         },
-        "description": "Ready-made arrangements of this app's own widgets. Publishing the app publishes one ordinary dashboard listing per entry, offered to guilds that install the app."
+        "description": "Ready-made arrangements of this app's own widgets. Publishing the app publishes one ordinary dashboard listing per entry, offered to communities that install the app."
       }
     }
   }

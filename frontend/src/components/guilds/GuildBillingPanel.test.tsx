@@ -205,7 +205,7 @@ describe("GuildBillingPanel", () => {
     expect(mintMock).toHaveBeenCalledWith(42);
     await waitFor(() =>
       expect(tab.location.href).toBe(
-        "https://billing.example.com/manage?guild=42&lang=en#handoff=TOK"
+        "https://billing.example.com/manage?community=42&lang=en#handoff=TOK"
       )
     );
     openSpy.mockRestore();
@@ -271,7 +271,7 @@ describe("GuildBillingPanel", () => {
     await userEvent.click(screen.getByText("Upgrade"));
 
     await waitFor(() =>
-      expect(tab.location.href).toBe("https://billing.example.com/upgrade?guild=42&lang=en")
+      expect(tab.location.href).toBe("https://billing.example.com/upgrade?community=42&lang=en")
     );
     openSpy.mockRestore();
   });

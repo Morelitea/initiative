@@ -164,7 +164,7 @@ async def _named(
         reads.append(
             WebhookSubscriptionRead(
                 id=row.id,
-                guild_ref=guild_ref,
+                community_ref=guild_ref,
                 initiative_id=row.initiative_id,
                 created_by_ref=(
                     None if row.created_by is None else actor_refs[row.created_by]

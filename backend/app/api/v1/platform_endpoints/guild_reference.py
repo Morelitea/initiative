@@ -15,7 +15,7 @@ learn it:
 * **An installation token** of an app whose registration came from the
   registry verified under the root shipped in the image, and names the sector
   in its ``reference_sectors``. The guild is the token's install's; a
-  ``guild_ref`` is optional and, when given, has to be the caller's own name
+  ``community_ref`` is optional and, when given, has to be the caller's own name
   for that same guild.
 * **The bundled-service channel**, which an operator names and wires, with a
   reference of the caller's own.
@@ -116,9 +116,9 @@ async def _answer_installation(
         raise _sector_refused()
 
     guild_id = installation.guild_id
-    if payload.guild_ref is not None:
+    if payload.community_ref is not None:
         named = await app_refs.guild_for_app_ref(
-            ref=payload.guild_ref, public_id=public_id
+            ref=payload.community_ref, public_id=public_id
         )
         if named != guild_id:
             raise HTTPException(
@@ -134,7 +134,7 @@ async def _answer_installation(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=BundledChannelMessages.NO_SUCH_NAME,
         )
-    return CommunityReferenceRead(purpose=payload.purpose, guild_ref=ref)
+    return CommunityReferenceRead(purpose=payload.purpose, community_ref=ref)
 
 
 @router.post("/community-reference", response_model=CommunityReferenceRead)
@@ -186,7 +186,7 @@ async def read_community_reference(
     # The reference must be one of the CALLER's own. Resolving says which
     # install minted it; this says that install is the caller's.
     guild_id = await app_refs.guild_for_app_ref(
-        ref=payload.guild_ref,
+        ref=payload.community_ref,
         public_id=(settings.BUNDLED_SERVICE_PUBLIC_ID or "").strip(),
     )
     if guild_id is None:
@@ -203,4 +203,4 @@ async def read_community_reference(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=BundledChannelMessages.NO_SUCH_NAME,
         )
-    return CommunityReferenceRead(purpose=payload.purpose, guild_ref=ref)
+    return CommunityReferenceRead(purpose=payload.purpose, community_ref=ref)

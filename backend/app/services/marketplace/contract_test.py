@@ -301,7 +301,7 @@ ACCEPTED = [
                     "id": "board",
                     "path": "/embed/board",
                     "name": {"en": "Board"},
-                    "scopes": ["guild", "initiative"],
+                    "scopes": ["community", "initiative"],
                     "admin_only": True,
                     "capabilities": ["clipboard-write", "fullscreen"],
                     "requires": {"any_of": ["account"]},
@@ -698,17 +698,17 @@ def test_a_localized_object_with_nothing_usable_is_refused(validator):
             _manifest(
                 features=["endpoints"],
                 endpoints=[{"id": "app.acme.tracker.known", "direction": "read"}],
-                guild_summary="app.acme.tracker.absent",
+                community_summary="app.acme.tracker.absent",
             ),
-            "a guild summary naming an endpoint that does not exist",
+            "a community summary naming an endpoint that does not exist",
         ),
         (
             _manifest(
                 features=["endpoints"],
                 endpoints=[{"id": "app.acme.tracker.told", "direction": "emit"}],
-                guild_summary="app.acme.tracker.told",
+                community_summary="app.acme.tracker.told",
             ),
-            "a guild summary naming an endpoint that is not a read",
+            "a community summary naming an endpoint that is not a read",
         ),
     ],
 )

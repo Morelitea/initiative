@@ -1384,7 +1384,7 @@ class TestVendorWebhooks:
             apps[1].id,
         ]
         assert {claim["hook"] for claim in claims} == {"webhook"}
-        assert claims[0]["guild_ref"] != claims[1]["guild_ref"]
+        assert claims[0]["community_ref"] != claims[1]["community_ref"]
         call = forwarded[0][0]
         assert call["connection"] == "workspace"
         assert call["body"] == body.decode()
