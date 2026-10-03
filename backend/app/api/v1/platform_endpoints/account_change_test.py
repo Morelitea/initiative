@@ -16,16 +16,17 @@ from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.encryption import SALT_EMAIL, decrypt_field
+from app.models.platform.account_change_hold import HeldChangeKind
 from app.models.platform.auth_session import AuthSession
 from app.models.platform.user import User
 from app.models.platform.user_email import UserEmail
 from app.models.platform.user_passkey import UserPasskey
 from app.models.platform.user_token import UserTokenPurpose
 from app.services import email as email_service
-from app.services.auth import account_changes, addresses
+from app.services.auth import account_changes, addresses, held_changes
 from app.services.auth import sessions as session_service
 from app.services.platform import email_outbox, user_tokens
-from app.testing import create_user, get_auth_headers
+from app.testing import create_user, signed_in_headers
 
 READ = "/api/v1/auth/account-change/read"
 SIGN_OUT = "/api/v1/auth/account-change/sign-out"
@@ -364,9 +365,9 @@ async def test_a_removal_undo_works_over_a_minted_primary(
 ):
     """An account a provider made with no address keeps the address minted
     for it as primary beside the ones it proved. Removing one of those
-    through the route still leaves its copy able to put it back, and the
-    minted address, proved in the same hour, is not one of the run it
-    reverses."""
+    through the route, held and then made, still leaves its copy able to put
+    it back, and the minted address, proved in the same hour, is not one of
+    the run it reverses."""
     user = await create_user(session, email="older-sso@example.com")
     user_id = user.id
     older = (await addresses.list_for_user(session, user_id=user_id))[0]
@@ -388,12 +389,17 @@ async def test_a_removal_undo_works_over_a_minted_primary(
     minted_id = minted.id
     await _address(session, user, "newer-sso@example.com")
 
-    removed = await client.post(
+    held = await client.post(
         f"/api/v1/me/emails/{older.id}/remove",
         json={"current_password": "testpassword123"},
-        headers=get_auth_headers(user),
+        headers=await signed_in_headers(session, user),
     )
-    assert removed.status_code == 204, removed.text
+    assert held.status_code == 202, held.text
+    await email_outbox._run_pass(session, now=datetime.now(timezone.utc))
+    await held_changes.apply_due(
+        session, now=datetime.now(timezone.utc) + held_changes.HOLD_FOR
+    )
+    mailed.clear()
     await email_outbox._run_pass(session, now=datetime.now(timezone.utc))
 
     response = await client.post(UNDO, json={"token": mailed["older-sso@example.com"]})
@@ -426,12 +432,17 @@ async def test_undoing_a_move_off_a_minted_primary_makes_the_clicker_primary(
     await session.commit()
     taker = await _address(session, user, "taker@example.com")
 
-    moved = await client.put(
+    held = await client.put(
         f"/api/v1/me/emails/{taker.id}/primary",
         json={"current_password": "testpassword123"},
-        headers=get_auth_headers(user),
+        headers=await signed_in_headers(session, user),
     )
-    assert moved.status_code == 200, moved.text
+    assert held.status_code == 202, held.text
+    await email_outbox._run_pass(session, now=datetime.now(timezone.utc))
+    await held_changes.apply_due(
+        session, now=datetime.now(timezone.utc) + held_changes.HOLD_FOR
+    )
+    mailed.clear()
     await email_outbox._run_pass(session, now=datetime.now(timezone.utc))
     token = mailed["kept@example.com"]
 
@@ -512,3 +523,48 @@ async def test_undoing_a_passkey_removes_it_unless_it_is_the_last_way_in(
             assert response.status_code == 409, response.text
             assert response.json()["detail"] == "ACCOUNT_CHANGE_MOVED_ON"
             assert await session.get(UserPasskey, passkey_id) is not None
+
+
+async def test_a_waiting_change_is_cancelled_from_an_older_address(
+    client: AsyncClient, session: AsyncSession, mailed
+):
+    """The letter about a waiting primary move cancels it from an address
+    older than the one it moves to; that one's copy only signs out. A waiting
+    change that names no address can be cancelled from every one."""
+    user = await create_user(session, email="holder@example.com")
+    user_id = user.id
+    newer = await _address(session, user, "moves-to@example.com")
+    held = await client.put(
+        f"/api/v1/me/emails/{newer.id}/primary",
+        json={"current_password": "testpassword123"},
+        headers=await signed_in_headers(session, user),
+    )
+    assert held.status_code == 202, held.text
+    mailed.clear()
+    await email_outbox._run_pass(session, now=datetime.now(timezone.utc))
+    links = dict(mailed)
+
+    response = await client.post(READ, json={"token": links["moves-to@example.com"]})
+    assert response.json()["undo"] is None
+    response = await client.post(READ, json={"token": links["holder@example.com"]})
+    assert response.json() == {
+        "notice": "address.primaryHeld",
+        "sign_out": True,
+        "undo": "hold",
+        "subject": "moves-to@example.com",
+    }
+    response = await client.post(UNDO, json={"token": links["holder@example.com"]})
+    assert response.status_code == 200, response.text
+    assert await held_changes.pending_for_user(session, user_id=user_id) is None
+    due = datetime.now(timezone.utc) + held_changes.HOLD_FOR
+    assert await held_changes.apply_due(session, now=due) == 0
+    assert await _primary(session, user_id) == "holder@example.com"
+
+    single = await create_user(session, email="only-one@example.com")
+    mailed.clear()
+    await held_changes.hold(
+        session, single, kind=HeldChangeKind.second_factor_off, session_id=None
+    )
+    await email_outbox._run_pass(session, now=datetime.now(timezone.utc))
+    response = await client.post(READ, json={"token": mailed["only-one@example.com"]})
+    assert response.json()["undo"] == "hold"

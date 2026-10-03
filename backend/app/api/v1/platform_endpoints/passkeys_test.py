@@ -39,6 +39,7 @@ from app.testing import (
     emitted,
     get_auth_headers,
     get_auth_token,
+    signed_in_headers,
     stub_assertion,
 )
 
@@ -586,7 +587,7 @@ async def test_removing_forgets_the_credential(
     response = await client.post(
         f"/api/v1/auth/passkeys/{body['id']}/remove",
         json={"current_password": PASSWORD},
-        headers=get_auth_headers(user),
+        headers=await signed_in_headers(session, user, amr=["hwk"]),
     )
     assert response.status_code == 204, response.text
 
@@ -647,7 +648,7 @@ async def test_the_account_is_told_about_both_changes(
     response = await client.post(
         f"/api/v1/auth/passkeys/{body['id']}/remove",
         json={"current_password": PASSWORD},
-        headers=get_auth_headers(user),
+        headers=await signed_in_headers(session, user, amr=["hwk"]),
     )
     assert response.status_code == 204, response.text
     assert sent[-1]["subject"] == email_t("passkey.removed.subject", "en", escape=False)
@@ -1444,21 +1445,6 @@ async def _passwordless(session: AsyncSession, email: str) -> User:
     )
 
 
-async def _just_signed_in(session: AsyncSession, user: User) -> dict[str, str]:
-    """Headers naming a session row opened a moment ago — what an account with
-    no password to re-check answers with."""
-    from app.services.auth import sessions as session_service
-
-    issued = await session_service.create_session(
-        session, user_id=user.id, amr=["webauthn"], satisfied_providers=[]
-    )
-    await session.commit()
-    return {
-        "Authorization": "Bearer "
-        + get_auth_token(user, session_id=issued.session.id, amr=["webauthn"])
-    }
-
-
 async def test_the_last_credential_of_a_passwordless_account_stays(
     client: AsyncClient, session: AsyncSession
 ):
@@ -1470,7 +1456,7 @@ async def test_the_last_credential_of_a_passwordless_account_stays(
     response = await client.post(
         f"/api/v1/auth/passkeys/{row.id}/remove",
         json={},
-        headers=await _just_signed_in(session, user),
+        headers=await signed_in_headers(session, user, amr=["webauthn"]),
     )
     assert response.status_code == 409
     assert response.json()["detail"] == "PASSKEY_IS_LAST_METHOD"
@@ -1483,7 +1469,7 @@ async def test_a_withdrawn_method_does_not_free_the_last_credential(
     with nothing that opens a session, so the credential stays."""
     user = await _passwordless(session, "pk-last-withdrawn@example.com")
     row = await create_passkey(session, user, credential_id="last-withdrawn")
-    headers = await _just_signed_in(session, user)
+    headers = await signed_in_headers(session, user, amr=["webauthn"])
     await _withdraw_passkeys(session)
 
     response = await client.post(
@@ -1502,7 +1488,7 @@ async def test_a_password_beside_it_lets_the_credential_go(
     response = await client.post(
         f"/api/v1/auth/passkeys/{row.id}/remove",
         json={"current_password": PASSWORD},
-        headers=get_auth_headers(user),
+        headers=await signed_in_headers(session, user, amr=["hwk"]),
     )
     assert response.status_code == 204, response.text
 
@@ -1517,6 +1503,35 @@ async def test_a_second_credential_lets_the_first_go(
     response = await client.post(
         f"/api/v1/auth/passkeys/{first.id}/remove",
         json={},
-        headers=await _just_signed_in(session, user),
+        headers=await signed_in_headers(session, user, amr=["webauthn"]),
     )
     assert response.status_code == 204, response.text
+
+
+async def test_the_last_passkey_removed_from_a_new_sign_in_waits(
+    client: AsyncClient, session: AsyncSession
+):
+    """One of two goes at once. The last one waits, and stays until then."""
+    user = await _account(session, "pk-held@example.com")
+    first = await create_passkey(session, user, credential_id="held-one")
+    last = await create_passkey(session, user, credential_id="held-two", name="Phone")
+    first_id, last_id = first.id, last.id
+    headers = await signed_in_headers(session, user)
+
+    gone = await client.post(
+        f"/api/v1/auth/passkeys/{first_id}/remove",
+        json={"current_password": PASSWORD},
+        headers=headers,
+    )
+    assert gone.status_code == 204, gone.text
+
+    held = await client.post(
+        f"/api/v1/auth/passkeys/{last_id}/remove",
+        json={"current_password": PASSWORD},
+        headers=headers,
+    )
+    assert held.status_code == 202, held.text
+    assert held.json()["kind"] == "last_passkey"
+    assert held.json()["subject"] == "Phone"
+    session.expire_all()
+    assert await session.get(UserPasskey, last_id) is not None

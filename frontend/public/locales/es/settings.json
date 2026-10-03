@@ -102,6 +102,21 @@
     "primaryDialogDescription": "Los restablecimientos de contraseña y los códigos de inicio de sesión irán primero a <strong>{{email}}</strong>.",
     "primaryConfirm": "Hacer principal"
   },
+  "heldChange": {
+    "title": "Hay un cambio pendiente",
+    "primary": "{{subject}} pasa a ser tu dirección principal el {{date}}.",
+    "removeAddress": "{{subject}} se quitará de tu cuenta el {{date}}.",
+    "secondFactorOff": "La verificación en dos pasos se desactivará el {{date}}.",
+    "lastPasskey": "Tu última clave de acceso, {{subject}}, se quitará el {{date}}.",
+    "description": "Espera dos días, y todas las direcciones de tu cuenta han recibido un correo sobre ello. Hasta entonces no cambia nada.",
+    "cancel": "Cancelar el cambio",
+    "applyNow": "Hacerlo ahora con una clave de acceso",
+    "cancelled": "El cambio se ha cancelado.",
+    "applied": "El cambio se ha hecho.",
+    "cancelFailed": "No se pudo cancelar el cambio. Inténtalo de nuevo.",
+    "applyFailed": "No se pudo hacer el cambio ahora. Inténtalo de nuevo.",
+    "waits": "Este cambio espera hasta el {{date}}. Todas las direcciones de tu cuenta han recibido un correo sobre ello."
+  },
   "security": {
     "loadingDevices": "Cargando dispositivos…",
     "devicesError": "No se pudieron cargar los dispositivos.",

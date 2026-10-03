@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 
 import type {
+  HeldChangeRead,
   UserEmailListResponse,
   UserEmailRead,
   VerificationSendResponse,
@@ -58,8 +59,12 @@ export const useAddAddress = (options?: MutationOpts<VerificationSendResponse, A
     options
   );
 
-export const useRemoveAddress = (options?: MutationOpts<void, AddressChange>) =>
-  useApiMutation<void, AddressChange>(
+/** Removing an address or moving the primary can come back waiting
+ * (`HeldChangeRead`) rather than made. */
+type Removed = Awaited<ReturnType<typeof removeMyAddress>>;
+
+export const useRemoveAddress = (options?: MutationOpts<Removed, AddressChange>) =>
+  useApiMutation<Removed, AddressChange>(
     {
       mutationFn: ({ addressId, currentPassword }) =>
         removeMyAddress(addressId, {
@@ -70,8 +75,10 @@ export const useRemoveAddress = (options?: MutationOpts<void, AddressChange>) =>
     options
   );
 
-export const useMakeAddressPrimary = (options?: MutationOpts<UserEmailRead, AddressChange>) =>
-  useApiMutation<UserEmailRead, AddressChange>(
+export const useMakeAddressPrimary = (
+  options?: MutationOpts<UserEmailRead | HeldChangeRead, AddressChange>
+) =>
+  useApiMutation<UserEmailRead | HeldChangeRead, AddressChange>(
     {
       mutationFn: ({ addressId, currentPassword }) =>
         makeMyAddressPrimary(addressId, {

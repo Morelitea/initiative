@@ -5175,6 +5175,30 @@ export interface HeatmapDayData {
   activity_count: number;
 }
 
+/**
+ * The changes to how an account is signed into that can wait.
+ */
+export type HeldChangeKind = (typeof HeldChangeKind)[keyof typeof HeldChangeKind];
+
+export const HeldChangeKind = {
+  primary: "primary",
+  remove_address: "remove_address",
+  second_factor_off: "second_factor_off",
+  last_passkey: "last_passkey",
+} as const;
+
+/**
+ * A change to how the account is signed into that waits until
+ * ``applies_at``. ``subject`` is the address or passkey it acts on.
+ */
+export interface HeldChangeRead {
+  id: number;
+  kind: HeldChangeKind;
+  subject?: string | null;
+  requested_at: string;
+  applies_at: string;
+}
+
 export interface ICalEventPreview {
   summary: string;
   start_at: string;

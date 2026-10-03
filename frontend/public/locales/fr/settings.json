@@ -102,6 +102,21 @@
     "primaryDialogDescription": "Les réinitialisations de mot de passe et les codes de connexion iront d'abord à <strong>{{email}}</strong>.",
     "primaryConfirm": "Définir comme principale"
   },
+  "heldChange": {
+    "title": "Une modification est en attente",
+    "primary": "{{subject}} devient votre adresse principale le {{date}}.",
+    "removeAddress": "{{subject}} sera retirée de votre compte le {{date}}.",
+    "secondFactorOff": "La double authentification sera désactivée le {{date}}.",
+    "lastPasskey": "Votre dernière clé d'accès, {{subject}}, sera retirée le {{date}}.",
+    "description": "Elle attend deux jours, et chaque adresse de votre compte a reçu un e-mail à ce sujet. D'ici là, rien ne change.",
+    "cancel": "Annuler la modification",
+    "applyNow": "La faire maintenant avec une clé d'accès",
+    "cancelled": "La modification est annulée.",
+    "applied": "La modification est faite.",
+    "cancelFailed": "La modification n'a pas pu être annulée. Réessayez.",
+    "applyFailed": "La modification n'a pas pu être faite maintenant. Réessayez.",
+    "waits": "Cette modification attend jusqu'au {{date}}. Chaque adresse de votre compte a reçu un e-mail à ce sujet."
+  },
   "security": {
     "loadingDevices": "Chargement des appareils…",
     "devicesError": "Impossible de charger les appareils.",

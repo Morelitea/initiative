@@ -827,10 +827,12 @@ async def _remove_an_address(
     )
 
 
+# A sign-in just made is let through, and the changes that wait for a new
+# sign-in are held (202) rather than made.
 _GATED = [
     ("add-an-address", _add_an_address, 202),
-    ("make-an-address-primary", _make_an_address_primary, 200),
-    ("remove-an-address", _remove_an_address, 204),
+    ("make-an-address-primary", _make_an_address_primary, 202),
+    ("remove-an-address", _remove_an_address, 202),
     ("delete-account", _delete_account, 200),
     ("enrol-a-factor", _enrol_a_factor, 200),
     ("delete-guild", _delete_guild, 204),
@@ -838,7 +840,7 @@ _GATED = [
     ("remove-a-passkey", _remove_passkey, 204),
     ("re-issue-the-codes", _regenerate_codes, 200),
     ("set-a-password", _set_a_password, 200),
-    ("turn-off-the-factor", _turn_off_the_factor, 204),
+    ("turn-off-the-factor", _turn_off_the_factor, 202),
 ]
 
 

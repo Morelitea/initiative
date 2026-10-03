@@ -12,9 +12,11 @@ from starlette.requests import Request
 
 from app.api.v1.platform_endpoints.change_assessment import risky_session
 from app.api.v1.platform_endpoints.session_opening import issue_session
+from app.models.platform.account_change_hold import HeldChangeKind
 from app.models.platform.auth_session import AuthSession
 from app.models.platform.email_outbox import EmailOutboxItem
 from app.models.platform.user import User
+from app.services.auth import held_changes
 from app.services.auth import sessions as session_service
 from app.testing import create_user
 
@@ -36,7 +38,13 @@ async def _session(
     return issued.session
 
 
-async def _notice(session: AsyncSession, user: User, *, minutes_ago: float) -> None:
+async def _notice(
+    session: AsyncSession,
+    user: User,
+    *,
+    minutes_ago: float,
+    change: dict | None = None,
+) -> None:
     """One earlier change's letter, as the outbox keeps it."""
     at = datetime.now(timezone.utc) - timedelta(minutes=minutes_ago)
     session.add(
@@ -44,7 +52,7 @@ async def _notice(session: AsyncSession, user: User, *, minutes_ago: float) -> N
             user_id=user.id,
             category="account",
             security=True,
-            change={"notice": "passkey.added"},
+            change=change or {"notice": "passkey.added"},
             locale="en",
             subject="s",
             headline="h",
@@ -88,6 +96,29 @@ async def test_a_run_of_changes_is_risky_even_from_the_usual_place(
 
     await _notice(session, user, minutes_ago=10)
     assert await risky_session(session, browser)
+
+
+async def test_a_held_change_counts_towards_a_run_once(session: AsyncSession):
+    """From its hold, which is there with no mail sent, and not again from
+    its letter."""
+    user = await create_user(session, email="held-run@example.com")
+    user_id = user.id
+    browser = await _session(session, user, hours_ago=48)
+    for count in (1, 2):
+        held = await held_changes.hold(
+            session, user, kind=HeldChangeKind.second_factor_off, session_id=None
+        )
+        await _notice(
+            session,
+            user,
+            minutes_ago=0,
+            change={"notice": "secondFactor.disableHeld", "undo": {"kind": "hold"}},
+        )
+        assert await risky_session(session, browser) is (count == 2)
+        await held_changes.cancel(
+            session, user_id=user_id, hold_id=held.id, via="settings"
+        )
+        await session.commit()
 
 
 async def test_a_step_up_keeps_how_long_the_person_has_been_signed_in(

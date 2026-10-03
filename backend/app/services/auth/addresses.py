@@ -618,12 +618,20 @@ async def remove_for_user(
     verified address stays full stop — an account has to keep a way back in
     and a place to be written to.
     """
+    row = await removable(session, user_id=user_id, address_id=address_id)
+    await session.delete(row)
+    return row
+
+
+async def removable(
+    session: AsyncSession, *, user_id: int, address_id: int
+) -> UserEmail:
+    """The address :func:`remove_for_user` would remove, or ``AddressError``."""
     row = await _owned(session, user_id=user_id, address_id=address_id)
     if row.is_primary:
         raise AddressError(AddressMessages.PRIMARY_ADDRESS)
     if row.verified_at is not None and await _verified_count(session, user_id) <= 1:
         raise AddressError(AddressMessages.LAST_VERIFIED_ADDRESS)
-    await session.delete(row)
     return row
 
 
@@ -635,9 +643,7 @@ async def set_primary_for_user(
     Only to one this account has proved it holds: the primary is where a
     password reset lands, so moving it is a change of that destination.
     """
-    row = await _owned(session, user_id=user_id, address_id=address_id)
-    if row.verified_at is None:
-        raise AddressError(AddressMessages.ADDRESS_NOT_VERIFIED)
+    row = await primary_candidate(session, user_id=user_id, address_id=address_id)
     if row.is_primary:
         return row
     # One primary per account is a partial unique index, so two promotions
@@ -659,6 +665,17 @@ async def set_primary_for_user(
     await session.flush()
     row.is_primary = True
     session.add(row)
+    return row
+
+
+async def primary_candidate(
+    session: AsyncSession, *, user_id: int, address_id: int
+) -> UserEmail:
+    """The address :func:`set_primary_for_user` would make primary, or
+    ``AddressError``."""
+    row = await _owned(session, user_id=user_id, address_id=address_id)
+    if row.verified_at is None:
+        raise AddressError(AddressMessages.ADDRESS_NOT_VERIFIED)
     return row
 
 

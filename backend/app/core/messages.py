@@ -121,6 +121,12 @@ class AuthMessages:
     INVALID_REFRESH_TOKEN = "INVALID_REFRESH_TOKEN"
     INVALID_OR_EXPIRED_TOKEN = "INVALID_OR_EXPIRED_TOKEN"
     ACCOUNT_CHANGE_MOVED_ON = "ACCOUNT_CHANGE_MOVED_ON"
+    #: Another change to the account is waiting to apply.
+    ACCOUNT_CHANGE_PENDING = "ACCOUNT_CHANGE_PENDING"
+    #: The waiting change was cancelled, applied, or never this account's.
+    HELD_CHANGE_NOT_FOUND = "HELD_CHANGE_NOT_FOUND"
+    #: Making a waiting change now needs a session proved with a passkey.
+    HELD_CHANGE_NEEDS_PASSKEY = "HELD_CHANGE_NEEDS_PASSKEY"
     SMTP_NOT_CONFIGURED = "SMTP_NOT_CONFIGURED"
     CAPTCHA_REQUIRED = "CAPTCHA_REQUIRED"
     #: The session store could not be written, so no session was opened.

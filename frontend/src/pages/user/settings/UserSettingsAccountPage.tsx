@@ -11,6 +11,7 @@ import {
 } from "@/api/generated/auth/auth";
 import type { UserRead, UserSelfUpdate } from "@/api/generated/initiativeAPI.schemas";
 import { AddressManager } from "@/components/settings/AddressManager";
+import { HeldChangeNotice } from "@/components/settings/HeldChangeNotice";
 import { RecoveryCodesPanel } from "@/components/settings/RecoveryCodesPanel";
 import { SettingsRow, SettingsSection } from "@/components/settings/SettingsSection";
 import { Button } from "@/components/ui/button";
@@ -172,6 +173,7 @@ export const UserSettingsAccountPage = ({
 
   return (
     <div className="space-y-6">
+      <HeldChangeNotice />
       <SettingsSection title={t("profile.usernameLabel")} description={t("profile.usernameHelp")}>
         <p className="font-medium">{getUserHandle(user)}</p>
       </SettingsSection>

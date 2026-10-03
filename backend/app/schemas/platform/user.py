@@ -21,6 +21,7 @@ from app.core.capabilities import Capability, standing_capabilities
 from app.core.cookie_categories import CookieCategory
 from app.core.email_masking import mask_email
 from app.core.emoji import validate_emoji
+from app.models.platform.account_change_hold import HeldChangeKind
 from app.core.profile_decorations import (
     DATED_DECORATIONS,
     MAX_FRAME_TINTS,
@@ -591,6 +592,17 @@ class UserEmailChange(SanitizedBaseModel):
     there is one."""
 
     current_password: Optional[str] = None
+
+
+class HeldChangeRead(SanitizedBaseModel):
+    """A change to how the account is signed into that waits until
+    ``applies_at``. ``subject`` is the address or passkey it acts on."""
+
+    id: int
+    kind: HeldChangeKind
+    subject: Optional[str] = None
+    requested_at: datetime
+    applies_at: datetime
 
 
 class UserEmailListResponse(SanitizedBaseModel):

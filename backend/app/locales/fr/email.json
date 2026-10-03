@@ -254,6 +254,11 @@
       "subject": "La double authentification est désactivée",
       "title": "La double authentification est désactivée",
       "body": "Votre compte ne demande plus de code à la connexion, et les codes de secours que vous aviez ont été supprimés. Vous avez été déconnecté partout ailleurs."
+    },
+    "disableHeld": {
+      "subject": "L'authentification à deux facteurs va être désactivée",
+      "title": "L'authentification à deux facteurs va être désactivée",
+      "body": "L'authentification à deux facteurs sera désactivée le <strong>{{date}}</strong>. D'ici là, votre compte demande toujours un code à la connexion, et vous pouvez l'annuler dans Sécurité, dans vos paramètres."
     }
   },
   "passwordRemoved": {
@@ -279,6 +284,11 @@
       "subject": "Une clé d'accès a été retirée de votre compte",
       "title": "Une clé d'accès a été retirée de votre compte",
       "body": "La clé d'accès <strong>{{passkey}}</strong> ne permet plus de vous connecter. Vos autres moyens de connexion sont inchangés et vous restez connecté partout où vous l'étiez."
+    },
+    "removalHeld": {
+      "subject": "Votre dernière clé d'accès va être retirée",
+      "title": "Votre dernière clé d'accès va être retirée",
+      "body": "La clé d'accès <strong>{{passkey}}</strong>, la dernière de votre compte, sera retirée le <strong>{{date}}</strong>. D'ici là, elle permet toujours de vous connecter, et vous pouvez annuler le retrait dans Sécurité, dans vos paramètres."
     }
   },
   "address": {
@@ -297,6 +307,16 @@
       "subject": "Une adresse a été retirée de votre compte",
       "title": "Une adresse a été retirée de votre compte",
       "body": "<strong>{{address}}</strong> a été retirée de votre compte et ne peut plus servir à vous connecter."
+    },
+    "primaryHeld": {
+      "subject": "Votre adresse e-mail principale va changer",
+      "title": "Votre adresse e-mail principale va changer",
+      "body": "<strong>{{address}}</strong> deviendra l'adresse principale de votre compte le <strong>{{date}}</strong>. D'ici là, rien ne change, et vous pouvez l'annuler dans Compte, dans vos paramètres."
+    },
+    "removalHeld": {
+      "subject": "Une adresse va être retirée de votre compte",
+      "title": "Une adresse va être retirée de votre compte",
+      "body": "<strong>{{address}}</strong> sera retirée de votre compte le <strong>{{date}}</strong>. D'ici là, elle permet toujours de vous connecter, et vous pouvez annuler le retrait dans Compte, dans vos paramètres."
     }
   },
   "accountNotice": {

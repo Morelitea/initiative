@@ -14,6 +14,7 @@ from fastapi import (
     UploadFile,
     status,
 )
+from fastapi.responses import JSONResponse
 from sqlalchemy import case, func, literal
 from sqlmodel import select
 
@@ -41,6 +42,7 @@ from app.api.v1.platform_endpoints.password_recheck import (
     require_password_or_recent_proof,
 )
 from app.api.v1.platform_endpoints.change_assessment import is_risky
+from app.api.v1.platform_endpoints.held_changes import HELD, hold_change
 from app.api.v1.platform_endpoints.session_opening import replace_session
 from app.core.password_policy import enforce_password_policy
 from app.core.identity_boundary import PersonId
@@ -130,8 +132,8 @@ from app.core.messages import (
     LegalMessages,
     UserMessages,
 )
-from app.models.platform.user_email import UserEmail
-from app.services.auth import account_changes, addresses
+from app.models.platform.account_change_hold import HeldChangeKind
+from app.services.auth import addresses, held_changes
 
 from app.core.audit_events import AuditEventType
 from app.services import audit as audit_service
@@ -1310,7 +1312,22 @@ async def add_my_address(
     return VerificationSendResponse(status="sent")
 
 
-@me_router.post("/emails/{address_id}/remove", status_code=status.HTTP_204_NO_CONTENT)
+def _address_refused(exc: addresses.AddressError) -> HTTPException:
+    return HTTPException(
+        status_code=(
+            status.HTTP_404_NOT_FOUND
+            if exc.code == AddressMessages.ADDRESS_NOT_FOUND
+            else status.HTTP_400_BAD_REQUEST
+        ),
+        detail=exc.code,
+    )
+
+
+@me_router.post(
+    "/emails/{address_id}/remove",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses=HELD,
+)
 @limiter.limit("10/15minutes")
 async def remove_my_address(
     request: Request,
@@ -1321,63 +1338,36 @@ async def remove_my_address(
     _first_party: Annotated[str, Depends(require_first_party_session)],
 ) -> Response:
     """Stop holding one address. The password is asked for again, as it is for
-    a password change."""
+    a password change. A proved address removed from somewhere the account
+    does not yet know waits two days (``202``)."""
     await require_password_or_recent_proof(
         request, system_session, current_user, payload.current_password
     )
-    # What undoing it would put back, read while the account still holds it.
-    target = await system_session.get(UserEmail, address_id)
-    record = (
-        await account_changes.change_record(
-            system_session,
-            user_id=current_user.id,
-            risky=await is_risky(request, system_session, current_user),
-            undo=account_changes.removal_undo(
-                target,
-                # Read directly: the primary can be an address the account
-                # was minted with, which the address list leaves out.
-                primary_id=(
-                    await system_session.exec(
-                        select(UserEmail.id).where(
-                            UserEmail.user_id == current_user.id,
-                            UserEmail.is_primary.is_(True),
-                        )
-                    )
-                ).first(),
-            ),
-        )
-        if target is not None
-        and target.user_id == current_user.id
-        and target.verified_at is not None
-        else None
-    )
     try:
-        row = await addresses.remove_for_user(
+        target = await addresses.removable(
             system_session, user_id=current_user.id, address_id=address_id
         )
-    except addresses.AddressError as exc:
-        raise HTTPException(
-            status_code=(
-                status.HTTP_404_NOT_FOUND
-                if exc.code == AddressMessages.ADDRESS_NOT_FOUND
-                else status.HTTP_400_BAD_REQUEST
-            ),
-            detail=exc.code,
-        ) from exc
-    # Read before the commit, which leaves the deleted row behind.
-    removed = decrypt_field(row.email_encrypted, SALT_EMAIL)
-    proved = row.verified_at is not None
-    await system_session.commit()
-    # An address nobody proved was never a way in, nor known to be this
-    # account's to write to.
-    if proved:
-        await email_service.announce_address_removed(
-            system_session, current_user, address=removed, record=record
+        if target.verified_at is not None and await is_risky(
+            request, system_session, current_user
+        ):
+            return await hold_change(
+                request,
+                system_session,
+                current_user,
+                kind=HeldChangeKind.remove_address,
+                address_id=address_id,
+            )
+        await held_changes.remove_address(
+            system_session, current_user, address_id=address_id, risky=False
         )
+    except addresses.AddressError as exc:
+        raise _address_refused(exc) from exc
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@me_router.put("/emails/{address_id}/primary", response_model=UserEmailRead)
+@me_router.put(
+    "/emails/{address_id}/primary", response_model=UserEmailRead, responses=HELD
+)
 @limiter.limit("10/15minutes")
 async def make_my_address_primary(
     request: Request,
@@ -1386,67 +1376,33 @@ async def make_my_address_primary(
     system_session: SystemSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     _first_party: Annotated[str, Depends(require_first_party_session)],
-) -> UserEmailRead:
+) -> UserEmailRead | JSONResponse:
     """Move where account mail goes. The password is asked for again, and every
     address the account has proved is told, the one that was primary among
-    them."""
+    them. Asked for from somewhere the account does not yet know, the move
+    waits two days (``202``)."""
     await require_password_or_recent_proof(
         request, system_session, current_user, payload.current_password
     )
-    # Read directly: the primary can be an address the account was minted
-    # with, which the address list leaves out.
-    previous = (
-        await system_session.exec(
-            select(UserEmail).where(
-                UserEmail.user_id == current_user.id,
-                UserEmail.is_primary.is_(True),
-            )
-        )
-    ).first()
-    risky = await is_risky(request, system_session, current_user)
     try:
-        row = await addresses.set_primary_for_user(
+        target = await addresses.primary_candidate(
             system_session, user_id=current_user.id, address_id=address_id
         )
-    except addresses.AddressError as exc:
-        raise HTTPException(
-            status_code=(
-                status.HTTP_404_NOT_FOUND
-                if exc.code == AddressMessages.ADDRESS_NOT_FOUND
-                else status.HTTP_400_BAD_REQUEST
-            ),
-            detail=exc.code,
-        ) from exc
-    await system_session.commit()
-    await system_session.refresh(row)
-    if previous is None or previous.id != row.id:
-        await email_service.announce_address_change(
-            system_session,
-            current_user,
-            change="primary",
-            address=decrypt_field(row.email_encrypted, SALT_EMAIL),
-            record=(
-                await account_changes.change_record(
-                    system_session,
-                    user_id=current_user.id,
-                    risky=risky,
-                    undo={
-                        "kind": "primary",
-                        # A minted address takes no mail, so undoing a move
-                        # away from one moves the primary to the address
-                        # whose link was clicked.
-                        "address_id": (
-                            None
-                            if previous.source == addresses.SOURCE_SYNTHETIC
-                            else previous.id
-                        ),
-                        "made_primary": row.id,
-                    },
-                )
-                if previous is not None
-                else None
-            ),
+        if not target.is_primary and await is_risky(
+            request, system_session, current_user
+        ):
+            return await hold_change(
+                request,
+                system_session,
+                current_user,
+                kind=HeldChangeKind.primary,
+                address_id=address_id,
+            )
+        row = await held_changes.make_primary(
+            system_session, current_user, address_id=address_id, risky=False
         )
+    except addresses.AddressError as exc:
+        raise _address_refused(exc) from exc
     return _address_read(row)
 
 

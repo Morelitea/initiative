@@ -2081,6 +2081,17 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             platform_base=None,
         ),
     ),
+    "account_change_holds": SharedTable(
+        rls=FORCED_NO_POLICY,
+        grants=Grants(
+            # A change waiting to apply: requested, cancelled and applied on the
+            # system engine, beside the session and credential rows it acts on.
+            app_admin=DML,
+            app_user=None,
+            app_guild_base=None,
+            platform_base=None,
+        ),
+    ),
     "user_email_assertions": SharedTable(
         rls=FORCED_NO_POLICY,
         grants=Grants(

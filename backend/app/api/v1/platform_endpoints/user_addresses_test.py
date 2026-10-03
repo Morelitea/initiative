@@ -7,6 +7,8 @@ holds it, and an account always keeps a proven address and a primary.
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -16,12 +18,14 @@ from app.core.encryption import hash_email
 from app.models.platform.user_email import UserEmail
 from app.models.platform.user_token import UserToken, UserTokenPurpose
 from app.services import email as email_service
-from app.services.auth import addresses
+from app.services.auth import addresses, held_changes
 from app.services.platform import email_outbox
-from app.testing.factories import create_user, get_auth_headers
+from app.testing.factories import create_user, get_auth_headers, signed_in_headers
 
 #: What ``create_user`` hashes, and so what every change here is confirmed with.
 PASSWORD = "testpassword123"
+#: A sign-in proved with a passkey, whose changes are made at once.
+PASSKEY = ["hwk"]
 CONFIRM = {"current_password": PASSWORD}
 
 
@@ -180,7 +184,7 @@ async def test_the_primary_moves_only_to_a_proven_address(
     refused = await client.put(
         f"/api/v1/me/emails/{unproven_id}/primary",
         json=CONFIRM,
-        headers=get_auth_headers(user),
+        headers=await signed_in_headers(session, user, amr=PASSKEY),
     )
     assert refused.status_code == 400
     assert refused.json()["detail"] == "ADDRESS_NOT_VERIFIED"
@@ -188,7 +192,7 @@ async def test_the_primary_moves_only_to_a_proven_address(
     moved = await client.put(
         f"/api/v1/me/emails/{proven_id}/primary",
         json=CONFIRM,
-        headers=get_auth_headers(user),
+        headers=await signed_in_headers(session, user, amr=PASSKEY),
     )
     assert moved.status_code == 200, moved.text
     assert moved.json()["is_primary"] is True
@@ -223,7 +227,7 @@ async def test_the_primary_moves_off_a_minted_address(
     moved = await client.put(
         f"/api/v1/me/emails/{proved['id']}/primary",
         json=CONFIRM,
-        headers=get_auth_headers(user),
+        headers=await signed_in_headers(session, user, amr=PASSKEY),
     )
     assert moved.status_code == 200, moved.text
     assert moved.json()["is_primary"] is True
@@ -264,7 +268,7 @@ async def test_the_last_proven_address_is_not_removed(
     moved = await client.put(
         f"/api/v1/me/emails/{spare_id}/primary",
         json=CONFIRM,
-        headers=get_auth_headers(user),
+        headers=await signed_in_headers(session, user, amr=PASSKEY),
     )
     assert moved.status_code == 200, moved.text
 
@@ -274,7 +278,7 @@ async def test_the_last_proven_address_is_not_removed(
     gone = await client.post(
         f"/api/v1/me/emails/{original['id']}/remove",
         json=CONFIRM,
-        headers=get_auth_headers(user),
+        headers=await signed_in_headers(session, user, amr=PASSKEY),
     )
     assert gone.status_code == 204, gone.text
 
@@ -282,7 +286,7 @@ async def test_the_last_proven_address_is_not_removed(
     refused = await client.post(
         f"/api/v1/me/emails/{spare_id}/remove",
         json=CONFIRM,
-        headers=get_auth_headers(user),
+        headers=await signed_in_headers(session, user, amr=PASSKEY),
     )
     assert refused.status_code == 400
     assert refused.json()["detail"] == "PRIMARY_ADDRESS"
@@ -639,7 +643,7 @@ async def test_moving_the_primary_tells_the_account(
         moved = await client.put(
             f"/api/v1/me/emails/{spare_id}/primary",
             json=CONFIRM,
-            headers=get_auth_headers(user),
+            headers=await signed_in_headers(session, user, amr=PASSKEY),
         )
         assert moved.status_code == 200, moved.text
     assert queued == [_subject("primary")]
@@ -677,10 +681,62 @@ async def test_a_removed_address_is_told_as_well_as_the_account(
         gone = await client.post(
             f"/api/v1/me/emails/{address_id}/remove",
             json=CONFIRM,
-            headers=get_auth_headers(user),
+            headers=await signed_in_headers(session, user, amr=PASSKEY),
         )
         assert gone.status_code == 204, gone.text
 
     assert queued == [_subject("removed")]
     assert undone == ["removed"]
     assert also == [["proved-goes@example.com"]]
+
+
+# ---------------------------------------------------------------------------
+# A change from a new sign-in waits
+# ---------------------------------------------------------------------------
+
+
+async def test_a_primary_move_from_a_new_sign_in_waits_until_it_is_due(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """The account is told when it happens and nothing changes until then; a
+    second change waits for the first. Once due, the sweep makes it and tells
+    the account as the move itself would."""
+    user = await create_user(session, email="waits@example.com")
+    spare = addresses.record_address(
+        session,
+        user_id=user.id,
+        email="later-primary@example.com",
+        source=addresses.SOURCE_ADDED,
+        verified=True,
+        is_primary=False,
+    )
+    await session.commit()
+    spare_id = spare.id
+    headers = await signed_in_headers(session, user)
+    queued, _also = _record_letters(monkeypatch)
+
+    held = await client.put(
+        f"/api/v1/me/emails/{spare_id}/primary", json=CONFIRM, headers=headers
+    )
+    assert held.status_code == 202, held.text
+    assert held.json()["kind"] == "primary"
+    assert held.json()["subject"] == "later-primary@example.com"
+    assert queued == [email_t("address.primaryHeld.subject", "en", escape=False)]
+    assert undone == ["hold"]
+
+    second = await client.post(
+        f"/api/v1/me/emails/{spare_id}/remove", json=CONFIRM, headers=headers
+    )
+    assert second.status_code == 409, second.text
+    assert second.json()["detail"] == "ACCOUNT_CHANGE_PENDING"
+
+    now = datetime.now(timezone.utc)
+    assert await held_changes.apply_due(session, now=now) == 0
+    primaries = [i["email"] for i in await _listing(client, user) if i["is_primary"]]
+    assert primaries == ["waits@example.com"]
+
+    assert await held_changes.apply_due(session, now=now + held_changes.HOLD_FOR) == 1
+    primaries = [i["email"] for i in await _listing(client, user) if i["is_primary"]]
+    assert primaries == ["later-primary@example.com"]
+    assert queued[-1] == _subject("primary")
+    assert undone[-1] == "primary"

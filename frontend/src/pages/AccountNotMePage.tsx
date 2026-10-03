@@ -26,6 +26,7 @@ const UNDO_KEYS = {
   primary: "notMe.undo.primary",
   removed: "notMe.undo.removed",
   passkey: "notMe.undo.passkey",
+  hold: "notMe.undo.hold",
 } as const;
 
 /** What each account notice was about, by the part of its name before the dot. */
@@ -95,6 +96,8 @@ export const AccountNotMePage = () => {
       ? UNDO_KEYS[answer.undo as keyof typeof UNDO_KEYS]
       : null;
   const finished = step === "done" || step === "undone";
+  // A change that is still waiting is cancelled rather than undone.
+  const cancels = answer?.undo === "hold";
 
   return (
     <SignInFrame>
@@ -102,7 +105,11 @@ export const AccountNotMePage = () => {
         {finished ? (
           <CardHeader>
             <CardTitle>
-              {step === "undone" ? t("notMe.undoneTitle") : t("notMe.doneTitle")}
+              {step !== "undone"
+                ? t("notMe.doneTitle")
+                : cancels
+                  ? t("notMe.cancelledTitle")
+                  : t("notMe.undoneTitle")}
             </CardTitle>
             <CardDescription>{t("notMe.doneBody")}</CardDescription>
           </CardHeader>
@@ -129,7 +136,7 @@ export const AccountNotMePage = () => {
                   onClick={() => void act(true)}
                   disabled={step !== "ready" || submitting}
                 >
-                  {t("notMe.undoConfirm")}
+                  {cancels ? t("notMe.cancelConfirm") : t("notMe.undoConfirm")}
                 </Button>
               ) : null}
               {answer?.sign_out !== false ? (

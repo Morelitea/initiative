@@ -447,6 +447,21 @@ async def ways_in(session: AsyncSession, *, user_id: int) -> frozenset[LoginMeth
     )
 
 
+async def passkey_is_last_way_in(session: AsyncSession, *, user_id: int) -> bool:
+    """Whether the account's one passkey is all that signs it in: nothing else
+    in :func:`ways_in`, and no second passkey."""
+    if await ways_in(session, user_id=user_id) - {LoginMethod.passkey}:
+        return False
+    held = (
+        await session.exec(
+            select(func.count())
+            .select_from(UserPasskey)
+            .where(UserPasskey.user_id == user_id)
+        )
+    ).one()
+    return held == 1
+
+
 async def delete_user_identities(session: AsyncSession, *, user_id: int) -> None:
     """Remove every identity link (and, via cascade, its stored refresh token)
     for a user — the anonymize/delete-account cleanup. Stages only."""

@@ -102,6 +102,21 @@
     "primaryDialogDescription": "Passwort-Zurücksetzungen und Anmeldecodes gehen zuerst an <strong>{{email}}</strong>.",
     "primaryConfirm": "Als Hauptadresse festlegen"
   },
+  "heldChange": {
+    "title": "Eine Änderung steht aus",
+    "primary": "{{subject}} wird am {{date}} deine Hauptadresse.",
+    "removeAddress": "{{subject}} wird am {{date}} aus deinem Konto entfernt.",
+    "secondFactorOff": "Die Zwei-Faktor-Authentifizierung wird am {{date}} deaktiviert.",
+    "lastPasskey": "Dein letzter Passkey, {{subject}}, wird am {{date}} entfernt.",
+    "description": "Sie wartet zwei Tage, und alle Adressen deines Kontos haben eine E-Mail dazu bekommen. Bis dahin ändert sich nichts.",
+    "cancel": "Änderung abbrechen",
+    "applyNow": "Jetzt mit Passkey ausführen",
+    "cancelled": "Die Änderung ist abgebrochen.",
+    "applied": "Die Änderung ist ausgeführt.",
+    "cancelFailed": "Die Änderung konnte nicht abgebrochen werden. Versuch es noch einmal.",
+    "applyFailed": "Die Änderung konnte nicht sofort ausgeführt werden. Versuch es noch einmal.",
+    "waits": "Diese Änderung wartet bis {{date}}. Alle Adressen deines Kontos haben eine E-Mail dazu bekommen."
+  },
   "security": {
     "loadingDevices": "Geräte werden geladen…",
     "devicesError": "Geräte konnten nicht geladen werden.",

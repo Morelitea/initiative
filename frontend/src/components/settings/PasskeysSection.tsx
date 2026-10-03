@@ -34,6 +34,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { WizardDialog } from "@/components/ui/wizard-dialog";
+import { isHeld, useAnnounceHeld } from "@/hooks/useHeldChange";
 import { useServer } from "@/hooks/useServer";
 import { useWizard } from "@/hooks/useWizard";
 import { toast } from "@/lib/chesterToast";
@@ -91,6 +92,7 @@ const promptMessageKey = (error: unknown): PromptMessageKey => {
  */
 export const PasskeysSection = () => {
   const { t } = useTranslation(["settings", "errors", "common"]);
+  const announceHeld = useAnnounceHeld();
   const { isNativePlatform, getServerOrigin } = useServer();
 
   const list = useListPasskeys();
@@ -195,8 +197,9 @@ export const PasskeysSection = () => {
 
   const remove = useRemovePasskey({
     mutation: {
-      onSuccess: () => {
-        toast.success(t("passkeys.removed"));
+      onSuccess: (result) => {
+        if (isHeld(result)) announceHeld(result);
+        else toast.success(t("passkeys.removed"));
         void refresh();
         setRemoveTarget(null);
         setRemovePassword("");

@@ -76,10 +76,22 @@ The same dot on your profile card in **User settings → Profile** opens the sam
 Who you are and how you get in.
 
 - **Username** — your handle: the name you picked plus a four-digit number, like `jordan#1234`. The number is what lets two people share a name. A moderator can change it for you.
-- **Email addresses** — any confirmed one signs you in, and account mail goes to all of them.
+- **Email addresses** — any confirmed one signs you in, and account mail goes to all of them. Moving the primary or removing one can [wait two days](#changes-that-wait).
 - **Password** — current password, then the new one twice (12+ characters), then **Change password**.
 
 Sign in with a work login instead? Then your password lives with them, not us, and this section is none of your concern.
+
+### Changes that wait
+
+Moving your primary address, removing a confirmed one, turning off two-factor authentication and removing your last passkey wait two days when they're made from somewhere your account hasn't been signed in for long. Nothing changes in the meantime, so if it wasn't you, two days is a lot of time to notice.
+
+While it waits:
+
+- Every confirmed address gets an email about it, with a link to cancel it.
+- It sits at the top of **Account** and **Security** in your settings, with **Cancel the change**.
+- Got a passkey? **Make it now with a passkey** skips the wait.
+
+One change waits at a time. Ask for another and you'll be pointed at the first.
 
 ## Preferences
 

@@ -24,6 +24,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { WizardDialog } from "@/components/ui/wizard-dialog";
+import { isHeld, useAnnounceHeld } from "@/hooks/useHeldChange";
 import { useWizard } from "@/hooks/useWizard";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
@@ -52,6 +53,7 @@ type Errand = "enrol" | "regenerate";
  */
 export const TwoFactorSection = () => {
   const { t } = useTranslation(["settings", "errors"]);
+  const announceHeld = useAnnounceHeld();
   const status = useReadSecondFactor();
   const refreshStatus = () =>
     queryClient.invalidateQueries({ queryKey: getReadSecondFactorQueryKey() });
@@ -132,8 +134,9 @@ export const TwoFactorSection = () => {
 
   const disable = useDisableSecondFactor({
     mutation: {
-      onSuccess: () => {
-        toast.success(t("twoFactor.turnedOff"));
+      onSuccess: (result) => {
+        if (isHeld(result)) announceHeld(result);
+        else toast.success(t("twoFactor.turnedOff"));
         setOffOpen(false);
         setOffPassword("");
         setOffCode("");

@@ -39,6 +39,7 @@ import type {
   ExportUsersCsvParams,
   GetUserStatsParams,
   HTTPValidationError,
+  HeldChangeRead,
   ListRosterParams,
   ListUsersParams,
   OwnedContentResponse,
@@ -3043,7 +3044,8 @@ export const useAddMyAddress = <TError = ErrorType<HTTPValidationError>, TContex
 };
 /**
  * Stop holding one address. The password is asked for again, as it is for
- * a password change.
+ * a password change. A proved address removed from somewhere the account
+ * does not yet know waits two days (``202``).
  * @summary Remove My Address
  */
 export const removeMyAddress = (
@@ -3052,7 +3054,7 @@ export const removeMyAddress = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<void>(
+  return apiMutator<HeldChangeRead | void>(
     {
       url: `/api/v1/me/emails/${addressId}/remove`,
       method: "POST",
@@ -3137,7 +3139,8 @@ export const useRemoveMyAddress = <TError = ErrorType<HTTPValidationError>, TCon
 /**
  * Move where account mail goes. The password is asked for again, and every
  * address the account has proved is told, the one that was primary among
- * them.
+ * them. Asked for from somewhere the account does not yet know, the move
+ * waits two days (``202``).
  * @summary Make My Address Primary
  */
 export const makeMyAddressPrimary = (
@@ -3146,7 +3149,7 @@ export const makeMyAddressPrimary = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<UserEmailRead>(
+  return apiMutator<UserEmailRead | HeldChangeRead>(
     {
       url: `/api/v1/me/emails/${addressId}/primary`,
       method: "PUT",
@@ -3872,4 +3875,281 @@ export const useDeleteMyAvatar = <TError = ErrorType<HTTPValidationError>, TCont
   queryClient?: QueryClient
 ): UseMutationResult<Awaited<ReturnType<typeof deleteMyAvatar>>, TError, void, TContext> => {
   return useMutation(getDeleteMyAvatarMutationOptions(options), queryClient);
+};
+/**
+ * The change this account has waiting, or nothing.
+ * @summary Read Held Change
+ */
+export const readHeldChange = (
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<HeldChangeRead | null>(
+    { url: `/api/v1/me/held-change`, method: "GET", signal },
+    options
+  );
+};
+
+export const getReadHeldChangeQueryKey = () => {
+  return [`/api/v1/me/held-change`] as const;
+};
+
+export const getReadHeldChangeQueryOptions = <
+  TData = Awaited<ReturnType<typeof readHeldChange>>,
+  TError = ErrorType<HTTPValidationError>,
+>(options?: {
+  query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readHeldChange>>, TError, TData>>;
+  request?: SecondParameter<typeof apiMutator>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getReadHeldChangeQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof readHeldChange>>> = ({ signal }) =>
+    readHeldChange(requestOptions, signal);
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof readHeldChange>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ReadHeldChangeQueryResult = NonNullable<Awaited<ReturnType<typeof readHeldChange>>>;
+export type ReadHeldChangeQueryError = ErrorType<HTTPValidationError>;
+
+export function useReadHeldChange<
+  TData = Awaited<ReturnType<typeof readHeldChange>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options: {
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof readHeldChange>>, TError, TData>> &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof readHeldChange>>,
+          TError,
+          Awaited<ReturnType<typeof readHeldChange>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadHeldChange<
+  TData = Awaited<ReturnType<typeof readHeldChange>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readHeldChange>>, TError, TData>> &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof readHeldChange>>,
+          TError,
+          Awaited<ReturnType<typeof readHeldChange>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadHeldChange<
+  TData = Awaited<ReturnType<typeof readHeldChange>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readHeldChange>>, TError, TData>>;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Read Held Change
+ */
+
+export function useReadHeldChange<
+  TData = Awaited<ReturnType<typeof readHeldChange>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readHeldChange>>, TError, TData>>;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getReadHeldChangeQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * Cancel the waiting change. Nothing about the account changes.
+ * @summary Cancel Held Change
+ */
+export const cancelHeldChange = (
+  holdId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<void>(
+    { url: `/api/v1/me/held-change/${holdId}/cancel`, method: "POST", signal },
+    options
+  );
+};
+
+export const getCancelHeldChangeMutationKey = () => ["cancelHeldChange"] as const;
+
+export const getCancelHeldChangeMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof cancelHeldChange>>,
+    TError,
+    CancelHeldChangeMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof cancelHeldChange>>,
+  TError,
+  CancelHeldChangeMutationVariables,
+  TContext
+> => {
+  const mutationKey = getCancelHeldChangeMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof cancelHeldChange>>,
+    CancelHeldChangeMutationVariables
+  > = (props) => {
+    const { holdId } = props ?? {};
+
+    return cancelHeldChange(holdId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CancelHeldChangeMutationResult = NonNullable<
+  Awaited<ReturnType<typeof cancelHeldChange>>
+>;
+
+export type CancelHeldChangeMutationError = ErrorType<HTTPValidationError>;
+export type CancelHeldChangeMutationVariables = { holdId: number };
+
+/**
+ * @summary Cancel Held Change
+ */
+export const useCancelHeldChange = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof cancelHeldChange>>,
+      TError,
+      CancelHeldChangeMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof cancelHeldChange>>,
+  TError,
+  CancelHeldChangeMutationVariables,
+  TContext
+> => {
+  return useMutation(getCancelHeldChangeMutationOptions(options), queryClient);
+};
+/**
+ * Make the waiting change now. Asks for a session proved with a passkey,
+ * which the passkey step-up gives; the account is told as it would be when
+ * the wait ends.
+ * @summary Apply Held Change
+ */
+export const applyHeldChange = (
+  holdId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<void>(
+    { url: `/api/v1/me/held-change/${holdId}/apply`, method: "POST", signal },
+    options
+  );
+};
+
+export const getApplyHeldChangeMutationKey = () => ["applyHeldChange"] as const;
+
+export const getApplyHeldChangeMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof applyHeldChange>>,
+    TError,
+    ApplyHeldChangeMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof applyHeldChange>>,
+  TError,
+  ApplyHeldChangeMutationVariables,
+  TContext
+> => {
+  const mutationKey = getApplyHeldChangeMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof applyHeldChange>>,
+    ApplyHeldChangeMutationVariables
+  > = (props) => {
+    const { holdId } = props ?? {};
+
+    return applyHeldChange(holdId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ApplyHeldChangeMutationResult = NonNullable<
+  Awaited<ReturnType<typeof applyHeldChange>>
+>;
+
+export type ApplyHeldChangeMutationError = ErrorType<HTTPValidationError>;
+export type ApplyHeldChangeMutationVariables = { holdId: number };
+
+/**
+ * @summary Apply Held Change
+ */
+export const useApplyHeldChange = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof applyHeldChange>>,
+      TError,
+      ApplyHeldChangeMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof applyHeldChange>>,
+  TError,
+  ApplyHeldChangeMutationVariables,
+  TContext
+> => {
+  return useMutation(getApplyHeldChangeMutationOptions(options), queryClient);
 };
