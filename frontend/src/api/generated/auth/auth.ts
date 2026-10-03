@@ -21,6 +21,8 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
+  AccountChangeRead,
+  AccountChangeToken,
   BeginPasskeySignUpParams,
   BodyLoginAccessToken,
   BootstrapStatus200,
@@ -3713,6 +3715,275 @@ export const useRecoverWithCode = <TError = ErrorType<HTTPValidationError>, TCon
   TContext
 > => {
   return useMutation(getRecoverWithCodeMutationOptions(options), queryClient);
+};
+/**
+ * What a link answers and may do, for its page to say before anything is
+ * done. Reading spends nothing.
+ * @summary Read Account Change
+ */
+export const readAccountChange = (
+  accountChangeToken: BodyType<AccountChangeToken>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<AccountChangeRead>(
+    {
+      url: `/api/v1/auth/account-change/read`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: accountChangeToken,
+      signal,
+    },
+    options
+  );
+};
+
+export const getReadAccountChangeMutationKey = () => ["readAccountChange"] as const;
+
+export const getReadAccountChangeMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof readAccountChange>>,
+    TError,
+    ReadAccountChangeMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof readAccountChange>>,
+  TError,
+  ReadAccountChangeMutationVariables,
+  TContext
+> => {
+  const mutationKey = getReadAccountChangeMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof readAccountChange>>,
+    ReadAccountChangeMutationVariables
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return readAccountChange(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ReadAccountChangeMutationResult = NonNullable<
+  Awaited<ReturnType<typeof readAccountChange>>
+>;
+export type ReadAccountChangeMutationBody = BodyType<AccountChangeToken>;
+export type ReadAccountChangeMutationError = ErrorType<HTTPValidationError>;
+export type ReadAccountChangeMutationVariables = { data: BodyType<AccountChangeToken> };
+
+/**
+ * @summary Read Account Change
+ */
+export const useReadAccountChange = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof readAccountChange>>,
+      TError,
+      ReadAccountChangeMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof readAccountChange>>,
+  TError,
+  ReadAccountChangeMutationVariables,
+  TContext
+> => {
+  return useMutation(getReadAccountChangeMutationOptions(options), queryClient);
+};
+/**
+ * Sign the account out of every browser, phone and computer, and turn off
+ * its API keys. Its password, addresses and other ways in stay as they are.
+ * The link is spent with the work, so a sign-out that fails leaves it good.
+ * @summary Sign Out Everywhere
+ */
+export const signOutEverywhere = (
+  accountChangeToken: BodyType<AccountChangeToken>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<VerificationSendResponse>(
+    {
+      url: `/api/v1/auth/account-change/sign-out`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: accountChangeToken,
+      signal,
+    },
+    options
+  );
+};
+
+export const getSignOutEverywhereMutationKey = () => ["signOutEverywhere"] as const;
+
+export const getSignOutEverywhereMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof signOutEverywhere>>,
+    TError,
+    SignOutEverywhereMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof signOutEverywhere>>,
+  TError,
+  SignOutEverywhereMutationVariables,
+  TContext
+> => {
+  const mutationKey = getSignOutEverywhereMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof signOutEverywhere>>,
+    SignOutEverywhereMutationVariables
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return signOutEverywhere(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SignOutEverywhereMutationResult = NonNullable<
+  Awaited<ReturnType<typeof signOutEverywhere>>
+>;
+export type SignOutEverywhereMutationBody = BodyType<AccountChangeToken>;
+export type SignOutEverywhereMutationError = ErrorType<HTTPValidationError>;
+export type SignOutEverywhereMutationVariables = { data: BodyType<AccountChangeToken> };
+
+/**
+ * @summary Sign Out Everywhere
+ */
+export const useSignOutEverywhere = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof signOutEverywhere>>,
+      TError,
+      SignOutEverywhereMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof signOutEverywhere>>,
+  TError,
+  SignOutEverywhereMutationVariables,
+  TContext
+> => {
+  return useMutation(getSignOutEverywhereMutationOptions(options), queryClient);
+};
+/**
+ * Undo the change the notice reported and sign the account out
+ * everywhere, where this copy of the notice may. The account is told what
+ * the undo changed.
+ * @summary Undo Account Change
+ */
+export const undoAccountChange = (
+  accountChangeToken: BodyType<AccountChangeToken>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<VerificationSendResponse>(
+    {
+      url: `/api/v1/auth/account-change/undo`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: accountChangeToken,
+      signal,
+    },
+    options
+  );
+};
+
+export const getUndoAccountChangeMutationKey = () => ["undoAccountChange"] as const;
+
+export const getUndoAccountChangeMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof undoAccountChange>>,
+    TError,
+    UndoAccountChangeMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof undoAccountChange>>,
+  TError,
+  UndoAccountChangeMutationVariables,
+  TContext
+> => {
+  const mutationKey = getUndoAccountChangeMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof undoAccountChange>>,
+    UndoAccountChangeMutationVariables
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return undoAccountChange(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UndoAccountChangeMutationResult = NonNullable<
+  Awaited<ReturnType<typeof undoAccountChange>>
+>;
+export type UndoAccountChangeMutationBody = BodyType<AccountChangeToken>;
+export type UndoAccountChangeMutationError = ErrorType<HTTPValidationError>;
+export type UndoAccountChangeMutationVariables = { data: BodyType<AccountChangeToken> };
+
+/**
+ * @summary Undo Account Change
+ */
+export const useUndoAccountChange = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof undoAccountChange>>,
+      TError,
+      UndoAccountChangeMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof undoAccountChange>>,
+  TError,
+  UndoAccountChangeMutationVariables,
+  TContext
+> => {
+  return useMutation(getUndoAccountChangeMutationOptions(options), queryClient);
 };
 /**
  * Post a code to an address, and hand back the handle that names it.

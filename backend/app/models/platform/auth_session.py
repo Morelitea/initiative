@@ -148,3 +148,9 @@ class AuthSession(SQLModel, table=True):
         default=False,
         sa_column=Column(Boolean, nullable=False, server_default=text("false")),
     )
+    #: When the sign-in this session continues began, where it took the place
+    #: of another (a step-up, a replacement). Its own chain starts afresh, so
+    #: this is what still says how long the person has been signed in here.
+    continues_since: Optional[datetime] = Field(
+        default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
+    )

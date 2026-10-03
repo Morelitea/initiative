@@ -46,6 +46,27 @@ class VerificationConfirmRequest(SanitizedBaseModel):
     token: str = Field(min_length=10)
 
 
+class AccountChangeToken(SanitizedBaseModel):
+    """The token from the "This wasn't me" link in an account letter."""
+
+    token: str = Field(min_length=10)
+
+
+class AccountChangeRead(SanitizedBaseModel):
+    """What a "This wasn't me" link answers and what it may do."""
+
+    #: The account notice it came in, such as ``address.removed``.
+    notice: str
+    #: Whether it may sign the account out everywhere.
+    sign_out: bool
+    #: What it may undo (``proved``, ``primary``, ``removed`` or ``passkey``),
+    #: or ``None``.
+    undo: Optional[str] = None
+    #: What the undo acts on, as the notice named it: an address or a
+    #: passkey's name.
+    subject: Optional[str] = None
+
+
 class PasswordResetRequest(SanitizedBaseModel):
     email: EmailStr
 

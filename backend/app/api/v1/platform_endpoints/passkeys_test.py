@@ -630,7 +630,7 @@ async def test_the_account_is_told_about_both_changes(
 ):
     sent: list[dict] = []
 
-    async def record(user, pieces) -> None:
+    async def record(user, pieces, **_) -> None:
         sent.append(
             {"user_id": user.id, "subject": pieces.subject, "body": pieces.body}
         )

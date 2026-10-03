@@ -91,6 +91,7 @@
   "AUTH_PROVIDER_SOLE_CREDENTIAL": "Certains comptes se connectent uniquement avec ce fournisseur ; ils ont besoin d'un mot de passe ou d'une autre méthode de connexion avant de pouvoir le supprimer",
   "SMTP_NOT_CONFIGURED": "Les paramètres SMTP sont incomplets.",
   "INVALID_OR_EXPIRED_TOKEN": "Jeton invalide ou expiré",
+  "ACCOUNT_CHANGE_MOVED_ON": "Votre compte a changé depuis cet e-mail, ce n'est donc plus annulable depuis celui-ci. Déconnectez-vous partout, puis vérifiez vos paramètres de sécurité.",
   "RESERVED_SIGIL_IN_NAME": "Les noms et les titres ne peuvent pas contenir # ni @.",
   "FIELD_CANNOT_BE_NULL": "Ce champ ne peut pas rester vide.",
   "PROJECT_NOT_FOUND": "Projet introuvable",

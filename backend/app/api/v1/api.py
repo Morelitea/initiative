@@ -60,6 +60,7 @@ from app.api.v1.tenant_endpoints import (
     wikis,
 )
 from app.api.v1.platform_endpoints import (
+    account_change,
     field_catalog,
     recurrence,
     access_grants,
@@ -126,6 +127,7 @@ api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
 api_router.include_router(second_factor.router, prefix="/auth", tags=["auth"])
 api_router.include_router(passkeys.router, prefix="/auth", tags=["auth"])
 api_router.include_router(passwordless.router, prefix="/auth", tags=["auth"])
+api_router.include_router(account_change.router, prefix="/auth", tags=["auth"])
 api_router.include_router(email_otp.router, prefix="/auth", tags=["auth"])
 api_router.include_router(sessions.router, prefix="/auth", tags=["auth"])
 api_router.include_router(operator.router, prefix="/operator", tags=["operator"])

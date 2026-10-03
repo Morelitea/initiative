@@ -1,14 +1,17 @@
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Optional
+from typing import Any, Optional
 
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, String
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Enum as SQLEnum, Field, SQLModel
 
 
 class UserTokenPurpose(str, Enum):
     email_verification = "email_verification"
     password_reset = "password_reset"
+    #: The link in an account letter that answers "this wasn't me".
+    account_change = "account_change"
 
 
 class UserToken(SQLModel, table=True):
@@ -46,6 +49,11 @@ class UserToken(SQLModel, table=True):
             ForeignKey("guild_invites.id", ondelete="SET NULL"),
             nullable=True,
         ),
+    )
+    # What an account_change token may do, and the address it was sent to.
+    # NULL for every other token.
+    change: Optional[dict[str, Any]] = Field(
+        default=None, sa_column=Column(JSONB, nullable=True)
     )
     expires_at: datetime = Field(
         sa_column=Column(DateTime(timezone=True), nullable=False),

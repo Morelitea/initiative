@@ -299,6 +299,9 @@
       "body": "<strong>{{address}}</strong> se eliminó de tu cuenta y ya no se puede usar para iniciar sesión."
     }
   },
+  "accountNotice": {
+    "notMe": "No he sido yo"
+  },
   "digest": {
     "hourly": {
       "title": "La última hora en Initiative",

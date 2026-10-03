@@ -33,6 +33,7 @@ from app.api.deps import (
     SystemSessionDep,
     CurrentUser,
 )
+from app.api.v1.platform_endpoints.change_assessment import is_risky
 from app.api.v1.platform_endpoints.password_recheck import (
     password_confirms,
     require_password_or_recent_proof,
@@ -70,7 +71,7 @@ from app.schemas.platform.passkey import (
 from app.schemas.platform.token import Token
 from app.services import audit as audit_service
 from app.services import email as email_service
-from app.services.auth import addresses
+from app.services.auth import account_changes, addresses
 from app.services.auth import challenges as challenge_service
 from app.services.auth import native_handoff
 from app.services.auth import identity as identity_service
@@ -306,6 +307,7 @@ async def finish_passkey_registration(
         raise _registration_invalid()
 
     read = _read(row)
+    risky = await is_risky(request, system_session, current_user)
     await audit_service.record(
         system_session,
         event_type=AuditEventType.AUTH_PASSKEY_REGISTERED,
@@ -318,7 +320,16 @@ async def finish_passkey_registration(
     )
     await system_session.commit()
     await email_service.announce_passkey_change(
-        system_session, current_user, added=True, name=read.name
+        system_session,
+        current_user,
+        added=True,
+        name=read.name,
+        record=await account_changes.change_record(
+            system_session,
+            user_id=current_user.id,
+            risky=risky,
+            undo={"kind": "passkey", "passkey_id": str(read.id)},
+        ),
     )
     return read
 

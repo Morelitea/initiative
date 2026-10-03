@@ -126,7 +126,7 @@ from app.services import audit as audit_service
 import webauthn
 from webauthn.helpers import bytes_to_base64url
 
-from app.services.auth import addresses
+from app.services.auth import account_changes, addresses
 from app.services.auth import (
     guild_provider_connections as guild_connections,
 )
@@ -1668,6 +1668,7 @@ async def _complete_provider_login(
     # Set where this sign-in proves an address the person added themselves.
     proved_at = datetime.now(timezone.utc)
     proved_address: str | None = None
+    proved_id: int | None = None
     if resolution.outcome is ResolutionOutcome.EMAIL_MATCH:
         # Platform policy: a verified IdP email claims its matching local
         # account (parity with the previous flow); the link makes every later
@@ -1703,7 +1704,7 @@ async def _complete_provider_login(
                 now=proved_at,
             )
             if await addresses.proved_a_new_way_in(system_session, row, at=proved_at):
-                proved_address = email
+                proved_address, proved_id = email, row.id
         identity = await link_identity(
             system_session,
             user=user,
@@ -1729,7 +1730,7 @@ async def _complete_provider_login(
             now=proved_at,
         )
         if await addresses.proved_a_new_way_in(system_session, row, at=proved_at):
-            proved_address = email
+            proved_address, proved_id = email, row.id
 
     # Profile refresh from the verified claims.
     if avatar_url and user.avatar_url != avatar_url:
@@ -1751,8 +1752,19 @@ async def _complete_provider_login(
     await system_session.commit()
     await system_session.refresh(user)
     if proved_address is not None:
+        # A sign-in at a provider is no place the account already uses, so a
+        # proof that arrives with it can be undone by the addresses before it.
         await email_service.announce_address_change(
-            system_session, user, change="proved", address=proved_address
+            system_session,
+            user,
+            change="proved",
+            address=proved_address,
+            record=await account_changes.change_record(
+                system_session,
+                user_id=user.id,
+                risky=True,
+                undo={"kind": "proved", "address_id": proved_id},
+            ),
         )
 
     # What each community makes of this arrival. A connection can say that
@@ -1970,6 +1982,9 @@ async def confirm_verification(
     # A token minted for one address proves that address; the older
     # account-level tokens carry none and prove the account.
     proved_address = None
+    proved_id: int | None = None
+    # Whether adding it was risky, as the request that added it found.
+    risky = (record.change or {}).get("risky", True)
     if record.user_email_id is not None:
         proved_at = datetime.now(timezone.utc)
         try:
@@ -1994,6 +2009,7 @@ async def confirm_verification(
             ) from exc
         if await addresses.proved_a_new_way_in(system_session, row, at=proved_at):
             proved_address = decrypt_field(row.email_encrypted, SALT_EMAIL)
+            proved_id = row.id
 
     record.consumed_at = datetime.now(timezone.utc)
     system_session.add(record)
@@ -2004,7 +2020,16 @@ async def confirm_verification(
     await system_session.commit()
     if proved_address is not None:
         await email_service.announce_address_change(
-            system_session, user, change="proved", address=proved_address
+            system_session,
+            user,
+            change="proved",
+            address=proved_address,
+            record=await account_changes.change_record(
+                system_session,
+                user_id=user.id,
+                risky=risky,
+                undo={"kind": "proved", "address_id": proved_id},
+            ),
         )
     await cohorts.settle(system_session)
     return VerificationSendResponse(status="verified")

@@ -8,7 +8,7 @@ The table is read and written on the system engine alone, like
 from datetime import datetime, timedelta, timezone
 from hashlib import sha256
 import secrets
-from typing import Optional
+from typing import Any, Optional
 
 from sqlmodel import col, select, delete, update as sql_update
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -65,15 +65,20 @@ async def create_token(
     expires_minutes: int = DEFAULT_TOKEN_TTL_MINUTES,
     user_email_id: int | None = None,
     invite_id: int | None = None,
+    change: dict[str, Any] | None = None,
     commit: bool = True,
 ) -> str:
     """Issue a token of ``purpose``, replacing the outstanding one it supersedes.
+
+    An ``account_change`` token replaces nothing: each letter carries its own,
+    and a second notice must not spend the link in the first.
 
     ``commit=False`` stages the swap instead, for a caller that commits only
     once the token has been delivered, so the one it replaces stays good if
     delivery fails.
     """
-    await _delete_existing_tokens(session, user_id, purpose, user_email_id)
+    if purpose is not UserTokenPurpose.account_change:
+        await _delete_existing_tokens(session, user_id, purpose, user_email_id)
     token_value = secrets.token_urlsafe(48)
     expires_at = datetime.now(timezone.utc) + timedelta(minutes=expires_minutes)
     token = UserToken(
@@ -82,6 +87,7 @@ async def create_token(
         purpose=purpose,
         user_email_id=user_email_id,
         invite_id=invite_id,
+        change=change,
         expires_at=expires_at,
     )
     session.add(token)
@@ -117,11 +123,15 @@ async def consume_token(
     *,
     token: str,
     purpose: UserTokenPurpose,
+    commit: bool = True,
 ) -> Optional[UserToken]:
     """Spend a live token and return it, or ``None``.
 
     One conditional update claims it, so a token is spent once however many
     requests present it at the same moment.
+
+    ``commit=False`` stages the spend, for a caller whose work and spend must
+    land together, so a link whose work failed stays good.
     """
     now = datetime.now(timezone.utc)
     claimed = (
@@ -139,7 +149,8 @@ async def consume_token(
     ).first()
     if claimed is None:
         return None
-    await session.commit()
+    if commit:
+        await session.commit()
     return await session.get(UserToken, claimed[0], populate_existing=True)
 
 

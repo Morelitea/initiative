@@ -40,6 +40,7 @@ from app.api.v1.platform_endpoints.password_recheck import (
     password_confirms,
     require_password_or_recent_proof,
 )
+from app.api.v1.platform_endpoints.change_assessment import is_risky
 from app.api.v1.platform_endpoints.session_opening import replace_session
 from app.core.password_policy import enforce_password_policy
 from app.core.identity_boundary import PersonId
@@ -129,7 +130,8 @@ from app.core.messages import (
     LegalMessages,
     UserMessages,
 )
-from app.services.auth import addresses
+from app.models.platform.user_email import UserEmail
+from app.services.auth import account_changes, addresses
 
 from app.core.audit_events import AuditEventType
 from app.services import audit as audit_service
@@ -1290,6 +1292,9 @@ async def add_my_address(
             user_id=current_user.id,
             purpose=UserTokenPurpose.email_verification,
             user_email_id=added.id,
+            # Whether the change was risky is a fact about this request, and
+            # the address is proved by a link that carries no session.
+            change={"risky": await is_risky(request, system_session, current_user)},
         )
         try:
             await email_service.send_address_verification_email(
@@ -1320,6 +1325,32 @@ async def remove_my_address(
     await require_password_or_recent_proof(
         request, system_session, current_user, payload.current_password
     )
+    # What undoing it would put back, read while the account still holds it.
+    target = await system_session.get(UserEmail, address_id)
+    record = (
+        await account_changes.change_record(
+            system_session,
+            user_id=current_user.id,
+            risky=await is_risky(request, system_session, current_user),
+            undo=account_changes.removal_undo(
+                target,
+                # Read directly: the primary can be an address the account
+                # was minted with, which the address list leaves out.
+                primary_id=(
+                    await system_session.exec(
+                        select(UserEmail.id).where(
+                            UserEmail.user_id == current_user.id,
+                            UserEmail.is_primary.is_(True),
+                        )
+                    )
+                ).first(),
+            ),
+        )
+        if target is not None
+        and target.user_id == current_user.id
+        and target.verified_at is not None
+        else None
+    )
     try:
         row = await addresses.remove_for_user(
             system_session, user_id=current_user.id, address_id=address_id
@@ -1341,7 +1372,7 @@ async def remove_my_address(
     # account's to write to.
     if proved:
         await email_service.announce_address_removed(
-            system_session, current_user, address=removed
+            system_session, current_user, address=removed, record=record
         )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -1362,9 +1393,17 @@ async def make_my_address_primary(
     await require_password_or_recent_proof(
         request, system_session, current_user, payload.current_password
     )
-    was_primary = await addresses.primary_address(
-        system_session, user_id=current_user.id
+    previous = next(
+        (
+            held
+            for held in await addresses.list_for_user(
+                system_session, user_id=current_user.id
+            )
+            if held.is_primary
+        ),
+        None,
     )
+    risky = await is_risky(request, system_session, current_user)
     try:
         row = await addresses.set_primary_for_user(
             system_session, user_id=current_user.id, address_id=address_id
@@ -1380,10 +1419,26 @@ async def make_my_address_primary(
         ) from exc
     await system_session.commit()
     await system_session.refresh(row)
-    address = decrypt_field(row.email_encrypted, SALT_EMAIL)
-    if address != was_primary:
+    if previous is None or previous.id != row.id:
         await email_service.announce_address_change(
-            system_session, current_user, change="primary", address=address
+            system_session,
+            current_user,
+            change="primary",
+            address=decrypt_field(row.email_encrypted, SALT_EMAIL),
+            record=(
+                await account_changes.change_record(
+                    system_session,
+                    user_id=current_user.id,
+                    risky=risky,
+                    undo={
+                        "kind": "primary",
+                        "address_id": previous.id,
+                        "made_primary": row.id,
+                    },
+                )
+                if previous is not None
+                else None
+            ),
         )
     return _address_read(row)
 

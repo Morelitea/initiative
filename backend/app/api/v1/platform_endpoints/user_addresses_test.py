@@ -198,6 +198,37 @@ async def test_the_primary_moves_only_to_a_proven_address(
     assert primaries == ["proven@example.com"]
 
 
+async def test_the_primary_moves_off_a_minted_address(
+    client: AsyncClient, session: AsyncSession
+):
+    """An account a provider made with no address has the one minted for it
+    as primary; making a proved address primary stands it down."""
+    user = await create_user(session, email="proved-sso@example.com")
+    proved = (await _listing(client, user))[0]
+    row = await session.get(UserEmail, proved["id"])
+    assert row is not None
+    row.is_primary = False
+    session.add(row)
+    await session.flush()
+    addresses.record_address(
+        session,
+        user_id=user.id,
+        email=f"idp-{user.id}@oidc.local",
+        source=addresses.SOURCE_SYNTHETIC,
+        verified=False,
+        is_primary=True,
+    )
+    await session.commit()
+
+    moved = await client.put(
+        f"/api/v1/me/emails/{proved['id']}/primary",
+        json=CONFIRM,
+        headers=get_auth_headers(user),
+    )
+    assert moved.status_code == 200, moved.text
+    assert moved.json()["is_primary"] is True
+
+
 async def test_the_primary_address_is_not_removed(
     client: AsyncClient, session: AsyncSession
 ):
@@ -493,20 +524,24 @@ async def test_proving_an_address_somebody_just_proved_is_refused(
 
 
 def _record_letters(monkeypatch) -> tuple[list[str], list[list[str]]]:
-    """The subjects queued to the account, and the recipients of every letter
-    sent straight away."""
+    """The subjects queued to the account, and the addresses each named
+    beside the account's own. What each letter could undo is kept in
+    ``undone``."""
     queued: list[str] = []
-    sent: list[list[str]] = []
+    also: list[list[str]] = []
+    undone.clear()
 
-    async def queue(user, pieces) -> None:
+    async def queue(user, pieces, *, change=None, also_to=()) -> None:
         queued.append(pieces.subject)
-
-    async def send(session, *, recipients, **kwargs) -> None:
-        sent.append(list(recipients))
+        also.append(list(also_to))
+        undone.append(((change or {}).get("undo") or {}).get("kind"))
 
     monkeypatch.setattr(email_outbox, "enqueue_account_letter", queue)
-    monkeypatch.setattr(email_service, "send_email", send)
-    return queued, sent
+    return queued, also
+
+
+#: What each letter recorded could be undone, in the order they were queued.
+undone: list[str | None] = []
 
 
 def _subject(change: str) -> str:
@@ -565,7 +600,7 @@ async def test_proving_an_added_address_tells_the_account(
         tokens.append(token)
 
     monkeypatch.setattr(email_service, "send_address_verification_email", capture)
-    queued, _sent = _record_letters(monkeypatch)
+    queued, _also = _record_letters(monkeypatch)
 
     added = await client.post(
         "/api/v1/me/emails",
@@ -598,7 +633,7 @@ async def test_moving_the_primary_tells_the_account(
     )
     await session.commit()
     spare_id = spare.id
-    queued, _sent = _record_letters(monkeypatch)
+    queued, _also = _record_letters(monkeypatch)
 
     for _ in range(2):
         moved = await client.put(
@@ -608,13 +643,14 @@ async def test_moving_the_primary_tells_the_account(
         )
         assert moved.status_code == 200, moved.text
     assert queued == [_subject("primary")]
+    assert undone == ["primary"]
 
 
 async def test_a_removed_address_is_told_as_well_as_the_account(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):
-    """The queued letter reaches only the addresses still held, so the one
-    removed is written to directly. An address nobody proved hears nothing."""
+    """The account no longer holds the removed address, so the letter names it
+    as a recipient of its own. An address nobody proved hears nothing."""
     user = await create_user(session, email="stays@example.com")
     proved = addresses.record_address(
         session,
@@ -635,7 +671,7 @@ async def test_a_removed_address_is_told_as_well_as_the_account(
     await session.commit()
     proved_id, unproved_id = proved.id, unproved.id
     await _enable_smtp(session)
-    queued, sent = _record_letters(monkeypatch)
+    queued, also = _record_letters(monkeypatch)
 
     for address_id in (unproved_id, proved_id):
         gone = await client.post(
@@ -646,4 +682,5 @@ async def test_a_removed_address_is_told_as_well_as_the_account(
         assert gone.status_code == 204, gone.text
 
     assert queued == [_subject("removed")]
-    assert sent == [["proved-goes@example.com"]]
+    assert undone == ["removed"]
+    assert also == [["proved-goes@example.com"]]

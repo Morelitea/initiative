@@ -299,6 +299,9 @@
       "body": "<strong>{{address}}</strong> a été retirée de votre compte et ne peut plus servir à vous connecter."
     }
   },
+  "accountNotice": {
+    "notMe": "Ce n'était pas moi"
+  },
   "digest": {
     "hourly": {
       "title": "La dernière heure sur Initiative",

@@ -93,6 +93,7 @@
   "AUTH_PROVIDER_SOLE_CREDENTIAL": "Einige Konten melden sich nur mit diesem Anbieter an; sie benötigen ein Passwort oder eine andere Anmeldemethode, bevor er entfernt werden kann",
   "SMTP_NOT_CONFIGURED": "SMTP-Einstellungen sind unvollständig.",
   "INVALID_OR_EXPIRED_TOKEN": "Ungültiges oder abgelaufenes Token",
+  "ACCOUNT_CHANGE_MOVED_ON": "Dein Konto hat sich seit dieser E-Mail geändert, daher lässt sich das von dort aus nicht rückgängig machen. Melde dich stattdessen überall ab und prüfe dann deine Sicherheitseinstellungen.",
   "RESERVED_SIGIL_IN_NAME": "Namen und Titel dürfen kein # oder @ enthalten.",
   "FIELD_CANNOT_BE_NULL": "Dieses Feld darf nicht leer bleiben.",
   "PROJECT_NOT_FOUND": "Projekt nicht gefunden",

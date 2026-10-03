@@ -262,6 +262,24 @@ export interface AccessGrantListResponse {
   items: AccessGrantRead[];
 }
 
+/**
+ * What a "This wasn't me" link answers and what it may do.
+ */
+export interface AccountChangeRead {
+  notice: string;
+  sign_out: boolean;
+  undo?: string | null;
+  subject?: string | null;
+}
+
+/**
+ * The token from the "This wasn't me" link in an account letter.
+ */
+export interface AccountChangeToken {
+  /** @minLength 10 */
+  token: string;
+}
+
 export type AccountDeletionRequestAction =
   (typeof AccountDeletionRequestAction)[keyof typeof AccountDeletionRequestAction];
 

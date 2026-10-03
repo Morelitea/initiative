@@ -299,6 +299,9 @@
       "body": "<strong>{{address}}</strong> was removed from your account and can no longer be used to sign in."
     }
   },
+  "accountNotice": {
+    "notMe": "This wasn't me"
+  },
   "digest": {
     "hourly": {
       "title": "The last hour on Initiative",

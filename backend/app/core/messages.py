@@ -120,6 +120,7 @@ class AuthMessages:
     # client learns only "re-authenticate", never that a replay was detected.
     INVALID_REFRESH_TOKEN = "INVALID_REFRESH_TOKEN"
     INVALID_OR_EXPIRED_TOKEN = "INVALID_OR_EXPIRED_TOKEN"
+    ACCOUNT_CHANGE_MOVED_ON = "ACCOUNT_CHANGE_MOVED_ON"
     SMTP_NOT_CONFIGURED = "SMTP_NOT_CONFIGURED"
     CAPTCHA_REQUIRED = "CAPTCHA_REQUIRED"
     #: The session store could not be written, so no session was opened.

@@ -32,6 +32,7 @@ import { Route as ServerRequiredAuthenticatedNavigateRouteImport } from './route
 import { Route as ServerRequiredAuthenticatedNotificationsRouteImport } from './routes/_serverRequired/_authenticated/notifications'
 import { Route as ServerRequiredAuthenticatedProfileRouteImport } from './routes/_serverRequired/_authenticated/profile'
 import { Route as ServerRequiredAuthenticatedUserStatsRouteImport } from './routes/_serverRequired/_authenticated/user-stats'
+import { Route as ServerRequiredAccountNotMeRouteImport } from './routes/_serverRequired/account.not-me'
 import { Route as ServerRequiredInviteCodeRouteImport } from './routes/_serverRequired/invite.$code'
 import { Route as ServerRequiredLegalSlugRouteImport } from './routes/_serverRequired/legal.$slug'
 import { Route as ServerRequiredOidcCallbackRouteImport } from './routes/_serverRequired/oidc.callback'
@@ -299,6 +300,12 @@ const ServerRequiredAuthenticatedUserStatsRoute =
     id: '/user-stats',
     path: '/user-stats',
     getParentRoute: () => ServerRequiredAuthenticatedRoute,
+  } as any)
+const ServerRequiredAccountNotMeRoute =
+  ServerRequiredAccountNotMeRouteImport.update({
+    id: '/account/not-me',
+    path: '/account/not-me',
+    getParentRoute: () => ServerRequiredRoute,
   } as any)
 const ServerRequiredInviteCodeRoute =
   ServerRequiredInviteCodeRouteImport.update({
@@ -1379,6 +1386,7 @@ export interface FileRoutesByFullPath {
   '/notifications': typeof ServerRequiredAuthenticatedNotificationsRoute
   '/profile': typeof ServerRequiredAuthenticatedProfileRouteWithChildren
   '/user-stats': typeof ServerRequiredAuthenticatedUserStatsRoute
+  '/account/not-me': typeof ServerRequiredAccountNotMeRoute
   '/invite/$code': typeof ServerRequiredInviteCodeRoute
   '/legal/$slug': typeof ServerRequiredLegalSlugRoute
   '/oidc/callback': typeof ServerRequiredOidcCallbackRoute
@@ -1540,6 +1548,7 @@ export interface FileRoutesByTo {
   '/navigate': typeof ServerRequiredAuthenticatedNavigateRoute
   '/notifications': typeof ServerRequiredAuthenticatedNotificationsRoute
   '/user-stats': typeof ServerRequiredAuthenticatedUserStatsRoute
+  '/account/not-me': typeof ServerRequiredAccountNotMeRoute
   '/invite/$code': typeof ServerRequiredInviteCodeRoute
   '/legal/$slug': typeof ServerRequiredLegalSlugRoute
   '/oidc/callback': typeof ServerRequiredOidcCallbackRoute
@@ -1688,6 +1697,7 @@ export interface FileRoutesById {
   '/_serverRequired/_authenticated/notifications': typeof ServerRequiredAuthenticatedNotificationsRoute
   '/_serverRequired/_authenticated/profile': typeof ServerRequiredAuthenticatedProfileRouteWithChildren
   '/_serverRequired/_authenticated/user-stats': typeof ServerRequiredAuthenticatedUserStatsRoute
+  '/_serverRequired/account/not-me': typeof ServerRequiredAccountNotMeRoute
   '/_serverRequired/invite/$code': typeof ServerRequiredInviteCodeRoute
   '/_serverRequired/legal/$slug': typeof ServerRequiredLegalSlugRoute
   '/_serverRequired/oidc/callback': typeof ServerRequiredOidcCallbackRoute
@@ -1853,6 +1863,7 @@ export interface FileRouteTypes {
     | '/notifications'
     | '/profile'
     | '/user-stats'
+    | '/account/not-me'
     | '/invite/$code'
     | '/legal/$slug'
     | '/oidc/callback'
@@ -2014,6 +2025,7 @@ export interface FileRouteTypes {
     | '/navigate'
     | '/notifications'
     | '/user-stats'
+    | '/account/not-me'
     | '/invite/$code'
     | '/legal/$slug'
     | '/oidc/callback'
@@ -2161,6 +2173,7 @@ export interface FileRouteTypes {
     | '/_serverRequired/_authenticated/notifications'
     | '/_serverRequired/_authenticated/profile'
     | '/_serverRequired/_authenticated/user-stats'
+    | '/_serverRequired/account/not-me'
     | '/_serverRequired/invite/$code'
     | '/_serverRequired/legal/$slug'
     | '/_serverRequired/oidc/callback'
@@ -2470,6 +2483,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/user-stats'
       preLoaderRoute: typeof ServerRequiredAuthenticatedUserStatsRouteImport
       parentRoute: typeof ServerRequiredAuthenticatedRoute
+    }
+    '/_serverRequired/account/not-me': {
+      id: '/_serverRequired/account/not-me'
+      path: '/account/not-me'
+      fullPath: '/account/not-me'
+      preLoaderRoute: typeof ServerRequiredAccountNotMeRouteImport
+      parentRoute: typeof ServerRequiredRoute
     }
     '/_serverRequired/invite/$code': {
       id: '/_serverRequired/invite/$code'
@@ -4106,6 +4126,7 @@ interface ServerRequiredRouteChildren {
   ServerRequiredStartRoute: typeof ServerRequiredStartRoute
   ServerRequiredVerifyEmailRoute: typeof ServerRequiredVerifyEmailRoute
   ServerRequiredWelcomeRoute: typeof ServerRequiredWelcomeRoute
+  ServerRequiredAccountNotMeRoute: typeof ServerRequiredAccountNotMeRoute
   ServerRequiredInviteCodeRoute: typeof ServerRequiredInviteCodeRoute
   ServerRequiredLegalSlugRoute: typeof ServerRequiredLegalSlugRoute
   ServerRequiredOidcCallbackRoute: typeof ServerRequiredOidcCallbackRoute
@@ -4126,6 +4147,7 @@ const ServerRequiredRouteChildren: ServerRequiredRouteChildren = {
   ServerRequiredStartRoute: ServerRequiredStartRoute,
   ServerRequiredVerifyEmailRoute: ServerRequiredVerifyEmailRoute,
   ServerRequiredWelcomeRoute: ServerRequiredWelcomeRoute,
+  ServerRequiredAccountNotMeRoute: ServerRequiredAccountNotMeRoute,
   ServerRequiredInviteCodeRoute: ServerRequiredInviteCodeRoute,
   ServerRequiredLegalSlugRoute: ServerRequiredLegalSlugRoute,
   ServerRequiredOidcCallbackRoute: ServerRequiredOidcCallbackRoute,
