@@ -245,6 +245,16 @@ export const UserSettingsInterfacePage = ({
     ReturnType<typeof Desktop.getSettings>
   > | null>(null);
 
+  // A write the computer refused shows what is actually set, not what was asked.
+  const saveDesktopShell = (write: Promise<void>) => {
+    void write.catch(() => {
+      toast.error(t("interface.updateError"));
+      void Desktop.getSettings()
+        .then(setDesktopShell)
+        .catch(() => {});
+    });
+  };
+
   useEffect(() => {
     void desktopCanUpdate().then(setCanAutoUpdate);
     if (Capacitor.getPlatform() === "electron") {
@@ -499,7 +509,7 @@ export const UserSettingsInterfacePage = ({
               checked={desktopShell.keepRunning}
               onCheckedChange={(enabled) => {
                 setDesktopShell({ ...desktopShell, keepRunning: enabled });
-                void Desktop.setKeepRunning({ enabled });
+                saveDesktopShell(Desktop.setKeepRunning({ enabled }));
               }}
               aria-label={t("interface.desktopKeepRunning.label")}
             />
@@ -515,7 +525,7 @@ export const UserSettingsInterfacePage = ({
               checked={desktopShell.openAtLogin}
               onCheckedChange={(enabled) => {
                 setDesktopShell({ ...desktopShell, openAtLogin: enabled });
-                void Desktop.setOpenAtLogin({ enabled });
+                saveDesktopShell(Desktop.setOpenAtLogin({ enabled }));
               }}
               aria-label={t("interface.desktopOpenAtLogin.label")}
             />

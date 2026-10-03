@@ -56,6 +56,16 @@ export const useDesktopApp = () => {
     }).catch(() => {});
   }, [desktop, unread, t]);
 
+  // Signing out takes the count with it.
+  useEffect(() => {
+    if (!desktop) {
+      return;
+    }
+    return () => {
+      void Desktop.setBadge({ count: 0 }).catch(() => {});
+    };
+  }, [desktop]);
+
   useEffect(() => {
     if (!desktop) {
       return;

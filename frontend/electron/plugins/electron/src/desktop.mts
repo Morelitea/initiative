@@ -37,7 +37,8 @@ export class Desktop {
   private tray: InstanceType<typeof Tray> | null = null;
   private quitting = false;
   private keepRunning = true;
-  private labels: Labels = { open: "Open Initiative", quit: "Quit", tooltip: "Initiative" };
+  /** Sent by the signed-in page; the tray waits for them. */
+  private labels: Labels | null = null;
   /** Shown notifications, held until they are clicked or dismissed. */
   private readonly shown = new Set<InstanceType<typeof Notification>>();
 
@@ -61,7 +62,6 @@ export class Desktop {
         window.hide();
       });
     });
-    this.refreshTray();
   }
 
   /** Show one notification. Clicking it brings the window back and hands the page `tag`. */
@@ -84,14 +84,14 @@ export class Desktop {
    * The unread count on the dock, the launcher and the tray. Windows shows it
    * as an overlay on the taskbar button, drawn by the page as `overlay`.
    */
-  async setBadge({ count, overlay, labels }: { count: number; overlay?: string; labels: Labels }) {
-    this.labels = labels;
+  async setBadge({ count, overlay, labels }: { count: number; overlay?: string; labels?: Labels }) {
+    this.labels = labels ?? this.labels;
     app.setBadgeCount(count);
     const window = mainWindow();
     if (process.platform === "win32" && window) {
       window.setOverlayIcon(
         count > 0 && overlay ? nativeImage.createFromDataURL(overlay) : null,
-        labels.tooltip
+        this.labels?.tooltip ?? ""
       );
     }
     this.refreshTray();
@@ -120,8 +120,9 @@ export class Desktop {
     setOpenAtLogin(enabled, this.startsHidden());
   }
 
+  /** Closing hides the window only where there is a way back: the dock, or the tray. */
   private staysOpen() {
-    return process.platform === "darwin" || (hasTray() && this.keepRunning);
+    return process.platform === "darwin" || this.tray !== null;
   }
 
   private startsHidden() {
@@ -141,7 +142,8 @@ export class Desktop {
   }
 
   private refreshTray() {
-    if (!(hasTray() && this.keepRunning)) {
+    const labels = this.labels;
+    if (!(hasTray() && this.keepRunning && labels)) {
       this.tray?.destroy();
       this.tray = null;
       return;
@@ -154,12 +156,12 @@ export class Desktop {
       this.tray = new Tray(icon);
       this.tray.on("click", () => this.show());
     }
-    this.tray.setToolTip(this.labels.tooltip);
+    this.tray.setToolTip(labels.tooltip);
     this.tray.setContextMenu(
       Menu.buildFromTemplate([
-        { label: this.labels.open, click: () => this.show() },
+        { label: labels.open, click: () => this.show() },
         { type: "separator" },
-        { label: this.labels.quit, click: () => app.quit() },
+        { label: labels.quit, click: () => app.quit() },
       ])
     );
   }

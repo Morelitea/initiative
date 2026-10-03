@@ -246,8 +246,8 @@
       "quit": "Initiative beenden",
       "unread_one": "Initiative: {{count}} ungelesen",
       "unread_other": "Initiative: {{count}} ungelesen",
-      "summary_one": "{{count}} Benachrichtigung hat auf dich gewartet",
-      "summary_other": "{{count}} Benachrichtigungen haben auf dich gewartet"
+      "summary_one": "Du hast {{count}} ungelesene Benachrichtigung",
+      "summary_other": "Du hast {{count}} ungelesene Benachrichtigungen"
     },
     "title": "Benachrichtigungen",
     "markAllRead": "Alles gelesen",

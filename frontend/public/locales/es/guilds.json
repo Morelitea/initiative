@@ -246,8 +246,8 @@
       "quit": "Salir de Initiative",
       "unread_one": "Initiative: {{count}} sin leer",
       "unread_other": "Initiative: {{count}} sin leer",
-      "summary_one": "{{count}} notificación te estaba esperando",
-      "summary_other": "{{count}} notificaciones te estaban esperando"
+      "summary_one": "Tienes {{count}} notificación sin leer",
+      "summary_other": "Tienes {{count}} notificaciones sin leer"
     },
     "title": "Notificaciones",
     "markAllRead": "Marcar todo como leído",

@@ -109,7 +109,10 @@ describe("closing the window", () => {
   it("leaves the app in the tray until the person says otherwise", async () => {
     onPlatform("win32");
     const { desktop, window } = started();
+    // Before the page has named the tray's menu there is no tray to wait in.
+    expect(close(window)).toBe(false);
 
+    await desktop.setBadge({ count: 0, labels: { open: "Open", quit: "Quit", tooltip: "I" } });
     expect(close(window)).toBe(true);
     expect(window.hide).toHaveBeenCalled();
 

@@ -125,10 +125,13 @@ describe("useDesktopApp", () => {
         HttpResponse.json({ notifications: [line], unread_count: 3, next_cursor: null })
       )
     );
-    renderWithProviders(<Probe />);
+    const { unmount } = renderWithProviders(<Probe />);
 
     await waitFor(() =>
       expect(desktop.setBadge).toHaveBeenLastCalledWith(expect.objectContaining({ count: 3 }))
     );
+    // Signing out leaves the signed-in pages, and takes the count with it.
+    unmount();
+    expect(desktop.setBadge).toHaveBeenLastCalledWith({ count: 0 });
   });
 });

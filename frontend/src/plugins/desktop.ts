@@ -11,8 +11,8 @@ export interface DesktopLabels {
 export interface DesktopPlugin {
   /** Show a system notification; clicking it reports `tag` back. */
   notify(options: { title: string; body?: string; tag: string }): Promise<void>;
-  /** The unread count on the dock, launcher, taskbar and tray. */
-  setBadge(options: { count: number; overlay?: string; labels: DesktopLabels }): Promise<void>;
+  /** The unread count on the dock, launcher, taskbar and tray; `labels` once known. */
+  setBadge(options: { count: number; overlay?: string; labels?: DesktopLabels }): Promise<void>;
   getSettings(): Promise<{ tray: boolean; keepRunning: boolean; openAtLogin: boolean }>;
   setKeepRunning(options: { enabled: boolean }): Promise<void>;
   setOpenAtLogin(options: { enabled: boolean }): Promise<void>;

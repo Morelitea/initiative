@@ -246,8 +246,8 @@
       "quit": "Quitter Initiative",
       "unread_one": "Initiative : {{count}} non lue",
       "unread_other": "Initiative : {{count}} non lues",
-      "summary_one": "{{count}} notification vous attendait",
-      "summary_other": "{{count}} notifications vous attendaient"
+      "summary_one": "Vous avez {{count}} notification non lue",
+      "summary_other": "Vous avez {{count}} notifications non lues"
     },
     "title": "Notifications",
     "markAllRead": "Tout marquer comme lu",

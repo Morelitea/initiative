@@ -246,8 +246,8 @@
       "quit": "Quit Initiative",
       "unread_one": "Initiative: {{count}} unread",
       "unread_other": "Initiative: {{count}} unread",
-      "summary_one": "{{count}} notification waited for you",
-      "summary_other": "{{count}} notifications waited for you"
+      "summary_one": "You have {{count}} unread notification",
+      "summary_other": "You have {{count}} unread notifications"
     },
     "title": "Notifications",
     "markAllRead": "Mark all read",
