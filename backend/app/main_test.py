@@ -317,3 +317,64 @@ def test_every_operation_has_its_own_name() -> None:
         if isinstance(route, APIRoute) and route.include_in_schema
     ]
     assert sorted({n for n in names if names.count(n) > 1}) == []
+
+
+#: Query parameter names a list does not take, and what it takes instead.
+_LIST_PARAM_SPELLINGS = {
+    "q": "search",
+    "query": "search",
+    "offset": "page",
+    "skip": "page",
+    "per_page": "page_size",
+}
+
+
+@pytest.mark.always
+def test_every_list_pages_and_searches_the_same_way() -> None:
+    """A list takes ``search`` for its search box and ``page``/``page_size`` for
+    its pages, and a paged answer says whether there is more (``has_next``) —
+    either itself, or in each group of a grouped answer. A feed that pages by
+    ``cursor`` takes ``limit``, and is not a paged list."""
+    spec = main_module.app.openapi()
+    schemas = spec["components"]["schemas"]
+
+    def resolved(schema: dict) -> dict:
+        ref = schema.get("$ref")
+        return schemas[ref.rsplit("/", 1)[-1]] if ref else schema
+
+    def says_if_more(schema: dict) -> bool:
+        fields = resolved(schema).get("properties", {})
+        return "has_next" in fields or any(
+            "has_next" in resolved(field.get("items", {})).get("properties", {})
+            for field in fields.values()
+            if field.get("type") == "array"
+        )
+
+    misspelt, unpaired, unpaged = [], [], []
+    for path, operations in spec["paths"].items():
+        for method, operation in operations.items():
+            route = f"{method.upper()} {path}"
+            params = {
+                p["name"] for p in operation.get("parameters", []) if p["in"] == "query"
+            }
+            misspelt += [
+                f"{route}: {name} -> {_LIST_PARAM_SPELLINGS[name]}"
+                for name in sorted(params & _LIST_PARAM_SPELLINGS.keys())
+            ]
+            if ("page" in params) != ("page_size" in params):
+                unpaired.append(route)
+            if "page" in params:
+                answer = (
+                    operation["responses"]
+                    .get("200", {})
+                    .get("content", {})
+                    .get("application/json", {})
+                    .get("schema", {})
+                )
+                if not says_if_more(answer):
+                    unpaged.append(route)
+
+    assert misspelt == []
+    assert unpaired == []
+    # Subclass ``PageMeta`` and build the answer with ``build_paginated_response``.
+    assert unpaged == []
