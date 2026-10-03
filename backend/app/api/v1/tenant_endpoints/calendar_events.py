@@ -223,10 +223,14 @@ def occurrences(
 
     An occurrence is the series' summary at that start, with the series'
     length, and ``original_start`` naming it. One with a row of its own
-    (``changed``, by series id) is left out: the row stands in for it."""
+    (``changed``, by series id) is left out: the row stands in for it.
+
+    A window whose repeats hold more than ``recurrence.MAX_EXPANDED``
+    occurrences is refused, for a shorter one."""
     first = _window_day(start_after, _NO_ZONE_INWARD, tz)
     last = _window_day(start_before, -_NO_ZONE_INWARD, tz)
     found: list[CalendarEventSummary] = []
+    expanded = 0
     for event in events:
         if not event.recurrence:
             found.append(event)
@@ -234,12 +238,23 @@ def occurrences(
         lower, upper = (first, last) if event.all_day else (start_after, start_before)
         try:
             starts = recurrence.between(
-                event.recurrence, event.start_at, event.recurrence_shift, lower, upper
+                event.recurrence,
+                event.start_at,
+                event.recurrence_shift,
+                lower,
+                upper,
+                at_most=recurrence.MAX_EXPANDED - expanded + 1,
             )
         except ValueError:
             # Unreadable, so drawn once, where it starts.
             found.append(event)
             continue
+        expanded += len(starts)
+        if expanded > recurrence.MAX_EXPANDED:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=CalendarEventMessages.WINDOW_TOO_FULL,
+            )
         length = event.end_at - event.start_at
         own = (changed or {}).get(event.id, set())
         found.extend(

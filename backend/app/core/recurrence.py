@@ -69,10 +69,21 @@ _PARTS: dict[RecurrenceKind, frozenset[str]] = {
 # The last second of a day: the instant an all-day series' UNTIL date ends
 _END_OF_DAY = time(23, 59, 59)
 
-# Input bounds: a year of daily steps, and ten thousand occurrences, which
-# saving a rule walks once to find its last start.
+# Input bounds: the text a repeat is written in, a year of daily steps, and
+# ten thousand occurrences, which saving a rule walks once to find its last
+# start.
+MAX_LENGTH = 4000
 _MAX_INTERVAL = 366
 _MAX_COUNT = 10_000
+#: The furthest a shift moves a date: a day, either way.
+_MAX_SHIFT = 1440
+#: The days a repeat's dates fall on: a day inside each end of the calendar,
+#: so moving one by its shift keeps it on the calendar.
+_FIRST_DAY = date(1, 1, 2)
+_LAST_DAY = date(MAXYEAR, 12, 30)
+
+#: The most occurrences one read of a calendar expands its repeats into.
+MAX_EXPANDED = 20_000
 
 #: The longest one step of each frequency takes.
 _STEP = {
@@ -90,8 +101,8 @@ _EVEN_STEPS = frozenset({"WEEKLY", "DAILY", "HOURLY"})
 _REACH = timedelta(days=50 * 365)
 #: How long a counted series may run from its start.
 _MAX_COUNTED = 100 * _STEP["YEARLY"]
-#: The last second dateutil's calendar holds, and how long the calendar is.
-_LAST = datetime(MAXYEAR, 12, 31, 23, 59, 59)
+#: The last second a walk holds, and how long the calendar is.
+_LAST = datetime.combine(_LAST_DAY, _END_OF_DAY)
 _CALENDAR = _LAST - datetime(1, 1, 1)
 
 
@@ -129,9 +140,12 @@ class Recurrence:
         return "\n".join(lines)
 
 
-def parse(text: str) -> Recurrence:
+def parse(text: str, *, strict: bool = False) -> Recurrence:
     """Read recurrence lines. Raises ``ValueError`` for anything that is not one
-    ``RRULE`` with optional ``EXDATE`` / ``RDATE`` lines."""
+    ``RRULE`` with optional ``EXDATE`` / ``RDATE`` lines.
+
+    A date before ``_FIRST_DAY`` or after ``_LAST_DAY`` is held there, or with
+    ``strict`` refused."""
     lines = [line.strip() for line in text.strip().splitlines() if line.strip()]
     if not lines:
         raise ValueError("A repeat needs an RRULE line.")
@@ -150,10 +164,13 @@ def parse(text: str) -> Recurrence:
     rule = component.get("RRULE")
     if rule is None or isinstance(rule, list):
         raise ValueError("A repeat needs exactly one RRULE line.")
+    parts = {key.upper(): list(values) for key, values in rule.items()}
+    if until := parts.get("UNTIL"):
+        parts["UNTIL"] = [_held(until[0], strict)]
     return Recurrence(
-        rule={key.upper(): list(values) for key, values in rule.items()},
-        exdates=tuple(_dates(component.get("EXDATE"))),
-        rdates=tuple(_dates(component.get("RDATE"))),
+        rule=parts,
+        exdates=tuple(_held(v, strict) for v in _dates(component.get("EXDATE"))),
+        rdates=tuple(_held(v, strict) for v in _dates(component.get("RDATE"))),
     )
 
 
@@ -163,9 +180,23 @@ def _dates(prop) -> Iterable[date | datetime]:
             yield value.dt
 
 
+def _held(value: date | datetime, strict: bool) -> date | datetime:
+    """``value``, or the nearest of ``_FIRST_DAY`` and ``_LAST_DAY`` at its
+    time when it falls outside them."""
+    day = value.date() if isinstance(value, datetime) else value
+    if _FIRST_DAY <= day <= _LAST_DAY:
+        return value
+    if strict:
+        raise ValueError("A repeat's dates fall from 2 January 1 to 30 December 9999.")
+    day = min(max(day, _FIRST_DAY), _LAST_DAY)
+    return datetime.combine(day, value.timetz()) if isinstance(value, datetime) else day
+
+
 def normalize(text: str, *, kind: RecurrenceKind) -> str:
     """Validate a repeat for ``kind`` and return its canonical lines."""
-    recurrence = parse(text)
+    if len(text) > MAX_LENGTH:
+        raise ValueError(f"A repeat is at most {MAX_LENGTH} characters.")
+    recurrence = parse(text, strict=True)
     rule = recurrence.rule
     freq = rule.get("FREQ", [""])[0]
     if freq not in _FREQUENCIES[kind]:
@@ -284,7 +315,12 @@ def _walk(
 
     def here(value: date | datetime, at: time) -> datetime:
         if isinstance(value, datetime):
-            return (value.astimezone(timezone.utc) + offset).replace(tzinfo=None)
+            moment = value.astimezone(timezone.utc).replace(tzinfo=None)
+            # Held where its shift keeps it on the calendar.
+            held = min(
+                max(moment, datetime.min + abs(offset)), datetime.max - abs(offset)
+            )
+            return held + offset
         return datetime.combine(value, at)
 
     parts = dict(recurrence.rule)
@@ -319,7 +355,7 @@ def _walk(
             first = datetime((month + ahead) // 12, (month + ahead) % 12 + 1, 1)
 
     def own() -> Iterator[datetime]:
-        if limit < lower:
+        if limit < max(lower, first):
             return
         years = _years_on(min(first, lower).year, limit.year)
 
@@ -411,9 +447,12 @@ def between(
     upper: datetime,
     *,
     count: bool = True,
+    at_most: int | None = None,
 ) -> list[datetime]:
-    """The occurrences starting in ``[lower, upper]``."""
-    return list(_walk(parse(text), start, shift, lower, upper, count=count))
+    """The occurrences starting in ``[lower, upper]``: the first ``at_most``
+    of them, with one."""
+    starts = _walk(parse(text), start, shift, lower, upper, count=count)
+    return list(islice(starts, at_most))
 
 
 def starting(
@@ -690,6 +729,8 @@ def imported(
     a zone the export doesn't name, which ``tz`` (the importer's) stands in
     for. A repeat that doesn't hold up imports as none."""
     try:
+        if not -_MAX_SHIFT <= shift <= _MAX_SHIFT:
+            raise ValueError("A shift is at most a day.")
         if isinstance(value, dict):
             zone = resolve_zone(None if all_day else tz)
             legacy = from_legacy(value, zone=zone, all_day=all_day)
