@@ -46,8 +46,21 @@ vi.mock("@/lib/storage", async (importOriginal) => ({
 }));
 
 const forgetMessages = vi.fn();
+const serveAccount = vi.fn();
 vi.mock("@/crypto/messaging", () => ({
   forgetMessagesOnThisDevice: () => forgetMessages(),
+  serveAccount: (server: string, userId: number) => serveAccount(server, userId),
+}));
+
+const platform = vi.hoisted(() => ({ native: false }));
+vi.mock("@capacitor/core", () => ({
+  Capacitor: {
+    isNativePlatform: () => platform.native,
+    getPlatform: () => "web",
+    convertFileSrc: (url: string) => url,
+  },
+  registerPlugin: (_name: string, implementations?: { web?: () => unknown }) =>
+    implementations?.web?.() ?? {},
 }));
 
 // The ceremony belongs to the browser's credential API, which jsdom has none
@@ -240,30 +253,43 @@ describe("useAuth identity ordering", () => {
     expect(post).toHaveBeenCalledWith("/auth/logout", { refresh_token: "rt-this-device" });
   });
 
-  it("ends an expired session here without telling the server to sign out", async () => {
-    // Signing out is a deliberate act that revokes the session server-side,
-    // and nothing here asked for that one — the session is already gone.
-    get.mockResolvedValueOnce({ data: buildUser({ username: "Signed in" }) });
-    renderAuth();
-    await waitFor(() => expect(auth.user).not.toBeNull());
-    post.mockClear();
+  it.each([
+    { where: "a browser", native: false, forgets: true },
+    { where: "the phone or desktop app", native: true, forgets: false },
+  ])(
+    "ends an expired session in $where without telling the server to sign out",
+    async ({ native, forgets }) => {
+      // Signing out is a deliberate act that revokes the session server-side,
+      // and nothing here asked for that one — the session is already gone.
+      platform.native = native;
+      forgetMessages.mockClear();
+      get.mockResolvedValueOnce({ data: buildUser({ username: "Signed in" }) });
+      renderAuth();
+      await waitFor(() => expect(auth.user).not.toBeNull());
+      post.mockClear();
 
-    await act(async () => {
-      window.dispatchEvent(new CustomEvent("initiative:auth:unauthorized"));
-      // Let the local teardown, which awaits the message store, settle.
-      await Promise.resolve();
-    });
+      await act(async () => {
+        window.dispatchEvent(new CustomEvent("initiative:auth:unauthorized"));
+        // Let the local teardown, which awaits the message store, settle.
+        await Promise.resolve();
+      });
 
-    await waitFor(() => expect(auth.user).toBeNull());
-    expect(post).not.toHaveBeenCalledWith("/auth/logout");
-    // What is held on this device still goes.
-    expect(forgetMessages).toHaveBeenCalled();
-  });
+      await waitFor(() => expect(auth.user).toBeNull());
+      expect(post).not.toHaveBeenCalledWith("/auth/logout");
+      // A browser may be shared, so its messages go. A device keeps them for its
+      // owner's next sign-in.
+      expect(forgetMessages).toHaveBeenCalledTimes(forgets ? 1 : 0);
+      platform.native = false;
+    }
+  );
 
   it("applies a read that nothing overtook", async () => {
-    get.mockResolvedValueOnce({ data: buildUser({ username: "At boot" }) });
+    const atBoot = buildUser({ username: "At boot" });
+    get.mockResolvedValueOnce({ data: atBoot });
     renderAuth();
     await waitFor(() => expect(auth.user?.username).toBe("At boot"));
+    // The message store is settled on whoever is signed in before it is read.
+    expect(serveAccount).toHaveBeenCalledWith("default", atBoot.id);
 
     get.mockResolvedValueOnce({ data: buildUser({ username: "Fresh" }) });
     await act(async () => {
