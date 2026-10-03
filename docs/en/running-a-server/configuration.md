@@ -61,7 +61,7 @@ It's read **once**, when an account is made. Changing it opens no existing accou
 
 Two different things, and it's worth keeping them apart.
 
-A session ends on its own when nobody uses it — that's the inactivity window, and it slides forward every time the app is opened. Somebody who uses Initiative every day never reaches it.
+A session ends on its own when nobody uses it — that's the inactivity window, and it slides forward every time somebody uses the app. Somebody who uses Initiative every day never reaches it.
 
 The other one is the **absolute** limit: the longest anybody may go before signing in again, no matter how much they use it. Nothing slides it. It's blank by default, meaning there isn't one — a server you run for a club is not answering to an auditor — and it lives in **Settings → Platform → Security**, in hours.
 

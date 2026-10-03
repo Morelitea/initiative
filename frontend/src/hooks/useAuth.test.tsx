@@ -15,6 +15,7 @@ import { buildUser } from "@/__tests__/factories";
 const get = vi.fn();
 const post = vi.fn();
 const setAuthToken = vi.fn();
+const startSessionActivity = vi.fn();
 
 vi.mock("@/api/client", () => ({
   apiClient: {
@@ -30,6 +31,9 @@ vi.mock("@/api/client", () => ({
   setAuthToken: (...args: unknown[]) => setAuthToken(...args),
   getAuthToken: () => null,
   clearUploadToken: vi.fn(),
+  watchForActivity: () => () => undefined,
+  startSessionActivity: () => startSessionActivity(),
+  forgetSessionActivity: vi.fn(),
 }));
 
 const getItem = vi.fn((_key: string): string | null => null);
@@ -334,6 +338,8 @@ describe("useAuth second factor", () => {
       code: "123456",
       recovery_code: null,
     });
+    // Signing in is the person being here: the session's idle window starts now.
+    expect(startSessionActivity).toHaveBeenCalled();
   });
 
   it("sends a recovery code as one, not as a live code", async () => {

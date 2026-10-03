@@ -10,8 +10,10 @@ import {
   AUTH_STEP_UP_EVENT,
   AUTH_UNAUTHORIZED_EVENT,
   apiClient,
+  forgetSessionActivity,
   setAuthToken,
   setHasActiveSession,
+  watchForActivity,
 } from "./client";
 
 /**
@@ -134,6 +136,42 @@ describe("renewal for a client that holds its own refresh token", () => {
     // The browser's token is a cookie it cannot read; it sends nothing and the
     // server reads the jar.
     expect(seen.body).toBe("");
+  });
+});
+
+describe("what keeps a session alive", () => {
+  /** An access token issued `issued` ms ago that runs out in `left` ms. */
+  const accessToken = (issued: number, left: number) => {
+    const now = Date.now();
+    const claims = { iat: Math.floor((now - issued) / 1000), exp: Math.floor((now + left) / 1000) };
+    const encoded = btoa(JSON.stringify(claims)).replace(/=+$/, "");
+    return `header.${encoded}.signature`;
+  };
+
+  afterEach(() => forgetSessionActivity());
+
+  it("renews ahead of the token only after the person has done something", async () => {
+    const seen = stubRenewal(() =>
+      HttpResponse.json({ access_token: accessToken(0, 15 * 60_000) })
+    );
+    setHasActiveSession(true);
+    // Issued thirteen minutes ago and running out in one: renewal is due.
+    setAuthToken(accessToken(13 * 60_000, 60_000));
+    const unwatch = watchForActivity();
+
+    // Background requests and the clock alone renew nothing.
+    expect(seen.calls).toBe(0);
+
+    window.dispatchEvent(new Event("pointerdown"));
+    await vi.waitFor(() => expect(seen.calls).toBe(1));
+    // The idle window runs from the input just made.
+    expect(JSON.parse(seen.body ?? "null")).toEqual({ idle_seconds: 0 });
+
+    // Fresh token: more input waits for it to near its end instead of renewing.
+    window.dispatchEvent(new Event("keydown"));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(seen.calls).toBe(1);
+    unwatch();
   });
 });
 

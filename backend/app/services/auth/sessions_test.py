@@ -141,6 +141,40 @@ async def test_rotate_expired_token_returns_expired(session):
     assert result.outcome is RefreshOutcome.EXPIRED
 
 
+async def test_rotate_runs_the_idle_window_from_the_last_input(session):
+    """A renewal keeps the session for the window after the person's last input,
+    not after the renewal, and ends one whose window has already run out."""
+    user = await create_user(session)
+    first = await session_service.create_session(
+        session,
+        user_id=user.id,
+        amr=["pwd"],
+        satisfied_providers=[],
+        refresh_ttl=timedelta(minutes=15),
+        now=_at(),
+    )
+
+    second = await _rotate_ok(
+        session,
+        first.refresh_token,
+        _at(minutes=14),
+        refresh_ttl=timedelta(minutes=15),
+        idle=timedelta(minutes=4),
+    )
+    assert second.session.expires_at == _at(minutes=25)
+
+    result = await session_service.rotate_session(
+        session,
+        raw_refresh_token=second.refresh_token,
+        refresh_ttl=timedelta(minutes=15),
+        idle=timedelta(minutes=15),
+        now=_at(minutes=24),
+    )
+    assert result.outcome is RefreshOutcome.EXPIRED
+    await session.refresh(second.session)
+    assert second.session.revoked_at == _at(minutes=24)
+
+
 async def test_reuse_of_spent_token_revokes_whole_chain(session):
     """Presenting an already-rotated token revokes the entire chain —
     including the live tail."""

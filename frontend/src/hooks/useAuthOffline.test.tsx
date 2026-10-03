@@ -28,6 +28,9 @@ vi.mock("@/api/client", () => ({
   setAuthToken: vi.fn(),
   getAuthToken: () => null,
   clearUploadToken: vi.fn(),
+  watchForActivity: () => () => undefined,
+  startSessionActivity: vi.fn(),
+  forgetSessionActivity: vi.fn(),
 }));
 
 vi.mock("@/crypto/messaging", () => ({

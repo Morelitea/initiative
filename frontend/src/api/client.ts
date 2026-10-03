@@ -130,6 +130,7 @@ let hasActiveSession = false;
 export const setAuthToken = (token: string | null, deviceToken = false) => {
   authToken = token;
   isDeviceToken = deviceToken;
+  if (token && !deviceToken) noteSessionClock(token);
 };
 
 export const getAuthToken = (): string | null => authToken;
@@ -176,6 +177,119 @@ apiClient.interceptors.request.use((config) => {
   }
   return config;
 });
+
+// What keeps a session alive is the person, not the app: polling, socket pushes
+// and refetches on focus do not count. Every renewal says how long ago the last
+// input was, and the server runs the idle window from then. Ahead of the access
+// token running out, the app renews only if there has been input since the
+// last renewal, so a session nobody is using ends when its window does.
+//
+// Both times are shared by every window of this origin and kept across a
+// restart: input in any tab is the person being here.
+const LAST_INPUT_KEY = "initiative-last-input";
+const SESSION_CLOCK_KEY = "initiative-session-clock";
+//: How often input is written down; the tab keeps the exact time itself.
+const INPUT_WRITE_EVERY_MS = 10_000;
+//: How long before the access token runs out the app renews.
+const RENEW_AHEAD_MS = 120_000;
+const INPUT_EVENTS = ["pointerdown", "keydown", "wheel", "touchstart"] as const;
+
+interface SessionClock {
+  issuedAt: number;
+  expiresAt: number;
+}
+
+let lastInputHere: number | null = null;
+let renewTimer: ReturnType<typeof setTimeout> | undefined;
+
+const storedInput = (): number => {
+  const stored = Number(getItem(LAST_INPUT_KEY));
+  return Number.isFinite(stored) && stored > 0 ? stored : 0;
+};
+
+const lastInput = (): number | null => Math.max(lastInputHere ?? 0, storedInput()) || null;
+
+/** When the access token in hand was issued and when it runs out, from its claims. */
+function noteSessionClock(token: string): void {
+  try {
+    const claims = JSON.parse(atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))) as {
+      iat?: unknown;
+      exp?: unknown;
+    };
+    if (typeof claims.iat === "number" && typeof claims.exp === "number") {
+      const clock: SessionClock = { issuedAt: claims.iat * 1000, expiresAt: claims.exp * 1000 };
+      setItem(SESSION_CLOCK_KEY, JSON.stringify(clock));
+    }
+  } catch {
+    // Not a token this app can read the times of; the next input renews.
+  }
+}
+
+const sessionClock = (): SessionClock | null => {
+  try {
+    return JSON.parse(getItem(SESSION_CLOCK_KEY) ?? "null") as SessionClock | null;
+  } catch {
+    return null;
+  }
+};
+
+/** Renew if the person has done something since the last renewal and the token is near its end. */
+const renewIfDue = (): void => {
+  clearTimeout(renewTimer);
+  if (!hasActiveSession || !canRenewSession()) return;
+  const input = lastInput();
+  const clock = sessionClock();
+  // Nothing since the last renewal: the next input asks again.
+  if (input === null || (clock !== null && input <= clock.issuedAt)) return;
+  if (clock !== null) {
+    const due = clock.expiresAt - Math.min(RENEW_AHEAD_MS, (clock.expiresAt - clock.issuedAt) / 2);
+    if (Date.now() < due) {
+      renewTimer = setTimeout(renewIfDue, due - Date.now());
+      return;
+    }
+  }
+  void attemptSessionRefresh();
+};
+
+const noteInput = (): void => {
+  const now = Date.now();
+  lastInputHere = now;
+  if (now - storedInput() >= INPUT_WRITE_EVERY_MS) setItem(LAST_INPUT_KEY, String(now));
+  renewIfDue();
+};
+
+/** Count the person's input toward their session while they are signed in. */
+export const watchForActivity = (): (() => void) => {
+  if (typeof window === "undefined") return () => undefined;
+  const onVisible = () => {
+    if (document.visibilityState === "visible") noteInput();
+  };
+  for (const event of INPUT_EVENTS) {
+    window.addEventListener(event, noteInput, { passive: true, capture: true });
+  }
+  document.addEventListener("visibilitychange", onVisible);
+  return () => {
+    clearTimeout(renewTimer);
+    for (const event of INPUT_EVENTS) {
+      window.removeEventListener(event, noteInput, { capture: true });
+    }
+    document.removeEventListener("visibilitychange", onVisible);
+  };
+};
+
+/** Somebody has just signed in, which is them being here. */
+export const startSessionActivity = (): void => {
+  lastInputHere = Date.now();
+  setItem(LAST_INPUT_KEY, String(lastInputHere));
+};
+
+/** Forget both times, for a session that has ended on this device. */
+export const forgetSessionActivity = (): void => {
+  clearTimeout(renewTimer);
+  lastInputHere = null;
+  removeItem(LAST_INPUT_KEY);
+  removeItem(SESSION_CLOCK_KEY);
+};
 
 const emitUnauthorized = () => {
   if (typeof window !== "undefined") {
@@ -224,12 +338,24 @@ type TurnResult = Renewal | typeof RENEWED_BY_PEER;
 // one it holds is spent.
 const renew = async (): Promise<Renewal> => {
   const stored = isDeviceToken ? null : readRefreshToken();
+  const input = lastInput();
+  const body = {
+    ...(stored ? { refresh_token: stored } : {}),
+    // How long ago the person was last here, which is where the idle window
+    // runs from.
+    ...(input !== null
+      ? { idle_seconds: Math.max(0, Math.floor((Date.now() - input) / 1000)) }
+      : {}),
+  };
   const response = await apiClient.post<{ access_token: string; refresh_token?: string }>(
     "/auth/refresh",
-    stored ? { refresh_token: stored } : undefined
+    Object.keys(body).length > 0 ? body : undefined
   );
   if (response.data?.refresh_token) {
     storeRefreshToken(response.data.refresh_token);
+  }
+  if (response.data?.access_token) {
+    noteSessionClock(response.data.access_token);
   }
   return response;
 };
