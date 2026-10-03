@@ -1,4 +1,4 @@
-import type { SerializedEditorState, SerializedElementNode, SerializedLexicalNode } from "lexical";
+import type { SerializedEditorState, SerializedLexicalNode } from "lexical";
 
 const createEmptyParagraphNode = (): SerializedLexicalNode =>
   ({
@@ -39,10 +39,3 @@ export const normalizeEditorState = (
   }
   return cloned;
 };
-
-/** Whether a body holds nothing yet: empty paragraphs and nothing else. */
-export const isBlankEditorState = (state: SerializedEditorState): boolean =>
-  state.root.children.every(
-    (node) =>
-      node.type === "paragraph" && ((node as SerializedElementNode).children ?? []).length === 0
-  );

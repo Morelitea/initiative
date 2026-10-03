@@ -43,7 +43,6 @@ import { useServerForm } from "@/hooks/useServerForm";
 import { uploadAttachment } from "@/lib/attachmentUtils";
 import { toast } from "@/lib/chesterToast";
 import { useCommunityPath } from "@/lib/communityUrl";
-import { isBlankEditorState } from "@/lib/editorState";
 import { findNewMentions } from "@/lib/mentionUtils";
 import { toolListRoute, toolSettingsRoute } from "@/lib/tools";
 import { cn } from "@/lib/utils";
@@ -66,9 +65,6 @@ export const DocumentDetailPage = () => {
   const { isEnabled: isAIEnabled } = useAIEnabled();
   const [aiSummary, setAiSummary] = useState<string | null>(null);
   const [featuredImageUrl, setFeaturedImageUrl] = useState<string | null>(null);
-  // Whether to offer a featured image: decided when the document opens, from
-  // whether it was empty then, so the offer does not vanish at the first word.
-  const [offerFeaturedImage, setOfferFeaturedImage] = useState(false);
   const [isUploadingFeaturedImage, setIsUploadingFeaturedImage] = useState(false);
   // What the body last reported, and for which document: the page's copy of
   // the edit, read by the dirty check and the saves. Nothing until the body
@@ -184,10 +180,6 @@ export const DocumentDetailPage = () => {
       seededDocumentRef.current = document.id;
     }
     setFeaturedImageUrl(document.featured_image_url ?? null);
-    const body = DOCUMENT_BODIES[document.document_type];
-    setOfferFeaturedImage(
-      Boolean(body.prose) && isBlankEditorState(body.saved(document) as SerializedEditorState)
-    );
   }, [document, documentQuery.isFetchedAfterMount]);
 
   const saved = useMemo(
@@ -661,10 +653,8 @@ export const DocumentDetailPage = () => {
               url={featuredImageUrl}
               canEdit={canEditDocument}
               uploading={isUploadingFeaturedImage}
-              offerUpload={offerFeaturedImage}
               onUpload={handleFeaturedImageChange}
               onRemove={() => setFeaturedImage(null)}
-              onDismiss={() => setOfferFeaturedImage(false)}
             />
           )}
 

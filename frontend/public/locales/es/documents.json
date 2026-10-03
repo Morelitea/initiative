@@ -170,12 +170,9 @@
   },
   "featuredImage": {
     "label": "Imagen destacada",
-    "add": "Añade una imagen destacada",
-    "addHint": "Encabeza el documento y aparece en su tarjeta.",
     "upload": "Subir imagen",
     "replace": "Reemplazar",
     "remove": "Quitar",
-    "dismiss": "Ocultar",
     "uploading": "Subiendo…",
     "makeFeatured": "Usar como imagen destacada",
     "isFeatured": "Imagen destacada"

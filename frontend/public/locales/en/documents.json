@@ -170,12 +170,9 @@
   },
   "featuredImage": {
     "label": "Featured image",
-    "add": "Add a featured image",
-    "addHint": "It leads the document and shows on its card.",
     "upload": "Upload image",
     "replace": "Replace",
     "remove": "Remove",
-    "dismiss": "Hide this",
     "uploading": "Uploading…",
     "makeFeatured": "Make this the featured image",
     "isFeatured": "Featured image"

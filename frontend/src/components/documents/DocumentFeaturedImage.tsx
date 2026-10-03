@@ -1,4 +1,4 @@
-import { ImagePlus, Loader2, X } from "lucide-react";
+import { ImageIcon, ImagePlus, Loader2, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
@@ -9,31 +9,44 @@ interface DocumentFeaturedImageProps {
   url: string | null;
   canEdit: boolean;
   uploading: boolean;
-  /** Offer to add one: a writer looking at a document with nothing in it yet. */
-  offerUpload: boolean;
   onUpload: (file: File) => void;
   onRemove: () => void;
-  onDismiss: () => void;
 }
 
 /**
  * The picture a document leads with, and the one its card shows.
  *
- * Shown where there is one. Where there is not, a writer starting an empty
- * document is offered one, and can wave the offer away; a document that
- * already has words and no picture shows nothing, since any picture written
- * into it can be made the featured one from the picture itself.
+ * Set, it runs the width of the document. Unset, a writer gets one small row
+ * to add it from, there before a word is written; a reader sees nothing. A
+ * picture written into the body can be made the featured one from the picture
+ * itself, so this row is one of two ways in.
  */
 export const DocumentFeaturedImage = ({
   url,
   canEdit,
   uploading,
-  offerUpload,
   onUpload,
   onRemove,
-  onDismiss,
 }: DocumentFeaturedImageProps) => {
   const { t } = useTranslation("documents");
+
+  const upload = (label: string, variant: "secondary" | "ghost") => (
+    <ImagePicker
+      variant="button"
+      buttonVariant={variant}
+      buttonSize="sm"
+      accept="image/*"
+      disabled={uploading}
+      onSelect={onUpload}
+    >
+      {uploading ? (
+        <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+      ) : (
+        <ImagePlus className="h-4 w-4" aria-hidden />
+      )}
+      {uploading ? t("featuredImage.uploading") : label}
+    </ImagePicker>
+  );
 
   if (url) {
     return (
@@ -46,21 +59,7 @@ export const DocumentFeaturedImage = ({
         />
         {canEdit ? (
           <div className="absolute top-2 right-2 flex gap-2 transition-opacity md:opacity-0 md:group-focus-within:opacity-100 md:group-hover:opacity-100">
-            <ImagePicker
-              variant="button"
-              buttonVariant="secondary"
-              buttonSize="sm"
-              accept="image/*"
-              disabled={uploading}
-              onSelect={onUpload}
-            >
-              {uploading ? (
-                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-              ) : (
-                <ImagePlus className="h-4 w-4" aria-hidden />
-              )}
-              {uploading ? t("featuredImage.uploading") : t("featuredImage.replace")}
-            </ImagePicker>
+            {upload(t("featuredImage.replace"), "secondary")}
             <Button
               type="button"
               variant="secondary"
@@ -77,38 +76,15 @@ export const DocumentFeaturedImage = ({
     );
   }
 
-  if (!canEdit || !offerUpload) return null;
+  if (!canEdit) return null;
 
   return (
-    <div className="relative flex flex-col items-start gap-3 rounded-xl border border-dashed p-4 sm:flex-row sm:items-center">
-      <div className="min-w-0 flex-1 pr-8 sm:pr-0">
-        <p className="font-medium text-sm">{t("featuredImage.add")}</p>
-        <p className="text-muted-foreground text-sm">{t("featuredImage.addHint")}</p>
+    <div className="flex items-center gap-3">
+      <div className="flex h-9 w-12 shrink-0 items-center justify-center rounded-md border border-dashed text-muted-foreground">
+        <ImageIcon className="h-4 w-4" aria-hidden />
       </div>
-      <ImagePicker
-        variant="button"
-        buttonSize="sm"
-        accept="image/*"
-        disabled={uploading}
-        onSelect={onUpload}
-      >
-        {uploading ? (
-          <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-        ) : (
-          <ImagePlus className="h-4 w-4" aria-hidden />
-        )}
-        {uploading ? t("featuredImage.uploading") : t("featuredImage.upload")}
-      </ImagePicker>
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        className="absolute top-2 right-2 h-7 w-7 sm:static"
-        onClick={onDismiss}
-        aria-label={t("featuredImage.dismiss")}
-      >
-        <X className="h-4 w-4" aria-hidden />
-      </Button>
+      <span className="text-muted-foreground text-sm">{t("featuredImage.label")}</span>
+      {upload(t("featuredImage.upload"), "ghost")}
     </div>
   );
 };

@@ -170,12 +170,9 @@
   },
   "featuredImage": {
     "label": "Beitragsbild",
-    "add": "Beitragsbild hinzufügen",
-    "addHint": "Es steht am Anfang des Dokuments und erscheint auf seiner Karte.",
     "upload": "Bild hochladen",
     "replace": "Ersetzen",
     "remove": "Entfernen",
-    "dismiss": "Ausblenden",
     "uploading": "Wird hochgeladen…",
     "makeFeatured": "Als Beitragsbild verwenden",
     "isFeatured": "Beitragsbild"

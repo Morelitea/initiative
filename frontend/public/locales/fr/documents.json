@@ -170,12 +170,9 @@
   },
   "featuredImage": {
     "label": "Image à la une",
-    "add": "Ajouter une image à la une",
-    "addHint": "Elle ouvre le document et s’affiche sur sa carte.",
     "upload": "Téléverser une image",
     "replace": "Remplacer",
     "remove": "Retirer",
-    "dismiss": "Masquer",
     "uploading": "Téléversement en cours…",
     "makeFeatured": "Utiliser comme image à la une",
     "isFeatured": "Image à la une"
