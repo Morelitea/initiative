@@ -26,21 +26,35 @@ install's standing is in:
   class (``app.api.actor_route.ActorRoute``) resolves the markers after
   serialization and writes the references in.
 
+A field marked :class:`Mentions` names people inside its value, and goes
+through the same phases: a mention an install writes names a reference, which
+the input phase resolves to the row id and Initiative's own name for the
+person; a mention in a response carries a marker, and the person's name only
+when the install holds ``members:read``.
+
 The boundary lives in a context variable that ``ActorRoute`` opens per request,
 so it never outlives the request that set it.
 """
 
 from __future__ import annotations
 
+import re
 import secrets
-from collections.abc import Iterator, Mapping
+from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Annotated, Any, Optional
 
-from pydantic import PlainSerializer, WithJsonSchema, WrapValidator
+from pydantic import (
+    GetCoreSchemaHandler,
+    GetJsonSchemaHandler,
+    PlainSerializer,
+    WithJsonSchema,
+    WrapValidator,
+)
+from pydantic.json_schema import JsonSchemaValue
 from pydantic_core import PydanticCustomError, core_schema
 
 from app.core.messages import AppMessages
@@ -50,6 +64,10 @@ __all__ = [
     "BoundaryPhase",
     "GuildId",
     "InstallBoundary",
+    "LEXICAL_MENTIONS",
+    "MARKDOWN_MENTIONS",
+    "MentionForm",
+    "Mentions",
     "PersonId",
     "UNKNOWN_REFERENCE_ERROR",
     "admit_install",
@@ -57,6 +75,8 @@ __all__ = [
     "current_install_boundary",
     "names_withheld",
     "responding_to_install",
+    "without_mention_names",
+    "written_mention_refs",
 ]
 
 
@@ -83,7 +103,8 @@ class InstallBoundary:
     Built by the scope dependency from the install's completed standing:
     ``guild_id`` and ``install_id`` are the routed community and install,
     ``guild_ref`` what the install calls that community, and ``named`` the
-    references the request named that resolve in the install's sector.
+    references the request named that resolve in the install's sector, and
+    ``labels`` what Initiative calls each person among them in the community.
     ``reads_names`` is whether the install holds ``members:read``, which is
     what lets it read people's names. ``session`` is the request's routed
     session, on which the route class resolves what the response names.
@@ -93,6 +114,7 @@ class InstallBoundary:
     install_id: int
     guild_ref: Optional[str]
     named: Mapping[str, tuple[IdentityEntity, int]]
+    labels: Mapping[int, str] = field(default_factory=dict)
     reads_names: bool = False
     session: Any = None
     phase: BoundaryPhase = BoundaryPhase.input
@@ -117,6 +139,16 @@ class InstallBoundary:
         if entity is IdentityEntity.guild and entity_id != self.guild_id:
             raise _unknown()
         return entity_id
+
+    def mentioned(self, value: Any) -> tuple[int, str]:
+        """The person a mention in the request names, and what Initiative
+        calls them in the community, or a 422. Somebody who is not a member
+        has no name there, so no mention names them."""
+        user_id = self.resolve(value, IdentityEntity.user)
+        label = self.labels.get(user_id)
+        if label is None:
+            raise _unknown()
+        return user_id, label
 
     def mark(self, entity: IdentityEntity, entity_id: int) -> str:
         """The marker a response carries for ``entity_id`` until the route
@@ -243,3 +275,168 @@ GuildId = Annotated[
     PlainSerializer(_serializer(IdentityEntity.guild), return_type=Any),
     _GUILD_SCHEMA,
 ]
+
+
+# --- Mentions -------------------------------------------------------------------
+
+
+class MentionForm(str, Enum):
+    """How a field's value mentions a person."""
+
+    #: ``@[Name](42)`` inside text: the name it was written with and the
+    #: person's row id.
+    markdown = "markdown"
+    #: A node inside a Lexical editor state carrying ``mentionUserId``, with
+    #: the name in ``mentionName`` and ``text``.
+    lexical = "lexical"
+
+
+#: A stored markdown mention: its name and the row id.
+_STORED_MENTION = re.compile(r"@\[([^\]]*)\]\((\d+)\)")
+#: A markdown mention an install writes: whatever it names, which must be a
+#: reference.
+_WRITTEN_MENTION = re.compile(r"@\[[^\]]*\]\(([A-Za-z0-9_-]+)\)")
+#: What a markdown mention's name may not hold, as the editor writes one.
+_LABEL_BREAKS = re.compile(r"[\]\n]")
+
+_MENTION_ID = "mentionUserId"
+
+
+def written_mention_refs(text: str) -> list[str]:
+    """What the markdown mentions in ``text`` name, for the standing statement
+    to resolve."""
+    return _WRITTEN_MENTION.findall(text)
+
+
+def _markdown_in(value: Any, boundary: InstallBoundary) -> Any:
+    if not isinstance(value, str):
+        return value
+
+    def stored(match: re.Match[str]) -> str:
+        user_id, label = boundary.mentioned(match.group(1))
+        return f"@[{_LABEL_BREAKS.sub('', label)}]({user_id})"
+
+    return _WRITTEN_MENTION.sub(stored, value)
+
+
+def _markdown_out(value: Any, boundary: InstallBoundary) -> Any:
+    if not isinstance(value, str):
+        return value
+
+    def marked(match: re.Match[str]) -> str:
+        label = match.group(1) if boundary.reads_names else ""
+        marker = boundary.mark(IdentityEntity.user, int(match.group(2)))
+        return f"@[{label}]({marker})"
+
+    return _STORED_MENTION.sub(marked, value)
+
+
+def _rewrite_nodes(value: Any, rewrite: Callable[[dict[str, Any]], Any]) -> Any:
+    """``value`` copied, with every node that names a person in
+    ``mentionUserId`` passed through ``rewrite``."""
+    if isinstance(value, list):
+        return [_rewrite_nodes(item, rewrite) for item in value]
+    if not isinstance(value, dict):
+        return value
+    walked = {key: _rewrite_nodes(child, rewrite) for key, child in value.items()}
+    return walked if walked.get(_MENTION_ID) is None else rewrite(walked)
+
+
+def _lexical_in(value: Any, boundary: InstallBoundary) -> Any:
+    def stored(node: dict[str, Any]) -> dict[str, Any]:
+        user_id, label = boundary.mentioned(node[_MENTION_ID])
+        return {**node, _MENTION_ID: user_id, "mentionName": label, "text": label}
+
+    return _rewrite_nodes(value, stored)
+
+
+def _lexical_out(value: Any, boundary: InstallBoundary) -> Any:
+    def marked(node: dict[str, Any]) -> dict[str, Any]:
+        user_id = node[_MENTION_ID]
+        if not isinstance(user_id, int) or isinstance(user_id, bool):
+            return node
+        node = {**node, _MENTION_ID: boundary.mark(IdentityEntity.user, user_id)}
+        if not boundary.reads_names:
+            node |= {"mentionName": "", "text": ""}
+        return node
+
+    return _rewrite_nodes(value, marked)
+
+
+def without_mention_names(value: Any, form: MentionForm) -> Any:
+    """``value`` with no mention carrying a name, for an installed app that
+    does not hold ``members:read``; ``value`` as it is otherwise.
+
+    For text a route derives from content for its response, such as an
+    excerpt, which its handler builds before anything is serialized. The
+    mention keeps its row id: what is derived from it shows none.
+    """
+    boundary = current_install_boundary()
+    if boundary is None or boundary.reads_names:
+        return value
+    if form is MentionForm.lexical:
+        return _rewrite_nodes(
+            value, lambda node: node | {"mentionName": "", "text": ""}
+        )
+    if not isinstance(value, str):
+        return value
+    return _STORED_MENTION.sub(lambda match: f"@[]({match.group(2)})", value)
+
+
+_TRANSLATIONS = {
+    MentionForm.markdown: (_markdown_in, _markdown_out),
+    MentionForm.lexical: (_lexical_in, _lexical_out),
+}
+
+
+@dataclass(frozen=True)
+class Mentions:
+    """Marks a field whose value may mention people, in ``form``.
+
+    For a person the value passes through as it is. For an install, a mention
+    in the request names a reference and is stored with the row id and
+    Initiative's own name for the person; a mention in the response names the
+    install's reference, with the name only under ``members:read``. The field's
+    schema carries ``x-mentions``, which the app API's document describes.
+    """
+
+    form: MentionForm
+
+    def __get_pydantic_core_schema__(
+        self, source: Any, handler: GetCoreSchemaHandler
+    ) -> core_schema.CoreSchema:
+        schema = core_schema.no_info_wrap_validator_function(
+            self._validate, handler(source)
+        )
+        schema["serialization"] = core_schema.wrap_serializer_function_ser_schema(
+            self._serialize
+        )
+        return schema
+
+    def __get_pydantic_json_schema__(
+        self, schema: core_schema.CoreSchema, handler: GetJsonSchemaHandler
+    ) -> JsonSchemaValue:
+        json_schema = handler(schema)
+        json_schema["x-mentions"] = self.form.value
+        return json_schema
+
+    def _validate(
+        self, value: Any, handler: core_schema.ValidatorFunctionWrapHandler
+    ) -> Any:
+        boundary = _boundary_in(BoundaryPhase.input)
+        if boundary is not None:
+            value = _TRANSLATIONS[self.form][0](value, boundary)
+        return handler(value)
+
+    def _serialize(
+        self, value: Any, handler: core_schema.SerializerFunctionWrapHandler
+    ) -> Any:
+        boundary = _boundary_in(BoundaryPhase.response)
+        if boundary is not None:
+            value = _TRANSLATIONS[self.form][1](value, boundary)
+        return handler(value)
+
+
+#: The marks a field type carries: markdown text, and a Lexical editor state.
+MARKDOWN_MENTIONS = Mentions(MentionForm.markdown)
+LEXICAL_MENTIONS = Mentions(MentionForm.lexical)

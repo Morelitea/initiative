@@ -27,7 +27,9 @@ from app.core.app_scopes import ALL_SCOPES
 from app.core.messages import AppMessages
 from app.main import app
 from app.models.platform.guild import Guild, GuildRole, GuildStatus
+from app.models.platform.notification import Notification, NotificationType
 from app.models.tenant.app_placement import AppPlacement
+from app.models.tenant.comment import Comment
 from app.models.tenant.document import Document
 from app.models.tenant.guild_app import GuildApp
 from app.models.tenant.property import PropertyType
@@ -38,11 +40,14 @@ from app.testing import (
     guild_url,
     create_comment,
     create_document,
+    create_post,
     create_guild_calendar,
     create_project,
     create_property_definition,
     create_property_value,
     create_task,
+    drain_notices,
+    lexical_body,
     route_as,
     route_as_install,
     route_session_to_guild,
@@ -741,6 +746,193 @@ async def test_a_write_naming_three_people_costs_the_same_two(
     assert created.status_code == 201, created.text
     assert seen == [2], statements[:4]
     assert sorted(a["id"] for a in created.json()["assignees"]) == sorted(others)
+
+
+# ---------------------------------------------------------------------------
+# Mentions
+# ---------------------------------------------------------------------------
+
+
+def _mentioning(person: int | str, name: str) -> dict[str, Any]:
+    """An editor state whose one paragraph mentions ``person``."""
+    body = lexical_body("Over to ")
+    body["root"]["children"][0]["children"].append(
+        {
+            "type": "mention",
+            "mentionName": name,
+            "mentionUserId": person,
+            "text": name,
+            "version": 1,
+        }
+    )
+    return body
+
+
+@pytest.mark.parametrize("reads_names", [True, False])
+async def test_a_mention_names_a_person_by_reference_and_by_name_under_members_read(
+    reads_names, client, session, acting_user, role_session
+):
+    await lift_person_and_guild_ids(session)
+    reads = ["projects:read", "comments:read", "documents:read", "posts:read"]
+    installed = await install_app(
+        session, acting_user, role_session, granted=[*reads, "members:read"]
+    )
+    seat = installed.seat
+    mention = f"Over to @[The Seat]({seat.user.id})"
+    post = await create_post(
+        session, installed.placed, seat.user, body=_mentioning(seat.user.id, "The Seat")
+    )
+    project = await _open_project(session, installed, installed.placed, "Open A")
+    task = await create_task(
+        session, project, assignees=[seat.user], description=mention
+    )
+    await create_comment(session, seat.user, task=task, content=mention)
+    document = await create_document(
+        session,
+        installed.placed,
+        seat.user,
+        content=_mentioning(seat.user.id, "The Seat"),
+    )
+    await share_with_members(session, document, installed.placed.id)
+    headers = install_headers(
+        installed, [*reads, "members:read"] if reads_names else reads
+    )
+    guild_id = installed.guild.id
+
+    responses = [
+        await client.get(guild_url(guild_id, path), headers=headers)
+        for path in (
+            f"/tasks/{task.id}",
+            f"/comments/?task_id={task.id}",
+            f"/documents/{document.id}",
+            f"/posts/{post.id}",
+            f"/tasks/?project_id={project.id}",
+        )
+    ]
+    for response in responses:
+        assert response.status_code == 200, response.text
+        assert_names_nobody(response.text, [seat.user.id, guild_id])
+        assert ("The Seat" in response.text) is reads_names
+    read, comments, opened, posted, listed = (r.json() for r in responses)
+    ref = read["assignees"][0]["id"]
+    name = "The Seat" if reads_names else ""
+    assert read["description"] == f"Over to @[{name}]({ref})"
+    assert comments["comments"][0]["content"] == read["description"]
+    [_, node] = opened["content"]["root"]["children"][0]["children"]
+    assert (node["mentionUserId"], node["mentionName"], node["text"]) == (
+        ref,
+        name,
+        name,
+    )
+    # What is derived from the text shows the name only as the text does.
+    assert posted["excerpt"] == f"Over to {name}".strip()
+    assert listed["items"][0]["description_excerpt"] == f"Over to @{name}"
+
+
+async def test_a_response_mentioning_three_people_costs_one_statement_cold(
+    client, session, acting_user, role_session
+):
+    scopes = ["projects:read", "comments:read"]
+    installed = await install_app(session, acting_user, role_session, granted=scopes)
+    people = [
+        await acting_user(guild_role=GuildRole.member, guild=installed.guild)
+        for _ in range(3)
+    ]
+    project = await _open_project(session, installed, installed.placed, "Open A")
+    task = await create_task(session, project)
+    await create_comment(
+        session,
+        installed.seat.user,
+        task=task,
+        content=" ".join(f"@[Them]({person.user.id})" for person in people),
+    )
+    headers = install_headers(installed, scopes)
+    url = guild_url(installed.guild.id, f"/comments/?task_id={task.id}")
+
+    first = await client.get(url, headers=headers)
+    assert first.status_code == 200, first.text
+    with _counting() as warm:
+        again = await client.get(url, headers=headers)
+    assert again.json() == first.json()
+
+    app_refs.forget_cached_install_refs()
+    with _counting() as cold:
+        third = await client.get(url, headers=headers)
+    assert third.json() == first.json()
+    assert len(cold) == len(warm) + 1, (cold, warm)
+
+
+async def test_a_mention_it_writes_is_stored_by_row_id_under_the_member_s_name(
+    client, session, acting_user, role_session
+):
+    scopes = ["comments:write", "documents:write", "members:read"]
+    installed = await install_app(session, acting_user, role_session, granted=scopes)
+    member = await acting_user(
+        guild_role=GuildRole.member,
+        guild=installed.guild,
+        initiative=installed.placed,
+        initiative_role="member",
+    )
+    member.membership.display_name = "Sam Bee"
+    session.add(member.membership)
+    await session.commit()
+    document = await _open_document(session, installed)
+    headers = install_headers(installed, scopes)
+    guild_id = installed.guild.id
+    members = await client.get(guild_url(guild_id, "/users/search"), headers=headers)
+    [ref] = [
+        item["id"]
+        for item in members.json()["items"]
+        if item["username"] == member.user.username
+    ]
+
+    posted = await client.post(
+        guild_url(guild_id, "/comments/"),
+        headers=headers,
+        json={"content": f"Over to @[]({ref})", "document_id": document.id},
+    )
+    assert posted.status_code == 201, posted.text
+    assert posted.json()["content"] == f"Over to @[Sam Bee]({ref})"
+    created = await client.post(
+        guild_url(guild_id, "/documents/"),
+        headers=headers,
+        json={
+            "name": "Mentions Sam",
+            "initiative_id": installed.placed.id,
+            "content": _mentioning(ref, "Whoever"),
+        },
+    )
+    assert created.status_code == 201, created.text
+
+    await route_session_to_guild(session, guild_id)
+    comment = await session.get(Comment, posted.json()["id"])
+    assert comment is not None
+    assert comment.content == f"Over to @[Sam Bee]({member.user.id})"
+    stored = await session.exec(
+        select(Document.content).where(Document.id == created.json()["id"])
+    )
+    assert stored.one() == _mentioning(member.user.id, "Sam Bee")
+
+    # The person it mentioned hears of it, as from anybody.
+    await drain_notices()
+    notices = (
+        await session.exec(
+            select(Notification).where(
+                Notification.user_id == member.user.id,
+                Notification.type == NotificationType.mention,
+            )
+        )
+    ).all()
+    assert [n.data["comment_id"] for n in notices] == [comment.id]
+
+    for content in (f"@[Sam]({member.user.id})", "@[Sam](uapp_nobody-at-all)"):
+        refused = await client.post(
+            guild_url(guild_id, "/comments/"),
+            headers=headers,
+            json={"content": content, "document_id": document.id},
+        )
+        assert refused.status_code == 422, refused.text
+        assert AppMessages.REFERENCE_UNKNOWN in refused.text
 
 
 # ---------------------------------------------------------------------------

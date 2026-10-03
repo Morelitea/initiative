@@ -1,10 +1,20 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Dict, List, Literal, Optional, Sequence, TYPE_CHECKING
+from typing import (
+    Annotated,
+    Any,
+    Dict,
+    List,
+    Literal,
+    Optional,
+    Sequence,
+    TYPE_CHECKING,
+)
 
 from pydantic import ConfigDict, Field
 
+from app.core.identity_boundary import LEXICAL_MENTIONS
 from app.core.relationships import Related
 from app.schemas.base import SanitizedBaseModel
 from app.schemas.tenant.property import PropertiesOnCreate
@@ -25,7 +35,8 @@ if TYPE_CHECKING:  # pragma: no cover
         DocumentFileVersion,
     )
 
-LexicalState = Dict[str, Any]
+#: A Lexical editor state: a document's, a post's or a wiki page's body.
+LexicalState = Annotated[Dict[str, Any], LEXICAL_MENTIONS]
 #: One sheet of a workbook, in the canonical shape
 #: ``normalize_spreadsheet_content`` produces.
 SpreadsheetSheet = Dict[str, Any]

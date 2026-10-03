@@ -58,7 +58,11 @@ from app.core.security import (
     SESSION_COOKIE_NAME,
     STEP_UP_CHALLENGE,
 )
-from app.core.identity_boundary import InstallBoundary, admit_install
+from app.core.identity_boundary import (
+    InstallBoundary,
+    admit_install,
+    written_mention_refs,
+)
 from app.db import cohorts
 from app.db.guild_standing import (
     ActorContext,
@@ -1404,7 +1408,7 @@ def _strings_in(value: Any) -> list[str]:
 
 async def _named_refs(request: Request) -> list[str]:
     """The references an installed app's request names: in its path, its query
-    string and its JSON body.
+    string and its JSON body, a mention in its text included.
 
     Read before FastAPI validates any of them, so the standing statement can
     resolve them in the same round trip. Starlette keeps the body it read, so
@@ -1416,9 +1420,11 @@ async def _named_refs(request: Request) -> list[str]:
     content_type = request.headers.get("content-type", "")
     if "json" in content_type and await request.body():
         try:
-            values.extend(_strings_in(await request.json()))
+            strings = _strings_in(await request.json())
         except ValueError:
-            pass
+            strings = []
+        values.extend(strings)
+        values.extend(ref for text in strings for ref in written_mention_refs(text))
     return named_ref_candidates(values)
 
 
@@ -1488,6 +1494,7 @@ async def _establish_install_request(
                 ref: (IdentityEntity(entity_type), entity_id)
                 for ref, entity_type, entity_id in context.named_refs
             },
+            labels=dict(context.named_labels),
             reads_names=context.holds("members:read"),
             session=session,
         )

@@ -43,6 +43,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, fields, replace
+from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any, Optional, Sequence
 
 from app.core.app_scopes import (
@@ -52,6 +53,7 @@ from app.core.app_scopes import (
     InstallLevel,
 )
 from app.core.tools import Tool
+from app.core.user_display import display_name
 from app.db import gucs
 from app.db.authorization import LIVE_GRANT, sql_values
 from app.models.platform.access_grant import AccessGrantPurpose, AccessLevel
@@ -425,9 +427,12 @@ _INSTALL_STANDING: dict[gucs.Guc, str] = {
 #: own sector (``purpose = 'app'``, the routed community and the routed
 #: install): ``guild_ref``, its live reference for the community, and
 #: ``named_refs``, the references in ``:named_refs`` that name somebody there,
-#: as ``{ref: [entity_type, entity_id]}``. A replaced reference still resolves
-#: for its grace window, as ``identity_refs.resolve_ref`` has it. The array
-#: chooses which rows are looked up; the sector is the routing's.
+#: as ``{ref: [entity_type, entity_id, username, discriminator,
+#: display_name]}``. The last three are a person's member profile in the
+#: community, which a mention the request writes is stored with; empty for a
+#: community, and for somebody who is not a member. A replaced reference still
+#: resolves for its grace window, as ``identity_refs.resolve_ref`` has it. The
+#: array chooses which rows are looked up; the sector is the routing's.
 INSTALL_STANDING_SQL = f"""
 WITH consent AS (
   SELECT c.initiative_id,
@@ -578,8 +583,15 @@ SELECT
       AND EXISTS (SELECT 1 FROM install)
   ) AS guild_ref,
   COALESCE((
-      SELECT jsonb_object_agg(r.ref, jsonb_build_array(r.entity_type, r.entity_id))
+      SELECT jsonb_object_agg(
+        r.ref,
+        jsonb_build_array(
+          r.entity_type, r.entity_id, p.username, p.discriminator, p.display_name
+        )
+      )
       FROM public.identity_refs r
+      LEFT JOIN public.guild_member_profiles p
+        ON r.entity_type = '{IdentityEntity.user.value}' AND p.id = r.entity_id
       WHERE r.ref = ANY(CAST(:named_refs AS text[]))
         AND {_IN_INSTALL_SECTOR}
         AND (r.retired_at IS NULL OR r.retired_at > now() - {_GRACE_INTERVAL})
@@ -891,6 +903,9 @@ class InstallContext:
     #: sector, as ``(ref, entity_type, entity_id)``. For this request only:
     #: the replay writes the standing, and names nobody.
     named_refs: tuple[tuple[str, str, int], ...] = ()
+    #: What Initiative calls each member those references name, in the
+    #: community, as ``(user_id, name)``.
+    named_labels: tuple[tuple[int, str], ...] = ()
 
     @property
     def guild_auth_ok(self) -> bool:
@@ -966,6 +981,7 @@ class InstallContext:
             live=bool(row.get("live")),
             guild_ref=row.get("guild_ref") or None,
             named_refs=_named_refs(row.get("named_refs")),
+            named_labels=_named_labels(row.get("named_refs")),
         )
 
 
@@ -974,18 +990,36 @@ class InstallContext:
 ActorContext = GuildContext | InstallContext
 
 
-def _named_refs(value: Any) -> tuple[tuple[str, str, int], ...]:
-    """The statement's ``named_refs`` column as sorted triples. The driver hands
-    a ``jsonb`` column read through ``text()`` back as its text."""
+def _named(value: Any) -> dict[str, list[Any]]:
+    """The statement's ``named_refs`` column. The driver hands a ``jsonb``
+    column read through ``text()`` back as its text."""
     if not value:
-        return ()
-    mapping = json.loads(value) if isinstance(value, (str, bytes)) else value
+        return {}
+    return json.loads(value) if isinstance(value, (str, bytes)) else value
+
+
+def _named_refs(value: Any) -> tuple[tuple[str, str, int], ...]:
+    """The statement's ``named_refs`` column as sorted triples."""
     return tuple(
         sorted(
             (str(ref), str(entity_type), int(entity_id))
-            for ref, (entity_type, entity_id) in mapping.items()
+            for ref, (entity_type, entity_id, *_) in _named(value).items()
         )
     )
+
+
+def _named_labels(value: Any) -> tuple[tuple[int, str], ...]:
+    """What Initiative calls each member the ``named_refs`` column names."""
+    labels = set()
+    for entity_type, entity_id, *profile in _named(value).values():
+        if entity_type != IdentityEntity.user.value or profile[0] is None:
+            continue
+        username, discriminator, name = profile
+        person = SimpleNamespace(
+            username=username, discriminator=discriminator, display_name=name
+        )
+        labels.add((int(entity_id), display_name(person)))
+    return tuple(sorted(labels))
 
 
 def standing_values(

@@ -7,7 +7,7 @@ from app.core.identity_boundary import PersonId
 from app.core.tools import COMMENT_TARGETS
 from pydantic import ConfigDict, Field, computed_field, field_validator, model_validator
 
-from app.schemas.base import RichTextStr, SanitizedBaseModel
+from app.schemas.base import RichMentionStr, RichTextStr, SanitizedBaseModel
 from app.schemas.tenant.reaction import ReactionGroup
 from app.models.platform.user import Presence
 from app.schemas.platform.user import PersonShape, ProfileDecorations
@@ -50,7 +50,7 @@ class CommentAuthor(PersonShape):
 
 
 class CommentBase(SanitizedBaseModel):
-    content: RichTextStr
+    content: RichMentionStr
 
     @field_validator("content")
     @classmethod

@@ -6,7 +6,12 @@ from uuid import uuid4
 from pydantic import ConfigDict, Field, field_validator
 
 from app.core.identity_boundary import GuildId, PersonId
-from app.schemas.base import RichTextStr, SanitizedBaseModel, TitleStr
+from app.schemas.base import (
+    MentionStr,
+    RichMentionStr,
+    SanitizedBaseModel,
+    TitleStr,
+)
 from app.schemas.query import PageMeta
 from app.schemas.recurrence import OccurrenceScope, TaskRule
 
@@ -65,7 +70,7 @@ class ChecklistItemInput(SanitizedBaseModel):
     without one is given a fresh id."""
 
     id: Optional[str] = Field(default=None, max_length=_MAX_ITEM_ID_LENGTH)
-    text: str = Field(min_length=1, max_length=2000)
+    text: MentionStr = Field(min_length=1, max_length=2000)
     done: bool = False
 
     @field_validator("id")
@@ -81,7 +86,7 @@ class ChecklistItem(SanitizedBaseModel):
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     id: str
-    text: str
+    text: MentionStr
     done: bool = False
 
 
@@ -116,7 +121,7 @@ class TaskBase(SanitizedBaseModel):
 
 class TaskCreate(TaskBase, PropertiesOnCreate):
     title: TitleStr
-    description: Optional[RichTextStr] = None
+    description: Optional[RichMentionStr] = None
     project_id: int
     recurrence: Optional[TaskRule] = None
     #: The zone ``recurrence``'s days were picked in, and ``recurrence_shift``
@@ -130,7 +135,7 @@ class TaskCreate(TaskBase, PropertiesOnCreate):
 
 class TaskUpdate(PropertiesOnUpdate):
     title: Optional[TitleStr] = None
-    description: Optional[RichTextStr] = None
+    description: Optional[RichMentionStr] = None
     task_status_id: Optional[int] = None
     priority: Optional[TaskPriority] = None
     assignee_ids: Optional[List[PersonId]] = None
@@ -173,7 +178,7 @@ class TaskRead(TaskBase):
         from_attributes=True, json_schema_serialization_defaults_required=True
     )
 
-    description: Optional[RichTextStr] = None
+    description: Optional[RichMentionStr] = None
     id: int
     project_id: int
     task_status_id: int

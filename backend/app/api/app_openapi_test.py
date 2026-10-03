@@ -13,10 +13,12 @@ from fastapi.routing import APIRoute
 from httpx import AsyncClient
 
 from app.api.app_openapi import COMMUNITY_PREFIX, build_app_openapi
+from app.db.search_index import written_columns
 from app.api.deps import ActorContext, app_scope, route_app_scope_declaration
 from app.main import app, app_openapi
 
 _APP_DIR = Path(__file__).resolve().parent.parent
+_SCHEMA_REF = "#/components/schemas/"
 
 #: Where a person is written for an installed app.
 _APP_PERSON_WRITES = {
@@ -94,11 +96,12 @@ def test_every_reference_in_the_app_document_resolves_in_it():
     schemas = document["components"]["schemas"]
     refs = {node["$ref"] for node in _nodes(document) if "$ref" in node}
     assert refs
-    prefix = "#/components/schemas/"
     unresolved = {
         ref
         for ref in refs
-        if not (ref.startswith(prefix) and ref.removeprefix(prefix) in schemas)
+        if not (
+            ref.startswith(_SCHEMA_REF) and ref.removeprefix(_SCHEMA_REF) in schemas
+        )
     }
     assert not unresolved
 
@@ -141,6 +144,44 @@ def test_every_person_in_the_app_document_is_an_app_person():
     }
     assert drawn == {"AppPerson"}
     assert not [name for name, schema in schemas.items() if schema.get("x-person")]
+
+
+#: Columns somebody writes in that mention nobody: an upload's own file name.
+_MENTION_FREE_COLUMNS = {"original_filename"}
+
+
+def _mention_forms(field: Any, schemas: dict[str, Any]) -> set[str]:
+    """How ``field`` mentions people: its own mark, or its items' fields'."""
+    nodes = list(_nodes(field))
+    for node in list(nodes):
+        if "$ref" in node:
+            nodes.extend(_nodes(schemas[node["$ref"].removeprefix(_SCHEMA_REF)]))
+    return {node["x-mentions"] for node in nodes if "x-mentions" in node}
+
+
+@pytest.mark.always
+def test_every_field_holding_written_text_carries_its_mentions():
+    """A column somebody writes in may mention a person, and is where the
+    erasure scrubs mentions (``mention_parser.anonymize_user_mentions``). Each
+    field of the app's document named for one says how it mentions people:
+    an editor state as Lexical, text as markdown. Its schema describes it."""
+    columns = {
+        column for written in written_columns().values() for column in written
+    } - _MENTION_FREE_COLUMNS
+    schemas = app_openapi()["components"]["schemas"]
+    found: dict[tuple[str, str], set[str]] = {}
+    expected: dict[tuple[str, str], set[str]] = {}
+    for name, schema in schemas.items():
+        for field, value in schema.get("properties", {}).items():
+            if field not in columns:
+                continue
+            editor_state = any(node.get("type") == "object" for node in _nodes(value))
+            expected[(name, field)] = {"lexical" if editor_state else "markdown"}
+            found[(name, field)] = _mention_forms(value, schemas)
+    assert expected
+    assert found == expected
+    marked = [node for node in _nodes(schemas) if "x-mentions" in node]
+    assert all(node.get("description") for node in marked)
 
 
 def _app_person_writes(node: ast.AST, scope: tuple[str, ...] = ()) -> Iterator[str]:
