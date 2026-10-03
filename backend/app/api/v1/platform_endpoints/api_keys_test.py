@@ -381,7 +381,7 @@ async def test_guild_bound_key_is_pinned_to_its_guild(
         f"/api/v1/c/{guild_b.id}/initiatives/", headers=key_headers
     )
     assert other.status_code == 403
-    assert other.json()["detail"] == "GUILD_ACCESS_DENIED"
+    assert other.json()["detail"] == "COMMUNITY_ACCESS_DENIED"
 
     # The same user's session JWT reaches guild B — so the block was the key
     # pin, not a membership problem.
@@ -407,7 +407,7 @@ async def test_create_guild_bound_key_rejects_non_member(
         json={"name": "Sneaky", "community_id": guild.id},
     )
     assert response.status_code == 403
-    assert response.json()["detail"] == "USER_API_KEY_GUILD_FORBIDDEN"
+    assert response.json()["detail"] == "USER_API_KEY_COMMUNITY_FORBIDDEN"
 
 
 async def test_create_guild_bound_key_rejects_unknown_guild(
@@ -423,7 +423,7 @@ async def test_create_guild_bound_key_rejects_unknown_guild(
         json={"name": "Ghost", "community_id": 999999},
     )
     assert response.status_code == 403
-    assert response.json()["detail"] == "USER_API_KEY_GUILD_FORBIDDEN"
+    assert response.json()["detail"] == "USER_API_KEY_COMMUNITY_FORBIDDEN"
 
 
 @pytest.mark.parametrize(

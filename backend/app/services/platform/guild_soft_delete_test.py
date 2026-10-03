@@ -304,7 +304,7 @@ async def test_restore_refuses_a_community_that_is_not_deleted(
         json={"status": "active"},
     )
     assert response.status_code == 409
-    assert response.json()["detail"] == GuildMessages.GUILD_NOT_DELETED
+    assert response.json()["detail"] == GuildMessages.COMMUNITY_NOT_DELETED
 
 
 async def test_restore_needs_a_capability(
@@ -348,7 +348,7 @@ async def test_restore_asks_for_a_seat_when_the_roster_holds_none(
         json={"status": "active"},
     )
     assert refused.status_code == 400
-    assert refused.json()["detail"] == GuildMessages.GUILD_RESTORE_SEAT_REQUIRED
+    assert refused.json()["detail"] == GuildMessages.COMMUNITY_RESTORE_SEAT_REQUIRED
 
     seated = await create_user(session)
     response = await client.post(

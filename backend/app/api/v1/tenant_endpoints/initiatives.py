@@ -303,7 +303,7 @@ async def list_initiatives(
     if scope is InitiativeListScope.community and not guild_context.is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=GuildMessages.GUILD_ADMIN_REQUIRED,
+            detail=GuildMessages.COMMUNITY_ADMIN_REQUIRED,
         )
 
     # `initiatives` is a structural table (not initiative-RLS-gated), so scope it

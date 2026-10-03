@@ -85,7 +85,7 @@ describe("the billing forwarder", () => {
   it("says why when the server refuses, and stays", async () => {
     server.use(
       http.post(HANDOFF, () =>
-        HttpResponse.json({ detail: "GUILD_SUPERADMIN_REQUIRED" }, { status: 403 })
+        HttpResponse.json({ detail: "COMMUNITY_SUPERADMIN_REQUIRED" }, { status: 403 })
       )
     );
 

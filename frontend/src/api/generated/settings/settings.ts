@@ -2299,9 +2299,9 @@ export function useGetFcmConfig<
  * One page of the deployment's guilds with their storage caps, for the
  * Operator dashboard Guilds tab.
  *
- * Operator/owner (``guilds.manage``). Reads only shared ``public`` tables. The
+ * Operator/owner (``communities.manage``). Reads only shared ``public`` tables. The
  * guilds and their administration rows are read on the caller's platform
- * tier, under the ``guilds.manage`` policies on both; the caps join in a
+ * tier, under the ``communities.manage`` policies on both; the caps join in a
  * single pass. Member counts and seats are totals read on the system engine
  * (``_member_tallies``), one grouped query each for the page.
  * @summary List Platform Community Storage
@@ -2552,7 +2552,7 @@ export const useUpdatePlatformCommunityStorage = <
  * What this community says its own arrivals look like, and whether
  * anybody has agreed.
  *
- * Operator/owner (``guilds.manage``). The community writes these values itself
+ * Operator/owner (``communities.manage``). The community writes these values itself
  * and nothing here can tell whether it holds the domain or tenant they name,
  * so the answer is the deployment's. Support answers through the case raised
  * when they are written; this is the same question where a deployment runs
@@ -2794,7 +2794,7 @@ export const useAgreeCommunityNarrowing = <
 /**
  * Bring a deleted guild back before its retention window runs out.
  *
- * Operator/owner (``guilds.manage``). Deleting a guild keeps it — the shared
+ * Operator/owner (``communities.manage``). Deleting a guild keeps it — the shared
  * rows, the ``guild_<id>`` schema and the stored blobs all stay until
  * ``guild_purge`` destroys them — so restoring is a status write plus, where
  * the roster was emptied, seating somebody who can run the community again.
@@ -2905,7 +2905,7 @@ export const useRestorePlatformCommunity = <
 /**
  * Mint the operator handoff into the billing portal for one guild.
  *
- * Backs the Guilds tab's billing buttons. Operator/owner (``guilds.manage``).
+ * Backs the Guilds tab's billing buttons. Operator/owner (``communities.manage``).
  * The token names the ``access_grants`` row that authorises the visit: a
  * live billing grant is reused, otherwise one is self-issued — after the
  * account's second factor, as breaking glass takes it — so the visit is

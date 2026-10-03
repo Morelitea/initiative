@@ -1155,7 +1155,7 @@ class TestPlacementRoutes:
             json={"role_ids": []},
         )
         assert put.status_code == 403
-        assert put.json()["detail"] == GuildMessages.GUILD_SUPERADMIN_REQUIRED
+        assert put.json()["detail"] == GuildMessages.COMMUNITY_SUPERADMIN_REQUIRED
 
     async def test_a_role_of_another_initiative_is_refused(
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
@@ -1303,7 +1303,9 @@ class TestScopesRoute:
                 json={"granted": ["projects:read"]},
             )
             assert response.status_code == 403, role
-            assert response.json()["detail"] == GuildMessages.GUILD_SUPERADMIN_REQUIRED
+            assert (
+                response.json()["detail"] == GuildMessages.COMMUNITY_SUPERADMIN_REQUIRED
+            )
 
 
 class TestHandoffWithoutASigningKey:

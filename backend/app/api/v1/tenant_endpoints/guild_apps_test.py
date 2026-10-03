@@ -151,7 +151,7 @@ class TestInstall:
             json={"listing_uid": CALENDAR_APP_UID},
         )
         assert response.status_code == 403
-        assert response.json()["detail"] == GuildMessages.GUILD_SUPERADMIN_REQUIRED
+        assert response.json()["detail"] == GuildMessages.COMMUNITY_SUPERADMIN_REQUIRED
 
     async def test_a_listing_that_is_not_an_app_is_a_404(
         self, client: AsyncClient, acting_user, session

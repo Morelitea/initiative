@@ -111,7 +111,7 @@ async def _resolve_guild(guild_ref: str) -> int:
     if guild_id is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=BillingMessages.GUILD_NOT_FOUND,
+            detail=BillingMessages.COMMUNITY_NOT_FOUND,
         )
     return guild_id
 
@@ -146,7 +146,7 @@ async def apply_community_tier(
         # the delivery can be retried once the guild exists.
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=BillingMessages.GUILD_NOT_FOUND,
+            detail=BillingMessages.COMMUNITY_NOT_FOUND,
         ) from exc
     except BillingSourceRestrictionError as exc:
         # The restriction is checked before the event-log claim, so the
@@ -200,7 +200,7 @@ async def community_notice(
     if await billing_service.guild_lifecycle_status(session, guild_id) is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=BillingMessages.GUILD_NOT_FOUND,
+            detail=BillingMessages.COMMUNITY_NOT_FOUND,
         )
     await session.commit()  # persist the one-shot jti redemption
     owner_user_id = (
@@ -254,7 +254,7 @@ async def community_name(
     if name is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=BillingMessages.GUILD_NOT_FOUND,
+            detail=BillingMessages.COMMUNITY_NOT_FOUND,
         )
     await session.commit()  # persist the one-shot jti redemption
     return BillingCommunityNameRead(guild_ref=payload.guild_ref, name=name)
@@ -277,7 +277,7 @@ async def community_status(
     if guild_status is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=BillingMessages.GUILD_NOT_FOUND,
+            detail=BillingMessages.COMMUNITY_NOT_FOUND,
         )
     await session.commit()  # persist the one-shot jti redemption
     return BillingCommunityStatusRead(guild_ref=payload.guild_ref, status=guild_status)
@@ -301,7 +301,7 @@ async def community_usage(request: Request, session: SessionDep) -> BillingUsage
     except BillingGuildNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=BillingMessages.GUILD_NOT_FOUND,
+            detail=BillingMessages.COMMUNITY_NOT_FOUND,
         ) from exc
     await session.commit()  # persist the one-shot jti redemption
     return BillingUsageRead(guild_ref=payload.guild_ref, usage_bytes=usage_bytes)

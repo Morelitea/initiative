@@ -112,10 +112,10 @@ async def test_nobody_but_billing_sets_the_plan_where_billing_does(
 ):
     gid = (await create_guild(session)).id
     async with billing_manages_plans(session):
-        with pytest.raises(DBAPIError, match="GUILD_PLAN_SET_BY_BILLING"):
+        with pytest.raises(DBAPIError, match="COMMUNITY_PLAN_SET_BY_BILLING"):
             await _as_system(role_session, _CAPS, v=25, g=gid)
         # The superuser is held to it too.
-        with pytest.raises(DBAPIError, match="GUILD_PLAN_SET_BY_BILLING"):
+        with pytest.raises(DBAPIError, match="COMMUNITY_PLAN_SET_BY_BILLING"):
             await session.exec(text(_CAPS).bindparams(v=25, g=gid))
         await session.rollback()
 
@@ -154,7 +154,7 @@ async def test_the_operators_status_moves_where_billing_sets_plans(
             await _as_system(role_session, _STATUS, v=target, g=gid)
             assert await _status_of(session, gid) == target
         else:
-            with pytest.raises(DBAPIError, match="GUILD_STATUS_SET_BY_BILLING"):
+            with pytest.raises(DBAPIError, match="COMMUNITY_STATUS_SET_BY_BILLING"):
                 await _as_system(role_session, _STATUS, v=target, g=gid)
             assert await _status_of(session, gid) == start
 
@@ -180,6 +180,6 @@ async def test_billing_moves_only_between_its_own_statuses(
             await _as_billing(role_session, gid, _STATUS, v=target, g=gid)
             assert await _status_of(session, gid) == target
         else:
-            with pytest.raises(DBAPIError, match="GUILD_STATUS_SET_BY_BILLING"):
+            with pytest.raises(DBAPIError, match="COMMUNITY_STATUS_SET_BY_BILLING"):
                 await _as_billing(role_session, gid, _STATUS, v=target, g=gid)
             assert await _status_of(session, gid) == start

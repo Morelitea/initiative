@@ -330,7 +330,7 @@ async def test_a_guild_calendar_is_the_admin_s_and_the_install_owns_it(
         member.g("/calendars/"), headers=member.headers, json={"name": "Holidays"}
     )
     assert refused.status_code == 403
-    assert refused.json()["detail"] == "GUILD_ADMIN_REQUIRED"
+    assert refused.json()["detail"] == "COMMUNITY_ADMIN_REQUIRED"
 
     response = await client.post(
         admin.g("/calendars/"),
@@ -413,7 +413,7 @@ async def test_a_guild_calendar_needs_the_app(
         a.g("/calendars/"), headers=a.headers, json={"name": "Holidays"}
     )
     assert response.status_code == 403
-    assert response.json()["detail"] == "CALENDAR_GUILD_APP_REQUIRED"
+    assert response.json()["detail"] == "CALENDAR_COMMUNITY_APP_REQUIRED"
 
 
 async def test_guild_scope_lists_only_the_guild_s_own(

@@ -1685,7 +1685,7 @@ async def create_my_api_key(
         if guild is not None and await refuses_api_keys(session, guild):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=GuildMessages.GUILD_API_KEYS_REFUSED,
+                detail=GuildMessages.COMMUNITY_API_KEYS_REFUSED,
             )
     secret, api_key = await api_keys_service.create_api_key(
         session,
@@ -1746,7 +1746,7 @@ async def _require_receiving_admin(
     if recipient is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=UserMessages.OWNER_MUST_BE_GUILD_ADMIN,
+            detail=UserMessages.OWNER_MUST_BE_COMMUNITY_ADMIN,
         )
 
 
@@ -1780,7 +1780,7 @@ async def _recipient(
         # The schema requires one of the two; nobody named is nobody eligible.
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=UserMessages.OWNER_MUST_BE_GUILD_ADMIN,
+            detail=UserMessages.OWNER_MUST_BE_COMMUNITY_ADMIN,
         )
     await _require_receiving_admin(session, guild_id=guild_id, new_owner_id=person_id)
     return ownership_service.Owner(user_id=person_id)
@@ -1939,7 +1939,7 @@ async def remove_member(
     ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=GuildMessages.GUILD_ROLE_NOT_ASSIGNABLE,
+            detail=GuildMessages.COMMUNITY_ROLE_NOT_ASSIGNABLE,
         )
     await guilds_service.lock_guild_seats(system_session, guild_context.guild_id)
     # And the seat stays filled for as long as the guild requires a sign-in:

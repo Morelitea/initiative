@@ -139,7 +139,7 @@ async def test_a_content_grant_alone_does_not_reach_guild_settings(
 
     resp = await client.get(_ai_url(admin.guild.id), headers=get_auth_headers(support))
     assert resp.status_code == 403, resp.text
-    assert resp.json()["detail"] == GuildMessages.GUILD_SUPERADMIN_REQUIRED
+    assert resp.json()["detail"] == GuildMessages.COMMUNITY_SUPERADMIN_REQUIRED
 
 
 async def test_support_read_grant_reads_guild_settings(
@@ -178,7 +178,7 @@ async def test_the_admin_rung_does_not_reach_the_ai_settings_surface(
 
     resp = await client.get(_ai_url(admin.guild.id), headers=get_auth_headers(support))
     assert resp.status_code == 403, resp.text
-    assert resp.json()["detail"] == GuildMessages.GUILD_SUPERADMIN_REQUIRED
+    assert resp.json()["detail"] == GuildMessages.COMMUNITY_SUPERADMIN_REQUIRED
 
 
 async def test_support_read_grant_cannot_write_guild_settings(
@@ -235,7 +235,7 @@ async def test_plain_member_still_denied_guild_settings(
     a = await acting_user(guild_role=CommunityRole.member)
     resp = await client.get(_ai_url(a.guild.id), headers=a.headers)
     assert resp.status_code == 403
-    assert resp.json()["detail"] == GuildMessages.GUILD_SUPERADMIN_REQUIRED
+    assert resp.json()["detail"] == GuildMessages.COMMUNITY_SUPERADMIN_REQUIRED
 
 
 # ---------------------------------------------------------------------------
@@ -257,7 +257,7 @@ async def test_guild_admin_cannot_assign_support_role(
         json={"role": "support"},
     )
     assert resp.status_code == 400
-    assert resp.json()["detail"] == GuildMessages.GUILD_ROLE_NOT_ASSIGNABLE
+    assert resp.json()["detail"] == GuildMessages.COMMUNITY_ROLE_NOT_ASSIGNABLE
 
 
 # ---------------------------------------------------------------------------
@@ -309,4 +309,4 @@ async def test_plain_member_cannot_change_guild_roles(
         json={"role": "admin"},
     )
     assert resp.status_code == 403
-    assert resp.json()["detail"] == GuildMessages.GUILD_ADMIN_REQUIRED
+    assert resp.json()["detail"] == GuildMessages.COMMUNITY_ADMIN_REQUIRED

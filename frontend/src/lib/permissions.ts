@@ -17,7 +17,7 @@ export const Capability = {
   usersManage: "users.manage",
   usersDelete: "users.delete",
   rolesAssign: "roles.assign",
-  guildsManage: "guilds.manage",
+  guildsManage: "communities.manage",
   announcementsManage: "announcements.manage",
   contentModerate: "content.moderate",
   dataBypass: "data.bypass",

@@ -174,7 +174,7 @@ async def test_withdrawing_sso_waits_for_guild_requirements(
 
     refused = await client.patch(URL, headers=headers, json={"methods": ["password"]})
     assert refused.status_code == 409
-    assert refused.json()["detail"] == "SETTINGS_LOGIN_METHODS_GUILD_POLICIES"
+    assert refused.json()["detail"] == "SETTINGS_LOGIN_METHODS_COMMUNITY_POLICIES"
     assert refused.headers["X-Affected-Count"] == "1"
 
     got = await client.get(URL, headers=headers)
@@ -370,7 +370,7 @@ async def test_withdrawing_sso_counts_a_guild_that_requires_a_method(
 
     refused = await client.patch(URL, headers=headers, json={"methods": ["password"]})
     assert refused.status_code == 409, refused.text
-    assert refused.json()["detail"] == "SETTINGS_LOGIN_METHODS_GUILD_POLICIES"
+    assert refused.json()["detail"] == "SETTINGS_LOGIN_METHODS_COMMUNITY_POLICIES"
     assert refused.headers["X-Affected-Count"] == "1"
 
 

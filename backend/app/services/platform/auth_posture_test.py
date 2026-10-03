@@ -186,7 +186,10 @@ async def test_tightening_asks_for_entitlement_offer_and_writer(
         refused = await _refused(
             await _context(session, scope, entitled=False), key, case.tight
         )
-        assert (refused.status_code, refused.detail) == (404, "GUILD_AUTH_NOT_ENABLED")
+        assert (refused.status_code, refused.detail) == (
+            404,
+            "COMMUNITY_AUTH_NOT_ENABLED",
+        )
     if case.unoffer is None:
         return
     ctx = await _context(session, scope)

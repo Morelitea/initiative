@@ -149,7 +149,7 @@ async def test_create_guild_rolls_back_when_provisioning_fails(
     )
 
     assert resp.status_code == 500
-    assert resp.json()["detail"] == "GUILD_PROVISION_FAILED"
+    assert resp.json()["detail"] == "COMMUNITY_PROVISION_FAILED"
     remaining = (
         await session.exec(select(Guild).where(Guild.name == "Rollback Guild"))
     ).all()

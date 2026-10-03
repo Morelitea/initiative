@@ -304,7 +304,7 @@ async def test_the_same_provider_without_the_communitys_claim_does_not(
     )
 
     assert blocked.status_code == 401, blocked.text
-    assert blocked.json()["detail"] == "GUILD_AUTH_STEP_UP_REQUIRED"
+    assert blocked.json()["detail"] == "COMMUNITY_AUTH_STEP_UP_REQUIRED"
 
 
 async def test_a_session_that_asserted_nothing_does_not(

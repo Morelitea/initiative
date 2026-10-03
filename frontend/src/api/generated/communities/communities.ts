@@ -180,7 +180,7 @@ export function useListCommunities<
  * Create a new guild. Uses the system session because the guild doesn't exist
  * yet — no guild context or membership exists for RLS to match against.
  *
- * The caller becomes the guild's admin, unless they hold ``guilds.manage``
+ * The caller becomes the guild's admin, unless they hold ``communities.manage``
  * and name an ``owner_user_id``, which hands the guild to that account
  * instead and leaves the caller holding nothing in it.
  * @summary Create Community

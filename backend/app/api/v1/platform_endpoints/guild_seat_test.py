@@ -140,7 +140,7 @@ async def test_billing_is_the_seats_too(
         headers=get_auth_headers(admin),
     )
     assert refused.status_code == 403
-    assert refused.json()["detail"] == "GUILD_SUPERADMIN_REQUIRED"
+    assert refused.json()["detail"] == "COMMUNITY_SUPERADMIN_REQUIRED"
 
     # The seat gets past the gate; whether a portal is configured is the
     # deployment's business and the next thing the endpoint checks.

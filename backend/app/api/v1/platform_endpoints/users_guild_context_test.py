@@ -34,7 +34,7 @@ async def test_non_member_gets_403_on_guild_path(
         f"/api/v1/c/{guild.id}/initiatives/", headers=get_auth_headers(outsider)
     )
     assert response.status_code == 403
-    assert response.json()["detail"] == "GUILD_ACCESS_DENIED"
+    assert response.json()["detail"] == "COMMUNITY_ACCESS_DENIED"
 
 
 async def test_member_of_one_guild_cannot_address_another(
@@ -56,4 +56,4 @@ async def test_member_of_one_guild_cannot_address_another(
         f"/api/v1/c/{foreign.id}/initiatives/", headers=get_auth_headers(user)
     )
     assert response.status_code == 403
-    assert response.json()["detail"] == "GUILD_ACCESS_DENIED"
+    assert response.json()["detail"] == "COMMUNITY_ACCESS_DENIED"

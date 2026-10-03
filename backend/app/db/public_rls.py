@@ -885,7 +885,7 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
                 Policy(
                     "guild_administration_guilds_manage_read",
                     SELECT,
-                    Capability.GUILDS_MANAGE,
+                    Capability.COMMUNITIES_MANAGE,
                     using=OPEN,
                 ),
                 # A settings rung routed read-only reads the community it
@@ -1234,7 +1234,7 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
                 Policy(
                     "guilds_manage_read",
                     SELECT,
-                    Capability.GUILDS_MANAGE,
+                    Capability.COMMUNITIES_MANAGE,
                     using=OPEN,
                 ),
                 Policy("guilds_pam_read", SELECT, ("public",), using=pam_read("id")),

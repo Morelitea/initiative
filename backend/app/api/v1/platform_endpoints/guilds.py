@@ -451,7 +451,7 @@ async def join_directory_community(
     if not membership:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=GuildMessages.GUILD_MEMBERSHIP_MISSING,
+            detail=GuildMessages.COMMUNITY_MEMBERSHIP_MISSING,
         )
     member_count = await guilds_service.count_members(session, guild_id=guild.id)
     return _serialize_guild(
@@ -495,7 +495,7 @@ async def _resolve_guild_owner(
     session: AsyncSession, guild_in: CommunityCreate, current_user: User
 ) -> User:
     """Who the new guild's admin will be — the caller, unless a
-    ``guilds.manage`` holder named someone else.
+    ``communities.manage`` holder named someone else.
 
     Refused rather than ignored without that capability: creating the guild
     under the caller would answer 201 for a request that named another account.
@@ -505,16 +505,16 @@ async def _resolve_guild_owner(
     requested = guild_in.owner_user_id
     if requested is None or requested == current_user.id:
         return current_user
-    if not user_has_capability(current_user, Capability.GUILDS_MANAGE):
+    if not user_has_capability(current_user, Capability.COMMUNITIES_MANAGE):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=GuildMessages.GUILD_OWNER_REQUIRES_CAPABILITY,
+            detail=GuildMessages.COMMUNITY_OWNER_REQUIRES_CAPABILITY,
         )
     owner = await session.get(User, requested)
     if owner is None or owner.status is not UserStatus.active:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=GuildMessages.GUILD_OWNER_NOT_FOUND,
+            detail=GuildMessages.COMMUNITY_OWNER_NOT_FOUND,
         )
     return owner
 
@@ -528,39 +528,39 @@ async def create_community(
     """Create a new guild. Uses the system session because the guild doesn't exist
     yet — no guild context or membership exists for RLS to match against.
 
-    The caller becomes the guild's admin, unless they hold ``guilds.manage``
+    The caller becomes the guild's admin, unless they hold ``communities.manage``
     and name an ``owner_user_id``, which hands the guild to that account
     instead and leaves the caller holding nothing in it.
     """
     if settings.DISABLE_GUILD_CREATION and not user_has_capability(
-        current_user, Capability.GUILDS_MANAGE
+        current_user, Capability.COMMUNITIES_MANAGE
     ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=GuildMessages.GUILD_CREATION_DISABLED,
+            detail=GuildMessages.COMMUNITY_CREATION_DISABLED,
         )
     name = guild_in.name.strip()
     if not name:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=GuildMessages.GUILD_NAME_REQUIRED,
+            detail=GuildMessages.COMMUNITY_NAME_REQUIRED,
         )
 
     if not user_has_capability(
-        current_user, Capability.GUILDS_MANAGE
+        current_user, Capability.COMMUNITIES_MANAGE
     ) and not await guilds_service.may_create_another_guild(
         session, user_id=current_user.id
     ):
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail=GuildMessages.GUILD_CREATION_LIMIT_REACHED,
+            detail=GuildMessages.COMMUNITY_CREATION_LIMIT_REACHED,
         )
 
     owner = await _resolve_guild_owner(session, guild_in, current_user)
 
     if (
         billing_service.billing_inbound_enabled()
-        and not user_has_capability(current_user, Capability.GUILDS_MANAGE)
+        and not user_has_capability(current_user, Capability.COMMUNITIES_MANAGE)
         and await guilds_service.holds_a_free_guild(session, user_id=owner.id)
     ):
         raise HTTPException(
@@ -580,7 +580,7 @@ async def create_community(
     except guilds_service.GuildProvisionError:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=GuildMessages.GUILD_PROVISION_FAILED,
+            detail=GuildMessages.COMMUNITY_PROVISION_FAILED,
         )
     if owner.id != current_user.id:
         # Both identities: created_by holds the first, the admin
@@ -606,7 +606,7 @@ async def create_community(
     if not membership:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=GuildMessages.GUILD_MEMBERSHIP_CREATE_FAILED,
+            detail=GuildMessages.COMMUNITY_MEMBERSHIP_CREATE_FAILED,
         )
     member_count = await guilds_service.count_members(session, guild_id=guild.id)
     # The creator is the new guild's admin, so their payload carries the
@@ -1010,7 +1010,8 @@ async def _guild_payload_after_image_change(
     guild = await guilds_service.get_guild(session, guild_id=guild_id)
     if guild is None:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=GuildMessages.GUILD_NOT_FOUND
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=GuildMessages.COMMUNITY_NOT_FOUND,
         )
     return _serialize_guild(
         guild,
@@ -1166,7 +1167,8 @@ async def _auth_settings_response(
     guild = await seat_session.get(Guild, guild_id)
     if guild is None:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=GuildMessages.GUILD_NOT_FOUND
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=GuildMessages.COMMUNITY_NOT_FOUND,
         )
     administration = await guilds_service.get_administration(
         seat_session, guild_id=guild_id
@@ -1442,7 +1444,7 @@ async def accept_invite(
     if not membership:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=GuildMessages.GUILD_MEMBERSHIP_MISSING,
+            detail=GuildMessages.COMMUNITY_MEMBERSHIP_MISSING,
         )
     member_count = await guilds_service.count_members(session, guild_id=guild.id)
     return _serialize_guild(
@@ -1495,7 +1497,7 @@ async def update_community_membership(
     if payload.role == CommunityRole.support:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=GuildMessages.GUILD_ROLE_NOT_ASSIGNABLE,
+            detail=GuildMessages.COMMUNITY_ROLE_NOT_ASSIGNABLE,
         )
 
     # The seat is passed on by whoever holds it, and by nobody below it. A
@@ -1506,7 +1508,7 @@ async def update_community_membership(
     if payload.role not in assignable_roles(guild_context.rung):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=GuildMessages.GUILD_ROLE_NOT_ASSIGNABLE,
+            detail=GuildMessages.COMMUNITY_ROLE_NOT_ASSIGNABLE,
         )
 
     await guilds_service.lock_guild_seats(session, guild_id)
@@ -1516,7 +1518,7 @@ async def update_community_membership(
     if target_membership is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=GuildMessages.USER_NOT_FOUND_IN_GUILD,
+            detail=GuildMessages.USER_NOT_FOUND_IN_COMMUNITY,
         )
 
     # And taking the seat away is the same authority as giving it. Asked of the
@@ -1527,7 +1529,7 @@ async def update_community_membership(
     ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=GuildMessages.GUILD_ROLE_NOT_ASSIGNABLE,
+            detail=GuildMessages.COMMUNITY_ROLE_NOT_ASSIGNABLE,
         )
 
     # What a guild must keep is its seat. An ordinary admin is not counted:
@@ -1611,7 +1613,7 @@ async def set_member_display_name(
     ):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=GuildMessages.USER_NOT_FOUND_IN_GUILD,
+            detail=GuildMessages.USER_NOT_FOUND_IN_COMMUNITY,
         )
     await session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -1641,7 +1643,8 @@ async def set_own_display_name(
         )
     ):
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=GuildMessages.NOT_GUILD_MEMBER
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=GuildMessages.NOT_COMMUNITY_MEMBER,
         )
     await session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -1668,7 +1671,8 @@ async def check_leave_eligibility(
     )
     if membership is None:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=GuildMessages.NOT_GUILD_MEMBER
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=GuildMessages.NOT_COMMUNITY_MEMBER,
         )
 
     # Under the lock, so the answer still holds when the caller acts on it.
@@ -1708,7 +1712,8 @@ async def leave_community(
     )
     if membership is None:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=GuildMessages.NOT_GUILD_MEMBER
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=GuildMessages.NOT_COMMUNITY_MEMBER,
         )
 
     # ``UserSessionDep`` only sets the user_id; releasing the leaver's owner

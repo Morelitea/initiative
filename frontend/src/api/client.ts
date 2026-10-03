@@ -472,7 +472,7 @@ interface RetriableRequestConfig extends AxiosRequestConfig {
 // the session itself is fine, so it must neither trigger a renewal nor the
 // signed-out toast; the page handles it.
 const isStepUpChallenge = (error: { response?: { data?: { detail?: unknown } } }): boolean =>
-  error.response?.data?.detail === "GUILD_AUTH_STEP_UP_REQUIRED";
+  error.response?.data?.detail === "COMMUNITY_AUTH_STEP_UP_REQUIRED";
 
 // The other half of the same idea: this community wants a factor of the
 // account's own — a code from its authenticator app, or a passkey — which no
@@ -485,8 +485,8 @@ const isStepUpChallenge = (error: { response?: { data?: { detail?: unknown } } }
 // (or signing in again) is what opens. Same handling — the session in hand is
 // not the problem, so nothing renews and nothing reads as signed out.
 const FACTOR_CHALLENGE_KINDS: Record<string, FactorChallengeDetail["kind"]> = {
-  GUILD_AUTH_FACTOR_REQUIRED: "totp",
-  GUILD_AUTH_PASSKEY_REQUIRED: "passkey",
+  COMMUNITY_AUTH_FACTOR_REQUIRED: "totp",
+  COMMUNITY_AUTH_PASSKEY_REQUIRED: "passkey",
   RECENT_PROOF_REQUIRED: "proof",
   // And the deployment's own, answered by the same dialog: a factor of the
   // account's, presented against the session already open.
@@ -523,11 +523,14 @@ apiClient.interceptors.response.use(undefined, async (error) => {
     }
     return Promise.reject(error);
   }
-  if (ageDetail === "GUILD_AGE_CONFIRMATION_REQUIRED" || ageDetail === "GUILD_AGE_BELOW_MINIMUM") {
+  if (
+    ageDetail === "COMMUNITY_AGE_CONFIRMATION_REQUIRED" ||
+    ageDetail === "COMMUNITY_AGE_BELOW_MINIMUM"
+  ) {
     if (typeof window !== "undefined") {
       window.dispatchEvent(
         new CustomEvent<AgeChallengeDetail>(AUTH_AGE_REQUIRED_EVENT, {
-          detail: { answerStands: ageDetail === "GUILD_AGE_BELOW_MINIMUM" },
+          detail: { answerStands: ageDetail === "COMMUNITY_AGE_BELOW_MINIMUM" },
         })
       );
     }

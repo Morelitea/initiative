@@ -122,7 +122,7 @@ async def test_get_guild_by_id(session: AsyncSession):
 
 async def test_get_guild_not_found(session: AsyncSession):
     """Test that getting nonexistent guild raises error."""
-    with pytest.raises(ValueError, match="GUILD_NOT_FOUND"):
+    with pytest.raises(ValueError, match="COMMUNITY_NOT_FOUND"):
         await guild_service.get_guild(session, guild_id=99999)
 
 
