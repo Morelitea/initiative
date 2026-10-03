@@ -1,6 +1,8 @@
 """The document editor on the server: a state read back is the document
 written, and a room can hold it."""
 
+import copy
+
 import pytest
 from pycrdt import Doc
 
@@ -115,10 +117,8 @@ DOCUMENT = _document(
             "width": 0,
             "height": 0,
             "maxWidth": 500,
-            "showCaption": False,
-            "caption": {
-                "editorState": {"root": {"type": "root", "children": [], "version": 1}}
-            },
+            "showCaption": True,
+            "caption": {"editorState": _document(_paragraph(_text("A caption")))},
             "version": 1,
         },
         {"type": "excalidraw", "data": "[]", "width": 0, "version": 1},
@@ -193,6 +193,21 @@ async def test_an_applied_edit_reads_back_as_written():
 
     rendered = await editor_engine.render(_merged(state, update))
     assert _without_defaults(rendered) == _without_defaults(edited)
+
+
+async def test_an_edited_caption_reads_back_as_written():
+    """A caption is part of the image, not a document of its own: written into
+    a state, it is there when the state is read."""
+    state = await editor_engine.bootstrap(DOCUMENT)
+    recaptioned = copy.deepcopy(DOCUMENT)
+    image = recaptioned["root"]["children"][9]["children"][0]
+    image["caption"] = {"editorState": _document(_paragraph(_text("Renamed")))}
+
+    rendered = await editor_engine.render(
+        _merged(state, await editor_engine.apply(state, recaptioned))
+    )
+
+    assert _without_defaults(rendered) == _without_defaults(recaptioned)
 
 
 async def test_two_edits_to_one_paragraph_keep_each_others_words():

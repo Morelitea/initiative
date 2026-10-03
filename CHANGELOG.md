@@ -60,6 +60,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Image captions in documents and wiki pages are kept.** A caption typed while a document was open for live editing disappeared the next time it loaded, and changing only a caption didn't count as an edit to save. Captions now save with the document and reach everyone editing it.
 - **`RATE_LIMIT_STORAGE_URI` takes a `redis://` URL.** The image was missing the client it needs, so a server set that way would not start. While the storage can't be reached, each process keeps counting in its own memory instead of failing requests.
 - **A document filed in a wiki shows its own links** in the connections panel, not those of a wiki page that happened to share its number.
 - **A new queue item or event attaches only what you could attach to it afterwards:** documents and tasks in its own initiative that aren't archived. **App and API integrations:** creating one with anything else answers `RELATIONSHIP_CROSS_INITIATIVE`, `RELATIONSHIP_ENDPOINT_ARCHIVED` or `RELATIONSHIP_ENDPOINT_NOT_FOUND`, as `/relationships` does, and `CALENDAR_EVENT_GUILD_CALENDAR_NO_DOCUMENTS` is gone.

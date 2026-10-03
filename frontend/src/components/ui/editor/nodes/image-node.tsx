@@ -1,3 +1,4 @@
+import type { ExcludedProperties } from "@lexical/yjs";
 import type {
   DOMConversionMap,
   DOMConversionOutput,
@@ -68,6 +69,10 @@ export class ImageNode extends DecoratorNode<JSX.Element> {
   __maxWidth: number;
   __showCaption: boolean;
   __caption: LexicalEditor;
+  /** The caption editor's state, as JSON; empty for one never written. The
+   *  caption editor is the view, and this is the caption: a nested editor is
+   *  not a value collaboration can carry, so this is what syncs and saves. */
+  __captionState: string;
   // Captions cannot yet be used within editor cells
   __captionsEnabled: boolean;
 
@@ -85,6 +90,7 @@ export class ImageNode extends DecoratorNode<JSX.Element> {
       node.__showCaption,
       node.__caption,
       node.__captionsEnabled,
+      node.__captionState,
       node.__key
     );
   }
@@ -101,6 +107,7 @@ export class ImageNode extends DecoratorNode<JSX.Element> {
     });
     // Handle legacy content that doesn't have caption
     if (caption?.editorState) {
+      node.__captionState = JSON.stringify(caption.editorState);
       const nestedEditor = node.__caption;
       const editorState = nestedEditor.parseEditorState(caption.editorState);
       if (!editorState.isEmpty()) {
@@ -137,6 +144,7 @@ export class ImageNode extends DecoratorNode<JSX.Element> {
     showCaption?: boolean,
     caption?: LexicalEditor,
     captionsEnabled?: boolean,
+    captionState?: string,
     key?: NodeKey
   ) {
     super(key);
@@ -152,12 +160,15 @@ export class ImageNode extends DecoratorNode<JSX.Element> {
         nodes: [],
       });
     this.__captionsEnabled = captionsEnabled || captionsEnabled === undefined;
+    this.__captionState = captionState ?? "";
   }
 
   exportJSON(): SerializedImageNode {
     return {
       altText: this.getAltText(),
-      caption: this.__caption.toJSON(),
+      caption: this.__captionState
+        ? { editorState: JSON.parse(this.__captionState) }
+        : this.__caption.toJSON(),
       height: this.__height === "inherit" ? 0 : this.__height,
       maxWidth: this.__maxWidth,
       showCaption: this.__showCaption,
@@ -177,6 +188,15 @@ export class ImageNode extends DecoratorNode<JSX.Element> {
   setShowCaption(showCaption: boolean): void {
     const writable = this.getWritable();
     writable.__showCaption = showCaption;
+  }
+
+  getCaptionState(): string {
+    return this.getLatest().__captionState;
+  }
+
+  setCaptionState(captionState: string): void {
+    const writable = this.getWritable();
+    writable.__captionState = captionState;
   }
 
   // View
@@ -213,6 +233,7 @@ export class ImageNode extends DecoratorNode<JSX.Element> {
           nodeKey={this.getKey()}
           showCaption={this.__showCaption}
           caption={this.__caption}
+          captionState={this.__captionState}
           captionsEnabled={this.__captionsEnabled}
           resizable={true}
         />
@@ -244,6 +265,7 @@ export function $createImageNode({
       showCaption,
       caption,
       captionsEnabled,
+      undefined,
       key
     )
   );
@@ -252,3 +274,10 @@ export function $createImageNode({
 export function $isImageNode(node: LexicalNode | null | undefined): node is ImageNode {
   return node instanceof ImageNode;
 }
+
+/** Node properties collaboration does not carry: the caption's nested editor,
+ *  which travels as `__captionState`. Given to every binding, in the browser
+ *  and on the server, so both write the same document. */
+export const COLLAB_EXCLUDED_PROPERTIES: ExcludedProperties = new Map([
+  [ImageNode, new Set(["__caption"])],
+]);
