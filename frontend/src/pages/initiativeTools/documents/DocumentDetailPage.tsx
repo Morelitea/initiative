@@ -1,18 +1,6 @@
 import { useParams } from "@tanstack/react-router";
 import type { SerializedEditorState } from "lexical";
-import {
-  ChevronDown,
-  ChevronUp,
-  ImagePlus,
-  ListTree,
-  Loader2,
-  Maximize2,
-  Minimize2,
-  PanelRight,
-  Save,
-  ScrollText,
-  X,
-} from "lucide-react";
+import { ListTree, Loader2, Maximize2, Minimize2, PanelRight, Save } from "lucide-react";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -20,6 +8,7 @@ import { API_BASE_URL } from "@/api/client";
 import { notifyMentions } from "@/api/generated/documents/documents";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { ToolCommentsPanel } from "@/components/comments/ToolCommentsPanel";
+import { DocumentFeaturedImage } from "@/components/documents/DocumentFeaturedImage";
 import {
   DocumentOutlinePanel,
   DocumentOutlineScope,
@@ -36,10 +25,8 @@ import { ToolAccessStatus } from "@/components/ToolAccessStatus";
 import { ToolChest, ToolChestSegment } from "@/components/tools/ToolChest";
 import { ToolPageHeader } from "@/components/tools/ToolPageHeader";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
-import { ImagePicker } from "@/components/ui/image-picker";
+import { FeaturedImageProvider } from "@/components/ui/editor/context/featured-image-context";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAIEnabled } from "@/hooks/useAIEnabled";
@@ -56,10 +43,9 @@ import { useServerForm } from "@/hooks/useServerForm";
 import { uploadAttachment } from "@/lib/attachmentUtils";
 import { toast } from "@/lib/chesterToast";
 import { useCommunityPath } from "@/lib/communityUrl";
+import { isBlankEditorState } from "@/lib/editorState";
 import { findNewMentions } from "@/lib/mentionUtils";
-import { getItem, setItem } from "@/lib/storage";
 import { toolListRoute, toolSettingsRoute } from "@/lib/tools";
-import { resolveUploadUrl } from "@/lib/uploadUrl";
 import { cn } from "@/lib/utils";
 import { CollaborationError } from "@/lib/yjs/CollaborationProvider";
 
@@ -80,12 +66,9 @@ export const DocumentDetailPage = () => {
   const { isEnabled: isAIEnabled } = useAIEnabled();
   const [aiSummary, setAiSummary] = useState<string | null>(null);
   const [featuredImageUrl, setFeaturedImageUrl] = useState<string | null>(null);
-  // Persisted collapse state for the metadata card (mirrors the pattern used
-  // by the Documents section on project pages).
-  const metadataCollapsedStorageKey = "document:metadataCollapsed";
-  const [isMetadataCollapsed, setIsMetadataCollapsed] = useState<boolean>(
-    () => getItem(metadataCollapsedStorageKey) === "true"
-  );
+  // Whether to offer a featured image: decided when the document opens, from
+  // whether it was empty then, so the offer does not vanish at the first word.
+  const [offerFeaturedImage, setOfferFeaturedImage] = useState(false);
   const [isUploadingFeaturedImage, setIsUploadingFeaturedImage] = useState(false);
   // What the body last reported, and for which document: the page's copy of
   // the edit, read by the dirty check and the saves. Nothing until the body
@@ -201,6 +184,10 @@ export const DocumentDetailPage = () => {
       seededDocumentRef.current = document.id;
     }
     setFeaturedImageUrl(document.featured_image_url ?? null);
+    const body = DOCUMENT_BODIES[document.document_type];
+    setOfferFeaturedImage(
+      Boolean(body.prose) && isBlankEditorState(body.saved(document) as SerializedEditorState)
+    );
   }, [document, documentQuery.isFetchedAfterMount]);
 
   const saved = useMemo(
@@ -504,6 +491,20 @@ export const DocumentDetailPage = () => {
     ]
   );
 
+  const setFeaturedImage = useCallback(
+    (url: string | null) => {
+      setFeaturedImageUrl(url);
+      isAutosaveRef.current = true;
+      saveNow({ featured_image_url: url });
+    },
+    [saveNow]
+  );
+  // What the editor's pictures can be made: only a writer's.
+  const featuredImage = useMemo(
+    () => (canEditDocument ? { url: featuredImageUrl, set: setFeaturedImage } : null),
+    [canEditDocument, featuredImageUrl, setFeaturedImage]
+  );
+
   // Ctrl+S / Cmd+S manual save shortcut
   useEffect(() => {
     if (!canEditDocument) return;
@@ -528,9 +529,7 @@ export const DocumentDetailPage = () => {
     setIsUploadingFeaturedImage(true);
     try {
       const response = await uploadAttachment(communityId, file);
-      setFeaturedImageUrl(response.url);
-      isAutosaveRef.current = true;
-      saveNow({ featured_image_url: response.url });
+      setFeaturedImage(response.url);
       toast.success(t("detail.imageUploaded"));
     } catch (error) {
       console.error(error);
@@ -654,269 +653,179 @@ export const DocumentDetailPage = () => {
         }
       />
 
-      <div className="space-y-6">
-        {/* An uploaded image is its own featured image, so it has no card. */}
-        {isImageFile ? null : (
-          <Card>
-            <Collapsible
-              open={!isMetadataCollapsed}
-              onOpenChange={(open) => {
-                const collapsed = !open;
-                setIsMetadataCollapsed(collapsed);
-                setItem(metadataCollapsedStorageKey, collapsed.toString());
-              }}
-            >
-              <CardHeader>
-                <div className="inline-flex items-center gap-2">
-                  <CardTitle>{t("detail.metadataTitle")}</CardTitle>
+      <FeaturedImageProvider value={featuredImage}>
+        <div className="space-y-6">
+          {/* An uploaded image is its own featured image. */}
+          {isImageFile ? null : (
+            <DocumentFeaturedImage
+              url={featuredImageUrl}
+              canEdit={canEditDocument}
+              uploading={isUploadingFeaturedImage}
+              offerUpload={offerFeaturedImage}
+              onUpload={handleFeaturedImageChange}
+              onRemove={() => setFeaturedImage(null)}
+              onDismiss={() => setOfferFeaturedImage(false)}
+            />
+          )}
+
+          {framed ? (
+            // Scoped to the body editor alone: a comment composer further down
+            // the page is an editor too, and its headings are not this
+            // document's contents.
+            <DocumentOutlineScope>
+              <div
+                className={cn(
+                  "flex flex-col gap-4",
+                  isFullscreen && "fixed inset-0 z-50 m-0! overflow-hidden bg-background p-4"
+                )}
+              >
+                {/* Collaboration status - shown between featured image and editor.
+                  Also shown when offline even in non-collaborative mode, so the
+                  user sees an explicit offline indicator at the top of the editor. */}
+                {/* Wraps rather than overflows: the row carries up to four
+                  controls and none of them shrink. */}
+                <div className="flex flex-wrap items-center gap-2">
+                  {prose && (
+                    <Button
+                      type="button"
+                      variant={outline.isOpen ? "secondary" : "ghost"}
+                      size="sm"
+                      onClick={outline.toggle}
+                      aria-expanded={outline.isOpen}
+                      title={t(outline.isOpen ? "outline.hide" : "outline.show")}
+                    >
+                      <ListTree className="h-4 w-4" />
+                      {t("outline.title")}
+                    </Button>
+                  )}
+                  {(joinsRoom || !isOnline) && (
+                    <CollaborationStatusBadge
+                      connectionStatus={collaboration.connectionStatus}
+                      collaborators={collaboration.collaborators}
+                      isCollaborating={collaboration.isCollaborating}
+                      isSynced={collaboration.isSynced}
+                      isOnline={isOnline}
+                    />
+                  )}
+                  {Actions ? <Actions document={document} /> : null}
                   <Button
                     type="button"
                     variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 rounded-full"
-                    onClick={() => {
-                      setIsMetadataCollapsed((prev) => {
-                        const next = !prev;
-                        setItem(metadataCollapsedStorageKey, next.toString());
-                        return next;
-                      });
-                    }}
-                    aria-label={
-                      isMetadataCollapsed
-                        ? t("detail.expandMetadata")
-                        : t("detail.collapseMetadata")
-                    }
-                  >
-                    {isMetadataCollapsed ? (
-                      <ChevronDown className="h-4 w-4" />
-                    ) : (
-                      <ChevronUp className="h-4 w-4" />
+                    size="sm"
+                    onClick={() => setIsFullscreen((value) => !value)}
+                    aria-label={t(
+                      isFullscreen ? "detail.exitFullscreen" : "detail.enterFullscreen"
                     )}
+                    className={cn(!Actions && "ml-auto")}
+                  >
+                    {isFullscreen ? (
+                      <Minimize2 className="h-4 w-4" />
+                    ) : (
+                      <Maximize2 className="h-4 w-4" />
+                    )}
+                    {t(isFullscreen ? "detail.exitFullscreen" : "detail.enterFullscreen")}
                   </Button>
                 </div>
-              </CardHeader>
-              <CollapsibleContent className="data-[state=closed]:hidden">
-                <CardContent className="space-y-6">
-                  {/* Featured image */}
-                  <div className="space-y-2">
-                    <Label>{t("detail.featuredImage")}</Label>
-                    <div className="flex flex-col gap-4 md:flex-row md:items-center">
-                      <div className="relative aspect-square w-full overflow-hidden rounded-xl border bg-muted md:w-50">
-                        {featuredImageUrl ? (
-                          <img
-                            src={resolveUploadUrl(featuredImageUrl) ?? undefined}
-                            alt=""
-                            referrerPolicy="no-referrer"
-                            className="h-full w-full object-cover"
-                          />
+                <div className={cn("flex min-w-0 gap-4", isFullscreen && "min-h-0 flex-1")}>
+                  {prose && (
+                    <DocumentOutlinePanel
+                      isOpen={outline.isOpen}
+                      onOpenChange={outline.setIsOpen}
+                      className={cn(
+                        "hidden w-64 shrink-0 lg:flex",
+                        isFullscreen ? "min-h-0" : "max-h-[80vh]"
+                      )}
+                    />
+                  )}
+                  <div className={cn("flex min-w-0 flex-1 flex-col", isFullscreen && "min-h-0")}>
+                    {body}
+                  </div>
+                </div>
+                {editable ? (
+                  <div className="flex flex-wrap items-center gap-3">
+                    {canEditDocument ? (
+                      <>
+                        {/* When collaboration is active, changes sync in real-time */}
+                        {collaboration.isCollaborating ? (
+                          <span className="text-muted-foreground text-sm">
+                            {t("detail.collaborationDescription")}
+                          </span>
                         ) : (
-                          <div className="flex h-full items-center justify-center text-muted-foreground">
-                            <ScrollText className="h-10 w-10" />
-                          </div>
-                        )}
-                      </div>
-                      <div className="space-y-2">
-                        {canEditDocument ? (
-                          <div className="flex flex-wrap gap-2">
-                            <ImagePicker
-                              variant="button"
-                              accept="image/*"
-                              disabled={isUploadingFeaturedImage}
-                              onSelect={handleFeaturedImageChange}
+                          <>
+                            <Button
+                              type="button"
+                              onClick={() => saveNow()}
+                              disabled={!isDirty || saveDocument.isPending}
                             >
-                              {isUploadingFeaturedImage ? (
+                              {saveDocument.isPending ? (
                                 <>
                                   <Loader2 className="h-4 w-4 animate-spin" />
-                                  {t("detail.uploading")}
+                                  {t("detail.saving")}
                                 </>
                               ) : (
-                                <>
-                                  <ImagePlus className="h-4 w-4" />
-                                  {t("detail.uploadImage")}
-                                </>
+                                t("detail.saveChanges")
                               )}
-                            </ImagePicker>
-                            {featuredImageUrl ? (
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                onClick={() => {
-                                  setFeaturedImageUrl(null);
-                                  isAutosaveRef.current = true;
-                                  saveNow({ featured_image_url: null });
-                                }}
-                                disabled={isUploadingFeaturedImage}
-                              >
-                                <X className="h-4 w-4" />
-                                {t("detail.removeImage")}
-                              </Button>
+                            </Button>
+                            <div className="flex items-center gap-2">
+                              <Checkbox
+                                id="autosave"
+                                checked={autosaveEnabled}
+                                onCheckedChange={(checked) => setAutosaveEnabled(checked === true)}
+                              />
+                              <Label htmlFor="autosave" className="cursor-pointer text-sm">
+                                {t("detail.autosave")}
+                              </Label>
+                            </div>
+                            {!isDirty ? (
+                              <span className="self-center text-muted-foreground text-sm">
+                                {t("detail.allChangesSaved")}
+                              </span>
                             ) : null}
-                          </div>
-                        ) : null}
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </CollapsibleContent>
-            </Collapsible>
-          </Card>
-        )}
-
-        {framed ? (
-          // Scoped to the body editor alone: a comment composer further down
-          // the page is an editor too, and its headings are not this
-          // document's contents.
-          <DocumentOutlineScope>
-            <div
-              className={cn(
-                "flex flex-col gap-4",
-                isFullscreen && "fixed inset-0 z-50 m-0! overflow-hidden bg-background p-4"
-              )}
-            >
-              {/* Collaboration status - shown between featured image and editor.
-                  Also shown when offline even in non-collaborative mode, so the
-                  user sees an explicit offline indicator at the top of the editor. */}
-              {/* Wraps rather than overflows: the row carries up to four
-                  controls and none of them shrink. */}
-              <div className="flex flex-wrap items-center gap-2">
-                {prose && (
-                  <Button
-                    type="button"
-                    variant={outline.isOpen ? "secondary" : "ghost"}
-                    size="sm"
-                    onClick={outline.toggle}
-                    aria-expanded={outline.isOpen}
-                    title={t(outline.isOpen ? "outline.hide" : "outline.show")}
-                  >
-                    <ListTree className="h-4 w-4" />
-                    {t("outline.title")}
-                  </Button>
-                )}
-                {(joinsRoom || !isOnline) && (
-                  <CollaborationStatusBadge
-                    connectionStatus={collaboration.connectionStatus}
-                    collaborators={collaboration.collaborators}
-                    isCollaborating={collaboration.isCollaborating}
-                    isSynced={collaboration.isSynced}
-                    isOnline={isOnline}
-                  />
-                )}
-                {Actions ? <Actions document={document} /> : null}
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setIsFullscreen((value) => !value)}
-                  aria-label={t(isFullscreen ? "detail.exitFullscreen" : "detail.enterFullscreen")}
-                  className={cn(!Actions && "ml-auto")}
-                >
-                  {isFullscreen ? (
-                    <Minimize2 className="h-4 w-4" />
-                  ) : (
-                    <Maximize2 className="h-4 w-4" />
-                  )}
-                  {t(isFullscreen ? "detail.exitFullscreen" : "detail.enterFullscreen")}
-                </Button>
-              </div>
-              <div className={cn("flex min-w-0 gap-4", isFullscreen && "min-h-0 flex-1")}>
-                {prose && (
-                  <DocumentOutlinePanel
-                    isOpen={outline.isOpen}
-                    onOpenChange={outline.setIsOpen}
-                    className={cn(
-                      "hidden w-64 shrink-0 lg:flex",
-                      isFullscreen ? "min-h-0" : "max-h-[80vh]"
+                          </>
+                        )}
+                        {/* Always show collaboration toggle */}
+                        <div className="flex items-center gap-2">
+                          <Checkbox
+                            id="collaboration"
+                            checked={collaborationEnabled}
+                            onCheckedChange={(checked) => setCollaborationEnabled(checked === true)}
+                          />
+                          <Label htmlFor="collaboration" className="cursor-pointer text-sm">
+                            {t("detail.liveCollaboration")}
+                          </Label>
+                        </div>
+                      </>
+                    ) : (
+                      <p className="text-muted-foreground text-sm">{t("detail.readOnly")}</p>
                     )}
-                  />
-                )}
-                <div className={cn("flex min-w-0 flex-1 flex-col", isFullscreen && "min-h-0")}>
-                  {body}
-                </div>
+                  </div>
+                ) : null}
               </div>
-              {editable ? (
-                <div className="flex flex-wrap items-center gap-3">
-                  {canEditDocument ? (
-                    <>
-                      {/* When collaboration is active, changes sync in real-time */}
-                      {collaboration.isCollaborating ? (
-                        <span className="text-muted-foreground text-sm">
-                          {t("detail.collaborationDescription")}
-                        </span>
-                      ) : (
-                        <>
-                          <Button
-                            type="button"
-                            onClick={() => saveNow()}
-                            disabled={!isDirty || saveDocument.isPending}
-                          >
-                            {saveDocument.isPending ? (
-                              <>
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                                {t("detail.saving")}
-                              </>
-                            ) : (
-                              t("detail.saveChanges")
-                            )}
-                          </Button>
-                          <div className="flex items-center gap-2">
-                            <Checkbox
-                              id="autosave"
-                              checked={autosaveEnabled}
-                              onCheckedChange={(checked) => setAutosaveEnabled(checked === true)}
-                            />
-                            <Label htmlFor="autosave" className="cursor-pointer text-sm">
-                              {t("detail.autosave")}
-                            </Label>
-                          </div>
-                          {!isDirty ? (
-                            <span className="self-center text-muted-foreground text-sm">
-                              {t("detail.allChangesSaved")}
-                            </span>
-                          ) : null}
-                        </>
-                      )}
-                      {/* Always show collaboration toggle */}
-                      <div className="flex items-center gap-2">
-                        <Checkbox
-                          id="collaboration"
-                          checked={collaborationEnabled}
-                          onCheckedChange={(checked) => setCollaborationEnabled(checked === true)}
-                        />
-                        <Label htmlFor="collaboration" className="cursor-pointer text-sm">
-                          {t("detail.liveCollaboration")}
-                        </Label>
-                      </div>
-                    </>
-                  ) : (
-                    <p className="text-muted-foreground text-sm">{t("detail.readOnly")}</p>
-                  )}
-                </div>
-              ) : null}
-            </div>
-          </DocumentOutlineScope>
-        ) : (
-          body
-        )}
+            </DocumentOutlineScope>
+          ) : (
+            body
+          )}
 
-        {/* Everything this document is connected to, in place of a read-only
+          {/* Everything this document is connected to, in place of a read-only
             list of projects and a read-only list of backlinks. The projects half
             was editable only from the project's side, which meant the same fact
             had two renderings and one of them could not be changed. */}
-        <ToolRelationsPanel
-          tool={Tool.document}
-          entity={document}
-          canEdit={canEditDocument}
-          entityTitle={document.name}
-        />
+          <ToolRelationsPanel
+            tool={Tool.document}
+            entity={document}
+            canEdit={canEditDocument}
+            entityTitle={document.name}
+          />
 
-        {/* The thread, at the width of the document it is about — the same
+          {/* The thread, at the width of the document it is about — the same
             place every other tool puts it. */}
-        <ToolCommentsPanel
-          tool={Tool.document}
-          entity={document}
-          onCountChange={updateDocumentCommentCount}
-        />
-      </div>
+          <ToolCommentsPanel
+            tool={Tool.document}
+            entity={document}
+            onCountChange={updateDocumentCommentCount}
+          />
+        </div>
+      </FeaturedImageProvider>
 
       {/* Side panel for the AI summary */}
       {showSummaryTab && (

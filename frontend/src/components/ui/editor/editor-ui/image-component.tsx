@@ -27,13 +27,21 @@ import {
   SELECTION_CHANGE_COMMAND,
   TextNode,
 } from "lexical";
+import { Star } from "lucide-react";
 import { type JSX, Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 // import brokenImage from '@/components/ui/editor/images/image-broken.svg';
+import { Button } from "@/components/ui/button";
+import {
+  canBeFeatured,
+  useFeaturedImage,
+} from "@/components/ui/editor/context/featured-image-context";
 import { ContentEditable } from "@/components/ui/editor/editor-ui/content-editable";
 import { ImageResizer } from "@/components/ui/editor/editor-ui/image-resizer";
 import { $isImageNode } from "@/components/ui/editor/nodes/image-node";
 import { resolveUploadUrl } from "@/lib/uploadUrl";
+import { cn } from "@/lib/utils";
 
 const imageCache = new Set();
 
@@ -144,6 +152,8 @@ export default function ImageComponent({
   const activeEditorRef = useRef<LexicalEditor | null>(null);
   const [isLoadError, setIsLoadError] = useState<boolean>(false);
   const isEditable = useLexicalEditable();
+  const { t } = useTranslation("documents");
+  const featured = useFeaturedImage();
   // The caption last shown or written from here, so the echo of an edit is
   // not shown again over what has been typed since.
   const shownCaptionRef = useRef<string | null>(null);
@@ -354,6 +364,8 @@ export default function ImageComponent({
 
   const draggable = isSelected && $isNodeSelection(selection) && !isResizing;
   const isFocused = (isSelected || isResizing) && isEditable;
+  const offersFeatured = featured !== null && isFocused && !isResizing && canBeFeatured(src);
+  const isFeatured = featured?.url === src;
   return (
     <Suspense fallback={null}>
       <>
@@ -397,6 +409,19 @@ export default function ImageComponent({
             </LexicalNestedComposer>
           </div>
         )}
+        {offersFeatured ? (
+          <Button
+            type="button"
+            size="sm"
+            variant={isFeatured ? "secondary" : "outline"}
+            className="absolute top-1 left-1 h-7 gap-1.5"
+            disabled={isFeatured}
+            onClick={() => featured?.set(src)}
+          >
+            <Star className={cn("h-3.5 w-3.5", isFeatured && "fill-current")} aria-hidden />
+            {isFeatured ? t("featuredImage.isFeatured") : t("featuredImage.makeFeatured")}
+          </Button>
+        ) : null}
         {resizable && $isNodeSelection(selection) && isFocused && (
           <ImageResizer
             showCaption={showCaption}

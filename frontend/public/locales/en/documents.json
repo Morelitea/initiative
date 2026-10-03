@@ -140,13 +140,6 @@
     "openPanel": "Open panel",
     "togglePanel": "Toggle side panel",
     "titlePlaceholder": "Document title",
-    "metadataTitle": "Metadata",
-    "expandMetadata": "Expand metadata",
-    "collapseMetadata": "Collapse metadata",
-    "featuredImage": "Featured image",
-    "uploadImage": "Upload featured image",
-    "uploading": "Uploading…",
-    "removeImage": "Remove image",
     "pdfError": "Failed to load PDF. Try downloading the file instead.",
     "imageFileRequired": "Please select an image file.",
     "imageUploaded": "Image uploaded.",
@@ -174,6 +167,18 @@
     "commentsLoadError": "Unable to load comments right now.",
     "projectFallback": "Project #{{id}}",
     "updatedLabel": "Updated"
+  },
+  "featuredImage": {
+    "label": "Featured image",
+    "add": "Add a featured image",
+    "addHint": "It leads the document and shows on its card.",
+    "upload": "Upload image",
+    "replace": "Replace",
+    "remove": "Remove",
+    "dismiss": "Hide this",
+    "uploading": "Uploading…",
+    "makeFeatured": "Make this the featured image",
+    "isFeatured": "Featured image"
   },
   "editor": {
     "align": "Align",

@@ -140,13 +140,6 @@
     "openPanel": "Ouvrir le panneau",
     "togglePanel": "Basculer le panneau latéral",
     "titlePlaceholder": "Titre du document",
-    "metadataTitle": "Métadonnées",
-    "expandMetadata": "Expand metadata",
-    "collapseMetadata": "Collapse metadata",
-    "featuredImage": "Image à la une",
-    "uploadImage": "Télécharger une image à la une",
-    "uploading": "Téléchargement en cours…",
-    "removeImage": "Supprimer l'image",
     "pdfError": "Échec du chargement du PDF. Essayez de télécharger le fichier à la place.",
     "imageFileRequired": "Veuillez sélectionner un fichier image.",
     "imageUploaded": "Image téléchargée.",
@@ -174,6 +167,18 @@
     "commentsLoadError": "Impossible de charger les commentaires pour l'instant.",
     "projectFallback": "Projet #{{id}}",
     "updatedLabel": "Mis à jour"
+  },
+  "featuredImage": {
+    "label": "Image à la une",
+    "add": "Ajouter une image à la une",
+    "addHint": "Elle ouvre le document et s’affiche sur sa carte.",
+    "upload": "Téléverser une image",
+    "replace": "Remplacer",
+    "remove": "Retirer",
+    "dismiss": "Masquer",
+    "uploading": "Téléversement en cours…",
+    "makeFeatured": "Utiliser comme image à la une",
+    "isFeatured": "Image à la une"
   },
   "editor": {
     "align": "Aligner",

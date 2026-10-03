@@ -140,13 +140,6 @@
     "openPanel": "Panel öffnen",
     "togglePanel": "Seitenpanel umschalten",
     "titlePlaceholder": "Dokumenttitel",
-    "metadataTitle": "Metadaten",
-    "expandMetadata": "Metadaten ausklappen",
-    "collapseMetadata": "Metadaten einklappen",
-    "featuredImage": "Beitragsbild",
-    "uploadImage": "Beitragsbild hochladen",
-    "uploading": "Wird hochgeladen…",
-    "removeImage": "Bild entfernen",
     "pdfError": "PDF konnte nicht geladen werden. Versuche stattdessen, die Datei herunterzuladen.",
     "imageFileRequired": "Bitte wähle eine Bilddatei aus.",
     "imageUploaded": "Bild hochgeladen.",
@@ -174,6 +167,18 @@
     "commentsLoadError": "Kommentare können derzeit nicht geladen werden.",
     "projectFallback": "Projekt #{{id}}",
     "updatedLabel": "Aktualisiert"
+  },
+  "featuredImage": {
+    "label": "Beitragsbild",
+    "add": "Beitragsbild hinzufügen",
+    "addHint": "Es steht am Anfang des Dokuments und erscheint auf seiner Karte.",
+    "upload": "Bild hochladen",
+    "replace": "Ersetzen",
+    "remove": "Entfernen",
+    "dismiss": "Ausblenden",
+    "uploading": "Wird hochgeladen…",
+    "makeFeatured": "Als Beitragsbild verwenden",
+    "isFeatured": "Beitragsbild"
   },
   "editor": {
     "align": "Ausrichten",
