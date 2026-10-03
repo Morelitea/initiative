@@ -323,7 +323,6 @@
     "loading": "Cargando documentos…",
     "loadError": "No se pudieron cargar los documentos en este momento.",
     "noMatchingTags": "Ningún documento coincide con las etiquetas seleccionadas.",
-    "browseByTag": "Explorar por etiqueta",
     "noDocumentsTitle": "Aún no hay documentos",
     "noDocumentsDescription": "Crea tu primer documento de iniciativa para compartir resúmenes, decisiones o guías.",
     "noTemplatesTitle": "Aún no hay plantillas",

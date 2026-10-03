@@ -61,5 +61,6 @@
   "createError": "Impossible de créer l'étiquette.",
   "updateError": "Impossible de mettre à jour l'étiquette.",
   "deleteError": "Impossible de supprimer l'étiquette.",
-  "toolTagsError": "Impossible de mettre à jour les étiquettes."
+  "toolTagsError": "Impossible de mettre à jour les étiquettes.",
+  "browseByTag": "Parcourir par étiquette"
 }

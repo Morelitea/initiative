@@ -323,7 +323,6 @@
     "loading": "Loading documents…",
     "loadError": "Unable to load documents right now.",
     "noMatchingTags": "No documents match the selected tags.",
-    "browseByTag": "Browse by tag",
     "noDocumentsTitle": "No documents yet",
     "noDocumentsDescription": "Create your first initiative document to share briefs, decisions, or guides.",
     "noTemplatesTitle": "No templates yet",

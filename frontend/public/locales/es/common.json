@@ -184,6 +184,9 @@
     "moreActions": "Más acciones",
     "selectItems": "Seleccionar elementos",
     "view": "Vista",
+    "viewGrid": "Cuadrícula",
+    "viewList": "Lista",
+    "viewTags": "Etiquetas",
     "details": "Detalles"
   },
   "emojiPicker": {

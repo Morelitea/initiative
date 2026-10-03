@@ -323,7 +323,6 @@
     "loading": "Chargement des documents…",
     "loadError": "Impossible de charger les documents pour l'instant.",
     "noMatchingTags": "Aucun document ne correspond aux étiquettes sélectionnées.",
-    "browseByTag": "Parcourir par étiquette",
     "noDocumentsTitle": "Aucun document pour l'instant",
     "noDocumentsDescription": "Créez votre premier document d'initiative pour partager des briefs, des décisions ou des guides.",
     "noTemplatesTitle": "Aucun modèle pour l'instant",

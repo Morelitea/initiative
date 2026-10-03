@@ -61,5 +61,6 @@
   "createError": "No se pudo crear la etiqueta.",
   "updateError": "No se pudo actualizar la etiqueta.",
   "deleteError": "No se pudo eliminar la etiqueta.",
-  "toolTagsError": "No se pudieron actualizar las etiquetas."
+  "toolTagsError": "No se pudieron actualizar las etiquetas.",
+  "browseByTag": "Explorar por etiqueta"
 }

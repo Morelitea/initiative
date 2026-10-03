@@ -16,13 +16,13 @@
  * icons, and the field ids and routes come from the tool's own spelling rules.
  */
 
-import { useRouter, useSearch } from "@tanstack/react-router";
+import { Link, useRouter, useSearch } from "@tanstack/react-router";
 import type { FlatNamespace } from "i18next";
-import { Plus } from "lucide-react";
+import { LayoutGrid, List, Plus, Tags } from "lucide-react";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { Tool } from "@/api/generated/initiativeAPI.schemas";
+import { type TagSummary, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { invalidate, q } from "@/api/query-keys";
 import { BulkAccessSection } from "@/components/access/BulkAccessSection";
 import type { BulkAccessItem } from "@/components/access/BulkEditAccessDialog";
@@ -43,6 +43,8 @@ import { UnreadDot } from "@/components/notifications/UnreadDot";
 import { PaginationBar } from "@/components/PaginationBar";
 import { parsePropertyFilters } from "@/components/properties/PropertyFilter";
 import { CardGridSkeleton, SkeletonRegion } from "@/components/skeletons/PageSkeletons";
+import { TagBadgeList } from "@/components/tags/TagBadge";
+import { TagBrowseLayout } from "@/components/tags/TagBrowseLayout";
 import { ToolFilterFields, type ToolListFilters } from "@/components/tools/ToolFilterFields";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -55,11 +57,13 @@ import { useGalleriesList } from "@/hooks/useGalleries";
 import { useGridSelection } from "@/hooks/useGridSelection";
 import { useToolCreateAccess } from "@/hooks/useInitiativeAccess";
 import { useQueuesList } from "@/hooks/useQueues";
+import { useTagTreeSelection } from "@/hooks/useTagTreeSelection";
 import { useToolCounts } from "@/hooks/useToolCounts";
 import { useUnreadTree } from "@/hooks/useUnreadTree";
+import { useViewPreference } from "@/hooks/useViewPreference";
 import { useWikisList } from "@/hooks/useWikis";
 import { useCommunityPath } from "@/lib/communityUrl";
-import { type ToolView, toolDetailRoute, toolViewParams } from "@/lib/tools";
+import { TOOL_ICONS, type ToolView, toolDetailRoute, toolViewParams } from "@/lib/tools";
 import type { TranslateFn } from "@/types/i18n";
 
 // ---------------------------------------------------------------------------
@@ -75,8 +79,14 @@ import type { TranslateFn } from "@/types/i18n";
  */
 export type ToolIndexRow = BulkAccessItem & {
   name: string;
+  /** Drawn on the row in the list view; every listed tool's rows carry them. */
+  tags?: TagSummary[];
   card: ReactNode;
 };
+
+type ToolIndexLayout = "grid" | "list" | "tags";
+const isLayout = (value: unknown): value is ToolIndexLayout =>
+  value === "grid" || value === "list" || value === "tags";
 
 /** How the shared page has narrowed the list, handed to the tool's list hook. */
 export type ToolIndexFilters = {
@@ -412,8 +422,17 @@ const ToolIndexBody = ({ tool, entry, fixedInitiativeId, canCreate }: ToolIndexB
   // Which of the tool's views the list is showing. Archived rows are off the
   // live list, so this is the only place they can be reached.
   const [view, setView] = useState<ToolView>("active");
-  // How much sits in each view, whatever the filters say.
-  const countsQuery = useToolCounts(tool, { initiative_id: fixedInitiativeId });
+  // How the list is drawn — cards, rows or by tag — remembered per tool, as
+  // the documents list remembers its own.
+  const [savedLayout, setLayout] = useViewPreference<string>(`${tool}:view-mode`, "grid");
+  const layout: ToolIndexLayout = isLayout(savedLayout) ? savedLayout : "grid";
+  const tagTree = useTagTreeSelection(layout === "tags");
+  // How much sits in each view, whatever the filters say; and in the tags
+  // view, how much carries each tag.
+  const countsQuery = useToolCounts(tool, {
+    initiative_id: fixedInitiativeId,
+    ...(layout === "tags" ? { view, include_tags: true } : {}),
+  });
 
   const { page, pageSize, setPage, setPageSize } = useListPage();
 
@@ -421,7 +440,13 @@ const ToolIndexBody = ({ tool, entry, fixedInitiativeId, canCreate }: ToolIndexB
     list: {
       ...filters,
       search: search || undefined,
-      tag_ids: filters.tag_ids?.length ? filters.tag_ids : undefined,
+      // A tag picked in the tree narrows by it; with none picked, the
+      // filter panel's tags still apply.
+      tag_ids: tagTree.tagIds.length
+        ? tagTree.tagIds
+        : filters.tag_ids?.length
+          ? filters.tag_ids
+          : undefined,
     },
     archived: toolViewParams(tool, view).archived,
     page,
@@ -476,6 +501,35 @@ const ToolIndexBody = ({ tool, entry, fixedInitiativeId, canCreate }: ToolIndexB
           : value != null
     ).length + parsePropertyFilters(propertyFilters).length;
 
+  const ToolIcon = TOOL_ICONS[tool];
+  // The cards, as the grid and the tags view both draw them.
+  const cards = (
+    <div
+      className={
+        layout === "tags"
+          ? "grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3"
+          : "grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"
+      }
+    >
+      {list.rows.map((row) => (
+        <SelectableGridItem
+          key={row.id}
+          active={selection.active}
+          selected={selection.selectedIds.has(row.id)}
+          onToggle={(options) => selection.toggle(row, options)}
+          label={row.name}
+        >
+          <div className="relative">
+            {row.card}
+            {unread.hasResource(communityId, tool, row.id) ? (
+              <UnreadDot className="absolute top-3 right-3" />
+            ) : null}
+          </div>
+        </SelectableGridItem>
+      ))}
+    </div>
+  );
+
   // A narrower list may not reach the page being read.
   const changeFilters = (next: ToolListFilters) => {
     setFilters(next);
@@ -512,6 +566,19 @@ const ToolIndexBody = ({ tool, entry, fixedInitiativeId, canCreate }: ToolIndexB
             </Button>
           ) : null
         }
+        view={{
+          value: layout,
+          onChange: (next) => {
+            setLayout(next);
+            setPage(1);
+          },
+          options: [
+            { value: "grid", label: t("common:toolbar.viewGrid"), icon: LayoutGrid },
+            { value: "list", label: t("common:toolbar.viewList"), icon: List },
+            { value: "tags", label: t("common:toolbar.viewTags"), icon: Tags },
+          ],
+          label: t("common:toolbar.view"),
+        }}
         trailing={canCreateHere ? <BrowseMarketplaceButton tool={tool} /> : null}
         menuItems={importAction.menuItem}
         onEnterSelection={!selection.active && list.rows.length > 0 ? selection.enter : undefined}
@@ -539,31 +606,62 @@ const ToolIndexBody = ({ tool, entry, fixedInitiativeId, canCreate }: ToolIndexB
         </SkeletonRegion>
       ) : list.isError ? (
         <p className="text-destructive text-sm">{t("loadError")}</p>
-      ) : list.rows.length > 0 ? (
+      ) : list.rows.length > 0 || tagTree.selectedPaths.size > 0 ? (
+        // A tag picked in the tree keeps the tree on screen even when nothing
+        // carries it, so the pick can be undone.
         <>
           <BulkAccessSection
             selection={selection}
             tool={tool}
             invalidate={() => invalidate(q.toolList(tool))}
           />
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {list.rows.map((row) => (
-              <SelectableGridItem
-                key={row.id}
-                active={selection.active}
-                selected={selection.selectedIds.has(row.id)}
-                onToggle={(options) => selection.toggle(row, options)}
-                label={row.name}
-              >
-                <div className="relative">
-                  {row.card}
-                  {unread.hasResource(communityId, tool, row.id) ? (
-                    <UnreadDot className="absolute top-3 right-3" />
-                  ) : null}
-                </div>
-              </SelectableGridItem>
-            ))}
-          </div>
+          {layout === "tags" ? (
+            <TagBrowseLayout
+              allTags={tagTree.allTags}
+              tagCounts={countsQuery.data?.tag_counts ?? {}}
+              selectedPaths={tagTree.selectedPaths}
+              onToggleTag={(path, ctrlKey) => {
+                tagTree.toggle(path, ctrlKey);
+                setPage(1);
+              }}
+            >
+              {list.rows.length > 0 ? (
+                cards
+              ) : (
+                <p className="py-8 text-center text-muted-foreground text-sm">
+                  {t(entry.text.noMatches)}
+                </p>
+              )}
+            </TagBrowseLayout>
+          ) : layout === "list" ? (
+            <ul className="divide-y rounded-lg border">
+              {list.rows.map((row) => (
+                <li key={row.id}>
+                  <SelectableGridItem
+                    active={selection.active}
+                    selected={selection.selectedIds.has(row.id)}
+                    onToggle={(options) => selection.toggle(row, options)}
+                    label={row.name}
+                  >
+                    <Link
+                      to={gp(toolDetailRoute(tool, row.initiative_id, row.id))}
+                      className="flex min-w-0 items-center gap-3 px-3 py-2.5 hover:bg-accent/50"
+                    >
+                      <ToolIcon className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+                      <span className="min-w-0 truncate font-medium text-sm">{row.name}</span>
+                      {unread.hasResource(communityId, tool, row.id) ? <UnreadDot /> : null}
+                      <span className="flex-1" />
+                      {row.tags?.length ? (
+                        <TagBadgeList tags={row.tags} limit={3} nested className="shrink-0" />
+                      ) : null}
+                    </Link>
+                  </SelectableGridItem>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            cards
+          )}
 
           <PaginationBar
             page={page}
