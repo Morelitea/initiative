@@ -37,6 +37,10 @@ import { resolveUploadUrl } from "@/lib/uploadUrl";
 
 const imageCache = new Set();
 
+/** Tags the caption editor's update that shows a caption from the node, so it
+ *  is not written back onto the node as an edit. */
+const CAPTION_FROM_NODE = "caption-from-node";
+
 export const RIGHT_CLICK_IMAGE_COMMAND: LexicalCommand<MouseEvent> = createCommand(
   "RIGHT_CLICK_IMAGE_COMMAND"
 );
@@ -115,10 +119,12 @@ export default function ImageComponent({
   resizable,
   showCaption,
   caption,
+  captionState,
   captionsEnabled,
 }: {
   altText: string;
   caption: LexicalEditor;
+  captionState: string;
   nodeKey: NodeKey;
   resizable: boolean;
   showCaption: boolean;
@@ -138,6 +144,37 @@ export default function ImageComponent({
   const activeEditorRef = useRef<LexicalEditor | null>(null);
   const [isLoadError, setIsLoadError] = useState<boolean>(false);
   const isEditable = useLexicalEditable();
+  // The caption last shown or written from here, so the echo of an edit is
+  // not shown again over what has been typed since.
+  const shownCaptionRef = useRef<string | null>(null);
+
+  // The caption is the node's `captionState`, and this editor shows it: one
+  // written elsewhere (another collaborator, a node made by collaboration)
+  // arrives as a new value.
+  useEffect(() => {
+    if (!captionState || captionState === shownCaptionRef.current) return;
+    shownCaptionRef.current = captionState;
+    if (captionState === JSON.stringify(caption.getEditorState().toJSON())) return;
+    caption.setEditorState(caption.parseEditorState(captionState), { tag: CAPTION_FROM_NODE });
+  }, [caption, captionState]);
+
+  // What is typed into the caption is written onto the node, which is what
+  // collaboration carries and the document saves.
+  useEffect(
+    () =>
+      caption.registerUpdateListener(({ editorState, tags, dirtyElements, dirtyLeaves }) => {
+        if (tags.has(CAPTION_FROM_NODE) || (dirtyElements.size === 0 && dirtyLeaves.size === 0)) {
+          return;
+        }
+        const next = JSON.stringify(editorState.toJSON());
+        shownCaptionRef.current = next;
+        editor.update(() => {
+          const node = $getNodeByKey(nodeKey);
+          if ($isImageNode(node) && node.getCaptionState() !== next) node.setCaptionState(next);
+        });
+      }),
+    [caption, editor, nodeKey]
+  );
 
   const $onDelete = useCallback(
     (payload: KeyboardEvent) => {
