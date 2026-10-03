@@ -363,7 +363,8 @@
     "channels": {
       "in_app": "Glocke",
       "email": "E-Mail",
-      "push": "Mobil"
+      "push": "Mobil",
+      "desktop": "Desktop"
     },
     "groups": {
       "addressed_to_me": "An mich gerichtet",
@@ -390,7 +391,7 @@
     },
     "quietHours": {
       "title": "Ruhezeiten",
-      "description": "E-Mail und Mobil über Nacht zurückhalten. Die Glocke sammelt weiter, und am Ende geht eine Zusammenfassung raus.",
+      "description": "E-Mail, Mobil und Desktop über Nacht zurückhalten. Die Glocke sammelt weiter, und am Ende geht eine Zusammenfassung raus.",
       "from": "Von",
       "to": "Bis"
     },
@@ -425,7 +426,7 @@
       "respectPresenceHelp": "Wenn du schon hier bist, hat die Glocke es dir gesagt. E-Mail wartet ein paar Minuten, Mobil bleibt still.",
       "pause": {
         "title": "Benachrichtigungen pausieren",
-        "description": "E-Mail und Mobil pausieren an den Tagen, die du wählst. Die Glocke sammelt weiter, und zum Schluss bekommst du eine Zusammenfassung.",
+        "description": "E-Mail, Mobil und Desktop pausieren an den Tagen, die du wählst. Die Glocke sammelt weiter, und zum Schluss bekommst du eine Zusammenfassung.",
         "active": "Pausiert bis {{until}}",
         "scheduled": "Pause von {{from}} bis {{until}}",
         "resume": "Fortsetzen",
@@ -1900,9 +1901,9 @@
     "saved": "Benachrichtigungseinstellungen gespeichert",
     "error": "Benachrichtigungseinstellungen konnten nicht gespeichert werden",
     "push": {
-      "label": "Mobile Benachrichtigungen",
-      "onHelp": "Benachrichtigungen erreichen Telefone über Apple und Google.",
-      "offHelp": "Dieser Server sendet nichts an ein Telefon und speichert keine Geräteregistrierungen."
+      "label": "Benachrichtigungen auf Telefon und Desktop",
+      "onHelp": "Benachrichtigungen erreichen Telefone über Apple und Google und die Desktop-App direkt.",
+      "offHelp": "Dieser Server sendet nichts an ein Telefon oder die Desktop-App und speichert keine Geräteregistrierungen."
     },
     "email": {
       "label": "E-Mail-Benachrichtigungen",
@@ -1921,10 +1922,10 @@
     "saved": "Benachrichtigungseinstellungen gespeichert",
     "error": "Benachrichtigungseinstellungen konnten nicht gespeichert werden",
     "push": {
-      "label": "Mobile Benachrichtigungen",
-      "onHelp": "Die Benachrichtigungen dieser Community erreichen die Telefone der Mitglieder.",
-      "offHelp": "Zu dieser Community wird nichts an ein Telefon gesendet. Die Glocke bleibt, und E-Mail ebenfalls, falls sie aktiv ist.",
-      "platformHelp": "Dieser Server sendet nichts an ein Telefon – hier gibt es nichts zu entscheiden."
+      "label": "Benachrichtigungen auf Telefon und Desktop",
+      "onHelp": "Die Benachrichtigungen dieser Community erreichen die Telefone und Desktop-Apps der Mitglieder.",
+      "offHelp": "Zu dieser Community wird nichts an ein Telefon oder die Desktop-App gesendet. Die Glocke bleibt, und E-Mail ebenfalls, falls sie aktiv ist.",
+      "platformHelp": "Dieser Server sendet nichts an ein Telefon oder die Desktop-App – hier gibt es nichts zu entscheiden."
     },
     "email": {
       "label": "E-Mail-Benachrichtigungen",

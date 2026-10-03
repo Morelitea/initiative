@@ -25,7 +25,9 @@ from app.testing import (
     create_push_token,
     create_user,
     push_switched_on,
+    set_notification_prefs,
 )
+from app.testing.sockets import settle
 
 
 @pytest.fixture
@@ -332,3 +334,52 @@ async def test_a_reaction_taken_back_while_its_line_waits_leaves_nothing(
     assert [line.guild_id for line in await _lines(session, recipient.id)] == [
         elsewhere.id
     ]
+
+
+def _alerts(socket) -> list[dict]:
+    return [frame for frame in socket.sent if frame.get("resource") == "alert"]
+
+
+async def test_a_delivered_line_is_announced_to_the_desktop(
+    session: AsyncSession, account_socket
+):
+    actor = await create_user(session)
+    recipient = await create_user(session)
+    guild = await create_guild(session, creator=actor)
+    await session.commit()
+    app = account_socket(recipient.id)
+
+    await _mention(session, guild.id, recipient, actor)
+    await session.commit()
+    await _deliver(session, datetime.now(timezone.utc))
+    await settle()
+
+    [line] = await _lines(session, recipient.id)
+    [alert] = _alerts(app)
+    assert alert["ids"] == {"notifications": [line.id]}
+
+
+@pytest.mark.parametrize("refusal", ["desktop-off", "push-switched-off"])
+async def test_no_desktop_alert_where_it_is_refused(
+    session: AsyncSession, account_socket, refusal
+):
+    actor = await create_user(session)
+    recipient = await create_user(session)
+    guild = await create_guild(session, creator=actor)
+    if refusal == "desktop-off":
+        await set_notification_prefs(
+            session, recipient, {"categories": {"mentions": {"desktop": False}}}
+        )
+    else:
+        guild.allow_push_notifications = False
+        session.add(guild)
+    await session.commit()
+    app = account_socket(recipient.id)
+
+    await _mention(session, guild.id, recipient, actor)
+    await session.commit()
+    await _deliver(session, datetime.now(timezone.utc))
+    await settle()
+
+    assert len(await _lines(session, recipient.id)) == 1
+    assert _alerts(app) == []

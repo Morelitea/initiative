@@ -226,6 +226,29 @@ def test_push_is_refused_while_anything_holds(prefs, extra):
 
 
 @pytest.mark.parametrize(
+    "prefs,extra,held",
+    [
+        (_paused_until(_at(9, day=20)), {}, True),
+        (NIGHT, {}, True),
+        ({}, {"last_active_at": _at(12) - timedelta(minutes=1)}, False),
+    ],
+    ids=["pause", "quiet-hours", "already-here"],
+)
+def test_the_desktop_keeps_every_hold_but_presence(prefs, extra, held):
+    """The desktop app checks its own window instead: activity a minute ago
+    says nothing about whether it is in front now."""
+    reachable = notification_prefs.reachable(
+        prefs,
+        notification_type=MENTION,
+        channel=Channel.desktop,
+        tz_name="UTC",
+        now=_at(23) if prefs is NIGHT else _at(12),
+        **extra,
+    )
+    assert reachable is not held
+
+
+@pytest.mark.parametrize(
     "prefs,extra",
     [
         (_paused_until(_at(9, day=20)), {}),

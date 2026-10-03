@@ -31,6 +31,7 @@ from app.models.platform.push_token import PushToken
 from app.models.platform.user_dm_settings import DmPolicy
 from app.services.platform import user_tokens
 from app.testing import push_switched_on, set_notification_prefs
+from app.testing.sockets import settle
 
 
 @pytest.fixture(autouse=True)
@@ -254,16 +255,20 @@ class TestDelivery:
         # through a push service, which is the one thing this is built not to do.
         assert conversation_id not in repr(send.await_args)
 
-    async def test_every_message_pushes(self, client, session, acting_user):
+    async def test_every_message_pushes(
+        self, client, session, acting_user, account_socket
+    ):
         """A reply is the thing somebody is waiting for.
 
         The bell line rolls up and the email fires once, but the push is the
         channel a conversation actually happens on, and a phone that is told
-        about the first message and then goes quiet is not usable.
+        about the first message and then goes quiet is not usable. The desktop
+        is told each time too, about the one line.
         """
         a = await acting_user()
         b = await acting_user()
         conversation_id, device_id, _, _ = await _channel(client, session, a, b)
+        desktop = account_socket(b.user.id)
 
         with patch(
             "app.services.platform.push_notifications.send_push_notification",
@@ -272,8 +277,12 @@ class TestDelivery:
         ) as send:
             for _ in range(4):
                 await _send(client, a, conversation_id, device_id)
+        await settle()
 
         assert send.await_count == 4
+        alerts = [frame for frame in desktop.sent if frame["resource"] == "alert"]
+        assert len(alerts) == 4
+        assert len({str(frame["ids"]) for frame in alerts}) == 1
 
     async def test_a_message_after_a_read_still_pushes(
         self, client, session, acting_user

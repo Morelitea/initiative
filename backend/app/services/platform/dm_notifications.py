@@ -339,6 +339,10 @@ async def _roll_up(
         await _push(
             session, recipient=recipient, sender_name=sender_name, others=others
         )
+    # The desktop is told per message for the same reason, and shows the line
+    # as the bell words it.
+    if written is not None and _wanted(Channel.desktop):
+        await user_notifications.announce_on_desktop(session, written)
 
     # Email does not. It is the channel for somebody who is not there at all,
     # and one per message would be a mailbox nobody could use -- so it fires on

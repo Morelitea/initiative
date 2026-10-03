@@ -33,3 +33,23 @@ def queue_signal(session: Any, user_id: int | None, action: str = "changed") -> 
     one that rolls back pokes nobody.
     """
     user_stream.queue_frame(session, user_id, user_stream.build_frame(RESOURCE, action))
+
+
+#: The desktop app's channel: "show these lines as system notifications". Its
+#: own resource rather than an action on the inbox's, so a client that does not
+#: alert passes over it rather than reading its inbox again.
+ALERT_RESOURCE = "alert"
+
+
+def queue_alert(session: Any, user_id: int, notification_id: int) -> None:
+    """Ask ``user_id``'s desktop apps to announce one bell line, once this
+    session commits. Lines opened in one transaction share a frame. The frame
+    names them and says nothing about them: the app reads each from
+    ``GET /notifications/{id}/alert``."""
+    frame = user_stream.queue_frame(
+        session,
+        user_id,
+        user_stream.build_frame(ALERT_RESOURCE, "created", {"notifications": []}),
+    )
+    if frame is not None and notification_id not in frame["ids"]["notifications"]:
+        frame["ids"]["notifications"].append(notification_id)

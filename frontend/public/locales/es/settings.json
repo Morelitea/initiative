@@ -363,7 +363,8 @@
     "channels": {
       "in_app": "Campana",
       "email": "Correo",
-      "push": "Móvil"
+      "push": "Móvil",
+      "desktop": "Escritorio"
     },
     "groups": {
       "addressed_to_me": "Dirigido a mí",
@@ -390,7 +391,7 @@
     },
     "quietHours": {
       "title": "Horas de silencio",
-      "description": "Retiene correo y móvil durante la noche. La campana sigue recogiendo, y al terminar sale un resumen.",
+      "description": "Retiene correo, móvil y escritorio durante la noche. La campana sigue recogiendo, y al terminar sale un resumen.",
       "from": "Desde",
       "to": "Hasta"
     },
@@ -425,7 +426,7 @@
       "respectPresenceHelp": "Si ya estás aquí, la campana te lo ha dicho. El correo espera unos minutos y el móvil se queda callado.",
       "pause": {
         "title": "Pausar notificaciones",
-        "description": "El correo y el móvil se detienen los días que elijas. La campana sigue recogiendo, y al volver recibes un resumen de todo.",
+        "description": "El correo, el móvil y el escritorio se detienen los días que elijas. La campana sigue recogiendo, y al volver recibes un resumen de todo.",
         "active": "En pausa hasta el {{until}}",
         "scheduled": "Pausa del {{from}} al {{until}}",
         "resume": "Reanudar",
@@ -1900,9 +1901,9 @@
     "saved": "Ajustes de notificaciones guardados",
     "error": "No se pudieron guardar los ajustes de notificaciones",
     "push": {
-      "label": "Notificaciones móviles",
-      "onHelp": "Las notificaciones llegan a los teléfonos a través de Apple y Google.",
-      "offHelp": "Este servidor no envía nada a un teléfono y no guarda registros de dispositivos."
+      "label": "Notificaciones en teléfono y escritorio",
+      "onHelp": "Las notificaciones llegan a los teléfonos a través de Apple y Google, y a la aplicación de escritorio directamente.",
+      "offHelp": "Este servidor no envía nada a un teléfono ni a la aplicación de escritorio, y no guarda registros de dispositivos."
     },
     "email": {
       "label": "Notificaciones por correo",
@@ -1921,10 +1922,10 @@
     "saved": "Ajustes de notificaciones guardados",
     "error": "No se pudieron guardar los ajustes de notificaciones",
     "push": {
-      "label": "Notificaciones móviles",
-      "onHelp": "Las notificaciones de esta comunidad llegan a los teléfonos de los miembros.",
-      "offHelp": "No se envía nada de esta comunidad a un teléfono. Los miembros conservan la campana, y el correo si está activo.",
-      "platformHelp": "Este servidor no envía nada a un teléfono, así que aquí no hay nada que decidir."
+      "label": "Notificaciones en teléfono y escritorio",
+      "onHelp": "Las notificaciones de esta comunidad llegan a los teléfonos y a las aplicaciones de escritorio de los miembros.",
+      "offHelp": "No se envía nada de esta comunidad a un teléfono ni a la aplicación de escritorio. Los miembros conservan la campana, y el correo si está activo.",
+      "platformHelp": "Este servidor no envía nada a un teléfono ni a la aplicación de escritorio, así que aquí no hay nada que decidir."
     },
     "email": {
       "label": "Notificaciones por correo",

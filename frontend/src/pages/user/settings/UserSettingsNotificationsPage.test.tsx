@@ -43,6 +43,12 @@ describe("UserSettingsNotificationsPage", () => {
     expect(await screen.findByText("Bell")).toBeInTheDocument();
   });
 
+  it("offers the desktop on a server with no phone push", async () => {
+    renderPage();
+    expect(await screen.findByText("Desktop")).toBeInTheDocument();
+    expect(screen.queryByText("Mobile")).not.toBeInTheDocument();
+  });
+
   it("leaves the bell on and unswitchable for account notices", async () => {
     renderPage();
     await screen.findByText("Your account");

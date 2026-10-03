@@ -152,7 +152,10 @@ class Channels:
     in_app: bool
     email: bool
     push: bool
-    #: The document the three answers above came from. Every notifier needs it
+    #: The desktop app announces the bell line itself, so this applies only
+    #: where one is written.
+    desktop: bool
+    #: The document the answers above came from. Every notifier needs it
     #: twice — once to pick channels, once to decide when the email may go —
     #: so resolving it here saves loading the same row again.
     prefs: Mapping[str, Any]
@@ -187,7 +190,7 @@ async def _channels(
             tz_name=recipient.timezone,
             last_active_at=recipient.last_active_at,
         )
-        for channel in (Channel.in_app, Channel.push)
+        for channel in (Channel.in_app, Channel.push, Channel.desktop)
     }
     allowed[Channel.email] = notification_prefs.wants(
         prefs,
@@ -199,6 +202,7 @@ async def _channels(
         in_app=allowed[Channel.in_app],
         email=allowed[Channel.email],
         push=allowed[Channel.push],
+        desktop=allowed[Channel.desktop],
         prefs=prefs,
     )
 
@@ -517,6 +521,8 @@ async def deliver_notices(
             )
         if not opened:
             continue
+        if channels.desktop and line is not None:
+            await user_notifications.announce_on_desktop(session, line)
         if channels.email and notice.email_subject is not None:
             await email_outbox.enqueue(
                 session,
