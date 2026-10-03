@@ -106,7 +106,7 @@ export interface StepUpEventDetail {
   /** Slug of the provider the community requires (X-Auth-Step-Up header). */
   providerSlug: string;
   /**
-   * Community whose login flow serves that provider (X-Auth-Step-Up-Guild
+   * Community whose login flow serves that provider (X-Auth-Step-Up-Community
    * header); null on servers that predate community-addressed login URLs.
    */
   communityId: number | null;
@@ -545,7 +545,7 @@ apiClient.interceptors.response.use(undefined, async (error) => {
       const rawCommunityId =
         factorKind === "proof" || platform
           ? null
-          : error.response?.headers?.["x-auth-step-up-guild"];
+          : error.response?.headers?.["x-auth-step-up-community"];
       const communityId =
         typeof rawCommunityId === "string" && /^\d+$/.test(rawCommunityId)
           ? Number(rawCommunityId)
@@ -565,7 +565,7 @@ apiClient.interceptors.response.use(undefined, async (error) => {
     // required provider's sign-in; the request itself still rejects (pages
     // render their error state, nothing retries).
     const providerSlug = error.response?.headers?.["x-auth-step-up"];
-    const rawCommunityId = error.response?.headers?.["x-auth-step-up-guild"];
+    const rawCommunityId = error.response?.headers?.["x-auth-step-up-community"];
     const communityId =
       typeof rawCommunityId === "string" && /^\d+$/.test(rawCommunityId)
         ? Number(rawCommunityId)
