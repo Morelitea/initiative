@@ -4,14 +4,16 @@ import {
   $createTextNode,
   $getRoot,
   type LexicalEditor,
+  type ParagraphNode,
   type SerializedEditorState,
 } from "lexical";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { renderPage } from "@/__tests__/helpers/render";
 import { Editor } from "@/components/documents/editor/editor";
+import { $isImageNode } from "@/components/ui/editor/nodes/image-node";
 
-const caption = (text: string) => ({
+const captionText = (text: string) => ({
   root: {
     type: "root",
     version: 1,
@@ -57,13 +59,24 @@ const imageWithCaption = (text: string) => ({
             height: 0,
             maxWidth: 500,
             showCaption: true,
-            caption: { editorState: caption(text) },
+            caption: { editorState: captionText(text) },
           },
         ],
       },
     ],
   },
 });
+
+type Editable = HTMLElement & { __lexicalEditor: LexicalEditor };
+
+const editorsIn = async (container: HTMLElement) =>
+  waitFor(() => {
+    const document = container.querySelector<Editable>('[data-lexical-editor="true"]');
+    const caption = container.querySelector<Editable>(".ImageNode__contentEditable");
+    expect(document).not.toBeNull();
+    expect(caption).not.toBeNull();
+    return { document: document as Editable, caption: caption as Editable };
+  });
 
 const captionOf = (state: SerializedEditorState | undefined): string => {
   const paragraph = state?.root.children[0] as { children: { caption?: unknown }[] } | undefined;
@@ -94,17 +107,32 @@ describe("an image caption", () => {
       />
     ));
 
-    const field = await waitFor(() => {
-      const element = container.querySelector(".ImageNode__contentEditable");
-      expect(element).not.toBeNull();
-      return element as HTMLElement & { __lexicalEditor: LexicalEditor };
-    });
-    field.__lexicalEditor.update(() => {
+    const { caption } = await editorsIn(container);
+    caption.__lexicalEditor.update(() => {
       $getRoot()
         .clear()
         .append($createParagraphNode().append($createTextNode("After")));
     });
 
     await waitFor(() => expect(captionOf(saved.at(-1))).toContain("After"));
+  });
+
+  it("shows a caption written elsewhere, as collaboration delivers it", async () => {
+    const { container } = renderPage(() => (
+      <Editor
+        editorSerializedState={imageWithCaption("Before") as unknown as SerializedEditorState}
+      />
+    ));
+    const { document, caption } = await editorsIn(container);
+
+    // What a collaborator's edit does here: the image node's caption changes.
+    document.__lexicalEditor.update(() => {
+      const image = $getRoot().getFirstChildOrThrow<ParagraphNode>().getFirstChild();
+      if ($isImageNode(image)) {
+        image.setCaptionState(JSON.stringify(captionText("From elsewhere")));
+      }
+    });
+
+    await waitFor(() => expect(caption).toHaveTextContent("From elsewhere"));
   });
 });
