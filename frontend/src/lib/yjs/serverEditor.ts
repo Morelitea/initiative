@@ -29,6 +29,7 @@ import {
 } from "yjs";
 
 import { documentExtension } from "@/components/documents/editor/document-extension";
+import { registerLegacyNodes } from "@/components/ui/editor/nodes/legacy-nodes";
 
 /** The id the browser's `CollaborationPlugin` binds under. */
 const ROOT_ID = "main";
@@ -101,6 +102,10 @@ function withEditor<T>(clientId: number | null, use: (editor: LexicalEditor, doc
   }
 }
 
+/** Rewrite the legacy nodes a document holds as current content, as the
+ * browser's editor does when it opens one. */
+const modernize = (editor: LexicalEditor) => registerLegacyNodes(editor)();
+
 /**
  * A document's Yjs state, from its editor JSON, or with one empty paragraph
  * when it has none — what the browser's editor starts a new document with.
@@ -111,6 +116,7 @@ function bootstrap(json: string | null, clientId: number): string {
       editor.update(() => $getRoot().append($createParagraphNode()), { discrete: true });
     } else {
       editor.setEditorState(editor.parseEditorState(json), { tag: "history-merge" });
+      modernize(editor);
     }
     return toHex(encodeStateAsUpdate(doc));
   });
@@ -121,6 +127,7 @@ function render(state: string): string {
   return withEditor(null, (editor, doc) => {
     applyUpdate(doc, fromHex(state), { isUpdateRemote: true });
     editor.update(() => {}, { discrete: true });
+    modernize(editor);
     return JSON.stringify(editor.getEditorState().toJSON());
   });
 }

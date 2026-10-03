@@ -74,6 +74,57 @@ DOCUMENT = _document(
         **_ELEMENT,
     },
     _paragraph({"type": "mention", "mentionUserId": 7, "version": 1}),
+    {"type": "quote", "children": [_text("A quote")], **_ELEMENT},
+    # Highlighted into tokens, as the browser stores it.
+    {
+        "type": "code",
+        "language": "python",
+        "children": [
+            {**_text("print"), "type": "code-highlight", "highlightType": "keyword"},
+            {**_text("("), "type": "code-highlight", "highlightType": "punctuation"},
+            {**_text(")"), "type": "code-highlight", "highlightType": "punctuation"},
+        ],
+        **_ELEMENT,
+    },
+    {
+        "type": "table",
+        "children": [
+            {
+                "type": "tablerow",
+                "children": [
+                    {
+                        "type": "tablecell",
+                        "headerState": 1,
+                        "colSpan": 1,
+                        "rowSpan": 1,
+                        "children": [_paragraph(_text("cell"))],
+                        **_ELEMENT,
+                    }
+                ],
+                **_ELEMENT,
+            }
+        ],
+        **_ELEMENT,
+    },
+    {"type": "horizontalrule", "version": 1},
+    _paragraph(
+        {
+            "type": "image",
+            "src": "/uploads/picture.png",
+            "altText": "a picture",
+            "width": 0,
+            "height": 0,
+            "maxWidth": 500,
+            "showCaption": False,
+            "caption": {
+                "editorState": {"root": {"type": "root", "children": [], "version": 1}}
+            },
+            "version": 1,
+        },
+        {"type": "excalidraw", "data": "[]", "width": 0, "version": 1},
+    ),
+    {"type": "youtube", "videoID": "dQw4w9WgXcQ", "format": "", "version": 1},
+    {"type": "tweet", "id": "20", "format": "", "version": 1},
 )
 
 
@@ -98,6 +149,24 @@ async def test_a_document_with_no_content_starts_with_an_empty_paragraph():
 
     assert [block["type"] for block in rendered["root"]["children"]] == ["paragraph"]
     assert rendered["root"]["children"][0]["children"] == []
+
+
+async def test_legacy_nodes_come_back_as_the_browser_shows_them():
+    wikilink = {
+        **_text("A page nobody wrote"),
+        "type": "wikilink",
+        "documentId": None,
+        "documentTitle": "A page nobody wrote",
+    }
+    hashtag = {**_text("#idea"), "type": "hashtag"}
+
+    rendered = await editor_engine.render(
+        await editor_engine.bootstrap(_document(_paragraph(wikilink, hashtag)))
+    )
+
+    (paragraph,) = rendered["root"]["children"]
+    assert [node["type"] for node in paragraph["children"]] == ["text"]
+    assert paragraph["children"][0]["text"] == "A page nobody wrote#idea"
 
 
 async def test_content_the_editor_refuses_is_an_error():
