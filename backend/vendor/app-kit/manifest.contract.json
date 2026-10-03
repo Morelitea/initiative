@@ -1637,6 +1637,18 @@
           "description": "What a refusal answers. Given exactly when 'refuse_when' is."
         }
       },
+      "oneOf": [
+        {
+          "required": [
+            "request"
+          ]
+        },
+        {
+          "required": [
+            "steps"
+          ]
+        }
+      ],
       "additionalProperties": false
     },
     "connectionHealth": {
