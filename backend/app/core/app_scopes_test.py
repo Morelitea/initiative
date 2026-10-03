@@ -58,19 +58,19 @@ def test_validate_names_the_scope_it_refused():
 def test_each_level_has_a_standing_scope_a_community_can_grant():
     assert LEVEL_SCOPES == {
         InstallLevel.moderator: "initiatives:moderate",
-        InstallLevel.guild_admin: "guild:admin",
+        InstallLevel.community_admin: "community:admin",
     }
     for scope in LEVEL_SCOPES.values():
         assert scope in ALL_SCOPES
         assert is_known_scope(scope)
         assert is_standing_scope(scope)
-    assert validate_scopes(["guild:admin", "documents:read"]) == {
-        "guild:admin",
+    assert validate_scopes(["community:admin", "documents:read"]) == {
+        "community:admin",
         "documents:read",
     }
 
 
-@pytest.mark.parametrize("scope", ["initiatives:moderate", "guild:admin"])
+@pytest.mark.parametrize("scope", ["initiatives:moderate", "community:admin"])
 def test_a_standing_names_no_resource(scope):
     """A standing is held by exact name: it reads and writes nothing itself,
     so a grant of one alone reaches no tool."""

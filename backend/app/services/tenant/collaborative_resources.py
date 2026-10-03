@@ -17,15 +17,11 @@ persistence sweep all read it rather than each knowing about documents:
 ``model`` / ``content_column``
     Where the JSON body lives. The Yjs columns are spelled the same on every
     collaborative table, so they are not restated.
-``normalize``
-    Checks and cleans a content frame before the room holds it. A document's
-    shape depends on its type; a page is always prose, so it only has to be an
-    object.
-``editor_body``
-    Whether a row's body is the document editor's, as a SQL expression. The
-    server makes such a body's Yjs state and renders its content itself
-    (:mod:`app.services.editor_engine`); any other body is made and rendered
-    by the browser editing it.
+``body_kind``
+    Which editor a row's body is for, as a SQL expression: a document's type,
+    or ``"native"`` for a page, which is always prose. The server makes the
+    body's Yjs state and renders its content with that editor's mapping
+    (:mod:`app.services.tenant.body_states`).
 ``load``
     Fetches the body row and the row whose grants govern it, with everything
     the DAC engine reads eager-loaded. Returns ``None`` when either is missing
@@ -38,7 +34,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable, Optional
 
-from sqlalchemy import true
+from sqlalchemy import literal
 from sqlalchemy.orm import selectinload, undefer
 from sqlmodel import select
 
@@ -68,8 +64,7 @@ class CollaborativeResource:
     model: type
     content_column: str
     load: Callable[..., Awaitable[Optional[Collaborating]]]
-    normalize: Callable[[Any, Any], dict]
-    editor_body: Callable[[], Any]
+    body_kind: Callable[[], Any]
 
     @property
     def resource_type(self) -> str:
@@ -132,30 +127,6 @@ async def _load_wiki_page(
     return Collaborating(body=page, governing=wiki, initiative_id=wiki.initiative_id)
 
 
-class ContentFrameError(ValueError):
-    """A content frame that is not the shape this kind of body takes."""
-
-    def __init__(self, code: str):
-        super().__init__(code)
-        self.code = code
-
-
-def _normalize_document(body: Any, content: Any) -> dict:
-    from app.services.tenant import documents as documents_service
-
-    return documents_service.normalize_document_content(
-        content, document_type=body.document_type
-    )
-
-
-def _normalize_wiki_page(_body: Any, content: Any) -> dict:
-    """A page is always a Lexical body, so the only question is whether this is
-    an editor state at all."""
-    if not isinstance(content, dict):
-        raise ContentFrameError("WIKI_PAGE_CONTENT_INVALID")
-    return content
-
-
 COLLABORATIVE_RESOURCES: dict[str, CollaborativeResource] = {}
 
 
@@ -165,7 +136,7 @@ def _register(resource: CollaborativeResource) -> CollaborativeResource:
 
 
 def _document_resource() -> CollaborativeResource:
-    from app.models.tenant.document import Document, DocumentType
+    from app.models.tenant.document import Document
 
     return CollaborativeResource(
         entity_type=SearchEntityType.document,
@@ -173,8 +144,7 @@ def _document_resource() -> CollaborativeResource:
         model=Document,
         content_column="content",
         load=_load_document,
-        normalize=_normalize_document,
-        editor_body=lambda: Document.document_type == DocumentType.native,
+        body_kind=lambda: Document.document_type,
     )
 
 
@@ -187,8 +157,7 @@ def _wiki_page_resource() -> CollaborativeResource:
         model=WikiPage,
         content_column="content",
         load=_load_wiki_page,
-        normalize=_normalize_wiki_page,
-        editor_body=true,
+        body_kind=lambda: literal("native"),
     )
 
 

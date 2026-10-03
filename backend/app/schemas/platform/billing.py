@@ -41,7 +41,7 @@ class BillingCommunityTierApply(SanitizedBaseModel):
     same id is a safe no-op.
     """
 
-    guild_ref: str = Field(min_length=1, max_length=REF_MAX_LENGTH)
+    community_ref: str = Field(min_length=1, max_length=REF_MAX_LENGTH)
     event_id: str = Field(min_length=1, max_length=128)
     source: BillingSource
     # Acting human for manual ops (support grant id / staff id); NULL for
@@ -83,7 +83,7 @@ class BillingCommunityTierRead(SanitizedBaseModel):
     name for it the two services share.
     """
 
-    guild_ref: str
+    community_ref: str
     tier_name: Optional[str] = None
     max_storage_bytes: Optional[int] = None
     max_users: Optional[int] = None
@@ -118,7 +118,7 @@ class BillingCommunityNotice(SanitizedBaseModel):
     nobody twice.
     """
 
-    guild_ref: str = Field(min_length=1, max_length=REF_MAX_LENGTH)
+    community_ref: str = Field(min_length=1, max_length=REF_MAX_LENGTH)
     event_id: str = Field(min_length=1, max_length=128)
     source: BillingSource
     kind: BillingCommunityNoticeKind
@@ -149,7 +149,7 @@ class BillingUsageRequest(SanitizedBaseModel):
     HMAC covers it, like every other verb on this boundary.
     """
 
-    guild_ref: str = Field(min_length=1, max_length=REF_MAX_LENGTH)
+    community_ref: str = Field(min_length=1, max_length=REF_MAX_LENGTH)
 
 
 class BillingUsageRead(SanitizedBaseModel):
@@ -157,7 +157,7 @@ class BillingUsageRead(SanitizedBaseModel):
     ``enforce_storage_quota`` reads. Read-only; the app never pushes usage
     anywhere."""
 
-    guild_ref: str
+    community_ref: str
     usage_bytes: int
 
 
@@ -168,7 +168,7 @@ class BillingCommunityNameRequest(SanitizedBaseModel):
     envelope's HMAC covers it — like every other verb on this boundary.
     """
 
-    guild_ref: str = Field(min_length=1, max_length=REF_MAX_LENGTH)
+    community_ref: str = Field(min_length=1, max_length=REF_MAX_LENGTH)
 
 
 class BillingCommunityNameRead(SanitizedBaseModel):
@@ -179,7 +179,7 @@ class BillingCommunityNameRead(SanitizedBaseModel):
     Nothing else about the guild travels with it.
     """
 
-    guild_ref: str
+    community_ref: str
     name: str
 
 
@@ -190,13 +190,13 @@ class BillingCommunityStatusRequest(SanitizedBaseModel):
     envelope's HMAC covers it — like every other verb on this boundary.
     """
 
-    guild_ref: str = Field(min_length=1, max_length=REF_MAX_LENGTH)
+    community_ref: str = Field(min_length=1, max_length=REF_MAX_LENGTH)
 
 
 class BillingCommunityStatusRead(SanitizedBaseModel):
     """Where one guild is in its lifecycle, ``deleted`` included."""
 
-    guild_ref: str
+    community_ref: str
     status: CommunityStatus
 
 

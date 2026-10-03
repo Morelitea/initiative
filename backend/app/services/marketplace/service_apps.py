@@ -149,9 +149,9 @@ FIELD_TYPES: frozenset[str] = contract.enum("fieldType")
 PARAM_TYPES: frozenset[str] = contract.enum("paramType")
 
 #: Where a surface renders. Not a choice between the two: a surface may declare
-#: either, or both, and one that declares both gets a guild-wide entry *and* an
+#: either, or both, and one that declares both gets a community-wide entry *and* an
 #: entry inside each initiative — the same page, told which initiative it was
-#: opened in. Closed, and defaulting to ``["guild"]``, so an app that says
+#: opened in. Closed, and defaulting to ``["community"]``, so an app that says
 #: nothing keeps the placement it already had.
 SURFACE_SCOPES: frozenset[str] = contract.enum("surfaceScope")
 
@@ -1427,6 +1427,56 @@ def _vendor_request(
     return cleaned
 
 
+def _request_or_steps(
+    raw: dict[str, Any],
+    cleaned: dict[str, Any],
+    *,
+    what: str,
+    auth_header: str,
+    connection_ids: set[str] | None,
+) -> set[str]:
+    """A declarative endpoint's or ``after_connect``'s one request, or its
+    steps, each reading only the steps before it, written onto ``cleaned``.
+    Answers the step names, which its map and predicates may read."""
+    request, steps_raw = raw.get("request"), raw.get("steps")
+    if (request is None) == (steps_raw is None):
+        fail(f"{what}: gives exactly one of 'request' and 'steps'")
+    names: set[str] = set()
+    if request is not None:
+        cleaned["request"] = _vendor_request(
+            request,
+            what=f"{what} request",
+            auth_header=auth_header,
+            connection_ids=connection_ids,
+            steps=names,
+        )
+        return names
+    rows = require_list(steps_raw, f"{what} steps", MAX_STEPS)
+    if not rows:
+        fail(f"{what} steps names at least one step")
+    steps: list[dict[str, Any]] = []
+    for index, entry in enumerate(rows):
+        step = require_mapping(entry, f"{what} steps.{index}")
+        name = check_identifier(step.get("name"), what=f"{what} steps.{index}.name")
+        if name in names:
+            fail(f"{what}: {name!r} names two steps")
+        steps.append(
+            {
+                "name": name,
+                "request": _vendor_request(
+                    step.get("request"),
+                    what=f"{what} steps.{index}.request",
+                    auth_header=auth_header,
+                    connection_ids=connection_ids,
+                    steps=set(names),
+                ),
+            }
+        )
+        names.add(name)
+    cleaned["steps"] = steps
+    return names
+
+
 def _status_match(raw: Any, *, what: str) -> int | str:
     """One HTTP status, or a range of a hundred (``"4xx"``)."""
     if raw in STATUS_RANGES:
@@ -1447,20 +1497,22 @@ def _after_connect(raw: Any, *, what: str, auth_header: str) -> bool | dict[str,
     if raw is None or isinstance(raw, bool):
         return raw is True
     after = require_mapping(raw, what)
-    cleaned: dict[str, Any] = {
-        "request": _vendor_request(
-            after.get("request"),
-            what=f"{what}.request",
-            auth_header=auth_header,
-            connection_ids=None,
-        ),
-        "map": _checked(after.get("map"), what=f"{what}.map"),
-    }
+    cleaned: dict[str, Any] = {}
+    names = _request_or_steps(
+        after,
+        cleaned,
+        what=what,
+        auth_header=auth_header,
+        connection_ids=None,
+    )
+    cleaned["map"] = _checked(after.get("map"), what=f"{what}.map", steps=names)
     refuse_when, code = after.get("refuse_when"), after.get("code")
     if (refuse_when is None) != (code is None):
         fail(f"{what}: a refusal gives both 'refuse_when' and the 'code' it answers")
     if refuse_when is not None:
-        cleaned["refuse_when"] = _checked(refuse_when, what=f"{what}.refuse_when")
+        cleaned["refuse_when"] = _checked(
+            refuse_when, what=f"{what}.refuse_when", steps=names
+        )
         cleaned["code"] = check_identifier(code, what=f"{what}.code")
     return cleaned
 
@@ -1508,44 +1560,13 @@ def _declarative_endpoint(
 ) -> None:
     """A declarative read or write: its request or steps, its map and its
     error rules, written onto ``cleaned``."""
-    request, steps_raw = endpoint.get("request"), endpoint.get("steps")
-    if (request is None) == (steps_raw is None):
-        fail(
-            f"{what}: a declarative endpoint gives exactly one of 'request' and 'steps'"
-        )
-    names: set[str] = set()
-    if request is not None:
-        cleaned["request"] = _vendor_request(
-            request,
-            what=f"{what} request",
-            auth_header=auth_header,
-            connection_ids=connection_ids,
-            steps=names,
-        )
-    else:
-        rows = require_list(steps_raw, f"{what} steps", MAX_STEPS)
-        if not rows:
-            fail(f"{what} steps names at least one step")
-        steps: list[dict[str, Any]] = []
-        for index, entry in enumerate(rows):
-            step = require_mapping(entry, f"{what} steps.{index}")
-            name = check_identifier(step.get("name"), what=f"{what} steps.{index}.name")
-            if name in names:
-                fail(f"{what}: {name!r} names two steps")
-            steps.append(
-                {
-                    "name": name,
-                    "request": _vendor_request(
-                        step.get("request"),
-                        what=f"{what} steps.{index}.request",
-                        auth_header=auth_header,
-                        connection_ids=connection_ids,
-                        steps=set(names),
-                    ),
-                }
-            )
-            names.add(name)
-        cleaned["steps"] = steps
+    names = _request_or_steps(
+        endpoint,
+        cleaned,
+        what=what,
+        auth_header=auth_header,
+        connection_ids=connection_ids,
+    )
     cleaned["map"] = _checked(endpoint.get("map"), what=f"{what} map", steps=names)
 
     known = {*cleaned.get("unavailable", []), *PLATFORM_CODES, TRANSIENT_CODE}
@@ -2192,12 +2213,12 @@ def _sample_data(raw: Any, *, sources: list[str], what: str) -> dict[str, Any]:
 def _scopes(raw: Any, *, what: str) -> list[str]:
     """Where a surface asked to render, canonically.
 
-    Absent means ``["guild"]`` — the placement every embed had before there was
+    Absent means ``["community"]`` — the placement every embed had before there was
     anywhere else to put one. Sorted and de-duplicated, so re-publishing the
     same manifest produces the same document.
     """
     if raw is None:
-        return ["guild"]
+        return ["community"]
     declared = require_list(raw, f"{what} scopes", len(SURFACE_SCOPES))
     scopes: set[str] = set()
     for entry in declared:
@@ -2626,21 +2647,21 @@ def normalize_service_app_definition(
         cleaned["dashboards"] = dashboards
 
     # After the endpoints, because it names one of them. A summary is a read:
-    # it reports where this guild stands, and a deployment that renders it is
+    # it reports where this community stands, and a deployment that renders it is
     # drawing an answer, not asking the app to do anything.
-    summary = body.get("guild_summary")
+    summary = body.get("community_summary")
     if summary is not None:
         summary_id = _endpoint_id(
             summary,
             service_public_id=app_public_id,
-            what="service app: guild_summary",
+            what="service app: community_summary",
         )
         if summary_id not in readable_ids:
             fail(
-                f"service app: guild_summary names {summary_id!r}, which is not "
+                f"service app: community_summary names {summary_id!r}, which is not "
                 "an endpoint this app answers reads on"
             )
-        cleaned["guild_summary"] = summary_id
+        cleaned["community_summary"] = summary_id
 
     default_name = clean_text(
         body.get("default_name"),

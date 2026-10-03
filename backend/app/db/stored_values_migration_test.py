@@ -1,6 +1,6 @@
-"""Migration 20261003_0445 renames the stored guild values to community and
-back. Loaded by path and run on rows an older release would have written, the
-way ``upload_initiative_backfill_test`` runs its revision."""
+"""Migrations 20261003_0445 and 20261003_0446 rename the stored guild values
+to community and back. Loaded by path and run on rows an older release would
+have written, the way ``upload_initiative_backfill_test`` runs its revision."""
 
 from __future__ import annotations
 
@@ -13,18 +13,21 @@ from sqlalchemy import text
 
 from app.models.platform.notification import NotificationType
 from app.services.platform import notice_outbox, user_notifications
-from app.testing import create_export_job, create_guild, create_user
-
-_MIGRATION = (
-    Path(__file__).resolve().parents[2]
-    / "alembic"
-    / "versions"
-    / "20261003_0445_stored_values_say_community.py"
+from app.testing import (
+    create_app_service_registration,
+    create_export_job,
+    create_guild,
+    create_guild_app,
+    create_marketplace_listing,
+    create_user,
 )
 
+_VERSIONS = Path(__file__).resolve().parents[2] / "alembic" / "versions"
 
-def _load() -> ModuleType:
-    spec = importlib.util.spec_from_file_location(_MIGRATION.stem, _MIGRATION)
+
+def _load(name: str) -> ModuleType:
+    path = _VERSIONS / name
+    spec = importlib.util.spec_from_file_location(path.stem, path)
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -91,7 +94,7 @@ async def test_stored_values_say_community_and_back(session) -> None:
     )
     await session.commit()
 
-    migration = _load()
+    migration = _load("20261003_0445_stored_values_say_community.py")
     old = await _stored(session, schema, job.id)
 
     def upgrade(sync_session) -> None:
@@ -142,3 +145,127 @@ async def test_stored_values_say_community_and_back(session) -> None:
     await session.run_sync(downgrade)
     await session.commit()
     assert await _stored(session, schema, job.id) == old
+
+
+_OLD_DEFINITION = {
+    "app_kind": "service",
+    "service": {
+        "public_id": "tests.app-service",
+        "protocol": 1,
+        "scopes": ["documents:read", "guild:admin"],
+    },
+    "embeds": [
+        {"id": "board", "path": "/b", "scopes": ["guild", "initiative"]},
+        {"id": "inside", "path": "/i", "scopes": ["initiative"]},
+        {"id": "legacy", "path": "/l"},
+    ],
+    "guild_summary": "app.tests.app-service.summary",
+}
+
+
+async def _app_contract(session, schema: str, listing_id: int, registration_id: int):
+    install = (
+        await _sql(
+            session,
+            text(f'SELECT definition, granted_scopes FROM "{schema}".guild_apps'),
+        )
+    ).one()
+    listed = await _scalar(
+        session,
+        text(
+            "SELECT definition FROM public.marketplace_listing_versions "
+            "WHERE listing_id = :id"
+        ),
+        {"id": listing_id},
+    )
+    ceiling = await _scalar(
+        session,
+        text(
+            "SELECT scope_ceiling FROM public.app_service_registrations WHERE id = :id"
+        ),
+        {"id": registration_id},
+    )
+    return {
+        "installed": install.definition,
+        "granted": install.granted_scopes,
+        "listed": listed,
+        "ceiling": ceiling,
+    }
+
+
+async def test_app_contract_says_community_and_back(session) -> None:
+    user = await create_user(session)
+    guild = await create_guild(session, creator=user)
+    schema = f"guild_{guild.id}"
+    await create_guild_app(session, guild, user, definition=_OLD_DEFINITION)
+    listing = await create_marketplace_listing(session)
+    registration = await create_app_service_registration(
+        session, scope_ceiling=["documents:read", "guild:admin"]
+    )
+    migration = _load("20261003_0446_app_contract_says_community.py")
+
+    def route(bind) -> None:
+        bind.execute(
+            text("SELECT set_config('search_path', :sp, true)"),
+            {"sp": f"{schema}, public"},
+        )
+
+    def seed(sync_session) -> None:
+        bind = sync_session.connection()
+        bind.execute(
+            text(
+                "UPDATE public.marketplace_listing_versions "
+                "SET definition = CAST(:d AS jsonb) WHERE listing_id = :id"
+            ),
+            {"d": json.dumps(_OLD_DEFINITION), "id": listing.id},
+        )
+        route(bind)
+        migration._unforced(
+            bind,
+            ("guild_apps",),
+            lambda: bind.execute(
+                text("UPDATE guild_apps SET granted_scopes = :g"),
+                {"g": ["documents:read", "guild:admin"]},
+            ),
+        )
+
+    await session.run_sync(seed)
+    await session.commit()
+    old = await _app_contract(session, schema, listing.id, registration.id)
+    assert old["granted"] == ["documents:read", "guild:admin"]
+
+    def run(names):
+        def apply(sync_session) -> None:
+            bind = sync_session.connection()
+            migration._public(bind, names)
+            route(bind)
+            migration._guild(bind, names)
+
+        return apply
+
+    await session.run_sync(run(migration.FORWARD))
+    await session.commit()
+    definition = {
+        "app_kind": "service",
+        "service": {
+            "public_id": "tests.app-service",
+            "protocol": 1,
+            "scopes": ["documents:read", "community:admin"],
+        },
+        "embeds": [
+            {"id": "board", "path": "/b", "scopes": ["community", "initiative"]},
+            {"id": "inside", "path": "/i", "scopes": ["initiative"]},
+            {"id": "legacy", "path": "/l"},
+        ],
+        "community_summary": "app.tests.app-service.summary",
+    }
+    assert await _app_contract(session, schema, listing.id, registration.id) == {
+        "installed": definition,
+        "granted": ["documents:read", "community:admin"],
+        "listed": definition,
+        "ceiling": ["documents:read", "community:admin"],
+    }
+
+    await session.run_sync(run(migration.BACKWARD))
+    await session.commit()
+    assert await _app_contract(session, schema, listing.id, registration.id) == old

@@ -15,7 +15,6 @@ const provider = {
   connect: vi.fn(),
   unsentEdits: vi.fn((): { update: Uint8Array; stateVector: Uint8Array } | null => null),
   handedOver: vi.fn(),
-  sendContent: vi.fn((content: unknown) => calls.push(`send ${JSON.stringify(content)}`)),
   destroy: vi.fn(() => calls.push("destroy")),
 };
 
@@ -34,25 +33,16 @@ describe("useCollaboration", () => {
     provider.unsentEdits.mockReturnValue(null);
   });
 
-  it("hands the room the last rendering before the socket closes", () => {
+  it("hands nothing over while the socket is open", () => {
+    const post = vi.spyOn(apiClient, "post").mockResolvedValue({});
     const { result, unmount } = renderHook(() =>
-      useCollaboration({ socketPath: "documents/7/collaborate", finalContent: () => ({ a: 1 }) })
+      useCollaboration({ socketPath: "documents/7/collaborate" })
     );
     act(() => {
       result.current.providerFactory?.("7", new Map());
     });
     unmount();
-    expect(calls).toEqual(['send {"a":1}', "destroy"]);
-  });
-
-  it("sends nothing when there is nothing to hand over", () => {
-    const { result, unmount } = renderHook(() =>
-      useCollaboration({ socketPath: "documents/7/collaborate", finalContent: () => undefined })
-    );
-    act(() => {
-      result.current.providerFactory?.("7", new Map());
-    });
-    unmount();
+    expect(post).not.toHaveBeenCalled();
     expect(calls).toEqual(["destroy"]);
   });
 
@@ -65,7 +55,7 @@ describe("useCollaboration", () => {
     const post = vi.spyOn(apiClient, "post").mockResolvedValue({});
 
     const { result, unmount } = renderHook(() =>
-      useCollaboration({ socketPath: "documents/7/collaborate", finalContent: () => ({ a: 1 }) })
+      useCollaboration({ socketPath: "documents/7/collaborate" })
     );
     act(() => {
       result.current.providerFactory?.("7", new Map());
@@ -76,19 +66,21 @@ describe("useCollaboration", () => {
     const [url, body, config] = post.mock.calls[0];
     expect(url).toBe("/c/1/collaboration/documents/7/collaborate");
     expect(config).toMatchObject({ adapter: "fetch", fetchOptions: { keepalive: true } });
-    expect(JSON.parse(body as string)).toEqual({
-      update: "AQI=",
-      state_vector: "Aw==",
-      content: { a: 1 },
-    });
+    expect(JSON.parse(body as string)).toEqual({ update: "AQI=" });
     expect(calls).toEqual(["destroy"]);
     await Promise.resolve();
     expect(provider.handedOver).toHaveBeenCalled();
   });
 
   it("hands over as the page is hidden, not only when it unmounts", () => {
+    provider.connected = false;
+    provider.unsentEdits.mockReturnValue({
+      update: new Uint8Array([1, 2]),
+      stateVector: new Uint8Array([3]),
+    });
+    const post = vi.spyOn(apiClient, "post").mockResolvedValue({});
     const { result } = renderHook(() =>
-      useCollaboration({ socketPath: "documents/7/collaborate", finalContent: () => ({ a: 2 }) })
+      useCollaboration({ socketPath: "documents/7/collaborate" })
     );
     act(() => {
       result.current.providerFactory?.("7", new Map());
@@ -96,12 +88,12 @@ describe("useCollaboration", () => {
 
     window.dispatchEvent(new Event("pagehide"));
 
-    expect(calls).toEqual(['send {"a":2}']);
+    expect(post).toHaveBeenCalledTimes(1);
   });
 
   it("counts a body as synced from its first sync on, through a reconnect", () => {
     const { result } = renderHook(() =>
-      useCollaboration({ socketPath: "documents/7/collaborate", finalContent: () => undefined })
+      useCollaboration({ socketPath: "documents/7/collaborate" })
     );
     act(() => {
       result.current.providerFactory?.("7", new Map());
@@ -121,10 +113,9 @@ describe("useCollaboration", () => {
   });
 
   it("starts over when the page moves to another body", () => {
-    const { result, rerender } = renderHook(
-      ({ path }) => useCollaboration({ socketPath: path, finalContent: () => undefined }),
-      { initialProps: { path: "documents/7/collaborate" } }
-    );
+    const { result, rerender } = renderHook(({ path }) => useCollaboration({ socketPath: path }), {
+      initialProps: { path: "documents/7/collaborate" },
+    });
     act(() => {
       result.current.providerFactory?.("7", new Map());
     });

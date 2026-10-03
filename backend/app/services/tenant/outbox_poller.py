@@ -304,7 +304,7 @@ def _envelope(
     return {
         "event_id": _event_id(subscription.id, txn_id),
         "subscription_id": subscription.id,
-        "guild_ref": guild_ref,
+        "community_ref": guild_ref,
         "actor_ref": actor_ref,
         "actor_app": actor_app,
         "occurred_at": first.occurred_at.isoformat(),

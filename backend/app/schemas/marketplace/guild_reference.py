@@ -18,20 +18,20 @@ class CommunityReferenceRequest(SanitizedBaseModel):
     what would let one app learn another's names.
     """
 
-    guild_ref: str = Field(min_length=1, max_length=REF_MAX_LENGTH)
+    community_ref: str = Field(min_length=1, max_length=REF_MAX_LENGTH)
     purpose: IdentityPurpose
 
 
 class InstallationReferenceRequest(SanitizedBaseModel):
     """The sector an installed app wants its community named in.
 
-    The community is the one the installation token names. ``guild_ref``, when
+    The community is the one the installation token names. ``community_ref``, when
     given, is the app's own reference for it and has to name that same
     community.
     """
 
     purpose: IdentityPurpose
-    guild_ref: Optional[str] = Field(
+    community_ref: Optional[str] = Field(
         default=None, min_length=1, max_length=REF_MAX_LENGTH
     )
 
@@ -40,4 +40,4 @@ class CommunityReferenceRead(SanitizedBaseModel):
     """The same guild, named in the sector that was asked for."""
 
     purpose: IdentityPurpose
-    guild_ref: str = Field(min_length=1, max_length=REF_MAX_LENGTH)
+    community_ref: str = Field(min_length=1, max_length=REF_MAX_LENGTH)

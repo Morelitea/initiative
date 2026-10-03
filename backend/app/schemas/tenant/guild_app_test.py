@@ -163,7 +163,7 @@ def test_surface_access_is_computed_for_the_viewer():
     definition = {
         **DEFINITION,
         "embeds": [
-            {"id": "board", "path": "/b", "scopes": ["guild", "initiative"]},
+            {"id": "board", "path": "/b", "scopes": ["community", "initiative"]},
             {
                 "id": "settings",
                 "path": "/s",
@@ -200,24 +200,24 @@ def test_surface_access_is_computed_for_the_viewer():
     assert access(member) == {
         "board": {
             "surface_id": "board",
-            "openable_guild_wide": False,
+            "openable_community_wide": False,
             "openable_initiatives": [2],
         },
         "settings": {
             "surface_id": "settings",
-            "openable_guild_wide": False,
+            "openable_community_wide": False,
             "openable_initiatives": [],
         },
     }
     assert access(admin) == {
         "board": {
             "surface_id": "board",
-            "openable_guild_wide": True,
+            "openable_community_wide": True,
             "openable_initiatives": [2, 5],
         },
         "settings": {
             "surface_id": "settings",
-            "openable_guild_wide": False,
+            "openable_community_wide": False,
             "openable_initiatives": [2, 5],
         },
     }

@@ -84,7 +84,7 @@ describe("SettingsUsersPage seat cap", () => {
     await waitFor(() => expect(mintHandoff).toHaveBeenCalledWith(guild.id));
     await waitFor(() =>
       expect(tab.location.href).toBe(
-        "https://billing.example.com/upgrade?guild=42&lang=en#handoff=TOK"
+        "https://billing.example.com/upgrade?community=42&lang=en#handoff=TOK"
       )
     );
     openSpy.mockRestore();

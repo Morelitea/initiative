@@ -2200,20 +2200,12 @@ export const ClientKind = {
   unknown: "unknown",
 } as const;
 
-export type CollaborationHandoverContent = { [key: string]: unknown } | null;
-
 /**
  * Edits a tab made while its room's socket was closed, handed over as the
- * tab leaves.
- *
- * ``update`` is the Yjs update the room has not seen and ``state_vector`` is
- * the tab's own, so the room can tell whether ``content`` — the editor's
- * rendering of the tab's document — also describes the merged one.
+ * tab leaves: the Yjs update the room has not seen.
  */
 export interface CollaborationHandover {
   update: Blob;
-  state_vector: Blob;
-  content?: CollaborationHandoverContent;
 }
 
 /**
@@ -4545,6 +4537,7 @@ export interface DocumentRead {
   smart_link_url: string | null;
   yjs_updated_at: string | null;
   content: DocumentReadContent;
+  content_version: string | null;
 }
 
 export type DocumentUpdateContent = { [key: string]: unknown } | null;
@@ -4552,6 +4545,7 @@ export type DocumentUpdateContent = { [key: string]: unknown } | null;
 export interface DocumentUpdate {
   name?: string | null;
   content?: DocumentUpdateContent;
+  content_version?: string | null;
   featured_image_url?: string | null;
   is_template?: boolean | null;
 }
@@ -9355,7 +9349,7 @@ export interface WebhookSubscriptionCreate {
  */
 export interface WebhookSubscriptionCreated {
   id: number;
-  guild_ref: string;
+  community_ref: string;
   initiative_id: number | null;
   created_by_ref: string | null;
   target_url: string;
@@ -9379,7 +9373,7 @@ export interface WebhookSubscriptionCreated {
  */
 export interface WebhookSubscriptionRead {
   id: number;
-  guild_ref: string;
+  community_ref: string;
   initiative_id: number | null;
   created_by_ref: string | null;
   target_url: string;
@@ -9617,6 +9611,7 @@ export interface WikiPageRead {
   original_filename: string | null;
   smart_link_url: string | null;
   content: WikiPageReadContent;
+  content_version: string | null;
   comment_count: number;
 }
 
@@ -9673,6 +9668,7 @@ export interface WikiPageUpdate {
   title?: string | null;
   is_draft?: boolean | null;
   content?: WikiPageUpdateContent;
+  content_version?: string | null;
   tag_ids?: number[] | null;
 }
 
@@ -10021,7 +10017,7 @@ export type IssueAppAccessTokenBodyLevel =
 
 export const IssueAppAccessTokenBodyLevel = {
   moderator: "moderator",
-  guild_admin: "guild_admin",
+  community_admin: "community_admin",
 } as const;
 
 export type IssueAppAccessTokenBody = {

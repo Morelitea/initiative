@@ -58,7 +58,13 @@ from app.schemas.tenant.wiki import (
 )
 from app.schemas.tenant.tool import serialize_tool
 from app.services.tenant import attachments as attachments_service
-from app.services.tenant.collaboration import collaboration_manager, written_into
+from app.services.tenant import body_states
+from app.services.tenant.collaboration import (
+    collaboration_manager,
+    content_version,
+    versioned,
+    written_into,
+)
 from app.services.tenant import comments as comments_service
 from app.services.tenant import content_references
 from app.services.tenant import relationships as relationships_service
@@ -503,7 +509,11 @@ async def read_wiki_page(
     page = await resource_access.load_child(session, WikiPage, page_id)
     await tags_service.annotate_tags(session, [page])
     await properties_service.annotate_properties(session, [page])
-    return serialize_wiki_page(page, context=guild_context)
+    return await versioned(
+        serialize_wiki_page(page, context=guild_context),
+        guild_context.guild_id,
+        SearchEntityType.wiki_page.value,
+    )
 
 
 @pages_router.post(
@@ -548,18 +558,35 @@ async def update_wiki_page(
     page = await resource_access.load_child(session, WikiPage, page_id, access="write")
     data = page_in.model_dump(exclude_unset=True)
     content_updated = "content" in data and data["content"] is not None
+    room = (
+        collaboration_manager.live_room(
+            guild_context.guild_id, SearchEntityType.wiki_page.value, page.id
+        )
+        if content_updated
+        else None
+    )
+    version = data.get("content_version")
     # A page with a live collaboration room has that room as the writer of its
-    # content, as a document's does: its editors report their rendering over
-    # their own sockets, so a body arriving here is from a tab outside the
-    # session and is refused rather than saved over. A patch with no body (a
-    # rename, a draft flag, tags) still applies.
-    if content_updated and collaboration_manager.has_active_collaborators(
-        guild_context.guild_id, SearchEntityType.wiki_page.value, page.id
-    ):
+    # content. A body naming no version may describe a page the session has
+    # moved on from, so it is refused rather than saved over. A patch with no
+    # body (a rename, a draft flag, tags) still applies.
+    if room is not None and version is None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=WikiMessages.LIVE_SESSION_OWNS_CONTENT,
         )
+    if room is None and content_updated:
+        # Locked until this write commits, so a write naming the same version
+        # reads this one's content.
+        await session.refresh(page, ["content"], with_for_update=True)
+        # A page is written over whole, so a write naming the content it
+        # changed is refused once that content has moved on: writing it would
+        # undo whatever moved it.
+        if version is not None and content_version(page.content) != version:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=WikiMessages.CONTENT_CHANGED,
+            )
 
     if "is_draft" in data and data["is_draft"] is not None:
         page.is_draft = data["is_draft"]
@@ -570,12 +597,23 @@ async def update_wiki_page(
             page.slug = await wikis_service.unique_page_slug(
                 session, page.wiki_id, title, exclude_page_id=page.id
             )
-    if content_updated:
+    if room is not None:
+        # The writer read what the session holds now: the change goes into
+        # it, reaches the open editors, and is saved with their edits.
+        if not await room.write(data["content"], version, user_id=current_user.id):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=WikiMessages.CONTENT_CHANGED,
+            )
+        content_updated = False
+    elif content_updated:
         page.content = data["content"]
         # No room is live, so this edit is the newest thing about the page:
         # its stored Yjs state has it written in, and the next session opens
         # on it.
-        page.yjs_state = await written_into(page.yjs_state, page.content)
+        page.yjs_state = await written_into(
+            body_states.LEXICAL, page.yjs_state, page.content
+        )
 
     session.add(page)
     await session.flush()
@@ -607,7 +645,11 @@ async def update_wiki_page(
     await session.refresh(page)
     await tags_service.annotate_tags(session, [page])
     await properties_service.annotate_properties(session, [page])
-    return serialize_wiki_page(page, context=guild_context)
+    return await versioned(
+        serialize_wiki_page(page, context=guild_context),
+        guild_context.guild_id,
+        SearchEntityType.wiki_page.value,
+    )
 
 
 @pages_router.post("/wiki-pages/{page_id}/move", response_model=WikiPageRead)

@@ -133,7 +133,7 @@ async def apply_community_tier(
     request: Request, session: SessionDep
 ) -> BillingCommunityTierRead:
     claims, payload = await _verify_and_parse(request, BillingCommunityTierApply)
-    guild_id = await _resolve_guild(payload.guild_ref)
+    guild_id = await _resolve_guild(payload.community_ref)
     await set_rls_context(session, Billing(guild_id))
     await _burn_jti(session, claims)
     status_before = await billing_service.guild_lifecycle_status(session, guild_id)
@@ -194,7 +194,7 @@ async def community_notice(
     suspended is recorded and tells nobody.
     """
     claims, payload = await _verify_and_parse(request, BillingCommunityNotice)
-    guild_id = await _resolve_guild(payload.guild_ref)
+    guild_id = await _resolve_guild(payload.community_ref)
     await set_rls_context(session, Billing(guild_id))
     await _burn_jti(session, claims)
     if await billing_service.guild_lifecycle_status(session, guild_id) is None:
@@ -246,7 +246,7 @@ async def community_name(
     is the caller's timing rather than their credential that is wrong.
     """
     claims, payload = await _verify_and_parse(request, BillingCommunityNameRequest)
-    guild_id = await _resolve_guild(payload.guild_ref)
+    guild_id = await _resolve_guild(payload.community_ref)
     await set_rls_context(session, Billing(guild_id))
     await _burn_jti(session, claims)
 
@@ -257,7 +257,7 @@ async def community_name(
             detail=BillingMessages.COMMUNITY_NOT_FOUND,
         )
     await session.commit()  # persist the one-shot jti redemption
-    return BillingCommunityNameRead(guild_ref=payload.guild_ref, name=name)
+    return BillingCommunityNameRead(community_ref=payload.community_ref, name=name)
 
 
 @router.post("/community-status", response_model=BillingCommunityStatusRead)
@@ -269,7 +269,7 @@ async def community_status(
     Only a purged guild 404s, with the jti unredeemed.
     """
     claims, payload = await _verify_and_parse(request, BillingCommunityStatusRequest)
-    guild_id = await _resolve_guild(payload.guild_ref)
+    guild_id = await _resolve_guild(payload.community_ref)
     await set_rls_context(session, Billing(guild_id))
     await _burn_jti(session, claims)
 
@@ -280,7 +280,9 @@ async def community_status(
             detail=BillingMessages.COMMUNITY_NOT_FOUND,
         )
     await session.commit()  # persist the one-shot jti redemption
-    return BillingCommunityStatusRead(guild_ref=payload.guild_ref, status=guild_status)
+    return BillingCommunityStatusRead(
+        community_ref=payload.community_ref, status=guild_status
+    )
 
 
 @router.post("/usage", response_model=BillingUsageRead)
@@ -293,7 +295,7 @@ async def community_usage(request: Request, session: SessionDep) -> BillingUsage
     it). A missing guild 404s with the jti unredeemed (retryable).
     """
     claims, payload = await _verify_and_parse(request, BillingUsageRequest)
-    guild_id = await _resolve_guild(payload.guild_ref)
+    guild_id = await _resolve_guild(payload.community_ref)
     await set_rls_context(session, Billing(guild_id))
     await _burn_jti(session, claims)
     try:
@@ -304,4 +306,6 @@ async def community_usage(request: Request, session: SessionDep) -> BillingUsage
             detail=BillingMessages.COMMUNITY_NOT_FOUND,
         ) from exc
     await session.commit()  # persist the one-shot jti redemption
-    return BillingUsageRead(guild_ref=payload.guild_ref, usage_bytes=usage_bytes)
+    return BillingUsageRead(
+        community_ref=payload.community_ref, usage_bytes=usage_bytes
+    )

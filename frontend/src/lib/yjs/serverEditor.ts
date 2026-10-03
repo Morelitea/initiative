@@ -40,6 +40,7 @@ import {
 } from "yjs";
 
 import { documentExtension } from "@/components/documents/editor/document-extension";
+import { COLLAB_EXCLUDED_PROPERTIES } from "@/components/ui/editor/nodes/image-node";
 import { registerLegacyNodes } from "@/components/ui/editor/nodes/legacy-nodes";
 
 /** The id the browser's `CollaborationPlugin` binds under. */
@@ -81,7 +82,14 @@ function withEditor<T>(clientId: number | null, use: (editor: LexicalEditor, doc
   const doc = new Doc();
   if (clientId !== null) doc.clientID = clientId;
   const provider = silentProvider();
-  const binding: Binding = createBinding(editor, provider, ROOT_ID, doc, new Map([[ROOT_ID, doc]]));
+  const binding: Binding = createBinding(
+    editor,
+    provider,
+    ROOT_ID,
+    doc,
+    new Map([[ROOT_ID, doc]]),
+    COLLAB_EXCLUDED_PROPERTIES
+  );
   const stopUpdates = editor.registerUpdateListener(
     ({ dirtyElements, dirtyLeaves, editorState, normalizedNodes, prevEditorState, tags }) => {
       if (!tags.has("skip-collab")) {

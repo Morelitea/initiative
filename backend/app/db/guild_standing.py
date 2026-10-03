@@ -255,7 +255,7 @@ _APP_SCOPE_FAMILY = APP_SCOPE_PREFIX.rstrip(":")
 #: The standings, as a SQL list: they name no resource.
 _STANDING_SCOPES_SQL = ", ".join(f"'{scope}'" for scope in sorted(STANDING_SCOPES))
 _MODERATE_SCOPE = LEVEL_SCOPES[InstallLevel.moderator]
-_GUILD_ADMIN_SCOPE = LEVEL_SCOPES[InstallLevel.guild_admin]
+_GUILD_ADMIN_SCOPE = LEVEL_SCOPES[InstallLevel.community_admin]
 #: The community statuses whose content is in use, as the person seam reads
 #: them.
 _LIVE_STATUSES_SQL = sql_values(sorted(LIVE_STATUS_VALUES))
@@ -400,7 +400,7 @@ _INSTALL_STANDING: dict[gucs.Guc, str] = {
 #: standing (``standing_level``), which only an installation token that asked
 #: for one does, and only while the seat's grant still holds that scope:
 #: ``initiatives:moderate`` on a token narrowed to an initiative makes it a
-#: manager there with "Full access", as a moderator is; ``guild:admin`` makes
+#: manager there with "Full access", as a moderator is; ``community:admin`` makes
 #: it a guild admin, within the one initiative a narrowed token names. Either is still bounded by
 #: its resource scopes, which every tool policy asks first. The community's
 #: sign-in rules

@@ -11,6 +11,7 @@ import type * as Y from "yjs";
 
 import type { SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
 import { DocumentOutlineTracker } from "@/components/documents/DocumentOutline";
+import { COLLAB_EXCLUDED_PROPERTIES } from "@/components/ui/editor/nodes/image-node";
 import type { EditorVariant } from "@/components/ui/editor/variant";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
@@ -172,6 +173,7 @@ export function Editor({
                     username={userName}
                     cursorColor={userColor.current}
                     cursorsContainerRef={cursorsContainerRef}
+                    excludedProperties={COLLAB_EXCLUDED_PROPERTIES}
                   />
                 </LexicalCollaboration>
               )}

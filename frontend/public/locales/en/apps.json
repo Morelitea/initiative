@@ -229,7 +229,7 @@
       "sharing": "Sharing",
       "members": "Members",
       "initiatives": "Initiatives",
-      "guild": "Community"
+      "community": "Community"
     },
     "sentences": {
       "projects": {
@@ -291,7 +291,7 @@
         "read": "See your community's initiatives",
         "moderate": "Act as a moderator in the initiatives it's placed in"
       },
-      "guild": {
+      "community": {
         "admin": "Act as an admin across your whole community"
       },
       "fallback": {

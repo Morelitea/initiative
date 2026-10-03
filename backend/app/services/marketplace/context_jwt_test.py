@@ -3,7 +3,7 @@
 Four properties carry the weight, and each is here because losing it quietly
 would be hard to notice from the outside:
 
-* **One guild.** ``guild_ref`` is a claim on a token minted for one call. A token
+* **One guild.** ``community_ref`` is a claim on a token minted for one call. A token
   that named two guilds, or named none, would be a standing key.
 * **About a minute.** Long enough for a round trip, short enough that a captured
   token is spent before it is useful.
@@ -78,7 +78,7 @@ def _claims(token: str) -> dict:
 class TestClaims:
     def test_the_token_is_pinned_to_one_guild_and_one_install(self):
         claims = _claims(_mint(guild_ref="gapp_testguild42", app_install_id=9))
-        assert claims["guild_ref"] == "gapp_testguild42"
+        assert claims["community_ref"] == "gapp_testguild42"
         assert claims["app_install_id"] == 9
         assert claims["scope"] == "endpoint"
 
@@ -120,7 +120,7 @@ class TestClaims:
             "aud",
             "iat",
             "exp",
-            "guild_ref",
+            "community_ref",
             "app_install_id",
             "scope",
             "endpoint_id",
@@ -182,7 +182,7 @@ class TestJwks:
             algorithms=["RS256"],
             audience=f"initiative-app:{PUBLIC_ID}",
         )
-        assert claims["guild_ref"] == "gapp_testguild7"
+        assert claims["community_ref"] == "gapp_testguild7"
 
     def test_it_publishes_the_kid_the_header_carries(self):
         entry = context_jwt.context_jwks()["keys"][0]

@@ -67,6 +67,7 @@ export function buildWikiPage(overrides: Partial<WikiPageRead> = {}): WikiPageRe
     original_filename: null,
     smart_link_url: null,
     content: {},
+    content_version: null,
     comment_count: 0,
     ...overrides,
   };

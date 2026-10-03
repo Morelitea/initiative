@@ -58,24 +58,24 @@ describe("embedAllow", () => {
 describe("declaredEmbeds", () => {
   it("reads a surface that says nothing as guild-wide", () => {
     const definition = { embeds: [embed("board")] };
-    expect(declaredEmbeds(definition, "guild").map((e) => e.id)).toEqual(["board"]);
+    expect(declaredEmbeds(definition, "community").map((e) => e.id)).toEqual(["board"]);
     expect(declaredEmbeds(definition, "initiative")).toEqual([]);
   });
 
   it("offers a surface in both places when it asked for both", () => {
-    const definition = { embeds: [embed("runs", ["guild", "initiative"])] };
-    expect(declaredEmbeds(definition, "guild").map((e) => e.id)).toEqual(["runs"]);
+    const definition = { embeds: [embed("runs", ["community", "initiative"])] };
+    expect(declaredEmbeds(definition, "community").map((e) => e.id)).toEqual(["runs"]);
     expect(declaredEmbeds(definition, "initiative").map((e) => e.id)).toEqual(["runs"]);
   });
 
   it("ignores entries that are not surfaces", () => {
     const definition = { embeds: [{ id: "no-path" }, null, "board", embed("real")] };
-    expect(declaredEmbeds(definition, "guild").map((e) => e.id)).toEqual(["real"]);
+    expect(declaredEmbeds(definition, "community").map((e) => e.id)).toEqual(["real"]);
   });
 
   it("has nothing when the app declares no embeds", () => {
-    expect(declaredEmbeds({}, "guild")).toEqual([]);
-    expect(declaredEmbeds(null, "guild")).toEqual([]);
+    expect(declaredEmbeds({}, "community")).toEqual([]);
+    expect(declaredEmbeds(null, "community")).toEqual([]);
   });
 });
 
@@ -89,7 +89,7 @@ describe("appEmbeds", () => {
   });
 
   it("offers an initiative surface in the initiatives the server listed", () => {
-    const definition = { embeds: [embed("runs", ["guild", "initiative"])] };
+    const definition = { embeds: [embed("runs", ["community", "initiative"])] };
     const app = { definition, surface_access: [access("runs", false, [4])] };
     expect(appEmbeds(app, 4).map((e) => e.id)).toEqual(["runs"]);
     expect(appEmbeds(app, 5)).toEqual([]);
@@ -127,7 +127,7 @@ describe("guildAppPath", () => {
     expect(
       guildAppPath({
         id: 7,
-        definition: { embeds: [embed("console", ["guild"], true)] },
+        definition: { embeds: [embed("console", ["community"], true)] },
         surface_access: [access("console", false)],
       })
     ).toBeNull();

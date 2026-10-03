@@ -448,7 +448,7 @@ async def apply_guild_tier(
             row = await _select_tier_row(session, guild_id)
 
     return BillingCommunityTierRead(
-        guild_ref=payload.guild_ref,
+        community_ref=payload.community_ref,
         tier_name=row.tier_name,
         max_storage_bytes=row.max_storage_bytes,
         max_users=row.max_users,

@@ -110,12 +110,12 @@ async def test_the_request_carries_a_signed_handoff_and_no_bare_identity(
         algorithms=["RS256"],
         audience=BILLING_PORTAL_AUDIENCE,
     )
-    assert claims["guild_role"] == "admin"
+    assert claims["community_role"] == "admin"
     assert claims["iss"] == "initiative"
     # The pair is named by reference and by nothing else, `sub` included.
     assert claims["sub"] == claims["user_ref"]
     assert claims["user_ref"].startswith("ubil_")
-    assert claims["guild_ref"].startswith("gbil_")
+    assert claims["community_ref"].startswith("gbil_")
     assert "guild_id" not in claims
 
 

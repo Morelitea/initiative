@@ -123,6 +123,11 @@ class WikiPageUpdate(PropertiesOnUpdate):
     title: Optional[TitleStr] = Field(default=None, min_length=1, max_length=255)
     is_draft: Optional[bool] = None
     content: Optional[LexicalState] = None
+    #: The ``content_version`` of the read this ``content`` was made from.
+    #: Given and still current, the write merges in, into a live editing
+    #: session too; given and out of date, it is refused with
+    #: ``*_CONTENT_CHANGED``. Left out, a live session refuses the write.
+    content_version: Optional[str] = None
     tag_ids: Optional[List[int]] = None
 
 
@@ -224,6 +229,10 @@ class WikiPageRead(WikiPageSummary):
     """One page, opened."""
 
     content: LexicalState = Field(default_factory=dict)
+    #: The version of ``content`` this read returns. Send it back with a
+    #: ``PATCH`` of ``content`` so the write merges into the body only if
+    #: nobody has changed it since. ``null`` when the body was left out.
+    content_version: Optional[str] = None
     comment_count: int = 0
 
 

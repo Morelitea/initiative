@@ -21,6 +21,7 @@ from app.models.tenant.resource_grant import ResourceGrant
 from app.core.references import unresolve_wikilinks_to
 from app.core.messages import DocumentMessages
 from app.services.tenant import attachments as attachments_service
+from app.services.tenant import body_states
 from app.services.tenant import content_references
 from app.services.tenant import ownership as ownership_service
 from app.services.tenant import properties as properties_service
@@ -311,7 +312,9 @@ async def unresolve_wikilinks_to_document(
                 # A session opens on the Yjs state, so the repair is written
                 # into it too.
                 await session.refresh(doc, ["yjs_state"])
-                doc.yjs_state = await written_into(doc.yjs_state, updated_content)
+                doc.yjs_state = await written_into(
+                    body_states.LEXICAL, doc.yjs_state, updated_content
+                )
                 flag_modified(doc, "content")
                 session.add(doc)
                 affected_doc_ids.append(doc.id)

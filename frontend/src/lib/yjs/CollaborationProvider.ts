@@ -23,7 +23,6 @@ const MSG_UPDATE = 2;
 const MSG_AWARENESS = 3;
 const MSG_AWARENESS_BINARY = 4; // y-protocols awareness encoding
 // 5 is the first frame's credential, which the live socket sends.
-const MSG_CONTENT = 6; // The editor's JSON rendering, for the document's content column
 
 /** What ``Y.encodeStateAsUpdate`` produces for a document with nothing in it.
  *  An answer to the server's SYNC_STEP1 that is this long carries no data, and
@@ -684,18 +683,6 @@ export class CollaborationProvider implements Provider {
     if (this.sentUpTo === null) return;
     this.sentUpTo = stateVector;
     this.roomState = stateVector;
-  }
-
-  /**
-   * Report the editor's JSON rendering of the document to its room.
-   *
-   * The room writes this alongside the Yjs state, from one snapshot, so the
-   * document's two stored views always describe the same moment. Only sent
-   * once synced: before that this client's doc is not yet the room's.
-   */
-  sendContent(content: unknown): void {
-    if (!this._synced) return;
-    this.sendMessage(MSG_CONTENT, new TextEncoder().encode(JSON.stringify(content)));
   }
 
   private sendMessage(type: number, payload: Uint8Array): void {

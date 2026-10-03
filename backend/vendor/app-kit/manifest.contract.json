@@ -134,10 +134,10 @@
       "members:read",
       "initiatives:read",
       "initiatives:moderate",
-      "guild:admin"
+      "community:admin"
     ],
     "surfaceScope": [
-      "guild",
+      "community",
       "initiative"
     ],
     "embedCapability": [
@@ -644,7 +644,7 @@
         },
         "scope": {
           "enum": "connectionScope",
-          "description": "Who the credential belongs to. 'static' is one credential the whole guild uses; 'interactive' is each member's own account at a vendor that authorizes people. It does not say how the credential is obtained: a static connection with a 'flow' is still one credential for the whole guild, run by an admin through the vendor's own pages rather than typed into a form. An interactive connection always declares a 'flow'."
+          "description": "Who the credential belongs to. 'static' is one credential the whole community uses; 'interactive' is each member's own account at a vendor that authorizes people. It does not say how the credential is obtained: a static connection with a 'flow' is still one credential for the whole community, run by an admin through the vendor's own pages rather than typed into a form. An interactive connection always declares a 'flow'."
         },
         "label": {
           "ref": "localizedText"
@@ -1136,9 +1136,9 @@
             "enum": "surfaceScope"
           },
           "default": [
-            "guild"
+            "community"
           ],
-          "description": "Where the surface renders. Declaring both gives it a guild-wide entry and an entry inside each initiative."
+          "description": "Where the surface renders. Declaring both gives it a community-wide entry and an entry inside each initiative."
         },
         "admin_only": {
           "type": "boolean",
@@ -1307,7 +1307,7 @@
       "type": "string",
       "minLength": 1,
       "maxLength": "expressionLength",
-      "description": "A JSONata expression (https://jsonata.org): standard JSONata, with no functions added. It reads one document. On the way out that holds 'params', the call's parameters as the caller sent them; 'connection', the non-secret fields of the connection the request names; 'now', the time of the call in ISO 8601, which $now() and $millis() also answer; and 'steps', each earlier step's answer by its name. On the way back it also holds 'response', the answer being read: {status, headers, body}, with header names in lowercase. Each evaluation is bounded: at most {expressionTimeMs} milliseconds, {expressionDepth} levels of nesting and an answer of {expressionOutputBytes} bytes as JSON. An expression that fails or passes a bound answers 'unavailable: mapping-failed'."
+      "description": "A JSONata expression (https://jsonata.org): standard JSONata, with no functions added. It reads one document. On the way out that holds 'params', the call's parameters as the caller sent them; 'connection', the non-secret fields of the connection the request names; 'connections', on an endpoint's requests and map, each connection its 'requires' names that the call has, by its id, holding the same fields; 'now', the time of the call in ISO 8601, which $now() and $millis() also answer; and 'steps', each earlier step's answer by its name. On the way back it also holds 'response', the answer being read: {status, headers, body}, with header names in lowercase. Each evaluation is bounded: at most {expressionTimeMs} milliseconds, {expressionDepth} levels of nesting and an answer of {expressionOutputBytes} bytes as JSON. An expression that fails or passes a bound answers 'unavailable: mapping-failed'."
     },
     "host": {
       "type": "string",
@@ -1393,7 +1393,7 @@
         },
         "connection": {
           "ref": "identifier",
-          "description": "Which connection's credential the request carries: a static connection's is the community's, an interactive one's the acting member's. Required on an endpoint's requests. Absent on 'after_connect' and 'health', which carry the credential of the connection they belong to."
+          "description": "Which connection's credential the request carries: a static connection's is the community's, an interactive one's the acting member's. A call made as a member carries a static connection's credential only when the endpoint's 'requires' names that connection, and is refused otherwise. Required on an endpoint's requests. Absent on 'after_connect' and 'health', which carry the credential of the connection they belong to."
         },
         "paging": {
           "ref": "paging"
@@ -1430,7 +1430,7 @@
       "properties": {
         "name": {
           "ref": "identifier",
-          "description": "Unique within the endpoint. Later steps and the map read this step's answer as 'steps.<name>'."
+          "description": "Unique among its steps. Later steps, the map and the predicates beside it read this step's answer as 'steps.<name>'."
         },
         "request": {
           "ref": "vendorRequest"
@@ -1606,28 +1606,49 @@
     },
     "afterConnect": {
       "type": "object",
-      "description": "A declarative app's after_connect: one request made with the access token just obtained, and the answer mapped to what the hook would answer. 'params' holds the flow's own parameters, such as the installation_id an install page returned.",
+      "description": "A declarative app's after_connect: a request, or up to {steps} steps, made with the access token just obtained, and the answers mapped to what the hook would answer. 'params' holds the flow's own parameters, such as the installation_id an install page returned.",
       "required": [
-        "request",
         "map"
       ],
       "properties": {
         "request": {
-          "ref": "vendorRequest"
+          "ref": "vendorRequest",
+          "description": "The one call. Not beside 'steps'."
+        },
+        "steps": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": "steps",
+          "items": {
+            "ref": "requestStep"
+          },
+          "description": "Up to {steps} calls made in order, each able to read the answers of the ones before it. Not beside 'request'."
         },
         "map": {
           "ref": "expression",
-          "description": "The connection's managed values and its account label: {\"values\": {\u2026}, \"account_label\": \"\u2026\"}."
+          "description": "The connection's managed values and its account label, from 'response' (the last call's answer) and 'steps': {\"values\": {\u2026}, \"account_label\": \"\u2026\"}."
         },
         "refuse_when": {
           "ref": "expression",
-          "description": "Refuses the connection when it holds. It reads the map's answer as 'result'."
+          "description": "Refuses the connection when it holds. It reads the map's answer as 'result', beside 'response' and 'steps'."
         },
         "code": {
           "ref": "identifier",
           "description": "What a refusal answers. Given exactly when 'refuse_when' is."
         }
       },
+      "oneOf": [
+        {
+          "required": [
+            "request"
+          ]
+        },
+        {
+          "required": [
+            "steps"
+          ]
+        }
+      ],
       "additionalProperties": false
     },
     "connectionHealth": {
@@ -1834,9 +1855,9 @@
           "ref": "endpoint"
         }
       },
-      "guild_summary": {
+      "community_summary": {
         "ref": "namespacedId",
-        "description": "A read endpoint whose declared returns describe this guild's standing with your service \u2014 what it has used, what it is allowed. A deployment may render them on the guild's own settings page, beside its own figures. Whether it does is the deployment's decision and not this manifest's: an app the operator did not ship is declaring where it would like to appear, which is not the same as appearing."
+        "description": "A read endpoint whose declared returns describe this community's standing with your service \u2014 what it has used, what it is allowed. A deployment may render them on the community's own settings page, beside its own figures. Whether it does is the deployment's decision and not this manifest's: an app the operator did not ship is declaring where it would like to appear, which is not the same as appearing."
       },
       "widgets": {
         "type": "array",
@@ -1858,7 +1879,7 @@
         "items": {
           "ref": "bundledDashboard"
         },
-        "description": "Ready-made arrangements of this app's own widgets. Publishing the app publishes one ordinary dashboard listing per entry, offered to guilds that install the app."
+        "description": "Ready-made arrangements of this app's own widgets. Publishing the app publishes one ordinary dashboard listing per entry, offered to communities that install the app."
       }
     }
   }

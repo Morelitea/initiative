@@ -551,10 +551,10 @@ async def test_a_moderator_scope_does_nothing_on_a_token_naming_no_initiative(
     [
         # The token carries a standing the seat never granted.
         (["documents:read"], ["documents:read", "initiatives:moderate"], True),
-        (["documents:read"], ["documents:read", "guild:admin"], False),
+        (["documents:read"], ["documents:read", "community:admin"], False),
         # The seat granted it and the token did not ask.
         (["documents:read", "initiatives:moderate"], ["documents:read"], True),
-        (["documents:read", "guild:admin"], ["documents:read"], False),
+        (["documents:read", "community:admin"], ["documents:read"], False),
     ],
 )
 async def test_a_standing_needs_the_grant_and_the_token(
@@ -578,7 +578,7 @@ async def test_a_guild_admin_token_administers_the_community(
     session, acting_user, role_session
 ):
     """A guild admin's standing reaches every initiative, placed in or not."""
-    granted = ["documents:read", "guild:admin"]
+    granted = ["documents:read", "community:admin"]
     install = await _install(
         session, acting_user, role_session, granted=granted, placed="a"
     )
@@ -605,7 +605,7 @@ async def test_a_narrowed_guild_admin_token_administers_that_initiative(
 ):
     """The narrowing still confines it: everything in the initiative it names,
     nothing in the other."""
-    granted = ["documents:read", "guild:admin"]
+    granted = ["documents:read", "community:admin"]
     install = await _install(session, acting_user, role_session, granted=granted)
     await _documents(session, install)
 
@@ -619,7 +619,8 @@ async def test_a_narrowed_guild_admin_token_administers_that_initiative(
 
 
 @pytest.mark.parametrize(
-    ("standing", "narrowed"), [("initiatives:moderate", True), ("guild:admin", False)]
+    ("standing", "narrowed"),
+    [("initiatives:moderate", True), ("community:admin", False)],
 )
 async def test_a_standing_reaches_no_tool_its_scopes_do_not(
     session, acting_user, role_session, standing, narrowed
