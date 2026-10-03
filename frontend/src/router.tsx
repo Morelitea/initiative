@@ -1,7 +1,7 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { createRouter } from "@tanstack/react-router";
 
-import type { GuildRead, UserRead } from "@/api/generated/initiativeAPI.schemas";
+import type { CommunityRead, UserRead } from "@/api/generated/initiativeAPI.schemas";
 import { NotFoundPage, RouteErrorPage } from "@/components/errors/ErrorPages";
 import type { NativeSession } from "@/lib/nativeSession";
 
@@ -25,19 +25,19 @@ export interface AuthContextValue {
 }
 
 export interface GuildContextValue {
-  guilds: GuildRead[];
+  guilds: CommunityRead[];
   activeGuildId: number | null;
-  activeGuild: GuildRead | null;
+  activeGuild: CommunityRead | null;
   loading: boolean;
   error: string | null;
-  refreshGuilds: () => Promise<GuildRead[]>;
+  refreshGuilds: () => Promise<CommunityRead[]>;
   switchGuild: (guildId: number) => Promise<void>;
   /** Push the server-held guild context + local state for a guild URL.
    * Awaited in the /c/$guildId beforeLoad so child routes can't fetch
    * before the context lands. Idempotent. */
   syncGuildFromUrl: (guildId: number) => Promise<void>;
   createGuild: (input: { name: string; description?: string }) => Promise<unknown>;
-  updateGuildInState: (guild: GuildRead) => void;
+  updateGuildInState: (guild: CommunityRead) => void;
   reorderGuilds: (guildIds: number[]) => void;
   canCreateGuilds: boolean;
 }

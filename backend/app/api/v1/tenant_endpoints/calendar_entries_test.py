@@ -1,6 +1,6 @@
 """Integration tests for the calendar-entries aggregate endpoints.
 
-``GET /c/{guild_id}/calendar-entries`` and ``GET /me/calendar-entries`` return a
+``GET /c/{community_id}/calendar-entries`` and ``GET /me/calendar-entries`` return a
 union of calendar events + task markers over a date window. They must be a union
 *under the existing gates* — the same events/tasks the separate list endpoints
 would return for the same actor, never more.
@@ -13,7 +13,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core import recurrence
 from app.core.messages import CalendarEventMessages
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.testing import (
     create_calendar,
     create_calendar_event,
@@ -51,7 +51,7 @@ async def _enable_events(session: AsyncSession, initiative, creator):
 async def test_guild_entries_unions_events_and_task_markers(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     calendar = await _enable_events(session, a.initiative, a.user)
 
     event = await create_calendar_event(
@@ -83,7 +83,7 @@ async def test_guild_entries_give_each_occurrence_of_a_repeat(
     one that ended before it is not. A repeating task stays where it is, and its
     next occurrences in the window come with it, up to its end. A window whose
     repeats hold more occurrences than a read expands is refused."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     calendar = await _enable_events(session, a.initiative, a.user)
     weekly = await create_calendar_event(
         session,
@@ -156,7 +156,7 @@ async def test_guild_entries_give_each_occurrence_of_a_repeat(
 async def test_guild_entries_include_flags_skip_legs(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     calendar = await _enable_events(session, a.initiative, a.user)
     await create_calendar_event(session, calendar, a.user, start_at=NOW)
     await create_task(session, a.project, due_date=NOW, assignees=[a.user])
@@ -197,7 +197,7 @@ async def test_guild_entries_hidden_from_non_member(
     (DAC: no grant) nor its tasks (initiative-member RLS) — the aggregate must
     not widen visibility beyond the per-resource list endpoints."""
     owner = await acting_user(
-        guild_role=GuildRole.member, initiative=True, project=True
+        guild_role=CommunityRole.member, initiative=True, project=True
     )
     calendar = await _enable_events(session, owner.initiative, owner.user)
     event = await create_calendar_event(session, calendar, owner.user, start_at=NOW)
@@ -206,7 +206,7 @@ async def test_guild_entries_hidden_from_non_member(
     )
 
     # Second guild member, deliberately NOT added to the initiative.
-    outsider = await acting_user(guild_role=GuildRole.member, guild=owner.guild)
+    outsider = await acting_user(guild_role=CommunityRole.member, guild=owner.guild)
 
     response = await client.get(
         outsider.g("/calendar-entries/"),
@@ -230,7 +230,7 @@ async def test_guild_entries_leave_out_an_initiative_the_reader_is_not_in(
     would be a calendar of markers for work whose events are absent.
     """
     member = await acting_user(
-        guild_role=GuildRole.member, initiative=True, project=True
+        guild_role=CommunityRole.member, initiative=True, project=True
     )
     calendar = await _enable_events(session, member.initiative, member.user)
     event = await create_calendar_event(session, calendar, member.user, start_at=NOW)
@@ -238,7 +238,7 @@ async def test_guild_entries_leave_out_an_initiative_the_reader_is_not_in(
         session, member.project, due_date=NOW, assignees=[member.user]
     )
 
-    admin = await acting_user(guild_role=GuildRole.admin, guild=member.guild)
+    admin = await acting_user(guild_role=CommunityRole.admin, guild=member.guild)
 
     response = await client.get(
         admin.g("/calendar-entries/"),
@@ -257,7 +257,7 @@ async def test_guild_entries_windows_tasks_by_params(
     """start_after/start_before bound the task leg even when the caller sends no
     matching date filter in `conditions` — the window is a first-class param, so
     an out-of-window task is excluded and the query never runs unbounded."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     in_window = await create_task(
         session, a.project, title="In window", due_date=NOW, assignees=[a.user]
     )
@@ -311,7 +311,9 @@ async def test_guild_entries_windows_tasks_by_params(
 
 async def _guild_with_project(session, user, *, name):
     guild = await create_guild(session, creator=user, name=name)
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=user, guild=guild, role=CommunityRole.admin
+    )
     initiative = await create_initiative(session, guild, user, name=f"{name} Init")
     calendar = await _enable_events(session, initiative, user)
     project = await create_project(session, initiative, user, name=f"{name} Project")
@@ -324,7 +326,7 @@ async def test_guild_scope_returns_every_guild_calendar_s_events(
     """``scope=guild`` asks by kind, so the answer does not depend on the caller
     first assembling a list of calendar ids — a list which would be one page of
     them, with everything after it silently undrawn."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     initiative_calendar = await _enable_events(session, a.initiative, a.user)
     await create_calendar_event(
         session, initiative_calendar, a.user, title="Standup", start_at=NOW

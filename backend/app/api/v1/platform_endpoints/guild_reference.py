@@ -44,8 +44,8 @@ from app.models.platform.app_service_registration import (
 )
 from app.models.platform.identity_ref import IdentityEntity, IdentityPurpose
 from app.schemas.marketplace.guild_reference import (
-    GuildReferenceRead,
-    GuildReferenceRequest,
+    CommunityReferenceRead,
+    CommunityReferenceRequest,
     InstallationReferenceRequest,
 )
 from app.services.marketplace import app_refs
@@ -82,7 +82,7 @@ async def _answer_installation(
     system_session: AsyncSession,
     bearer: str,
     body: bytes,
-) -> GuildReferenceRead:
+) -> CommunityReferenceRead:
     """Name the token's community in a sector its registration carries."""
     installation = await installation_caller(request, session, bearer)
 
@@ -134,16 +134,16 @@ async def _answer_installation(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=BundledChannelMessages.NO_SUCH_NAME,
         )
-    return GuildReferenceRead(purpose=payload.purpose, guild_ref=ref)
+    return CommunityReferenceRead(purpose=payload.purpose, guild_ref=ref)
 
 
-@router.post("/community-reference", response_model=GuildReferenceRead)
-async def read_guild_reference(
+@router.post("/community-reference", response_model=CommunityReferenceRead)
+async def read_community_reference(
     request: Request,
     session: SessionDep,
     system_session: SystemSessionDep,
     bearer: Annotated[Optional[str], Depends(oauth2_scheme)] = None,
-) -> GuildReferenceRead:
+) -> CommunityReferenceRead:
     """Name the caller's guild in another sector."""
     body = await request.body()
     if bearer and is_access_token(bearer):
@@ -170,7 +170,7 @@ async def read_guild_reference(
         ) from exc
 
     try:
-        payload = GuildReferenceRequest.model_validate_json(body)
+        payload = CommunityReferenceRequest.model_validate_json(body)
     except ValidationError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -203,4 +203,4 @@ async def read_guild_reference(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=BundledChannelMessages.NO_SUCH_NAME,
         )
-    return GuildReferenceRead(purpose=payload.purpose, guild_ref=ref)
+    return CommunityReferenceRead(purpose=payload.purpose, guild_ref=ref)

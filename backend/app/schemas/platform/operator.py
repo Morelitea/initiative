@@ -24,7 +24,7 @@ class OperatorUserDeleteRequest(SanitizedBaseModel):
     project_transfers: Optional[Dict[str, int]] = None
 
 
-class GuildBlockerInfo(SanitizedBaseModel):
+class CommunityBlockerInfo(SanitizedBaseModel):
     """Info about a guild blocking user deletion."""
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
@@ -40,7 +40,7 @@ class OperatorDeletionEligibilityResponse(SanitizedBaseModel):
 
     can_delete: bool
     blockers: List[str] = Field(default_factory=list)
-    guild_blockers: List[GuildBlockerInfo] = Field(default_factory=list)
+    guild_blockers: List[CommunityBlockerInfo] = Field(default_factory=list)
 
 
 class OperatorUsernameUpdate(SanitizedBaseModel):

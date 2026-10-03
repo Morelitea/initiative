@@ -2,18 +2,18 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 
 import type {
   EntityType,
-  ListGuildTrashApiV1CGuildIdTrashGetParams,
-  ListMyTrashApiV1MeTrashGetParams,
+  ListCommunityTrashParams,
+  ListMyTrashParams,
   RestoreResponse,
   TrashListResponse,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
-  getListGuildTrashApiV1CGuildIdTrashGetQueryKey,
-  getListMyTrashApiV1MeTrashGetQueryKey,
-  listGuildTrashApiV1CGuildIdTrashGet,
-  listMyTrashApiV1MeTrashGet,
-  purgeTrashEntityApiV1CGuildIdTrashEntityTypeEntityIdPurgeDelete,
-  restoreTrashEntityApiV1CGuildIdTrashEntityTypeEntityIdRestorePost,
+  getListCommunityTrashQueryKey,
+  getListMyTrashQueryKey,
+  listCommunityTrash,
+  listMyTrash,
+  purgeTrashEntity,
+  restoreTrashEntity,
 } from "@/api/generated/trash/trash";
 import { invalidate, q, type Spec } from "@/api/query-keys";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
@@ -28,13 +28,10 @@ import type { QueryOpts } from "@/types/query";
  * settings page — user-scoped, no guild context. Restore/purge are addressed
  * per item via its `guild_id`.
  */
-export const useMyTrashList = (
-  params: ListMyTrashApiV1MeTrashGetParams,
-  options?: QueryOpts<TrashListResponse>
-) =>
+export const useMyTrashList = (params: ListMyTrashParams, options?: QueryOpts<TrashListResponse>) =>
   useQuery<TrashListResponse>({
-    queryKey: getListMyTrashApiV1MeTrashGetQueryKey(params),
-    queryFn: () => listMyTrashApiV1MeTrashGet(params),
+    queryKey: getListMyTrashQueryKey(params),
+    queryFn: () => listMyTrash(params),
     placeholderData: keepPreviousData,
     ...options,
   });
@@ -45,13 +42,13 @@ export const useMyTrashList = (
  * 403s); they use {@link useMyTrashList} instead.
  */
 export const useGuildTrashList = (
-  params: ListGuildTrashApiV1CGuildIdTrashGetParams,
+  params: ListCommunityTrashParams,
   options?: QueryOpts<TrashListResponse>
 ) => {
   const guildId = useActiveGuildId();
   return useQuery<TrashListResponse>({
-    queryKey: getListGuildTrashApiV1CGuildIdTrashGetQueryKey(guildId, params),
-    queryFn: () => listGuildTrashApiV1CGuildIdTrashGet(guildId, params),
+    queryKey: getListCommunityTrashQueryKey(guildId, params),
+    queryFn: () => listCommunityTrash(guildId, params),
     placeholderData: keepPreviousData,
     ...options,
   });
@@ -104,19 +101,15 @@ export const useRestoreTrashEntity = (
       entityType,
       entityId,
     }: RestoreTrashVars): Promise<RestoreResponse> =>
-      restoreTrashEntityApiV1CGuildIdTrashEntityTypeEntityIdRestorePost(
-        guildId,
-        entityType,
-        entityId
-      ),
+      restoreTrashEntity(guildId, entityType, entityId),
     onSuccess: (...args) => {
       const [, variables] = args;
       // Invalidate both trash views (personal /me and the item's guild), every
       // page of each (the keys without params are prefixes), so the restored
       // row disappears from both.
-      void queryClient.invalidateQueries({ queryKey: getListMyTrashApiV1MeTrashGetQueryKey() });
+      void queryClient.invalidateQueries({ queryKey: getListMyTrashQueryKey() });
       void queryClient.invalidateQueries({
-        queryKey: getListGuildTrashApiV1CGuildIdTrashGetQueryKey(variables.guildId),
+        queryKey: getListCommunityTrashQueryKey(variables.guildId),
       });
       const restored = RESTORED[variables.entityType];
       if (restored) void invalidate(restored());
@@ -144,17 +137,13 @@ export const usePurgeTrashEntity = (options?: MutationOpts<void, PurgeTrashVars>
   return useMutation({
     ...rest,
     mutationFn: async ({ guildId, entityType, entityId }: PurgeTrashVars) => {
-      await purgeTrashEntityApiV1CGuildIdTrashEntityTypeEntityIdPurgeDelete(
-        guildId,
-        entityType,
-        entityId
-      );
+      await purgeTrashEntity(guildId, entityType, entityId);
     },
     onSuccess: (...args) => {
       const [, variables] = args;
-      void queryClient.invalidateQueries({ queryKey: getListMyTrashApiV1MeTrashGetQueryKey() });
+      void queryClient.invalidateQueries({ queryKey: getListMyTrashQueryKey() });
       void queryClient.invalidateQueries({
-        queryKey: getListGuildTrashApiV1CGuildIdTrashGetQueryKey(variables.guildId),
+        queryKey: getListCommunityTrashQueryKey(variables.guildId),
       });
       onSuccess?.(...args);
     },

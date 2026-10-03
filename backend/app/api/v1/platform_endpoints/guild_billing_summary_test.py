@@ -4,7 +4,7 @@ from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.services.platform import billing_ping
 from app.testing.factories import (
     create_guild,
@@ -47,13 +47,13 @@ async def _guild_with_seat(session: AsyncSession):
     admin = await create_user(session)
     member = await create_user(session)
     await create_guild_membership(
-        session, user=seat, guild=guild, role=GuildRole.superadmin
+        session, user=seat, guild=guild, role=CommunityRole.superadmin
     )
     await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
+        session, user=admin, guild=guild, role=CommunityRole.admin
     )
     await create_guild_membership(
-        session, user=member, guild=guild, role=GuildRole.member
+        session, user=member, guild=guild, role=CommunityRole.member
     )
     await session.commit()
     return guild, seat, admin, member

@@ -11,7 +11,7 @@ from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.messages import AuthProviderMessages
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.platform.user import UserRole
 from app.services.auth import provider_probe
 from app.testing.factories import (
@@ -54,7 +54,7 @@ async def _superadmin(session: AsyncSession):
     admin = await create_user(session)
     guild = await create_guild(session, creator=admin)
     await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.superadmin
+        session, user=admin, guild=guild, role=CommunityRole.superadmin
     )
     return admin, guild
 

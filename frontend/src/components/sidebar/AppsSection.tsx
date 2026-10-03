@@ -42,7 +42,7 @@ import {
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { type GuildAppRead, ListingKind } from "@/api/generated/initiativeAPI.schemas";
+import { type CommunityAppRead, ListingKind } from "@/api/generated/initiativeAPI.schemas";
 import { AppSettingsDialog } from "@/components/apps/AppSettingsDialog";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -180,7 +180,7 @@ export function AppsSection({ isGuildAdmin, open, onOpenChange }: AppsSectionPro
   );
 }
 
-function AppEntry({ app, isGuildAdmin }: { app: GuildAppRead; isGuildAdmin: boolean }) {
+function AppEntry({ app, isGuildAdmin }: { app: CommunityAppRead; isGuildAdmin: boolean }) {
   const { t } = useTranslation(["apps"]);
   const gp = useGuildPath();
   const [settingsOpen, setSettingsOpen] = useState(false);

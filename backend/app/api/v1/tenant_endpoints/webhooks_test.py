@@ -20,7 +20,7 @@ from contextlib import contextmanager
 from unittest.mock import patch
 
 
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.db.request_context import SystemGuild
 
 
@@ -69,7 +69,7 @@ def _body(**overrides) -> dict:
 async def test_a_guild_member_may_register_a_subscription(client, acting_user):
     """No special permission: what the target receives is capped by the
     creator's own access at delivery time, so registering grants nothing."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
 
     with _mock_public_dns():
         response = await client.post(
@@ -93,7 +93,7 @@ async def test_dead_letter_count_is_visible_on_every_read(client, acting_user, s
 
     from app.db.session import set_rls_context
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
     with _mock_public_dns():
         created = await client.post(
             _url(a.guild.id),
@@ -121,7 +121,7 @@ async def test_dead_letter_count_is_visible_on_every_read(client, acting_user, s
 
 
 async def test_the_secret_is_never_returned_again(client, acting_user):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
     with _mock_public_dns():
         await client.post(
             _url(a.guild.id),
@@ -139,7 +139,7 @@ async def test_the_secret_is_never_returned_again(client, acting_user):
 async def test_an_unknown_event_type_is_refused(client, acting_user):
     """The failure this whole mechanism exists to remove: a subscription that
     registers cleanly and can never fire."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
 
     with _mock_public_dns():
         response = await client.post(
@@ -153,7 +153,7 @@ async def test_an_unknown_event_type_is_refused(client, acting_user):
 
 
 async def test_an_unknown_field_is_refused(client, acting_user):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
 
     with _mock_public_dns():
         response = await client.post(
@@ -173,7 +173,7 @@ async def test_an_unknown_field_is_refused(client, acting_user):
 async def test_a_junction_facet_is_a_nameable_field(client, acting_user):
     """``tags`` is not a column on tasks — a row in ``task_tags`` reports as
     ``tasks.updated`` with ``changed: ['tags']``, so it has to be nameable."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
 
     with _mock_public_dns():
         response = await client.post(
@@ -194,7 +194,7 @@ async def test_a_co_member_with_write_access_may_rewrite_it(client, acting_user)
     """Authorship is not a gate in this app. Someone who can edit an
     initiative's tasks can edit its webhooks — the UPDATE policy is the same
     initiative_access(..., need_write=true) that governs the content."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     with _mock_public_dns():
         created = await client.post(
             _url(a.guild.id),
@@ -204,7 +204,7 @@ async def test_a_co_member_with_write_access_may_rewrite_it(client, acting_user)
     subscription_id = created.json()["id"]
 
     b = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="member",
@@ -220,7 +220,7 @@ async def test_a_co_member_with_write_access_may_rewrite_it(client, acting_user)
 
 
 async def test_a_guild_admin_may_rewrite_any_of_them(client, acting_user):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
     with _mock_public_dns():
         created = await client.post(
             _url(a.guild.id),
@@ -229,7 +229,7 @@ async def test_a_guild_admin_may_rewrite_any_of_them(client, acting_user):
         )
     subscription_id = created.json()["id"]
 
-    admin = await acting_user(guild_role=GuildRole.admin, guild=a.guild)
+    admin = await acting_user(guild_role=CommunityRole.admin, guild=a.guild)
     response = await client.patch(
         _url(a.guild.id, f"/{subscription_id}"),
         json={"active": False},
@@ -241,7 +241,7 @@ async def test_a_guild_admin_may_rewrite_any_of_them(client, acting_user):
 
 
 async def test_a_subscription_in_another_guild_is_not_found(client, acting_user):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     with _mock_public_dns():
         created = await client.post(
             _url(a.guild.id),
@@ -250,7 +250,7 @@ async def test_a_subscription_in_another_guild_is_not_found(client, acting_user)
         )
     subscription_id = created.json()["id"]
 
-    other = await acting_user(guild_role=GuildRole.admin)
+    other = await acting_user(guild_role=CommunityRole.admin)
     response = await client.delete(
         _url(other.guild.id, f"/{subscription_id}"), headers=other.headers
     )
@@ -259,7 +259,7 @@ async def test_a_subscription_in_another_guild_is_not_found(client, acting_user)
 
 
 async def test_a_private_target_url_is_refused(client, acting_user):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
 
     response = await client.post(
         _url(a.guild.id),
@@ -279,7 +279,7 @@ async def test_an_initiative_subscription_is_visible_to_that_initiative(
 ):
     """It is that initiative's integration config, not the private note of
     whoever typed the URL — a co-member reaches it like any other content."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
     with _mock_public_dns():
         created = await client.post(
             _url(a.guild.id),
@@ -289,7 +289,7 @@ async def test_an_initiative_subscription_is_visible_to_that_initiative(
     assert created.status_code == 201, created.text
 
     mate = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="member",
@@ -302,7 +302,7 @@ async def test_an_initiative_subscription_is_visible_to_that_initiative(
 
 async def test_a_non_member_of_the_initiative_does_not_see_it(client, acting_user):
     """The hard isolation boundary applies here like anywhere else."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
     with _mock_public_dns():
         await client.post(
             _url(a.guild.id),
@@ -310,7 +310,7 @@ async def test_a_non_member_of_the_initiative_does_not_see_it(client, acting_use
             headers=a.headers,
         )
 
-    outsider = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+    outsider = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
     listing = await client.get(_url(a.guild.id), headers=outsider.headers)
 
     assert listing.status_code == 200
@@ -321,14 +321,14 @@ async def test_a_guild_wide_subscription_is_admin_only(client, acting_user):
     """Naming no initiative means it reports across all of them, so reaching it
     is guild-admin authority — the ordinary NULL answer would admit any member.
     """
-    admin = await acting_user(guild_role=GuildRole.admin)
+    admin = await acting_user(guild_role=CommunityRole.admin)
     with _mock_public_dns():
         created = await client.post(
             _url(admin.guild.id), json=_body(), headers=admin.headers
         )
     assert created.status_code == 201, created.text
 
-    member = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
+    member = await acting_user(guild_role=CommunityRole.member, guild=admin.guild)
     listing = await client.get(_url(admin.guild.id), headers=member.headers)
 
     assert listing.status_code == 200
@@ -342,7 +342,7 @@ async def test_a_guild_wide_subscription_is_admin_only(client, acting_user):
 
 
 async def test_a_url_carrying_credentials_is_refused(client, acting_user):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
 
     with _mock_public_dns():
         response = await client.post(
@@ -362,7 +362,7 @@ async def test_a_fields_only_update_is_accepted(client, acting_user):
     """Validation judges the row the patch produces, not the patch alone —
     otherwise a fields-only change has no event types to check against and a
     valid narrowing is rejected."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
     with _mock_public_dns():
         created = await client.post(
             _url(a.guild.id),
@@ -384,7 +384,7 @@ async def test_a_fields_only_update_is_accepted(client, acting_user):
 async def test_narrowing_events_rechecks_the_stored_fields(client, acting_user):
     """The other direction: changing only event_types must re-check the fields
     already stored, or a filter that can never match survives the narrowing."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
     with _mock_public_dns():
         created = await client.post(
             _url(a.guild.id),
@@ -418,7 +418,7 @@ async def test_complementary_patches_cannot_commit_an_impossible_pair(
     fields to a task column, and the subscription can never fire again. The row
     is locked for the check, so the second re-reads what the first wrote.
     """
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
     with _mock_public_dns():
         created = await client.post(
             _url(a.guild.id),
@@ -456,7 +456,7 @@ async def test_complementary_patches_cannot_commit_an_impossible_pair(
 async def test_a_subscription_names_the_guild_by_reference(client, acting_user):
     """A row id would be the same value everywhere, and every receiver would
     hold it. The reference is this subscription's own."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
 
     with _mock_public_dns():
         response = await client.post(
@@ -480,7 +480,7 @@ async def test_two_subscriptions_hold_unrelated_names_for_one_guild(
     """The property that makes the name worth minting: two receivers cannot put
     their envelopes side by side and see the same guild — and the list, which
     names every row at once, gives each its own."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
 
     with _mock_public_dns():
         first = await client.post(
@@ -513,7 +513,7 @@ async def test_the_name_a_subscription_is_given_is_the_one_it_keeps(
 ):
     """Read back on the list and on a patch, because a receiver matching an
     envelope against what it stored has to find the same value."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
 
     with _mock_public_dns():
         created = (

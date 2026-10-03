@@ -13,7 +13,7 @@ document (:func:`build_app_openapi`) is cut from it:
   and that a stored file it shows comes without its path;
 - every field holding a file's path (``x-upload``) says that a stored file
   comes as an empty string;
-- paths start after ``/api/v1/c/{guild_id}``, served from ``/api/v1/c/0``: an
+- paths start after ``/api/v1/c/{community_id}``, served from ``/api/v1/c/0``: an
   install's community comes from its token;
 - each operation is named after its route;
 - the one credential is the installation's access token.
@@ -164,11 +164,10 @@ def build_app_openapi(
         parameters = [
             parameter
             for parameter in operation.get("parameters", ())
-            if not (parameter["in"] == "path" and parameter["name"] == "guild_id")
+            if not (parameter["in"] == "path" and parameter["name"] == "community_id")
         ]
         rewritten = {
             **operation,
-            "operationId": route.name,
             "security": [{_SECURITY_SCHEME: []}],
         }
         rewritten.pop("parameters", None)

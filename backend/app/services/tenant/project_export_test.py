@@ -13,7 +13,7 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.tenant.project import Project
 from app.models.tenant.property import (
     PropertyDefinition,
@@ -50,10 +50,10 @@ async def _seed_populated_project(session: AsyncSession):
     assignee = await create_user(session, email="alice@example.com")
     guild = await create_guild(session)
     await create_guild_membership(
-        session, user=owner, guild=guild, role=GuildRole.admin
+        session, user=owner, guild=guild, role=CommunityRole.admin
     )
     await create_guild_membership(
-        session, user=assignee, guild=guild, role=GuildRole.member
+        session, user=assignee, guild=guild, role=CommunityRole.member
     )
     initiative = await create_initiative(
         session, guild, owner, name="Source Initiative"
@@ -391,7 +391,7 @@ async def test_schema_version_unsupported_rejected(session: AsyncSession):
     owner = await create_user(session)
     guild = await create_guild(session)
     await create_guild_membership(
-        session, user=owner, guild=guild, role=GuildRole.admin
+        session, user=owner, guild=guild, role=CommunityRole.admin
     )
     target_initiative = await create_initiative(session, guild, owner)
 

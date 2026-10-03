@@ -296,7 +296,7 @@ def test_the_generic_tool_tags_route_is_the_only_tool_set_tags_surface():
         for path, item in spec["paths"].items()
         if "put" in item and path.endswith("/tags")
     }
-    generic = "/api/v1/c/{guild_id}/tools/{tool}/{tool_id}/tags"
+    generic = "/api/v1/c/{community_id}/tools/{tool}/{tool_id}/tags"
     assert put_tag_paths == {generic}
 
     tool_param = next(

@@ -62,8 +62,8 @@ from app.models.platform.app_service_registration import (
 from app.models.platform.guild import (
     GUILD_LADDER,
     LIVE_STATUS_VALUES,
-    GuildRole,
-    GuildStatus,
+    CommunityRole,
+    CommunityStatus,
 )
 from app.models.platform.identity_ref import (
     REF_GRACE_PERIOD,
@@ -80,7 +80,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from sqlalchemy.ext.asyncio import AsyncSession
 
     from app.models.platform.access_grant import AccessGrant
-    from app.models.platform.guild import Guild, GuildMembership, GuildRole
+    from app.models.platform.guild import Guild, GuildMembership, CommunityRole
 
 __all__ = [
     "ActorContext",
@@ -98,8 +98,8 @@ __all__ = [
 
 #: The rungs that administer a community, as the ladder orders them — the
 #: one spelling the admin fact and the settings rung are read off.
-_ADMIN_RUNGS: tuple[GuildRole, ...] = tuple(
-    rung for rung in GUILD_LADDER if rung.reaches(GuildRole.admin)
+_ADMIN_RUNGS: tuple[CommunityRole, ...] = tuple(
+    rung for rung in GUILD_LADDER if rung.reaches(CommunityRole.admin)
 )
 _ADMIN_RUNGS_SQL = sql_values(rung.value for rung in _ADMIN_RUNGS)
 #: The highest rung held wins, so the ladder is walked from the top.
@@ -230,7 +230,7 @@ _PERSON_STANDING: dict[gucs.Guc, str] = {
     ), '')""",
     gucs.GUILD_AUTH_OK: """   (SELECT public.guild_auth_satisfied()::text)""",
     gucs.CONTENT_HOLD: f"""COALESCE((
-      SELECT (g.status = '{GuildStatus.read_only.value}')::text
+      SELECT (g.status = '{CommunityStatus.read_only.value}')::text
       FROM public.guilds g
       WHERE g.id = {gucs.GUILD_ID}
     ), 'false')""",
@@ -373,7 +373,7 @@ _INSTALL_STANDING: dict[gucs.Guc, str] = {
     ), '')""",
     gucs.GUILD_AUTH_OK: """   (SELECT EXISTS (SELECT 1 FROM install))::text""",
     gucs.CONTENT_HOLD: f"""COALESCE((
-      SELECT (g.status = '{GuildStatus.read_only.value}')::text
+      SELECT (g.status = '{CommunityStatus.read_only.value}')::text
       FROM public.guilds g
       WHERE g.id = {gucs.GUILD_ID}
     ), 'false')""",
@@ -446,7 +446,7 @@ WITH consent AS (
 ),
 install AS (
   SELECT a.id, {ISSUABLE_SCOPES_SQL} AS granted_scopes,
-         g.status = '{GuildStatus.read_only.value}' AS read_only
+         g.status = '{CommunityStatus.read_only.value}' AS read_only
   FROM guild_apps a
   JOIN public.guilds g ON g.id = {gucs.GUILD_ID}
   WHERE a.id = {gucs.INSTALL_ID}
@@ -685,7 +685,7 @@ class GuildContext:
     # --- Identity ------------------------------------------------------------
 
     @property
-    def role(self) -> "GuildRole":
+    def role(self) -> "CommunityRole":
         """The seat this request holds in the community.
 
         A grantee holds ``support`` — a first-class identity for granted access
@@ -694,8 +694,8 @@ class GuildContext:
         read separately.
         """
         if self.guild_role is None:
-            return GuildRole.support
-        return GuildRole(self.guild_role)
+            return CommunityRole.support
+        return CommunityRole(self.guild_role)
 
     @property
     def is_admin(self) -> bool:
@@ -707,7 +707,7 @@ class GuildContext:
         return self.guild_admin
 
     @property
-    def rung(self) -> "GuildRole":
+    def rung(self) -> "CommunityRole":
         """The rung this request administers the community at.
 
         The membership row's, or the one a live settings grant lends for its
@@ -716,10 +716,10 @@ class GuildContext:
         is what a decision about the roster or the seat asks.
         """
         if self.membership is None and self.settings_rung is not None:
-            return GuildRole(self.settings_rung)
+            return CommunityRole(self.settings_rung)
         return self.role
 
-    def reaches(self, rung: "GuildRole", *, settings: bool = False) -> bool:
+    def reaches(self, rung: "CommunityRole", *, settings: bool = False) -> bool:
         """Whether this request carries what ``rung`` carries, by the standing.
 
         The community's ladder asked of a request rather than of a row: the
@@ -732,14 +732,14 @@ class GuildContext:
         settings grant also answers at the rung it lends. Everywhere else the
         rungs above member are the membership row's alone.
         """
-        if rung is GuildRole.superadmin:
+        if rung is CommunityRole.superadmin:
             return self.guild_seat and (settings or self.guild_admin)
-        if rung is GuildRole.admin:
+        if rung is CommunityRole.admin:
             return self.guild_admin or (settings and self.settings_rung is not None)
-        if rung is GuildRole.member:
-            return self.guild_role is not None and GuildRole(self.guild_role).reaches(
-                GuildRole.member
-            )
+        if rung is CommunityRole.member:
+            return self.guild_role is not None and CommunityRole(
+                self.guild_role
+            ).reaches(CommunityRole.member)
         return True
 
     @property
@@ -753,8 +753,8 @@ class GuildContext:
         what a guard checks once the standing is in.
         """
         return (
-            self.guild_role == GuildRole.superadmin.value
-            or self.settings_grant_level == GuildRole.superadmin.value
+            self.guild_role == CommunityRole.superadmin.value
+            or self.settings_grant_level == CommunityRole.superadmin.value
         )
 
     @property
@@ -777,7 +777,7 @@ class GuildContext:
         """Whether this request may change the community configuration it
         reaches: the rung that reaches it, and a membership row or a
         ``read_write`` content grant beside that rung."""
-        return self.reaches(GuildRole.admin, settings=True) and self.grant_writes
+        return self.reaches(CommunityRole.admin, settings=True) and self.grant_writes
 
     # --- The two grant axes --------------------------------------------------
 

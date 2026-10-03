@@ -26,7 +26,7 @@ from app.models.tenant.reaction_digest import ReactionDigestItem
 from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
 from app.schemas.platform.notification_prefs import (
     EmailSchedule,
-    GuildNotificationSettings,
+    CommunityNotificationSettings,
     NotificationCategoryRead,
     NotificationPreferencesRead,
     NotificationPreferencesUpdate,
@@ -119,7 +119,7 @@ async def read_my_notification_preferences(
     ).all()
     guild_docs = _section(doc, "guilds")
     guilds = [
-        GuildNotificationSettings(
+        CommunityNotificationSettings(
             guild_id=guild.id,
             guild_name=guild.name,
             level=prefs_service.level_for(doc, guild.id),

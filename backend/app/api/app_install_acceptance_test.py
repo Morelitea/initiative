@@ -3,7 +3,7 @@
 Each test installs an app the way a community does (``install_app``: placed in
 initiative A and not in B, granted scopes by the seat, registered by the
 operator), seals an installation token for it, and calls ordinary
-``/c/{guild_id}/…`` routes with that token. Postgres decides what the install
+``/c/{community_id}/…`` routes with that token. Postgres decides what the install
 reaches; these tests hold the routes' side of it: reach, narrowing, live
 revocation, authorship, the identity boundary, route opt-in and round trips.
 """
@@ -27,7 +27,7 @@ from app.core.app_scopes import ALL_SCOPES
 from app.core.messages import AppMessages
 from app.db.search_index import COMMENT_PREVIEW_CHARS
 from app.main import app
-from app.models.platform.guild import Guild, GuildRole, GuildStatus
+from app.models.platform.guild import Guild, CommunityRole, CommunityStatus
 from app.models.platform.notification import Notification, NotificationType
 from app.models.tenant.app_placement import AppPlacement
 from app.models.tenant.comment import Comment
@@ -462,7 +462,7 @@ async def test_switching_off_takes_effect_on_the_next_request(
     else:
         guild = await session.get(Guild, installed.guild.id)
         assert guild is not None
-        guild.status = GuildStatus.suspended
+        guild.status = CommunityStatus.suspended
         session.add(guild)
     await session.commit()
 
@@ -573,7 +573,7 @@ async def test_member_search_names_members_by_reference_and_carries_no_address(
     installed = await install_app(
         session, acting_user, role_session, granted=["members:read"]
     )
-    elsewhere = await acting_user(guild_role=GuildRole.member)
+    elsewhere = await acting_user(guild_role=CommunityRole.member)
     headers = install_headers(installed, ["members:read"])
 
     response = await client.get(
@@ -614,12 +614,12 @@ async def test_member_search_narrows_to_an_initiative_the_install_is_placed_in(
         session, acting_user, role_session, granted=["members:read"]
     )
     inside = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=installed.guild,
         initiative=installed.placed,
         initiative_role="member",
     )
-    outside = await acting_user(guild_role=GuildRole.member, guild=installed.guild)
+    outside = await acting_user(guild_role=CommunityRole.member, guild=installed.guild)
     headers = install_headers(installed, ["members:read"])
     url = guild_url(installed.guild.id, "/users/search")
 
@@ -715,7 +715,7 @@ async def test_an_uploaded_picture_reaches_an_app_by_reference_under_members_rea
     reads = ["projects:read", "members:read"]
     installed = await install_app(session, acting_user, role_session, granted=reads)
     seat = installed.seat
-    elsewhere = await acting_user(guild_role=GuildRole.member)
+    elsewhere = await acting_user(guild_role=CommunityRole.member)
     picture = png(64, 64)
     for person in (seat.user, elsewhere.user):
         await user_avatars.store_avatar(
@@ -780,7 +780,7 @@ async def test_a_write_naming_three_people_costs_the_same_two(
     installed = await install_app(session, acting_user, role_session, granted=scopes)
     for _ in range(3):
         await acting_user(
-            guild_role=GuildRole.member,
+            guild_role=CommunityRole.member,
             guild=installed.guild,
             initiative=installed.placed,
             initiative_role="member",
@@ -919,7 +919,7 @@ async def test_a_response_mentioning_three_people_costs_one_statement_cold(
     scopes = ["projects:read", "comments:read"]
     installed = await install_app(session, acting_user, role_session, granted=scopes)
     people = [
-        await acting_user(guild_role=GuildRole.member, guild=installed.guild)
+        await acting_user(guild_role=CommunityRole.member, guild=installed.guild)
         for _ in range(3)
     ]
     project = await _open_project(session, installed, installed.placed, "Open A")
@@ -952,7 +952,7 @@ async def test_a_mention_it_writes_is_stored_by_row_id(
     scopes = ["comments:write", "documents:write", "members:read"]
     installed = await install_app(session, acting_user, role_session, granted=scopes)
     member = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=installed.guild,
         initiative=installed.placed,
         initiative_role="member",

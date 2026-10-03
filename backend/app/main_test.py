@@ -6,6 +6,7 @@ import json
 
 import pytest
 from fastapi import FastAPI
+from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 from fastapi.exceptions import RequestValidationError
 from httpx import ASGITransport, AsyncClient
@@ -306,3 +307,13 @@ def test_mcp_is_served_with_or_without_the_trailing_slash() -> None:
 
     # The rewrite is that one path and nothing around it.
     assert http.get(f"{prefix}other", follow_redirects=False).status_code == 404
+
+
+@pytest.mark.always
+def test_every_operation_has_its_own_name() -> None:
+    names = [
+        route.name
+        for route in main_module.app.routes
+        if isinstance(route, APIRoute) and route.include_in_schema
+    ]
+    assert sorted({n for n in names if names.count(n) > 1}) == []

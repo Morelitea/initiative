@@ -1,12 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 
 import {
-  createAnnouncementApiV1AnnouncementsOperatorPost,
-  deleteAnnouncementApiV1AnnouncementsOperatorAnnouncementIdDelete,
-  getListAllAnnouncementsApiV1AnnouncementsOperatorGetQueryKey,
-  listAllAnnouncementsApiV1AnnouncementsOperatorGet,
-  updateAnnouncementApiV1AnnouncementsOperatorAnnouncementIdPatch,
-  uploadAnnouncementImageApiV1AnnouncementsOperatorImagesPost,
+  createAnnouncement,
+  deleteAnnouncement,
+  getListAllAnnouncementsQueryKey,
+  listAllAnnouncements,
+  updateAnnouncement,
+  uploadAnnouncementImage,
 } from "@/api/generated/announcements/announcements";
 import type {
   AnnouncementImageRead,
@@ -22,32 +22,31 @@ import type { QueryOpts } from "@/types/query";
 /** Every announcement, drafts and compiled-in notices included. */
 export const usePlatformAnnouncements = (options?: QueryOpts<AnnouncementOperatorListResponse>) =>
   useQuery<AnnouncementOperatorListResponse>({
-    queryKey: getListAllAnnouncementsApiV1AnnouncementsOperatorGetQueryKey(),
-    queryFn: () => listAllAnnouncementsApiV1AnnouncementsOperatorGet(),
+    queryKey: getListAllAnnouncementsQueryKey(),
+    queryFn: () => listAllAnnouncements(),
     ...options,
   });
 
 export const useCreateAnnouncement = () =>
   useApiMutation<AnnouncementOperatorRead, AnnouncementWrite>({
-    mutationFn: (data) => createAnnouncementApiV1AnnouncementsOperatorPost(data),
+    mutationFn: (data) => createAnnouncement(data),
     invalidate: () => invalidate(q.announcements()),
   });
 
 export const useUpdateAnnouncement = () =>
   useApiMutation<AnnouncementOperatorRead, { id: number; data: AnnouncementUpdate }>({
-    mutationFn: ({ id, data }) =>
-      updateAnnouncementApiV1AnnouncementsOperatorAnnouncementIdPatch(id, data),
+    mutationFn: ({ id, data }) => updateAnnouncement(id, data),
     invalidate: () => invalidate(q.announcements()),
   });
 
 export const useDeleteAnnouncement = () =>
   useApiMutation<void, number>({
-    mutationFn: (id) => deleteAnnouncementApiV1AnnouncementsOperatorAnnouncementIdDelete(id),
+    mutationFn: (id) => deleteAnnouncement(id),
     invalidate: () => invalidate(q.announcements()),
   });
 
 /** Store one picture and get back the URL a section should point at. */
 export const useUploadAnnouncementImage = () =>
   useApiMutation<AnnouncementImageRead, File>({
-    mutationFn: (file) => uploadAnnouncementImageApiV1AnnouncementsOperatorImagesPost({ file }),
+    mutationFn: (file) => uploadAnnouncementImage({ file }),
   });

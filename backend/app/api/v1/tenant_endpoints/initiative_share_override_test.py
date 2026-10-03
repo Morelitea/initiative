@@ -12,7 +12,7 @@ from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.tenant.initiative import (
     Initiative,
     InitiativeMember,
@@ -49,18 +49,18 @@ async def _setup(session: AsyncSession, acting_user):
     """admin = guild admin + initiative creator; owner = a PM who owns a
     restricted project; pm = a second PM, the one moved onto moderator."""
     admin = await acting_user(
-        guild_role=GuildRole.admin, initiative=True, email="admin@example.com"
+        guild_role=CommunityRole.admin, initiative=True, email="admin@example.com"
     )
     initiative = admin.initiative
     owner = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=admin.guild,
         initiative=initiative,
         initiative_role="project_manager",
         email="owner@example.com",
     )
     pm = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=admin.guild,
         initiative=initiative,
         initiative_role="project_manager",
@@ -106,7 +106,7 @@ async def test_guild_admin_joins_an_initiative_as_moderator(
     assert (await _role_of(session, founded, admin.user)).name == "moderator"
 
     other_admin = await acting_user(
-        guild_role=GuildRole.admin, guild=guild, email="other-admin@example.com"
+        guild_role=CommunityRole.admin, guild=guild, email="other-admin@example.com"
     )
     member_role = await _role_by_name(session, initiative, "member")
     resp = await client.post(
@@ -203,7 +203,7 @@ async def test_only_a_guild_admin_moves_a_member_on_or_off_the_moderator_role(
     assert resp.json()["detail"] == "INITIATIVE_OVERRIDE_REQUIRES_GUILD_ADMIN"
 
     joiner = await acting_user(
-        guild_role=GuildRole.member, guild=guild, email="joiner@example.com"
+        guild_role=CommunityRole.member, guild=guild, email="joiner@example.com"
     )
     resp = await client.post(
         f"/api/v1/c/{guild.id}/initiatives/{initiative.id}/members",

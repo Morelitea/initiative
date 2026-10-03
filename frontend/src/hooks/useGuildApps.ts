@@ -10,20 +10,20 @@
 import { useQuery } from "@tanstack/react-query";
 
 import {
-  getListGuildAppsApiV1CGuildIdAppsGetQueryKey,
-  installGuildAppApiV1CGuildIdAppsPost,
-  listGuildAppsApiV1CGuildIdAppsGet,
-  putGuildAppPlacementApiV1CGuildIdAppsAppIdPlacementsInitiativeIdPut,
-  putGuildAppScopesApiV1CGuildIdAppsAppIdScopesPut,
-  uninstallGuildAppApiV1CGuildIdAppsAppIdDelete,
-  updateGuildAppApiV1CGuildIdAppsAppIdPatch,
+  getListCommunityAppsQueryKey,
+  installCommunityApp,
+  listCommunityApps,
+  putCommunityAppPlacement,
+  putCommunityAppScopes,
+  uninstallCommunityApp,
+  updateCommunityApp,
 } from "@/api/generated/apps/apps";
 import type {
   AppPlacementRead,
-  GuildAppInstall,
-  GuildAppListResponse,
-  GuildAppRead,
-  GuildAppUpdate,
+  CommunityAppInstall,
+  CommunityAppListResponse,
+  CommunityAppRead,
+  CommunityAppUpdate,
 } from "@/api/generated/initiativeAPI.schemas";
 import { invalidate, q } from "@/api/query-keys";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
@@ -31,21 +31,23 @@ import { useGuildMutation } from "@/hooks/useApiMutation";
 import type { MutationOpts } from "@/types/mutation";
 import type { QueryOpts } from "@/types/query";
 
-const appsKey = (guildId: number) => getListGuildAppsApiV1CGuildIdAppsGetQueryKey(guildId);
+const appsKey = (guildId: number) => getListCommunityAppsQueryKey(guildId);
 
-export const useGuildApps = (options?: QueryOpts<GuildAppListResponse>) => {
+export const useGuildApps = (options?: QueryOpts<CommunityAppListResponse>) => {
   const guildId = useActiveGuildId();
-  return useQuery<GuildAppListResponse>({
+  return useQuery<CommunityAppListResponse>({
     queryKey: appsKey(guildId),
-    queryFn: () => listGuildAppsApiV1CGuildIdAppsGet(guildId),
+    queryFn: () => listCommunityApps(guildId),
     ...options,
   });
 };
 
-export const useInstallGuildApp = (options?: MutationOpts<GuildAppRead, GuildAppInstall>) => {
-  return useGuildMutation<GuildAppRead, GuildAppInstall>(
+export const useInstallGuildApp = (
+  options?: MutationOpts<CommunityAppRead, CommunityAppInstall>
+) => {
+  return useGuildMutation<CommunityAppRead, CommunityAppInstall>(
     {
-      mutationFn: (guildId, data) => installGuildAppApiV1CGuildIdAppsPost(guildId, data),
+      mutationFn: (guildId, data) => installCommunityApp(guildId, data),
       invalidate: () => invalidate(q.apps()),
       errorKey: "apps:error",
     },
@@ -55,12 +57,11 @@ export const useInstallGuildApp = (options?: MutationOpts<GuildAppRead, GuildApp
 
 export const useUpdateGuildApp = (
   appId: number,
-  options?: MutationOpts<GuildAppRead, GuildAppUpdate>
+  options?: MutationOpts<CommunityAppRead, CommunityAppUpdate>
 ) => {
-  return useGuildMutation<GuildAppRead, GuildAppUpdate>(
+  return useGuildMutation<CommunityAppRead, CommunityAppUpdate>(
     {
-      mutationFn: (guildId, data) =>
-        updateGuildAppApiV1CGuildIdAppsAppIdPatch(guildId, appId, data),
+      mutationFn: (guildId, data) => updateCommunityApp(guildId, appId, data),
       invalidate: () => invalidate(q.apps()),
       errorKey: "apps:error",
     },
@@ -71,7 +72,7 @@ export const useUpdateGuildApp = (
 export const useUninstallGuildApp = (options?: MutationOpts<void, number>) => {
   return useGuildMutation<void, number>(
     {
-      mutationFn: (guildId, appId) => uninstallGuildAppApiV1CGuildIdAppsAppIdDelete(guildId, appId),
+      mutationFn: (guildId, appId) => uninstallCommunityApp(guildId, appId),
       invalidate: () => invalidate(q.apps()),
       errorKey: "apps:error",
     },
@@ -92,12 +93,7 @@ export const useSetAppPlacementRoles = (
   return useGuildMutation<AppPlacementRead, AppPlacementRoles>(
     {
       mutationFn: (guildId, { initiativeId, roleIds }) =>
-        putGuildAppPlacementApiV1CGuildIdAppsAppIdPlacementsInitiativeIdPut(
-          guildId,
-          appId,
-          initiativeId,
-          { role_ids: roleIds }
-        ),
+        putCommunityAppPlacement(guildId, appId, initiativeId, { role_ids: roleIds }),
       invalidate: () => invalidate(q.apps()),
       errorKey: "apps:error",
     },
@@ -106,11 +102,13 @@ export const useSetAppPlacementRoles = (
 };
 
 /** Grant the app exactly these scopes; any left out are withdrawn. */
-export const useSetAppScopes = (appId: number, options?: MutationOpts<GuildAppRead, string[]>) => {
-  return useGuildMutation<GuildAppRead, string[]>(
+export const useSetAppScopes = (
+  appId: number,
+  options?: MutationOpts<CommunityAppRead, string[]>
+) => {
+  return useGuildMutation<CommunityAppRead, string[]>(
     {
-      mutationFn: (guildId, granted) =>
-        putGuildAppScopesApiV1CGuildIdAppsAppIdScopesPut(guildId, appId, { granted }),
+      mutationFn: (guildId, granted) => putCommunityAppScopes(guildId, appId, { granted }),
       invalidate: () => invalidate(q.apps()),
       errorKey: "apps:scopes.error",
     },

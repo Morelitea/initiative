@@ -3,7 +3,7 @@ import { type FormEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { apiClient } from "@/api/client";
-import { recoverWithCodeApiV1AuthPasswordRecoverPost } from "@/api/generated/auth/auth";
+import { recoverWithCode } from "@/api/generated/auth/auth";
 import { SignInFrame } from "@/components/auth/SignInFrame";
 import { Button } from "@/components/ui/button";
 import {
@@ -71,7 +71,7 @@ export const ForgotPasswordPage = () => {
     setRecoverStatus("submitting");
     setError(null);
     try {
-      await recoverWithCodeApiV1AuthPasswordRecoverPost({
+      await recoverWithCode({
         email: email.toLowerCase().trim(),
         recovery_code: recoveryCode.trim(),
         password,

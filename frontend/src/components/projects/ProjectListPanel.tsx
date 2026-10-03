@@ -19,7 +19,7 @@ import type { HTMLAttributes, MouseEvent, ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
-  type ListProjectsApiV1CGuildIdProjectsGetParams,
+  type ListProjectsParams,
   type ProjectRead,
   Tool,
 } from "@/api/generated/initiativeAPI.schemas";
@@ -44,7 +44,7 @@ import { useReorderProjects } from "@/hooks/useProjects";
 type ProjectListPanelProps = {
   /** Which list this tab reads — its initiative, and active, templates, or
    *  archived. */
-  params: ListProjectsApiV1CGuildIdProjectsGetParams;
+  params: ListProjectsParams;
   loadingLabel: string;
   errorLabel: string;
   /** Rendered when the tab has no projects at all. */

@@ -12,7 +12,7 @@ from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.tools import COMMENT_TARGETS, Tool
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.platform.notification import NotificationType
 from app.services.platform import notification_policy, user_notifications
 from app.testing.factories import (
@@ -318,7 +318,7 @@ async def test_the_bell_reads_the_title_back_from_the_community(
     title is not kept on the line.
     """
     actor = await acting_user(
-        guild_role=GuildRole.member, initiative=True, project=True
+        guild_role=CommunityRole.member, initiative=True, project=True
     )
     task = await create_task(session, actor.project)
     await user_notifications.create_notification(

@@ -1,8 +1,8 @@
 import { keepPreviousData, useInfiniteQuery, useQuery } from "@tanstack/react-query";
 
 import type {
-  GetPostTimelineApiV1CGuildIdPostsTimelineGetParams,
-  ListPostsApiV1CGuildIdPostsGetParams,
+  GetPostTimelineParams,
+  ListPostsParams,
   PollRead,
   PollVoters,
   PollVoteWrite,
@@ -17,21 +17,21 @@ import type {
 } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import {
-  deletePostPollApiV1CGuildIdPostsPostIdPollDelete,
-  getGetPostTimelineApiV1CGuildIdPostsTimelineGetQueryKey,
-  getListPostPollVotersApiV1CGuildIdPostsPostIdPollVotersGetQueryKey,
-  getListPostReadersApiV1CGuildIdPostsPostIdReadsGetQueryKey,
-  getListPostsApiV1CGuildIdPostsGetQueryKey,
-  getPostTimelineApiV1CGuildIdPostsTimelineGet,
-  listPostPollVotersApiV1CGuildIdPostsPostIdPollVotersGet,
-  listPostReadersApiV1CGuildIdPostsPostIdReadsGet,
-  listPostsApiV1CGuildIdPostsGet,
-  markPostsReadApiV1CGuildIdPostsReadPost,
-  markPostUnreadApiV1CGuildIdPostsPostIdReadDelete,
-  retractPostPollVoteApiV1CGuildIdPostsPostIdPollVoteDelete,
-  setPostPinApiV1CGuildIdPostsPostIdPinPut,
-  setPostPollApiV1CGuildIdPostsPostIdPollPut,
-  voteOnPostPollApiV1CGuildIdPostsPostIdPollVotePut,
+  deletePostPoll,
+  getGetPostTimelineQueryKey,
+  getListPostPollVotersQueryKey,
+  getListPostReadersQueryKey,
+  getListPostsQueryKey,
+  getPostTimeline,
+  listPostPollVoters,
+  listPostReaders,
+  listPosts,
+  markPostsRead,
+  markPostUnread,
+  retractPostPollVote,
+  setPostPin,
+  setPostPoll,
+  voteOnPostPoll,
 } from "@/api/generated/posts/posts";
 import { invalidate, patchCachedPost, q } from "@/api/query-keys";
 import { TOOL_HOOKS } from "@/hooks/toolHooks";
@@ -61,12 +61,11 @@ export const useSetPostGrants = posts.useSetGrants;
  * row is a body the client mounts an editor for, and what a page bounds is how
  * much is fetched ahead of the reader, not how much they have to look at.
  */
-export const usePostsFeed = (params?: ListPostsApiV1CGuildIdPostsGetParams) => {
+export const usePostsFeed = (params?: ListPostsParams) => {
   const guildId = useActiveGuildId();
   return useInfiniteQuery({
-    queryKey: getListPostsApiV1CGuildIdPostsGetQueryKey(guildId, params),
-    queryFn: ({ pageParam }) =>
-      listPostsApiV1CGuildIdPostsGet(guildId, { ...params, page: pageParam as number }),
+    queryKey: getListPostsQueryKey(guildId, params),
+    queryFn: ({ pageParam }) => listPosts(guildId, { ...params, page: pageParam as number }),
     initialPageParam: 1,
     getNextPageParam: (last: PostListResponse) => (last.has_next ? last.page + 1 : undefined),
     placeholderData: keepPreviousData,
@@ -83,8 +82,8 @@ export const usePostsFeed = (params?: ListPostsApiV1CGuildIdPostsGetParams) => {
 export const usePostReaders = (postId: number, options?: QueryOpts<PostReaders>) => {
   const guildId = useActiveGuildId();
   return useQuery<PostReaders>({
-    queryKey: getListPostReadersApiV1CGuildIdPostsPostIdReadsGetQueryKey(guildId, postId),
-    queryFn: () => listPostReadersApiV1CGuildIdPostsPostIdReadsGet(guildId, postId),
+    queryKey: getListPostReadersQueryKey(guildId, postId),
+    queryFn: () => listPostReaders(guildId, postId),
     ...options,
   });
 };
@@ -98,13 +97,13 @@ export const usePostReaders = (postId: number, options?: QueryOpts<PostReaders>)
  * since a month is a boundary in somebody's day.
  */
 export const usePostsTimeline = (
-  params?: GetPostTimelineApiV1CGuildIdPostsTimelineGetParams,
+  params?: GetPostTimelineParams,
   options?: QueryOpts<TimelineResponse>
 ) => {
   const guildId = useActiveGuildId();
   return useQuery<TimelineResponse>({
-    queryKey: getGetPostTimelineApiV1CGuildIdPostsTimelineGetQueryKey(guildId, params),
-    queryFn: () => getPostTimelineApiV1CGuildIdPostsTimelineGet(guildId, params),
+    queryKey: getGetPostTimelineQueryKey(guildId, params),
+    queryFn: () => getPostTimeline(guildId, params),
     ...options,
   });
 };
@@ -123,8 +122,7 @@ const invalidatePostAndList = (postId: number) => invalidate(q.post(postId), q.a
 export const useSetPostPin = (postId: number, options?: MutationOpts<PostRead, PostPinUpdate>) =>
   useGuildMutation<PostRead, PostPinUpdate>(
     {
-      mutationFn: (guildId, data) =>
-        setPostPinApiV1CGuildIdPostsPostIdPinPut(guildId, postId, data),
+      mutationFn: (guildId, data) => setPostPin(guildId, postId, data),
       invalidate: () => invalidatePostAndList(postId),
       errorKey: "posts:error",
     },
@@ -161,7 +159,7 @@ const setCachedReadState = (postId: number, isRead: boolean) =>
 export const useMarkPostsRead = (options?: MutationOpts<PostReadReceipt, PostReadMarks>) =>
   useGuildMutation<PostReadReceipt, PostReadMarks>(
     {
-      mutationFn: (guildId, data) => markPostsReadApiV1CGuildIdPostsReadPost(guildId, data),
+      mutationFn: (guildId, data) => markPostsRead(guildId, data),
       errorKey: "posts:error",
     },
     {
@@ -197,8 +195,7 @@ export const useMarkPostsRead = (options?: MutationOpts<PostReadReceipt, PostRea
 export const useMarkPostUnread = (options?: MutationOpts<void, number>) =>
   useGuildMutation<void, number>(
     {
-      mutationFn: (guildId, postId) =>
-        markPostUnreadApiV1CGuildIdPostsPostIdReadDelete(guildId, postId),
+      mutationFn: (guildId, postId) => markPostUnread(guildId, postId),
       errorKey: "posts:error",
     },
     {
@@ -231,8 +228,8 @@ export const useMarkPostUnread = (options?: MutationOpts<void, number>) =>
 export const usePostPollVoters = (postId: number, options?: QueryOpts<PollVoters>) => {
   const guildId = useActiveGuildId();
   return useQuery<PollVoters>({
-    queryKey: getListPostPollVotersApiV1CGuildIdPostsPostIdPollVotersGetQueryKey(guildId, postId),
-    queryFn: () => listPostPollVotersApiV1CGuildIdPostsPostIdPollVotersGet(guildId, postId),
+    queryKey: getListPostPollVotersQueryKey(guildId, postId),
+    queryFn: () => listPostPollVoters(guildId, postId),
     ...options,
   });
 };
@@ -295,8 +292,7 @@ const setCachedBallot = (postId: number, optionIds: number[]) =>
 export const useSetPostPoll = (postId: number, options?: MutationOpts<PostRead, PollWrite>) =>
   useGuildMutation<PostRead, PollWrite>(
     {
-      mutationFn: (guildId, data) =>
-        setPostPollApiV1CGuildIdPostsPostIdPollPut(guildId, postId, data),
+      mutationFn: (guildId, data) => setPostPoll(guildId, postId, data),
       invalidate: () => invalidatePostAndList(postId),
       errorKey: "posts:error",
     },
@@ -306,7 +302,7 @@ export const useSetPostPoll = (postId: number, options?: MutationOpts<PostRead, 
 export const useDeletePostPoll = (postId: number, options?: MutationOpts<PostRead, void>) =>
   useGuildMutation<PostRead, void>(
     {
-      mutationFn: (guildId) => deletePostPollApiV1CGuildIdPostsPostIdPollDelete(guildId, postId),
+      mutationFn: (guildId) => deletePostPoll(guildId, postId),
       invalidate: () => invalidatePostAndList(postId),
       errorKey: "posts:error",
     },
@@ -327,8 +323,7 @@ export const useVoteOnPostPoll = (
 ) =>
   useGuildMutation<PostRead, PollVoteWrite>(
     {
-      mutationFn: (guildId, data) =>
-        voteOnPostPollApiV1CGuildIdPostsPostIdPollVotePut(guildId, postId, data),
+      mutationFn: (guildId, data) => voteOnPostPoll(guildId, postId, data),
       errorKey: "posts:error",
     },
     {
@@ -353,8 +348,7 @@ export const useVoteOnPostPoll = (
 export const useRetractPostPollVote = (postId: number, options?: MutationOpts<PostRead, void>) =>
   useGuildMutation<PostRead, void>(
     {
-      mutationFn: (guildId) =>
-        retractPostPollVoteApiV1CGuildIdPostsPostIdPollVoteDelete(guildId, postId),
+      mutationFn: (guildId) => retractPostPollVote(guildId, postId),
       errorKey: "posts:error",
     },
     {

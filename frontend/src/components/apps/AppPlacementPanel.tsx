@@ -19,7 +19,7 @@ import { ChevronDown, Loader2 } from "lucide-react";
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { GuildAppDetail } from "@/api/generated/initiativeAPI.schemas";
+import type { CommunityAppDetail } from "@/api/generated/initiativeAPI.schemas";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
@@ -33,11 +33,11 @@ import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 
 export interface AppPlacementPanelProps {
-  app: GuildAppDetail;
+  app: CommunityAppDetail;
 }
 
 /** The initiatives the app is placed in. */
-const placedIds = (app: GuildAppDetail): number[] =>
+const placedIds = (app: CommunityAppDetail): number[] =>
   (app.placements ?? []).map((one) => one.initiative_id);
 
 export function AppPlacementPanel({ app }: AppPlacementPanelProps) {

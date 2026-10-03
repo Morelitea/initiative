@@ -106,13 +106,10 @@ vi.mock("@/crypto/messaging", async (importOriginal) => ({
 
 vi.mock("@/api/generated/direct-messages/direct-messages", async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
-  listConversationsApiV1MeDmConversationsGet: () => mocks.conversations(),
-  createConversationApiV1MeDmConversationsPost: (body: { user_id: number }) =>
-    mocks.createConversation(body),
-  acceptInvitationApiV1MeDmConversationsConversationIdAcceptPost: (id: string) =>
-    mocks.acceptInvitation(id),
-  leaveConversationApiV1MeDmConversationsConversationIdDelete: (id: string) =>
-    mocks.leaveConversation(id),
+  listConversations: () => mocks.conversations(),
+  createConversation: (body: { user_id: number }) => mocks.createConversation(body),
+  acceptInvitation: (id: string) => mocks.acceptInvitation(id),
+  leaveConversation: (id: string) => mocks.leaveConversation(id),
 }));
 
 vi.mock("@/hooks/useDirectMessages", async (importOriginal) => ({

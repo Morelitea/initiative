@@ -5,7 +5,7 @@
  * Communities ended up being used far more broadly than the gaming guilds the
  * name was picked for, so the product renamed them. The rename reaches the
  * user-visible strings and the URLs — the UI's `/c/{id}` and the API's
- * `/api/v1/c/{guild_id}` and `/api/v1/communities` — and stops there: the
+ * `/api/v1/c/{community_id}` and `/api/v1/communities` — and stops there: the
  * database, path parameter names, schema and hook names, and every identifier
  * below still say `guild`, because moving those means a schema migration
  * across every tenant. Treat `guild` in code and `community` in copy and paths

@@ -6,8 +6,8 @@ import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } fro
 import { useTranslation } from "react-i18next";
 
 import {
-  bootstrapStatusApiV1AuthBootstrapGet,
-  listLoginProvidersApiV1AuthProvidersGet,
+  bootstrapStatus as bootstrapStatusRequest,
+  listLoginProviders,
 } from "@/api/generated/auth/auth";
 import type { LoginProviderEntry } from "@/api/generated/initiativeAPI.schemas";
 import { EmailOtpCard } from "@/components/auth/EmailOtpCard";
@@ -121,7 +121,7 @@ const SignInCard = () => {
   useEffect(() => {
     const fetchProviders = async () => {
       try {
-        const response = await listLoginProvidersApiV1AuthProvidersGet();
+        const response = await listLoginProviders();
         setProviders(response.providers);
         // Only an answer says nothing is offered; a failed request says
         // nothing at all.
@@ -169,7 +169,7 @@ const SignInCard = () => {
   useEffect(() => {
     const fetchBootstrapStatus = async () => {
       try {
-        const response = await bootstrapStatusApiV1AuthBootstrapGet();
+        const response = await bootstrapStatusRequest();
         setBootstrapStatus(response.has_users ? "ready" : "required");
       } catch {
         setBootstrapStatus("ready");

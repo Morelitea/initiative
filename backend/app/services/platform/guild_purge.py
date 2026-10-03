@@ -1,6 +1,6 @@
 """Destroy guilds whose retention window has run out.
 
-Deleting a guild no longer destroys it: it moves to ``GuildStatus.deleted``
+Deleting a guild no longer destroys it: it moves to ``CommunityStatus.deleted``
 and keeps everything — the shared rows, the ``guild_<id>`` schema, the stored
 blobs — so a platform operator can put the community back. This worker is what
 eventually does the destroying, and it does exactly what the delete used to do
@@ -36,7 +36,7 @@ from app.db import cohorts
 from app.db.guild_migrations import GUILD_SCHEMA_REGEX
 from app.db.schema_provisioning import deprovision_guild
 from app.db.session import SystemSessionLocal, set_rls_context
-from app.models.platform.guild import Guild, GuildStatus
+from app.models.platform.guild import Guild, CommunityStatus
 from app.services import audit as audit_service
 from app.services.marketplace import app_refs
 from app.db.request_context import SystemGuild, Unattributed
@@ -93,7 +93,7 @@ async def _lock_expired_hold(
             select(Guild)
             .where(
                 Guild.id == guild_id,
-                Guild.status == GuildStatus.on_hold.value,
+                Guild.status == CommunityStatus.on_hold.value,
                 Guild.status_changed_at.is_not(None),
                 Guild.status_changed_at <= cutoff,
             )
@@ -167,7 +167,7 @@ async def delete_expired_holds(session: AsyncSession, *, now: datetime) -> int:
         await session.exec(
             select(Guild.id)
             .where(
-                Guild.status == GuildStatus.on_hold.value,
+                Guild.status == CommunityStatus.on_hold.value,
                 Guild.status_changed_at.is_not(None),
                 Guild.status_changed_at <= cutoff,
             )
@@ -203,7 +203,7 @@ async def _due_guild_ids(
     rows = await session.exec(
         select(Guild.id, Guild.status_changed_at)
         .where(
-            Guild.status == GuildStatus.deleted.value,
+            Guild.status == CommunityStatus.deleted.value,
             Guild.status_changed_at.is_not(None),
             Guild.status_changed_at <= cutoff,
         )

@@ -16,7 +16,7 @@ from sqlmodel import select
 from app.core.messages import AppMessages
 from app.core.relationships import RelationshipType
 from app.core.search import SearchEntityType
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.platform.notification import Notification
 from app.models.tenant.comment import Comment
 from app.models.tenant.relationship import EntityRelationship
@@ -140,7 +140,7 @@ async def test_posts_as_itself_and_the_notices_name_the_app(
     scopes = ["comments:write", "documents:read"]
     installed = await install_app(session, acting_user, role_session, granted=scopes)
     member = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=installed.guild,
         initiative=installed.placed,
         initiative_role="member",

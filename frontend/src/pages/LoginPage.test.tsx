@@ -53,10 +53,8 @@ const mocks = vi.hoisted(() => ({
 // The bootstrap probe and the provider list, answered by path through one mock.
 vi.mock("@/api/generated/auth/auth", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/api/generated/auth/auth")>()),
-  bootstrapStatusApiV1AuthBootstrapGet: () =>
-    mocks.get("/auth/bootstrap").then((r: { data: unknown }) => r.data),
-  listLoginProvidersApiV1AuthProvidersGet: () =>
-    mocks.get("/auth/providers").then((r: { data: unknown }) => r.data),
+  bootstrapStatus: () => mocks.get("/auth/bootstrap").then((r: { data: unknown }) => r.data),
+  listLoginProviders: () => mocks.get("/auth/providers").then((r: { data: unknown }) => r.data),
 }));
 
 vi.mock("@/hooks/useAuth", async (importOriginal) => ({

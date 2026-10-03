@@ -237,13 +237,13 @@ async def test_the_community_search_says_which_communities_accept(
 async def test_each_surface_edits_only_its_own_rules(
     client: AsyncClient, session: AsyncSession
 ):
-    from app.models.platform.guild import GuildRole
+    from app.models.platform.guild import CommunityRole
     from app.testing.factories import create_guild_membership
 
     seat_holder = await create_user(session)
     guild = await create_guild(session, creator=seat_holder)
     await create_guild_membership(
-        session, user=seat_holder, guild=guild, role=GuildRole.superadmin
+        session, user=seat_holder, guild=guild, role=CommunityRole.superadmin
     )
     seat = get_auth_headers(seat_holder)
     provider = await create_auth_provider(session, slug="corp")

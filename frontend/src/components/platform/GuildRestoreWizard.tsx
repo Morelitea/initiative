@@ -22,8 +22,8 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { PlatformGuildStorageRead } from "@/api/generated/initiativeAPI.schemas";
-import { GuildStatus } from "@/api/generated/initiativeAPI.schemas";
+import type { PlatformCommunityStorageRead } from "@/api/generated/initiativeAPI.schemas";
+import { CommunityStatus } from "@/api/generated/initiativeAPI.schemas";
 import { AsyncCombobox } from "@/components/ui/async-combobox";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -50,7 +50,7 @@ export const GuildRestoreWizard = ({
   open,
   onOpenChange,
 }: {
-  guild: PlatformGuildStorageRead;
+  guild: PlatformCommunityStorageRead;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) => {
@@ -63,7 +63,7 @@ export const GuildRestoreWizard = ({
   const [seatLabel, setSeatLabel] = useState<string | null>(null);
   const [seatSearch, setSeatSearch] = useState("");
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [status, setStatus] = useState<GuildStatus>(GuildStatus.active);
+  const [status, setStatus] = useState<CommunityStatus>(CommunityStatus.active);
 
   // Searched on the server, and only while the picker is open: the accounts
   // are every account on the deployment, and most restores never ask.
@@ -153,7 +153,7 @@ export const GuildRestoreWizard = ({
         <Label htmlFor="guild-restore-status">{t("guilds.restore.statusLabel")}</Label>
         <Select
           value={status}
-          onValueChange={(value) => setStatus(value as GuildStatus)}
+          onValueChange={(value) => setStatus(value as CommunityStatus)}
           disabled={restore.isPending}
         >
           <SelectTrigger id="guild-restore-status" className="w-full">

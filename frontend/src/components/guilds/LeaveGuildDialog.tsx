@@ -2,13 +2,10 @@ import { AlertTriangle, Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 
-import {
-  checkLeaveEligibilityApiV1CommunitiesGuildIdLeaveEligibilityGet,
-  leaveGuildApiV1CommunitiesGuildIdLeaveDelete,
-} from "@/api/generated/communities/communities";
+import { checkLeaveEligibility, leaveCommunity } from "@/api/generated/communities/communities";
 import type {
-  GuildRead,
-  LeaveGuildEligibilityResponse,
+  CommunityRead,
+  LeaveCommunityEligibilityResponse,
 } from "@/api/generated/initiativeAPI.schemas";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
@@ -26,7 +23,7 @@ import { toast } from "@/lib/chesterToast";
 import type { DialogProps } from "@/types/dialog";
 
 interface LeaveGuildDialogProps extends DialogProps {
-  guild: GuildRead;
+  guild: CommunityRead;
 }
 
 /**
@@ -40,7 +37,7 @@ export const LeaveGuildDialog = ({ guild, open, onOpenChange }: LeaveGuildDialog
   const { guilds, refreshGuilds, switchGuild, activeGuildId } = useGuilds();
   const [loading, setLoading] = useState(true);
   const [leaving, setLeaving] = useState(false);
-  const [eligibility, setEligibility] = useState<LeaveGuildEligibilityResponse | null>(null);
+  const [eligibility, setEligibility] = useState<LeaveCommunityEligibilityResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -55,9 +52,9 @@ export const LeaveGuildDialog = ({ guild, open, onOpenChange }: LeaveGuildDialog
       setLoading(true);
       setError(null);
       try {
-        const data = (await checkLeaveEligibilityApiV1CommunitiesGuildIdLeaveEligibilityGet(
+        const data = (await checkLeaveEligibility(
           guild.id
-        )) as unknown as LeaveGuildEligibilityResponse;
+        )) as unknown as LeaveCommunityEligibilityResponse;
         setEligibility(data);
       } catch (err) {
         console.error("Failed to check leave eligibility", err);
@@ -75,7 +72,7 @@ export const LeaveGuildDialog = ({ guild, open, onOpenChange }: LeaveGuildDialog
   const handleLeave = async () => {
     setLeaving(true);
     try {
-      await leaveGuildApiV1CommunitiesGuildIdLeaveDelete(guild.id);
+      await leaveCommunity(guild.id);
 
       // Switch to another guild if leaving the active one
       if (activeGuildId === guild.id) {

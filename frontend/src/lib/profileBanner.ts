@@ -2,7 +2,7 @@
  * A profile's banner, in the shape every other banner on the site travels in.
  *
  * A community front page and the community directory both hand `PageBanner` a
- * `GuildBannerRead`; a profile is the same kind of page and gets the same
+ * `CommunityBannerRead`; a profile is the same kind of page and gets the same
  * treatment, so its decoration is translated into that shape here rather than
  * a second banner being written for it.
  *
@@ -17,7 +17,7 @@
  */
 
 import type {
-  GuildBannerRead,
+  CommunityBannerRead,
   ProfileDecorationsOutput,
 } from "@/api/generated/initiativeAPI.schemas";
 import { DARK_TEXT, LIGHT_TEXT } from "@/lib/contrastColor";
@@ -25,7 +25,7 @@ import { decorationSrc, resolveDecoration } from "@/lib/profileDecorations";
 
 export const profileBanner = (
   decorations: ProfileDecorationsOutput | null | undefined
-): GuildBannerRead | null => {
+): CommunityBannerRead | null => {
   const banner = resolveDecoration(decorations?.banner, "banner");
   if (!banner) return null;
   return {

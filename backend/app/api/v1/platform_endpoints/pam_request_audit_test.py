@@ -10,7 +10,7 @@ from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.audit_events import AuditEventType
-from app.models.platform.guild import Guild, GuildRole
+from app.models.platform.guild import Guild, CommunityRole
 from app.testing import Actor, create_guild, emitted
 
 
@@ -41,7 +41,7 @@ async def test_each_request_through_a_grant_is_written_down(
     client: AsyncClient, acting_user, outsider, capfd
 ):
     a, guild = await outsider()
-    await acting_user(guild_role=GuildRole.admin, guild=guild, initiative=True)
+    await acting_user(guild_role=CommunityRole.admin, guild=guild, initiative=True)
     await _break_glass(client, a, guild)
     capfd.readouterr()
 
@@ -57,7 +57,7 @@ async def test_each_request_through_a_grant_is_written_down(
     assert line["is_write"] is False
     assert line["detail"] == {
         "method": "GET",
-        "route": "/api/v1/c/{guild_id}/initiatives/",
+        "route": "/api/v1/c/{community_id}/initiatives/",
         "status": 200,
         "reached": {"guild_id": guild.id},
     }
@@ -68,7 +68,7 @@ async def test_the_line_names_the_grant_that_served_it(
 ):
     """Which grant, at what level, and whether somebody let themselves in."""
     a, guild = await outsider()
-    await acting_user(guild_role=GuildRole.admin, guild=guild, initiative=True)
+    await acting_user(guild_role=CommunityRole.admin, guild=guild, initiative=True)
     await _break_glass(client, a, guild)
     capfd.readouterr()
 
@@ -89,7 +89,7 @@ async def test_a_member_reaching_their_own_community_is_not_recorded(
 ):
     """This log is about privileged access. Every member's every request would
     be a different feature, and a far larger one."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     capfd.readouterr()
 
     reached = await client.get(
@@ -106,7 +106,7 @@ async def test_a_refused_request_is_recorded_with_what_it_was_refused(
     """A grantee reaching past what the grant allows is exactly what somebody
     reviewing the window wants to see."""
     a, guild = await outsider()
-    await acting_user(guild_role=GuildRole.admin, guild=guild, initiative=True)
+    await acting_user(guild_role=CommunityRole.admin, guild=guild, initiative=True)
     await _break_glass(client, a, guild)
     capfd.readouterr()
 

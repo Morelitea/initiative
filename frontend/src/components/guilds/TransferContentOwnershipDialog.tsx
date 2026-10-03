@@ -7,13 +7,13 @@ import type {
   OwnershipTransferRequest,
   OwnershipTransferResponse,
   Tool,
-  UserGuildMember,
+  UserCommunityMember,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
-  claimUnownedContentApiV1CGuildIdUsersUnownedContentClaimPost,
-  listOwnedContentApiV1CGuildIdUsersUserIdOwnedContentGet,
-  listUnownedContentApiV1CGuildIdUsersUnownedContentGet,
-  transferOwnershipApiV1CGuildIdUsersUserIdTransferOwnershipPost,
+  claimUnownedContent,
+  listOwnedContent,
+  listUnownedContent,
+  transferOwnership,
 } from "@/api/generated/users/users";
 import { invalidate, q } from "@/api/query-keys";
 import type { MemberLike } from "@/components/members/MemberSearchSelect";
@@ -68,7 +68,7 @@ interface TransferContentOwnershipDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** Whose content moves. Null claims everything nobody owns instead. */
-  member: UserGuildMember | null;
+  member: UserCommunityMember | null;
   /** Pre-selected recipient — the acting admin. */
   defaultRecipient?: MemberLike | null;
   onSuccess?: () => void;
@@ -118,11 +118,8 @@ export const TransferContentOwnershipDialog = ({
     const load = async () => {
       try {
         const data = (memberId === null
-          ? await listUnownedContentApiV1CGuildIdUsersUnownedContentGet(guildId)
-          : await listOwnedContentApiV1CGuildIdUsersUserIdOwnedContentGet(
-              guildId,
-              memberId
-            )) as unknown as OwnedContentResponse;
+          ? await listUnownedContent(guildId)
+          : await listOwnedContent(guildId, memberId)) as unknown as OwnedContentResponse;
         if (!cancelled) setContent(data);
       } catch (err) {
         console.error("Failed to load owned content", err);
@@ -180,8 +177,8 @@ export const TransferContentOwnershipDialog = ({
     try {
       const body = transferBody(recipientId);
       const result = (member === null
-        ? await claimUnownedContentApiV1CGuildIdUsersUnownedContentClaimPost(guildId, body)
-        : await transferOwnershipApiV1CGuildIdUsersUserIdTransferOwnershipPost(
+        ? await claimUnownedContent(guildId, body)
+        : await transferOwnership(
             guildId,
             member.id,
             body

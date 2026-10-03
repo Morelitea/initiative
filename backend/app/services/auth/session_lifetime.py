@@ -32,7 +32,7 @@ from datetime import datetime, timedelta
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.guild_auth_options import GuildAuthOption
+from app.core.guild_auth_options import CommunityAuthOption
 from app.models.platform.guild import Guild, GuildMembership
 from app.services.platform import app_settings as app_settings_service
 from app.services.platform import guild_entitlements
@@ -59,7 +59,7 @@ COMPLIANCE_IDLE_MINUTES = 15
 #: holds the ``restrictions`` option that asking needs.
 _holds_the_standard = Guild.enforce_compliance_session.is_(
     True
-) & guild_entitlements.holds_option(Guild.id, GuildAuthOption.restrictions)
+) & guild_entitlements.holds_option(Guild.id, CommunityAuthOption.restrictions)
 
 
 async def _belongs_to_a_compliance_guild(

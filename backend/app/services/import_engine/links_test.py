@@ -5,7 +5,7 @@ import pytest
 
 from app.core.relationships import RelationshipType
 from app.core.search import SearchEntityType
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.services.import_engine.links import LinkCollector
 from app.services.tenant import relationships as relationships_service
 from app.services.tenant.relationships import Endpoint
@@ -33,7 +33,9 @@ def test_a_link_missing_an_end_is_not_a_link():
 async def test_links_resolve_once_both_ends_exist(session, acting_user):
     """The whole point: an edge between two things written by two different
     entries becomes a row, and the order they arrived in does not matter."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     blocker = await create_task(session, a.project, title="Pour the footings")
     blocked = await create_task(session, a.project, title="Raise the frame")
 
@@ -58,7 +60,9 @@ async def test_links_resolve_once_both_ends_exist(session, acting_user):
 async def test_a_link_out_of_the_selection_is_counted_not_failed(session, acting_user):
     """A Jira project links to issues nobody selected all the time. That is
     a number in the report, not a failed import."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     task = await create_task(session, a.project, title="Fit the door")
 
     collector = LinkCollector()
@@ -70,7 +74,9 @@ async def test_a_link_out_of_the_selection_is_counted_not_failed(session, acting
 
 
 async def test_a_ref_pointing_at_itself_writes_nothing(session, acting_user):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     task = await create_task(session, a.project, title="Sand the sill")
 
     collector = LinkCollector()
@@ -84,7 +90,9 @@ async def test_a_ref_pointing_at_itself_writes_nothing(session, acting_user):
 async def test_an_edge_already_there_is_counted_as_a_duplicate(session, acting_user):
     """Re-asserting an edge is the answer already being correct, not a
     second row and not a failure."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     one = await create_task(session, a.project, title="Hang the gate")
     two = await create_task(session, a.project, title="Oil the hinge")
 
@@ -101,7 +109,9 @@ async def test_an_edge_already_there_is_counted_as_a_duplicate(session, acting_u
 async def test_resolving_twice_does_not_write_twice(session, acting_user):
     """The collection is emptied by the pass, so a second call is a no-op
     rather than a second set of edges."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     one = await create_task(session, a.project, title="Set the post")
     two = await create_task(session, a.project, title="String the wire")
 
@@ -119,7 +129,9 @@ async def test_resolving_twice_does_not_write_twice(session, acting_user):
 async def test_two_things_claiming_one_name_keeps_the_first(session, acting_user):
     """A repeated ref is the source's ambiguity. Keeping the earlier one at
     least makes a re-run land in the same place."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     first_task = await create_task(session, a.project, title="Lay the course")
     second_task = await create_task(session, a.project, title="Point the joints")
     other = await create_task(session, a.project, title="Clean the tools")

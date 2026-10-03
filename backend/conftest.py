@@ -1236,14 +1236,14 @@ async def acting_user(session):
 
         a = await acting_user()                                  # platform owner
         a = await acting_user("support")                         # tier ceilings
-        a = await acting_user(guild_role=GuildRole.admin,
+        a = await acting_user(guild_role=CommunityRole.admin,
                               initiative=True, project=True)     # workspace
-        b = await acting_user(guild_role=GuildRole.member, guild=a.guild,
+        b = await acting_user(guild_role=CommunityRole.member, guild=a.guild,
                               initiative=a.initiative, initiative_role="member")
         await client.get(a.g("/projects/"), headers=a.headers)
 
     With the real-role ``client`` fixture the request runs AS the actor's
-    platform tier (public path) or guild role (``/c/{guild_id}`` path) on a
+    platform tier (public path) or guild role (``/c/{community_id}`` path) on a
     real ``app_user`` connection — RLS enforced, like production.
     """
     from app.testing.actor import make_actor

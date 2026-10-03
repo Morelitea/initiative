@@ -18,8 +18,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.models.platform.guild import (
     DEFAULT_BANNER,
     Guild,
-    GuildRole,
-    GuildStatus,
+    CommunityRole,
+    CommunityStatus,
 )
 from app.models.platform.guild_image import (
     IMAGE_SPECS,
@@ -152,7 +152,7 @@ async def test_admin_sets_banner_and_gets_its_url_back(
     client: AsyncClient, acting_user
 ):
     """One upload, two renditions, and the reply already names the full one."""
-    a = await acting_user(guild_role=GuildRole.admin)
+    a = await acting_user(guild_role=CommunityRole.admin)
 
     payload = await _set_banner(client, a.guild.id, a.headers)
 
@@ -164,7 +164,7 @@ async def test_admin_sets_banner_and_gets_its_url_back(
 
 async def test_member_cannot_set_the_banner(client: AsyncClient, acting_user):
     """Branding is the guild admin's, like the name and the icon."""
-    a = await acting_user(guild_role=GuildRole.member)
+    a = await acting_user(guild_role=CommunityRole.member)
 
     response = await client.put(
         f"/api/v1/communities/{a.guild.id}/banner",
@@ -179,7 +179,7 @@ async def test_replacing_a_banner_leaves_one_of_each_rendition(
     client: AsyncClient, acting_user, session: AsyncSession
 ):
     """The old renditions go with the new ones arriving, not afterwards."""
-    a = await acting_user(guild_role=GuildRole.admin)
+    a = await acting_user(guild_role=CommunityRole.admin)
     await _set_banner(client, a.guild.id, a.headers)
 
     response = await client.put(
@@ -200,7 +200,7 @@ async def test_replacing_a_banner_leaves_one_of_each_rendition(
 async def test_clearing_a_banner_removes_both_renditions(
     client: AsyncClient, acting_user, session: AsyncSession
 ):
-    a = await acting_user(guild_role=GuildRole.admin)
+    a = await acting_user(guild_role=CommunityRole.admin)
     await _set_banner(client, a.guild.id, a.headers)
 
     response = await client.delete(
@@ -220,7 +220,7 @@ async def test_clearing_a_banner_removes_both_renditions(
 
 async def test_svg_is_refused(client: AsyncClient, acting_user):
     """A banner is rendered rather than downloaded, so it is raster only."""
-    a = await acting_user(guild_role=GuildRole.admin)
+    a = await acting_user(guild_role=CommunityRole.admin)
 
     response = await client.put(
         f"/api/v1/communities/{a.guild.id}/banner",
@@ -247,7 +247,7 @@ async def test_a_declared_content_type_does_not_decide(
     client: AsyncClient, acting_user
 ):
     """The bytes settle the format; the client's claim about them does not."""
-    a = await acting_user(guild_role=GuildRole.admin)
+    a = await acting_user(guild_role=CommunityRole.admin)
 
     response = await client.put(
         f"/api/v1/communities/{a.guild.id}/banner",
@@ -266,7 +266,7 @@ async def test_a_card_carrying_the_full_image_is_refused(
     client: AsyncClient, acting_user
 ):
     """Otherwise the directory pays full price for a page of thumbnails."""
-    a = await acting_user(guild_role=GuildRole.admin)
+    a = await acting_user(guild_role=CommunityRole.admin)
 
     response = await client.put(
         f"/api/v1/communities/{a.guild.id}/banner",
@@ -281,7 +281,7 @@ async def test_a_card_carrying_the_full_image_is_refused(
 async def test_a_rendition_that_is_not_four_to_one_is_refused(
     client: AsyncClient, acting_user
 ):
-    a = await acting_user(guild_role=GuildRole.admin)
+    a = await acting_user(guild_role=CommunityRole.admin)
 
     response = await client.put(
         f"/api/v1/communities/{a.guild.id}/banner",
@@ -294,7 +294,7 @@ async def test_a_rendition_that_is_not_four_to_one_is_refused(
 
 
 async def test_an_oversized_rendition_is_refused(client: AsyncClient, acting_user):
-    a = await acting_user(guild_role=GuildRole.admin)
+    a = await acting_user(guild_role=CommunityRole.admin)
     over = IMAGE_SPECS[GuildImageVariant.card].max_bytes + 1
 
     response = await client.put(
@@ -313,7 +313,7 @@ async def test_an_oversized_rendition_is_refused(client: AsyncClient, acting_use
 async def test_a_member_gets_both_renditions(
     client: AsyncClient, acting_user, session: AsyncSession
 ):
-    a = await acting_user(guild_role=GuildRole.admin)
+    a = await acting_user(guild_role=CommunityRole.admin)
     payload = await _set_banner(client, a.guild.id, a.headers)
 
     full = await client.get(payload["banner"]["image_url"], headers=a.headers)
@@ -329,7 +329,7 @@ async def test_a_stranger_gets_nothing_from_an_unlisted_guild(
     client: AsyncClient, acting_user, session: AsyncSession
 ):
     """Not in the directory and not in the guild: there is no banner to have."""
-    a = await acting_user(guild_role=GuildRole.admin)
+    a = await acting_user(guild_role=CommunityRole.admin)
     payload = await _set_banner(client, a.guild.id, a.headers)
     stranger = await create_user(session, email="stranger@example.com")
     headers = get_auth_headers(stranger)
@@ -345,7 +345,7 @@ async def test_a_stranger_gets_the_card_of_a_listed_guild_but_not_its_front_page
     client: AsyncClient, acting_user, session: AsyncSession, community_directory_on
 ):
     """The card is what a listed guild published. The full banner is not."""
-    a = await acting_user(guild_role=GuildRole.admin)
+    a = await acting_user(guild_role=CommunityRole.admin)
     payload = await _set_banner(client, a.guild.id, a.headers)
     await _list_as_community(session, a.guild)
     stranger = await create_user(session, email="browser@example.com")
@@ -363,7 +363,7 @@ async def test_un_listing_a_guild_stops_serving_its_card(
 ):
     """The listing is re-read per request, not inherited from the page that
     minted the URL."""
-    a = await acting_user(guild_role=GuildRole.admin)
+    a = await acting_user(guild_role=CommunityRole.admin)
     await _set_banner(client, a.guild.id, a.headers)
     await _list_as_community(session, a.guild)
     stranger = await create_user(session, email="lingering@example.com")
@@ -383,13 +383,13 @@ async def test_a_suspended_guild_serves_nobody(
 ):
     """Suspension takes the guild out of the directory and out of its members'
     reach, and the banner goes with it."""
-    a = await acting_user(guild_role=GuildRole.admin)
+    a = await acting_user(guild_role=CommunityRole.admin)
     payload = await _set_banner(client, a.guild.id, a.headers)
     await _list_as_community(session, a.guild)
     url = await _card_url(session, a.guild.id)
     stranger = await create_user(session, email="onlooker@example.com")
 
-    a.guild.status = GuildStatus.suspended.value
+    a.guild.status = CommunityStatus.suspended.value
     session.add(a.guild)
     await session.commit()
 
@@ -404,7 +404,7 @@ async def test_a_suspended_guild_serves_nobody(
 async def test_a_replaced_banners_url_stops_resolving(client: AsyncClient, acting_user):
     """The digest is in the path, so a stale URL is a miss rather than a
     different picture under a cache key promised to be immutable."""
-    a = await acting_user(guild_role=GuildRole.admin)
+    a = await acting_user(guild_role=CommunityRole.admin)
     first = await _set_banner(client, a.guild.id, a.headers)
 
     await client.put(
@@ -419,7 +419,7 @@ async def test_a_replaced_banners_url_stops_resolving(client: AsyncClient, actin
 
 
 async def test_a_banner_needs_a_session(client: AsyncClient, acting_user):
-    a = await acting_user(guild_role=GuildRole.admin)
+    a = await acting_user(guild_role=CommunityRole.admin)
     payload = await _set_banner(client, a.guild.id, a.headers)
 
     assert (await client.get(payload["banner"]["image_url"])).status_code == 401
@@ -432,7 +432,7 @@ async def test_the_guild_list_names_the_banner(
     client: AsyncClient, acting_user, session: AsyncSession
 ):
     """The full one for the front page, the card one for the switcher's cards."""
-    a = await acting_user(guild_role=GuildRole.admin)
+    a = await acting_user(guild_role=CommunityRole.admin)
     await _set_banner(client, a.guild.id, a.headers)
 
     response = await client.get("/api/v1/communities/", headers=a.headers)
@@ -447,7 +447,7 @@ async def test_the_directory_names_the_card_rendition(
     client: AsyncClient, acting_user, session: AsyncSession, community_directory_on
 ):
     """A URL, never the bytes — a directory page is up to sixty cards."""
-    a = await acting_user(guild_role=GuildRole.admin)
+    a = await acting_user(guild_role=CommunityRole.admin)
     await _set_banner(client, a.guild.id, a.headers)
     await _list_as_community(session, a.guild)
     stranger = await create_user(session, email="visitor@example.com")
@@ -462,7 +462,7 @@ async def test_the_directory_names_the_card_rendition(
 
 
 async def test_a_guild_without_a_banner_names_none(client: AsyncClient, acting_user):
-    a = await acting_user(guild_role=GuildRole.admin)
+    a = await acting_user(guild_role=CommunityRole.admin)
 
     response = await client.get("/api/v1/communities/", headers=a.headers)
 
@@ -475,7 +475,7 @@ async def test_deleting_a_guild_takes_its_banner(
     client: AsyncClient, acting_user, session: AsyncSession
 ):
     """The cascade off ``public.guilds``, asserted rather than assumed."""
-    a = await acting_user(guild_role=GuildRole.admin)
+    a = await acting_user(guild_role=CommunityRole.admin)
     await _set_banner(client, a.guild.id, a.headers)
     guild_id = a.guild.id
 
@@ -499,7 +499,7 @@ async def test_a_settings_grant_reads_the_guild_with_its_pictures(
     """A settings rung has no entry in the guild list, so its read of the
     guild is where it learns the pictures it may be there to review — and
     every one of them is then served to it, unlisted guild or not."""
-    a = await acting_user(guild_role=GuildRole.admin)
+    a = await acting_user(guild_role=CommunityRole.admin)
     await _set_icon(client, a.guild.id, a.headers)
     await _set_banner(client, a.guild.id, a.headers)
     support = await create_user(session, role=UserRole.support)
@@ -531,7 +531,7 @@ async def test_a_pam_grantee_reads_the_full_banner(
 
     from app.models.platform.access_grant import AccessGrant
 
-    a = await acting_user(guild_role=GuildRole.admin)
+    a = await acting_user(guild_role=CommunityRole.admin)
     payload = await _set_banner(client, a.guild.id, a.headers)
     operator = await create_user(session, email="operator@example.com")
     now = datetime.now(timezone.utc)
@@ -574,7 +574,7 @@ async def test_a_guild_can_choose_a_colour_instead(
     The shared colour picker emits ``#rrggbbaa``; a banner is a fill with
     nothing behind it, so the alpha is dropped rather than refused.
     """
-    a = await acting_user(guild_role=GuildRole.admin)
+    a = await acting_user(guild_role=CommunityRole.admin)
 
     response = await client.patch(
         f"/api/v1/communities/{a.guild.id}",
@@ -587,7 +587,7 @@ async def test_a_guild_can_choose_a_colour_instead(
 
 
 async def test_a_colour_that_is_not_one_is_refused(client: AsyncClient, acting_user):
-    a = await acting_user(guild_role=GuildRole.admin)
+    a = await acting_user(guild_role=CommunityRole.admin)
 
     response = await client.patch(
         f"/api/v1/communities/{a.guild.id}",
@@ -602,7 +602,7 @@ async def test_a_colour_that_is_not_one_is_refused(client: AsyncClient, acting_u
 async def test_a_null_banner_is_a_reset_not_a_removal(client: AsyncClient, acting_user):
     """A banner is never colourless and never without a layout, so there is
     nothing for null to clear — it puts the whole default back."""
-    a = await acting_user(guild_role=GuildRole.admin)
+    a = await acting_user(guild_role=CommunityRole.admin)
     await client.patch(
         f"/api/v1/communities/{a.guild.id}",
         headers=a.headers,
@@ -624,7 +624,7 @@ async def test_a_null_banner_is_a_reset_not_a_removal(client: AsyncClient, actin
 async def test_every_guild_starts_with_a_banner(client: AsyncClient, acting_user):
     """No guild is ever without one, so nothing downstream renders a guild
     that has none."""
-    a = await acting_user(guild_role=GuildRole.admin)
+    a = await acting_user(guild_role=CommunityRole.admin)
 
     response = await client.get("/api/v1/communities/", headers=a.headers)
 
@@ -636,7 +636,7 @@ async def test_the_banner_text_colour_is_the_guilds_to_set(
     client: AsyncClient, acting_user
 ):
     """Artwork is not one colour, so what reads over it is not ours to guess."""
-    a = await acting_user(guild_role=GuildRole.admin)
+    a = await acting_user(guild_role=CommunityRole.admin)
 
     response = await client.patch(
         f"/api/v1/communities/{a.guild.id}",
@@ -653,7 +653,7 @@ async def test_the_directory_carries_the_colour(
 ):
     """A card with no artwork still has a banner, and it arrives in the payload
     that was already being sent."""
-    a = await acting_user(guild_role=GuildRole.admin)
+    a = await acting_user(guild_role=CommunityRole.admin)
     await client.patch(
         f"/api/v1/communities/{a.guild.id}",
         headers=a.headers,
@@ -680,7 +680,7 @@ async def test_a_guild_without_the_artwork_entitlement_cannot_upload(
     """The banner surface stays; the upload half of it does not."""
     from app.models.platform.guild_administration import GuildAdministration
 
-    a = await acting_user(guild_role=GuildRole.admin)
+    a = await acting_user(guild_role=CommunityRole.admin)
     administration = (
         await session.exec(
             select(GuildAdministration).where(
@@ -708,7 +708,7 @@ async def test_the_colour_is_still_available_without_the_entitlement(
     """Every guild has a banner; not every guild has artwork."""
     from app.models.platform.guild_administration import GuildAdministration
 
-    a = await acting_user(guild_role=GuildRole.admin)
+    a = await acting_user(guild_role=CommunityRole.admin)
     administration = (
         await session.exec(
             select(GuildAdministration).where(
@@ -734,7 +734,7 @@ async def test_the_entitlement_is_on_by_default(acting_user, session: AsyncSessi
     """Nothing changes for an existing guild, or for a self-hosted install."""
     from app.models.platform.guild_administration import GuildAdministration
 
-    a = await acting_user(guild_role=GuildRole.admin)
+    a = await acting_user(guild_role=CommunityRole.admin)
 
     administration = (
         await session.exec(
@@ -754,7 +754,7 @@ async def test_a_guild_keeps_serving_artwork_it_already_had(
     banner the guild is already showing."""
     from app.models.platform.guild_administration import GuildAdministration
 
-    a = await acting_user(guild_role=GuildRole.admin)
+    a = await acting_user(guild_role=CommunityRole.admin)
     payload = await _set_banner(client, a.guild.id, a.headers)
     administration = (
         await session.exec(
@@ -778,7 +778,7 @@ async def test_a_guild_keeps_serving_artwork_it_already_had(
 async def test_admin_sets_the_icon_and_gets_its_url_back(
     client: AsyncClient, acting_user
 ):
-    a = await acting_user(guild_role=GuildRole.admin)
+    a = await acting_user(guild_role=CommunityRole.admin)
 
     payload = await _set_icon(client, a.guild.id, a.headers)
 
@@ -790,7 +790,7 @@ async def test_the_icon_and_the_banner_do_not_disturb_each_other(
     client: AsyncClient, acting_user
 ):
     """Two pictures on one table, replaced independently."""
-    a = await acting_user(guild_role=GuildRole.admin)
+    a = await acting_user(guild_role=CommunityRole.admin)
     await _set_banner(client, a.guild.id, a.headers)
 
     payload = await _set_icon(client, a.guild.id, a.headers)
@@ -812,7 +812,7 @@ async def test_the_icon_is_not_gated_by_the_banner_entitlement(
     """A guild without banner artwork still has a mark in the switcher."""
     from app.models.platform.guild_administration import GuildAdministration
 
-    a = await acting_user(guild_role=GuildRole.admin)
+    a = await acting_user(guild_role=CommunityRole.admin)
     administration = (
         await session.exec(
             select(GuildAdministration).where(
@@ -830,7 +830,7 @@ async def test_the_icon_is_not_gated_by_the_banner_entitlement(
 
 
 async def test_a_non_square_icon_is_refused(client: AsyncClient, acting_user):
-    a = await acting_user(guild_role=GuildRole.admin)
+    a = await acting_user(guild_role=CommunityRole.admin)
 
     response = await client.put(
         f"/api/v1/communities/{a.guild.id}/icon",
@@ -846,7 +846,7 @@ async def test_a_stranger_gets_a_listed_guilds_icon(
     client: AsyncClient, acting_user, session: AsyncSession, community_directory_on
 ):
     """The icon is published by listing, exactly as the card rendition is."""
-    a = await acting_user(guild_role=GuildRole.admin)
+    a = await acting_user(guild_role=CommunityRole.admin)
     await _set_icon(client, a.guild.id, a.headers)
     await _list_as_community(session, a.guild)
     stranger = await create_user(session, email="icon-browser@example.com")
@@ -860,7 +860,7 @@ async def test_a_stranger_gets_a_listed_guilds_icon(
 async def test_a_stranger_gets_nothing_from_an_unlisted_guilds_icon(
     client: AsyncClient, acting_user, session: AsyncSession
 ):
-    a = await acting_user(guild_role=GuildRole.admin)
+    a = await acting_user(guild_role=CommunityRole.admin)
     await _set_icon(client, a.guild.id, a.headers)
     stranger = await create_user(session, email="icon-stranger@example.com")
     url = await _variant_url(session, a.guild.id, GuildImageVariant.icon)
@@ -874,7 +874,7 @@ async def test_the_directory_names_the_icon(
     client: AsyncClient, acting_user, session: AsyncSession, community_directory_on
 ):
     """A card names both its pictures; it carries neither."""
-    a = await acting_user(guild_role=GuildRole.admin)
+    a = await acting_user(guild_role=CommunityRole.admin)
     await _set_icon(client, a.guild.id, a.headers)
     await _list_as_community(session, a.guild)
     stranger = await create_user(session, email="icon-visitor@example.com")
@@ -891,7 +891,7 @@ async def test_the_directory_names_the_icon(
 
 
 async def test_the_guild_list_names_the_icon(client: AsyncClient, acting_user):
-    a = await acting_user(guild_role=GuildRole.admin)
+    a = await acting_user(guild_role=CommunityRole.admin)
     await _set_icon(client, a.guild.id, a.headers)
 
     response = await client.get("/api/v1/communities/", headers=a.headers)
@@ -905,7 +905,7 @@ async def test_a_guild_admin_reads_their_own_entitlements(
     client: AsyncClient, acting_user
 ):
     """How the settings page knows to offer the colour alone."""
-    a = await acting_user(guild_role=GuildRole.admin)
+    a = await acting_user(guild_role=CommunityRole.admin)
 
     response = await client.get(
         f"/api/v1/communities/{a.guild.id}/entitlements", headers=a.headers
@@ -920,7 +920,7 @@ async def test_entitlements_follow_the_operator(
 ):
     from app.models.platform.guild_administration import GuildAdministration
 
-    a = await acting_user(guild_role=GuildRole.admin)
+    a = await acting_user(guild_role=CommunityRole.admin)
     administration = (
         await session.exec(
             select(GuildAdministration).where(
@@ -941,7 +941,7 @@ async def test_entitlements_follow_the_operator(
 
 async def test_a_member_does_not_read_entitlements(client: AsyncClient, acting_user):
     """Decisions made about a guild are its admins' business, not its roster's."""
-    a = await acting_user(guild_role=GuildRole.member)
+    a = await acting_user(guild_role=CommunityRole.member)
 
     response = await client.get(
         f"/api/v1/communities/{a.guild.id}/entitlements", headers=a.headers
@@ -955,7 +955,7 @@ async def test_a_truncated_image_is_a_bad_upload_not_a_fault(
 ):
     """A file can carry a format's opening marks and stop before its
     dimensions. That is an answer about the upload, not an error."""
-    a = await acting_user(guild_role=GuildRole.admin)
+    a = await acting_user(guild_role=CommunityRole.admin)
     # PNG signature + IHDR marker and nothing after it.
     stub = b"\x89PNG\r\n\x1a\n" + struct.pack(">I", 13) + b"IHDR"
 
@@ -976,7 +976,7 @@ async def test_dropping_below_the_seat_floor_stops_publishing_artwork(
     doing anything, and what the listing published goes with it."""
     from app.models.platform.guild_administration import GuildAdministration
 
-    a = await acting_user(guild_role=GuildRole.admin)
+    a = await acting_user(guild_role=CommunityRole.admin)
     await _set_icon(client, a.guild.id, a.headers)
     await _set_banner(client, a.guild.id, a.headers)
     await _list_as_community(session, a.guild)
@@ -1009,7 +1009,7 @@ async def test_banner_text_is_black_or_white_and_nothing_else(
 ):
     """A fill the guild picked, or artwork of any colour, stays readable only
     at one end of the scale or the other — so those are the only two."""
-    a = await acting_user(guild_role=GuildRole.admin)
+    a = await acting_user(guild_role=CommunityRole.admin)
 
     refused = await client.patch(
         f"/api/v1/communities/{a.guild.id}",
@@ -1034,7 +1034,7 @@ async def test_banner_text_is_black_or_white_and_nothing_else(
 async def test_a_banner_starts_centred_and_dissolving(client: AsyncClient, acting_user):
     """Centred, as every banner already was, and fading into the page — the
     dissolve is the default, and the hard edge is what a guild opts into."""
-    a = await acting_user(guild_role=GuildRole.admin)
+    a = await acting_user(guild_role=CommunityRole.admin)
 
     response = await client.get("/api/v1/communities/", headers=a.headers)
 
@@ -1046,7 +1046,7 @@ async def test_a_banner_starts_centred_and_dissolving(client: AsyncClient, actin
 async def test_an_admin_sets_the_alignment_and_the_fade(
     client: AsyncClient, acting_user
 ):
-    a = await acting_user(guild_role=GuildRole.admin)
+    a = await acting_user(guild_role=CommunityRole.admin)
 
     response = await client.patch(
         f"/api/v1/communities/{a.guild.id}",
@@ -1064,7 +1064,7 @@ async def test_a_layout_outside_the_vocabulary_is_refused(
 ):
     """Both values are read straight into a stylesheet, so the closed
     vocabulary is the whole of what may be stored."""
-    a = await acting_user(guild_role=GuildRole.admin)
+    a = await acting_user(guild_role=CommunityRole.admin)
 
     align = await client.patch(
         f"/api/v1/communities/{a.guild.id}",
@@ -1084,7 +1084,7 @@ async def test_a_layout_outside_the_vocabulary_is_refused(
 async def test_half_a_banner_is_not_a_banner(client: AsyncClient, acting_user):
     """The banner is replaced, not merged into, so a body naming two of the
     four is refused rather than read as "leave the rest"."""
-    a = await acting_user(guild_role=GuildRole.admin)
+    a = await acting_user(guild_role=CommunityRole.admin)
 
     response = await client.patch(
         f"/api/v1/communities/{a.guild.id}",
@@ -1096,8 +1096,8 @@ async def test_half_a_banner_is_not_a_banner(client: AsyncClient, acting_user):
 
 
 async def test_a_member_cannot_lay_out_the_banner(client: AsyncClient, acting_user):
-    a = await acting_user(guild_role=GuildRole.admin)
-    b = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+    a = await acting_user(guild_role=CommunityRole.admin)
+    b = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
 
     response = await client.patch(
         f"/api/v1/communities/{a.guild.id}",
@@ -1114,7 +1114,7 @@ async def test_the_guild_list_says_how_many_are_here_now(
     """The roster and the room: a guild's banner shows both, so both ride in
     the payload it is drawn from. Nobody is connected in a test, so the live
     half is zero — what matters is that it is stated rather than absent."""
-    a = await acting_user(guild_role=GuildRole.admin)
+    a = await acting_user(guild_role=CommunityRole.admin)
 
     response = await client.get("/api/v1/communities/", headers=a.headers)
 

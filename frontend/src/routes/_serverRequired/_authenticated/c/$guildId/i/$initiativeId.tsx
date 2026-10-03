@@ -1,8 +1,8 @@
 import { createFileRoute, Outlet } from "@tanstack/react-router";
 
 import {
-  getListInitiativesApiV1CGuildIdInitiativesGetQueryKey,
-  listInitiativesApiV1CGuildIdInitiativesGet,
+  getListInitiativesQueryKey,
+  listInitiatives,
 } from "@/api/generated/initiatives/initiatives";
 
 /**
@@ -23,8 +23,8 @@ export const Route = createFileRoute("/_serverRequired/_authenticated/c/$guildId
     // its placeholder at once and the list lands into it. A failed prefetch
     // is swallowed here; the page fetches for itself and reports the error.
     void queryClient.prefetchQuery({
-      queryKey: getListInitiativesApiV1CGuildIdInitiativesGetQueryKey(guildId),
-      queryFn: () => listInitiativesApiV1CGuildIdInitiativesGet(guildId),
+      queryKey: getListInitiativesQueryKey(guildId),
+      queryFn: () => listInitiatives(guildId),
       staleTime: 30_000,
     });
   },

@@ -15,17 +15,17 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import type {
-  ListMarketplaceListingsApiV1CGuildIdMarketplaceListingsGetParams,
+  ListMarketplaceListingsParams,
   MarketplaceListingDetail,
   MarketplaceListingPage,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
-  getListMarketplaceListingsApiV1CGuildIdMarketplaceListingsGetQueryKey,
-  getReadMarketplaceListingApiV1CGuildIdMarketplaceListingsPublicIdGetQueryKey,
-  getResolveMarketplaceListingApiV1CGuildIdMarketplaceListingsByUidUidGetQueryKey,
-  listMarketplaceListingsApiV1CGuildIdMarketplaceListingsGet,
-  readMarketplaceListingApiV1CGuildIdMarketplaceListingsPublicIdGet,
-  resolveMarketplaceListingApiV1CGuildIdMarketplaceListingsByUidUidGet,
+  getListMarketplaceListingsQueryKey,
+  getReadMarketplaceListingQueryKey,
+  getResolveMarketplaceListingQueryKey,
+  listMarketplaceListings,
+  readMarketplaceListing,
+  resolveMarketplaceListing,
 } from "@/api/generated/marketplace/marketplace";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import type { QueryOpts } from "@/types/query";
@@ -35,16 +35,13 @@ import type { QueryOpts } from "@/types/query";
 const CATALOG_STALE_MS = 5 * 60 * 1000;
 
 export const useMarketplaceListings = (
-  params?: ListMarketplaceListingsApiV1CGuildIdMarketplaceListingsGetParams,
+  params?: ListMarketplaceListingsParams,
   options?: QueryOpts<MarketplaceListingPage>
 ) => {
   const guildId = useActiveGuildId();
   return useQuery<MarketplaceListingPage>({
-    queryKey: getListMarketplaceListingsApiV1CGuildIdMarketplaceListingsGetQueryKey(
-      guildId,
-      params
-    ),
-    queryFn: () => listMarketplaceListingsApiV1CGuildIdMarketplaceListingsGet(guildId, params),
+    queryKey: getListMarketplaceListingsQueryKey(guildId, params),
+    queryFn: () => listMarketplaceListings(guildId, params),
     // Typing keeps the previous page on screen while the next one loads, so the
     // grid does not blank out on every keystroke.
     placeholderData: keepPreviousData,
@@ -60,15 +57,8 @@ export const useMarketplaceListing = (
   const guildId = useActiveGuildId();
   const { enabled: userEnabled = true, ...rest } = options ?? {};
   return useQuery<MarketplaceListingDetail>({
-    queryKey: getReadMarketplaceListingApiV1CGuildIdMarketplaceListingsPublicIdGetQueryKey(
-      guildId,
-      publicId ?? ""
-    ),
-    queryFn: () =>
-      readMarketplaceListingApiV1CGuildIdMarketplaceListingsPublicIdGet(
-        guildId,
-        publicId as string
-      ),
+    queryKey: getReadMarketplaceListingQueryKey(guildId, publicId ?? ""),
+    queryFn: () => readMarketplaceListing(guildId, publicId as string),
     enabled: Boolean(publicId) && userEnabled,
     staleTime: CATALOG_STALE_MS,
     ...rest,
@@ -89,12 +79,8 @@ export const useMarketplaceListingByUid = (
   const guildId = useActiveGuildId();
   const { enabled: userEnabled = true, ...rest } = options ?? {};
   return useQuery<MarketplaceListingDetail>({
-    queryKey: getResolveMarketplaceListingApiV1CGuildIdMarketplaceListingsByUidUidGetQueryKey(
-      guildId,
-      uid ?? ""
-    ),
-    queryFn: () =>
-      resolveMarketplaceListingApiV1CGuildIdMarketplaceListingsByUidUidGet(guildId, uid as string),
+    queryKey: getResolveMarketplaceListingQueryKey(guildId, uid ?? ""),
+    queryFn: () => resolveMarketplaceListing(guildId, uid as string),
     enabled: Boolean(uid) && userEnabled,
     staleTime: CATALOG_STALE_MS,
     // A listing this guild cannot take is a real answer for an installed

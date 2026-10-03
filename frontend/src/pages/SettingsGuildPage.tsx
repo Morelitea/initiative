@@ -1,8 +1,8 @@
 import { type FormEvent, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { updateGuildApiV1CommunitiesGuildIdPatch } from "@/api/generated/communities/communities";
-import type { GuildRead } from "@/api/generated/initiativeAPI.schemas";
+import { updateCommunity } from "@/api/generated/communities/communities";
+import type { CommunityRead } from "@/api/generated/initiativeAPI.schemas";
 import { GuildArtworkPanel } from "@/components/guilds/GuildArtworkPanel";
 import { GuildDiscoveryPanel } from "@/components/guilds/GuildDiscoveryPanel";
 import { Button } from "@/components/ui/button";
@@ -41,12 +41,10 @@ export const SettingsGuildPage = () => {
     setSaveError(null);
     setSaveMessage(null);
     try {
-      const result = await (updateGuildApiV1CommunitiesGuildIdPatch(activeGuild.id, {
+      const result = await (updateCommunity(activeGuild.id, {
         name,
         description,
-      } as Parameters<
-        typeof updateGuildApiV1CommunitiesGuildIdPatch
-      >[1]) as unknown as Promise<GuildRead>);
+      } as Parameters<typeof updateCommunity>[1]) as unknown as Promise<CommunityRead>);
       updateGuildInState(result);
       await refreshGuilds();
       setSaveMessage(t("settings.updatedSuccessfully"));

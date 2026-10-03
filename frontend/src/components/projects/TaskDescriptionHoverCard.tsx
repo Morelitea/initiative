@@ -2,7 +2,7 @@ import { TextAlignStart } from "lucide-react";
 import { useState } from "react";
 
 import type { TaskListRead } from "@/api/generated/initiativeAPI.schemas";
-import { useReadTaskApiV1CGuildIdTasksTaskIdGet } from "@/api/generated/tasks/tasks";
+import { useReadTask } from "@/api/generated/tasks/tasks";
 import { TaskDescription } from "@/components/tasks/TaskDescription";
 import { Button } from "@/components/ui/button";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
@@ -25,12 +25,9 @@ interface TaskDescriptionHoverCardProps {
 export const TaskDescriptionHoverCard = ({ task, className }: TaskDescriptionHoverCardProps) => {
   const [open, setOpen] = useState(false);
   const activeGuildId = useActiveGuildId();
-  const { data } = useReadTaskApiV1CGuildIdTasksTaskIdGet(
-    task.guild_id ?? activeGuildId,
-    task.id,
-    undefined,
-    { query: { enabled: open } }
-  );
+  const { data } = useReadTask(task.guild_id ?? activeGuildId, task.id, undefined, {
+    query: { enabled: open },
+  });
 
   if (!task.has_description) return null;
 

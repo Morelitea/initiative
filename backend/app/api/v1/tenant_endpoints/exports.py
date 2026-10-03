@@ -4,7 +4,7 @@ The artifact is content, so its download is a gated read: the download route
 loads the ExportJob row under RLS (own-row + guild-admin policies), asks again
 that the caller reaches every initiative the artifact holds, and only then
 streams the file from the guild's storage backend. Artifacts are deliberately
-never registered in ``uploads``, so the guild-wide ``/uploads/{guild_id}/…``
+never registered in ``uploads``, so the guild-wide ``/uploads/{community_id}/…``
 media route cannot serve them: an export is a per-user snapshot and may contain
 initiative-isolated content the rest of the guild must not reach.
 
@@ -43,7 +43,7 @@ from app.models.tenant.initiative import Initiative
 from app.schemas.tenant.backup_export import BackupEstimate
 from app.schemas.tenant.export_job import (
     ExportJobRead,
-    GuildExportStatus,
+    CommunityExportStatus,
     artifact_expired,
     serialize_export_job,
 )
@@ -431,7 +431,7 @@ async def export_initiative(
 
 
 @router.get("/community", response_model=None)
-async def export_guild(
+async def export_community(
     session: RLSSessionDep,
     current_user: CurrentUserDep,
     guild_context: GuildContextDep,
@@ -493,12 +493,12 @@ async def export_guild(
     return _export_response(result, guild_context)
 
 
-@router.get("/community/status", response_model=GuildExportStatus)
-async def read_guild_export_status(
+@router.get("/community/status", response_model=CommunityExportStatus)
+async def read_community_export_status(
     session: RLSSessionDep,
     current_user: CurrentUserDep,
     guild_context: GuildContextDep,
-) -> GuildExportStatus:
+) -> CommunityExportStatus:
     """The state of this community's whole-community export, before anybody
     opens the wizard: the last one taken — who took it, how it ended, and
     whether its archive is still there — and when the next one may start.
@@ -521,7 +521,7 @@ async def read_guild_export_status(
     started_by = None
     if latest is not None:
         started_by = display_name(await session.get(MemberProfile, latest.created_by))
-    return GuildExportStatus(
+    return CommunityExportStatus(
         cooldown_hours=settings.EXPORT_GUILD_COOLDOWN_HOURS,
         next_available_at=await _guild_export_available_at(session),
         latest=serialize_export_job(latest, guild_id=guild_context.guild_id)

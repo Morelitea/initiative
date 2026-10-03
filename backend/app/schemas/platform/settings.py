@@ -186,7 +186,7 @@ ClaimValue = Annotated[str, Field(max_length=256)]
 MAX_CLAIM_VALUES = 64
 
 
-class GuildProviderConnectionRead(SanitizedBaseModel):
+class CommunityProviderConnectionRead(SanitizedBaseModel):
     """One community signing its members in through one provider.
 
     Also how an arrangement the community has not made itself is shown: the
@@ -223,13 +223,13 @@ class GuildProviderConnectionRead(SanitizedBaseModel):
     login_ready: bool = True
 
 
-class GuildNarrowingAgreement(SanitizedBaseModel):
+class CommunityNarrowingAgreement(SanitizedBaseModel):
     """Whether these values are this community's to claim."""
 
     agreed: bool
 
 
-class GuildNarrowingPending(SanitizedBaseModel):
+class CommunityNarrowingPending(SanitizedBaseModel):
     """One community's claim, waiting to be answered."""
 
     connection_id: int
@@ -242,7 +242,7 @@ class GuildNarrowingPending(SanitizedBaseModel):
     agreed: bool
 
 
-class GuildProviderConnectionCreate(SanitizedBaseModel):
+class CommunityProviderConnectionCreate(SanitizedBaseModel):
     """Connect to one of the providers on offer."""
 
     provider_id: int
@@ -257,7 +257,7 @@ class GuildProviderConnectionCreate(SanitizedBaseModel):
     accepts_provider_placement: bool = False
 
 
-class GuildProviderConnectionUpdate(SanitizedBaseModel):
+class CommunityProviderConnectionUpdate(SanitizedBaseModel):
     """Change the narrowing, or take the button away. The provider a
     connection is to is not editable: pointing it elsewhere would change who
     gets in without saying so. Disconnect and connect instead."""
@@ -297,7 +297,7 @@ class PlatformProviderDefaultUpdate(SanitizedBaseModel):
     enabled: Optional[bool] = None
 
 
-class GuildClaimRuleRead(SanitizedBaseModel):
+class CommunityClaimRuleRead(SanitizedBaseModel):
     """One rule a community wrote: a group this provider asserts, and where
     somebody carrying it lands."""
 
@@ -315,7 +315,7 @@ class GuildClaimRuleRead(SanitizedBaseModel):
     initiative_role_name: Optional[str] = None
 
 
-class GuildClaimRuleCreate(SanitizedBaseModel):
+class CommunityClaimRuleCreate(SanitizedBaseModel):
     """Place the people carrying one group.
 
     Naming an initiative places them there as well as in the community, since
@@ -329,7 +329,7 @@ class GuildClaimRuleCreate(SanitizedBaseModel):
     initiative_role_id: Optional[int] = None
 
 
-class GuildClaimRulesResponse(SanitizedBaseModel):
+class CommunityClaimRulesResponse(SanitizedBaseModel):
     """The rules, and whether the providers behind them report groups at all.
 
     Which claim carries groups is the operator's to set per provider. A
@@ -340,7 +340,7 @@ class GuildClaimRulesResponse(SanitizedBaseModel):
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
-    rules: List[GuildClaimRuleRead] = Field(default_factory=list)
+    rules: List[CommunityClaimRuleRead] = Field(default_factory=list)
     #: Provider ids this community connects to that report groups.
     reporting_provider_ids: List[int] = Field(default_factory=list)
     #: The platform's rules that name this community, shown so a community
@@ -407,7 +407,7 @@ class ProviderPlacementRuleUpdate(SanitizedBaseModel):
     initiative_role_id: Optional[int] = None
 
 
-GuildClaimRulesResponse.model_rebuild()
+CommunityClaimRulesResponse.model_rebuild()
 
 
 class PlacementProviderRead(SanitizedBaseModel):

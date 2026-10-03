@@ -32,7 +32,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
 from app.models.platform.billing import BillingEventLog
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.platform.user import UserRole
 from app.services.platform import guilds as guilds_service
 from app.services.platform.guilds import GuildCapacityError
@@ -111,7 +111,7 @@ async def test_operator_keeps_full_authority_over_billed_guild(
     )
     guild = await create_guild(session, creator=owner, tier_name="gold")
     await create_guild_membership(
-        session, user=owner, guild=guild, role=GuildRole.admin
+        session, user=owner, guild=guild, role=CommunityRole.admin
     )
     session.add(
         BillingEventLog(
@@ -153,7 +153,7 @@ async def test_operator_keeps_full_authority_over_billed_guild(
 # The complete surface allowed to mention tier_name. Everything else in
 # app/ — enforcement, services, deps, quota checks — must not: enforcement
 # reads only max_storage_bytes / max_users / status. The display read
-# (GuildRead + its serializer) is allowed — it renders the plan label, it does
+# (CommunityRead + its serializer) is allowed — it renders the plan label, it does
 # not gate anything.
 _TIER_NAME_ALLOWED = {
     "models/platform/guild_administration.py",  # the column + its contract
@@ -165,10 +165,10 @@ _TIER_NAME_ALLOWED = {
     # The plan summary billing answers for the seat's Billing tab: read per
     # request, returned for display, kept nowhere.
     "services/platform/billing_ping.py",
-    "schemas/platform/guild.py",  # GuildRead display field
+    "schemas/platform/guild.py",  # CommunityRead display field
     "api/v1/platform_endpoints/guilds.py",  # _serialize_guild passes it through
     # The operator's guild list shows the label next to the caps it does NOT
-    # set; both uses build PlatformGuildStorageRead and read nothing from it.
+    # set; both uses build PlatformCommunityStorageRead and read nothing from it.
     "api/v1/platform_endpoints/settings.py",
 }
 

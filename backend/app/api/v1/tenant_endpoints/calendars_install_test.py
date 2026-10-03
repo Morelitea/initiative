@@ -14,7 +14,7 @@ from typing import Any
 from sqlmodel import select
 
 from app.core.messages import AppMessages, CalendarMessages, RelationshipMessages
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.platform.notification import Notification, NotificationType
 from app.models.tenant.calendar import Calendar
 from app.models.tenant.calendar_event import CalendarEvent
@@ -60,7 +60,7 @@ async def _switch_on(session: Any, *initiatives: Any) -> None:
 
 async def _member_of_a(acting_user: Any, installed: Any) -> Any:
     return await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=installed.guild,
         initiative=installed.placed,
         initiative_role="member",

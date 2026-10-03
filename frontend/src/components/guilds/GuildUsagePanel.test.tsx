@@ -23,10 +23,7 @@ vi.mock("@/hooks/useAppConfig", () => ({
   useAppConfig: () => ({ billing: state.billing }),
 }));
 vi.mock("@/api/generated/storage/storage", () => ({
-  useReadStorageUsageApiV1CGuildIdStorageUsageGet: (
-    _guildId: number,
-    options: { query: { enabled: boolean } }
-  ) => {
+  useReadStorageUsage: (_guildId: number, options: { query: { enabled: boolean } }) => {
     state.usageEnabled.push(options.query.enabled);
     return { data: state.usage, isError: state.usageError };
   },

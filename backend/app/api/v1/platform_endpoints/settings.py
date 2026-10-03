@@ -7,6 +7,7 @@ from sqlalchemy import func
 from sqlmodel import select
 
 from app.api.deps import (
+    CommunityIdPath,
     UserSessionDep,
     SystemSessionDep,
 )
@@ -23,14 +24,14 @@ from app.models.platform.app_setting_secret import AppSettingSecret
 from app.models.platform.guild import (
     Guild,
     GuildMembership,
-    GuildRole,
+    CommunityRole,
 )
 from app.models.platform.guild_administration import GuildAdministration
 from app.schemas.platform.settings import (
     NotificationSettingsResponse,
     NotificationSettingsUpdate,
-    GuildNarrowingAgreement,
-    GuildNarrowingPending,
+    CommunityNarrowingAgreement,
+    CommunityNarrowingPending,
     CommunitySettingsResponse,
     CommunitySettingsUpdate,
     EmailSettingsResponse,
@@ -53,12 +54,12 @@ from app.schemas.platform.settings import (
     StorageSettingsUpdate,
     StorageTestResponse,
 )
-from app.models.platform.guild import GuildStatus, operator_status_choices
+from app.models.platform.guild import CommunityStatus, operator_status_choices
 from app.schemas.platform.guild import (
-    PlatformGuildRestore,
-    PlatformGuildStorageListResponse,
-    PlatformGuildStorageRead,
-    PlatformGuildStorageUpdate,
+    PlatformCommunityRestore,
+    PlatformCommunityStorageListResponse,
+    PlatformCommunityStorageRead,
+    PlatformCommunityStorageUpdate,
 )
 from app.models.platform.access_grant import AccessGrantPurpose, AccessLevel
 from app.schemas.platform.access_grant import BreakGlassCreate, SecondFactorAnswer
@@ -774,7 +775,7 @@ def _guild_purge_at(guild: Guild, retention: int | None) -> datetime | None:
     is the deployment's window; None there means it keeps deleted communities,
     and a community that is never destroyed has no date to show.
     """
-    if guild.status != GuildStatus.deleted.value or guild.status_changed_at is None:
+    if guild.status != CommunityStatus.deleted.value or guild.status_changed_at is None:
         return None
     if retention is None:
         return None
@@ -788,15 +789,15 @@ def _guild_storage_read(
     member_count: int,
     has_seat: bool,
     retention: int | None,
-) -> PlatformGuildStorageRead:
+) -> PlatformCommunityStorageRead:
     """One row of the Guilds tab.
 
     ``administration`` is None only for a guild missing its companion row,
     which is listed with blank caps rather than dropped.
     """
-    current = GuildStatus(guild.status)
+    current = CommunityStatus(guild.status)
     recorded = administration.billing_status if administration else None
-    return PlatformGuildStorageRead(
+    return PlatformCommunityStorageRead(
         id=guild.id,
         name=guild.name,
         member_count=member_count,
@@ -812,7 +813,7 @@ def _guild_storage_read(
         status_choices=list(
             operator_status_choices(
                 current,
-                billing_status=GuildStatus(recorded) if recorded else None,
+                billing_status=CommunityStatus(recorded) if recorded else None,
                 billing_managed=billing_service.billing_managed(),
             )
         ),
@@ -853,7 +854,7 @@ async def _member_tallies(
                     select(GuildMembership.guild_id)
                     .where(
                         GuildMembership.guild_id.in_(guild_ids),
-                        GuildMembership.role == GuildRole.superadmin,
+                        GuildMembership.role == CommunityRole.superadmin,
                     )
                     .distinct()
                 )
@@ -865,8 +866,8 @@ async def _member_tallies(
 _GUILD_SORT_FIELDS = {"id": Guild.id, "name": Guild.name}
 
 
-@router.get("/communities", response_model=PlatformGuildStorageListResponse)
-async def list_platform_guild_storage(
+@router.get("/communities", response_model=PlatformCommunityStorageListResponse)
+async def list_platform_community_storage(
     session: UserSessionDep,
     _operator: GuildsManageDep,
     search: str | None = Query(default=None, description="Matches the name."),
@@ -874,7 +875,7 @@ async def list_platform_guild_storage(
     sort_dir: Literal["asc", "desc"] = "asc",
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
-) -> PlatformGuildStorageListResponse:
+) -> PlatformCommunityStorageListResponse:
     """One page of the deployment's guilds with their storage caps, for the
     Operator dashboard Guilds tab.
 
@@ -916,19 +917,21 @@ async def list_platform_guild_storage(
         )
         for g, administration in rows
     ]
-    return PlatformGuildStorageListResponse(
+    return PlatformCommunityStorageListResponse(
         **build_paginated_response(items, total_count, actual_page, page_size),
         support_bound=await stream_is_bound(IntakeStream.support),
     )
 
 
-@router.patch("/communities/{guild_id}", response_model=PlatformGuildStorageRead)
-async def update_platform_guild_storage(
-    guild_id: int,
-    payload: PlatformGuildStorageUpdate,
+@router.patch(
+    "/communities/{community_id}", response_model=PlatformCommunityStorageRead
+)
+async def update_platform_community_storage(
+    guild_id: CommunityIdPath,
+    payload: PlatformCommunityStorageUpdate,
     session: SystemSessionDep,
     operator: GuildsManageDep,
-) -> PlatformGuildStorageRead:
+) -> PlatformCommunityStorageRead:
     """Set a guild's storage/member caps and/or lifecycle status. Operator/owner.
 
     Writes only shared ``public`` columns — the caps and the sign-in entitlement
@@ -984,8 +987,8 @@ async def update_platform_guild_storage(
                 await guilds_service.get_administration(session, guild_id=guild_id)
             ).billing_status
             choices = operator_status_choices(
-                GuildStatus(guild.status),
-                billing_status=GuildStatus(recorded) if recorded else None,
+                CommunityStatus(guild.status),
+                billing_status=CommunityStatus(recorded) if recorded else None,
                 billing_managed=managed,
             )
             if payload.status not in choices:
@@ -1055,7 +1058,7 @@ async def update_platform_guild_storage(
         # Billing reads the new status for itself: a suspended community's
         # subscription is paused, and one that comes back is resumed.
         billing_ping.notify_lifecycle_changed(guild_id)
-        if status_after == GuildStatus.on_hold.value:
+        if status_after == CommunityStatus.on_hold.value:
             await guilds_service.announce_on_hold(session, guild_id)
             guild = await guilds_service.get_guild(session, guild_id=guild_id)
     return _guild_storage_read(
@@ -1068,13 +1071,14 @@ async def update_platform_guild_storage(
 
 
 @router.get(
-    "/communities/{guild_id}/narrowings", response_model=list[GuildNarrowingPending]
+    "/communities/{community_id}/narrowings",
+    response_model=list[CommunityNarrowingPending],
 )
-async def read_guild_narrowings(
-    guild_id: int,
+async def read_community_narrowings(
+    guild_id: CommunityIdPath,
     session: SystemSessionDep,
     operator: GuildsManageDep,
-) -> list[GuildNarrowingPending]:
+) -> list[CommunityNarrowingPending]:
     """What this community says its own arrivals look like, and whether
     anybody has agreed.
 
@@ -1088,16 +1092,16 @@ async def read_guild_narrowings(
 
 
 @router.put(
-    "/communities/{guild_id}/narrowings/{connection_id}",
-    response_model=GuildNarrowingPending,
+    "/communities/{community_id}/narrowings/{connection_id}",
+    response_model=CommunityNarrowingPending,
 )
-async def agree_guild_narrowing(
-    guild_id: int,
+async def agree_community_narrowing(
+    guild_id: CommunityIdPath,
     connection_id: int,
-    payload: GuildNarrowingAgreement,
+    payload: CommunityNarrowingAgreement,
     session: SystemSessionDep,
     operator: GuildsManageDep,
-) -> GuildNarrowingPending:
+) -> CommunityNarrowingPending:
     """Agree that these values are this community's, or withdraw that.
 
     Agreeing lets arrivals it counts as its own join on sight where the
@@ -1113,13 +1117,15 @@ async def agree_guild_narrowing(
     )
 
 
-@router.post("/communities/{guild_id}/restore", response_model=PlatformGuildStorageRead)
-async def restore_platform_guild(
-    guild_id: int,
-    payload: PlatformGuildRestore,
+@router.post(
+    "/communities/{community_id}/restore", response_model=PlatformCommunityStorageRead
+)
+async def restore_platform_community(
+    guild_id: CommunityIdPath,
+    payload: PlatformCommunityRestore,
     session: SystemSessionDep,
     operator: GuildsManageDep,
-) -> PlatformGuildStorageRead:
+) -> PlatformCommunityStorageRead:
     """Bring a deleted guild back before its retention window runs out.
 
     Operator/owner (``guilds.manage``). Deleting a guild keeps it — the shared
@@ -1178,11 +1184,11 @@ async def restore_platform_guild(
 
 
 @router.post(
-    "/communities/{guild_id}/billing/service-handoff",
+    "/communities/{community_id}/billing/service-handoff",
     response_model=BillingPortalHandoffResponse,
 )
-async def create_platform_guild_billing_service_handoff(
-    guild_id: int,
+async def create_platform_community_billing_service_handoff(
+    guild_id: CommunityIdPath,
     session: SystemSessionDep,
     operator: GuildsManageDep,
     console: Literal["support", "operator"] = "support",

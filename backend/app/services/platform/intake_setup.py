@@ -27,7 +27,7 @@ from app.core.messages import GuildMessages, InitiativeMessages, IntakeMessages
 from app.db import cohorts
 from app.db.session import set_rls_context
 from app.models.platform.app_setting import AppSetting
-from app.models.platform.guild import Guild, GuildStatus
+from app.models.platform.guild import Guild, CommunityStatus
 from app.models.platform.user import User
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.intake import IntakeBinding, IntakeCase
@@ -87,7 +87,7 @@ async def set_operations_guild(
                 status_code=http_status.HTTP_404_NOT_FOUND,
                 detail=GuildMessages.GUILD_NOT_FOUND,
             )
-        if guild.status != GuildStatus.active.value:
+        if guild.status != CommunityStatus.active.value:
             raise HTTPException(
                 status_code=http_status.HTTP_400_BAD_REQUEST,
                 detail=IntakeMessages.GUILD_NOT_ACTIVE,

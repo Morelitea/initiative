@@ -35,7 +35,7 @@ from app.models.platform.access_grant import (
     AccessGrantStatus,
     AccessLevel,
 )
-from app.models.platform.guild import Guild, GuildStatus
+from app.models.platform.guild import Guild, CommunityStatus
 from app.models.platform.notification import NotificationType
 from app.models.platform.user import User, UserRole, UserStatus
 from app.models.platform.user_passkey import UserPasskey
@@ -820,7 +820,7 @@ async def to_read(
         guild = guilds.get(g.guild_id)
         if guild is not None:
             read.guild_name = guild.name
-            read.guild_status = GuildStatus(guild.status)
+            read.guild_status = CommunityStatus(guild.status)
         if g.approved_by_id is not None:
             approver = users.get(g.approved_by_id)
             if approver is not None:

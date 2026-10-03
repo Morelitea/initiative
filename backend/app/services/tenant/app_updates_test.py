@@ -15,7 +15,7 @@ from datetime import datetime
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.platform.notification import Notification, NotificationType
 from app.models.tenant.app_schedule_run import AppScheduleRun
 from app.models.tenant.guild_app import GuildApp
@@ -458,7 +458,7 @@ async def _asking_install(
     seat = await create_user(session)
     guild = await create_guild(session, creator=seat)
     await create_guild_membership(
-        session, user=seat, guild=guild, role=GuildRole.superadmin
+        session, user=seat, guild=guild, role=CommunityRole.superadmin
     )
     app = await create_guild_app(
         session,

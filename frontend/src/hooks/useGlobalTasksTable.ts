@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next";
 
 import type {
   FilterCondition,
-  ListMyTasksApiV1MeTasksGetParams,
+  ListMyTasksParams,
   SortField,
   TaskListRead,
   TaskListResponse,
@@ -14,11 +14,8 @@ import type {
   TaskStatusCategory,
   TaskStatusRead,
 } from "@/api/generated/initiativeAPI.schemas";
-import { listTaskStatusesApiV1CGuildIdProjectsProjectIdTaskStatusesGet } from "@/api/generated/task-statuses/task-statuses";
-import {
-  getListMyTasksApiV1MeTasksGetQueryKey,
-  listMyTasksApiV1MeTasksGet,
-} from "@/api/generated/tasks/tasks";
+import { listTaskStatuses } from "@/api/generated/task-statuses/task-statuses";
+import { getListMyTasksQueryKey, listMyTasks } from "@/api/generated/tasks/tasks";
 import type { PropertyFilterCondition } from "@/components/properties/PropertyFilter";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useUpdateTaskInGuild } from "@/hooks/useTasks";
@@ -76,7 +73,7 @@ const PAGE_SIZE = 20;
  * so the row it touched updates wherever it is on screen without waiting for
  * three cross-guild aggregates to come back.
  */
-const MY_TASKS_QUERY_PREFIX = getListMyTasksApiV1MeTasksGetQueryKey();
+const MY_TASKS_QUERY_PREFIX = getListMyTasksQueryKey();
 
 /** Task ids repeat across guilds, so an in-flight row is addressed by both. */
 const taskKey = (task: Pick<TaskListRead, "id" | "guild_id">) =>
@@ -228,7 +225,7 @@ export function useGlobalTasksTable() {
   const userTimezone = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone, []);
 
   // --- Tasks query ---
-  const tasksParams = useMemo((): ListMyTasksApiV1MeTasksGetParams => {
+  const tasksParams = useMemo((): ListMyTasksParams => {
     // Build synthesized property-value conditions. The tasks backend exposes
     // ``property_values`` as a virtual field where ``value`` is the shape
     // ``{property_id, value}`` (see backend/app/api/v1/endpoints/tasks.py).
@@ -271,8 +268,8 @@ export function useGlobalTasksTable() {
   ]);
 
   const tasksQuery = useQuery<TaskListResponse>({
-    queryKey: getListMyTasksApiV1MeTasksGetQueryKey(tasksParams),
-    queryFn: () => listMyTasksApiV1MeTasksGet(tasksParams),
+    queryKey: getListMyTasksQueryKey(tasksParams),
+    queryFn: () => listMyTasks(tasksParams),
     placeholderData: keepPreviousData,
     // Nothing is worth asking for until the saved filters and sort are in
     // hand: a request built on the defaults would be thrown away the moment
@@ -284,14 +281,14 @@ export function useGlobalTasksTable() {
   const prefetchPage = useCallback(
     (targetPage: number) => {
       if (targetPage < 1) return;
-      const prefetchParams: ListMyTasksApiV1MeTasksGetParams = {
+      const prefetchParams: ListMyTasksParams = {
         ...tasksParams,
         page: targetPage,
       };
 
       void localQueryClient.prefetchQuery({
-        queryKey: getListMyTasksApiV1MeTasksGetQueryKey(prefetchParams),
-        queryFn: () => listMyTasksApiV1MeTasksGet(prefetchParams),
+        queryKey: getListMyTasksQueryKey(prefetchParams),
+        queryFn: () => listMyTasks(prefetchParams),
         staleTime: 30_000,
       });
     },
@@ -392,10 +389,7 @@ export function useGlobalTasksTable() {
     }
     // Explicit guild address: the project lives in the task's guild, which
     // need not be the user's current context on these cross-guild pages.
-    const statuses = await listTaskStatusesApiV1CGuildIdProjectsProjectIdTaskStatusesGet(
-      guildId,
-      projectId
-    );
+    const statuses = await listTaskStatuses(guildId, projectId);
     const merged = cached
       ? [
           ...cached.statuses,

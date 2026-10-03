@@ -2,11 +2,11 @@ import { Download, FileText, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { useListExportJobsApiV1CGuildIdExportsJobsGet } from "@/api/generated/exports/exports";
+import { useListExportJobs } from "@/api/generated/exports/exports";
 import {
-  getListImportJobsApiV1CGuildIdImportsJobsGetQueryKey,
-  useCancelImportJobApiV1CGuildIdImportsJobsJobIdDelete,
-  useListImportJobsApiV1CGuildIdImportsJobsGet,
+  getListImportJobsQueryKey,
+  useCancelImportJob,
+  useListImportJobs,
 } from "@/api/generated/imports/imports";
 import type { ExportJobRead, ImportJobRead } from "@/api/generated/initiativeAPI.schemas";
 import { ImportReport } from "@/components/imports/ImportReport";
@@ -71,19 +71,19 @@ export function DataJobsTable() {
   const guildId = useActiveGuildId();
   const [reportJob, setReportJob] = useState<ImportJobRead | null>(null);
 
-  const exportsQuery = useListExportJobsApiV1CGuildIdExportsJobsGet(guildId, {
+  const exportsQuery = useListExportJobs(guildId, {
     query: {
       refetchInterval: (query) =>
         (query.state.data ?? []).some((job) => ACTIVE.has(job.status)) ? POLL_MS : false,
     },
   });
-  const importsQuery = useListImportJobsApiV1CGuildIdImportsJobsGet(guildId, {
+  const importsQuery = useListImportJobs(guildId, {
     query: {
       refetchInterval: (query) =>
         (query.state.data ?? []).some((job) => ACTIVE.has(job.status)) ? POLL_MS : false,
     },
   });
-  const cancelMutation = useCancelImportJobApiV1CGuildIdImportsJobsJobIdDelete();
+  const cancelMutation = useCancelImportJob();
 
   const rows: Row[] = useMemo(() => {
     const merged: Row[] = [
@@ -111,14 +111,14 @@ export function DataJobsTable() {
 
   const handleCancel = async (job: ImportJobRead) => {
     try {
-      await cancelMutation.mutateAsync({ guildId, jobId: job.id });
+      await cancelMutation.mutateAsync({ communityId: guildId, jobId: job.id });
     } catch (err) {
       // Most often a 409: the job started running between render and click.
       // Surface it instead of the row silently flipping to "running".
       toast.error(getErrorMessage(err, "imports:job.failed"));
     } finally {
       void queryClient.invalidateQueries({
-        queryKey: getListImportJobsApiV1CGuildIdImportsJobsGetQueryKey(guildId),
+        queryKey: getListImportJobsQueryKey(guildId),
       });
     }
   };

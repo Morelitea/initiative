@@ -33,19 +33,19 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
-  clearGuildBannerApiV1CommunitiesGuildIdBannerDelete,
-  clearGuildIconApiV1CommunitiesGuildIdIconDelete,
-  setGuildBannerApiV1CommunitiesGuildIdBannerPut,
-  setGuildIconApiV1CommunitiesGuildIdIconPut,
-  updateGuildApiV1CommunitiesGuildIdPatch,
-  useReadGuildEntitlementsApiV1CommunitiesGuildIdEntitlementsGet,
+  clearCommunityBanner,
+  clearCommunityIcon,
+  setCommunityBanner,
+  setCommunityIcon,
+  updateCommunity,
+  useReadCommunityEntitlements,
 } from "@/api/generated/communities/communities";
 import {
   BannerFade,
   BannerTextAlign,
-  type GuildBannerRead,
-  type GuildBannerWrite,
-  type GuildRead,
+  type CommunityBannerRead,
+  type CommunityBannerWrite,
+  type CommunityRead,
 } from "@/api/generated/initiativeAPI.schemas";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -71,13 +71,13 @@ type Busy = "icon" | "banner" | "look" | null;
  * *impression* of each setting rather than its exact geometry — enough to
  * choose between them, which is what a preview is for.
  */
-const PREVIEW_FADE: Record<GuildBannerRead["fade"], string | undefined> = {
+const PREVIEW_FADE: Record<CommunityBannerRead["fade"], string | undefined> = {
   none: undefined,
   weak: "linear-gradient(to bottom, #000 65%, transparent 100%)",
   strong: "linear-gradient(to bottom, #000 15%, transparent 100%)",
 };
 
-export const GuildArtworkPanel = ({ guild }: { guild: GuildRead }) => {
+export const GuildArtworkPanel = ({ guild }: { guild: CommunityRead }) => {
   const { t } = useTranslation(["guilds", "common"]);
   const { refreshGuilds, updateGuildInState } = useGuilds();
   const [busy, setBusy] = useState<Busy>(null);
@@ -88,7 +88,7 @@ export const GuildArtworkPanel = ({ guild }: { guild: GuildRead }) => {
   // Only an admin reaches this panel, which is who may read this. Until the
   // answer lands, assume artwork is on offer: it is the ordinary case, and the
   // server is what actually decides.
-  const entitlements = useReadGuildEntitlementsApiV1CommunitiesGuildIdEntitlementsGet(guild.id);
+  const entitlements = useReadCommunityEntitlements(guild.id);
   const mayUploadBanner = entitlements.data?.banner_image_enabled ?? true;
 
   useEffect(() => {
@@ -96,7 +96,7 @@ export const GuildArtworkPanel = ({ guild }: { guild: GuildRead }) => {
   }, [guild.banner]);
 
   /** Show a change, without writing it — for a picker still being dragged. */
-  const draftLook = (change: Partial<GuildBannerWrite>) =>
+  const draftLook = (change: Partial<CommunityBannerWrite>) =>
     setDraft((current) => ({ ...current, ...change }));
 
   /**
@@ -108,15 +108,15 @@ export const GuildArtworkPanel = ({ guild }: { guild: GuildRead }) => {
    * clearing anything, because a banner is never colourless and never without
    * a layout.
    */
-  const commitLook = (change: Partial<GuildBannerWrite> | null) => {
+  const commitLook = (change: Partial<CommunityBannerWrite> | null) => {
     const banner = change && { ...draft, ...change };
     if (banner) setDraft(banner);
     void run("look", async () =>
       // The endpoint answers with the whole guild; the cast is the generated
       // client's, which types a PATCH body as unknown.
-      updateGuildApiV1CommunitiesGuildIdPatch(guild.id, {
+      updateCommunity(guild.id, {
         banner,
-      } as Parameters<typeof updateGuildApiV1CommunitiesGuildIdPatch>[1])
+      } as Parameters<typeof updateCommunity>[1])
     );
   };
 
@@ -129,12 +129,12 @@ export const GuildArtworkPanel = ({ guild }: { guild: GuildRead }) => {
   });
 
   /** Every write here answers with the whole guild, so state is replaced, not patched. */
-  const applied = async (updated: GuildRead) => {
+  const applied = async (updated: CommunityRead) => {
     updateGuildInState(updated);
     await refreshGuilds();
   };
 
-  const run = async (kind: Exclude<Busy, null>, work: () => Promise<GuildRead>) => {
+  const run = async (kind: Exclude<Busy, null>, work: () => Promise<CommunityRead>) => {
     setBusy(kind);
     try {
       await applied(await work());
@@ -154,15 +154,11 @@ export const GuildArtworkPanel = ({ guild }: { guild: GuildRead }) => {
   };
 
   const pickIcon = (file: File) => {
-    void run("icon", async () =>
-      setGuildIconApiV1CommunitiesGuildIdIconPut(guild.id, { icon: await renderGuildIcon(file) })
-    );
+    void run("icon", async () => setCommunityIcon(guild.id, { icon: await renderGuildIcon(file) }));
   };
 
   const pickBanner = (file: File) => {
-    void run("banner", async () =>
-      setGuildBannerApiV1CommunitiesGuildIdBannerPut(guild.id, await renderGuildBanner(file))
-    );
+    void run("banner", async () => setCommunityBanner(guild.id, await renderGuildBanner(file)));
   };
 
   const iconUrl = guild.icon_url ? resolveHeaderlessApiUrl(guild.icon_url) : null;
@@ -193,9 +189,7 @@ export const GuildArtworkPanel = ({ guild }: { guild: GuildRead }) => {
                 type="button"
                 variant="outline"
                 disabled={busy !== null}
-                onClick={() =>
-                  void run("icon", () => clearGuildIconApiV1CommunitiesGuildIdIconDelete(guild.id))
-                }
+                onClick={() => void run("icon", () => clearCommunityIcon(guild.id))}
               >
                 {t("guilds:settings.removeIcon")}
               </Button>
@@ -270,11 +264,7 @@ export const GuildArtworkPanel = ({ guild }: { guild: GuildRead }) => {
               type="button"
               variant="outline"
               disabled={busy !== null}
-              onClick={() =>
-                void run("banner", () =>
-                  clearGuildBannerApiV1CommunitiesGuildIdBannerDelete(guild.id)
-                )
-              }
+              onClick={() => void run("banner", () => clearCommunityBanner(guild.id))}
             >
               {t("guilds:settings.artwork.removeBanner")}
             </Button>

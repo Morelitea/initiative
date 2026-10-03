@@ -15,7 +15,7 @@ from unittest.mock import patch
 from httpx import AsyncClient
 
 from app.core.audit_events import AuditEventType
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.testing import emitted
 
 
@@ -73,7 +73,7 @@ async def _create(client: AsyncClient, actor) -> dict:
 async def test_registering_records_the_host_and_never_the_rest_of_the_url(
     client: AsyncClient, acting_user, capfd
 ):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
     capfd.readouterr()
     created = await _create(client, a)
 
@@ -98,7 +98,7 @@ async def test_a_refused_registration_records_nothing(
     client: AsyncClient, acting_user, capfd
 ):
     """Nothing was registered, so there is nothing to write down."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
     capfd.readouterr()
 
     with _mock_public_dns():
@@ -115,7 +115,7 @@ async def test_a_refused_registration_records_nothing(
 async def test_a_rewrite_records_which_fields_moved(
     client: AsyncClient, acting_user, capfd
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     created = await _create(client, a)
     capfd.readouterr()
 
@@ -143,7 +143,7 @@ async def test_a_rewrite_records_which_fields_moved(
 async def test_a_rewrite_that_moves_nothing_records_nothing(
     client: AsyncClient, acting_user, capfd
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     created = await _create(client, a)
     capfd.readouterr()
 
@@ -160,7 +160,7 @@ async def test_a_rewrite_that_moves_nothing_records_nothing(
 async def test_removing_one_records_where_it_had_been_pointing(
     client: AsyncClient, acting_user, capfd
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     created = await _create(client, a)
     capfd.readouterr()
 

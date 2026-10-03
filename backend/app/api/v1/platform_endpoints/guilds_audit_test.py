@@ -12,7 +12,7 @@ from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.audit_events import AuditEventType
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.testing import emitted
 from app.testing.factories import (
     create_auth_provider,
@@ -43,7 +43,7 @@ def _of_type(written: list[dict], event_type: AuditEventType) -> list[dict]:
 
 
 async def _guild_with_admin(
-    session: AsyncSession, *, role: GuildRole = GuildRole.admin, **overrides
+    session: AsyncSession, *, role: CommunityRole = CommunityRole.admin, **overrides
 ):
     admin = await create_user(session)
     guild = await create_guild(session, creator=admin, **overrides)
@@ -153,12 +153,12 @@ async def test_leaving_a_guild_is_recorded_against_the_leaver(
     client: AsyncClient, session: AsyncSession, capfd
 ):
     """Nobody else acted, so the person leaving is both actor and subject."""
-    _owner, guild = await _guild_with_admin(session, role=GuildRole.superadmin)
+    _owner, guild = await _guild_with_admin(session, role=CommunityRole.superadmin)
     guild_id = guild.id
     member = await create_user(session)
     member_id = member.id
     await create_guild_membership(
-        session, user=member, guild=guild, role=GuildRole.member
+        session, user=member, guild=guild, role=CommunityRole.member
     )
     capfd.readouterr()
 
@@ -177,12 +177,12 @@ async def test_leaving_a_guild_is_recorded_against_the_leaver(
 async def test_a_role_change_short_of_the_seat_is_its_own_event(
     client: AsyncClient, session: AsyncSession, capfd
 ):
-    owner, guild = await _guild_with_admin(session, role=GuildRole.superadmin)
+    owner, guild = await _guild_with_admin(session, role=CommunityRole.superadmin)
     owner_id, guild_id = owner.id, guild.id
     member = await create_user(session)
     member_id = member.id
     await create_guild_membership(
-        session, user=member, guild=guild, role=GuildRole.member
+        session, user=member, guild=guild, role=CommunityRole.member
     )
     capfd.readouterr()
 
@@ -276,7 +276,7 @@ async def test_retention_is_recorded_as_its_own_area_with_its_values(
 async def test_the_seats_own_switches_are_recorded_area_by_area(
     client: AsyncClient, session: AsyncSession, capfd
 ):
-    admin, guild = await _guild_with_admin(session, role=GuildRole.superadmin)
+    admin, guild = await _guild_with_admin(session, role=CommunityRole.superadmin)
     admin_id, guild_id = admin.id, guild.id
     headers = get_auth_headers(admin)
     capfd.readouterr()
@@ -326,7 +326,7 @@ async def test_the_seats_own_switches_are_recorded_area_by_area(
 async def test_setting_and_clearing_a_sign_in_requirement_is_recorded(
     client: AsyncClient, session: AsyncSession, capfd
 ):
-    admin, guild = await _guild_with_admin(session, role=GuildRole.superadmin)
+    admin, guild = await _guild_with_admin(session, role=CommunityRole.superadmin)
     admin_id, guild_id = admin.id, guild.id
     provider = await create_auth_provider(session, slug="corp")
     provider_id = provider.id
@@ -387,7 +387,7 @@ async def test_deleting_a_guild_is_recorded_in_the_transaction_that_deletes_it(
     client: AsyncClient, session: AsyncSession, capfd
 ):
     admin, guild = await _guild_with_admin(
-        session, name="To Delete", role=GuildRole.superadmin
+        session, name="To Delete", role=CommunityRole.superadmin
     )
     admin_id, guild_id = admin.id, guild.id
     capfd.readouterr()
@@ -418,7 +418,7 @@ async def test_a_refused_guild_deletion_records_nothing(
     client: AsyncClient, session: AsyncSession, capfd
 ):
     admin, guild = await _guild_with_admin(
-        session, name="To Delete", role=GuildRole.superadmin
+        session, name="To Delete", role=CommunityRole.superadmin
     )
     capfd.readouterr()
 

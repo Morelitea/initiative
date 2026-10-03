@@ -1,14 +1,14 @@
 import type {
-  GuildBannerRead,
-  GuildCan,
-  GuildInviteStatus,
-  GuildRead,
+  CommunityBannerRead,
+  CommunityCan,
+  CommunityInviteStatus,
+  CommunityRead,
 } from "@/api/generated/initiativeAPI.schemas";
 import { isAdminRole } from "@/lib/permissions";
 
 let counter = 0;
 
-export function buildBanner(overrides: Partial<GuildBannerRead> = {}): GuildBannerRead {
+export function buildBanner(overrides: Partial<CommunityBannerRead> = {}): CommunityBannerRead {
   return {
     image_url: null,
     color: "#2563eb",
@@ -21,7 +21,10 @@ export function buildBanner(overrides: Partial<GuildBannerRead> = {}): GuildBann
 
 /** What the server answers for a membership at `role`: an administrator runs
  *  the community and its work, and the seat is the top rung. */
-export function guildCan(role: string = "member", overrides: Partial<GuildCan> = {}): GuildCan {
+export function guildCan(
+  role: string = "member",
+  overrides: Partial<CommunityCan> = {}
+): CommunityCan {
   const administers = isAdminRole(role);
   return {
     enter: true,
@@ -38,7 +41,7 @@ export function resetCounter(): void {
   counter = 0;
 }
 
-export function buildGuild(overrides: Partial<GuildRead> = {}): GuildRead {
+export function buildGuild(overrides: Partial<CommunityRead> = {}): CommunityRead {
   counter++;
   const role = overrides.role ?? "member";
   return {
@@ -75,8 +78,8 @@ export function buildGuild(overrides: Partial<GuildRead> = {}): GuildRead {
 }
 
 export function buildGuildInviteStatus(
-  overrides: Partial<GuildInviteStatus> = {}
-): GuildInviteStatus {
+  overrides: Partial<CommunityInviteStatus> = {}
+): CommunityInviteStatus {
   counter++;
   return {
     code: `invite-code-${counter}`,

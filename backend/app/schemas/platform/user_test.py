@@ -13,8 +13,8 @@ from pydantic import ValidationError
 from app.schemas.platform import user as user_schemas
 from app.schemas.platform.user import (
     ProfileDecorations,
-    UserGuildMember,
-    UserGuildRead,
+    UserCommunityMember,
+    UserCommunityRead,
     UserIdentity,
     UserPublic,
     UserRead,
@@ -52,14 +52,14 @@ def test_there_is_no_schema_for_editing_another_account() -> None:
 
 
 def test_the_guild_read_of_an_account_carries_no_name() -> None:
-    """``UserGuildRead`` is a handle and a standing, and stops there.
+    """``UserCommunityRead`` is a handle and a standing, and stops there.
 
     The membership surfaces read an account back to say what it is now. None of
     the account's own business travels with the answer, and neither does the
     person's name: this shape draws nobody, so the field is not declared.
     """
     for absent in ("display_name", "email", "role"):
-        assert absent not in UserGuildRead.model_fields
+        assert absent not in UserCommunityRead.model_fields
 
 
 def test_the_shape_everything_is_built_from_has_no_name() -> None:
@@ -68,7 +68,7 @@ def test_the_shape_everything_is_built_from_has_no_name() -> None:
     assert "display_name" not in UserIdentity.model_fields
 
 
-@pytest.mark.parametrize("schema", [UserPublic, UserGuildMember, UserSummary])
+@pytest.mark.parametrize("schema", [UserPublic, UserCommunityMember, UserSummary])
 def test_a_guild_shape_declares_the_name_it_may_render(schema) -> None:
     assert "display_name" in schema.model_fields
 

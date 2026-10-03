@@ -9,7 +9,7 @@
  * generated enum).
  */
 
-import { GuildRole, type ToolCan, type UserRead } from "@/api/generated/initiativeAPI.schemas";
+import { CommunityRole, type ToolCan, type UserRead } from "@/api/generated/initiativeAPI.schemas";
 
 export const Capability = {
   usersRead: "users.read",
@@ -85,7 +85,7 @@ export function canAccessPlatformAreas(user: WithCapabilities): boolean {
  * community's own `can`.
  */
 export const isAdminRole = (guildRole: string | null | undefined): boolean =>
-  guildRole === GuildRole.admin || guildRole === GuildRole.superadmin;
+  guildRole === CommunityRole.admin || guildRole === CommunityRole.superadmin;
 
 /** Whether the viewer may take `action` on every one of `items` — a selection
  *  read against each row's server-computed `can`. */

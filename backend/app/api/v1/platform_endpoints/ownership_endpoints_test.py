@@ -12,7 +12,7 @@ from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.tools import Tool
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.platform.user import UserStatus
 from app.services.tenant import archive as archive_service
 from app.services.tenant import ownership as ownership_service
@@ -37,7 +37,7 @@ async def _released_project(session: AsyncSession, actor):
 async def test_a_guild_admin_can_claim_unowned_content(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     project = await _released_project(session, admin)
 
     response = await client.post(
@@ -59,9 +59,9 @@ async def test_content_cannot_be_handed_to_an_ordinary_member(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """The recipient check is the same query, from the other side."""
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     member = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=admin.guild,
         initiative=admin.initiative,
         initiative_role="member",
@@ -80,9 +80,9 @@ async def test_content_cannot_be_handed_to_an_ordinary_member(
 async def test_ownership_transfers_between_guild_admins(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    owner = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    owner = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     receiver = await acting_user(
-        guild_role=GuildRole.admin,
+        guild_role=CommunityRole.admin,
         guild=owner.guild,
         initiative=owner.initiative,
         initiative_role="project_manager",
@@ -105,9 +105,9 @@ async def test_ownership_moves_on_archived_tools(
     hold it: every tool can be handed on and claimed while it is archived —
     including to somebody it was already shared with, whose own grant gives way
     to the owner's."""
-    owner = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    owner = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     receiver = await acting_user(
-        guild_role=GuildRole.admin,
+        guild_role=CommunityRole.admin,
         guild=owner.guild,
         initiative=owner.initiative,
         initiative_role="project_manager",
@@ -153,8 +153,8 @@ async def test_content_cannot_be_handed_outside_the_guild(
     that table's own policy, and named again by the query. An admin of some
     other guild is refused exactly like a stranger.
     """
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    elsewhere = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
+    elsewhere = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     assert elsewhere.guild.id != admin.guild.id
     await _released_project(session, admin)
 
@@ -172,8 +172,8 @@ async def test_content_cannot_be_handed_to_a_suspended_admin(
 ):
     """``status`` is the one thing the roster view supplies that the
     membership row cannot, and it is why the check reads the view at all."""
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    frozen = await acting_user(guild_role=GuildRole.admin, guild=admin.guild)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
+    frozen = await acting_user(guild_role=CommunityRole.admin, guild=admin.guild)
     frozen.user.status = UserStatus.suspended
     session.add(frozen.user)
     await session.commit()

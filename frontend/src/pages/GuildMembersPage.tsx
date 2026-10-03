@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { UserSummary } from "@/api/generated/initiativeAPI.schemas";
-import { GuildRole } from "@/api/generated/initiativeAPI.schemas";
+import { CommunityRole } from "@/api/generated/initiativeAPI.schemas";
 import { ContactActionButtons } from "@/components/contacts/ContactActionButtons";
 import { ContactActionsMenu } from "@/components/contacts/ContactActionsMenu";
 import { FavoriteToggle } from "@/components/contacts/FavoriteToggle";
@@ -142,7 +142,7 @@ export const GuildMembersPage = () => {
                 need. */}
             {isAdminRole(row.original.guild_role) ? (
               <Badge variant="secondary" className="shrink-0">
-                {row.original.guild_role === GuildRole.superadmin
+                {row.original.guild_role === CommunityRole.superadmin
                   ? t("members.superadmin")
                   : t("members.admin")}
               </Badge>

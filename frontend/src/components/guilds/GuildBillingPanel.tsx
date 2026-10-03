@@ -2,8 +2,8 @@ import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 
 import type {
-  GuildBillingChargeRead,
-  GuildBillingSummaryRead,
+  CommunityBillingChargeRead,
+  CommunityBillingSummaryRead,
 } from "@/api/generated/initiativeAPI.schemas";
 import { Badge, type BadgeProps } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -17,7 +17,7 @@ import { parseDateValue } from "@/lib/formatDate";
 
 /** A charge in minor units as the currency writes it, or null when the
  *  browser does not know the currency. */
-const formatCharge = (charge: GuildBillingChargeRead, lang: string): string | null => {
+const formatCharge = (charge: CommunityBillingChargeRead, lang: string): string | null => {
   try {
     const format = new Intl.NumberFormat(lang, { style: "currency", currency: charge.currency });
     const digits = format.resolvedOptions().maximumFractionDigits ?? 2;
@@ -38,7 +38,7 @@ interface PlanStatus {
  *  Where nothing may be sold (`canSell` false — the phone app) it states the
  *  facts without asking anyone to pay, and names no amount. */
 const planStatus = (
-  summary: GuildBillingSummaryRead,
+  summary: CommunityBillingSummaryRead,
   t: TFunction<["guilds", "common"]>,
   lang: string,
   canSell: boolean

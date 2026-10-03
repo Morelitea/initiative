@@ -14,23 +14,23 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildGuild, guildCan } from "@/__tests__/factories";
 import { renderPage } from "@/__tests__/helpers/render";
-import type { GuildRead } from "@/api/generated/initiativeAPI.schemas";
+import type { CommunityRead } from "@/api/generated/initiativeAPI.schemas";
 
 import { GuildContextMenu } from "./GuildContextMenu";
 
 const mintInvite = vi.hoisted(() => vi.fn());
 const mintHandoff = vi.hoisted(() => vi.fn());
 vi.mock("@/api/generated/communities/communities", () => ({
-  createGuildInviteApiV1CommunitiesGuildIdInvitesPost: mintInvite,
-  createGuildBillingHandoffApiV1CommunitiesGuildIdBillingHandoffPost: mintHandoff,
+  createCommunityInvite: mintInvite,
+  createCommunityBillingHandoff: mintHandoff,
 }));
 
 // Null billing is the self-hosted deployment; a test opts into the portal.
 const state = vi.hoisted(() => ({ billing: null as { url: string } | null }));
 vi.mock("@/hooks/useAppConfig", () => ({ useAppConfig: () => ({ billing: state.billing }) }));
 
-const setup = (overrides: Partial<GuildRead>) => {
-  const guild = buildGuild({ role: "superadmin", name: "Alpha", ...overrides }) as GuildRead;
+const setup = (overrides: Partial<CommunityRead>) => {
+  const guild = buildGuild({ role: "superadmin", name: "Alpha", ...overrides }) as CommunityRead;
   renderPage(
     () => (
       <GuildContextMenu guild={guild}>
@@ -149,7 +149,7 @@ describe("GuildContextMenu billing action", () => {
       }),
       accessType: "grant",
       grantSettingsLevel: "superadmin",
-    } as GuildRead;
+    } as CommunityRead;
     renderPage(
       () => (
         <GuildContextMenu guild={guild}>
@@ -173,7 +173,7 @@ describe("GuildContextMenu billing action", () => {
       }),
       accessType: "grant",
       grantSettingsLevel: "superadmin",
-    } as GuildRead;
+    } as CommunityRead;
     renderPage(
       () => (
         <GuildContextMenu guild={guild}>

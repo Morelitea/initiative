@@ -45,7 +45,7 @@ from app.core.messages import CommonMessages
 from app.core.tools import DEFAULT_ENABLED_TOOLS, Tool
 from app.db import cohorts
 from app.db.session import install_context, routed_guild_id, set_rls_context
-from app.models.platform.guild import GUILD_LADDER, GuildMembership, GuildRole
+from app.models.platform.guild import GUILD_LADDER, GuildMembership, CommunityRole
 from app.models.platform.user_profile_view import MemberProfile
 from app.models.tenant.initiative import (
     Initiative,
@@ -61,7 +61,7 @@ from app.models.tenant.task import Task, TaskAssignee
 from app.services.platform.users import visible_to_other_people
 from app.db.request_context import SystemGuild
 
-_ADMIN_RUNGS = [rung for rung in GUILD_LADDER if rung.reaches(GuildRole.admin)]
+_ADMIN_RUNGS = [rung for rung in GUILD_LADDER if rung.reaches(CommunityRole.admin)]
 
 
 @dataclass(frozen=True)

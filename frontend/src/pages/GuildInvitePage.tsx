@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { apiClient } from "@/api/client";
-import type { GuildInviteStatus } from "@/api/generated/initiativeAPI.schemas";
+import type { CommunityInviteStatus } from "@/api/generated/initiativeAPI.schemas";
 import { SignInFrame } from "@/components/auth/SignInFrame";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,7 +19,7 @@ export const GuildInvitePage = () => {
   const { user, refreshUser } = useAuth();
   const { refreshGuilds } = useGuilds();
   const { t } = useTranslation(["guilds", "common"]);
-  const [status, setStatus] = useState<GuildInviteStatus | null>(null);
+  const [status, setStatus] = useState<CommunityInviteStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [accepting, setAccepting] = useState(false);
@@ -38,7 +38,7 @@ export const GuildInvitePage = () => {
     setError(null);
     setStatus(null);
     apiClient
-      .get<GuildInviteStatus>(`/communities/invite/${encodeURIComponent(normalizedCode)}`)
+      .get<CommunityInviteStatus>(`/communities/invite/${encodeURIComponent(normalizedCode)}`)
       .then((response) => {
         if (ignore) {
           return;

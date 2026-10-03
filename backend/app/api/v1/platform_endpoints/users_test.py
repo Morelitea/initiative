@@ -15,7 +15,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.profile_decorations import SHIPPED_DECORATIONS
 from app.db.query import MAX_ID_FILTER_VALUES
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.platform.user import Presence, User, UserStatus
 from app.models.platform.user_decoration import UserDecoration
 from app.models.platform.user_dm_settings import DmPolicy
@@ -100,13 +100,13 @@ async def test_the_users_router_answers_403_without_the_standing(
     """403 for a caller signed in without the standing the route asks for: a
     non-member reaching into the guild, and a plain member on a route that is
     a guild admin's. The path is a selector, not a trust boundary."""
-    admin = await acting_user(guild_role=GuildRole.admin)
+    admin = await acting_user(guild_role=CommunityRole.admin)
     caller = (
         await acting_user()
         if who == "outsider"
-        else await acting_user(guild_role=GuildRole.member, guild=admin.guild)
+        else await acting_user(guild_role=CommunityRole.member, guild=admin.guild)
     )
-    target = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
+    target = await acting_user(guild_role=CommunityRole.member, guild=admin.guild)
 
     response = await client.request(
         method,
@@ -211,7 +211,7 @@ async def test_returning_a_switch_to_its_default_leaves_no_trace(client, acting_
 
 async def test_a_community_can_be_set_to_say_less(client, acting_user):
     """The one dial almost everybody will use."""
-    a = await acting_user(guild_role=GuildRole.member)
+    a = await acting_user(guild_role=CommunityRole.member)
 
     response = await client.put(
         "/api/v1/me/notification-preferences",
@@ -286,7 +286,7 @@ async def test_switching_assignment_channels_off_keeps_the_queue_while_one_is_on
 ):
     """One queue backs both channels: the items stay while either channel is
     on and go with the last one."""
-    a = await acting_user(guild_role=GuildRole.member)
+    a = await acting_user(guild_role=CommunityRole.member)
     await _queue_assignment_item(session, a.user, a.guild)
 
     response = await client.put(
@@ -313,16 +313,16 @@ async def test_list_users_lists_this_guilds_members(client, acting_user):
     search narrows them the way the picker's does.
     """
     caller = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         username="user-one",
         initiative=True,
     )
     await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=caller.guild,
         username="zed-two",
     )
-    await acting_user(guild_role=GuildRole.member)  # somebody in another guild
+    await acting_user(guild_role=CommunityRole.member)  # somebody in another guild
 
     response = await client.get(caller.g("/users/"), headers=caller.headers)
 
@@ -359,7 +359,7 @@ async def test_list_users_lists_this_guilds_members(client, acting_user):
 async def test_search_users_returns_slim_paginated_envelope(client, acting_user):
     """The slim search endpoint returns a UserSummary envelope (no email /
     role / initiative_roles) and honours page_size."""
-    caller = await acting_user(guild_role=GuildRole.member, username="aaa-caller")
+    caller = await acting_user(guild_role=CommunityRole.member, username="aaa-caller")
     await acting_user(guild=caller.guild, username="bbb-other")
     await acting_user(guild=caller.guild, username="ccc-third")
 
@@ -404,7 +404,7 @@ async def test_search_users_returns_slim_paginated_envelope(client, acting_user)
 async def test_search_users_can_list_the_caller_first(client, acting_user):
     """``self_first`` puts the caller at the top of page one, wherever their
     handle would sort; everyone else keeps their order."""
-    caller = await acting_user(guild_role=GuildRole.member, username="zzz-caller")
+    caller = await acting_user(guild_role=CommunityRole.member, username="zzz-caller")
     await acting_user(guild=caller.guild, username="aaa-other")
     await acting_user(guild=caller.guild, username="bbb-other")
 
@@ -428,8 +428,8 @@ async def test_search_users_says_where_each_member_stands(client, acting_user):
     say which of them to reach about the community itself, and the role comes
     off the join the query already makes.
     """
-    admin = await acting_user(guild_role=GuildRole.admin)
-    member = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
+    admin = await acting_user(guild_role=CommunityRole.admin)
+    member = await acting_user(guild_role=CommunityRole.member, guild=admin.guild)
 
     response = await client.get(admin.g("/users/search"), headers=admin.headers)
     assert response.status_code == 200, response.text
@@ -456,7 +456,7 @@ async def test_roster_groups_by_presence_and_leaves_out_private_accounts(
     """Who is here comes first, a group at a time. Somebody whose direct
     messages are private is not listed at all, the reader included, and nor is
     somebody on "My communities" who switched this one off."""
-    reader = await acting_user(guild_role=GuildRole.member, username="reader")
+    reader = await acting_user(guild_role=CommunityRole.member, username="reader")
     here = await acting_user(guild=reader.guild, username="zed-here")
     busy = await acting_user(guild=reader.guild, username="amy-busy")
     away = await acting_user(guild=reader.guild, username="bob-away")
@@ -498,7 +498,7 @@ async def test_roster_lists_everyone_where_direct_messages_are_off(
     client, session, acting_user
 ):
     """With no direct messages on the deployment there is no policy to keep."""
-    reader = await acting_user(guild_role=GuildRole.member)
+    reader = await acting_user(guild_role=CommunityRole.member)
     other = await acting_user(guild=reader.guild)
     await app_settings_service.update_community_settings(
         session, community_directory_enabled=False, direct_messages_enabled=False
@@ -527,7 +527,7 @@ async def test_search_users_finds_the_name_that_was_typed(
     """`search` matches the part of the handle this guild renders, without
     regard to case. Reading a roster is how you learn a colleague's spelling,
     so a dropped letter and a transposition both still find the person."""
-    caller = await acting_user(guild_role=GuildRole.member, username="asmith")
+    caller = await acting_user(guild_role=CommunityRole.member, username="asmith")
     await acting_user(guild=caller.guild, username="bjones")
     await acting_user(guild=caller.guild, username="thorn-ironforge")
 
@@ -543,8 +543,8 @@ async def test_search_users_finds_the_name_that_was_typed(
 async def test_search_users_never_reaches_another_guild(client, acting_user):
     """Matching a name more loosely must not widen WHOSE names are matched.
     Only this guild's members are ever searched, exact spelling or not."""
-    caller = await acting_user(guild_role=GuildRole.member, username="asmith")
-    await acting_user(guild_role=GuildRole.member, username="thorn-ironforge")
+    caller = await acting_user(guild_role=CommunityRole.member, username="asmith")
+    await acting_user(guild_role=CommunityRole.member, username="thorn-ironforge")
 
     for typed in ("ironforge", "irnforge", "thorn"):
         response = await client.get(
@@ -560,9 +560,9 @@ async def test_search_users_never_reaches_another_guild(client, acting_user):
 async def test_search_users_filters_by_user_id(client, acting_user):
     """`user_id` resolves a known selection, and only ever narrows the roster
     the caller can already see — an id from another guild returns nothing."""
-    caller = await acting_user(guild_role=GuildRole.member)
+    caller = await acting_user(guild_role=CommunityRole.member)
     bob = await acting_user(guild=caller.guild)
-    stranger = await acting_user(guild_role=GuildRole.member)
+    stranger = await acting_user(guild_role=CommunityRole.member)
 
     response = await client.get(
         caller.g("/users/search"),
@@ -588,7 +588,7 @@ async def test_search_users_filters_by_user_id(client, acting_user):
 
 async def test_search_users_rejects_oversized_user_id_list(client, acting_user):
     """The id filter is bounded so one request can't submit an unbounded list."""
-    caller = await acting_user(guild_role=GuildRole.member)
+    caller = await acting_user(guild_role=CommunityRole.member)
 
     response = await client.get(
         caller.g("/users/search"),
@@ -645,7 +645,7 @@ async def test_deletion_eligibility_surfaces_the_services_answer(client, acting_
     """The endpoint hands back the verdict and the reasons behind it. What
     makes the verdict what it is — holding a community's sole seat — is proved
     at the service (``app/services/platform/users_test.py``)."""
-    a = await acting_user(guild_role=GuildRole.member)
+    a = await acting_user(guild_role=CommunityRole.member)
 
     response = await client.get("/api/v1/me/deletion-eligibility", headers=a.headers)
 
@@ -659,8 +659,8 @@ async def test_delete_user_as_admin(client, acting_user, monkeypatch):
     """A guild admin removes a member from the guild, and billing hears of it."""
     from app.services.platform import billing_ping
 
-    admin = await acting_user(guild_role=GuildRole.admin)
-    member = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
+    admin = await acting_user(guild_role=CommunityRole.admin)
+    member = await acting_user(guild_role=CommunityRole.member, guild=admin.guild)
     pinged: list[int] = []
     monkeypatch.setattr(billing_ping, "notify_membership_changed", pinged.append)
 
@@ -884,12 +884,12 @@ _NO_SUCH_USER = {"missing": 99998, "gone": 99999}
 async def csv_guild(acting_user):
     """A guild with an admin and two members to export, plus somebody who
     belongs to a different guild."""
-    admin = await acting_user(guild_role=GuildRole.admin)
+    admin = await acting_user(guild_role=CommunityRole.admin)
     return {
         "admin": admin,
         "one": await acting_user(guild=admin.guild),
         "two": await acting_user(guild=admin.guild),
-        "outsider": await acting_user(guild_role=GuildRole.member),
+        "outsider": await acting_user(guild_role=CommunityRole.member),
     }
 
 
@@ -2134,14 +2134,14 @@ async def test_a_pack_claiming_another_packs_decoration_is_refused(
 
 
 async def test_member_search_narrows_to_one_initiative(client, acting_user):
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     inside = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=admin.guild,
         initiative=admin.initiative,
         initiative_role="member",
     )
-    outside = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
+    outside = await acting_user(guild_role=CommunityRole.member, guild=admin.guild)
 
     narrowed = await client.get(
         admin.g("/users/search"),

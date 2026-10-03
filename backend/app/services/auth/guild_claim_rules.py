@@ -39,9 +39,9 @@ from app.schemas.platform.settings import (
     PlacementInitiativeRead,
     PlacementInitiativeRoleRead,
     ProviderPlacementRuleRead,
-    GuildClaimRuleCreate,
-    GuildClaimRuleRead,
-    GuildClaimRulesResponse,
+    CommunityClaimRuleCreate,
+    CommunityClaimRuleRead,
+    CommunityClaimRulesResponse,
 )
 from app.services import audit as audit_service
 from app.services.platform import provider_placement
@@ -228,7 +228,7 @@ async def _require_unique(
 
 async def _rule_read(
     session: AsyncSession, row: OIDCClaimMapping, *, providers: dict[int, AuthProvider]
-) -> GuildClaimRuleRead:
+) -> CommunityClaimRuleRead:
     initiative_name = None
     initiative_role_name = None
     if row.initiative_id is not None:
@@ -240,7 +240,7 @@ async def _rule_read(
         if role is not None:
             initiative_role_name = role.display_name
     provider = providers.get(row.provider_id)
-    return GuildClaimRuleRead(
+    return CommunityClaimRuleRead(
         id=row.id,
         provider_id=row.provider_id,
         provider_display_name=provider.display_name if provider else "",
@@ -256,7 +256,7 @@ async def _rule_read(
 
 async def list_rules(
     session: AsyncSession, *, guild_id: int
-) -> GuildClaimRulesResponse:
+) -> CommunityClaimRulesResponse:
     """This community's rules, newest last, with the providers named."""
     connected = (
         await session.exec(
@@ -277,7 +277,7 @@ async def list_rules(
         )
     ).all()
     own = [row for row in rows if row.author == ClaimRuleAuthor.community]
-    return GuildClaimRulesResponse(
+    return CommunityClaimRulesResponse(
         rules=[await _rule_read(session, row, providers=providers) for row in own],
         reporting_provider_ids=sorted(
             pid for pid, row in providers.items() if row.role_claim_path
@@ -342,9 +342,9 @@ async def create_rule(
     session: AsyncSession,
     *,
     guild_id: int,
-    payload: GuildClaimRuleCreate,
+    payload: CommunityClaimRuleCreate,
     actor_user_id: int | None = None,
-) -> GuildClaimRuleRead:
+) -> CommunityClaimRuleRead:
     provider = await _connected_provider(
         session, guild_id=guild_id, provider_id=payload.provider_id
     )

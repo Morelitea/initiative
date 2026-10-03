@@ -16,7 +16,7 @@ import { buildGuild, buildInitiative } from "@/__tests__/factories";
 import { guildHttp } from "@/__tests__/helpers/guildHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderWithProviders } from "@/__tests__/helpers/render";
-import type { GuildRead } from "@/api/generated/initiativeAPI.schemas";
+import type { CommunityRead } from "@/api/generated/initiativeAPI.schemas";
 
 import { GuildDiscoveryPanel } from "./GuildDiscoveryPanel";
 
@@ -31,10 +31,10 @@ vi.mock("@/hooks/useAppConfig", () => ({
 }));
 
 vi.mock("@/api/generated/communities/communities", () => ({
-  updateGuildApiV1CommunitiesGuildIdPatch: (...args: unknown[]) => patchGuild(...args),
+  updateCommunity: (...args: unknown[]) => patchGuild(...args),
 }));
 
-const renderPanel = (guild: GuildRead) =>
+const renderPanel = (guild: CommunityRead) =>
   renderWithProviders(<GuildDiscoveryPanel />, {
     guilds: {
       guilds: [guild],
@@ -52,7 +52,7 @@ const renderPanel = (guild: GuildRead) =>
     },
   });
 
-const adminGuild = (overrides: Partial<GuildRead> = {}) =>
+const adminGuild = (overrides: Partial<CommunityRead> = {}) =>
   buildGuild({ id: 7, role: "admin", ...overrides });
 
 const listingToggle = () => screen.getByLabelText("List this community");

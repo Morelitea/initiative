@@ -8,21 +8,21 @@ import type {
 } from "@/api/generated/initiativeAPI.schemas";
 import { SearchEntityType, Tool } from "@/api/generated/initiativeAPI.schemas";
 import {
-  deleteQueueItemApiV1CGuildIdQueueItemsItemIdDelete,
-  duplicateQueueItemApiV1CGuildIdQueueItemsItemIdDuplicatePost,
-  updateQueueItemApiV1CGuildIdQueueItemsItemIdPatch,
+  deleteQueueItem,
+  duplicateQueueItem,
+  updateQueueItem,
 } from "@/api/generated/queue-items/queue-items";
 import {
-  addQueueItemApiV1CGuildIdQueuesQueueIdItemsPost,
-  advanceTurnApiV1CGuildIdQueuesQueueIdNextPost,
-  getReadQueueApiV1CGuildIdQueuesQueueIdGetQueryKey,
-  holdCurrentTurnApiV1CGuildIdQueuesQueueIdHoldPost,
-  previousTurnApiV1CGuildIdQueuesQueueIdPreviousPost,
-  releaseHeldItemApiV1CGuildIdQueuesQueueIdReleaseItemIdPost,
-  resetQueueApiV1CGuildIdQueuesQueueIdResetPost,
-  setActiveItemApiV1CGuildIdQueuesQueueIdSetActiveItemIdPost,
-  startQueueApiV1CGuildIdQueuesQueueIdStartPost,
-  stopQueueApiV1CGuildIdQueuesQueueIdStopPost,
+  addQueueItem,
+  advanceTurn,
+  getReadQueueQueryKey,
+  holdCurrentTurn,
+  previousTurn,
+  releaseHeldItem,
+  resetQueue,
+  setActiveItem,
+  startQueue,
+  stopQueue,
 } from "@/api/generated/queues/queues";
 import { invalidate, q } from "@/api/query-keys";
 import { setRelated } from "@/api/relationships";
@@ -57,8 +57,7 @@ export const useCreateQueueItem = (
 ) =>
   useGuildMutation<QueueItemRead, QueueItemCreate>(
     {
-      mutationFn: (guildId, data) =>
-        addQueueItemApiV1CGuildIdQueuesQueueIdItemsPost(guildId, queueId, data),
+      mutationFn: (guildId, data) => addQueueItem(guildId, queueId, data),
       invalidate: () => invalidateQueueAndList(queueId),
       errorKey: "queues:error",
     },
@@ -71,8 +70,7 @@ export const useUpdateQueueItem = (
 ) =>
   useGuildMutation<QueueItemRead, { itemId: number; data: QueueItemUpdate }>(
     {
-      mutationFn: (guildId, { itemId, data }) =>
-        updateQueueItemApiV1CGuildIdQueueItemsItemIdPatch(guildId, itemId, data),
+      mutationFn: (guildId, { itemId, data }) => updateQueueItem(guildId, itemId, data),
       invalidate: () => invalidateQueueAndList(queueId),
       errorKey: "queues:error",
     },
@@ -82,8 +80,7 @@ export const useUpdateQueueItem = (
 export const useDeleteQueueItem = (queueId: number, options?: MutationOpts<void, number>) =>
   useGuildMutation<void, number>(
     {
-      mutationFn: (guildId, itemId) =>
-        deleteQueueItemApiV1CGuildIdQueueItemsItemIdDelete(guildId, itemId),
+      mutationFn: (guildId, itemId) => deleteQueueItem(guildId, itemId),
       invalidate: () => invalidateQueueAndList(queueId),
       errorKey: "queues:error",
     },
@@ -96,8 +93,7 @@ export const useDuplicateQueueItem = (
 ) =>
   useGuildMutation<QueueItemRead, number>(
     {
-      mutationFn: (guildId, itemId) =>
-        duplicateQueueItemApiV1CGuildIdQueueItemsItemIdDuplicatePost(guildId, itemId),
+      mutationFn: (guildId, itemId) => duplicateQueueItem(guildId, itemId),
       invalidate: () => invalidateQueueAndList(queueId),
       errorKey: "common:error",
     },
@@ -344,7 +340,7 @@ const applyOptimisticTurn = (
   queueId: number,
   apply: (queue: QueueRead) => QueueRead
 ): QueueTurnContext => {
-  const key = getReadQueueApiV1CGuildIdQueuesQueueIdGetQueryKey(guildId, queueId);
+  const key = getReadQueueQueryKey(guildId, queueId);
   void queryClient.cancelQueries({ queryKey: key });
   const previous = queryClient.getQueryData<QueueRead>(key);
   if (previous) {
@@ -361,10 +357,7 @@ const rollbackOptimisticTurn = (
   context: QueueTurnContext | undefined
 ) => {
   if (context?.previous) {
-    queryClient.setQueryData(
-      getReadQueueApiV1CGuildIdQueuesQueueIdGetQueryKey(guildId, queueId),
-      context.previous
-    );
+    queryClient.setQueryData(getReadQueueQueryKey(guildId, queueId), context.previous);
   }
 };
 
@@ -376,7 +369,7 @@ export const useAdvanceTurn = (queueId: number, options?: MutationOpts<QueueRead
   return useMutation<QueueRead, Error, void, QueueTurnContext>({
     ...rest,
     mutationFn: async () => {
-      return advanceTurnApiV1CGuildIdQueuesQueueIdNextPost(guildId, queueId);
+      return advanceTurn(guildId, queueId);
     },
     onMutate: () => applyOptimisticTurn(guildId, queryClient, queueId, advanceQueueState),
     onSuccess,
@@ -400,7 +393,7 @@ export const usePreviousTurn = (queueId: number, options?: MutationOpts<QueueRea
   return useMutation<QueueRead, Error, void, QueueTurnContext>({
     ...rest,
     mutationFn: async () => {
-      return previousTurnApiV1CGuildIdQueuesQueueIdPreviousPost(guildId, queueId);
+      return previousTurn(guildId, queueId);
     },
     onMutate: () => applyOptimisticTurn(guildId, queryClient, queueId, previousQueueState),
     onSuccess,
@@ -424,7 +417,7 @@ export const useStartQueue = (queueId: number, options?: MutationOpts<QueueRead,
   return useMutation<QueueRead, Error, void, QueueTurnContext>({
     ...rest,
     mutationFn: async () => {
-      return startQueueApiV1CGuildIdQueuesQueueIdStartPost(guildId, queueId);
+      return startQueue(guildId, queueId);
     },
     onMutate: () => applyOptimisticTurn(guildId, queryClient, queueId, startQueueState),
     onSuccess,
@@ -448,7 +441,7 @@ export const useStopQueue = (queueId: number, options?: MutationOpts<QueueRead, 
   return useMutation<QueueRead, Error, void, QueueTurnContext>({
     ...rest,
     mutationFn: async () => {
-      return stopQueueApiV1CGuildIdQueuesQueueIdStopPost(guildId, queueId);
+      return stopQueue(guildId, queueId);
     },
     onMutate: () => applyOptimisticTurn(guildId, queryClient, queueId, stopQueueState),
     onSuccess,
@@ -472,7 +465,7 @@ export const useResetQueue = (queueId: number, options?: MutationOpts<QueueRead,
   return useMutation<QueueRead, Error, void, QueueTurnContext>({
     ...rest,
     mutationFn: async () => {
-      return resetQueueApiV1CGuildIdQueuesQueueIdResetPost(guildId, queueId);
+      return resetQueue(guildId, queueId);
     },
     onMutate: () => applyOptimisticTurn(guildId, queryClient, queueId, resetQueueState),
     onSuccess,
@@ -496,7 +489,7 @@ export const useSetActiveItem = (queueId: number, options?: MutationOpts<QueueRe
   return useMutation<QueueRead, Error, number, QueueTurnContext>({
     ...rest,
     mutationFn: async (itemId: number) => {
-      return setActiveItemApiV1CGuildIdQueuesQueueIdSetActiveItemIdPost(guildId, queueId, itemId);
+      return setActiveItem(guildId, queueId, itemId);
     },
     onMutate: (itemId) =>
       applyOptimisticTurn(guildId, queryClient, queueId, (queue) =>
@@ -523,7 +516,7 @@ export const useHoldCurrent = (queueId: number, options?: MutationOpts<QueueRead
   return useMutation<QueueRead, Error, void, QueueTurnContext>({
     ...rest,
     mutationFn: async () => {
-      return holdCurrentTurnApiV1CGuildIdQueuesQueueIdHoldPost(guildId, queueId);
+      return holdCurrentTurn(guildId, queueId);
     },
     onMutate: () => applyOptimisticTurn(guildId, queryClient, queueId, holdCurrentState),
     onSuccess,
@@ -556,7 +549,7 @@ export const useReleaseHeld = (
   return useMutation<QueueRead, Error, ReleaseHeldVariables, QueueTurnContext>({
     ...rest,
     mutationFn: async ({ itemId, reposition }) => {
-      return releaseHeldItemApiV1CGuildIdQueuesQueueIdReleaseItemIdPost(guildId, queueId, itemId, {
+      return releaseHeldItem(guildId, queueId, itemId, {
         reposition: reposition ?? false,
       });
     },

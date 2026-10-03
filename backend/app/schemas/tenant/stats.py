@@ -23,7 +23,7 @@ class HeatmapDayData(SanitizedBaseModel):
     )
 
 
-class GuildTaskBreakdown(SanitizedBaseModel):
+class CommunityTaskBreakdown(SanitizedBaseModel):
     """Task completion breakdown by guild."""
 
     guild_id: int = Field(..., description="Guild ID")
@@ -67,6 +67,6 @@ class UserStatsResponse(SanitizedBaseModel):
     heatmap_data: List[HeatmapDayData] = Field(
         ..., description="Daily activity data for last 365 days"
     )
-    guild_breakdown: List[GuildTaskBreakdown] = Field(
+    guild_breakdown: List[CommunityTaskBreakdown] = Field(
         ..., description="Task completion breakdown by guild"
     )

@@ -20,7 +20,7 @@ from app.core.security import (
     get_password_hash,
 )
 from app.models.platform.auth_session import AuthSession
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.platform.mfa_recovery_code import MfaRecoveryCode
 from app.models.platform.user import User, UserStatus
 from app.models.platform.user_passkey import UserPasskey
@@ -711,7 +711,7 @@ async def _delete_guild(
     # Deleting a community belongs to the seat, so this is what reaches the
     # recent-proof gate at all.
     await create_guild_membership(
-        session, user=user, guild=guild, role=GuildRole.superadmin
+        session, user=user, guild=guild, role=CommunityRole.superadmin
     )
     return await client.request(
         "DELETE",

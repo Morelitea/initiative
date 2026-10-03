@@ -10,10 +10,10 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Query, status
 
-from app.api.deps import SystemSessionDep
+from app.api.deps import SystemSessionDep, CommunityIdPath
 from app.api.v1.platform_endpoints.operator import ConfigManageDep, GuildsManageDep
 from app.schemas.platform.settings import (
-    GuildNarrowingPending,
+    CommunityNarrowingPending,
     PlacementCommunityRead,
     PlacementEverywhereUpdate,
     PlacementInitiativeRead,
@@ -37,11 +37,11 @@ async def list_provider_placement(
     return await provider_placement.list_rules(session)
 
 
-@router.get("/requests", response_model=List[GuildNarrowingPending])
+@router.get("/requests", response_model=List[CommunityNarrowingPending])
 async def list_placement_requests(
     session: SystemSessionDep,
     _operator: GuildsManageDep,
-) -> List[GuildNarrowingPending]:
+) -> List[CommunityNarrowingPending]:
     """Communities waiting for somebody to agree that the domain or tenant
     they named is theirs. Answered on the community's own narrowing route."""
     return await narrowing_review.unanswered(session)
@@ -75,12 +75,12 @@ async def list_placement_communities(
 
 
 @router.get(
-    "/providers/{provider_id}/communities/{guild_id}/initiatives",
+    "/providers/{provider_id}/communities/{community_id}/initiatives",
     response_model=List[PlacementInitiativeRead],
 )
 async def list_placement_targets(
     provider_id: int,
-    guild_id: int,
+    guild_id: CommunityIdPath,
     session: SystemSessionDep,
     _operator: GuildsManageDep,
 ) -> List[PlacementInitiativeRead]:

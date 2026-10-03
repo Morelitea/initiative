@@ -206,7 +206,7 @@ class UserPublic(UserIdentity, PersonShape):
     display_name: Optional[str] = None
 
 
-class UserGuildRead(UserIdentity):
+class UserCommunityRead(UserIdentity):
     """One account, as the guild administering its membership reads it back.
 
     The membership surfaces ask one thing about somebody and this is the
@@ -224,10 +224,10 @@ class UserGuildRead(UserIdentity):
     initiative_roles: List["UserInitiativeRole"] = Field(default_factory=list)
 
 
-class UserGuildMember(UserGuildRead):
+class UserCommunityMember(UserCommunityRead):
     """A member, for the guild's own member-management surface.
 
-    :class:`UserGuildRead` plus the membership facts a guild admin manages —
+    :class:`UserCommunityRead` plus the membership facts a guild admin manages —
     guild role, whether the membership is OIDC-managed — and the name they go
     by here. Two members are told apart by their handle, which is unique.
     """
@@ -242,10 +242,10 @@ class UserGuildMember(UserGuildRead):
     display_name: Optional[str] = None
 
 
-class UserGuildMemberListResponse(PageMeta):
+class UserCommunityMemberListResponse(PageMeta):
     """One page of the guild's roster."""
 
-    items: List[UserGuildMember]
+    items: List[UserCommunityMember]
 
 
 class UserSummary(UserIdentity, PersonShape):
@@ -531,7 +531,7 @@ class UserProfile(SanitizedBaseModel):
     joined_at: datetime
 
 
-class GuildRosterMember(UserSummary):
+class CommunityRosterMember(UserSummary):
     """One person on a community's people roster.
 
     ``UserSummary`` plus what a roster row draws beside the name: how they
@@ -547,11 +547,11 @@ class GuildRosterMember(UserSummary):
     custom_status: CustomStatus = Field(default_factory=CustomStatus)
 
 
-class GuildRosterResponse(PageMeta):
+class CommunityRosterResponse(PageMeta):
     """A page of the roster, and how many people are in each presence group
     across every page, so a group's heading can count people not yet loaded."""
 
-    items: List[GuildRosterMember]
+    items: List[CommunityRosterMember]
     presence_counts: dict[Presence, int]
 
 

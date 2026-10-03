@@ -42,59 +42,52 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
 /**
  * @summary Get App Config
  */
-export const getAppConfigApiV1ConfigGet = (
+export const getAppConfig = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<AppConfig>({ url: `/api/v1/config`, method: "GET", signal }, options);
 };
 
-export const getGetAppConfigApiV1ConfigGetQueryKey = () => {
+export const getGetAppConfigQueryKey = () => {
   return [`/api/v1/config`] as const;
 };
 
-export const getGetAppConfigApiV1ConfigGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof getAppConfigApiV1ConfigGet>>,
+export const getGetAppConfigQueryOptions = <
+  TData = Awaited<ReturnType<typeof getAppConfig>>,
   TError = ErrorType<unknown>,
 >(options?: {
-  query?: Partial<
-    UseQueryOptions<Awaited<ReturnType<typeof getAppConfigApiV1ConfigGet>>, TError, TData>
-  >;
+  query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getAppConfig>>, TError, TData>>;
   request?: SecondParameter<typeof apiMutator>;
 }) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey = queryOptions?.queryKey ?? getGetAppConfigApiV1ConfigGetQueryKey();
+  const queryKey = queryOptions?.queryKey ?? getGetAppConfigQueryKey();
 
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof getAppConfigApiV1ConfigGet>>> = ({
-    signal,
-  }) => getAppConfigApiV1ConfigGet(requestOptions, signal);
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getAppConfig>>> = ({ signal }) =>
+    getAppConfig(requestOptions, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof getAppConfigApiV1ConfigGet>>,
+    Awaited<ReturnType<typeof getAppConfig>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type GetAppConfigApiV1ConfigGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof getAppConfigApiV1ConfigGet>>
->;
-export type GetAppConfigApiV1ConfigGetQueryError = ErrorType<unknown>;
+export type GetAppConfigQueryResult = NonNullable<Awaited<ReturnType<typeof getAppConfig>>>;
+export type GetAppConfigQueryError = ErrorType<unknown>;
 
-export function useGetAppConfigApiV1ConfigGet<
-  TData = Awaited<ReturnType<typeof getAppConfigApiV1ConfigGet>>,
+export function useGetAppConfig<
+  TData = Awaited<ReturnType<typeof getAppConfig>>,
   TError = ErrorType<unknown>,
 >(
   options: {
-    query: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof getAppConfigApiV1ConfigGet>>, TError, TData>
-    > &
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getAppConfig>>, TError, TData>> &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getAppConfigApiV1ConfigGet>>,
+          Awaited<ReturnType<typeof getAppConfig>>,
           TError,
-          Awaited<ReturnType<typeof getAppConfigApiV1ConfigGet>>
+          Awaited<ReturnType<typeof getAppConfig>>
         >,
         "initialData"
       >;
@@ -102,19 +95,17 @@ export function useGetAppConfigApiV1ConfigGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetAppConfigApiV1ConfigGet<
-  TData = Awaited<ReturnType<typeof getAppConfigApiV1ConfigGet>>,
+export function useGetAppConfig<
+  TData = Awaited<ReturnType<typeof getAppConfig>>,
   TError = ErrorType<unknown>,
 >(
   options?: {
-    query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof getAppConfigApiV1ConfigGet>>, TError, TData>
-    > &
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getAppConfig>>, TError, TData>> &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getAppConfigApiV1ConfigGet>>,
+          Awaited<ReturnType<typeof getAppConfig>>,
           TError,
-          Awaited<ReturnType<typeof getAppConfigApiV1ConfigGet>>
+          Awaited<ReturnType<typeof getAppConfig>>
         >,
         "initialData"
       >;
@@ -122,14 +113,12 @@ export function useGetAppConfigApiV1ConfigGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetAppConfigApiV1ConfigGet<
-  TData = Awaited<ReturnType<typeof getAppConfigApiV1ConfigGet>>,
+export function useGetAppConfig<
+  TData = Awaited<ReturnType<typeof getAppConfig>>,
   TError = ErrorType<unknown>,
 >(
   options?: {
-    query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof getAppConfigApiV1ConfigGet>>, TError, TData>
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getAppConfig>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
@@ -138,19 +127,17 @@ export function useGetAppConfigApiV1ConfigGet<
  * @summary Get App Config
  */
 
-export function useGetAppConfigApiV1ConfigGet<
-  TData = Awaited<ReturnType<typeof getAppConfigApiV1ConfigGet>>,
+export function useGetAppConfig<
+  TData = Awaited<ReturnType<typeof getAppConfig>>,
   TError = ErrorType<unknown>,
 >(
   options?: {
-    query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof getAppConfigApiV1ConfigGet>>, TError, TData>
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getAppConfig>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getGetAppConfigApiV1ConfigGetQueryOptions(options);
+  const queryOptions = getGetAppConfigQueryOptions(options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;

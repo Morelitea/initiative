@@ -6,10 +6,10 @@ import { useTranslation } from "react-i18next";
 
 import type {
   CalendarSummary,
-  ExportEventsApiV1CGuildIdExportsEventsGetParams,
+  ExportEventsParams,
   FilterCondition,
   FilterGroup,
-  ListCalendarEntriesApiV1CGuildIdCalendarEntriesGetParams,
+  ListCalendarEntriesParams,
   TaskPriority,
   TaskStatusCategory,
 } from "@/api/generated/initiativeAPI.schemas";
@@ -310,7 +310,7 @@ export const CalendarsView = ({
   }, [calendars]);
 
   // --- One request: events + task markers over the visible window. ---
-  const entriesParams = useMemo((): ListCalendarEntriesApiV1CGuildIdCalendarEntriesGetParams => {
+  const entriesParams = useMemo((): ListCalendarEntriesParams => {
     const span = entriesWindow ?? visibleRange;
     // A guild surface: guild-level events, and nothing task- or
     // initiative-shaped at all. The app asks by scope rather than by naming its
@@ -358,7 +358,7 @@ export const CalendarsView = ({
   // grid: the date range when one is set, and every date when not. Hidden
   // calendars are left out by their saved ids, so one past the loaded page of
   // calendars stays out too.
-  const exportParams = useMemo((): ExportEventsApiV1CGuildIdExportsEventsGetParams | null => {
+  const exportParams = useMemo((): ExportEventsParams | null => {
     if (keepsContentIn) {
       return null;
     }

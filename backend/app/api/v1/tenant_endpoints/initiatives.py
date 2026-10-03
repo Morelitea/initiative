@@ -37,7 +37,7 @@ from app.models.tenant.initiative import (
     JoinRequestStatus,
     LOCKED_PERMISSION_ROLE_NAMES,
 )
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.platform.notification import NotificationType
 from app.models.platform.user import User
 from app.models.platform.user_profile_view import MemberProfile
@@ -766,7 +766,7 @@ async def create_initiative(
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: Annotated[
-        GuildContext, Depends(require_guild_roles(GuildRole.admin))
+        GuildContext, Depends(require_guild_roles(CommunityRole.admin))
     ],
 ) -> InitiativeRead:
     guild_id = guild_context.guild_id

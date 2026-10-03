@@ -4,7 +4,7 @@
  * confirmed the new device there.
  */
 
-import { removeDeviceApiV1MeDmDevicesDeviceIdDelete as removeDevice } from "@/api/generated/direct-messages/direct-messages";
+import { removeDevice } from "@/api/generated/direct-messages/direct-messages";
 
 import type { Context } from "./device";
 import { type Envelope, newMessageId, sendTransfer } from "./envelope";

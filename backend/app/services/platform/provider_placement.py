@@ -35,7 +35,7 @@ from app.core.messages import AuthProviderMessages, GuildMessages, SettingsMessa
 from app.db import cohorts
 from app.db.session import set_rls_context
 from app.models.platform.auth_provider import AuthProvider
-from app.models.platform.guild import GUILD_ASSIGNABLE_ROLES, Guild, GuildStatus
+from app.models.platform.guild import GUILD_ASSIGNABLE_ROLES, Guild, CommunityStatus
 from app.models.platform.guild_provider_connection import (
     GuildProviderConnection,
     narrowing_admits,
@@ -229,7 +229,7 @@ async def _require_provider(session: AsyncSession, provider_id: int) -> AuthProv
 
 async def _require_guild(session: AsyncSession, guild_id: int) -> Guild:
     guild = await session.get(Guild, guild_id)
-    if guild is None or guild.status == GuildStatus.deleted:
+    if guild is None or guild.status == CommunityStatus.deleted:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=GuildMessages.GUILD_NOT_FOUND,
@@ -257,7 +257,7 @@ async def list_communities(
     await _require_provider(session, provider_id)
     stmt = (
         select(Guild.id, Guild.name)
-        .where(Guild.status != GuildStatus.deleted)
+        .where(Guild.status != CommunityStatus.deleted)
         .order_by(Guild.name)
         .limit(COMMUNITY_SEARCH_LIMIT)
     )

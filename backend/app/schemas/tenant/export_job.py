@@ -76,7 +76,7 @@ def serialize_export_job(job: ExportJob, *, guild_id: int) -> ExportJobRead:
     return ExportJobRead(guild_id=guild_id, **fields)
 
 
-class GuildExportStatus(SanitizedBaseModel):
+class CommunityExportStatus(SanitizedBaseModel):
     """What the community settings page knows about whole-community exports
     without opening the wizard.
 

@@ -33,7 +33,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@/api/generated/communities/communities", async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
-  setOwnDisplayNameApiV1CommunitiesGuildIdMembershipDisplayNamePut: mocks.setOwnName,
+  setOwnDisplayName: mocks.setOwnName,
 }));
 
 vi.mock("@/hooks/useContacts", async (importOriginal) => ({

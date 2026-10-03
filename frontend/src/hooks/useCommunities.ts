@@ -15,14 +15,14 @@ import {
 } from "@tanstack/react-query";
 
 import {
-  getListCommunityGuildsApiV1CommunitiesDirectoryGetQueryKey,
-  joinCommunityGuildApiV1CommunitiesDirectoryGuildIdJoinPost,
-  listCommunityGuildsApiV1CommunitiesDirectoryGet,
+  getListDirectoryCommunitiesQueryKey,
+  joinDirectoryCommunity,
+  listDirectoryCommunities,
 } from "@/api/generated/communities/communities";
 import type {
-  CommunityGuildPage,
-  GuildRead,
-  ListCommunityGuildsApiV1CommunitiesDirectoryGetParams,
+  CommunityRead,
+  DirectoryCommunityPage,
+  ListDirectoryCommunitiesParams,
 } from "@/api/generated/initiativeAPI.schemas";
 
 /** The directory turns over when a guild opts in or out, not while someone
@@ -35,19 +35,16 @@ const DIRECTORY_STALE_MS = 60 * 1000;
 export const COMMUNITIES_PAGE_SIZE = 24;
 
 /** Everything except the page number, which the query owns. */
-export type CommunityFilters = Omit<
-  ListCommunityGuildsApiV1CommunitiesDirectoryGetParams,
-  "page" | "page_size"
->;
+export type CommunityFilters = Omit<ListDirectoryCommunitiesParams, "page" | "page_size">;
 
 /** ``enabled`` is how the page skips the request where the platform owner runs
  *  no directory — the endpoint refuses it there, and a refusal is not a result
  *  worth rendering. */
 export const useCommunityGuilds = (filters: CommunityFilters, options?: { enabled?: boolean }) =>
-  useInfiniteQuery<CommunityGuildPage>({
-    queryKey: getListCommunityGuildsApiV1CommunitiesDirectoryGetQueryKey(filters),
+  useInfiniteQuery<DirectoryCommunityPage>({
+    queryKey: getListDirectoryCommunitiesQueryKey(filters),
     queryFn: ({ pageParam, signal }) =>
-      listCommunityGuildsApiV1CommunitiesDirectoryGet(
+      listDirectoryCommunities(
         { ...filters, page: pageParam as number, page_size: COMMUNITIES_PAGE_SIZE },
         undefined,
         signal
@@ -68,14 +65,13 @@ export const useCommunityGuilds = (filters: CommunityFilters, options?: { enable
 
 export const useJoinCommunityGuild = () => {
   const queryClient = useQueryClient();
-  return useMutation<GuildRead, unknown, number>({
-    mutationFn: (guildId: number) =>
-      joinCommunityGuildApiV1CommunitiesDirectoryGuildIdJoinPost(guildId),
+  return useMutation<CommunityRead, unknown, number>({
+    mutationFn: (guildId: number) => joinDirectoryCommunity(guildId),
     // The bare path is a prefix of every filter combination: a card that was
     // `already_member: false` no longer is, on any page.
     onSuccess: () => {
       void queryClient.invalidateQueries({
-        queryKey: getListCommunityGuildsApiV1CommunitiesDirectoryGetQueryKey(),
+        queryKey: getListDirectoryCommunitiesQueryKey(),
       });
     },
   });

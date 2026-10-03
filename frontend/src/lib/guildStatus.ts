@@ -1,4 +1,4 @@
-import { GuildStatus } from "@/api/generated/initiativeAPI.schemas";
+import { CommunityStatus } from "@/api/generated/initiativeAPI.schemas";
 
 /**
  * The statuses an operator may set from the Guilds tab, least → most
@@ -11,9 +11,9 @@ import { GuildStatus } from "@/api/generated/initiativeAPI.schemas";
  * filtered from the enum, so adding a status is a decision about whether it
  * belongs in this control.
  */
-export const OPERATOR_SETTABLE_STATUSES: GuildStatus[] = [
-  GuildStatus.active,
-  GuildStatus.read_only,
-  GuildStatus.on_hold,
-  GuildStatus.suspended,
+export const OPERATOR_SETTABLE_STATUSES: CommunityStatus[] = [
+  CommunityStatus.active,
+  CommunityStatus.read_only,
+  CommunityStatus.on_hold,
+  CommunityStatus.suspended,
 ];

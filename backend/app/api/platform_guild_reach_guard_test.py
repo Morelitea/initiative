@@ -125,7 +125,7 @@ _ALLOWED: dict[tuple[str, str], str] = {
         "cohort session per community it belonged to"
     ),
     # --- The seam itself ---------------------------------------------------
-    (f"{_ENDPOINTS}/guilds.py", "leave_guild"): (
+    (f"{_ENDPOINTS}/guilds.py", "leave_community"): (
         "routes the leaving member through establish_guild_access"
     ),
     # --- The caller's own community, behind its settings gate -------------
@@ -330,7 +330,7 @@ def test_platform_routes_into_a_community_only_where_listed():
     assert unlisted == [], (
         "the platform surface routes into a community here, and the list of "
         "places it may does not name it. Reach guild content from a "
-        "/c/{guild_id} route through the seam instead, or add the site to "
+        "/c/{community_id} route through the seam instead, or add the site to "
         "_ALLOWED with the reason it belongs to the platform: " + ", ".join(unlisted)
     )
 

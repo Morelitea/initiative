@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import {
   type FilterCondition,
   type FilterGroup,
-  type ListMyCalendarEntriesApiV1MeCalendarEntriesGetParams,
+  type ListMyCalendarEntriesParams,
   type TaskPriority,
   type TaskStatusCategory,
   Tool,
@@ -162,8 +162,8 @@ export const MyCalendarPage = () => {
   }, [statusFilters, priorityFilters, guildFilters]);
 
   // --- One request: cross-guild events + assigned-task markers over the window. ---
-  const entriesParams = useMemo((): ListMyCalendarEntriesApiV1MeCalendarEntriesGetParams => {
-    const params: ListMyCalendarEntriesApiV1MeCalendarEntriesGetParams = {
+  const entriesParams = useMemo((): ListMyCalendarEntriesParams => {
+    const params: ListMyCalendarEntriesParams = {
       start_after: visibleRange.start.toISOString(),
       start_before: visibleRange.end.toISOString(),
       conditions: taskConditions,

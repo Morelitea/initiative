@@ -5,14 +5,14 @@ import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react
 import { useTranslation } from "react-i18next";
 
 import {
-  createGuildInviteApiV1CommunitiesGuildIdInvitesPost,
-  deleteGuildInviteApiV1CommunitiesGuildIdInvitesInviteIdDelete,
-  listGuildInvitesApiV1CommunitiesGuildIdInvitesGet,
+  createCommunityInvite,
+  deleteCommunityInvite,
+  listCommunityInvites,
 } from "@/api/generated/communities/communities";
 import type {
-  GuildInviteRead,
-  GuildRole,
-  UserGuildMember,
+  CommunityInviteRead,
+  CommunityRole,
+  UserCommunityMember,
 } from "@/api/generated/initiativeAPI.schemas";
 import { MemberDisplayNameDialog } from "@/components/guilds/MemberDisplayNameDialog";
 import { RemoveGuildMemberDialog } from "@/components/guilds/RemoveGuildMemberDialog";
@@ -53,8 +53,8 @@ import { getUrlHandle, getUserDisplayName, getUserHandle } from "@/lib/userDispl
 //: What this community's roles are, in the order the picker offers them. The
 //: seat is only on the list for somebody who already holds it — an admin can
 //: neither appoint nor demote one, and the server says so too.
-const GUILD_ROLE_OPTIONS: GuildRole[] = ["admin", "member"];
-const SEAT_ROLE_OPTIONS: GuildRole[] = ["superadmin", "admin", "member"];
+const GUILD_ROLE_OPTIONS: CommunityRole[] = ["admin", "member"];
+const SEAT_ROLE_OPTIONS: CommunityRole[] = ["superadmin", "admin", "member"];
 const inviteLinkForCode = (code: string) => {
   const base = import.meta.env.VITE_APP_URL?.trim() || window.location.origin;
   const normalizedBase = base.endsWith("/") ? base.slice(0, -1) : base;
@@ -111,7 +111,7 @@ export const SettingsUsersPage = () => {
   const atUserLimit = maxUsers !== null && usedSeats >= maxUsers;
   const planName = activeGuild?.tier_name ?? null;
 
-  const [invites, setInvites] = useState<GuildInviteRead[]>([]);
+  const [invites, setInvites] = useState<CommunityInviteRead[]>([]);
   const [invitesLoading, setInvitesLoading] = useState(false);
   const [invitesError, setInvitesError] = useState<string | null>(null);
   const [inviteSubmitting, setInviteSubmitting] = useState(false);
@@ -122,10 +122,10 @@ export const SettingsUsersPage = () => {
     email: string;
   } | null>(null);
   // `member: null` opens the dialog in "claim everything unowned" mode.
-  const [namingMember, setNamingMember] = useState<UserGuildMember | null>(null);
-  const [transferTarget, setTransferTarget] = useState<{ member: UserGuildMember | null } | null>(
-    null
-  );
+  const [namingMember, setNamingMember] = useState<UserCommunityMember | null>(null);
+  const [transferTarget, setTransferTarget] = useState<{
+    member: UserCommunityMember | null;
+  } | null>(null);
 
   const loadInvites = useCallback(async () => {
     if (!activeGuildId) {
@@ -135,9 +135,9 @@ export const SettingsUsersPage = () => {
     setInvitesLoading(true);
     setInvitesError(null);
     try {
-      const data = await (listGuildInvitesApiV1CommunitiesGuildIdInvitesGet(
-        activeGuildId
-      ) as unknown as Promise<GuildInviteRead[]>);
+      const data = await (listCommunityInvites(activeGuildId) as unknown as Promise<
+        CommunityInviteRead[]
+      >);
       setInvites(data);
     } catch (error) {
       console.error("Failed to load invites", error);
@@ -175,7 +175,7 @@ export const SettingsUsersPage = () => {
     },
   });
 
-  const handleRoleChange = (userId: number, role: GuildRole) => {
+  const handleRoleChange = (userId: number, role: CommunityRole) => {
     // Update guild membership role
     updateGuildMembership.mutate({ guildId: activeGuildId!, userId, role });
   };
@@ -191,7 +191,7 @@ export const SettingsUsersPage = () => {
     },
   });
 
-  const exportUserCsv = (guildMember: UserGuildMember) => {
+  const exportUserCsv = (guildMember: UserCommunityMember) => {
     const safeHandle = guildMember.username.replace(/[^a-zA-Z0-9._-]+/g, "_");
     exportGuildUsers.mutate({
       params: { user_id: [guildMember.id] },
@@ -229,7 +229,7 @@ export const SettingsUsersPage = () => {
   // somebody set here, so the column shows once someone on the page has one.
   const showsNames = rows.some((row) => row.display_name?.trim());
 
-  const userColumns: AppColumnDef<UserGuildMember>[] = [
+  const userColumns: AppColumnDef<UserCommunityMember>[] = [
     {
       accessorKey: "id",
       header: t("users.userIdColumn"),
@@ -240,7 +240,7 @@ export const SettingsUsersPage = () => {
     {
       id: "username",
       // The whole handle, as the cell draws it — see the platform roster.
-      accessorFn: (row: UserGuildMember) => getUserHandle(row),
+      accessorFn: (row: UserCommunityMember) => getUserHandle(row),
       header: t("users.handleColumn"),
       // The handle is what identifies someone, so it is also what opens them.
       cell: ({ row }) => (
@@ -263,7 +263,7 @@ export const SettingsUsersPage = () => {
                 <p className="font-medium">{row.original.display_name?.trim() || "—"}</p>
               </div>
             ),
-          } satisfies AppColumnDef<UserGuildMember>,
+          } satisfies AppColumnDef<UserCommunityMember>,
         ]
       : []),
     {
@@ -277,7 +277,7 @@ export const SettingsUsersPage = () => {
           <div className="flex flex-col gap-1">
             <Select
               value={currentGuildRole}
-              onValueChange={(value) => handleRoleChange(guildMember.id, value as GuildRole)}
+              onValueChange={(value) => handleRoleChange(guildMember.id, value as CommunityRole)}
               disabled={isSelf || updateGuildMembership.isPending}
             >
               <SelectTrigger disabled={isSelf} className="min-w-40">
@@ -361,9 +361,9 @@ export const SettingsUsersPage = () => {
         max_uses: inviteMaxUses > 0 ? inviteMaxUses : null,
         expires_at: expiresAt,
       };
-      await createGuildInviteApiV1CommunitiesGuildIdInvitesPost(
+      await createCommunityInvite(
         activeGuildId,
-        payload as Parameters<typeof createGuildInviteApiV1CommunitiesGuildIdInvitesPost>[1]
+        payload as Parameters<typeof createCommunityInvite>[1]
       );
       await loadInvites();
     } catch (error) {
@@ -379,7 +379,7 @@ export const SettingsUsersPage = () => {
       return;
     }
     try {
-      await deleteGuildInviteApiV1CommunitiesGuildIdInvitesInviteIdDelete(activeGuildId, inviteId);
+      await deleteCommunityInvite(activeGuildId, inviteId);
       await loadInvites();
     } catch (error) {
       console.error(error);

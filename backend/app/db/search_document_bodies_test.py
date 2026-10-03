@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
 from app.db.session import set_rls_context
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.tenant.document import DocumentType
 from app.models.tenant.search_entry import SearchEntry
 from app.testing import Actor, create_document
@@ -53,7 +53,7 @@ async def _finds(session: AsyncSession, guild_id: int, query: str) -> list[str]:
 async def test_a_native_document_indexes_its_prose(
     session: AsyncSession, acting_user: ActingUser
 ) -> None:
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     doc = await create_document(
         session,
         a.initiative,
@@ -79,7 +79,7 @@ async def test_nested_editor_content_is_reached(
 ) -> None:
     """A mention, a wikilink and an image caption all keep text below the top
     level; the recursive path is what picks them up."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     doc = await create_document(
         session,
         a.initiative,
@@ -121,7 +121,7 @@ async def test_nested_editor_content_is_reached(
 async def test_a_whiteboard_indexes_its_element_text(
     session: AsyncSession, acting_user: ActingUser
 ) -> None:
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     doc = await create_document(
         session,
         a.initiative,
@@ -145,7 +145,7 @@ async def test_a_whiteboard_indexes_its_element_text(
 async def test_a_current_spreadsheet_indexes_cells_and_sheet_names(
     session: AsyncSession, acting_user: ActingUser
 ) -> None:
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     doc = await create_document(
         session,
         a.initiative,
@@ -172,7 +172,7 @@ async def test_a_legacy_spreadsheet_still_indexes(
 ) -> None:
     """v1 and v2 payloads are upcast only when next saved, so both shapes are
     live in the database and the extraction has to read either."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     doc = await create_document(
         session,
         a.initiative,
@@ -196,7 +196,7 @@ async def test_a_smart_link_indexes_its_url(
 ) -> None:
     """Searching for the service is a real thing people do, and the URL is the
     only place its name appears."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await create_document(
         session,
         a.initiative,
@@ -213,7 +213,7 @@ async def test_a_file_document_indexes_its_filename_only(
     session: AsyncSession, acting_user: ActingUser
 ) -> None:
     """Its bytes live outside the database, so its name is all there is."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     doc = await create_document(
         session,
         a.initiative,
@@ -233,7 +233,7 @@ async def test_text_is_stored_once(
 ) -> None:
     """The recursive path can reach the same value by more than one route; the
     body must not carry it twice, or every document costs double."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     doc = await create_document(
         session,
         a.initiative,

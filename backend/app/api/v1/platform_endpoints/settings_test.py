@@ -21,7 +21,7 @@ from app.core.intake import IntakeStream
 from app.core.messages import GuildMessages
 from app.db.session import set_rls_context
 from app.models.platform.app_setting import AppSetting
-from app.models.platform.guild import Guild, GuildRole, GuildStatus
+from app.models.platform.guild import Guild, CommunityRole, CommunityStatus
 from app.models.platform.access_grant import AccessLevel
 from app.models.platform.user import UserRole
 from app.models.tenant.intake import IntakeBinding
@@ -97,8 +97,8 @@ _GUILD_DIALS = [
     pytest.param("max_users", 25, None, 0, id="user-cap"),
     pytest.param(
         "status",
-        GuildStatus.suspended.value,
-        GuildStatus.active.value,
+        CommunityStatus.suspended.value,
+        CommunityStatus.active.value,
         "nope",
         id="lifecycle-status",
     ),
@@ -122,7 +122,7 @@ async def test_the_guilds_tab_lists_every_guild_with_its_dials(
     is the tier the tab is for."""
     theirs = await create_guild(session, name="Dialled Guild", **{dial: value})
     await create_guild_membership(
-        session, user=operator.user, guild=theirs, role=GuildRole.admin
+        session, user=operator.user, guild=theirs, role=CommunityRole.admin
     )
     untouched_guild = await create_guild(session, name="Untouched Guild")
 
@@ -181,7 +181,7 @@ async def test_each_dial_moves_on_its_own(
     before = {
         "max_storage_bytes": 2048,
         "max_users": 5,
-        "status": GuildStatus.read_only.value,
+        "status": CommunityStatus.read_only.value,
     }
     guild = await create_guild(session, **before)
 
@@ -226,12 +226,12 @@ async def test_a_real_status_transition_is_stamped(
 
     resp = await client.patch(
         f"{GUILDS}/{guild.id}",
-        json={"status": GuildStatus.suspended.value},
+        json={"status": CommunityStatus.suspended.value},
         headers=operator.headers,
     )
 
     assert resp.status_code == 200, resp.text
-    assert resp.json()["status"] == GuildStatus.suspended.value
+    assert resp.json()["status"] == CommunityStatus.suspended.value
     assert resp.json()["status_changed_at"] is not None
 
 
@@ -240,7 +240,7 @@ async def test_a_status_change_nudges_billing_and_a_hold_tells_the_seat(
 ) -> None:
     """Every transition nudges billing to read the status; one into on_hold
     also tells the community's seat holder, once."""
-    from app.models.platform.guild import GuildRole
+    from app.models.platform.guild import CommunityRole
     from app.models.platform.notification import Notification, NotificationType
     from app.services.platform import billing_ping
     from app.testing import create_guild_membership, create_user
@@ -250,11 +250,11 @@ async def test_a_status_change_nudges_billing_and_a_hold_tells_the_seat(
     guild = await create_guild(session)
     seat = await create_user(session)
     await create_guild_membership(
-        session, user=seat, guild=guild, role=GuildRole.superadmin
+        session, user=seat, guild=guild, role=CommunityRole.superadmin
     )
     guild_id, guild_name, seat_id = guild.id, guild.name, seat.id
 
-    for status in (GuildStatus.suspended, GuildStatus.on_hold):
+    for status in (CommunityStatus.suspended, CommunityStatus.on_hold):
         resp = await client.patch(
             f"{GUILDS}/{guild_id}",
             json={"status": status.value},
@@ -331,7 +331,7 @@ async def test_guild_auth_options_are_operator_only(
     guild-facing PATCH — they are operator fields (like caps and status). The
     guild-admin endpoint simply doesn't accept them, leaving the set empty."""
     guild = await create_guild(session, auth_options=[])
-    a = await acting_user(guild_role=GuildRole.admin, guild=guild)
+    a = await acting_user(guild_role=CommunityRole.admin, guild=guild)
     guild_id = guild.id
 
     resp = await client.patch(
@@ -356,7 +356,7 @@ async def test_lowering_the_cap_below_the_headcount_keeps_the_members(
     """
     guild = await create_guild(session)
     await create_guild_membership(
-        session, user=operator.user, guild=guild, role=GuildRole.admin
+        session, user=operator.user, guild=guild, role=CommunityRole.admin
     )
     await create_guild_membership(session, guild=guild)
 
@@ -383,7 +383,7 @@ async def test_raising_cap_reopens_joins(
         session, guild_id=guild.id, created_by=operator.user.id, max_uses=5
     )
     await guild_service.ensure_membership(
-        session, guild_id=guild.id, user_id=operator.user.id, role=GuildRole.admin
+        session, guild_id=guild.id, user_id=operator.user.id, role=CommunityRole.admin
     )
     await session.commit()
 
@@ -903,7 +903,7 @@ async def test_billing_handoff_breaks_glass_even_for_a_member(
     from app.models.platform.access_grant import AccessGrant
 
     _configure_billing(monkeypatch)
-    a = await acting_user("owner", guild_role=GuildRole.admin)
+    a = await acting_user("owner", guild_role=CommunityRole.admin)
 
     resp = await client.post(_handoff(a.guild.id), headers=a.headers)
     assert resp.status_code == 200
@@ -1102,7 +1102,7 @@ async def test_a_zero_hour_limit_is_refused(client: AsyncClient, owner):
 _CONFIG_MANAGE = "config.manage"  # owner only
 _GUILDS_MANAGE = "guilds.manage"  # operator and owner
 
-#: (capability, method, path — ``{guild_id}`` is filled in, json body or None)
+#: (capability, method, path — ``{community_id}`` is filled in, json body or None)
 _ROUTES: list[tuple[str, str, str, dict | None]] = [
     (_CONFIG_MANAGE, "get", "/api/v1/settings/storage", None),
     (_CONFIG_MANAGE, "put", "/api/v1/settings/storage", {"backend": "local"}),
@@ -1122,9 +1122,9 @@ _ROUTES: list[tuple[str, str, str, dict | None]] = [
         {"session_max_hours": 12},
     ),
     (_GUILDS_MANAGE, "get", GUILDS, None),
-    (_GUILDS_MANAGE, "patch", GUILDS + "/{guild_id}", {"max_storage_bytes": 1024}),
-    (_GUILDS_MANAGE, "patch", GUILDS + "/{guild_id}", {"status": "suspended"}),
-    (_GUILDS_MANAGE, "post", GUILDS + "/{guild_id}/billing/service-handoff", None),
+    (_GUILDS_MANAGE, "patch", GUILDS + "/{community_id}", {"max_storage_bytes": 1024}),
+    (_GUILDS_MANAGE, "patch", GUILDS + "/{community_id}", {"status": "suspended"}),
+    (_GUILDS_MANAGE, "post", GUILDS + "/{community_id}/billing/service-handoff", None),
 ]
 
 #: The tiers each capability sits above.
@@ -1155,13 +1155,13 @@ async def test_a_tier_below_the_bar_reaches_none_of_its_routes(
     say the request reached the handler. The caller is the target guild's own
     admin, which is a guild role and so changes nothing here."""
     _configure_billing(monkeypatch)
-    a = await acting_user(tier, guild_role=GuildRole.admin)
+    a = await acting_user(tier, guild_role=CommunityRole.admin)
 
     for gate, method, path, body in _ROUTES:
         if gate != capability:
             continue
         resp = await getattr(client, method)(
-            path.format(guild_id=a.guild.id),
+            path.format(community_id=a.guild.id),
             headers=a.headers,
             **({"json": body} if body is not None else {}),
         )
@@ -1187,7 +1187,7 @@ async def test_every_route_needs_an_account(
     """Unauthenticated callers are rejected outright (401), never reaching the
     system-engine handlers."""
     resp = await getattr(client, method)(
-        path.format(guild_id=1), **({"json": body} if body is not None else {})
+        path.format(community_id=1), **({"json": body} if body is not None else {})
     )
 
     assert resp.status_code == 401, f"{method.upper()} {path}: {resp.status_code}"

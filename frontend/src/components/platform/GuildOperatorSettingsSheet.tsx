@@ -20,10 +20,10 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type {
-  GuildAuthOption,
-  PlatformGuildStorageRead,
+  CommunityAuthOption,
+  PlatformCommunityStorageRead,
 } from "@/api/generated/initiativeAPI.schemas";
-import { GuildStatus } from "@/api/generated/initiativeAPI.schemas";
+import { CommunityStatus } from "@/api/generated/initiativeAPI.schemas";
 import { BillingConsoleButton } from "@/components/platform/BillingConsoleButton";
 import { GuildRestoreWizard } from "@/components/platform/GuildRestoreWizard";
 import { Section, SettingRow } from "@/components/platform/SettingRow";
@@ -76,7 +76,7 @@ export const GuildOperatorSettingsSheet = ({
   onOpenChange,
   supportBound,
 }: {
-  guild: PlatformGuildStorageRead | null;
+  guild: PlatformCommunityStorageRead | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** Whether the deployment has somewhere to send help requests. Help
@@ -148,7 +148,7 @@ export const GuildOperatorSettingsSheet = ({
   };
 
   const options = guild.auth_options ?? [];
-  const toggleOption = (option: GuildAuthOption, checked: boolean) =>
+  const toggleOption = (option: CommunityAuthOption, checked: boolean) =>
     patch({
       auth_options: checked ? [...options, option] : options.filter((held) => held !== option),
     });
@@ -157,7 +157,7 @@ export const GuildOperatorSettingsSheet = ({
   // settings for a community nobody can reach, so they are shown and frozen
   // rather than hidden — what it was configured as is worth seeing when you
   // are deciding whether to bring it back.
-  const deleted = guild.status === GuildStatus.deleted;
+  const deleted = guild.status === CommunityStatus.deleted;
   // What locks the plan's own controls: a community on its way out, or a plan
   // that billing sets.
   const planLocked = deleted || planIsBillings;

@@ -22,7 +22,7 @@ from app.models.platform.profile_favorite import ProfileFavorite
 from app.models.platform.user import User, UserStatus
 from app.models.platform.user_profile_view import MemberProfile, user_profiles
 from app.schemas.platform.contact import (
-    ContactGuildSection,
+    ContactCommunitySection,
     ContactRead,
     FavoriteContactsResponse,
 )
@@ -47,7 +47,7 @@ async def ordered_member_guilds(
 
     ``GuildMembership.position`` is the order they dragged the rail into, so
     this is the same rule the rail uses rather than a second one. A suspended
-    guild is left out, matching ``member_guild_ids`` and the ``/c/{guild_id}``
+    guild is left out, matching ``member_guild_ids`` and the ``/c/{community_id}``
     path it stands in for.
     """
     await set_rls_context(session, Platform(user_id=user_id))
@@ -97,7 +97,7 @@ async def guild_sections(
     search: Optional[str] = None,
     page: int = 1,
     page_size: int = DEFAULT_PAGE_SIZE,
-) -> list[ContactGuildSection]:
+) -> list[ContactCommunitySection]:
     """One section per guild, in the order given.
 
     Each guild is visited in its own routed context, which is what makes both
@@ -107,7 +107,7 @@ async def guild_sections(
     if not guilds:
         return []
 
-    sections: dict[int, ContactGuildSection] = {}
+    sections: dict[int, ContactCommunitySection] = {}
     # The guilds the walk below could enter; one it cannot reach right now
     # contributes nothing, section or shared membership.
     visited: set[int] = set()
@@ -183,7 +183,7 @@ async def guild_sections(
         ).all()
 
         name, icon = named[guild_id]
-        sections[guild_id] = ContactGuildSection(
+        sections[guild_id] = ContactCommunitySection(
             guild_id=guild_id,
             guild_name=name,
             icon_url=icon,

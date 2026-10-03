@@ -4,8 +4,8 @@ import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
-  GuildRole,
-  type GuildRosterMember,
+  CommunityRole,
+  type CommunityRosterMember,
   type Presence,
 } from "@/api/generated/initiativeAPI.schemas";
 import { Badge } from "@/components/ui/badge";
@@ -28,7 +28,7 @@ import { PRESENCE_ORDER, presenceLabelKey } from "@/lib/presence";
 import { getUserDisplayName } from "@/lib/userDisplay";
 import { cn } from "@/lib/utils";
 
-const RosterRow = ({ member }: { member: GuildRosterMember }) => {
+const RosterRow = ({ member }: { member: CommunityRosterMember }) => {
   const { t } = useTranslation("guilds");
   const status = member.custom_status;
   const away = member.presence === "offline";
@@ -52,7 +52,7 @@ const RosterRow = ({ member }: { member: GuildRosterMember }) => {
             <span className="truncate">{getUserDisplayName(member)}</span>
             {isAdminRole(member.guild_role) && (
               <Badge variant="secondary" className="shrink-0 px-1.5 py-0 text-3xs">
-                {member.guild_role === GuildRole.superadmin
+                {member.guild_role === CommunityRole.superadmin
                   ? t("members.superadmin")
                   : t("members.admin")}
               </Badge>
@@ -95,7 +95,7 @@ export const PeopleSection = () => {
     // Pages are fetched one at a time from a list ordered by live presence, so
     // somebody whose presence changed in between can come back on two of them.
     const seen = new Set<number>();
-    const byPresence = new Map<Presence, GuildRosterMember[]>();
+    const byPresence = new Map<Presence, CommunityRosterMember[]>();
     for (const member of pages?.flatMap((page) => page.items) ?? []) {
       if (seen.has(member.id)) continue;
       seen.add(member.id);

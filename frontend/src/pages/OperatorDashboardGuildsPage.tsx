@@ -2,8 +2,8 @@ import type { PaginationState, SortingState } from "@tanstack/react-table";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { PlatformGuildStorageRead } from "@/api/generated/initiativeAPI.schemas";
-import { GuildStatus } from "@/api/generated/initiativeAPI.schemas";
+import type { PlatformCommunityStorageRead } from "@/api/generated/initiativeAPI.schemas";
+import { CommunityStatus } from "@/api/generated/initiativeAPI.schemas";
 import { BillingConsoleButton } from "@/components/platform/BillingConsoleButton";
 import { GuildOperatorSettingsSheet } from "@/components/platform/GuildOperatorSettingsSheet";
 import { SkeletonRegion, TableSkeleton } from "@/components/skeletons/PageSkeletons";
@@ -31,7 +31,7 @@ import type { AppColumnDef } from "@/lib/table";
 // Storage caps are entered in binary GB (GiB) so a value round-trips cleanly
 // with `formatBytes` (which is also 1024-based). The editor for them, and for
 // every other operator setting, lives in GuildOperatorSettingsSheet.
-const GuildBillingCell = ({ guild }: { guild: PlatformGuildStorageRead }) => {
+const GuildBillingCell = ({ guild }: { guild: PlatformCommunityStorageRead }) => {
   const { t } = useTranslation("settings");
   return (
     <div className="flex items-center gap-1">
@@ -74,11 +74,11 @@ const GuildBillingCell = ({ guild }: { guild: PlatformGuildStorageRead }) => {
  * restoring it, both of which do more than move this field, so the only way
  * back is the wizard under Manage.
  */
-const GuildStatusCell = ({ guild }: { guild: PlatformGuildStorageRead }) => {
+const GuildStatusCell = ({ guild }: { guild: PlatformCommunityStorageRead }) => {
   const { t } = useTranslation(["settings", "common"]);
   // Suspending and putting on hold both take everyone out of the community,
   // so each is confirmed before it is applied.
-  const [pending, setPending] = useState<GuildStatus | null>(null);
+  const [pending, setPending] = useState<CommunityStatus | null>(null);
 
   const update = useUpdateGuildStorage({
     onSuccess: (row) => {
@@ -92,21 +92,21 @@ const GuildStatusCell = ({ guild }: { guild: PlatformGuildStorageRead }) => {
     onSettled: () => setPending(null),
   });
 
-  const apply = (status: GuildStatus) => {
+  const apply = (status: CommunityStatus) => {
     update.mutate({ guildId: guild.id, data: { status } });
   };
 
   const handleChange = (value: string) => {
-    const next = value as GuildStatus;
+    const next = value as CommunityStatus;
     if (next === guild.status) return;
-    if (next === GuildStatus.suspended || next === GuildStatus.on_hold) {
+    if (next === CommunityStatus.suspended || next === CommunityStatus.on_hold) {
       setPending(next);
       return;
     }
     apply(next);
   };
 
-  if (guild.status === GuildStatus.deleted) {
+  if (guild.status === CommunityStatus.deleted) {
     return <Badge variant="destructive">{t("guilds.status.deleted")}</Badge>;
   }
 
@@ -131,17 +131,17 @@ const GuildStatusCell = ({ guild }: { guild: PlatformGuildStorageRead }) => {
         open={pending !== null}
         onOpenChange={(open) => !open && setPending(null)}
         title={
-          pending === GuildStatus.on_hold
+          pending === CommunityStatus.on_hold
             ? t("guilds.holdConfirm.title", { name: guild.name })
             : t("guilds.suspendConfirm.title", { name: guild.name })
         }
         description={
-          pending === GuildStatus.on_hold
+          pending === CommunityStatus.on_hold
             ? t("guilds.holdConfirm.description")
             : t("guilds.suspendConfirm.description")
         }
         confirmLabel={
-          pending === GuildStatus.on_hold
+          pending === CommunityStatus.on_hold
             ? t("guilds.holdConfirm.confirm")
             : t("guilds.suspendConfirm.confirm")
         }
@@ -192,7 +192,7 @@ export const OperatorDashboardGuildsPage = () => {
   const [managingId, setManagingId] = useState<number | null>(null);
   const managing = rows.find((guild) => guild.id === managingId) ?? null;
 
-  const columns: AppColumnDef<PlatformGuildStorageRead>[] = [
+  const columns: AppColumnDef<PlatformCommunityStorageRead>[] = [
     {
       accessorKey: "id",
       header: t("guilds.columns.id"),
@@ -259,7 +259,7 @@ export const OperatorDashboardGuildsPage = () => {
             header: t("guilds.columns.billing"),
             enableSorting: false,
             cell: ({ row }) => <GuildBillingCell guild={row.original} />,
-          } satisfies AppColumnDef<PlatformGuildStorageRead>,
+          } satisfies AppColumnDef<PlatformCommunityStorageRead>,
         ]
       : []),
   ];

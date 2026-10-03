@@ -11,7 +11,7 @@ from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.audit_events import AuditEventType
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.platform.user import UserRole
 from app.testing import emitted
 from app.testing.factories import (
@@ -131,12 +131,12 @@ async def test_closing_an_account_records_every_community_it_left(
     guild = await create_guild(session, creator=owner)
     guild_id = guild.id
     await create_guild_membership(
-        session, user=owner, guild=guild, role=GuildRole.superadmin
+        session, user=owner, guild=guild, role=CommunityRole.superadmin
     )
     target = await create_user(session)
     target_id = target.id
     await create_guild_membership(
-        session, user=target, guild=guild, role=GuildRole.member
+        session, user=target, guild=guild, role=CommunityRole.member
     )
     capfd.readouterr()
 

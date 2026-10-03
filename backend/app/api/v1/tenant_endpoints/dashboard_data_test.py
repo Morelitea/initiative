@@ -13,7 +13,7 @@ from datetime import datetime, timedelta, timezone
 
 
 from app.core.messages import QueryMessages
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.tenant.task import TaskStatusCategory
 from app.services.query import executor
 from app.services.tenant.published_views_test import dashboard_body, dashboards_on
@@ -52,7 +52,7 @@ async def _one(client, actor, dashboard_id: int, widget_id: str) -> dict:
 
 
 async def _author_with_tasks(session, acting_user):
-    author = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    author = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await dashboards_on(session, author.initiative)
     project = await create_project(session, author.initiative, author.user)
     for offset, category in enumerate(
@@ -104,7 +104,7 @@ async def test_a_reader_sees_their_own_rows_and_what_is_published(
 ):
     author, project = await _author_with_tasks(session, acting_user)
     reader = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=author.guild,
         initiative=author.initiative,
         initiative_role="member",

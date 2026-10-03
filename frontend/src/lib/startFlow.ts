@@ -8,9 +8,9 @@
  * browser finishes the job.
  */
 
-import type { GuildCategory, NewCommunity } from "@/api/generated/initiativeAPI.schemas";
-import { createInitiativeApiV1CGuildIdInitiativesPost } from "@/api/generated/initiatives/initiatives";
-import { createProjectApiV1CGuildIdProjectsPost } from "@/api/generated/projects/projects";
+import type { CommunityCategory, NewCommunity } from "@/api/generated/initiativeAPI.schemas";
+import { createInitiative } from "@/api/generated/initiatives/initiatives";
+import { createProject } from "@/api/generated/projects/projects";
 import { invalidate, q } from "@/api/query-keys";
 import { DEFAULT_GRANTS } from "@/components/access/grants";
 import type { GuildEntry } from "@/hooks/useGuilds";
@@ -23,7 +23,7 @@ export interface StartAnswers {
   path: StartPath;
   inviteCode: string;
   /** Join: the directory shelves to open on; none opens all of them. */
-  categories: GuildCategory[];
+  categories: CommunityCategory[];
   communityName: string;
   description: string;
   initiativeName: string;
@@ -134,12 +134,12 @@ export interface Starter {
 /** The first initiative, and for Personal its task project, through the same
  *  endpoints the initiative wizard and the project dialog call. */
 export const seedStarter = async (guildId: number, answers: StartAnswers): Promise<Starter> => {
-  const initiative = await createInitiativeApiV1CGuildIdInitiativesPost(guildId, {
+  const initiative = await createInitiative(guildId, {
     name: answers.initiativeName.trim(),
   });
   let projectId: number | null = null;
   if (answers.path === "personal") {
-    const project = await createProjectApiV1CGuildIdProjectsPost(guildId, {
+    const project = await createProject(guildId, {
       name: answers.listName.trim(),
       initiative_id: initiative.id,
       grants: [...DEFAULT_GRANTS],

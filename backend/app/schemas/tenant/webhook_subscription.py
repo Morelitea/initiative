@@ -10,7 +10,7 @@ from app.schemas.base import SanitizedBaseModel
 
 
 class WebhookSubscriptionCreate(SanitizedBaseModel):
-    """Body for ``POST /api/v1/c/{guild_id}/webhooks/subscriptions``.
+    """Body for ``POST /api/v1/c/{community_id}/webhooks/subscriptions``.
 
     The guild comes from the path. ``initiative_id`` narrows the subscription
     to one initiative; omitted, it covers the whole community.

@@ -11,13 +11,13 @@ import type {
   PropertyTarget,
   PropertyValueInput,
 } from "@/api/generated/initiativeAPI.schemas";
-import { setPropertiesApiV1CGuildIdPropertiesTargetEntityIdPut } from "@/api/generated/properties/properties";
+import { setProperties } from "@/api/generated/properties/properties";
 import {
-  createPropertyDefinitionApiV1CGuildIdPropertyDefinitionsPost,
-  deletePropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdDelete,
-  getListPropertyDefinitionsApiV1CGuildIdPropertyDefinitionsGetQueryKey,
-  listPropertyDefinitionsApiV1CGuildIdPropertyDefinitionsGet,
-  updatePropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdPatch,
+  createPropertyDefinition,
+  deletePropertyDefinition,
+  getListPropertyDefinitionsQueryKey,
+  listPropertyDefinitions,
+  updatePropertyDefinition,
 } from "@/api/generated/property-definitions/property-definitions";
 import { invalidate, q } from "@/api/query-keys";
 import { buildUniqueOptionSlug, findOptionByLabel } from "@/components/properties/propertyHelpers";
@@ -44,15 +44,8 @@ export const useProperties = (options?: { initiativeId?: number; enabled?: boole
   if (initiativeId !== undefined) params.initiative_id = initiativeId;
   const hasParams = Object.keys(params).length > 0;
   return useQuery<PropertyDefinitionRead[]>({
-    queryKey: getListPropertyDefinitionsApiV1CGuildIdPropertyDefinitionsGetQueryKey(
-      guildId,
-      hasParams ? params : undefined
-    ),
-    queryFn: () =>
-      listPropertyDefinitionsApiV1CGuildIdPropertyDefinitionsGet(
-        guildId,
-        hasParams ? params : undefined
-      ),
+    queryKey: getListPropertyDefinitionsQueryKey(guildId, hasParams ? params : undefined),
+    queryFn: () => listPropertyDefinitions(guildId, hasParams ? params : undefined),
     enabled: options?.enabled ?? true,
     staleTime: 60 * 1000,
   });
@@ -65,8 +58,7 @@ export const useCreateProperty = (
 ) =>
   useGuildMutation<PropertyDefinitionRead, PropertyDefinitionCreate>(
     {
-      mutationFn: (guildId, data) =>
-        createPropertyDefinitionApiV1CGuildIdPropertyDefinitionsPost(guildId, data),
+      mutationFn: (guildId, data) => createPropertyDefinition(guildId, data),
       invalidate: () => invalidate(q.allProperties()),
       errorKey: "properties:manager.createError",
     },
@@ -85,11 +77,7 @@ export const useUpdateProperty = (
   >(
     {
       mutationFn: (guildId, { propertyId, data }) =>
-        updatePropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdPatch(
-          guildId,
-          propertyId,
-          data
-        ),
+        updatePropertyDefinition(guildId, propertyId, data),
       // Every row's embedded summaries carry the definition's name, options
       // and color.
       invalidate: () => invalidate(q.allProperties(), q.allPropertyHolders()),
@@ -101,11 +89,7 @@ export const useUpdateProperty = (
 export const useDeleteProperty = (options?: MutationOpts<void, number>) =>
   useGuildMutation<void, number>(
     {
-      mutationFn: (guildId, propertyId) =>
-        deletePropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdDelete(
-          guildId,
-          propertyId
-        ),
+      mutationFn: (guildId, propertyId) => deletePropertyDefinition(guildId, propertyId),
       invalidate: () => invalidate(q.allProperties(), q.allPropertyHolders()),
       errorKey: "properties:manager.deleteError",
     },
@@ -145,13 +129,9 @@ export const useAppendPropertyOption = () => {
         color: vars.color ?? null,
       };
       const nextOptions: PropertyOption[] = [...currentOptions, newOption];
-      const saved = await updatePropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdPatch(
-        guildId,
-        vars.definition.id,
-        {
-          options: nextOptions,
-        }
-      );
+      const saved = await updatePropertyDefinition(guildId, vars.definition.id, {
+        options: nextOptions,
+      });
       // The server keeps options it already holds as they are, so the one
       // asked for is only there if it came back under this label.
       const stored = findOptionByLabel(saved.definition, label);
@@ -193,7 +173,7 @@ export const useSetProperties = (
   useGuildMutation<PropertySummary[], SetPropertiesVariables>(
     {
       mutationFn: (guildId, { target, id, values }) =>
-        setPropertiesApiV1CGuildIdPropertiesTargetEntityIdPut(guildId, target, id, { values }),
+        setProperties(guildId, target, id, { values }),
       invalidate: (_data, vars) => invalidate(q.propertyHolder(vars.target)),
       errorKey: "properties:manager.setValuesError",
     },

@@ -219,9 +219,9 @@ export const AccessGrantStatus = {
  * deciding whether to bring it back. The status is not serialized to guild
  * members.
  */
-export type GuildStatus = (typeof GuildStatus)[keyof typeof GuildStatus];
+export type CommunityStatus = (typeof CommunityStatus)[keyof typeof CommunityStatus];
 
-export const GuildStatus = {
+export const CommunityStatus = {
   active: "active",
   read_only: "read_only",
   suspended: "suspended",
@@ -247,7 +247,7 @@ export interface AccessGrantRead {
   revoked_at: string | null;
   user_email: string | null;
   guild_name: string | null;
-  guild_status: GuildStatus | null;
+  guild_status: CommunityStatus | null;
   approved_by_email: string | null;
   /** Whether this grant currently confers access (approved, unexpired). */
   readonly is_live: boolean;
@@ -1374,18 +1374,18 @@ export interface BillingPortalHandoffResponse {
   expires_in_seconds: number;
 }
 
-export interface BodyImportEnvelopeArchiveApiV1CGuildIdImportsEnvelopeArchivePost {
+export interface BodyImportEnvelopeArchive {
   file: Blob;
   initiative_id: number;
   /** The envelope type the import was started for; a zip holding another tool's export is refused */
   envelope_type?: string | null;
 }
 
-export interface BodyImportSpreadsheetFileApiV1CGuildIdDocumentsDocumentIdSpreadsheetImportPost {
+export interface BodyImportSpreadsheetFile {
   file: Blob;
 }
 
-export interface BodyLoginAccessTokenApiV1AuthTokenPost {
+export interface BodyLoginAccessToken {
   device_name?: string | null;
   grant_type?: string | null;
   username: string;
@@ -1395,16 +1395,16 @@ export interface BodyLoginAccessTokenApiV1AuthTokenPost {
   client_secret?: string | null;
 }
 
-export interface BodyNotifyMentionsApiV1CGuildIdDocumentsDocumentIdMentionsPost {
+export interface BodyNotifyMentions {
   mentioned_user_ids: number[];
 }
 
-export interface BodySetGuildBannerApiV1CommunitiesGuildIdBannerPut {
+export interface BodySetCommunityBanner {
   full: Blob;
   card: Blob;
 }
 
-export interface BodySetGuildIconApiV1CommunitiesGuildIdIconPut {
+export interface BodySetCommunityIcon {
   icon: Blob;
 }
 
@@ -1428,7 +1428,7 @@ export const ListingKind = {
   wiki: "wiki",
 } as const;
 
-export interface BodyShareToMarketplaceApiV1CGuildIdMarketplaceSharePost {
+export interface BodyShareToMarketplace {
   kind: ListingKind;
   entity_id: number;
   name: string;
@@ -1440,57 +1440,57 @@ export interface BodyShareToMarketplaceApiV1CGuildIdMarketplaceSharePost {
   images?: Blob[];
 }
 
-export interface BodyStartConfluenceExportImportApiV1CGuildIdImportsAtlassianExportPost {
+export interface BodyStartConfluenceExportImport {
   file: Blob;
   initiative_id: number;
   include_attachments?: boolean;
 }
 
-export interface BodyUploadAnnouncementImageApiV1AnnouncementsOperatorImagesPost {
+export interface BodyUploadAnnouncementImage {
   file: Blob;
 }
 
-export interface BodyUploadAttachmentApiV1CGuildIdAttachmentsPost {
+export interface BodyUploadAttachment {
   file: Blob;
 }
 
-export interface BodyUploadBackupApiV1CGuildIdImportsBackupPost {
+export interface BodyUploadBackup {
   file: Blob;
 }
 
-export interface BodyUploadDocumentFileApiV1CGuildIdDocumentsUploadPost {
+export interface BodyUploadDocumentFile {
   name: string;
   initiative_id: number;
   file: Blob;
 }
 
-export interface BodyUploadDocumentVersionApiV1CGuildIdDocumentsDocumentIdVersionsPost {
+export interface BodyUploadDocumentVersion {
   file: Blob;
 }
 
-export interface BodyUploadGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesPost {
+export interface BodyUploadGalleryImage {
   file: Blob;
   title?: string | null;
   caption?: string | null;
 }
 
-export interface BodyUploadGalleryImageVersionApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsPost {
+export interface BodyUploadGalleryImageVersion {
   file: Blob;
 }
 
-export interface BodyUploadListingPictureApiV1MarketplaceLocalMediaPost {
+export interface BodyUploadListingPicture {
   file: Blob;
 }
 
-export interface BodyUploadMyAvatarApiV1MeAvatarPut {
+export interface BodyUploadMyAvatar {
   file: Blob;
 }
 
-export interface BodyUploadPastedImageApiV1CGuildIdAttachmentsPastedPost {
+export interface BodyUploadPastedImage {
   file: Blob;
 }
 
-export interface BodyUploadRegistryBundleApiV1MarketplaceRegistryBundlePost {
+export interface BodyUploadRegistryBundle {
   file: Blob;
 }
 
@@ -2363,6 +2363,674 @@ export interface CommentUpdate {
 }
 
 /**
+ * One thing an install produced.
+ */
+export interface CommunityAppArtifact {
+  type: string;
+  id: number;
+}
+
+export type CommunityAppConfigUpdateValues = { [key: string]: { [key: string]: unknown } };
+
+/**
+ * Guild-scoped connection values, keyed by connection then field.
+ *
+ * A key sent as ``null`` clears that value; a key left out is untouched, so a
+ * form rendering part of a connection cannot wipe the rest.
+ *
+ * Deliberately untyped at this layer. A credential is opaque bytes to us, so
+ * sanitizing one would corrupt it, and the declared field types live in the
+ * pinned definition rather than in this schema — the service checks each value
+ * against the type its own connection declared, which coercion here would
+ * quietly defeat (a ``true`` arriving at an ``int`` field must be refused, not
+ * turned into ``1``).
+ */
+export interface CommunityAppConfigUpdate {
+  values?: CommunityAppConfigUpdateValues;
+}
+
+/**
+ * Where to send the person connecting: the vendor's authorization page,
+ * or its install page for a connection an organization installs.
+ *
+ * Initiative runs the flow, and the vendor returns the person to Initiative's
+ * own callback. Nothing is stored until it does.
+ */
+export interface CommunityAppConnectStart {
+  connection_id: string;
+  connect_url: string;
+  status: string;
+}
+
+export type CommunityAppConnectionReadLabel = { [key: string]: string };
+
+export type CommunityAppConnectionReadFieldsItem = { [key: string]: unknown };
+
+export type CommunityAppConnectionReadAccessHint = { [key: string]: unknown } | null;
+
+export type CommunityAppConnectionReadValues = { [key: string]: unknown };
+
+export type CommunityAppConnectionReadHasValue = { [key: string]: boolean };
+
+/**
+ * One connection of an install, as the current viewer sees it.
+ *
+ * ``has_value`` is the whole of what is disclosed about stored values. For a
+ * per-member connection the presence, status and account label are the
+ * *viewer's own* — a colleague who has connected and one who has not are both
+ * looking at a correct answer, because the underlying vendor access genuinely
+ * differs per person.
+ */
+export interface CommunityAppConnectionRead {
+  id: string;
+  scope: string;
+  label: CommunityAppConnectionReadLabel;
+  fields: CommunityAppConnectionReadFieldsItem[];
+  access_hint: CommunityAppConnectionReadAccessHint;
+  values: CommunityAppConnectionReadValues;
+  has_value: CommunityAppConnectionReadHasValue;
+  satisfied: boolean;
+  runs_flow: boolean;
+  status: string | null;
+  account_label: string | null;
+  blocked: boolean;
+}
+
+export type CommunityAppConnectionSummaryLabel = { [key: string]: string };
+
+/**
+ * The aggregate an admin actually wants: how many of the guild connected.
+ */
+export interface CommunityAppConnectionSummary {
+  connection_id: string;
+  label: CommunityAppConnectionSummaryLabel;
+  connected_count: number;
+  blocked_count: number;
+  member_count: number;
+}
+
+/**
+ * Allow a request, at ``access``: never more than the app asked for.
+ * Declining is withdrawing a request that was never granted.
+ */
+export interface CommunityAppConsentAnswer {
+  access: ConsentAccess;
+}
+
+/**
+ * One request from this app to act as the viewer, and their answer.
+ *
+ * ``label`` is the app's own description of what it wants to do, shown as
+ * the app's words. ``purpose`` is the app's id for it; absent for app-wide
+ * consent.
+ */
+export interface CommunityAppConsentRead {
+  id: number;
+  purpose: string | null;
+  label: string;
+  initiative_id: number | null;
+  requested_access: ConsentAccess;
+  granted_access: ConsentAccess | null;
+  status: ConsentStatus;
+  requested_at: string;
+  granted_at: string | null;
+  revoked_at: string | null;
+}
+
+/**
+ * Every member's answers to this app's requests, counted.
+ */
+export interface CommunityAppConsentSummary {
+  member_count: number;
+  allowed_count: number;
+  open_count: number;
+}
+
+/**
+ * Keep the pinned version, and stop being asked about this one.
+ */
+export interface CommunityAppDecline {
+  /** @maxLength 32 */
+  version: string;
+}
+
+export type CommunityAppDetailDefinition = { [key: string]: unknown };
+
+export type CommunityAppDetailAppNames = { [key: string]: string };
+
+/**
+ * A version that asks for more than the install holds.
+ *
+ * ``added_scopes`` are grantable scopes neither the grant nor the pinned
+ * version names; ``added_surfaces`` are surfaces inside initiatives the
+ * pinned version does not have. ``declined`` says the seat declined this
+ * version: the install stays where it is and the sweep does not ask again.
+ */
+export interface CommunityAppUpgradeAsks {
+  version: string;
+  added_scopes: string[];
+  added_surfaces: AppSurfaceSummary[];
+  declined: boolean;
+}
+
+/**
+ * An install plus its connections, for the settings page.
+ *
+ * Separate from the list payload because the connection blocks carry the whole
+ * pinned form and the sidebar has no use for it.
+ */
+export interface CommunityAppDetail {
+  id: number;
+  guild_id: number;
+  listing_uid: string;
+  listing_version: string;
+  app_kind: string;
+  name: string;
+  enabled: boolean;
+  auto_update: boolean;
+  artifacts: CommunityAppArtifact[];
+  needs_config: boolean;
+  config_state: string;
+  config_state_detail: string | null;
+  tool: string | null;
+  avatar_url: string | null;
+  features: string[];
+  definition: CommunityAppDetailDefinition;
+  placements: AppPlacementRead[];
+  surface_access: AppSurfaceAccessRead[];
+  granted_scopes: string[];
+  mandatory: boolean;
+  available: boolean;
+  created_by: number;
+  created_at: string;
+  updated_at: string;
+  connections: CommunityAppConnectionRead[];
+  consents: CommunityAppConsentRead[];
+  update_version: string | null;
+  requested_scopes: string[];
+  grantable_scopes: string[];
+  pending_update: CommunityAppUpgradeAsks | null;
+  app_names: CommunityAppDetailAppNames;
+}
+
+/**
+ * A short-lived credential for one of an app's embedded surfaces.
+ *
+ * The token reaches the iframe by ``postMessage`` and never a query string,
+ * and it is worth a minute. ``allowed_origins`` is what the SPA posts to and
+ * accepts messages from — the registration's own list, not a client guess.
+ */
+export interface CommunityAppHandoff {
+  handoff_token: string;
+  expires_in_seconds: number;
+  embed_url: string;
+  allowed_origins: string[];
+  audience: string;
+  surface_id: string;
+}
+
+/**
+ * Install a listing into this guild, with the seat's consent.
+ *
+ * The definition comes from the catalog, and the content the install creates
+ * is made server-side. What the request adds is the seat's answer to the
+ * install dialog: what the app may reach, where it appears, and who opens it
+ * there. The install, its grant and its placements are one transaction.
+ */
+export interface CommunityAppInstall {
+  /** @maxLength 14 */
+  listing_uid: string;
+  name?: string | null;
+  /** @maxItems 64 */
+  granted_scopes?: string[];
+  placements?: "all" | number[];
+  /** @maxItems 10 */
+  role_kinds?: string[];
+}
+
+export type CommunityAppReadDefinition = { [key: string]: unknown };
+
+export interface CommunityAppRead {
+  id: number;
+  guild_id: number;
+  listing_uid: string;
+  listing_version: string;
+  app_kind: string;
+  name: string;
+  enabled: boolean;
+  auto_update: boolean;
+  artifacts: CommunityAppArtifact[];
+  needs_config: boolean;
+  config_state: string;
+  config_state_detail: string | null;
+  tool: string | null;
+  avatar_url: string | null;
+  features: string[];
+  definition: CommunityAppReadDefinition;
+  placements: AppPlacementRead[];
+  surface_access: AppSurfaceAccessRead[];
+  granted_scopes: string[];
+  mandatory: boolean;
+  available: boolean;
+  created_by: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CommunityAppListResponse {
+  items: CommunityAppRead[];
+}
+
+/**
+ * One member's connection, in the admin's Members view.
+ *
+ * Who connected, as which vendor account, when, and whether they are blocked.
+ * No values, and no ``connection_ref`` — the handle is between the platform
+ * and the app, and putting it in an admin screen would make it something
+ * people copy around.
+ */
+export interface CommunityAppMemberConnection {
+  connection_id: string;
+  user_id: number;
+  status: string;
+  account_label: string | null;
+  blocked: boolean;
+  blocked_by_id: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * One member's answer to one of the app's requests, in the seat's Members
+ * view.
+ */
+export interface CommunityAppMemberConsent {
+  id: number;
+  purpose: string | null;
+  label: string;
+  initiative_id: number | null;
+  requested_access: ConsentAccess;
+  granted_access: ConsentAccess | null;
+  status: ConsentStatus;
+  requested_at: string;
+  granted_at: string | null;
+  revoked_at: string | null;
+  user_id: number;
+}
+
+/**
+ * One page of the members who connected to this app or answered it.
+ *
+ * ``summary`` and ``consent_summary`` count across every member; ``items``
+ * and ``consents`` are the rows of the members on this page.
+ */
+export interface CommunityAppMembersResponse {
+  total_count: number;
+  page: number;
+  page_size: number;
+  has_next: boolean;
+  has_prev: boolean;
+  summary: CommunityAppConnectionSummary[];
+  items: CommunityAppMemberConnection[];
+  consents: CommunityAppMemberConsent[];
+  consent_summary: CommunityAppConsentSummary;
+}
+
+/**
+ * The scopes the seat grants an install, as the whole set.
+ *
+ * Each must be one the app's manifest requests and one this deployment
+ * allows the app. An empty list withdraws every grant.
+ */
+export interface CommunityAppScopesUpdate {
+  /** @maxItems 64 */
+  granted?: string[];
+}
+
+export interface CommunityAppUpdate {
+  name?: string | null;
+  enabled?: boolean | null;
+  auto_update?: boolean | null;
+  placed_initiative_ids?: number[] | null;
+}
+
+/**
+ * The seat's consent to a version that asks for more.
+ *
+ * ``version`` is the version the seat was shown; if the catalog offers a
+ * different one now, nothing is applied. ``add_scopes`` are the scopes the
+ * seat grants with it, each requested by that version and within the
+ * ceiling. Consenting to a version's new surfaces alone sends none.
+ */
+export interface CommunityAppUpgrade {
+  /** @maxLength 32 */
+  version: string;
+  /** @maxItems 64 */
+  add_scopes?: string[];
+}
+
+export type CommunityAuthOption = (typeof CommunityAuthOption)[keyof typeof CommunityAuthOption];
+
+export const CommunityAuthOption = {
+  providers: "providers",
+  restrictions: "restrictions",
+} as const;
+
+export type CommunityAuthPolicyReadPolicy =
+  (typeof CommunityAuthPolicyReadPolicy)[keyof typeof CommunityAuthPolicyReadPolicy];
+
+export const CommunityAuthPolicyReadPolicy = {
+  open: "open",
+  required: "required",
+} as const;
+
+export type CommunityAuthPolicyReadRequireMethodsItem =
+  (typeof CommunityAuthPolicyReadRequireMethodsItem)[keyof typeof CommunityAuthPolicyReadRequireMethodsItem];
+
+export const CommunityAuthPolicyReadRequireMethodsItem = {
+  sso: "sso",
+  totp: "totp",
+  passkey: "passkey",
+} as const;
+
+/**
+ * The guild's sign-in requirement. ``open`` is the default (no stored
+ * row). ``required`` names a provider a session must have satisfied, asks for
+ * the guild's own single sign-on without naming which provider serves it, or
+ * both.
+ */
+export interface CommunityAuthPolicyRead {
+  policy: CommunityAuthPolicyReadPolicy;
+  provider_id: number | null;
+  provider_slug: string | null;
+  provider_display_name: string | null;
+  require_methods: CommunityAuthPolicyReadRequireMethodsItem[];
+  factor_required_by_platform: boolean;
+}
+
+export type CommunityAuthPolicyUpdatePolicy =
+  (typeof CommunityAuthPolicyUpdatePolicy)[keyof typeof CommunityAuthPolicyUpdatePolicy];
+
+export const CommunityAuthPolicyUpdatePolicy = {
+  open: "open",
+  required: "required",
+} as const;
+
+export type CommunityAuthPolicyUpdateRequireMethodsItem =
+  (typeof CommunityAuthPolicyUpdateRequireMethodsItem)[keyof typeof CommunityAuthPolicyUpdateRequireMethodsItem];
+
+export const CommunityAuthPolicyUpdateRequireMethodsItem = {
+  sso: "sso",
+  totp: "totp",
+  passkey: "passkey",
+} as const;
+
+export interface CommunityAuthPolicyUpdate {
+  policy: CommunityAuthPolicyUpdatePolicy;
+  provider_id?: number | null;
+  require_methods?: CommunityAuthPolicyUpdateRequireMethodsItem[];
+}
+
+/**
+ * Every control on the superadmin seat's Security page, and what the
+ * deployment already asks beside them.
+ */
+export interface CommunityAuthSettingsRead {
+  auth_options: CommunityAuthOption[];
+  auth_policy: CommunityAuthPolicyRead;
+  allow_api_keys: boolean;
+  enforce_compliance_session: boolean;
+  require_second_factor: boolean;
+  allow_push_notifications: boolean;
+  allow_email_notifications: boolean;
+  redact_notification_content: boolean;
+  push_allowed_by_platform: boolean;
+  email_allowed_by_platform: boolean;
+  redacted_by_platform: boolean;
+}
+
+/**
+ * The rules to change. An omitted field is left as it is.
+ *
+ * The whole request is one change: it is applied together or refused
+ * together, and a rule it loosens is loosened before one it tightens is
+ * checked. Tightening a rule needs the option it belongs to; loosening one
+ * never does.
+ */
+export interface CommunityAuthSettingsUpdate {
+  auth_policy?: CommunityAuthPolicyUpdate | null;
+  allow_api_keys?: boolean | null;
+  enforce_compliance_session?: boolean | null;
+  require_second_factor?: boolean | null;
+  allow_push_notifications?: boolean | null;
+  allow_email_notifications?: boolean | null;
+  redact_notification_content?: boolean | null;
+}
+
+/**
+ * A guild's banner, whole — the picture and the look around it.
+ *
+ * ``image_url`` is where to fetch the artwork, never the bytes: a banner is
+ * ~350 KB and this rides in payloads that list every guild the caller is in.
+ * Which rendition it names is the surface's business — a guild's own front
+ * page gets the full one, a directory card the card one. ``None`` means no
+ * artwork, not no banner: the fill is what shows then.
+ */
+export interface CommunityBannerRead {
+  image_url: string | null;
+  color: string;
+  text_color: string;
+  text_align: BannerTextAlign;
+  fade: BannerFade;
+}
+
+/**
+ * The banner a guild admin sets, whole.
+ *
+ * Every field is required: the banner is one value and this replaces it, so a
+ * body naming two of the four would have to mean "leave the rest" — a merge
+ * the caller cannot see the result of. Sending ``null`` for the whole object
+ * is how you go back to the default. The artwork is set through its own
+ * endpoint; it is bytes, not a look.
+ *
+ * The layout fields are typed as their enums, so anything outside the
+ * vocabulary is a 422 rather than a rule the service restates; the colours
+ * are text here and normalized in the service.
+ */
+export interface CommunityBannerWrite {
+  color: string;
+  text_color: string;
+  text_align: BannerTextAlign;
+  fade: BannerFade;
+}
+
+export type CommunityBillingChangeReadAction =
+  (typeof CommunityBillingChangeReadAction)[keyof typeof CommunityBillingChangeReadAction];
+
+export const CommunityBillingChangeReadAction = {
+  cancel: "cancel",
+  pause: "pause",
+  resume: "resume",
+} as const;
+
+export interface CommunityBillingChangeRead {
+  action: CommunityBillingChangeReadAction;
+  on: string;
+}
+
+export interface CommunityBillingChargeRead {
+  total: number;
+  currency: string;
+}
+
+/**
+ * The guild's plan as billing told it, fetched for this response alone.
+ *
+ * ``available`` is False when billing could not be asked or did not answer
+ * sensibly, and every other field is then empty — not a free plan, an
+ * unknown one.
+ */
+export interface CommunityBillingSummaryRead {
+  available?: boolean;
+  tier_name?: string | null;
+  trial_ends_on?: string | null;
+  renews_on?: string | null;
+  next_charge?: CommunityBillingChargeRead | null;
+  scheduled_change?: CommunityBillingChangeRead | null;
+  payment_failed?: boolean;
+}
+
+/**
+ * Info about a guild blocking user deletion.
+ */
+export interface CommunityBlockerInfo {
+  guild_id: number;
+  guild_name: string;
+}
+
+/**
+ * What the caller may do in a community, as the server answers it.
+ *
+ * Each flag is the check the routes that do the thing run, so a client reads
+ * its affordances here rather than working them out from a rung.
+ */
+export interface CommunityCan {
+  enter: boolean;
+  content: boolean;
+  administer: boolean;
+  configure: boolean;
+  administer_content: boolean;
+  seat: boolean;
+}
+
+/**
+ * A subject a guild can file itself under in the community directory.
+ *
+ * A closed vocabulary rather than free-form tags: the directory's job is to
+ * narrow a deployment's guilds down to a browsable shelf, and that only works
+ * if two guilds about the same thing pick the same word. Guilds choose their
+ * own (zero or more) from their settings page; the labels are localized
+ * client-side from these keys, so the stored value is never user-facing text.
+ *
+ * Stored as a ``text[]`` on ``guilds.categories`` with a CHECK that every
+ * element is one of these, mirroring how ``status`` is a CHECK-constrained
+ * string rather than a Postgres enum: adding a category is then an ordinary
+ * migration instead of an enum alteration.
+ */
+export type CommunityCategory = (typeof CommunityCategory)[keyof typeof CommunityCategory];
+
+export const CommunityCategory = {
+  art: "art",
+  gaming: "gaming",
+  ttrpg: "ttrpg",
+  music: "music",
+  writing: "writing",
+  education: "education",
+  technology: "technology",
+  sports: "sports",
+  business: "business",
+  health: "health",
+  social: "social",
+  other: "other",
+} as const;
+
+/**
+ * Place the people carrying one group.
+ *
+ * Naming an initiative places them there as well as in the community, since
+ * somebody has to be in the community to be in one of its initiatives.
+ */
+export interface CommunityClaimRuleCreate {
+  provider_id: number;
+  /** @maxLength 500 */
+  claim_value: string;
+  guild_role?: string;
+  initiative_id?: number | null;
+  initiative_role_id?: number | null;
+}
+
+/**
+ * One rule a community wrote: a group this provider asserts, and where
+ * somebody carrying it lands.
+ */
+export interface CommunityClaimRuleRead {
+  id: number;
+  provider_id: number;
+  provider_display_name: string;
+  provider_icon: string | null;
+  claim_value: string;
+  guild_role: string;
+  initiative_id: number | null;
+  initiative_name: string | null;
+  initiative_role_id: number | null;
+  initiative_role_name: string | null;
+}
+
+/**
+ * One rule the platform wrote for a provider: which arrivals it matches,
+ * and where they land.
+ */
+export interface ProviderPlacementRuleRead {
+  id: number;
+  provider_id: number;
+  provider_display_name: string;
+  provider_icon: string | null;
+  claim_value: string | null;
+  scope_claim: string | null;
+  scope_value: string | null;
+  guild_id: number;
+  guild_name: string;
+  guild_role: string;
+  initiative_id: number | null;
+  initiative_name: string | null;
+  initiative_role_id: number | null;
+  initiative_role_name: string | null;
+  applies: boolean;
+}
+
+/**
+ * The rules, and whether the providers behind them report groups at all.
+ *
+ * Which claim carries groups is the operator's to set per provider. A
+ * community can write rules against a provider that has none, and they will
+ * never match anything, so the surface says which of its connections are
+ * ready to be written against rather than letting somebody find out later.
+ */
+export interface CommunityClaimRulesResponse {
+  rules: CommunityClaimRuleRead[];
+  reporting_provider_ids: number[];
+  provider_rules: ProviderPlacementRuleRead[];
+  placement_everywhere: boolean;
+}
+
+export interface CommunityCreate {
+  name: string;
+  description?: string | null;
+  plan?: string | null;
+  owner_user_id?: number | null;
+}
+
+/**
+ * Body for ``DELETE /communities/{id}``.
+ *
+ * Deleting a guild cascades through every initiative, project, task,
+ * document, membership, invite, and settings row it owns, so the
+ * endpoint gates on two confirmations:
+ *
+ * - ``confirmation_text`` must equal ``DELETE COMMUNITY <NAME>`` (the whole
+ *   phrase uppercased) so the action can't be triggered by a stray click.
+ * - ``password`` is the current user's password. An account that holds
+ *   none — one that signs in with a passkey or through an identity
+ *   provider — has nothing to confirm with and answers with the phrase
+ *   alone, mirroring the account-deletion endpoint, which is why it
+ *   defaults to empty.
+ */
+export interface CommunityDeletionRequest {
+  password?: string;
+  confirmation_text: string;
+}
+
+/**
  * One of the reader's communities, and whether it counts.
  *
  * Only consulted while the policy is ``community``; the list is returned
@@ -2382,85 +3050,309 @@ export interface CommunityDmToggleUpdate {
 }
 
 /**
- * A subject a guild can file itself under in the community directory.
+ * What an operator has turned on for one guild, for its own admins.
  *
- * A closed vocabulary rather than free-form tags: the directory's job is to
- * narrow a deployment's guilds down to a browsable shelf, and that only works
- * if two guilds about the same thing pick the same word. Guilds choose their
- * own (zero or more) from their settings page; the labels are localized
- * client-side from these keys, so the stored value is never user-facing text.
- *
- * Stored as a ``text[]`` on ``guilds.categories`` with a CHECK that every
- * element is one of these, mirroring how ``status`` is a CHECK-constrained
- * string rather than a Postgres enum: adding a category is then an ordinary
- * migration instead of an enum alteration.
+ * Deliberately its own read rather than fields on :class:`CommunityRead`: these
+ * are the operator's decisions about a guild, they live on the separate
+ * ``guild_administration`` row, and only a guild admin has any use for them —
+ * a member's guild payload should not be carrying them at all.
  */
-export type GuildCategory = (typeof GuildCategory)[keyof typeof GuildCategory];
+export interface CommunityEntitlementsRead {
+  guild_id: number;
+  banner_image_enabled: boolean;
+}
 
-export const GuildCategory = {
-  art: "art",
-  gaming: "gaming",
-  ttrpg: "ttrpg",
-  music: "music",
-  writing: "writing",
-  education: "education",
-  technology: "technology",
-  sports: "sports",
-  business: "business",
-  health: "health",
-  social: "social",
-  other: "other",
+export type ExportJobStatus = (typeof ExportJobStatus)[keyof typeof ExportJobStatus];
+
+export const ExportJobStatus = {
+  queued: "queued",
+  running: "running",
+  done: "done",
+  failed: "failed",
+  expired: "expired",
+} as const;
+
+export type ExportJobReadParams = { [key: string]: unknown };
+
+export interface ExportJobRead {
+  id: number;
+  guild_id: number;
+  created_by: number;
+  source: string;
+  template_id: string;
+  format: string;
+  params: ExportJobReadParams;
+  status: ExportJobStatus;
+  error: string | null;
+  expires_at: string | null;
+  created_at: string;
+  updated_at: string;
+  /**
+   * The archive went to the operator's destination; there is nothing
+   * here to download.
+   */
+  readonly delivered: boolean;
+}
+
+/**
+ * What the community settings page knows about whole-community exports
+ * without opening the wizard.
+ *
+ * A community takes one of these at a time and rarely — so the page says
+ * who took the last one and how it ended, rather than leaving the next
+ * person to find out by being refused.
+ */
+export interface CommunityExportStatus {
+  cooldown_hours: number;
+  next_available_at: string | null;
+  latest: ExportJobRead | null;
+  latest_started_by: string | null;
+}
+
+export interface CommunityInviteAcceptRequest {
+  code: string;
+}
+
+export interface CommunityInviteCreate {
+  expires_at?: string | null;
+  max_uses?: number | null;
+  invitee_email?: string | null;
+}
+
+export interface CommunityInviteRead {
+  id: number;
+  code: string;
+  guild_id: number;
+  created_by: number | null;
+  expires_at: string | null;
+  max_uses: number | null;
+  uses: number;
+  invitee_email: string | null;
+  created_at: string;
+}
+
+export interface CommunityInviteStatus {
+  code: string;
+  guild_id: number | null;
+  guild_name: string | null;
+  is_valid: boolean;
+  reason: string | null;
+  expires_at: string | null;
+  max_uses: number | null;
+  uses: number | null;
+}
+
+export type CommunityRole = (typeof CommunityRole)[keyof typeof CommunityRole];
+
+export const CommunityRole = {
+  admin: "admin",
+  member: "member",
+  superadmin: "superadmin",
+  support: "support",
 } as const;
 
 /**
- * A guild's banner, whole — the picture and the look around it.
- *
- * ``image_url`` is where to fetch the artwork, never the bytes: a banner is
- * ~350 KB and this rides in payloads that list every guild the caller is in.
- * Which rendition it names is the surface's business — a guild's own front
- * page gets the full one, a directory card the card one. ``None`` means no
- * artwork, not no banner: the fill is what shows then.
+ * Schema for updating a user's guild membership role.
  */
-export interface GuildBannerRead {
-  image_url: string | null;
-  color: string;
-  text_color: string;
-  text_align: BannerTextAlign;
-  fade: BannerFade;
+export interface CommunityMembershipUpdate {
+  role: CommunityRole;
 }
 
 /**
- * One card in the community directory.
- *
- * Deliberately not a :class:`GuildRead`: the reader is a stranger, so this
- * carries only what the guild published by opting in — its identity, its
- * shelves, and how many people are already there. No membership fields (they
- * have none), no lifecycle status, no administration. ``already_member`` is
- * about the *caller*, and only says whether the Join button applies to them.
- *
- * ``online_count`` is how many of those people have the guild open right now.
- * It is a live reading rather than a stored one, taken from the process
- * answering the request, so it is a sense of how busy a guild is rather than a
- * figure to reconcile against anything.
+ * Whether these values are this community's to claim.
  */
-export interface CommunityGuildRead {
-  id: number;
+export interface CommunityNarrowingAgreement {
+  agreed: boolean;
+}
+
+/**
+ * One community's claim, waiting to be answered.
+ */
+export interface CommunityNarrowingPending {
+  connection_id: number;
+  guild_id: number;
+  guild_name: string;
+  provider_display_name: string;
+  claim: string;
+  claim_values: string[];
+  auto_join: boolean;
+  agreed: boolean;
+}
+
+export type CommunityNotificationSettingsCategories = { [key: string]: { [key: string]: boolean } };
+
+/**
+ * How much one community is allowed to say.
+ *
+ * The dial almost everyone will use, in place of the per-category grid. It
+ * lives in the settings document rather than on ``guild_memberships`` because
+ * a roster row is read by other people, and this is not theirs to see.
+ */
+export type NotificationLevel = (typeof NotificationLevel)[keyof typeof NotificationLevel];
+
+export const NotificationLevel = {
+  everything: "everything",
+  personal: "personal",
+  nothing: "nothing",
+} as const;
+
+export interface CommunityNotificationSettings {
+  guild_id: number;
+  guild_name: string;
+  level: NotificationLevel;
+  categories: CommunityNotificationSettingsCategories;
+}
+
+export interface CommunityOrderUpdate {
+  /** @minItems 1 */
+  guildIds: number[];
+}
+
+export interface CommunityPaymentIssueRead {
+  payment_failed?: boolean;
+}
+
+/**
+ * Connect to one of the providers on offer.
+ */
+export interface CommunityProviderConnectionCreate {
+  provider_id: number;
+  claim?: string | null;
+  claim_values?: string[] | null;
+  enabled?: boolean;
+  auto_join?: boolean;
+  accepts_provider_placement?: boolean;
+}
+
+/**
+ * One community signing its members in through one provider.
+ *
+ * Also how an arrangement the community has not made itself is shown: the
+ * deployment's default for that provider, marked ``inherited``, which the
+ * community replaces by connecting to the provider itself.
+ */
+export interface CommunityProviderConnectionRead {
+  id: number | null;
+  inherited: boolean;
+  provider_id: number;
+  provider_slug: string;
+  provider_display_name: string;
+  provider_icon: string | null;
+  claim: string | null;
+  claim_values: string[];
+  enabled: boolean;
+  auto_join: boolean;
+  narrowing_approved: boolean;
+  accepts_provider_placement: boolean;
+  login_ready: boolean;
+}
+
+/**
+ * Change the narrowing, or take the button away. The provider a
+ * connection is to is not editable: pointing it elsewhere would change who
+ * gets in without saying so. Disconnect and connect instead.
+ */
+export interface CommunityProviderConnectionUpdate {
+  claim?: string | null;
+  claim_values?: string[] | null;
+  enabled?: boolean | null;
+  auto_join?: boolean | null;
+  accepts_provider_placement?: boolean | null;
+}
+
+/**
+ * A guild as its own members see it (``GET /communities/`` and friends).
+ *
+ * The payload has two tiers, decided in one place — ``_serialize_guild`` in
+ * the guilds router:
+ *
+ * - The fields below with no note are for **every member**: guild identity,
+ *   the caller's own rung, the roster size, ``content_read_only``.
+ * - The ones marked ADMIN-ONLY are guild administration — caps, plan label,
+ *   retention window, lifecycle status, sign-in entitlement. They back
+ *   admin-gated surfaces, so a regular member's payload leaves them ``None``.
+ *   (Operators read the same underlying columns through
+ *   :class:`PlatformCommunityStorageRead` instead, which is capability-gated.)
+ */
+export interface CommunityRead {
   name: string;
   description: string | null;
-  icon_url: string | null;
-  categories: GuildCategory[];
+  id: number;
+  role: CommunityRole;
+  can: CommunityCan;
+  position: number;
+  display_name: string | null;
+  created_at: string;
+  updated_at: string;
+  retention_days: number | null;
+  max_storage_bytes: number | null;
+  max_users: number | null;
   member_count: number;
+  tier_name: string | null;
+  status: CommunityStatus | null;
+  content_read_only: boolean;
+  contact_email: string | null;
+  auth_options: CommunityAuthOption[] | null;
+  allow_api_keys: boolean | null;
+  enforce_compliance_session: boolean | null;
+  require_second_factor: boolean | null;
+  is_community: boolean;
+  categories: CommunityCategory[];
+  has_adult_content: boolean | null;
+  banner: CommunityBannerRead;
   online_count: number;
-  already_member: boolean;
-  banner: GuildBannerRead;
+  icon_url: string | null;
+  banner_card_url: string | null;
 }
 
 /**
- * A page of directory results, plus how many matched in total.
+ * What a person is up to, in their own words.
+ *
+ * One object, stored in one column, because it is one thing a person sets
+ * and one thing every surface that names them renders: splitting it in two
+ * would mean two reads and two writes for a single line of text.
+ *
+ * Not to be confused with ``UserStatus`` (``users.status``), which is the
+ * account's standing — suspended, deactivated — and is not the person's to
+ * write.
  */
-export interface CommunityGuildPage {
-  items: CommunityGuildRead[];
-  total: number;
+export interface CustomStatusOutput {
+  emoji: string | null;
+  text: string | null;
+}
+
+/**
+ * One person on a community's people roster.
+ *
+ * ``UserSummary`` plus what a roster row draws beside the name: how they
+ * appear right now and the line they wrote. Both are public, as they are on
+ * the profile.
+ */
+export interface CommunityRosterMember {
+  id: number;
+  username: string;
+  discriminator: number;
+  avatar_url: string | null;
+  status: UserStatus;
+  display_name: string | null;
+  profile_decorations: ProfileDecorationsOutput | null;
+  guild_role: string | null;
+  presence: Presence;
+  custom_status: CustomStatusOutput;
+}
+
+/**
+ * A page of the roster, and how many people are in each presence group
+ * across every page, so a group's heading can count people not yet loaded.
+ */
+export interface CommunityRosterResponse {
+  total_count: number;
+  page: number;
+  page_size: number;
+  has_next: boolean;
+  has_prev: boolean;
+  items: CommunityRosterMember[];
+  presence_counts: Partial<Record<Presence, number>>;
 }
 
 /**
@@ -2504,6 +3396,33 @@ export interface CommunitySettingsUpdate {
   on_hold_community_deletion_days?: number | null;
 }
 
+export interface CommunityStorageUsageRead {
+  guild_id: number;
+  usage_bytes: number;
+}
+
+/**
+ * Task completion breakdown by guild.
+ */
+export interface CommunityTaskBreakdown {
+  /** Guild ID */
+  guild_id: number;
+  /** Guild name */
+  guild_name: string;
+  /** Number of completed tasks in this guild */
+  completed_count: number;
+}
+
+export interface CommunityUpdate {
+  name?: string | null;
+  description?: string | null;
+  retention_days?: number | null;
+  is_community?: boolean | null;
+  categories?: CommunityCategory[] | null;
+  banner?: CommunityBannerWrite | null;
+  has_adult_content?: boolean | null;
+}
+
 /**
  * One provider a community may connect to, as the community sees it.
  *
@@ -2531,6 +3450,38 @@ export interface ConnectionRequestCreate {
 }
 
 /**
+ * One person, on one row of the page.
+ *
+ * Inherits ``UserSummary``'s ``display_name``: the name the person set in
+ * the guild this row was read under, which the cross-guild loop reads per
+ * guild.
+ */
+export interface ContactRead {
+  id: number;
+  username: string;
+  discriminator: number;
+  avatar_url: string | null;
+  status: UserStatus;
+  display_name: string | null;
+  profile_decorations: ProfileDecorationsOutput;
+  guild_role: string | null;
+  presence: Presence;
+  shared_guild_ids: number[];
+}
+
+/**
+ * One guild's roster, as one accordion section.
+ */
+export interface ContactCommunitySection {
+  guild_id: number;
+  guild_name: string;
+  icon_url: string | null;
+  total_count: number;
+  items: ContactRead[];
+  has_next: boolean;
+}
+
+/**
  * One connection or message request, from the reader's side of it.
  */
 export interface ContactGrantRead {
@@ -2554,45 +3505,13 @@ export interface ContactGrantsResponse {
 }
 
 /**
- * One person, on one row of the page.
- *
- * Inherits ``UserSummary``'s ``display_name``: the name the person set in
- * the guild this row was read under, which the cross-guild loop reads per
- * guild.
- */
-export interface ContactRead {
-  id: number;
-  username: string;
-  discriminator: number;
-  avatar_url: string | null;
-  status: UserStatus;
-  display_name: string | null;
-  profile_decorations: ProfileDecorationsOutput;
-  guild_role: string | null;
-  presence: Presence;
-  shared_guild_ids: number[];
-}
-
-/**
- * One guild's roster, as one accordion section.
- */
-export interface ContactGuildSection {
-  guild_id: number;
-  guild_name: string;
-  icon_url: string | null;
-  total_count: number;
-  items: ContactRead[];
-  has_next: boolean;
-}
-
-/**
  * Every guild section, in the reader's own rail order.
  *
  * Paginated *within* each section rather than across a merged list: the
  * response is grouped, so a flat offset would not mean anything.
  */
 export interface ContactSectionsResponse {
-  sections: ContactGuildSection[];
+  sections: ContactCommunitySection[];
   page: number;
   page_size: number;
 }
@@ -2845,22 +3764,6 @@ export interface CounterUpdate {
 export interface CustomStatusInput {
   emoji?: string | null;
   text?: string | null;
-}
-
-/**
- * What a person is up to, in their own words.
- *
- * One object, stored in one column, because it is one thing a person sets
- * and one thing every surface that names them renders: splitting it in two
- * would mean two reads and two writes for a single line of text.
- *
- * Not to be confused with ``UserStatus`` (``users.status``), which is the
- * account's standing — suspended, deactivated — and is not the person's to
- * write.
- */
-export interface CustomStatusOutput {
-  emoji: string | null;
-  text: string | null;
 }
 
 export type DashboardCreateDefinition = { [key: string]: unknown };
@@ -3178,6 +4081,40 @@ export interface DirectMessageSettingsUpdate {
   dm_policy?: DmPolicy | null;
   communities?: CommunityDmToggleUpdate[] | null;
   send_receipts?: boolean | null;
+}
+
+/**
+ * One card in the community directory.
+ *
+ * Deliberately not a :class:`CommunityRead`: the reader is a stranger, so this
+ * carries only what the guild published by opting in — its identity, its
+ * shelves, and how many people are already there. No membership fields (they
+ * have none), no lifecycle status, no administration. ``already_member`` is
+ * about the *caller*, and only says whether the Join button applies to them.
+ *
+ * ``online_count`` is how many of those people have the guild open right now.
+ * It is a live reading rather than a stored one, taken from the process
+ * answering the request, so it is a sense of how busy a guild is rather than a
+ * figure to reconcile against anything.
+ */
+export interface DirectoryCommunityRead {
+  id: number;
+  name: string;
+  description: string | null;
+  icon_url: string | null;
+  categories: CommunityCategory[];
+  member_count: number;
+  online_count: number;
+  already_member: boolean;
+  banner: CommunityBannerRead;
+}
+
+/**
+ * A page of directory results, plus how many matched in total.
+ */
+export interface DirectoryCommunityPage {
+  items: DirectoryCommunityRead[];
+  total: number;
 }
 
 export interface DmConversationCreate {
@@ -3829,38 +4766,6 @@ export interface EnvelopeImportResult {
   warnings?: string[];
 }
 
-export type ExportJobReadParams = { [key: string]: unknown };
-
-export type ExportJobStatus = (typeof ExportJobStatus)[keyof typeof ExportJobStatus];
-
-export const ExportJobStatus = {
-  queued: "queued",
-  running: "running",
-  done: "done",
-  failed: "failed",
-  expired: "expired",
-} as const;
-
-export interface ExportJobRead {
-  id: number;
-  guild_id: number;
-  created_by: number;
-  source: string;
-  template_id: string;
-  format: string;
-  params: ExportJobReadParams;
-  status: ExportJobStatus;
-  error: string | null;
-  expires_at: string | null;
-  created_at: string;
-  updated_at: string;
-  /**
-   * The archive went to the operator's destination; there is nothing
-   * here to download.
-   */
-  readonly delivered: boolean;
-}
-
 /**
  * Public FCM configuration for mobile app initialization.
  *
@@ -4219,911 +5124,6 @@ export interface GenerateDescriptionResponse {
  */
 export interface GenerateDocumentSummaryResponse {
   summary: string;
-}
-
-/**
- * One thing an install produced.
- */
-export interface GuildAppArtifact {
-  type: string;
-  id: number;
-}
-
-export type GuildAppConfigUpdateValues = { [key: string]: { [key: string]: unknown } };
-
-/**
- * Guild-scoped connection values, keyed by connection then field.
- *
- * A key sent as ``null`` clears that value; a key left out is untouched, so a
- * form rendering part of a connection cannot wipe the rest.
- *
- * Deliberately untyped at this layer. A credential is opaque bytes to us, so
- * sanitizing one would corrupt it, and the declared field types live in the
- * pinned definition rather than in this schema — the service checks each value
- * against the type its own connection declared, which coercion here would
- * quietly defeat (a ``true`` arriving at an ``int`` field must be refused, not
- * turned into ``1``).
- */
-export interface GuildAppConfigUpdate {
-  values?: GuildAppConfigUpdateValues;
-}
-
-/**
- * Where to send the person connecting: the vendor's authorization page,
- * or its install page for a connection an organization installs.
- *
- * Initiative runs the flow, and the vendor returns the person to Initiative's
- * own callback. Nothing is stored until it does.
- */
-export interface GuildAppConnectStart {
-  connection_id: string;
-  connect_url: string;
-  status: string;
-}
-
-export type GuildAppConnectionReadLabel = { [key: string]: string };
-
-export type GuildAppConnectionReadFieldsItem = { [key: string]: unknown };
-
-export type GuildAppConnectionReadAccessHint = { [key: string]: unknown } | null;
-
-export type GuildAppConnectionReadValues = { [key: string]: unknown };
-
-export type GuildAppConnectionReadHasValue = { [key: string]: boolean };
-
-/**
- * One connection of an install, as the current viewer sees it.
- *
- * ``has_value`` is the whole of what is disclosed about stored values. For a
- * per-member connection the presence, status and account label are the
- * *viewer's own* — a colleague who has connected and one who has not are both
- * looking at a correct answer, because the underlying vendor access genuinely
- * differs per person.
- */
-export interface GuildAppConnectionRead {
-  id: string;
-  scope: string;
-  label: GuildAppConnectionReadLabel;
-  fields: GuildAppConnectionReadFieldsItem[];
-  access_hint: GuildAppConnectionReadAccessHint;
-  values: GuildAppConnectionReadValues;
-  has_value: GuildAppConnectionReadHasValue;
-  satisfied: boolean;
-  runs_flow: boolean;
-  status: string | null;
-  account_label: string | null;
-  blocked: boolean;
-}
-
-export type GuildAppConnectionSummaryLabel = { [key: string]: string };
-
-/**
- * The aggregate an admin actually wants: how many of the guild connected.
- */
-export interface GuildAppConnectionSummary {
-  connection_id: string;
-  label: GuildAppConnectionSummaryLabel;
-  connected_count: number;
-  blocked_count: number;
-  member_count: number;
-}
-
-/**
- * Allow a request, at ``access``: never more than the app asked for.
- * Declining is withdrawing a request that was never granted.
- */
-export interface GuildAppConsentAnswer {
-  access: ConsentAccess;
-}
-
-/**
- * One request from this app to act as the viewer, and their answer.
- *
- * ``label`` is the app's own description of what it wants to do, shown as
- * the app's words. ``purpose`` is the app's id for it; absent for app-wide
- * consent.
- */
-export interface GuildAppConsentRead {
-  id: number;
-  purpose: string | null;
-  label: string;
-  initiative_id: number | null;
-  requested_access: ConsentAccess;
-  granted_access: ConsentAccess | null;
-  status: ConsentStatus;
-  requested_at: string;
-  granted_at: string | null;
-  revoked_at: string | null;
-}
-
-/**
- * Every member's answers to this app's requests, counted.
- */
-export interface GuildAppConsentSummary {
-  member_count: number;
-  allowed_count: number;
-  open_count: number;
-}
-
-/**
- * Keep the pinned version, and stop being asked about this one.
- */
-export interface GuildAppDecline {
-  /** @maxLength 32 */
-  version: string;
-}
-
-export type GuildAppDetailDefinition = { [key: string]: unknown };
-
-export type GuildAppDetailAppNames = { [key: string]: string };
-
-/**
- * A version that asks for more than the install holds.
- *
- * ``added_scopes`` are grantable scopes neither the grant nor the pinned
- * version names; ``added_surfaces`` are surfaces inside initiatives the
- * pinned version does not have. ``declined`` says the seat declined this
- * version: the install stays where it is and the sweep does not ask again.
- */
-export interface GuildAppUpgradeAsks {
-  version: string;
-  added_scopes: string[];
-  added_surfaces: AppSurfaceSummary[];
-  declined: boolean;
-}
-
-/**
- * An install plus its connections, for the settings page.
- *
- * Separate from the list payload because the connection blocks carry the whole
- * pinned form and the sidebar has no use for it.
- */
-export interface GuildAppDetail {
-  id: number;
-  guild_id: number;
-  listing_uid: string;
-  listing_version: string;
-  app_kind: string;
-  name: string;
-  enabled: boolean;
-  auto_update: boolean;
-  artifacts: GuildAppArtifact[];
-  needs_config: boolean;
-  config_state: string;
-  config_state_detail: string | null;
-  tool: string | null;
-  avatar_url: string | null;
-  features: string[];
-  definition: GuildAppDetailDefinition;
-  placements: AppPlacementRead[];
-  surface_access: AppSurfaceAccessRead[];
-  granted_scopes: string[];
-  mandatory: boolean;
-  available: boolean;
-  created_by: number;
-  created_at: string;
-  updated_at: string;
-  connections: GuildAppConnectionRead[];
-  consents: GuildAppConsentRead[];
-  update_version: string | null;
-  requested_scopes: string[];
-  grantable_scopes: string[];
-  pending_update: GuildAppUpgradeAsks | null;
-  app_names: GuildAppDetailAppNames;
-}
-
-/**
- * A short-lived credential for one of an app's embedded surfaces.
- *
- * The token reaches the iframe by ``postMessage`` and never a query string,
- * and it is worth a minute. ``allowed_origins`` is what the SPA posts to and
- * accepts messages from — the registration's own list, not a client guess.
- */
-export interface GuildAppHandoff {
-  handoff_token: string;
-  expires_in_seconds: number;
-  embed_url: string;
-  allowed_origins: string[];
-  audience: string;
-  surface_id: string;
-}
-
-/**
- * Install a listing into this guild, with the seat's consent.
- *
- * The definition comes from the catalog, and the content the install creates
- * is made server-side. What the request adds is the seat's answer to the
- * install dialog: what the app may reach, where it appears, and who opens it
- * there. The install, its grant and its placements are one transaction.
- */
-export interface GuildAppInstall {
-  /** @maxLength 14 */
-  listing_uid: string;
-  name?: string | null;
-  /** @maxItems 64 */
-  granted_scopes?: string[];
-  placements?: "all" | number[];
-  /** @maxItems 10 */
-  role_kinds?: string[];
-}
-
-export type GuildAppReadDefinition = { [key: string]: unknown };
-
-export interface GuildAppRead {
-  id: number;
-  guild_id: number;
-  listing_uid: string;
-  listing_version: string;
-  app_kind: string;
-  name: string;
-  enabled: boolean;
-  auto_update: boolean;
-  artifacts: GuildAppArtifact[];
-  needs_config: boolean;
-  config_state: string;
-  config_state_detail: string | null;
-  tool: string | null;
-  avatar_url: string | null;
-  features: string[];
-  definition: GuildAppReadDefinition;
-  placements: AppPlacementRead[];
-  surface_access: AppSurfaceAccessRead[];
-  granted_scopes: string[];
-  mandatory: boolean;
-  available: boolean;
-  created_by: number;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface GuildAppListResponse {
-  items: GuildAppRead[];
-}
-
-/**
- * One member's connection, in the admin's Members view.
- *
- * Who connected, as which vendor account, when, and whether they are blocked.
- * No values, and no ``connection_ref`` — the handle is between the platform
- * and the app, and putting it in an admin screen would make it something
- * people copy around.
- */
-export interface GuildAppMemberConnection {
-  connection_id: string;
-  user_id: number;
-  status: string;
-  account_label: string | null;
-  blocked: boolean;
-  blocked_by_id: number | null;
-  created_at: string;
-  updated_at: string;
-}
-
-/**
- * One member's answer to one of the app's requests, in the seat's Members
- * view.
- */
-export interface GuildAppMemberConsent {
-  id: number;
-  purpose: string | null;
-  label: string;
-  initiative_id: number | null;
-  requested_access: ConsentAccess;
-  granted_access: ConsentAccess | null;
-  status: ConsentStatus;
-  requested_at: string;
-  granted_at: string | null;
-  revoked_at: string | null;
-  user_id: number;
-}
-
-/**
- * One page of the members who connected to this app or answered it.
- *
- * ``summary`` and ``consent_summary`` count across every member; ``items``
- * and ``consents`` are the rows of the members on this page.
- */
-export interface GuildAppMembersResponse {
-  total_count: number;
-  page: number;
-  page_size: number;
-  has_next: boolean;
-  has_prev: boolean;
-  summary: GuildAppConnectionSummary[];
-  items: GuildAppMemberConnection[];
-  consents: GuildAppMemberConsent[];
-  consent_summary: GuildAppConsentSummary;
-}
-
-/**
- * The scopes the seat grants an install, as the whole set.
- *
- * Each must be one the app's manifest requests and one this deployment
- * allows the app. An empty list withdraws every grant.
- */
-export interface GuildAppScopesUpdate {
-  /** @maxItems 64 */
-  granted?: string[];
-}
-
-export interface GuildAppUpdate {
-  name?: string | null;
-  enabled?: boolean | null;
-  auto_update?: boolean | null;
-  placed_initiative_ids?: number[] | null;
-}
-
-/**
- * The seat's consent to a version that asks for more.
- *
- * ``version`` is the version the seat was shown; if the catalog offers a
- * different one now, nothing is applied. ``add_scopes`` are the scopes the
- * seat grants with it, each requested by that version and within the
- * ceiling. Consenting to a version's new surfaces alone sends none.
- */
-export interface GuildAppUpgrade {
-  /** @maxLength 32 */
-  version: string;
-  /** @maxItems 64 */
-  add_scopes?: string[];
-}
-
-export type GuildAuthOption = (typeof GuildAuthOption)[keyof typeof GuildAuthOption];
-
-export const GuildAuthOption = {
-  providers: "providers",
-  restrictions: "restrictions",
-} as const;
-
-export type GuildAuthPolicyReadPolicy =
-  (typeof GuildAuthPolicyReadPolicy)[keyof typeof GuildAuthPolicyReadPolicy];
-
-export const GuildAuthPolicyReadPolicy = {
-  open: "open",
-  required: "required",
-} as const;
-
-export type GuildAuthPolicyReadRequireMethodsItem =
-  (typeof GuildAuthPolicyReadRequireMethodsItem)[keyof typeof GuildAuthPolicyReadRequireMethodsItem];
-
-export const GuildAuthPolicyReadRequireMethodsItem = {
-  sso: "sso",
-  totp: "totp",
-  passkey: "passkey",
-} as const;
-
-/**
- * The guild's sign-in requirement. ``open`` is the default (no stored
- * row). ``required`` names a provider a session must have satisfied, asks for
- * the guild's own single sign-on without naming which provider serves it, or
- * both.
- */
-export interface GuildAuthPolicyRead {
-  policy: GuildAuthPolicyReadPolicy;
-  provider_id: number | null;
-  provider_slug: string | null;
-  provider_display_name: string | null;
-  require_methods: GuildAuthPolicyReadRequireMethodsItem[];
-  factor_required_by_platform: boolean;
-}
-
-export type GuildAuthPolicyUpdatePolicy =
-  (typeof GuildAuthPolicyUpdatePolicy)[keyof typeof GuildAuthPolicyUpdatePolicy];
-
-export const GuildAuthPolicyUpdatePolicy = {
-  open: "open",
-  required: "required",
-} as const;
-
-export type GuildAuthPolicyUpdateRequireMethodsItem =
-  (typeof GuildAuthPolicyUpdateRequireMethodsItem)[keyof typeof GuildAuthPolicyUpdateRequireMethodsItem];
-
-export const GuildAuthPolicyUpdateRequireMethodsItem = {
-  sso: "sso",
-  totp: "totp",
-  passkey: "passkey",
-} as const;
-
-export interface GuildAuthPolicyUpdate {
-  policy: GuildAuthPolicyUpdatePolicy;
-  provider_id?: number | null;
-  require_methods?: GuildAuthPolicyUpdateRequireMethodsItem[];
-}
-
-/**
- * Every control on the superadmin seat's Security page, and what the
- * deployment already asks beside them.
- */
-export interface GuildAuthSettingsRead {
-  auth_options: GuildAuthOption[];
-  auth_policy: GuildAuthPolicyRead;
-  allow_api_keys: boolean;
-  enforce_compliance_session: boolean;
-  require_second_factor: boolean;
-  allow_push_notifications: boolean;
-  allow_email_notifications: boolean;
-  redact_notification_content: boolean;
-  push_allowed_by_platform: boolean;
-  email_allowed_by_platform: boolean;
-  redacted_by_platform: boolean;
-}
-
-/**
- * The rules to change. An omitted field is left as it is.
- *
- * The whole request is one change: it is applied together or refused
- * together, and a rule it loosens is loosened before one it tightens is
- * checked. Tightening a rule needs the option it belongs to; loosening one
- * never does.
- */
-export interface GuildAuthSettingsUpdate {
-  auth_policy?: GuildAuthPolicyUpdate | null;
-  allow_api_keys?: boolean | null;
-  enforce_compliance_session?: boolean | null;
-  require_second_factor?: boolean | null;
-  allow_push_notifications?: boolean | null;
-  allow_email_notifications?: boolean | null;
-  redact_notification_content?: boolean | null;
-}
-
-/**
- * The banner a guild admin sets, whole.
- *
- * Every field is required: the banner is one value and this replaces it, so a
- * body naming two of the four would have to mean "leave the rest" — a merge
- * the caller cannot see the result of. Sending ``null`` for the whole object
- * is how you go back to the default. The artwork is set through its own
- * endpoint; it is bytes, not a look.
- *
- * The layout fields are typed as their enums, so anything outside the
- * vocabulary is a 422 rather than a rule the service restates; the colours
- * are text here and normalized in the service.
- */
-export interface GuildBannerWrite {
-  color: string;
-  text_color: string;
-  text_align: BannerTextAlign;
-  fade: BannerFade;
-}
-
-export type GuildBillingChangeReadAction =
-  (typeof GuildBillingChangeReadAction)[keyof typeof GuildBillingChangeReadAction];
-
-export const GuildBillingChangeReadAction = {
-  cancel: "cancel",
-  pause: "pause",
-  resume: "resume",
-} as const;
-
-export interface GuildBillingChangeRead {
-  action: GuildBillingChangeReadAction;
-  on: string;
-}
-
-export interface GuildBillingChargeRead {
-  total: number;
-  currency: string;
-}
-
-/**
- * The guild's plan as billing told it, fetched for this response alone.
- *
- * ``available`` is False when billing could not be asked or did not answer
- * sensibly, and every other field is then empty — not a free plan, an
- * unknown one.
- */
-export interface GuildBillingSummaryRead {
-  available?: boolean;
-  tier_name?: string | null;
-  trial_ends_on?: string | null;
-  renews_on?: string | null;
-  next_charge?: GuildBillingChargeRead | null;
-  scheduled_change?: GuildBillingChangeRead | null;
-  payment_failed?: boolean;
-}
-
-/**
- * Info about a guild blocking user deletion.
- */
-export interface GuildBlockerInfo {
-  guild_id: number;
-  guild_name: string;
-}
-
-/**
- * What the caller may do in a community, as the server answers it.
- *
- * Each flag is the check the routes that do the thing run, so a client reads
- * its affordances here rather than working them out from a rung.
- */
-export interface GuildCan {
-  enter: boolean;
-  content: boolean;
-  administer: boolean;
-  configure: boolean;
-  administer_content: boolean;
-  seat: boolean;
-}
-
-/**
- * Place the people carrying one group.
- *
- * Naming an initiative places them there as well as in the community, since
- * somebody has to be in the community to be in one of its initiatives.
- */
-export interface GuildClaimRuleCreate {
-  provider_id: number;
-  /** @maxLength 500 */
-  claim_value: string;
-  guild_role?: string;
-  initiative_id?: number | null;
-  initiative_role_id?: number | null;
-}
-
-/**
- * One rule a community wrote: a group this provider asserts, and where
- * somebody carrying it lands.
- */
-export interface GuildClaimRuleRead {
-  id: number;
-  provider_id: number;
-  provider_display_name: string;
-  provider_icon: string | null;
-  claim_value: string;
-  guild_role: string;
-  initiative_id: number | null;
-  initiative_name: string | null;
-  initiative_role_id: number | null;
-  initiative_role_name: string | null;
-}
-
-/**
- * One rule the platform wrote for a provider: which arrivals it matches,
- * and where they land.
- */
-export interface ProviderPlacementRuleRead {
-  id: number;
-  provider_id: number;
-  provider_display_name: string;
-  provider_icon: string | null;
-  claim_value: string | null;
-  scope_claim: string | null;
-  scope_value: string | null;
-  guild_id: number;
-  guild_name: string;
-  guild_role: string;
-  initiative_id: number | null;
-  initiative_name: string | null;
-  initiative_role_id: number | null;
-  initiative_role_name: string | null;
-  applies: boolean;
-}
-
-/**
- * The rules, and whether the providers behind them report groups at all.
- *
- * Which claim carries groups is the operator's to set per provider. A
- * community can write rules against a provider that has none, and they will
- * never match anything, so the surface says which of its connections are
- * ready to be written against rather than letting somebody find out later.
- */
-export interface GuildClaimRulesResponse {
-  rules: GuildClaimRuleRead[];
-  reporting_provider_ids: number[];
-  provider_rules: ProviderPlacementRuleRead[];
-  placement_everywhere: boolean;
-}
-
-export interface GuildCreate {
-  name: string;
-  description?: string | null;
-  plan?: string | null;
-  owner_user_id?: number | null;
-}
-
-/**
- * Body for ``DELETE /communities/{id}``.
- *
- * Deleting a guild cascades through every initiative, project, task,
- * document, membership, invite, and settings row it owns, so the
- * endpoint gates on two confirmations:
- *
- * - ``confirmation_text`` must equal ``DELETE COMMUNITY <NAME>`` (the whole
- *   phrase uppercased) so the action can't be triggered by a stray click.
- * - ``password`` is the current user's password. An account that holds
- *   none — one that signs in with a passkey or through an identity
- *   provider — has nothing to confirm with and answers with the phrase
- *   alone, mirroring the account-deletion endpoint, which is why it
- *   defaults to empty.
- */
-export interface GuildDeletionRequest {
-  password?: string;
-  confirmation_text: string;
-}
-
-/**
- * What an operator has turned on for one guild, for its own admins.
- *
- * Deliberately its own read rather than fields on :class:`GuildRead`: these
- * are the operator's decisions about a guild, they live on the separate
- * ``guild_administration`` row, and only a guild admin has any use for them —
- * a member's guild payload should not be carrying them at all.
- */
-export interface GuildEntitlementsRead {
-  guild_id: number;
-  banner_image_enabled: boolean;
-}
-
-/**
- * What the community settings page knows about whole-community exports
- * without opening the wizard.
- *
- * A community takes one of these at a time and rarely — so the page says
- * who took the last one and how it ended, rather than leaving the next
- * person to find out by being refused.
- */
-export interface GuildExportStatus {
-  cooldown_hours: number;
-  next_available_at: string | null;
-  latest: ExportJobRead | null;
-  latest_started_by: string | null;
-}
-
-export interface GuildInviteAcceptRequest {
-  code: string;
-}
-
-export interface GuildInviteCreate {
-  expires_at?: string | null;
-  max_uses?: number | null;
-  invitee_email?: string | null;
-}
-
-export interface GuildInviteRead {
-  id: number;
-  code: string;
-  guild_id: number;
-  created_by: number | null;
-  expires_at: string | null;
-  max_uses: number | null;
-  uses: number;
-  invitee_email: string | null;
-  created_at: string;
-}
-
-export interface GuildInviteStatus {
-  code: string;
-  guild_id: number | null;
-  guild_name: string | null;
-  is_valid: boolean;
-  reason: string | null;
-  expires_at: string | null;
-  max_uses: number | null;
-  uses: number | null;
-}
-
-export type GuildRole = (typeof GuildRole)[keyof typeof GuildRole];
-
-export const GuildRole = {
-  admin: "admin",
-  member: "member",
-  superadmin: "superadmin",
-  support: "support",
-} as const;
-
-/**
- * Schema for updating a user's guild membership role.
- */
-export interface GuildMembershipUpdate {
-  role: GuildRole;
-}
-
-/**
- * Whether these values are this community's to claim.
- */
-export interface GuildNarrowingAgreement {
-  agreed: boolean;
-}
-
-/**
- * One community's claim, waiting to be answered.
- */
-export interface GuildNarrowingPending {
-  connection_id: number;
-  guild_id: number;
-  guild_name: string;
-  provider_display_name: string;
-  claim: string;
-  claim_values: string[];
-  auto_join: boolean;
-  agreed: boolean;
-}
-
-export type GuildNotificationSettingsCategories = { [key: string]: { [key: string]: boolean } };
-
-/**
- * How much one community is allowed to say.
- *
- * The dial almost everyone will use, in place of the per-category grid. It
- * lives in the settings document rather than on ``guild_memberships`` because
- * a roster row is read by other people, and this is not theirs to see.
- */
-export type NotificationLevel = (typeof NotificationLevel)[keyof typeof NotificationLevel];
-
-export const NotificationLevel = {
-  everything: "everything",
-  personal: "personal",
-  nothing: "nothing",
-} as const;
-
-export interface GuildNotificationSettings {
-  guild_id: number;
-  guild_name: string;
-  level: NotificationLevel;
-  categories: GuildNotificationSettingsCategories;
-}
-
-export interface GuildOrderUpdate {
-  /** @minItems 1 */
-  guildIds: number[];
-}
-
-export interface GuildPaymentIssueRead {
-  payment_failed?: boolean;
-}
-
-/**
- * Connect to one of the providers on offer.
- */
-export interface GuildProviderConnectionCreate {
-  provider_id: number;
-  claim?: string | null;
-  claim_values?: string[] | null;
-  enabled?: boolean;
-  auto_join?: boolean;
-  accepts_provider_placement?: boolean;
-}
-
-/**
- * One community signing its members in through one provider.
- *
- * Also how an arrangement the community has not made itself is shown: the
- * deployment's default for that provider, marked ``inherited``, which the
- * community replaces by connecting to the provider itself.
- */
-export interface GuildProviderConnectionRead {
-  id: number | null;
-  inherited: boolean;
-  provider_id: number;
-  provider_slug: string;
-  provider_display_name: string;
-  provider_icon: string | null;
-  claim: string | null;
-  claim_values: string[];
-  enabled: boolean;
-  auto_join: boolean;
-  narrowing_approved: boolean;
-  accepts_provider_placement: boolean;
-  login_ready: boolean;
-}
-
-/**
- * Change the narrowing, or take the button away. The provider a
- * connection is to is not editable: pointing it elsewhere would change who
- * gets in without saying so. Disconnect and connect instead.
- */
-export interface GuildProviderConnectionUpdate {
-  claim?: string | null;
-  claim_values?: string[] | null;
-  enabled?: boolean | null;
-  auto_join?: boolean | null;
-  accepts_provider_placement?: boolean | null;
-}
-
-/**
- * A guild as its own members see it (``GET /communities/`` and friends).
- *
- * The payload has two tiers, decided in one place — ``_serialize_guild`` in
- * the guilds router:
- *
- * - The fields below with no note are for **every member**: guild identity,
- *   the caller's own rung, the roster size, ``content_read_only``.
- * - The ones marked ADMIN-ONLY are guild administration — caps, plan label,
- *   retention window, lifecycle status, sign-in entitlement. They back
- *   admin-gated surfaces, so a regular member's payload leaves them ``None``.
- *   (Operators read the same underlying columns through
- *   :class:`PlatformGuildStorageRead` instead, which is capability-gated.)
- */
-export interface GuildRead {
-  name: string;
-  description: string | null;
-  id: number;
-  role: GuildRole;
-  can: GuildCan;
-  position: number;
-  display_name: string | null;
-  created_at: string;
-  updated_at: string;
-  retention_days: number | null;
-  max_storage_bytes: number | null;
-  max_users: number | null;
-  member_count: number;
-  tier_name: string | null;
-  status: GuildStatus | null;
-  content_read_only: boolean;
-  contact_email: string | null;
-  auth_options: GuildAuthOption[] | null;
-  allow_api_keys: boolean | null;
-  enforce_compliance_session: boolean | null;
-  require_second_factor: boolean | null;
-  is_community: boolean;
-  categories: GuildCategory[];
-  has_adult_content: boolean | null;
-  banner: GuildBannerRead;
-  online_count: number;
-  icon_url: string | null;
-  banner_card_url: string | null;
-}
-
-/**
- * One person on a community's people roster.
- *
- * ``UserSummary`` plus what a roster row draws beside the name: how they
- * appear right now and the line they wrote. Both are public, as they are on
- * the profile.
- */
-export interface GuildRosterMember {
-  id: number;
-  username: string;
-  discriminator: number;
-  avatar_url: string | null;
-  status: UserStatus;
-  display_name: string | null;
-  profile_decorations: ProfileDecorationsOutput | null;
-  guild_role: string | null;
-  presence: Presence;
-  custom_status: CustomStatusOutput;
-}
-
-/**
- * A page of the roster, and how many people are in each presence group
- * across every page, so a group's heading can count people not yet loaded.
- */
-export interface GuildRosterResponse {
-  total_count: number;
-  page: number;
-  page_size: number;
-  has_next: boolean;
-  has_prev: boolean;
-  items: GuildRosterMember[];
-  presence_counts: Partial<Record<Presence, number>>;
-}
-
-export interface GuildStorageUsageRead {
-  guild_id: number;
-  usage_bytes: number;
-}
-
-/**
- * Task completion breakdown by guild.
- */
-export interface GuildTaskBreakdown {
-  /** Guild ID */
-  guild_id: number;
-  /** Guild name */
-  guild_name: string;
-  /** Number of completed tasks in this guild */
-  completed_count: number;
-}
-
-export interface GuildUpdate {
-  name?: string | null;
-  description?: string | null;
-  retention_days?: number | null;
-  is_community?: boolean | null;
-  categories?: GuildCategory[] | null;
-  banner?: GuildBannerWrite | null;
-  has_adult_content?: boolean | null;
 }
 
 export type ValidationErrorCtx = { [key: string]: unknown };
@@ -5730,7 +5730,7 @@ export interface InterfaceSettingsUpdate {
  * Content they own is released on the way out and left unowned for a guild
  * admin to claim, so there is nothing to hand over first.
  */
-export interface LeaveGuildEligibilityResponse {
+export interface LeaveCommunityEligibilityResponse {
   can_leave: boolean;
   is_last_superadmin: boolean;
 }
@@ -6341,7 +6341,7 @@ export interface NotificationPreferencesRead {
   email: EmailScheduleOutput;
   pause: PauseRead | null;
   respect_presence: boolean;
-  guilds: GuildNotificationSettings[];
+  guilds: CommunityNotificationSettings[];
 }
 
 /**
@@ -6399,7 +6399,7 @@ export interface OccurrenceRequest {
 /**
  * Point this deployment's operations work at a guild, or at nothing.
  */
-export interface OperationsGuildUpdate {
+export interface OperationsCommunityUpdate {
   guild_id?: number | null;
 }
 
@@ -6431,7 +6431,7 @@ export interface OperatorCatalogScanResult {
 export interface OperatorDeletionEligibilityResponse {
   can_delete: boolean;
   blockers: string[];
-  guild_blockers: GuildBlockerInfo[];
+  guild_blockers: CommunityBlockerInfo[];
 }
 
 /**
@@ -6942,31 +6942,31 @@ export interface PlatformAuthSettingsUpdate {
  * deletion that cleared the roster leaves behind. The endpoint re-checks
  * that rather than trusting the client's reading of it.
  */
-export interface PlatformGuildRestore {
-  status?: GuildStatus;
+export interface PlatformCommunityRestore {
+  status?: CommunityStatus;
   seat_user_id?: number | null;
 }
 
 /**
  * Operator view of a guild's storage cap (platform settings → Guilds tab).
  *
- * Unlike :class:`GuildRead`, this carries no per-user membership fields
+ * Unlike :class:`CommunityRead`, this carries no per-user membership fields
  * (``role``/``position``): the platform operator lists every guild regardless
  * of whether they belong to it, so only platform-wide attributes apply.
  */
-export interface PlatformGuildStorageRead {
+export interface PlatformCommunityStorageRead {
   id: number;
   name: string;
   member_count: number;
   tier_name: string | null;
   max_storage_bytes: number | null;
   max_users: number | null;
-  status: GuildStatus;
+  status: CommunityStatus;
   status_changed_at: string | null;
-  status_choices: GuildStatus[];
+  status_choices: CommunityStatus[];
   purge_at: string | null;
   has_seat: boolean;
-  auth_options: GuildAuthOption[];
+  auth_options: CommunityAuthOption[];
   banner_image_enabled: boolean;
   support_enabled: boolean;
 }
@@ -6974,13 +6974,13 @@ export interface PlatformGuildStorageRead {
 /**
  * One page of the operator's community list.
  */
-export interface PlatformGuildStorageListResponse {
+export interface PlatformCommunityStorageListResponse {
   total_count: number;
   page: number;
   page_size: number;
   has_next: boolean;
   has_prev: boolean;
-  items: PlatformGuildStorageRead[];
+  items: PlatformCommunityStorageRead[];
   support_bound: boolean;
 }
 
@@ -6991,13 +6991,13 @@ export interface PlatformGuildStorageListResponse {
  * ``model_fields_set``): omit a field to leave it untouched, send ``null`` to
  * reset that cap to unlimited, or send a number to set it. ``status`` is
  * omit-to-skip too (a lifecycle status is never null), validated against
- * :class:`GuildStatus`. A PATCH may carry any subset.
+ * :class:`CommunityStatus`. A PATCH may carry any subset.
  */
-export interface PlatformGuildStorageUpdate {
+export interface PlatformCommunityStorageUpdate {
   max_storage_bytes?: number | null;
   max_users?: number | null;
-  status?: GuildStatus | null;
-  auth_options?: GuildAuthOption[] | null;
+  status?: CommunityStatus | null;
+  auth_options?: CommunityAuthOption[] | null;
   banner_image_enabled?: boolean | null;
   support_enabled?: boolean | null;
 }
@@ -8988,6 +8988,38 @@ export interface UploadTokenResponse {
   expires_in: number;
 }
 
+/**
+ * A member, for the guild's own member-management surface.
+ *
+ * :class:`UserCommunityRead` plus the membership facts a guild admin manages —
+ * guild role, whether the membership is OIDC-managed — and the name they go
+ * by here. Two members are told apart by their handle, which is unique.
+ */
+export interface UserCommunityMember {
+  id: number;
+  username: string;
+  discriminator: number;
+  avatar_url: string | null;
+  status: UserStatus;
+  created_at: string;
+  initiative_roles: UserInitiativeRole[];
+  guild_role: string | null;
+  oidc_managed: boolean;
+  display_name: string | null;
+}
+
+/**
+ * One page of the guild's roster.
+ */
+export interface UserCommunityMemberListResponse {
+  total_count: number;
+  page: number;
+  page_size: number;
+  has_next: boolean;
+  has_prev: boolean;
+  items: UserCommunityMember[];
+}
+
 export interface UserCreate {
   email: string;
   /** @maxLength 64 */
@@ -9023,38 +9055,6 @@ export interface UserEmailRead {
 
 export interface UserEmailListResponse {
   items: UserEmailRead[];
-}
-
-/**
- * A member, for the guild's own member-management surface.
- *
- * :class:`UserGuildRead` plus the membership facts a guild admin manages —
- * guild role, whether the membership is OIDC-managed — and the name they go
- * by here. Two members are told apart by their handle, which is unique.
- */
-export interface UserGuildMember {
-  id: number;
-  username: string;
-  discriminator: number;
-  avatar_url: string | null;
-  status: UserStatus;
-  created_at: string;
-  initiative_roles: UserInitiativeRole[];
-  guild_role: string | null;
-  oidc_managed: boolean;
-  display_name: string | null;
-}
-
-/**
- * One page of the guild's roster.
- */
-export interface UserGuildMemberListResponse {
-  total_count: number;
-  page: number;
-  page_size: number;
-  has_next: boolean;
-  has_prev: boolean;
-  items: UserGuildMember[];
 }
 
 /**
@@ -9194,7 +9194,7 @@ export interface UserStatsResponse {
   /** Daily activity data for last 365 days */
   heatmap_data: HeatmapDayData[];
   /** Task completion breakdown by guild */
-  guild_breakdown: GuildTaskBreakdown[];
+  guild_breakdown: CommunityTaskBreakdown[];
 }
 
 /**
@@ -9270,7 +9270,7 @@ export interface VerificationSendResponse {
 }
 
 /**
- * Body for ``POST /api/v1/c/{guild_id}/webhooks/subscriptions``.
+ * Body for ``POST /api/v1/c/{community_id}/webhooks/subscriptions``.
  *
  * The guild comes from the path. ``initiative_id`` narrows the subscription
  * to one initiative; omitted, it covers the whole community.
@@ -9750,36 +9750,36 @@ export const SmartChipKind = {
   "task:checklist": "task:checklist",
 } as const;
 
-export type GetVersionApiV1VersionGet200 = { [key: string]: string };
+export type GetVersion200 = { [key: string]: string };
 
-export type GetLatestDockerhubVersionApiV1VersionLatestGet200 = { [key: string]: string | null };
+export type GetLatestDockerhubVersion200 = { [key: string]: string | null };
 
-export type GetChangelogApiV1ChangelogGetParams = {
+export type GetChangelogParams = {
   version?: string | null;
   limit?: number;
 };
 
-export type GetBundleManifestApiV1NativeBundleManifestGet200 = { [key: string]: unknown };
+export type GetBundleManifest200 = { [key: string]: unknown };
 
-export type RegisterUserApiV1AuthRegisterPostParams = {
+export type RegisterUserParams = {
   invite_code?: string | null;
 };
 
-export type BeginPasskeySignUpApiV1AuthRegisterPasskeyBeginPostParams = {
+export type BeginPasskeySignUpParams = {
   invite_code?: string | null;
 };
 
-export type FinishPasskeySignUpApiV1AuthRegisterPasskeyFinishPostParams = {
+export type FinishPasskeySignUpParams = {
   invite_code?: string | null;
 };
 
-export type BootstrapStatusApiV1AuthBootstrapGet200 = { [key: string]: boolean };
+export type BootstrapStatus200 = { [key: string]: boolean };
 
-export type SuggestUsernamesApiV1AuthUsernameSuggestionsGetParams = {
+export type SuggestUsernamesParams = {
   seed?: string | null;
 };
 
-export type CheckUsernameAvailableApiV1AuthUsernameAvailableGetParams = {
+export type CheckUsernameAvailableParams = {
   /**
    * The name part to check
    * @maxLength 64
@@ -9787,25 +9787,25 @@ export type CheckUsernameAvailableApiV1AuthUsernameAvailableGetParams = {
   username: string;
 };
 
-export type ProviderLoginApiV1AuthProviderSlugLoginGetParams = {
+export type ProviderLoginParams = {
   mobile?: boolean;
   device_name?: string;
   next?: string;
   code_challenge?: string;
 };
 
-export type ProviderCallbackApiV1AuthProviderSlugCallbackGetParams = {
+export type ProviderCallbackParams = {
   code?: string | null;
   state?: string | null;
 };
 
-export type ListAllUsersApiV1OperatorUsersGetParams = {
+export type ListAllUsersParams = {
   /**
    * Matches the handle's name part; a whole handle (`foobar#1234`) pins one account.
    */
   search?: string | null;
-  sort_by?: ListAllUsersApiV1OperatorUsersGetSortBy;
-  sort_dir?: ListAllUsersApiV1OperatorUsersGetSortDir;
+  sort_by?: ListAllUsersSortBy;
+  sort_dir?: ListAllUsersSortDir;
   /**
    * @minimum 1
    */
@@ -9817,31 +9817,30 @@ export type ListAllUsersApiV1OperatorUsersGetParams = {
   page_size?: number;
 };
 
-export type ListAllUsersApiV1OperatorUsersGetSortBy =
-  | (typeof ListAllUsersApiV1OperatorUsersGetSortBy)[keyof typeof ListAllUsersApiV1OperatorUsersGetSortBy]
+export type ListAllUsersSortBy =
+  | (typeof ListAllUsersSortBy)[keyof typeof ListAllUsersSortBy]
   | null;
 
-export const ListAllUsersApiV1OperatorUsersGetSortBy = {
+export const ListAllUsersSortBy = {
   id: "id",
   username: "username",
   status: "status",
 } as const;
 
-export type ListAllUsersApiV1OperatorUsersGetSortDir =
-  (typeof ListAllUsersApiV1OperatorUsersGetSortDir)[keyof typeof ListAllUsersApiV1OperatorUsersGetSortDir];
+export type ListAllUsersSortDir = (typeof ListAllUsersSortDir)[keyof typeof ListAllUsersSortDir];
 
-export const ListAllUsersApiV1OperatorUsersGetSortDir = {
+export const ListAllUsersSortDir = {
   asc: "asc",
   desc: "desc",
 } as const;
 
-export type ExportPlatformUsersCsvApiV1OperatorUsersExportCsvGetParams = {
+export type ExportPlatformUsersCsvParams = {
   user_id?: number[] | null;
 };
 
-export type ListCommunityGuildsApiV1CommunitiesDirectoryGetParams = {
+export type ListDirectoryCommunitiesParams = {
   q?: string | null;
-  category?: GuildCategory[];
+  category?: CommunityCategory[];
   /**
    * @minimum 1
    */
@@ -9853,11 +9852,11 @@ export type ListCommunityGuildsApiV1CommunitiesDirectoryGetParams = {
   page_size?: number;
 };
 
-export type ListAnnouncementsApiV1AnnouncementsGetParams = {
+export type ListAnnouncementsParams = {
   include_dismissed?: boolean;
 };
 
-export type ListAccessGrantsApiV1AccessGrantsGetParams = {
+export type ListAccessGrantsParams = {
   status?: string | null;
   /**
    * Keep only grants that haven't expired yet.
@@ -9874,7 +9873,7 @@ export type ListAccessGrantsApiV1AccessGrantsGetParams = {
   offset?: number;
 };
 
-export type ListAccessGrantQueueApiV1AccessGrantsQueueGetParams = {
+export type ListAccessGrantQueueParams = {
   status?: string | null;
   /**
    * Keep only grants that haven't expired yet.
@@ -9891,13 +9890,13 @@ export type ListAccessGrantQueueApiV1AccessGrantsQueueGetParams = {
   offset?: number;
 };
 
-export type ListPlatformGuildStorageApiV1SettingsCommunitiesGetParams = {
+export type ListPlatformCommunityStorageParams = {
   /**
    * Matches the name.
    */
   search?: string | null;
-  sort_by?: ListPlatformGuildStorageApiV1SettingsCommunitiesGetSortBy;
-  sort_dir?: ListPlatformGuildStorageApiV1SettingsCommunitiesGetSortDir;
+  sort_by?: ListPlatformCommunityStorageSortBy;
+  sort_dir?: ListPlatformCommunityStorageSortDir;
   /**
    * @minimum 1
    */
@@ -9909,75 +9908,73 @@ export type ListPlatformGuildStorageApiV1SettingsCommunitiesGetParams = {
   page_size?: number;
 };
 
-export type ListPlatformGuildStorageApiV1SettingsCommunitiesGetSortBy =
-  (typeof ListPlatformGuildStorageApiV1SettingsCommunitiesGetSortBy)[keyof typeof ListPlatformGuildStorageApiV1SettingsCommunitiesGetSortBy];
+export type ListPlatformCommunityStorageSortBy =
+  (typeof ListPlatformCommunityStorageSortBy)[keyof typeof ListPlatformCommunityStorageSortBy];
 
-export const ListPlatformGuildStorageApiV1SettingsCommunitiesGetSortBy = {
+export const ListPlatformCommunityStorageSortBy = {
   id: "id",
   name: "name",
 } as const;
 
-export type ListPlatformGuildStorageApiV1SettingsCommunitiesGetSortDir =
-  (typeof ListPlatformGuildStorageApiV1SettingsCommunitiesGetSortDir)[keyof typeof ListPlatformGuildStorageApiV1SettingsCommunitiesGetSortDir];
+export type ListPlatformCommunityStorageSortDir =
+  (typeof ListPlatformCommunityStorageSortDir)[keyof typeof ListPlatformCommunityStorageSortDir];
 
-export const ListPlatformGuildStorageApiV1SettingsCommunitiesGetSortDir = {
+export const ListPlatformCommunityStorageSortDir = {
   asc: "asc",
   desc: "desc",
 } as const;
 
-export type CreatePlatformGuildBillingServiceHandoffApiV1SettingsCommunitiesGuildIdBillingServiceHandoffPostParams =
-  {
-    console?: CreatePlatformGuildBillingServiceHandoffApiV1SettingsCommunitiesGuildIdBillingServiceHandoffPostConsole;
-  };
+export type CreatePlatformCommunityBillingServiceHandoffParams = {
+  console?: CreatePlatformCommunityBillingServiceHandoffConsole;
+};
 
-export type CreatePlatformGuildBillingServiceHandoffApiV1SettingsCommunitiesGuildIdBillingServiceHandoffPostConsole =
-  (typeof CreatePlatformGuildBillingServiceHandoffApiV1SettingsCommunitiesGuildIdBillingServiceHandoffPostConsole)[keyof typeof CreatePlatformGuildBillingServiceHandoffApiV1SettingsCommunitiesGuildIdBillingServiceHandoffPostConsole];
+export type CreatePlatformCommunityBillingServiceHandoffConsole =
+  (typeof CreatePlatformCommunityBillingServiceHandoffConsole)[keyof typeof CreatePlatformCommunityBillingServiceHandoffConsole];
 
-export const CreatePlatformGuildBillingServiceHandoffApiV1SettingsCommunitiesGuildIdBillingServiceHandoffPostConsole =
-  {
-    support: "support",
-    operator: "operator",
-  } as const;
+export const CreatePlatformCommunityBillingServiceHandoffConsole = {
+  support: "support",
+  operator: "operator",
+} as const;
 
-export type ReadAppPlatformJwksApiV1AppPlatformJwksJsonGet200 = { [key: string]: unknown };
+export type ReadAppPlatformJwks200 = { [key: string]: unknown };
 
-export type IssueAppAccessTokenApiV1AppPlatformOauthTokenPostBodyGrantType =
-  (typeof IssueAppAccessTokenApiV1AppPlatformOauthTokenPostBodyGrantType)[keyof typeof IssueAppAccessTokenApiV1AppPlatformOauthTokenPostBodyGrantType];
+export type IssueAppAccessTokenBodyGrantType =
+  (typeof IssueAppAccessTokenBodyGrantType)[keyof typeof IssueAppAccessTokenBodyGrantType];
 
-export const IssueAppAccessTokenApiV1AppPlatformOauthTokenPostBodyGrantType = {
+export const IssueAppAccessTokenBodyGrantType = {
   client_credentials: "client_credentials",
   "urn:ietf:params:oauth:grant-type:jwt-bearer": "urn:ietf:params:oauth:grant-type:jwt-bearer",
 } as const;
 
-export type IssueAppAccessTokenApiV1AppPlatformOauthTokenPostBodyClientAssertionType =
-  (typeof IssueAppAccessTokenApiV1AppPlatformOauthTokenPostBodyClientAssertionType)[keyof typeof IssueAppAccessTokenApiV1AppPlatformOauthTokenPostBodyClientAssertionType];
+export type IssueAppAccessTokenBodyClientAssertionType =
+  (typeof IssueAppAccessTokenBodyClientAssertionType)[keyof typeof IssueAppAccessTokenBodyClientAssertionType];
 
-export const IssueAppAccessTokenApiV1AppPlatformOauthTokenPostBodyClientAssertionType = {
+export const IssueAppAccessTokenBodyClientAssertionType = {
   "urn:ietf:params:oauth:client-assertion-type:jwt-bearer":
     "urn:ietf:params:oauth:client-assertion-type:jwt-bearer",
 } as const;
 
-export type IssueAppAccessTokenApiV1AppPlatformOauthTokenPostBodyLevel =
-  (typeof IssueAppAccessTokenApiV1AppPlatformOauthTokenPostBodyLevel)[keyof typeof IssueAppAccessTokenApiV1AppPlatformOauthTokenPostBodyLevel];
+export type IssueAppAccessTokenBodyLevel =
+  (typeof IssueAppAccessTokenBodyLevel)[keyof typeof IssueAppAccessTokenBodyLevel];
 
-export const IssueAppAccessTokenApiV1AppPlatformOauthTokenPostBodyLevel = {
+export const IssueAppAccessTokenBodyLevel = {
   moderator: "moderator",
   guild_admin: "guild_admin",
 } as const;
 
-export type IssueAppAccessTokenApiV1AppPlatformOauthTokenPostBody = {
-  grant_type: IssueAppAccessTokenApiV1AppPlatformOauthTokenPostBodyGrantType;
-  client_assertion_type?: IssueAppAccessTokenApiV1AppPlatformOauthTokenPostBodyClientAssertionType;
+export type IssueAppAccessTokenBody = {
+  grant_type: IssueAppAccessTokenBodyGrantType;
+  client_assertion_type?: IssueAppAccessTokenBodyClientAssertionType;
   client_assertion?: string;
   client_id?: string;
   installation?: string;
   scope?: string;
   resource?: string;
-  level?: IssueAppAccessTokenApiV1AppPlatformOauthTokenPostBodyLevel;
+  level?: IssueAppAccessTokenBodyLevel;
   assertion?: string;
 };
 
-export type ListAppInstallationsApiV1AppPlatformInstallationsGetParams = {
+export type ListAppInstallationsParams = {
   /**
    * @minimum 1
    * @maximum 200
@@ -9986,12 +9983,12 @@ export type ListAppInstallationsApiV1AppPlatformInstallationsGetParams = {
   cursor?: string | null;
 };
 
-export type ListPlacementCommunitiesApiV1SettingsPlacementCommunitiesGetParams = {
+export type ListPlacementCommunitiesParams = {
   provider_id: number;
   q?: string | null;
 };
 
-export type ListNotificationsApiV1NotificationsGetParams = {
+export type ListNotificationsParams = {
   /**
    * @minimum 1
    * @maximum 100
@@ -10003,11 +10000,11 @@ export type ListNotificationsApiV1NotificationsGetParams = {
   personal_only?: boolean;
 };
 
-export type MarkAllNotificationsReadApiV1NotificationsReadAllPostParams = {
+export type MarkAllNotificationsReadParams = {
   guild_id?: number | null;
 };
 
-export type GetToolCountsApiV1CGuildIdToolsToolCountsGetParams = {
+export type GetToolCountsParams = {
   initiative_id?: number | null;
   /**
    * The view the tag counts are for: active, archived, or templates for a tool that has them
@@ -10023,7 +10020,7 @@ export type GetToolCountsApiV1CGuildIdToolsToolCountsGetParams = {
   include_tags?: boolean;
 };
 
-export type ListProjectsApiV1CGuildIdProjectsGetParams = {
+export type ListProjectsParams = {
   /**
    * true lists what has been archived instead of what is live. Omit for the live list, which is what every other view shows.
    */
@@ -10075,7 +10072,7 @@ export type ListProjectsApiV1CGuildIdProjectsGetParams = {
   page_size?: number;
 };
 
-export type ListDocumentsApiV1CGuildIdDocumentsGetParams = {
+export type ListDocumentsParams = {
   initiative_id?: number | null;
   /**
    * Filter to specific document IDs — for hydrating a known set of documents without walking a collection. Maximum 100 IDs.
@@ -10125,7 +10122,7 @@ export type ListDocumentsApiV1CGuildIdDocumentsGetParams = {
   archived?: boolean | null;
 };
 
-export type ListQueuesApiV1CGuildIdQueuesGetParams = {
+export type ListQueuesParams = {
   initiative_id?: number | null;
   /**
    * Full-text match over the row — its name and its description. Reads the same index the search page does, so a list's filter box and a search agree about what matches.
@@ -10166,7 +10163,7 @@ export type ListQueuesApiV1CGuildIdQueuesGetParams = {
   page_size?: number;
 };
 
-export type ListCounterGroupsApiV1CGuildIdCounterGroupsGetParams = {
+export type ListCounterGroupsParams = {
   initiative_id?: number | null;
   /**
    * Full-text match over the row — its name and its description. Reads the same index the search page does, so a list's filter box and a search agree about what matches.
@@ -10203,7 +10200,7 @@ export type ListCounterGroupsApiV1CGuildIdCounterGroupsGetParams = {
   page_size?: number;
 };
 
-export type ListCalendarsApiV1CGuildIdCalendarsGetParams = {
+export type ListCalendarsParams = {
   initiative_id?: number | null;
   scope?: "guild" | null;
   /**
@@ -10241,7 +10238,7 @@ export type ListCalendarsApiV1CGuildIdCalendarsGetParams = {
   page_size?: number;
 };
 
-export type ListDashboardsApiV1CGuildIdDashboardsGetParams = {
+export type ListDashboardsParams = {
   initiative_id?: number | null;
   /**
    * Full-text match over the row — its name and its description. Reads the same index the search page does, so a list's filter box and a search agree about what matches.
@@ -10278,7 +10275,7 @@ export type ListDashboardsApiV1CGuildIdDashboardsGetParams = {
   page_size?: number;
 };
 
-export type ListPostsApiV1CGuildIdPostsGetParams = {
+export type ListPostsParams = {
   initiative_id?: number | null;
   /**
    * Full-text match over the notice — its headline and its body. Reads the same index the search page does, so the board's filter and a search agree about what matches.
@@ -10324,7 +10321,7 @@ export type ListPostsApiV1CGuildIdPostsGetParams = {
   page_size?: number;
 };
 
-export type ListGalleriesApiV1CGuildIdGalleriesGetParams = {
+export type ListGalleriesParams = {
   initiative_id?: number | null;
   /**
    * Full-text match over the gallery's name and description, through the same index the search page reads.
@@ -10361,7 +10358,7 @@ export type ListGalleriesApiV1CGuildIdGalleriesGetParams = {
   page_size?: number;
 };
 
-export type ListWikisApiV1CGuildIdWikisGetParams = {
+export type ListWikisParams = {
   initiative_id?: number | null;
   /**
    * Full-text match over the wiki's name and description, through the same index the search page reads.
@@ -10398,7 +10395,7 @@ export type ListWikisApiV1CGuildIdWikisGetParams = {
   page_size?: number;
 };
 
-export type ProjectActivityFeedApiV1CGuildIdProjectsProjectIdActivityGetParams = {
+export type ProjectActivityFeedParams = {
   /**
    * @minimum 1
    */
@@ -10410,14 +10407,14 @@ export type ProjectActivityFeedApiV1CGuildIdProjectsProjectIdActivityGetParams =
   page_size?: number;
 };
 
-export type ReadProjectApiV1CGuildIdProjectsProjectIdGetParams = {
+export type ReadProjectParams = {
   /**
    * Also return the resource if it is in the trash. For reading a resource back after a deleted event — the row still exists until retention purges it, and access is checked exactly as for a live one.
    */
   include_deleted?: boolean;
 };
 
-export type ListTasksApiV1CGuildIdTasksGetParams = {
+export type ListTasksParams = {
   /**
    * JSON list of filter conditions, AND-ed together. Each object: {"field": "<column>", "op": "<operator>", "value": <val>}. Any Task column is valid plus virtual fields: status_category, assignee_ids, tag_ids, initiative_ids. An object with a "conditions" key is an AND/OR group: {"logic": "or", "conditions": [...]}.
    */
@@ -10445,28 +10442,26 @@ export type ListTasksApiV1CGuildIdTasksGetParams = {
   tz?: string | null;
 };
 
-export type ReadTaskApiV1CGuildIdTasksTaskIdGetParams = {
+export type ReadTaskParams = {
   /**
    * Also return the resource if it is in the trash. For reading a resource back after a deleted event — the row still exists until retention purges it, and access is checked exactly as for a live one.
    */
   include_deleted?: boolean;
 };
 
-export type DeleteTaskApiV1CGuildIdTasksTaskIdDeleteParams = {
-  scope?: DeleteTaskApiV1CGuildIdTasksTaskIdDeleteScope;
+export type DeleteTaskParams = {
+  scope?: DeleteTaskScope;
 };
 
-export type DeleteTaskApiV1CGuildIdTasksTaskIdDeleteScope =
-  | (typeof DeleteTaskApiV1CGuildIdTasksTaskIdDeleteScope)[keyof typeof DeleteTaskApiV1CGuildIdTasksTaskIdDeleteScope]
-  | null;
+export type DeleteTaskScope = (typeof DeleteTaskScope)[keyof typeof DeleteTaskScope] | null;
 
-export const DeleteTaskApiV1CGuildIdTasksTaskIdDeleteScope = {
+export const DeleteTaskScope = {
   this: "this",
   following: "following",
   all: "all",
 } as const;
 
-export type ArchiveDoneTasksApiV1CGuildIdTasksArchiveDonePostParams = {
+export type ArchiveDoneTasksParams = {
   /**
    * Project to archive done tasks from
    */
@@ -10477,7 +10472,7 @@ export type ArchiveDoneTasksApiV1CGuildIdTasksArchiveDonePostParams = {
   task_status_id?: number | null;
 };
 
-export type ListReportsApiV1CGuildIdInitiativesInitiativeIdReportsGetParams = {
+export type ListReportsParams = {
   settled?: boolean;
   /**
    * @minimum 1
@@ -10490,7 +10485,7 @@ export type ListReportsApiV1CGuildIdInitiativesInitiativeIdReportsGetParams = {
   offset?: number;
 };
 
-export type ListCommentsApiV1CGuildIdCommentsGetParams = {
+export type ListCommentsParams = {
   task_id?: number | null;
   document_id?: number | null;
   project_id?: number | null;
@@ -10510,7 +10505,7 @@ export type ListCommentsApiV1CGuildIdCommentsGetParams = {
   cursor?: string | null;
 };
 
-export type RecentCommentsApiV1CGuildIdCommentsRecentGetParams = {
+export type RecentCommentsParams = {
   /**
    * @minimum 1
    * @maximum 50
@@ -10518,32 +10513,32 @@ export type RecentCommentsApiV1CGuildIdCommentsRecentGetParams = {
   limit?: number;
 };
 
-export type ReadCommentApiV1CGuildIdCommentsCommentIdGetParams = {
+export type ReadCommentParams = {
   /**
    * Also return the resource if it is in the trash. For reading a resource back after a deleted event — the row still exists until retention purges it, and access is checked exactly as for a live one.
    */
   include_deleted?: boolean;
 };
 
-export type ListInitiativesApiV1CGuildIdInitiativesGetParams = {
+export type ListInitiativesParams = {
   scope?: InitiativeListScope;
 };
 
-export type ListJoinRequestsApiV1CGuildIdInitiativesInitiativeIdJoinRequestsGetParams = {
+export type ListJoinRequestsParams = {
   /**
    * Narrow the queue to one status. Omit for the pending queue — the rows that are still open to an answer.
    */
   status?: JoinRequestStatus | null;
 };
 
-export type GetInitiativeApiV1CGuildIdInitiativesInitiativeIdGetParams = {
+export type GetInitiativeParams = {
   /**
    * Also return the resource if it is in the trash. For reading a resource back after a deleted event — the row still exists until retention purges it, and access is checked exactly as for a live one.
    */
   include_deleted?: boolean;
 };
 
-export type GetInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembersGetParams = {
+export type GetInitiativeMembersParams = {
   /**
    * Case-insensitive substring match on the member's name.
    */
@@ -10563,7 +10558,7 @@ export type GetInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembersGetPa
   page_size?: number;
 };
 
-export type SearchInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembersSearchGetParams = {
+export type SearchInitiativeMembersParams = {
   /**
    * Case-insensitive substring match on the member's name.
    */
@@ -10580,7 +10575,7 @@ export type SearchInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembersSe
   page_size?: number;
 };
 
-export type ReadDocumentApiV1CGuildIdDocumentsDocumentIdGetParams = {
+export type ReadDocumentParams = {
   /**
    * Include the document body. Pass false for the metadata alone — a document's body is the largest thing this API returns, and a caller reacting to a change (a name, a tag, a property) does not need it. Everything else is unchanged.
    */
@@ -10591,8 +10586,8 @@ export type ReadDocumentApiV1CGuildIdDocumentsDocumentIdGetParams = {
   include_deleted?: boolean;
 };
 
-export type ExportTasksApiV1CGuildIdExportsTasksGetParams = {
-  format?: ExportTasksApiV1CGuildIdExportsTasksGetFormat;
+export type ExportTasksParams = {
+  format?: ExportTasksFormat;
   /**
    * Same JSON filter conditions as the task list
    */
@@ -10609,29 +10604,27 @@ export type ExportTasksApiV1CGuildIdExportsTasksGetParams = {
   /**
    * Report layout. Markdown: a table (default) or a GitHub-style task list (checklist). PDF: the default table, or 'detailed' for a one-task-per-page report with description, checklist and comments. Ignored by csv/xlsx.
    */
-  layout?: ExportTasksApiV1CGuildIdExportsTasksGetLayout;
+  layout?: ExportTasksLayout;
 };
 
-export type ExportTasksApiV1CGuildIdExportsTasksGetFormat =
-  (typeof ExportTasksApiV1CGuildIdExportsTasksGetFormat)[keyof typeof ExportTasksApiV1CGuildIdExportsTasksGetFormat];
+export type ExportTasksFormat = (typeof ExportTasksFormat)[keyof typeof ExportTasksFormat];
 
-export const ExportTasksApiV1CGuildIdExportsTasksGetFormat = {
+export const ExportTasksFormat = {
   pdf: "pdf",
   csv: "csv",
   xlsx: "xlsx",
   md: "md",
 } as const;
 
-export type ExportTasksApiV1CGuildIdExportsTasksGetLayout =
-  (typeof ExportTasksApiV1CGuildIdExportsTasksGetLayout)[keyof typeof ExportTasksApiV1CGuildIdExportsTasksGetLayout];
+export type ExportTasksLayout = (typeof ExportTasksLayout)[keyof typeof ExportTasksLayout];
 
-export const ExportTasksApiV1CGuildIdExportsTasksGetLayout = {
+export const ExportTasksLayout = {
   table: "table",
   checklist: "checklist",
   detailed: "detailed",
 } as const;
 
-export type ExportEventsApiV1CGuildIdExportsEventsGetParams = {
+export type ExportEventsParams = {
   format?: "ics";
   initiative_id?: number | null;
   scope?: "guild" | null;
@@ -10655,8 +10648,8 @@ export type ExportEventsApiV1CGuildIdExportsEventsGetParams = {
   tz?: string | null;
 };
 
-export type EstimateAggregateExportApiV1CGuildIdExportsEstimateGetParams = {
-  scope: EstimateAggregateExportApiV1CGuildIdExportsEstimateGetScope;
+export type EstimateAggregateExportParams = {
+  scope: EstimateAggregateExportScope;
   /**
    * Required when scope=initiative
    */
@@ -10668,17 +10661,17 @@ export type EstimateAggregateExportApiV1CGuildIdExportsEstimateGetParams = {
   filters?: string | null;
 };
 
-export type EstimateAggregateExportApiV1CGuildIdExportsEstimateGetScope =
-  (typeof EstimateAggregateExportApiV1CGuildIdExportsEstimateGetScope)[keyof typeof EstimateAggregateExportApiV1CGuildIdExportsEstimateGetScope];
+export type EstimateAggregateExportScope =
+  (typeof EstimateAggregateExportScope)[keyof typeof EstimateAggregateExportScope];
 
-export const EstimateAggregateExportApiV1CGuildIdExportsEstimateGetScope = {
+export const EstimateAggregateExportScope = {
   initiative: "initiative",
   guild: "guild",
 } as const;
 
-export type ExportInitiativeApiV1CGuildIdExportsInitiativeGetParams = {
+export type ExportInitiativeParams = {
   initiative_id: number;
-  mode?: ExportInitiativeApiV1CGuildIdExportsInitiativeGetMode;
+  mode?: ExportInitiativeMode;
   /**
    * JSON object of tool→bool, e.g. {"project": true, "queue": false}. Omitted = every tool.
    */
@@ -10701,16 +10694,15 @@ export type ExportInitiativeApiV1CGuildIdExportsInitiativeGetParams = {
   tz?: string | null;
 };
 
-export type ExportInitiativeApiV1CGuildIdExportsInitiativeGetMode =
-  (typeof ExportInitiativeApiV1CGuildIdExportsInitiativeGetMode)[keyof typeof ExportInitiativeApiV1CGuildIdExportsInitiativeGetMode];
+export type ExportInitiativeMode = (typeof ExportInitiativeMode)[keyof typeof ExportInitiativeMode];
 
-export const ExportInitiativeApiV1CGuildIdExportsInitiativeGetMode = {
+export const ExportInitiativeMode = {
   backup: "backup",
   report: "report",
 } as const;
 
-export type ExportGuildApiV1CGuildIdExportsCommunityGetParams = {
-  mode?: ExportGuildApiV1CGuildIdExportsCommunityGetMode;
+export type ExportCommunityParams = {
+  mode?: ExportCommunityMode;
   /**
    * JSON object of tool→bool; omitted = every tool
    */
@@ -10733,15 +10725,14 @@ export type ExportGuildApiV1CGuildIdExportsCommunityGetParams = {
   tz?: string | null;
 };
 
-export type ExportGuildApiV1CGuildIdExportsCommunityGetMode =
-  (typeof ExportGuildApiV1CGuildIdExportsCommunityGetMode)[keyof typeof ExportGuildApiV1CGuildIdExportsCommunityGetMode];
+export type ExportCommunityMode = (typeof ExportCommunityMode)[keyof typeof ExportCommunityMode];
 
-export const ExportGuildApiV1CGuildIdExportsCommunityGetMode = {
+export const ExportCommunityMode = {
   backup: "backup",
   report: "report",
 } as const;
 
-export type ExportToolApiV1CGuildIdExportsToolGetParams = {
+export type ExportToolParams = {
   /**
    * What to export: one artifact per id, zipped when there is more than one
    */
@@ -10749,7 +10740,7 @@ export type ExportToolApiV1CGuildIdExportsToolGetParams = {
   /**
    * One of the tool's export formats (project: json, pdf, csv, xlsx; document: json, md, pdf, docx, csv, xlsx, file; queue: json, pdf, csv, xlsx, md; counter_group: json, pdf, csv, xlsx, md; calendar: ics, json; dashboard: json; post: json; gallery: json; wiki: json, pdf, md, docx). ``json`` is the importable envelope. A document's formats depend on its type, so it has no default; a calendar defaults to ``ics``, every other tool to ``json``
    */
-  format?: ExportToolApiV1CGuildIdExportsToolGetFormat;
+  format?: ExportToolFormat;
   /**
    * Calendars only: with no ids, every calendar the caller may export in this initiative
    */
@@ -10764,11 +10755,9 @@ export type ExportToolApiV1CGuildIdExportsToolGetParams = {
   tz?: string | null;
 };
 
-export type ExportToolApiV1CGuildIdExportsToolGetFormat =
-  | (typeof ExportToolApiV1CGuildIdExportsToolGetFormat)[keyof typeof ExportToolApiV1CGuildIdExportsToolGetFormat]
-  | null;
+export type ExportToolFormat = (typeof ExportToolFormat)[keyof typeof ExportToolFormat] | null;
 
-export const ExportToolApiV1CGuildIdExportsToolGetFormat = {
+export const ExportToolFormat = {
   csv: "csv",
   docx: "docx",
   file: "file",
@@ -10779,53 +10768,51 @@ export const ExportToolApiV1CGuildIdExportsToolGetFormat = {
   xlsx: "xlsx",
 } as const;
 
-export type ConfirmImportApiV1CGuildIdImportsJobsJobIdConfirmPostBody = {
-  [key: string]: unknown;
-} | null;
+export type ConfirmImportBody = { [key: string]: unknown } | null;
 
-export type ReadQueueApiV1CGuildIdQueuesQueueIdGetParams = {
+export type ReadQueueParams = {
   /**
    * Also return the resource if it is in the trash. For reading a resource back after a deleted event — the row still exists until retention purges it, and access is checked exactly as for a live one.
    */
   include_deleted?: boolean;
 };
 
-export type ReadQueueItemApiV1CGuildIdQueueItemsItemIdGetParams = {
+export type ReadQueueItemParams = {
   /**
    * Also return the resource if it is in the trash. For reading a resource back after a deleted event — the row still exists until retention purges it, and access is checked exactly as for a live one.
    */
   include_deleted?: boolean;
 };
 
-export type ReadCounterGroupApiV1CGuildIdCounterGroupsGroupIdGetParams = {
+export type ReadCounterGroupParams = {
   /**
    * Also return the resource if it is in the trash. For reading a resource back after a deleted event — the row still exists until retention purges it, and access is checked exactly as for a live one.
    */
   include_deleted?: boolean;
 };
 
-export type ReadCounterApiV1CGuildIdCountersCounterIdGetParams = {
+export type ReadCounterParams = {
   /**
    * Also return the resource if it is in the trash. For reading a resource back after a deleted event — the row still exists until retention purges it, and access is checked exactly as for a live one.
    */
   include_deleted?: boolean;
 };
 
-export type ReadCalendarApiV1CGuildIdCalendarsCalendarIdGetParams = {
+export type ReadCalendarParams = {
   /**
    * Also return the resource if it is in the trash. For reading a resource back after a deleted event — the row still exists until retention purges it, and access is checked exactly as for a live one.
    */
   include_deleted?: boolean;
 };
 
-export type ReadDashboardApiV1CGuildIdDashboardsDashboardIdGetParams = {
+export type ReadDashboardParams = {
   /**
    * Also return the resource if it is in the trash. For reading a resource back after a deleted event — the row still exists until retention purges it, and access is checked exactly as for a live one.
    */
   include_deleted?: boolean;
 };
 
-export type GetPostTimelineApiV1CGuildIdPostsTimelineGetParams = {
+export type GetPostTimelineParams = {
   initiative_id?: number | null;
   search?: string | null;
   tag_ids?: number[] | null;
@@ -10844,21 +10831,21 @@ export type GetPostTimelineApiV1CGuildIdPostsTimelineGetParams = {
   tz?: string | null;
 };
 
-export type ReadPostApiV1CGuildIdPostsPostIdGetParams = {
+export type ReadPostParams = {
   /**
    * Also return the resource if it is in the trash. For reading a resource back after a deleted event — the row still exists until retention purges it, and access is checked exactly as for a live one.
    */
   include_deleted?: boolean;
 };
 
-export type ReadGalleryApiV1CGuildIdGalleriesGalleryIdGetParams = {
+export type ReadGalleryParams = {
   /**
    * Also return the resource if it is in the trash. For reading a resource back after a deleted event — the row still exists until retention purges it, and access is checked exactly as for a live one.
    */
   include_deleted?: boolean;
 };
 
-export type ListGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesGetParams = {
+export type ListGalleryImagesParams = {
   /**
    * Only pictures carrying ANY of these tags.
    */
@@ -10886,7 +10873,7 @@ export type ListGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesGetParams = {
   page_size?: number;
 };
 
-export type GetGalleryImageTimelineApiV1CGuildIdGalleriesGalleryIdImagesTimelineGetParams = {
+export type GetGalleryImageTimelineParams = {
   tag_ids?: number[] | null;
   search?: string | null;
   /**
@@ -10895,7 +10882,7 @@ export type GetGalleryImageTimelineApiV1CGuildIdGalleriesGalleryIdImagesTimeline
   tz?: string | null;
 };
 
-export type ReadAppDataApiV1CGuildIdAppsAppIdEndpointsEndpointIdGetParams = {
+export type ReadAppDataParams = {
   /**
    * The dashboard the widget sits on. Its own gates decide whether this caller may see anything here at all.
    */
@@ -10910,7 +10897,7 @@ export type ReadAppDataApiV1CGuildIdAppsAppIdEndpointsEndpointIdGetParams = {
   widget_id?: string | null;
 };
 
-export type ReadAppParamOptionsApiV1CGuildIdAppsAppIdEndpointsEndpointIdOptionsGetParams = {
+export type ReadAppParamOptionsParams = {
   /**
    * Which of the endpoint's parameters to fill a menu for.
    */
@@ -10921,7 +10908,7 @@ export type ReadAppParamOptionsApiV1CGuildIdAppsAppIdEndpointsEndpointIdOptionsG
   params?: string | null;
 };
 
-export type ListGuildAppMembersApiV1CGuildIdAppsAppIdMembersGetParams = {
+export type ListCommunityAppMembersParams = {
   /**
    * @minimum 1
    */
@@ -10933,7 +10920,7 @@ export type ListGuildAppMembersApiV1CGuildIdAppsAppIdMembersGetParams = {
   page_size?: number;
 };
 
-export type ReadCalendarEventApiV1CGuildIdCalendarEventsEventIdGetParams = {
+export type ReadCalendarEventParams = {
   /**
    * One occurrence of a repeating event, whose answers to show.
    */
@@ -10944,44 +10931,42 @@ export type ReadCalendarEventApiV1CGuildIdCalendarEventsEventIdGetParams = {
   include_deleted?: boolean;
 };
 
-export type DeleteCalendarEventApiV1CGuildIdCalendarEventsEventIdDeleteParams = {
-  scope?: DeleteCalendarEventApiV1CGuildIdCalendarEventsEventIdDeleteScope;
+export type DeleteCalendarEventParams = {
+  scope?: DeleteCalendarEventScope;
   occurrence?: string | null;
 };
 
-export type DeleteCalendarEventApiV1CGuildIdCalendarEventsEventIdDeleteScope =
-  | (typeof DeleteCalendarEventApiV1CGuildIdCalendarEventsEventIdDeleteScope)[keyof typeof DeleteCalendarEventApiV1CGuildIdCalendarEventsEventIdDeleteScope]
+export type DeleteCalendarEventScope =
+  | (typeof DeleteCalendarEventScope)[keyof typeof DeleteCalendarEventScope]
   | null;
 
-export const DeleteCalendarEventApiV1CGuildIdCalendarEventsEventIdDeleteScope = {
+export const DeleteCalendarEventScope = {
   this: "this",
   following: "following",
   all: "all",
 } as const;
 
-export type DuplicateCalendarEventApiV1CGuildIdCalendarEventsEventIdDuplicatePostParams = {
+export type DuplicateCalendarEventParams = {
   /**
    * One date of a repeating event, copied as an event of its own.
    */
   occurrence?: string | null;
 };
 
-export type SetAttendeesApiV1CGuildIdCalendarEventsEventIdAttendeesPutParams = {
-  scope?: SetAttendeesApiV1CGuildIdCalendarEventsEventIdAttendeesPutScope;
+export type SetAttendeesParams = {
+  scope?: SetAttendeesScope;
   occurrence?: string | null;
 };
 
-export type SetAttendeesApiV1CGuildIdCalendarEventsEventIdAttendeesPutScope =
-  | (typeof SetAttendeesApiV1CGuildIdCalendarEventsEventIdAttendeesPutScope)[keyof typeof SetAttendeesApiV1CGuildIdCalendarEventsEventIdAttendeesPutScope]
-  | null;
+export type SetAttendeesScope = (typeof SetAttendeesScope)[keyof typeof SetAttendeesScope] | null;
 
-export const SetAttendeesApiV1CGuildIdCalendarEventsEventIdAttendeesPutScope = {
+export const SetAttendeesScope = {
   this: "this",
   following: "following",
   all: "all",
 } as const;
 
-export type ListCalendarEntriesApiV1CGuildIdCalendarEntriesGetParams = {
+export type ListCalendarEntriesParams = {
   initiative_id?: number | null;
   scope?: "guild" | null;
   calendar_ids?: number[] | null;
@@ -10997,7 +10982,7 @@ export type ListCalendarEntriesApiV1CGuildIdCalendarEntriesGetParams = {
   start_before: string;
 };
 
-export type ListMarketplaceListingsApiV1CGuildIdMarketplaceListingsGetParams = {
+export type ListMarketplaceListingsParams = {
   kind?: ListingKind | null;
   q?: string | null;
   /**
@@ -11011,26 +10996,26 @@ export type ListMarketplaceListingsApiV1CGuildIdMarketplaceListingsGetParams = {
   page_size?: number;
 };
 
-export type ListRelationshipsApiV1CGuildIdRelationshipsGetParams = {
+export type ListRelationshipsParams = {
   /**
    * The thing to list edges for, as `kind:id`
    */
   entity: string;
   relationship_type?: RelationshipType | null;
   other_type?: SearchEntityType | null;
-  direction?: ListRelationshipsApiV1CGuildIdRelationshipsGetDirection;
+  direction?: ListRelationshipsDirection;
 };
 
-export type ListRelationshipsApiV1CGuildIdRelationshipsGetDirection =
-  (typeof ListRelationshipsApiV1CGuildIdRelationshipsGetDirection)[keyof typeof ListRelationshipsApiV1CGuildIdRelationshipsGetDirection];
+export type ListRelationshipsDirection =
+  (typeof ListRelationshipsDirection)[keyof typeof ListRelationshipsDirection];
 
-export const ListRelationshipsApiV1CGuildIdRelationshipsGetDirection = {
+export const ListRelationshipsDirection = {
   inbound: "inbound",
   outbound: "outbound",
   both: "both",
 } as const;
 
-export type ReplaceRelationshipSliceApiV1CGuildIdRelationshipsPutParams = {
+export type ReplaceRelationshipSliceParams = {
   /**
    * The thing whose edges are being set
    */
@@ -11039,14 +11024,14 @@ export type ReplaceRelationshipSliceApiV1CGuildIdRelationshipsPutParams = {
   other_type: SearchEntityType;
 };
 
-export type GetTagApiV1CGuildIdTagsTagIdGetParams = {
+export type GetTagParams = {
   /**
    * Also return the resource if it is in the trash. For reading a resource back after a deleted event — the row still exists until retention purges it, and access is checked exactly as for a live one.
    */
   include_deleted?: boolean;
 };
 
-export type SearchGuildApiV1CGuildIdSearchGetParams = {
+export type SearchCommunityParams = {
   /**
    * What to search for.
    * @maxLength 1000
@@ -11079,7 +11064,7 @@ export type SearchGuildApiV1CGuildIdSearchGetParams = {
   offset?: number;
 };
 
-export type RecentGuildApiV1CGuildIdSearchRecentGetParams = {
+export type RecentCommunityParams = {
   /**
    * Restrict to these entity types. Omit for the default scope (calendar, calendar_event, counter, counter_group, dashboard, document, gallery, gallery_image, post, project, queue, queue_item, tag, task, wiki, wiki_page); naming a type reaches it explicitly.
    */
@@ -11102,7 +11087,7 @@ export type RecentGuildApiV1CGuildIdSearchRecentGetParams = {
   limit?: number;
 };
 
-export type SuggestGuildApiV1CGuildIdSearchSuggestGetParams = {
+export type SuggestCommunityParams = {
   /**
    * What to jump to.
    * @maxLength 200
@@ -11130,7 +11115,7 @@ export type SuggestGuildApiV1CGuildIdSearchSuggestGetParams = {
   limit?: number;
 };
 
-export type ReadSmartChipsApiV1CGuildIdSmartChipsGetParams = {
+export type ReadSmartChipsParams = {
   /**
    * A chip to read, as `kind:id:aspect` — `task:12:status`. Repeat it for every chip on the page; they are read together. Pairs that name no chip are ignored. Available: calendar_event:when, counter:value, project:progress, task:assignee, task:due, task:priority, task:status, task:checklist
    * @maxItems 100
@@ -11138,7 +11123,7 @@ export type ReadSmartChipsApiV1CGuildIdSmartChipsGetParams = {
   ref?: string[];
 };
 
-export type ReadReferenceEmbedsApiV1CGuildIdSmartChipsEmbedsGetParams = {
+export type ReadReferenceEmbedsParams = {
   /**
    * A reference to show in full, as `kind:id` — `task:12`.
    * @maxItems 100
@@ -11146,11 +11131,11 @@ export type ReadReferenceEmbedsApiV1CGuildIdSmartChipsEmbedsGetParams = {
   ref?: string[];
 };
 
-export type ListPropertyDefinitionsApiV1CGuildIdPropertyDefinitionsGetParams = {
+export type ListPropertyDefinitionsParams = {
   initiative_id?: number | null;
 };
 
-export type ListGuildTrashApiV1CGuildIdTrashGetParams = {
+export type ListCommunityTrashParams = {
   /**
    * @minimum 1
    */
@@ -11162,7 +11147,7 @@ export type ListGuildTrashApiV1CGuildIdTrashGetParams = {
   page_size?: number;
 };
 
-export type ListUsersApiV1CGuildIdUsersGetParams = {
+export type ListUsersParams = {
   /**
    * Matches members the way ``/search`` does: the handle, a whole handle pinning one member, and the display names members set here.
    */
@@ -11178,7 +11163,7 @@ export type ListUsersApiV1CGuildIdUsersGetParams = {
   page_size?: number;
 };
 
-export type SearchUsersApiV1CGuildIdUsersSearchGetParams = {
+export type SearchUsersParams = {
   /**
    * Matches the handle's name part. Type the whole handle (`foobar#1234`) to pin one member; a partial number after `#` is a prefix of the four digits as rendered. Display names members set here are matched too.
    */
@@ -11208,7 +11193,7 @@ export type SearchUsersApiV1CGuildIdUsersSearchGetParams = {
   page_size?: number;
 };
 
-export type ListRosterApiV1CGuildIdUsersRosterGetParams = {
+export type ListRosterParams = {
   /**
    * @minimum 1
    */
@@ -11220,11 +11205,11 @@ export type ListRosterApiV1CGuildIdUsersRosterGetParams = {
   page_size?: number;
 };
 
-export type ExportUsersCsvApiV1CGuildIdUsersExportCsvGetParams = {
+export type ExportUsersCsvParams = {
   user_id?: number[] | null;
 };
 
-export type ListMyTasksApiV1MeTasksGetParams = {
+export type ListMyTasksParams = {
   conditions?: (FilterCondition | FilterGroup)[];
   /**
    * The tasks you created instead of the ones assigned to you
@@ -11247,14 +11232,14 @@ export type ListMyTasksApiV1MeTasksGetParams = {
   tz?: string | null;
 };
 
-export type ReadTicketAvailabilityApiV1MeTicketsAvailabilityGetParams = {
+export type ReadTicketAvailabilityParams = {
   /**
    * The community the reader is standing in.
    */
   guild_id?: number | null;
 };
 
-export type GetMyToolCountsApiV1MeToolsCountsGetParams = {
+export type GetMyToolCountsParams = {
   guild_ids?: number[] | null;
   /**
    * Count only what the caller wrote, matching the list views.
@@ -11262,7 +11247,7 @@ export type GetMyToolCountsApiV1MeToolsCountsGetParams = {
   created_by_me?: boolean;
 };
 
-export type ListMyProjectsApiV1MeProjectsGetParams = {
+export type ListMyProjectsParams = {
   guild_ids?: number[] | null;
   search?: string | null;
   /**
@@ -11288,7 +11273,7 @@ export type ListMyProjectsApiV1MeProjectsGetParams = {
   page_size?: number;
 };
 
-export type ListMyDocumentsApiV1MeDocumentsGetParams = {
+export type ListMyDocumentsParams = {
   guild_ids?: number[] | null;
   search?: string | null;
   /**
@@ -11314,7 +11299,7 @@ export type ListMyDocumentsApiV1MeDocumentsGetParams = {
   page_size?: number;
 };
 
-export type ListMyQueuesApiV1MeQueuesGetParams = {
+export type ListMyQueuesParams = {
   guild_ids?: number[] | null;
   search?: string | null;
   /**
@@ -11340,7 +11325,7 @@ export type ListMyQueuesApiV1MeQueuesGetParams = {
   page_size?: number;
 };
 
-export type ListMyCounterGroupsApiV1MeCounterGroupsGetParams = {
+export type ListMyCounterGroupsParams = {
   guild_ids?: number[] | null;
   search?: string | null;
   /**
@@ -11366,7 +11351,7 @@ export type ListMyCounterGroupsApiV1MeCounterGroupsGetParams = {
   page_size?: number;
 };
 
-export type ListMyCalendarsApiV1MeCalendarsGetParams = {
+export type ListMyCalendarsParams = {
   guild_ids?: number[] | null;
   search?: string | null;
   /**
@@ -11392,7 +11377,7 @@ export type ListMyCalendarsApiV1MeCalendarsGetParams = {
   page_size?: number;
 };
 
-export type ListMyDashboardsApiV1MeDashboardsGetParams = {
+export type ListMyDashboardsParams = {
   guild_ids?: number[] | null;
   search?: string | null;
   /**
@@ -11418,7 +11403,7 @@ export type ListMyDashboardsApiV1MeDashboardsGetParams = {
   page_size?: number;
 };
 
-export type ListMyPostsApiV1MePostsGetParams = {
+export type ListMyPostsParams = {
   guild_ids?: number[] | null;
   search?: string | null;
   /**
@@ -11444,7 +11429,7 @@ export type ListMyPostsApiV1MePostsGetParams = {
   page_size?: number;
 };
 
-export type ListMyGalleriesApiV1MeGalleriesGetParams = {
+export type ListMyGalleriesParams = {
   guild_ids?: number[] | null;
   search?: string | null;
   /**
@@ -11470,7 +11455,7 @@ export type ListMyGalleriesApiV1MeGalleriesGetParams = {
   page_size?: number;
 };
 
-export type ListMyWikisApiV1MeWikisGetParams = {
+export type ListMyWikisParams = {
   guild_ids?: number[] | null;
   search?: string | null;
   /**
@@ -11496,7 +11481,7 @@ export type ListMyWikisApiV1MeWikisGetParams = {
   page_size?: number;
 };
 
-export type ListMyCalendarEntriesApiV1MeCalendarEntriesGetParams = {
+export type ListMyCalendarEntriesParams = {
   guild_ids?: number[] | null;
   /**
    * Task filter conditions (same JSON shape as GET /me/tasks).
@@ -11509,7 +11494,7 @@ export type ListMyCalendarEntriesApiV1MeCalendarEntriesGetParams = {
   start_before: string;
 };
 
-export type ListMyTrashApiV1MeTrashGetParams = {
+export type ListMyTrashParams = {
   /**
    * @minimum 1
    */
@@ -11521,7 +11506,7 @@ export type ListMyTrashApiV1MeTrashGetParams = {
   page_size?: number;
 };
 
-export type ListContactSectionsApiV1MeContactsGetParams = {
+export type ListContactSectionsParams = {
   /**
    * Narrows every section. Matches the handle, plus the real name in a guild that shows names; type a whole handle (`foobar#1234`) to pin one person.
    */
@@ -11538,14 +11523,14 @@ export type ListContactSectionsApiV1MeContactsGetParams = {
   page_size?: number;
 };
 
-export type ListFavoriteContactsApiV1MeContactsFavoritesGetParams = {
+export type ListFavoriteContactsParams = {
   /**
    * Narrows every section. Matches the handle, plus the real name in a guild that shows names; type a whole handle (`foobar#1234`) to pin one person.
    */
   search?: string | null;
 };
 
-export type ListIgnoredAccountsApiV1MeIgnoredGetParams = {
+export type ListIgnoredAccountsParams = {
   /**
    * @minimum 1
    */
@@ -11557,15 +11542,15 @@ export type ListIgnoredAccountsApiV1MeIgnoredGetParams = {
   page_size?: number;
 };
 
-export type CollectQueueApiV1MeDmQueueGetParams = {
+export type CollectQueueParams = {
   device_id: string;
 };
 
-export type CollectVerificationApiV1MeDmVerificationGetParams = {
+export type CollectVerificationParams = {
   device_id: string;
 };
 
-export type GetUserStatsApiV1MeStatsGetParams = {
+export type GetUserStatsParams = {
   /**
    * Optional guild ID to filter stats
    */

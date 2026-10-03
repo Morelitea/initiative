@@ -50,7 +50,7 @@ class IntakeContactUpdate(SanitizedBaseModel):
     email: Optional[EmailStr] = None
 
 
-class OperationsGuildUpdate(SanitizedBaseModel):
+class OperationsCommunityUpdate(SanitizedBaseModel):
     """Point this deployment's operations work at a guild, or at nothing."""
 
     guild_id: Optional[int] = None

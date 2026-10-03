@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type {
-  ContactGuildSection,
+  ContactCommunitySection,
   ContactRead,
   DirectMessagePermissionRead,
 } from "@/api/generated/initiativeAPI.schemas";
@@ -384,7 +384,7 @@ const CommunityRoster = ({
   gathered,
   onToggleFavorite,
 }: {
-  section: ContactGuildSection;
+  section: ContactCommunitySection;
   search: string;
   answers: Record<string, DirectMessagePermissionRead>;
   starred: Set<number>;

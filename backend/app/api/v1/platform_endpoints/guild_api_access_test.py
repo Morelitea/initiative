@@ -9,7 +9,7 @@ from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.testing.schema_harness import route_session_to_guild
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.testing.factories import (
     create_guild,
     create_guild_membership,
@@ -39,7 +39,7 @@ async def test_the_seat_switches_api_access_and_the_guild_list_reads_it(
     admin = await create_user(session)
     guild = await create_guild(session, creator=admin)
     await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.superadmin
+        session, user=admin, guild=guild, role=CommunityRole.superadmin
     )
     headers = get_auth_headers(admin)
 
@@ -76,7 +76,7 @@ async def test_no_key_is_minted_into_a_guild_that_declines_them(
     user = await create_user(session)
     guild = await create_guild(session, creator=user, allow_api_keys=False)
     await create_guild_membership(
-        session, user=user, guild=guild, role=GuildRole.member
+        session, user=user, guild=guild, role=CommunityRole.member
     )
 
     response = await client.post(
@@ -99,7 +99,7 @@ async def test_a_key_minted_before_the_switch_stops_reaching_the_guild(
     admin = await create_user(session)
     guild = await create_guild(session, creator=admin)
     await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.superadmin
+        session, user=admin, guild=guild, role=CommunityRole.superadmin
     )
     headers = get_auth_headers(admin)
     key_headers = await _key_headers(client, headers, guild_id=guild.id)
@@ -139,7 +139,7 @@ async def test_an_unpinned_key_does_not_reach_a_guild_that_declines_them(
     closed = await create_guild(session, creator=user, allow_api_keys=False)
     for guild in (open_guild, closed):
         await create_guild_membership(
-            session, user=user, guild=guild, role=GuildRole.member
+            session, user=user, guild=guild, role=CommunityRole.member
         )
     key_headers = await _key_headers(client, get_auth_headers(user))
 
@@ -169,7 +169,7 @@ async def test_an_upload_is_not_served_to_a_key_the_guild_declines(
     admin = await create_user(session)
     guild = await create_guild(session, creator=admin)
     await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.superadmin
+        session, user=admin, guild=guild, role=CommunityRole.superadmin
     )
     get_guild_storage(guild.id).write("note.txt", b"hello")
     await route_session_to_guild(session, guild.id)
@@ -213,7 +213,7 @@ async def test_the_cross_guild_aggregate_leaves_out_a_guild_that_declines_keys(
     names = {}
     for guild in (open_guild, closed):
         await create_guild_membership(
-            session, user=user, guild=guild, role=GuildRole.member
+            session, user=user, guild=guild, role=CommunityRole.member
         )
         initiative = await create_initiative(session, guild, user)
         project = await create_project(session, initiative, user)
@@ -245,7 +245,7 @@ async def test_a_key_limited_to_one_guild_reads_only_that_guild_across_guilds(
     names = {}
     for guild in (pinned, other):
         await create_guild_membership(
-            session, user=user, guild=guild, role=GuildRole.member
+            session, user=user, guild=guild, role=CommunityRole.member
         )
         initiative = await create_initiative(session, guild, user)
         project = await create_project(session, initiative, user)

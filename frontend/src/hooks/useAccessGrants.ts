@@ -1,20 +1,20 @@
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
-  approveAccessGrantApiV1AccessGrantsGrantIdApprovePost,
-  breakGlassAccessApiV1AccessGrantsBreakGlassPost,
-  breakGlassRequirementsApiV1AccessGrantsBreakGlassGet,
-  cancelAccessRequestApiV1AccessGrantsGrantIdDelete,
-  createAccessRequestApiV1AccessGrantsPost,
-  denyAccessGrantApiV1AccessGrantsGrantIdDenyPost,
-  getBreakGlassRequirementsApiV1AccessGrantsBreakGlassGetQueryKey,
-  getListAccessGrantQueueApiV1AccessGrantsQueueGetQueryKey,
-  getListAccessGrantsApiV1AccessGrantsGetQueryKey,
-  getReadAccessGrantLimitsApiV1AccessGrantsLimitsGetQueryKey,
-  listAccessGrantQueueApiV1AccessGrantsQueueGet,
-  listAccessGrantsApiV1AccessGrantsGet,
-  readAccessGrantLimitsApiV1AccessGrantsLimitsGet,
-  revokeAccessGrantApiV1AccessGrantsGrantIdRevokePost,
+  approveAccessGrant,
+  breakGlassAccess,
+  breakGlassRequirements,
+  cancelAccessRequest,
+  createAccessRequest,
+  denyAccessGrant,
+  getBreakGlassRequirementsQueryKey,
+  getListAccessGrantQueueQueryKey,
+  getListAccessGrantsQueryKey,
+  getReadAccessGrantLimitsQueryKey,
+  listAccessGrantQueue,
+  listAccessGrants,
+  readAccessGrantLimits,
+  revokeAccessGrant,
 } from "@/api/generated/access-grants/access-grants";
 import type {
   AccessGrantApprove,
@@ -50,9 +50,9 @@ function useInvalidateAccessGrants() {
   const qc = useQueryClient();
   return () =>
     Promise.all([
-      qc.invalidateQueries({ queryKey: getListAccessGrantsApiV1AccessGrantsGetQueryKey() }),
+      qc.invalidateQueries({ queryKey: getListAccessGrantsQueryKey() }),
       qc.invalidateQueries({
-        queryKey: getListAccessGrantQueueApiV1AccessGrantsQueueGetQueryKey(),
+        queryKey: getListAccessGrantQueueQueryKey(),
       }),
     ]);
 }
@@ -60,9 +60,9 @@ function useInvalidateAccessGrants() {
 /** The current user's own access requests, paged newest-first. */
 export const useMyAccessGrants = () =>
   useInfiniteQuery({
-    queryKey: getListAccessGrantsApiV1AccessGrantsGetQueryKey(),
+    queryKey: getListAccessGrantsQueryKey(),
     queryFn: ({ pageParam }) =>
-      listAccessGrantsApiV1AccessGrantsGet({
+      listAccessGrants({
         limit: ACCESS_GRANTS_PAGE_SIZE,
         offset: pageParam,
       }),
@@ -77,12 +77,12 @@ export const useMyAccessGrants = () =>
  */
 export const useAccessGrantQueue = (status: string | undefined, opts?: { live?: boolean }) =>
   useInfiniteQuery({
-    queryKey: getListAccessGrantQueueApiV1AccessGrantsQueueGetQueryKey({
+    queryKey: getListAccessGrantQueueQueryKey({
       status,
       live: opts?.live,
     }),
     queryFn: ({ pageParam }) =>
-      listAccessGrantQueueApiV1AccessGrantsQueueGet({
+      listAccessGrantQueue({
         status,
         live: opts?.live,
         limit: ACCESS_GRANTS_PAGE_SIZE,
@@ -98,8 +98,8 @@ export const useAccessGrantQueue = (status: string | undefined, opts?: { live?: 
  */
 export const useAccessGrantLimits = (options?: { enabled?: boolean }) =>
   useQuery<AccessGrantLimits>({
-    queryKey: getReadAccessGrantLimitsApiV1AccessGrantsLimitsGetQueryKey(),
-    queryFn: () => readAccessGrantLimitsApiV1AccessGrantsLimitsGet(),
+    queryKey: getReadAccessGrantLimitsQueryKey(),
+    queryFn: () => readAccessGrantLimits(),
     enabled: options?.enabled ?? true,
   });
 
@@ -109,7 +109,7 @@ export const useCreateAccessRequest = (
   const invalidate = useInvalidateAccessGrants();
   return useApiMutation<AccessGrantRead, AccessGrantCreate>(
     {
-      mutationFn: (payload) => createAccessRequestApiV1AccessGrantsPost(payload),
+      mutationFn: (payload) => createAccessRequest(payload),
       invalidate: () => invalidate(),
     },
     options
@@ -122,8 +122,7 @@ export const useApproveAccessGrant = (
   const invalidate = useInvalidateAccessGrants();
   return useApiMutation<AccessGrantRead, { grantId: number; payload?: AccessGrantApprove }>(
     {
-      mutationFn: ({ grantId, payload }) =>
-        approveAccessGrantApiV1AccessGrantsGrantIdApprovePost(grantId, payload ?? {}),
+      mutationFn: ({ grantId, payload }) => approveAccessGrant(grantId, payload ?? {}),
       invalidate: () => invalidate(),
     },
     options
@@ -134,7 +133,7 @@ export const useDenyAccessGrant = (options?: MutationOpts<AccessGrantRead, numbe
   const invalidate = useInvalidateAccessGrants();
   return useApiMutation<AccessGrantRead, number>(
     {
-      mutationFn: (grantId) => denyAccessGrantApiV1AccessGrantsGrantIdDenyPost(grantId),
+      mutationFn: (grantId) => denyAccessGrant(grantId),
       invalidate: () => invalidate(),
     },
     options
@@ -145,7 +144,7 @@ export const useRevokeAccessGrant = (options?: MutationOpts<AccessGrantRead, num
   const invalidate = useInvalidateAccessGrants();
   return useApiMutation<AccessGrantRead, number>(
     {
-      mutationFn: (grantId) => revokeAccessGrantApiV1AccessGrantsGrantIdRevokePost(grantId),
+      mutationFn: (grantId) => revokeAccessGrant(grantId),
       invalidate: () => invalidate(),
     },
     options
@@ -160,8 +159,8 @@ export const useRevokeAccessGrant = (options?: MutationOpts<AccessGrantRead, num
  */
 export const useBreakGlassRequirements = () =>
   useQuery<BreakGlassRequirements>({
-    queryKey: getBreakGlassRequirementsApiV1AccessGrantsBreakGlassGetQueryKey(),
-    queryFn: () => breakGlassRequirementsApiV1AccessGrantsBreakGlassGet(),
+    queryKey: getBreakGlassRequirementsQueryKey(),
+    queryFn: () => breakGlassRequirements(),
     // Somebody else enrolling changes this answer, and nothing here would know
     // to invalidate it — so it is read fresh on mount rather than inheriting
     // the shared staleness window.
@@ -172,13 +171,13 @@ export const useBreakGlassRequirements = () =>
 /**
  * Self-issue a break-glass grant (requires data.bypass). Unlike a request, this
  * is created AND approved in one step, so it's live immediately — the holder can
- * then enter the guild via its ``/c/{guild_id}`` path until it expires.
+ * then enter the guild via its ``/c/{community_id}`` path until it expires.
  */
 export const useBreakGlass = (options?: MutationOpts<AccessGrantRead, BreakGlassCreate>) => {
   const invalidate = useInvalidateAccessGrants();
   return useApiMutation<AccessGrantRead, BreakGlassCreate>(
     {
-      mutationFn: (payload) => breakGlassAccessApiV1AccessGrantsBreakGlassPost(payload),
+      mutationFn: (payload) => breakGlassAccess(payload),
       invalidate: () => invalidate(),
     },
     options
@@ -189,7 +188,7 @@ export const useCancelAccessRequest = (options?: MutationOpts<void, number>) => 
   const invalidate = useInvalidateAccessGrants();
   return useApiMutation<void, number>(
     {
-      mutationFn: (grantId) => cancelAccessRequestApiV1AccessGrantsGrantIdDelete(grantId),
+      mutationFn: (grantId) => cancelAccessRequest(grantId),
       invalidate: () => invalidate(),
     },
     options

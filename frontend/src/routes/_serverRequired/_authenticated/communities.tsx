@@ -1,6 +1,6 @@
 import { createFileRoute, lazyRouteComponent } from "@tanstack/react-router";
 
-import type { GuildCategory } from "@/api/generated/initiativeAPI.schemas";
+import type { CommunityCategory } from "@/api/generated/initiativeAPI.schemas";
 import { asGuildCategories } from "@/lib/guildCategories";
 
 /** What the endpoint accepts, so a hand-typed address cannot ask for more. */
@@ -8,7 +8,7 @@ const MAX_QUERY_LENGTH = 200;
 
 export interface CommunitySearch {
   /** Communities on any of these shelves. */
-  category?: GuildCategory[];
+  category?: CommunityCategory[];
   q?: string;
 }
 

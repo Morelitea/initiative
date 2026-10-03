@@ -24,29 +24,29 @@ import type {
   BillingPortalHandoffResponse,
   CaptchaSettingsResponse,
   CaptchaSettingsUpdate,
+  CommunityNarrowingAgreement,
+  CommunityNarrowingPending,
   CommunitySettingsResponse,
   CommunitySettingsUpdate,
-  CreatePlatformGuildBillingServiceHandoffApiV1SettingsCommunitiesGuildIdBillingServiceHandoffPostParams,
+  CreatePlatformCommunityBillingServiceHandoffParams,
   EmailSettingsResponse,
   EmailSettingsUpdate,
   EmailTestRequest,
   EmailTestResponse,
   FCMConfigResponse,
-  GuildNarrowingAgreement,
-  GuildNarrowingPending,
   HTTPValidationError,
   InterfaceSettingsResponse,
   InterfaceSettingsUpdate,
-  ListPlatformGuildStorageApiV1SettingsCommunitiesGetParams,
+  ListPlatformCommunityStorageParams,
   NotificationSettingsResponse,
   NotificationSettingsUpdate,
   OIDCSettingsResponse,
   PlatformAuthSettingsResponse,
   PlatformAuthSettingsUpdate,
-  PlatformGuildRestore,
-  PlatformGuildStorageListResponse,
-  PlatformGuildStorageRead,
-  PlatformGuildStorageUpdate,
+  PlatformCommunityRestore,
+  PlatformCommunityStorageListResponse,
+  PlatformCommunityStorageRead,
+  PlatformCommunityStorageUpdate,
   PushSettingsResponse,
   PushSettingsUpdate,
   SecondFactorAnswer,
@@ -82,7 +82,7 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
  * ``config.manage``.
  * @summary Get Oidc Settings
  */
-export const getOidcSettingsApiV1SettingsAuthGet = (
+export const getOidcSettings = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
@@ -92,56 +92,45 @@ export const getOidcSettingsApiV1SettingsAuthGet = (
   );
 };
 
-export const getGetOidcSettingsApiV1SettingsAuthGetQueryKey = () => {
+export const getGetOidcSettingsQueryKey = () => {
   return [`/api/v1/settings/auth`] as const;
 };
 
-export const getGetOidcSettingsApiV1SettingsAuthGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof getOidcSettingsApiV1SettingsAuthGet>>,
+export const getGetOidcSettingsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getOidcSettings>>,
   TError = ErrorType<HTTPValidationError>,
 >(options?: {
-  query?: Partial<
-    UseQueryOptions<Awaited<ReturnType<typeof getOidcSettingsApiV1SettingsAuthGet>>, TError, TData>
-  >;
+  query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getOidcSettings>>, TError, TData>>;
   request?: SecondParameter<typeof apiMutator>;
 }) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey = queryOptions?.queryKey ?? getGetOidcSettingsApiV1SettingsAuthGetQueryKey();
+  const queryKey = queryOptions?.queryKey ?? getGetOidcSettingsQueryKey();
 
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof getOidcSettingsApiV1SettingsAuthGet>>> = ({
-    signal,
-  }) => getOidcSettingsApiV1SettingsAuthGet(requestOptions, signal);
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getOidcSettings>>> = ({ signal }) =>
+    getOidcSettings(requestOptions, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof getOidcSettingsApiV1SettingsAuthGet>>,
+    Awaited<ReturnType<typeof getOidcSettings>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type GetOidcSettingsApiV1SettingsAuthGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof getOidcSettingsApiV1SettingsAuthGet>>
->;
-export type GetOidcSettingsApiV1SettingsAuthGetQueryError = ErrorType<HTTPValidationError>;
+export type GetOidcSettingsQueryResult = NonNullable<Awaited<ReturnType<typeof getOidcSettings>>>;
+export type GetOidcSettingsQueryError = ErrorType<HTTPValidationError>;
 
-export function useGetOidcSettingsApiV1SettingsAuthGet<
-  TData = Awaited<ReturnType<typeof getOidcSettingsApiV1SettingsAuthGet>>,
+export function useGetOidcSettings<
+  TData = Awaited<ReturnType<typeof getOidcSettings>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options: {
-    query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getOidcSettingsApiV1SettingsAuthGet>>,
-        TError,
-        TData
-      >
-    > &
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getOidcSettings>>, TError, TData>> &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getOidcSettingsApiV1SettingsAuthGet>>,
+          Awaited<ReturnType<typeof getOidcSettings>>,
           TError,
-          Awaited<ReturnType<typeof getOidcSettingsApiV1SettingsAuthGet>>
+          Awaited<ReturnType<typeof getOidcSettings>>
         >,
         "initialData"
       >;
@@ -149,23 +138,17 @@ export function useGetOidcSettingsApiV1SettingsAuthGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetOidcSettingsApiV1SettingsAuthGet<
-  TData = Awaited<ReturnType<typeof getOidcSettingsApiV1SettingsAuthGet>>,
+export function useGetOidcSettings<
+  TData = Awaited<ReturnType<typeof getOidcSettings>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getOidcSettingsApiV1SettingsAuthGet>>,
-        TError,
-        TData
-      >
-    > &
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getOidcSettings>>, TError, TData>> &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getOidcSettingsApiV1SettingsAuthGet>>,
+          Awaited<ReturnType<typeof getOidcSettings>>,
           TError,
-          Awaited<ReturnType<typeof getOidcSettingsApiV1SettingsAuthGet>>
+          Awaited<ReturnType<typeof getOidcSettings>>
         >,
         "initialData"
       >;
@@ -173,18 +156,12 @@ export function useGetOidcSettingsApiV1SettingsAuthGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetOidcSettingsApiV1SettingsAuthGet<
-  TData = Awaited<ReturnType<typeof getOidcSettingsApiV1SettingsAuthGet>>,
+export function useGetOidcSettings<
+  TData = Awaited<ReturnType<typeof getOidcSettings>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getOidcSettingsApiV1SettingsAuthGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getOidcSettings>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
@@ -193,23 +170,17 @@ export function useGetOidcSettingsApiV1SettingsAuthGet<
  * @summary Get Oidc Settings
  */
 
-export function useGetOidcSettingsApiV1SettingsAuthGet<
-  TData = Awaited<ReturnType<typeof getOidcSettingsApiV1SettingsAuthGet>>,
+export function useGetOidcSettings<
+  TData = Awaited<ReturnType<typeof getOidcSettings>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getOidcSettingsApiV1SettingsAuthGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getOidcSettings>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getGetOidcSettingsApiV1SettingsAuthGetQueryOptions(options);
+  const queryOptions = getGetOidcSettingsQueryOptions(options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -224,7 +195,7 @@ export function useGetOidcSettingsApiV1SettingsAuthGet<
  * request-path grant.
  * @summary Get Platform Auth Settings
  */
-export const getPlatformAuthSettingsApiV1SettingsAuthPlatformGet = (
+export const getPlatformAuthSettings = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
@@ -234,62 +205,52 @@ export const getPlatformAuthSettingsApiV1SettingsAuthPlatformGet = (
   );
 };
 
-export const getGetPlatformAuthSettingsApiV1SettingsAuthPlatformGetQueryKey = () => {
+export const getGetPlatformAuthSettingsQueryKey = () => {
   return [`/api/v1/settings/auth/platform`] as const;
 };
 
-export const getGetPlatformAuthSettingsApiV1SettingsAuthPlatformGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof getPlatformAuthSettingsApiV1SettingsAuthPlatformGet>>,
+export const getGetPlatformAuthSettingsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getPlatformAuthSettings>>,
   TError = ErrorType<HTTPValidationError>,
 >(options?: {
   query?: Partial<
-    UseQueryOptions<
-      Awaited<ReturnType<typeof getPlatformAuthSettingsApiV1SettingsAuthPlatformGet>>,
-      TError,
-      TData
-    >
+    UseQueryOptions<Awaited<ReturnType<typeof getPlatformAuthSettings>>, TError, TData>
   >;
   request?: SecondParameter<typeof apiMutator>;
 }) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey =
-    queryOptions?.queryKey ?? getGetPlatformAuthSettingsApiV1SettingsAuthPlatformGetQueryKey();
+  const queryKey = queryOptions?.queryKey ?? getGetPlatformAuthSettingsQueryKey();
 
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof getPlatformAuthSettingsApiV1SettingsAuthPlatformGet>>
-  > = ({ signal }) => getPlatformAuthSettingsApiV1SettingsAuthPlatformGet(requestOptions, signal);
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getPlatformAuthSettings>>> = ({
+    signal,
+  }) => getPlatformAuthSettings(requestOptions, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof getPlatformAuthSettingsApiV1SettingsAuthPlatformGet>>,
+    Awaited<ReturnType<typeof getPlatformAuthSettings>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type GetPlatformAuthSettingsApiV1SettingsAuthPlatformGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof getPlatformAuthSettingsApiV1SettingsAuthPlatformGet>>
+export type GetPlatformAuthSettingsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getPlatformAuthSettings>>
 >;
-export type GetPlatformAuthSettingsApiV1SettingsAuthPlatformGetQueryError =
-  ErrorType<HTTPValidationError>;
+export type GetPlatformAuthSettingsQueryError = ErrorType<HTTPValidationError>;
 
-export function useGetPlatformAuthSettingsApiV1SettingsAuthPlatformGet<
-  TData = Awaited<ReturnType<typeof getPlatformAuthSettingsApiV1SettingsAuthPlatformGet>>,
+export function useGetPlatformAuthSettings<
+  TData = Awaited<ReturnType<typeof getPlatformAuthSettings>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options: {
     query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getPlatformAuthSettingsApiV1SettingsAuthPlatformGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof getPlatformAuthSettings>>, TError, TData>
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getPlatformAuthSettingsApiV1SettingsAuthPlatformGet>>,
+          Awaited<ReturnType<typeof getPlatformAuthSettings>>,
           TError,
-          Awaited<ReturnType<typeof getPlatformAuthSettingsApiV1SettingsAuthPlatformGet>>
+          Awaited<ReturnType<typeof getPlatformAuthSettings>>
         >,
         "initialData"
       >;
@@ -297,23 +258,19 @@ export function useGetPlatformAuthSettingsApiV1SettingsAuthPlatformGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetPlatformAuthSettingsApiV1SettingsAuthPlatformGet<
-  TData = Awaited<ReturnType<typeof getPlatformAuthSettingsApiV1SettingsAuthPlatformGet>>,
+export function useGetPlatformAuthSettings<
+  TData = Awaited<ReturnType<typeof getPlatformAuthSettings>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getPlatformAuthSettingsApiV1SettingsAuthPlatformGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof getPlatformAuthSettings>>, TError, TData>
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getPlatformAuthSettingsApiV1SettingsAuthPlatformGet>>,
+          Awaited<ReturnType<typeof getPlatformAuthSettings>>,
           TError,
-          Awaited<ReturnType<typeof getPlatformAuthSettingsApiV1SettingsAuthPlatformGet>>
+          Awaited<ReturnType<typeof getPlatformAuthSettings>>
         >,
         "initialData"
       >;
@@ -321,17 +278,13 @@ export function useGetPlatformAuthSettingsApiV1SettingsAuthPlatformGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetPlatformAuthSettingsApiV1SettingsAuthPlatformGet<
-  TData = Awaited<ReturnType<typeof getPlatformAuthSettingsApiV1SettingsAuthPlatformGet>>,
+export function useGetPlatformAuthSettings<
+  TData = Awaited<ReturnType<typeof getPlatformAuthSettings>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getPlatformAuthSettingsApiV1SettingsAuthPlatformGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof getPlatformAuthSettings>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
@@ -341,23 +294,19 @@ export function useGetPlatformAuthSettingsApiV1SettingsAuthPlatformGet<
  * @summary Get Platform Auth Settings
  */
 
-export function useGetPlatformAuthSettingsApiV1SettingsAuthPlatformGet<
-  TData = Awaited<ReturnType<typeof getPlatformAuthSettingsApiV1SettingsAuthPlatformGet>>,
+export function useGetPlatformAuthSettings<
+  TData = Awaited<ReturnType<typeof getPlatformAuthSettings>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getPlatformAuthSettingsApiV1SettingsAuthPlatformGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof getPlatformAuthSettings>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getGetPlatformAuthSettingsApiV1SettingsAuthPlatformGetQueryOptions(options);
+  const queryOptions = getGetPlatformAuthSettingsQueryOptions(options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -381,7 +330,7 @@ export function useGetPlatformAuthSettingsApiV1SettingsAuthPlatformGet<
  * opened under.
  * @summary Update Platform Auth Settings
  */
-export const updatePlatformAuthSettingsApiV1SettingsAuthPlatformPatch = (
+export const updatePlatformAuthSettings = (
   platformAuthSettingsUpdate: BodyType<PlatformAuthSettingsUpdate>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
@@ -398,27 +347,27 @@ export const updatePlatformAuthSettingsApiV1SettingsAuthPlatformPatch = (
   );
 };
 
-export const getUpdatePlatformAuthSettingsApiV1SettingsAuthPlatformPatchMutationKey = () =>
-  ["updatePlatformAuthSettingsApiV1SettingsAuthPlatformPatch"] as const;
+export const getUpdatePlatformAuthSettingsMutationKey = () =>
+  ["updatePlatformAuthSettings"] as const;
 
-export const getUpdatePlatformAuthSettingsApiV1SettingsAuthPlatformPatchMutationOptions = <
+export const getUpdatePlatformAuthSettingsMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof updatePlatformAuthSettingsApiV1SettingsAuthPlatformPatch>>,
+    Awaited<ReturnType<typeof updatePlatformAuthSettings>>,
     TError,
-    UpdatePlatformAuthSettingsApiV1SettingsAuthPlatformPatchMutationVariables,
+    UpdatePlatformAuthSettingsMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof updatePlatformAuthSettingsApiV1SettingsAuthPlatformPatch>>,
+  Awaited<ReturnType<typeof updatePlatformAuthSettings>>,
   TError,
-  UpdatePlatformAuthSettingsApiV1SettingsAuthPlatformPatchMutationVariables,
+  UpdatePlatformAuthSettingsMutationVariables,
   TContext
 > => {
-  const mutationKey = getUpdatePlatformAuthSettingsApiV1SettingsAuthPlatformPatchMutationKey();
+  const mutationKey = getUpdatePlatformAuthSettingsMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -426,61 +375,56 @@ export const getUpdatePlatformAuthSettingsApiV1SettingsAuthPlatformPatchMutation
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof updatePlatformAuthSettingsApiV1SettingsAuthPlatformPatch>>,
-    UpdatePlatformAuthSettingsApiV1SettingsAuthPlatformPatchMutationVariables
+    Awaited<ReturnType<typeof updatePlatformAuthSettings>>,
+    UpdatePlatformAuthSettingsMutationVariables
   > = (props) => {
     const { data } = props ?? {};
 
-    return updatePlatformAuthSettingsApiV1SettingsAuthPlatformPatch(data, requestOptions);
+    return updatePlatformAuthSettings(data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type UpdatePlatformAuthSettingsApiV1SettingsAuthPlatformPatchMutationResult = NonNullable<
-  Awaited<ReturnType<typeof updatePlatformAuthSettingsApiV1SettingsAuthPlatformPatch>>
+export type UpdatePlatformAuthSettingsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updatePlatformAuthSettings>>
 >;
-export type UpdatePlatformAuthSettingsApiV1SettingsAuthPlatformPatchMutationBody =
-  BodyType<PlatformAuthSettingsUpdate>;
-export type UpdatePlatformAuthSettingsApiV1SettingsAuthPlatformPatchMutationError =
-  ErrorType<HTTPValidationError>;
-export type UpdatePlatformAuthSettingsApiV1SettingsAuthPlatformPatchMutationVariables = {
+export type UpdatePlatformAuthSettingsMutationBody = BodyType<PlatformAuthSettingsUpdate>;
+export type UpdatePlatformAuthSettingsMutationError = ErrorType<HTTPValidationError>;
+export type UpdatePlatformAuthSettingsMutationVariables = {
   data: BodyType<PlatformAuthSettingsUpdate>;
 };
 
 /**
  * @summary Update Platform Auth Settings
  */
-export const useUpdatePlatformAuthSettingsApiV1SettingsAuthPlatformPatch = <
+export const useUpdatePlatformAuthSettings = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof updatePlatformAuthSettingsApiV1SettingsAuthPlatformPatch>>,
+      Awaited<ReturnType<typeof updatePlatformAuthSettings>>,
       TError,
-      UpdatePlatformAuthSettingsApiV1SettingsAuthPlatformPatchMutationVariables,
+      UpdatePlatformAuthSettingsMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof updatePlatformAuthSettingsApiV1SettingsAuthPlatformPatch>>,
+  Awaited<ReturnType<typeof updatePlatformAuthSettings>>,
   TError,
-  UpdatePlatformAuthSettingsApiV1SettingsAuthPlatformPatchMutationVariables,
+  UpdatePlatformAuthSettingsMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getUpdatePlatformAuthSettingsApiV1SettingsAuthPlatformPatchMutationOptions(options),
-    queryClient
-  );
+  return useMutation(getUpdatePlatformAuthSettingsMutationOptions(options), queryClient);
 };
 /**
  * What this deployment permits a notification to leave the app carrying.
  * @summary Get Notification Settings
  */
-export const getNotificationSettingsApiV1SettingsNotificationsGet = (
+export const getNotificationSettings = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
@@ -490,62 +434,52 @@ export const getNotificationSettingsApiV1SettingsNotificationsGet = (
   );
 };
 
-export const getGetNotificationSettingsApiV1SettingsNotificationsGetQueryKey = () => {
+export const getGetNotificationSettingsQueryKey = () => {
   return [`/api/v1/settings/notifications`] as const;
 };
 
-export const getGetNotificationSettingsApiV1SettingsNotificationsGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof getNotificationSettingsApiV1SettingsNotificationsGet>>,
+export const getGetNotificationSettingsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getNotificationSettings>>,
   TError = ErrorType<HTTPValidationError>,
 >(options?: {
   query?: Partial<
-    UseQueryOptions<
-      Awaited<ReturnType<typeof getNotificationSettingsApiV1SettingsNotificationsGet>>,
-      TError,
-      TData
-    >
+    UseQueryOptions<Awaited<ReturnType<typeof getNotificationSettings>>, TError, TData>
   >;
   request?: SecondParameter<typeof apiMutator>;
 }) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey =
-    queryOptions?.queryKey ?? getGetNotificationSettingsApiV1SettingsNotificationsGetQueryKey();
+  const queryKey = queryOptions?.queryKey ?? getGetNotificationSettingsQueryKey();
 
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof getNotificationSettingsApiV1SettingsNotificationsGet>>
-  > = ({ signal }) => getNotificationSettingsApiV1SettingsNotificationsGet(requestOptions, signal);
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getNotificationSettings>>> = ({
+    signal,
+  }) => getNotificationSettings(requestOptions, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof getNotificationSettingsApiV1SettingsNotificationsGet>>,
+    Awaited<ReturnType<typeof getNotificationSettings>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type GetNotificationSettingsApiV1SettingsNotificationsGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof getNotificationSettingsApiV1SettingsNotificationsGet>>
+export type GetNotificationSettingsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getNotificationSettings>>
 >;
-export type GetNotificationSettingsApiV1SettingsNotificationsGetQueryError =
-  ErrorType<HTTPValidationError>;
+export type GetNotificationSettingsQueryError = ErrorType<HTTPValidationError>;
 
-export function useGetNotificationSettingsApiV1SettingsNotificationsGet<
-  TData = Awaited<ReturnType<typeof getNotificationSettingsApiV1SettingsNotificationsGet>>,
+export function useGetNotificationSettings<
+  TData = Awaited<ReturnType<typeof getNotificationSettings>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options: {
     query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getNotificationSettingsApiV1SettingsNotificationsGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof getNotificationSettings>>, TError, TData>
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getNotificationSettingsApiV1SettingsNotificationsGet>>,
+          Awaited<ReturnType<typeof getNotificationSettings>>,
           TError,
-          Awaited<ReturnType<typeof getNotificationSettingsApiV1SettingsNotificationsGet>>
+          Awaited<ReturnType<typeof getNotificationSettings>>
         >,
         "initialData"
       >;
@@ -553,23 +487,19 @@ export function useGetNotificationSettingsApiV1SettingsNotificationsGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetNotificationSettingsApiV1SettingsNotificationsGet<
-  TData = Awaited<ReturnType<typeof getNotificationSettingsApiV1SettingsNotificationsGet>>,
+export function useGetNotificationSettings<
+  TData = Awaited<ReturnType<typeof getNotificationSettings>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getNotificationSettingsApiV1SettingsNotificationsGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof getNotificationSettings>>, TError, TData>
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getNotificationSettingsApiV1SettingsNotificationsGet>>,
+          Awaited<ReturnType<typeof getNotificationSettings>>,
           TError,
-          Awaited<ReturnType<typeof getNotificationSettingsApiV1SettingsNotificationsGet>>
+          Awaited<ReturnType<typeof getNotificationSettings>>
         >,
         "initialData"
       >;
@@ -577,17 +507,13 @@ export function useGetNotificationSettingsApiV1SettingsNotificationsGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetNotificationSettingsApiV1SettingsNotificationsGet<
-  TData = Awaited<ReturnType<typeof getNotificationSettingsApiV1SettingsNotificationsGet>>,
+export function useGetNotificationSettings<
+  TData = Awaited<ReturnType<typeof getNotificationSettings>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getNotificationSettingsApiV1SettingsNotificationsGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof getNotificationSettings>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
@@ -597,23 +523,19 @@ export function useGetNotificationSettingsApiV1SettingsNotificationsGet<
  * @summary Get Notification Settings
  */
 
-export function useGetNotificationSettingsApiV1SettingsNotificationsGet<
-  TData = Awaited<ReturnType<typeof getNotificationSettingsApiV1SettingsNotificationsGet>>,
+export function useGetNotificationSettings<
+  TData = Awaited<ReturnType<typeof getNotificationSettings>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getNotificationSettingsApiV1SettingsNotificationsGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof getNotificationSettings>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getGetNotificationSettingsApiV1SettingsNotificationsGetQueryOptions(options);
+  const queryOptions = getGetNotificationSettingsQueryOptions(options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -640,7 +562,7 @@ export function useGetNotificationSettingsApiV1SettingsNotificationsGet<
  * their account.
  * @summary Update Notification Settings
  */
-export const updateNotificationSettingsApiV1SettingsNotificationsPut = (
+export const updateNotificationSettings = (
   notificationSettingsUpdate: BodyType<NotificationSettingsUpdate>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
@@ -657,27 +579,27 @@ export const updateNotificationSettingsApiV1SettingsNotificationsPut = (
   );
 };
 
-export const getUpdateNotificationSettingsApiV1SettingsNotificationsPutMutationKey = () =>
-  ["updateNotificationSettingsApiV1SettingsNotificationsPut"] as const;
+export const getUpdateNotificationSettingsMutationKey = () =>
+  ["updateNotificationSettings"] as const;
 
-export const getUpdateNotificationSettingsApiV1SettingsNotificationsPutMutationOptions = <
+export const getUpdateNotificationSettingsMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof updateNotificationSettingsApiV1SettingsNotificationsPut>>,
+    Awaited<ReturnType<typeof updateNotificationSettings>>,
     TError,
-    UpdateNotificationSettingsApiV1SettingsNotificationsPutMutationVariables,
+    UpdateNotificationSettingsMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof updateNotificationSettingsApiV1SettingsNotificationsPut>>,
+  Awaited<ReturnType<typeof updateNotificationSettings>>,
   TError,
-  UpdateNotificationSettingsApiV1SettingsNotificationsPutMutationVariables,
+  UpdateNotificationSettingsMutationVariables,
   TContext
 > => {
-  const mutationKey = getUpdateNotificationSettingsApiV1SettingsNotificationsPutMutationKey();
+  const mutationKey = getUpdateNotificationSettingsMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -685,60 +607,55 @@ export const getUpdateNotificationSettingsApiV1SettingsNotificationsPutMutationO
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof updateNotificationSettingsApiV1SettingsNotificationsPut>>,
-    UpdateNotificationSettingsApiV1SettingsNotificationsPutMutationVariables
+    Awaited<ReturnType<typeof updateNotificationSettings>>,
+    UpdateNotificationSettingsMutationVariables
   > = (props) => {
     const { data } = props ?? {};
 
-    return updateNotificationSettingsApiV1SettingsNotificationsPut(data, requestOptions);
+    return updateNotificationSettings(data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type UpdateNotificationSettingsApiV1SettingsNotificationsPutMutationResult = NonNullable<
-  Awaited<ReturnType<typeof updateNotificationSettingsApiV1SettingsNotificationsPut>>
+export type UpdateNotificationSettingsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateNotificationSettings>>
 >;
-export type UpdateNotificationSettingsApiV1SettingsNotificationsPutMutationBody =
-  BodyType<NotificationSettingsUpdate>;
-export type UpdateNotificationSettingsApiV1SettingsNotificationsPutMutationError =
-  ErrorType<HTTPValidationError>;
-export type UpdateNotificationSettingsApiV1SettingsNotificationsPutMutationVariables = {
+export type UpdateNotificationSettingsMutationBody = BodyType<NotificationSettingsUpdate>;
+export type UpdateNotificationSettingsMutationError = ErrorType<HTTPValidationError>;
+export type UpdateNotificationSettingsMutationVariables = {
   data: BodyType<NotificationSettingsUpdate>;
 };
 
 /**
  * @summary Update Notification Settings
  */
-export const useUpdateNotificationSettingsApiV1SettingsNotificationsPut = <
+export const useUpdateNotificationSettings = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof updateNotificationSettingsApiV1SettingsNotificationsPut>>,
+      Awaited<ReturnType<typeof updateNotificationSettings>>,
       TError,
-      UpdateNotificationSettingsApiV1SettingsNotificationsPutMutationVariables,
+      UpdateNotificationSettingsMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof updateNotificationSettingsApiV1SettingsNotificationsPut>>,
+  Awaited<ReturnType<typeof updateNotificationSettings>>,
   TError,
-  UpdateNotificationSettingsApiV1SettingsNotificationsPutMutationVariables,
+  UpdateNotificationSettingsMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getUpdateNotificationSettingsApiV1SettingsNotificationsPutMutationOptions(options),
-    queryClient
-  );
+  return useMutation(getUpdateNotificationSettingsMutationOptions(options), queryClient);
 };
 /**
  * @summary Update Interface Settings
  */
-export const updateInterfaceSettingsApiV1SettingsInterfacePut = (
+export const updateInterfaceSettings = (
   interfaceSettingsUpdate: BodyType<InterfaceSettingsUpdate>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
@@ -755,27 +672,26 @@ export const updateInterfaceSettingsApiV1SettingsInterfacePut = (
   );
 };
 
-export const getUpdateInterfaceSettingsApiV1SettingsInterfacePutMutationKey = () =>
-  ["updateInterfaceSettingsApiV1SettingsInterfacePut"] as const;
+export const getUpdateInterfaceSettingsMutationKey = () => ["updateInterfaceSettings"] as const;
 
-export const getUpdateInterfaceSettingsApiV1SettingsInterfacePutMutationOptions = <
+export const getUpdateInterfaceSettingsMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof updateInterfaceSettingsApiV1SettingsInterfacePut>>,
+    Awaited<ReturnType<typeof updateInterfaceSettings>>,
     TError,
-    UpdateInterfaceSettingsApiV1SettingsInterfacePutMutationVariables,
+    UpdateInterfaceSettingsMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof updateInterfaceSettingsApiV1SettingsInterfacePut>>,
+  Awaited<ReturnType<typeof updateInterfaceSettings>>,
   TError,
-  UpdateInterfaceSettingsApiV1SettingsInterfacePutMutationVariables,
+  UpdateInterfaceSettingsMutationVariables,
   TContext
 > => {
-  const mutationKey = getUpdateInterfaceSettingsApiV1SettingsInterfacePutMutationKey();
+  const mutationKey = getUpdateInterfaceSettingsMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -783,55 +699,48 @@ export const getUpdateInterfaceSettingsApiV1SettingsInterfacePutMutationOptions 
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof updateInterfaceSettingsApiV1SettingsInterfacePut>>,
-    UpdateInterfaceSettingsApiV1SettingsInterfacePutMutationVariables
+    Awaited<ReturnType<typeof updateInterfaceSettings>>,
+    UpdateInterfaceSettingsMutationVariables
   > = (props) => {
     const { data } = props ?? {};
 
-    return updateInterfaceSettingsApiV1SettingsInterfacePut(data, requestOptions);
+    return updateInterfaceSettings(data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type UpdateInterfaceSettingsApiV1SettingsInterfacePutMutationResult = NonNullable<
-  Awaited<ReturnType<typeof updateInterfaceSettingsApiV1SettingsInterfacePut>>
+export type UpdateInterfaceSettingsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateInterfaceSettings>>
 >;
-export type UpdateInterfaceSettingsApiV1SettingsInterfacePutMutationBody =
-  BodyType<InterfaceSettingsUpdate>;
-export type UpdateInterfaceSettingsApiV1SettingsInterfacePutMutationError =
-  ErrorType<HTTPValidationError>;
-export type UpdateInterfaceSettingsApiV1SettingsInterfacePutMutationVariables = {
-  data: BodyType<InterfaceSettingsUpdate>;
-};
+export type UpdateInterfaceSettingsMutationBody = BodyType<InterfaceSettingsUpdate>;
+export type UpdateInterfaceSettingsMutationError = ErrorType<HTTPValidationError>;
+export type UpdateInterfaceSettingsMutationVariables = { data: BodyType<InterfaceSettingsUpdate> };
 
 /**
  * @summary Update Interface Settings
  */
-export const useUpdateInterfaceSettingsApiV1SettingsInterfacePut = <
+export const useUpdateInterfaceSettings = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof updateInterfaceSettingsApiV1SettingsInterfacePut>>,
+      Awaited<ReturnType<typeof updateInterfaceSettings>>,
       TError,
-      UpdateInterfaceSettingsApiV1SettingsInterfacePutMutationVariables,
+      UpdateInterfaceSettingsMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof updateInterfaceSettingsApiV1SettingsInterfacePut>>,
+  Awaited<ReturnType<typeof updateInterfaceSettings>>,
   TError,
-  UpdateInterfaceSettingsApiV1SettingsInterfacePutMutationVariables,
+  UpdateInterfaceSettingsMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getUpdateInterfaceSettingsApiV1SettingsInterfacePutMutationOptions(options),
-    queryClient
-  );
+  return useMutation(getUpdateInterfaceSettingsMutationOptions(options), queryClient);
 };
 /**
  * The four community-wide decisions, for the owner's settings page.
@@ -843,7 +752,7 @@ export const useUpdateInterfaceSettingsApiV1SettingsInterfacePut = <
  * payload.
  * @summary Read Community Settings
  */
-export const readCommunitySettingsApiV1SettingsCommunityGet = (
+export const readCommunitySettings = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
@@ -853,62 +762,51 @@ export const readCommunitySettingsApiV1SettingsCommunityGet = (
   );
 };
 
-export const getReadCommunitySettingsApiV1SettingsCommunityGetQueryKey = () => {
+export const getReadCommunitySettingsQueryKey = () => {
   return [`/api/v1/settings/community`] as const;
 };
 
-export const getReadCommunitySettingsApiV1SettingsCommunityGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof readCommunitySettingsApiV1SettingsCommunityGet>>,
+export const getReadCommunitySettingsQueryOptions = <
+  TData = Awaited<ReturnType<typeof readCommunitySettings>>,
   TError = ErrorType<HTTPValidationError>,
 >(options?: {
   query?: Partial<
-    UseQueryOptions<
-      Awaited<ReturnType<typeof readCommunitySettingsApiV1SettingsCommunityGet>>,
-      TError,
-      TData
-    >
+    UseQueryOptions<Awaited<ReturnType<typeof readCommunitySettings>>, TError, TData>
   >;
   request?: SecondParameter<typeof apiMutator>;
 }) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey =
-    queryOptions?.queryKey ?? getReadCommunitySettingsApiV1SettingsCommunityGetQueryKey();
+  const queryKey = queryOptions?.queryKey ?? getReadCommunitySettingsQueryKey();
 
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof readCommunitySettingsApiV1SettingsCommunityGet>>
-  > = ({ signal }) => readCommunitySettingsApiV1SettingsCommunityGet(requestOptions, signal);
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof readCommunitySettings>>> = ({ signal }) =>
+    readCommunitySettings(requestOptions, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof readCommunitySettingsApiV1SettingsCommunityGet>>,
+    Awaited<ReturnType<typeof readCommunitySettings>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ReadCommunitySettingsApiV1SettingsCommunityGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof readCommunitySettingsApiV1SettingsCommunityGet>>
+export type ReadCommunitySettingsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof readCommunitySettings>>
 >;
-export type ReadCommunitySettingsApiV1SettingsCommunityGetQueryError =
-  ErrorType<HTTPValidationError>;
+export type ReadCommunitySettingsQueryError = ErrorType<HTTPValidationError>;
 
-export function useReadCommunitySettingsApiV1SettingsCommunityGet<
-  TData = Awaited<ReturnType<typeof readCommunitySettingsApiV1SettingsCommunityGet>>,
+export function useReadCommunitySettings<
+  TData = Awaited<ReturnType<typeof readCommunitySettings>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options: {
     query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readCommunitySettingsApiV1SettingsCommunityGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof readCommunitySettings>>, TError, TData>
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readCommunitySettingsApiV1SettingsCommunityGet>>,
+          Awaited<ReturnType<typeof readCommunitySettings>>,
           TError,
-          Awaited<ReturnType<typeof readCommunitySettingsApiV1SettingsCommunityGet>>
+          Awaited<ReturnType<typeof readCommunitySettings>>
         >,
         "initialData"
       >;
@@ -916,23 +814,19 @@ export function useReadCommunitySettingsApiV1SettingsCommunityGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadCommunitySettingsApiV1SettingsCommunityGet<
-  TData = Awaited<ReturnType<typeof readCommunitySettingsApiV1SettingsCommunityGet>>,
+export function useReadCommunitySettings<
+  TData = Awaited<ReturnType<typeof readCommunitySettings>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readCommunitySettingsApiV1SettingsCommunityGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof readCommunitySettings>>, TError, TData>
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readCommunitySettingsApiV1SettingsCommunityGet>>,
+          Awaited<ReturnType<typeof readCommunitySettings>>,
           TError,
-          Awaited<ReturnType<typeof readCommunitySettingsApiV1SettingsCommunityGet>>
+          Awaited<ReturnType<typeof readCommunitySettings>>
         >,
         "initialData"
       >;
@@ -940,17 +834,13 @@ export function useReadCommunitySettingsApiV1SettingsCommunityGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadCommunitySettingsApiV1SettingsCommunityGet<
-  TData = Awaited<ReturnType<typeof readCommunitySettingsApiV1SettingsCommunityGet>>,
+export function useReadCommunitySettings<
+  TData = Awaited<ReturnType<typeof readCommunitySettings>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readCommunitySettingsApiV1SettingsCommunityGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof readCommunitySettings>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
@@ -960,23 +850,19 @@ export function useReadCommunitySettingsApiV1SettingsCommunityGet<
  * @summary Read Community Settings
  */
 
-export function useReadCommunitySettingsApiV1SettingsCommunityGet<
-  TData = Awaited<ReturnType<typeof readCommunitySettingsApiV1SettingsCommunityGet>>,
+export function useReadCommunitySettings<
+  TData = Awaited<ReturnType<typeof readCommunitySettings>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readCommunitySettingsApiV1SettingsCommunityGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof readCommunitySettings>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getReadCommunitySettingsApiV1SettingsCommunityGetQueryOptions(options);
+  const queryOptions = getReadCommunitySettingsQueryOptions(options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -1024,7 +910,7 @@ export function useReadCommunitySettingsApiV1SettingsCommunityGet<
  * community stays on hold before it is deleted, and ``null`` for never.
  * @summary Update Community Settings
  */
-export const updateCommunitySettingsApiV1SettingsCommunityPut = (
+export const updateCommunitySettings = (
   communitySettingsUpdate: BodyType<CommunitySettingsUpdate>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
@@ -1041,27 +927,26 @@ export const updateCommunitySettingsApiV1SettingsCommunityPut = (
   );
 };
 
-export const getUpdateCommunitySettingsApiV1SettingsCommunityPutMutationKey = () =>
-  ["updateCommunitySettingsApiV1SettingsCommunityPut"] as const;
+export const getUpdateCommunitySettingsMutationKey = () => ["updateCommunitySettings"] as const;
 
-export const getUpdateCommunitySettingsApiV1SettingsCommunityPutMutationOptions = <
+export const getUpdateCommunitySettingsMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof updateCommunitySettingsApiV1SettingsCommunityPut>>,
+    Awaited<ReturnType<typeof updateCommunitySettings>>,
     TError,
-    UpdateCommunitySettingsApiV1SettingsCommunityPutMutationVariables,
+    UpdateCommunitySettingsMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof updateCommunitySettingsApiV1SettingsCommunityPut>>,
+  Awaited<ReturnType<typeof updateCommunitySettings>>,
   TError,
-  UpdateCommunitySettingsApiV1SettingsCommunityPutMutationVariables,
+  UpdateCommunitySettingsMutationVariables,
   TContext
 > => {
-  const mutationKey = getUpdateCommunitySettingsApiV1SettingsCommunityPutMutationKey();
+  const mutationKey = getUpdateCommunitySettingsMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1069,60 +954,53 @@ export const getUpdateCommunitySettingsApiV1SettingsCommunityPutMutationOptions 
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof updateCommunitySettingsApiV1SettingsCommunityPut>>,
-    UpdateCommunitySettingsApiV1SettingsCommunityPutMutationVariables
+    Awaited<ReturnType<typeof updateCommunitySettings>>,
+    UpdateCommunitySettingsMutationVariables
   > = (props) => {
     const { data } = props ?? {};
 
-    return updateCommunitySettingsApiV1SettingsCommunityPut(data, requestOptions);
+    return updateCommunitySettings(data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type UpdateCommunitySettingsApiV1SettingsCommunityPutMutationResult = NonNullable<
-  Awaited<ReturnType<typeof updateCommunitySettingsApiV1SettingsCommunityPut>>
+export type UpdateCommunitySettingsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateCommunitySettings>>
 >;
-export type UpdateCommunitySettingsApiV1SettingsCommunityPutMutationBody =
-  BodyType<CommunitySettingsUpdate>;
-export type UpdateCommunitySettingsApiV1SettingsCommunityPutMutationError =
-  ErrorType<HTTPValidationError>;
-export type UpdateCommunitySettingsApiV1SettingsCommunityPutMutationVariables = {
-  data: BodyType<CommunitySettingsUpdate>;
-};
+export type UpdateCommunitySettingsMutationBody = BodyType<CommunitySettingsUpdate>;
+export type UpdateCommunitySettingsMutationError = ErrorType<HTTPValidationError>;
+export type UpdateCommunitySettingsMutationVariables = { data: BodyType<CommunitySettingsUpdate> };
 
 /**
  * @summary Update Community Settings
  */
-export const useUpdateCommunitySettingsApiV1SettingsCommunityPut = <
+export const useUpdateCommunitySettings = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof updateCommunitySettingsApiV1SettingsCommunityPut>>,
+      Awaited<ReturnType<typeof updateCommunitySettings>>,
       TError,
-      UpdateCommunitySettingsApiV1SettingsCommunityPutMutationVariables,
+      UpdateCommunitySettingsMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof updateCommunitySettingsApiV1SettingsCommunityPut>>,
+  Awaited<ReturnType<typeof updateCommunitySettings>>,
   TError,
-  UpdateCommunitySettingsApiV1SettingsCommunityPutMutationVariables,
+  UpdateCommunitySettingsMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getUpdateCommunitySettingsApiV1SettingsCommunityPutMutationOptions(options),
-    queryClient
-  );
+  return useMutation(getUpdateCommunitySettingsMutationOptions(options), queryClient);
 };
 /**
  * @summary Get Email Settings
  */
-export const getEmailSettingsApiV1SettingsEmailGet = (
+export const getEmailSettings = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
@@ -1132,60 +1010,45 @@ export const getEmailSettingsApiV1SettingsEmailGet = (
   );
 };
 
-export const getGetEmailSettingsApiV1SettingsEmailGetQueryKey = () => {
+export const getGetEmailSettingsQueryKey = () => {
   return [`/api/v1/settings/email`] as const;
 };
 
-export const getGetEmailSettingsApiV1SettingsEmailGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof getEmailSettingsApiV1SettingsEmailGet>>,
+export const getGetEmailSettingsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getEmailSettings>>,
   TError = ErrorType<HTTPValidationError>,
 >(options?: {
-  query?: Partial<
-    UseQueryOptions<
-      Awaited<ReturnType<typeof getEmailSettingsApiV1SettingsEmailGet>>,
-      TError,
-      TData
-    >
-  >;
+  query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getEmailSettings>>, TError, TData>>;
   request?: SecondParameter<typeof apiMutator>;
 }) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey = queryOptions?.queryKey ?? getGetEmailSettingsApiV1SettingsEmailGetQueryKey();
+  const queryKey = queryOptions?.queryKey ?? getGetEmailSettingsQueryKey();
 
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof getEmailSettingsApiV1SettingsEmailGet>>
-  > = ({ signal }) => getEmailSettingsApiV1SettingsEmailGet(requestOptions, signal);
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getEmailSettings>>> = ({ signal }) =>
+    getEmailSettings(requestOptions, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof getEmailSettingsApiV1SettingsEmailGet>>,
+    Awaited<ReturnType<typeof getEmailSettings>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type GetEmailSettingsApiV1SettingsEmailGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof getEmailSettingsApiV1SettingsEmailGet>>
->;
-export type GetEmailSettingsApiV1SettingsEmailGetQueryError = ErrorType<HTTPValidationError>;
+export type GetEmailSettingsQueryResult = NonNullable<Awaited<ReturnType<typeof getEmailSettings>>>;
+export type GetEmailSettingsQueryError = ErrorType<HTTPValidationError>;
 
-export function useGetEmailSettingsApiV1SettingsEmailGet<
-  TData = Awaited<ReturnType<typeof getEmailSettingsApiV1SettingsEmailGet>>,
+export function useGetEmailSettings<
+  TData = Awaited<ReturnType<typeof getEmailSettings>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options: {
-    query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getEmailSettingsApiV1SettingsEmailGet>>,
-        TError,
-        TData
-      >
-    > &
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getEmailSettings>>, TError, TData>> &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getEmailSettingsApiV1SettingsEmailGet>>,
+          Awaited<ReturnType<typeof getEmailSettings>>,
           TError,
-          Awaited<ReturnType<typeof getEmailSettingsApiV1SettingsEmailGet>>
+          Awaited<ReturnType<typeof getEmailSettings>>
         >,
         "initialData"
       >;
@@ -1193,23 +1056,17 @@ export function useGetEmailSettingsApiV1SettingsEmailGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetEmailSettingsApiV1SettingsEmailGet<
-  TData = Awaited<ReturnType<typeof getEmailSettingsApiV1SettingsEmailGet>>,
+export function useGetEmailSettings<
+  TData = Awaited<ReturnType<typeof getEmailSettings>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getEmailSettingsApiV1SettingsEmailGet>>,
-        TError,
-        TData
-      >
-    > &
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getEmailSettings>>, TError, TData>> &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getEmailSettingsApiV1SettingsEmailGet>>,
+          Awaited<ReturnType<typeof getEmailSettings>>,
           TError,
-          Awaited<ReturnType<typeof getEmailSettingsApiV1SettingsEmailGet>>
+          Awaited<ReturnType<typeof getEmailSettings>>
         >,
         "initialData"
       >;
@@ -1217,18 +1074,12 @@ export function useGetEmailSettingsApiV1SettingsEmailGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetEmailSettingsApiV1SettingsEmailGet<
-  TData = Awaited<ReturnType<typeof getEmailSettingsApiV1SettingsEmailGet>>,
+export function useGetEmailSettings<
+  TData = Awaited<ReturnType<typeof getEmailSettings>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getEmailSettingsApiV1SettingsEmailGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getEmailSettings>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
@@ -1237,23 +1088,17 @@ export function useGetEmailSettingsApiV1SettingsEmailGet<
  * @summary Get Email Settings
  */
 
-export function useGetEmailSettingsApiV1SettingsEmailGet<
-  TData = Awaited<ReturnType<typeof getEmailSettingsApiV1SettingsEmailGet>>,
+export function useGetEmailSettings<
+  TData = Awaited<ReturnType<typeof getEmailSettings>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getEmailSettingsApiV1SettingsEmailGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getEmailSettings>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getGetEmailSettingsApiV1SettingsEmailGetQueryOptions(options);
+  const queryOptions = getGetEmailSettingsQueryOptions(options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -1265,7 +1110,7 @@ export function useGetEmailSettingsApiV1SettingsEmailGet<
 /**
  * @summary Update Email Settings
  */
-export const updateEmailSettingsApiV1SettingsEmailPut = (
+export const updateEmailSettings = (
   emailSettingsUpdate: BodyType<EmailSettingsUpdate>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
@@ -1282,27 +1127,26 @@ export const updateEmailSettingsApiV1SettingsEmailPut = (
   );
 };
 
-export const getUpdateEmailSettingsApiV1SettingsEmailPutMutationKey = () =>
-  ["updateEmailSettingsApiV1SettingsEmailPut"] as const;
+export const getUpdateEmailSettingsMutationKey = () => ["updateEmailSettings"] as const;
 
-export const getUpdateEmailSettingsApiV1SettingsEmailPutMutationOptions = <
+export const getUpdateEmailSettingsMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof updateEmailSettingsApiV1SettingsEmailPut>>,
+    Awaited<ReturnType<typeof updateEmailSettings>>,
     TError,
-    UpdateEmailSettingsApiV1SettingsEmailPutMutationVariables,
+    UpdateEmailSettingsMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof updateEmailSettingsApiV1SettingsEmailPut>>,
+  Awaited<ReturnType<typeof updateEmailSettings>>,
   TError,
-  UpdateEmailSettingsApiV1SettingsEmailPutMutationVariables,
+  UpdateEmailSettingsMutationVariables,
   TContext
 > => {
-  const mutationKey = getUpdateEmailSettingsApiV1SettingsEmailPutMutationKey();
+  const mutationKey = getUpdateEmailSettingsMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1310,58 +1154,50 @@ export const getUpdateEmailSettingsApiV1SettingsEmailPutMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof updateEmailSettingsApiV1SettingsEmailPut>>,
-    UpdateEmailSettingsApiV1SettingsEmailPutMutationVariables
+    Awaited<ReturnType<typeof updateEmailSettings>>,
+    UpdateEmailSettingsMutationVariables
   > = (props) => {
     const { data } = props ?? {};
 
-    return updateEmailSettingsApiV1SettingsEmailPut(data, requestOptions);
+    return updateEmailSettings(data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type UpdateEmailSettingsApiV1SettingsEmailPutMutationResult = NonNullable<
-  Awaited<ReturnType<typeof updateEmailSettingsApiV1SettingsEmailPut>>
+export type UpdateEmailSettingsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateEmailSettings>>
 >;
-export type UpdateEmailSettingsApiV1SettingsEmailPutMutationBody = BodyType<EmailSettingsUpdate>;
-export type UpdateEmailSettingsApiV1SettingsEmailPutMutationError = ErrorType<HTTPValidationError>;
-export type UpdateEmailSettingsApiV1SettingsEmailPutMutationVariables = {
-  data: BodyType<EmailSettingsUpdate>;
-};
+export type UpdateEmailSettingsMutationBody = BodyType<EmailSettingsUpdate>;
+export type UpdateEmailSettingsMutationError = ErrorType<HTTPValidationError>;
+export type UpdateEmailSettingsMutationVariables = { data: BodyType<EmailSettingsUpdate> };
 
 /**
  * @summary Update Email Settings
  */
-export const useUpdateEmailSettingsApiV1SettingsEmailPut = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
+export const useUpdateEmailSettings = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof updateEmailSettingsApiV1SettingsEmailPut>>,
+      Awaited<ReturnType<typeof updateEmailSettings>>,
       TError,
-      UpdateEmailSettingsApiV1SettingsEmailPutMutationVariables,
+      UpdateEmailSettingsMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof updateEmailSettingsApiV1SettingsEmailPut>>,
+  Awaited<ReturnType<typeof updateEmailSettings>>,
   TError,
-  UpdateEmailSettingsApiV1SettingsEmailPutMutationVariables,
+  UpdateEmailSettingsMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getUpdateEmailSettingsApiV1SettingsEmailPutMutationOptions(options),
-    queryClient
-  );
+  return useMutation(getUpdateEmailSettingsMutationOptions(options), queryClient);
 };
 /**
  * @summary Send Test Email
  */
-export const sendTestEmailApiV1SettingsEmailTestPost = (
+export const sendTestEmail = (
   emailTestRequest: BodyType<EmailTestRequest>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
@@ -1378,27 +1214,26 @@ export const sendTestEmailApiV1SettingsEmailTestPost = (
   );
 };
 
-export const getSendTestEmailApiV1SettingsEmailTestPostMutationKey = () =>
-  ["sendTestEmailApiV1SettingsEmailTestPost"] as const;
+export const getSendTestEmailMutationKey = () => ["sendTestEmail"] as const;
 
-export const getSendTestEmailApiV1SettingsEmailTestPostMutationOptions = <
+export const getSendTestEmailMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof sendTestEmailApiV1SettingsEmailTestPost>>,
+    Awaited<ReturnType<typeof sendTestEmail>>,
     TError,
-    SendTestEmailApiV1SettingsEmailTestPostMutationVariables,
+    SendTestEmailMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof sendTestEmailApiV1SettingsEmailTestPost>>,
+  Awaited<ReturnType<typeof sendTestEmail>>,
   TError,
-  SendTestEmailApiV1SettingsEmailTestPostMutationVariables,
+  SendTestEmailMutationVariables,
   TContext
 > => {
-  const mutationKey = getSendTestEmailApiV1SettingsEmailTestPostMutationKey();
+  const mutationKey = getSendTestEmailMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1406,58 +1241,48 @@ export const getSendTestEmailApiV1SettingsEmailTestPostMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof sendTestEmailApiV1SettingsEmailTestPost>>,
-    SendTestEmailApiV1SettingsEmailTestPostMutationVariables
+    Awaited<ReturnType<typeof sendTestEmail>>,
+    SendTestEmailMutationVariables
   > = (props) => {
     const { data } = props ?? {};
 
-    return sendTestEmailApiV1SettingsEmailTestPost(data, requestOptions);
+    return sendTestEmail(data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type SendTestEmailApiV1SettingsEmailTestPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof sendTestEmailApiV1SettingsEmailTestPost>>
->;
-export type SendTestEmailApiV1SettingsEmailTestPostMutationBody = BodyType<EmailTestRequest>;
-export type SendTestEmailApiV1SettingsEmailTestPostMutationError = ErrorType<HTTPValidationError>;
-export type SendTestEmailApiV1SettingsEmailTestPostMutationVariables = {
-  data: BodyType<EmailTestRequest>;
-};
+export type SendTestEmailMutationResult = NonNullable<Awaited<ReturnType<typeof sendTestEmail>>>;
+export type SendTestEmailMutationBody = BodyType<EmailTestRequest>;
+export type SendTestEmailMutationError = ErrorType<HTTPValidationError>;
+export type SendTestEmailMutationVariables = { data: BodyType<EmailTestRequest> };
 
 /**
  * @summary Send Test Email
  */
-export const useSendTestEmailApiV1SettingsEmailTestPost = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
+export const useSendTestEmail = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof sendTestEmailApiV1SettingsEmailTestPost>>,
+      Awaited<ReturnType<typeof sendTestEmail>>,
       TError,
-      SendTestEmailApiV1SettingsEmailTestPostMutationVariables,
+      SendTestEmailMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof sendTestEmailApiV1SettingsEmailTestPost>>,
+  Awaited<ReturnType<typeof sendTestEmail>>,
   TError,
-  SendTestEmailApiV1SettingsEmailTestPostMutationVariables,
+  SendTestEmailMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getSendTestEmailApiV1SettingsEmailTestPostMutationOptions(options),
-    queryClient
-  );
+  return useMutation(getSendTestEmailMutationOptions(options), queryClient);
 };
 /**
  * @summary Get Storage Settings
  */
-export const getStorageSettingsApiV1SettingsStorageGet = (
+export const getStorageSettings = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
@@ -1467,60 +1292,47 @@ export const getStorageSettingsApiV1SettingsStorageGet = (
   );
 };
 
-export const getGetStorageSettingsApiV1SettingsStorageGetQueryKey = () => {
+export const getGetStorageSettingsQueryKey = () => {
   return [`/api/v1/settings/storage`] as const;
 };
 
-export const getGetStorageSettingsApiV1SettingsStorageGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof getStorageSettingsApiV1SettingsStorageGet>>,
+export const getGetStorageSettingsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getStorageSettings>>,
   TError = ErrorType<HTTPValidationError>,
 >(options?: {
-  query?: Partial<
-    UseQueryOptions<
-      Awaited<ReturnType<typeof getStorageSettingsApiV1SettingsStorageGet>>,
-      TError,
-      TData
-    >
-  >;
+  query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getStorageSettings>>, TError, TData>>;
   request?: SecondParameter<typeof apiMutator>;
 }) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey = queryOptions?.queryKey ?? getGetStorageSettingsApiV1SettingsStorageGetQueryKey();
+  const queryKey = queryOptions?.queryKey ?? getGetStorageSettingsQueryKey();
 
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof getStorageSettingsApiV1SettingsStorageGet>>
-  > = ({ signal }) => getStorageSettingsApiV1SettingsStorageGet(requestOptions, signal);
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getStorageSettings>>> = ({ signal }) =>
+    getStorageSettings(requestOptions, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof getStorageSettingsApiV1SettingsStorageGet>>,
+    Awaited<ReturnType<typeof getStorageSettings>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type GetStorageSettingsApiV1SettingsStorageGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof getStorageSettingsApiV1SettingsStorageGet>>
+export type GetStorageSettingsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getStorageSettings>>
 >;
-export type GetStorageSettingsApiV1SettingsStorageGetQueryError = ErrorType<HTTPValidationError>;
+export type GetStorageSettingsQueryError = ErrorType<HTTPValidationError>;
 
-export function useGetStorageSettingsApiV1SettingsStorageGet<
-  TData = Awaited<ReturnType<typeof getStorageSettingsApiV1SettingsStorageGet>>,
+export function useGetStorageSettings<
+  TData = Awaited<ReturnType<typeof getStorageSettings>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options: {
-    query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getStorageSettingsApiV1SettingsStorageGet>>,
-        TError,
-        TData
-      >
-    > &
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getStorageSettings>>, TError, TData>> &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getStorageSettingsApiV1SettingsStorageGet>>,
+          Awaited<ReturnType<typeof getStorageSettings>>,
           TError,
-          Awaited<ReturnType<typeof getStorageSettingsApiV1SettingsStorageGet>>
+          Awaited<ReturnType<typeof getStorageSettings>>
         >,
         "initialData"
       >;
@@ -1528,23 +1340,19 @@ export function useGetStorageSettingsApiV1SettingsStorageGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetStorageSettingsApiV1SettingsStorageGet<
-  TData = Awaited<ReturnType<typeof getStorageSettingsApiV1SettingsStorageGet>>,
+export function useGetStorageSettings<
+  TData = Awaited<ReturnType<typeof getStorageSettings>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getStorageSettingsApiV1SettingsStorageGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof getStorageSettings>>, TError, TData>
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getStorageSettingsApiV1SettingsStorageGet>>,
+          Awaited<ReturnType<typeof getStorageSettings>>,
           TError,
-          Awaited<ReturnType<typeof getStorageSettingsApiV1SettingsStorageGet>>
+          Awaited<ReturnType<typeof getStorageSettings>>
         >,
         "initialData"
       >;
@@ -1552,18 +1360,12 @@ export function useGetStorageSettingsApiV1SettingsStorageGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetStorageSettingsApiV1SettingsStorageGet<
-  TData = Awaited<ReturnType<typeof getStorageSettingsApiV1SettingsStorageGet>>,
+export function useGetStorageSettings<
+  TData = Awaited<ReturnType<typeof getStorageSettings>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getStorageSettingsApiV1SettingsStorageGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getStorageSettings>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
@@ -1572,23 +1374,17 @@ export function useGetStorageSettingsApiV1SettingsStorageGet<
  * @summary Get Storage Settings
  */
 
-export function useGetStorageSettingsApiV1SettingsStorageGet<
-  TData = Awaited<ReturnType<typeof getStorageSettingsApiV1SettingsStorageGet>>,
+export function useGetStorageSettings<
+  TData = Awaited<ReturnType<typeof getStorageSettings>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getStorageSettingsApiV1SettingsStorageGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getStorageSettings>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getGetStorageSettingsApiV1SettingsStorageGetQueryOptions(options);
+  const queryOptions = getGetStorageSettingsQueryOptions(options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -1600,7 +1396,7 @@ export function useGetStorageSettingsApiV1SettingsStorageGet<
 /**
  * @summary Update Storage Settings
  */
-export const updateStorageSettingsApiV1SettingsStoragePut = (
+export const updateStorageSettings = (
   storageSettingsUpdate: BodyType<StorageSettingsUpdate>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
@@ -1617,27 +1413,26 @@ export const updateStorageSettingsApiV1SettingsStoragePut = (
   );
 };
 
-export const getUpdateStorageSettingsApiV1SettingsStoragePutMutationKey = () =>
-  ["updateStorageSettingsApiV1SettingsStoragePut"] as const;
+export const getUpdateStorageSettingsMutationKey = () => ["updateStorageSettings"] as const;
 
-export const getUpdateStorageSettingsApiV1SettingsStoragePutMutationOptions = <
+export const getUpdateStorageSettingsMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof updateStorageSettingsApiV1SettingsStoragePut>>,
+    Awaited<ReturnType<typeof updateStorageSettings>>,
     TError,
-    UpdateStorageSettingsApiV1SettingsStoragePutMutationVariables,
+    UpdateStorageSettingsMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof updateStorageSettingsApiV1SettingsStoragePut>>,
+  Awaited<ReturnType<typeof updateStorageSettings>>,
   TError,
-  UpdateStorageSettingsApiV1SettingsStoragePutMutationVariables,
+  UpdateStorageSettingsMutationVariables,
   TContext
 > => {
-  const mutationKey = getUpdateStorageSettingsApiV1SettingsStoragePutMutationKey();
+  const mutationKey = getUpdateStorageSettingsMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1645,60 +1440,53 @@ export const getUpdateStorageSettingsApiV1SettingsStoragePutMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof updateStorageSettingsApiV1SettingsStoragePut>>,
-    UpdateStorageSettingsApiV1SettingsStoragePutMutationVariables
+    Awaited<ReturnType<typeof updateStorageSettings>>,
+    UpdateStorageSettingsMutationVariables
   > = (props) => {
     const { data } = props ?? {};
 
-    return updateStorageSettingsApiV1SettingsStoragePut(data, requestOptions);
+    return updateStorageSettings(data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type UpdateStorageSettingsApiV1SettingsStoragePutMutationResult = NonNullable<
-  Awaited<ReturnType<typeof updateStorageSettingsApiV1SettingsStoragePut>>
+export type UpdateStorageSettingsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateStorageSettings>>
 >;
-export type UpdateStorageSettingsApiV1SettingsStoragePutMutationBody =
-  BodyType<StorageSettingsUpdate>;
-export type UpdateStorageSettingsApiV1SettingsStoragePutMutationError =
-  ErrorType<HTTPValidationError>;
-export type UpdateStorageSettingsApiV1SettingsStoragePutMutationVariables = {
-  data: BodyType<StorageSettingsUpdate>;
-};
+export type UpdateStorageSettingsMutationBody = BodyType<StorageSettingsUpdate>;
+export type UpdateStorageSettingsMutationError = ErrorType<HTTPValidationError>;
+export type UpdateStorageSettingsMutationVariables = { data: BodyType<StorageSettingsUpdate> };
 
 /**
  * @summary Update Storage Settings
  */
-export const useUpdateStorageSettingsApiV1SettingsStoragePut = <
+export const useUpdateStorageSettings = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof updateStorageSettingsApiV1SettingsStoragePut>>,
+      Awaited<ReturnType<typeof updateStorageSettings>>,
       TError,
-      UpdateStorageSettingsApiV1SettingsStoragePutMutationVariables,
+      UpdateStorageSettingsMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof updateStorageSettingsApiV1SettingsStoragePut>>,
+  Awaited<ReturnType<typeof updateStorageSettings>>,
   TError,
-  UpdateStorageSettingsApiV1SettingsStoragePutMutationVariables,
+  UpdateStorageSettingsMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getUpdateStorageSettingsApiV1SettingsStoragePutMutationOptions(options),
-    queryClient
-  );
+  return useMutation(getUpdateStorageSettingsMutationOptions(options), queryClient);
 };
 /**
  * @summary Test Storage Connection
  */
-export const testStorageConnectionApiV1SettingsStorageTestPost = (
+export const testStorageConnection = (
   storageSettingsUpdate: BodyType<StorageSettingsUpdate>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
@@ -1715,27 +1503,26 @@ export const testStorageConnectionApiV1SettingsStorageTestPost = (
   );
 };
 
-export const getTestStorageConnectionApiV1SettingsStorageTestPostMutationKey = () =>
-  ["testStorageConnectionApiV1SettingsStorageTestPost"] as const;
+export const getTestStorageConnectionMutationKey = () => ["testStorageConnection"] as const;
 
-export const getTestStorageConnectionApiV1SettingsStorageTestPostMutationOptions = <
+export const getTestStorageConnectionMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof testStorageConnectionApiV1SettingsStorageTestPost>>,
+    Awaited<ReturnType<typeof testStorageConnection>>,
     TError,
-    TestStorageConnectionApiV1SettingsStorageTestPostMutationVariables,
+    TestStorageConnectionMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof testStorageConnectionApiV1SettingsStorageTestPost>>,
+  Awaited<ReturnType<typeof testStorageConnection>>,
   TError,
-  TestStorageConnectionApiV1SettingsStorageTestPostMutationVariables,
+  TestStorageConnectionMutationVariables,
   TContext
 > => {
-  const mutationKey = getTestStorageConnectionApiV1SettingsStorageTestPostMutationKey();
+  const mutationKey = getTestStorageConnectionMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1743,60 +1530,53 @@ export const getTestStorageConnectionApiV1SettingsStorageTestPostMutationOptions
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof testStorageConnectionApiV1SettingsStorageTestPost>>,
-    TestStorageConnectionApiV1SettingsStorageTestPostMutationVariables
+    Awaited<ReturnType<typeof testStorageConnection>>,
+    TestStorageConnectionMutationVariables
   > = (props) => {
     const { data } = props ?? {};
 
-    return testStorageConnectionApiV1SettingsStorageTestPost(data, requestOptions);
+    return testStorageConnection(data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type TestStorageConnectionApiV1SettingsStorageTestPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof testStorageConnectionApiV1SettingsStorageTestPost>>
+export type TestStorageConnectionMutationResult = NonNullable<
+  Awaited<ReturnType<typeof testStorageConnection>>
 >;
-export type TestStorageConnectionApiV1SettingsStorageTestPostMutationBody =
-  BodyType<StorageSettingsUpdate>;
-export type TestStorageConnectionApiV1SettingsStorageTestPostMutationError =
-  ErrorType<HTTPValidationError>;
-export type TestStorageConnectionApiV1SettingsStorageTestPostMutationVariables = {
-  data: BodyType<StorageSettingsUpdate>;
-};
+export type TestStorageConnectionMutationBody = BodyType<StorageSettingsUpdate>;
+export type TestStorageConnectionMutationError = ErrorType<HTTPValidationError>;
+export type TestStorageConnectionMutationVariables = { data: BodyType<StorageSettingsUpdate> };
 
 /**
  * @summary Test Storage Connection
  */
-export const useTestStorageConnectionApiV1SettingsStorageTestPost = <
+export const useTestStorageConnection = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof testStorageConnectionApiV1SettingsStorageTestPost>>,
+      Awaited<ReturnType<typeof testStorageConnection>>,
       TError,
-      TestStorageConnectionApiV1SettingsStorageTestPostMutationVariables,
+      TestStorageConnectionMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof testStorageConnectionApiV1SettingsStorageTestPost>>,
+  Awaited<ReturnType<typeof testStorageConnection>>,
   TError,
-  TestStorageConnectionApiV1SettingsStorageTestPostMutationVariables,
+  TestStorageConnectionMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getTestStorageConnectionApiV1SettingsStorageTestPostMutationOptions(options),
-    queryClient
-  );
+  return useMutation(getTestStorageConnectionMutationOptions(options), queryClient);
 };
 /**
  * @summary Start Storage Backfill
  */
-export const startStorageBackfillApiV1SettingsStorageBackfillPost = (
+export const startStorageBackfill = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
@@ -1806,27 +1586,26 @@ export const startStorageBackfillApiV1SettingsStorageBackfillPost = (
   );
 };
 
-export const getStartStorageBackfillApiV1SettingsStorageBackfillPostMutationKey = () =>
-  ["startStorageBackfillApiV1SettingsStorageBackfillPost"] as const;
+export const getStartStorageBackfillMutationKey = () => ["startStorageBackfill"] as const;
 
-export const getStartStorageBackfillApiV1SettingsStorageBackfillPostMutationOptions = <
+export const getStartStorageBackfillMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof startStorageBackfillApiV1SettingsStorageBackfillPost>>,
+    Awaited<ReturnType<typeof startStorageBackfill>>,
     TError,
     void,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof startStorageBackfillApiV1SettingsStorageBackfillPost>>,
+  Awaited<ReturnType<typeof startStorageBackfill>>,
   TError,
   void,
   TContext
 > => {
-  const mutationKey = getStartStorageBackfillApiV1SettingsStorageBackfillPostMutationKey();
+  const mutationKey = getStartStorageBackfillMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1834,32 +1613,31 @@ export const getStartStorageBackfillApiV1SettingsStorageBackfillPostMutationOpti
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof startStorageBackfillApiV1SettingsStorageBackfillPost>>,
+    Awaited<ReturnType<typeof startStorageBackfill>>,
     void
   > = () => {
-    return startStorageBackfillApiV1SettingsStorageBackfillPost(requestOptions);
+    return startStorageBackfill(requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type StartStorageBackfillApiV1SettingsStorageBackfillPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof startStorageBackfillApiV1SettingsStorageBackfillPost>>
+export type StartStorageBackfillMutationResult = NonNullable<
+  Awaited<ReturnType<typeof startStorageBackfill>>
 >;
 
-export type StartStorageBackfillApiV1SettingsStorageBackfillPostMutationError =
-  ErrorType<HTTPValidationError>;
+export type StartStorageBackfillMutationError = ErrorType<HTTPValidationError>;
 
 /**
  * @summary Start Storage Backfill
  */
-export const useStartStorageBackfillApiV1SettingsStorageBackfillPost = <
+export const useStartStorageBackfill = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof startStorageBackfillApiV1SettingsStorageBackfillPost>>,
+      Awaited<ReturnType<typeof startStorageBackfill>>,
       TError,
       void,
       TContext
@@ -1867,21 +1645,13 @@ export const useStartStorageBackfillApiV1SettingsStorageBackfillPost = <
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof startStorageBackfillApiV1SettingsStorageBackfillPost>>,
-  TError,
-  void,
-  TContext
-> => {
-  return useMutation(
-    getStartStorageBackfillApiV1SettingsStorageBackfillPostMutationOptions(options),
-    queryClient
-  );
+): UseMutationResult<Awaited<ReturnType<typeof startStorageBackfill>>, TError, void, TContext> => {
+  return useMutation(getStartStorageBackfillMutationOptions(options), queryClient);
 };
 /**
  * @summary Get Storage Backfill Status
  */
-export const getStorageBackfillStatusApiV1SettingsStorageBackfillGet = (
+export const getStorageBackfillStatus = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
@@ -1891,63 +1661,52 @@ export const getStorageBackfillStatusApiV1SettingsStorageBackfillGet = (
   );
 };
 
-export const getGetStorageBackfillStatusApiV1SettingsStorageBackfillGetQueryKey = () => {
+export const getGetStorageBackfillStatusQueryKey = () => {
   return [`/api/v1/settings/storage/backfill`] as const;
 };
 
-export const getGetStorageBackfillStatusApiV1SettingsStorageBackfillGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof getStorageBackfillStatusApiV1SettingsStorageBackfillGet>>,
+export const getGetStorageBackfillStatusQueryOptions = <
+  TData = Awaited<ReturnType<typeof getStorageBackfillStatus>>,
   TError = ErrorType<HTTPValidationError>,
 >(options?: {
   query?: Partial<
-    UseQueryOptions<
-      Awaited<ReturnType<typeof getStorageBackfillStatusApiV1SettingsStorageBackfillGet>>,
-      TError,
-      TData
-    >
+    UseQueryOptions<Awaited<ReturnType<typeof getStorageBackfillStatus>>, TError, TData>
   >;
   request?: SecondParameter<typeof apiMutator>;
 }) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey =
-    queryOptions?.queryKey ?? getGetStorageBackfillStatusApiV1SettingsStorageBackfillGetQueryKey();
+  const queryKey = queryOptions?.queryKey ?? getGetStorageBackfillStatusQueryKey();
 
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof getStorageBackfillStatusApiV1SettingsStorageBackfillGet>>
-  > = ({ signal }) =>
-    getStorageBackfillStatusApiV1SettingsStorageBackfillGet(requestOptions, signal);
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getStorageBackfillStatus>>> = ({
+    signal,
+  }) => getStorageBackfillStatus(requestOptions, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof getStorageBackfillStatusApiV1SettingsStorageBackfillGet>>,
+    Awaited<ReturnType<typeof getStorageBackfillStatus>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type GetStorageBackfillStatusApiV1SettingsStorageBackfillGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof getStorageBackfillStatusApiV1SettingsStorageBackfillGet>>
+export type GetStorageBackfillStatusQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getStorageBackfillStatus>>
 >;
-export type GetStorageBackfillStatusApiV1SettingsStorageBackfillGetQueryError =
-  ErrorType<HTTPValidationError>;
+export type GetStorageBackfillStatusQueryError = ErrorType<HTTPValidationError>;
 
-export function useGetStorageBackfillStatusApiV1SettingsStorageBackfillGet<
-  TData = Awaited<ReturnType<typeof getStorageBackfillStatusApiV1SettingsStorageBackfillGet>>,
+export function useGetStorageBackfillStatus<
+  TData = Awaited<ReturnType<typeof getStorageBackfillStatus>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options: {
     query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getStorageBackfillStatusApiV1SettingsStorageBackfillGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof getStorageBackfillStatus>>, TError, TData>
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getStorageBackfillStatusApiV1SettingsStorageBackfillGet>>,
+          Awaited<ReturnType<typeof getStorageBackfillStatus>>,
           TError,
-          Awaited<ReturnType<typeof getStorageBackfillStatusApiV1SettingsStorageBackfillGet>>
+          Awaited<ReturnType<typeof getStorageBackfillStatus>>
         >,
         "initialData"
       >;
@@ -1955,23 +1714,19 @@ export function useGetStorageBackfillStatusApiV1SettingsStorageBackfillGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetStorageBackfillStatusApiV1SettingsStorageBackfillGet<
-  TData = Awaited<ReturnType<typeof getStorageBackfillStatusApiV1SettingsStorageBackfillGet>>,
+export function useGetStorageBackfillStatus<
+  TData = Awaited<ReturnType<typeof getStorageBackfillStatus>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getStorageBackfillStatusApiV1SettingsStorageBackfillGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof getStorageBackfillStatus>>, TError, TData>
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getStorageBackfillStatusApiV1SettingsStorageBackfillGet>>,
+          Awaited<ReturnType<typeof getStorageBackfillStatus>>,
           TError,
-          Awaited<ReturnType<typeof getStorageBackfillStatusApiV1SettingsStorageBackfillGet>>
+          Awaited<ReturnType<typeof getStorageBackfillStatus>>
         >,
         "initialData"
       >;
@@ -1979,17 +1734,13 @@ export function useGetStorageBackfillStatusApiV1SettingsStorageBackfillGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetStorageBackfillStatusApiV1SettingsStorageBackfillGet<
-  TData = Awaited<ReturnType<typeof getStorageBackfillStatusApiV1SettingsStorageBackfillGet>>,
+export function useGetStorageBackfillStatus<
+  TData = Awaited<ReturnType<typeof getStorageBackfillStatus>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getStorageBackfillStatusApiV1SettingsStorageBackfillGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof getStorageBackfillStatus>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
@@ -1999,24 +1750,19 @@ export function useGetStorageBackfillStatusApiV1SettingsStorageBackfillGet<
  * @summary Get Storage Backfill Status
  */
 
-export function useGetStorageBackfillStatusApiV1SettingsStorageBackfillGet<
-  TData = Awaited<ReturnType<typeof getStorageBackfillStatusApiV1SettingsStorageBackfillGet>>,
+export function useGetStorageBackfillStatus<
+  TData = Awaited<ReturnType<typeof getStorageBackfillStatus>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getStorageBackfillStatusApiV1SettingsStorageBackfillGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof getStorageBackfillStatus>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions =
-    getGetStorageBackfillStatusApiV1SettingsStorageBackfillGetQueryOptions(options);
+  const queryOptions = getGetStorageBackfillStatusQueryOptions(options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -2028,7 +1774,7 @@ export function useGetStorageBackfillStatusApiV1SettingsStorageBackfillGet<
 /**
  * @summary Get Captcha Settings
  */
-export const getCaptchaSettingsApiV1SettingsCaptchaGet = (
+export const getCaptchaSettings = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
@@ -2038,60 +1784,47 @@ export const getCaptchaSettingsApiV1SettingsCaptchaGet = (
   );
 };
 
-export const getGetCaptchaSettingsApiV1SettingsCaptchaGetQueryKey = () => {
+export const getGetCaptchaSettingsQueryKey = () => {
   return [`/api/v1/settings/captcha`] as const;
 };
 
-export const getGetCaptchaSettingsApiV1SettingsCaptchaGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof getCaptchaSettingsApiV1SettingsCaptchaGet>>,
+export const getGetCaptchaSettingsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getCaptchaSettings>>,
   TError = ErrorType<HTTPValidationError>,
 >(options?: {
-  query?: Partial<
-    UseQueryOptions<
-      Awaited<ReturnType<typeof getCaptchaSettingsApiV1SettingsCaptchaGet>>,
-      TError,
-      TData
-    >
-  >;
+  query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getCaptchaSettings>>, TError, TData>>;
   request?: SecondParameter<typeof apiMutator>;
 }) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey = queryOptions?.queryKey ?? getGetCaptchaSettingsApiV1SettingsCaptchaGetQueryKey();
+  const queryKey = queryOptions?.queryKey ?? getGetCaptchaSettingsQueryKey();
 
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof getCaptchaSettingsApiV1SettingsCaptchaGet>>
-  > = ({ signal }) => getCaptchaSettingsApiV1SettingsCaptchaGet(requestOptions, signal);
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getCaptchaSettings>>> = ({ signal }) =>
+    getCaptchaSettings(requestOptions, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof getCaptchaSettingsApiV1SettingsCaptchaGet>>,
+    Awaited<ReturnType<typeof getCaptchaSettings>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type GetCaptchaSettingsApiV1SettingsCaptchaGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof getCaptchaSettingsApiV1SettingsCaptchaGet>>
+export type GetCaptchaSettingsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getCaptchaSettings>>
 >;
-export type GetCaptchaSettingsApiV1SettingsCaptchaGetQueryError = ErrorType<HTTPValidationError>;
+export type GetCaptchaSettingsQueryError = ErrorType<HTTPValidationError>;
 
-export function useGetCaptchaSettingsApiV1SettingsCaptchaGet<
-  TData = Awaited<ReturnType<typeof getCaptchaSettingsApiV1SettingsCaptchaGet>>,
+export function useGetCaptchaSettings<
+  TData = Awaited<ReturnType<typeof getCaptchaSettings>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options: {
-    query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getCaptchaSettingsApiV1SettingsCaptchaGet>>,
-        TError,
-        TData
-      >
-    > &
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getCaptchaSettings>>, TError, TData>> &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getCaptchaSettingsApiV1SettingsCaptchaGet>>,
+          Awaited<ReturnType<typeof getCaptchaSettings>>,
           TError,
-          Awaited<ReturnType<typeof getCaptchaSettingsApiV1SettingsCaptchaGet>>
+          Awaited<ReturnType<typeof getCaptchaSettings>>
         >,
         "initialData"
       >;
@@ -2099,23 +1832,19 @@ export function useGetCaptchaSettingsApiV1SettingsCaptchaGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetCaptchaSettingsApiV1SettingsCaptchaGet<
-  TData = Awaited<ReturnType<typeof getCaptchaSettingsApiV1SettingsCaptchaGet>>,
+export function useGetCaptchaSettings<
+  TData = Awaited<ReturnType<typeof getCaptchaSettings>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getCaptchaSettingsApiV1SettingsCaptchaGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof getCaptchaSettings>>, TError, TData>
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getCaptchaSettingsApiV1SettingsCaptchaGet>>,
+          Awaited<ReturnType<typeof getCaptchaSettings>>,
           TError,
-          Awaited<ReturnType<typeof getCaptchaSettingsApiV1SettingsCaptchaGet>>
+          Awaited<ReturnType<typeof getCaptchaSettings>>
         >,
         "initialData"
       >;
@@ -2123,18 +1852,12 @@ export function useGetCaptchaSettingsApiV1SettingsCaptchaGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetCaptchaSettingsApiV1SettingsCaptchaGet<
-  TData = Awaited<ReturnType<typeof getCaptchaSettingsApiV1SettingsCaptchaGet>>,
+export function useGetCaptchaSettings<
+  TData = Awaited<ReturnType<typeof getCaptchaSettings>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getCaptchaSettingsApiV1SettingsCaptchaGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getCaptchaSettings>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
@@ -2143,23 +1866,17 @@ export function useGetCaptchaSettingsApiV1SettingsCaptchaGet<
  * @summary Get Captcha Settings
  */
 
-export function useGetCaptchaSettingsApiV1SettingsCaptchaGet<
-  TData = Awaited<ReturnType<typeof getCaptchaSettingsApiV1SettingsCaptchaGet>>,
+export function useGetCaptchaSettings<
+  TData = Awaited<ReturnType<typeof getCaptchaSettings>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getCaptchaSettingsApiV1SettingsCaptchaGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getCaptchaSettings>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getGetCaptchaSettingsApiV1SettingsCaptchaGetQueryOptions(options);
+  const queryOptions = getGetCaptchaSettingsQueryOptions(options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -2171,7 +1888,7 @@ export function useGetCaptchaSettingsApiV1SettingsCaptchaGet<
 /**
  * @summary Update Captcha Settings
  */
-export const updateCaptchaSettingsApiV1SettingsCaptchaPut = (
+export const updateCaptchaSettings = (
   captchaSettingsUpdate: BodyType<CaptchaSettingsUpdate>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
@@ -2188,27 +1905,26 @@ export const updateCaptchaSettingsApiV1SettingsCaptchaPut = (
   );
 };
 
-export const getUpdateCaptchaSettingsApiV1SettingsCaptchaPutMutationKey = () =>
-  ["updateCaptchaSettingsApiV1SettingsCaptchaPut"] as const;
+export const getUpdateCaptchaSettingsMutationKey = () => ["updateCaptchaSettings"] as const;
 
-export const getUpdateCaptchaSettingsApiV1SettingsCaptchaPutMutationOptions = <
+export const getUpdateCaptchaSettingsMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof updateCaptchaSettingsApiV1SettingsCaptchaPut>>,
+    Awaited<ReturnType<typeof updateCaptchaSettings>>,
     TError,
-    UpdateCaptchaSettingsApiV1SettingsCaptchaPutMutationVariables,
+    UpdateCaptchaSettingsMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof updateCaptchaSettingsApiV1SettingsCaptchaPut>>,
+  Awaited<ReturnType<typeof updateCaptchaSettings>>,
   TError,
-  UpdateCaptchaSettingsApiV1SettingsCaptchaPutMutationVariables,
+  UpdateCaptchaSettingsMutationVariables,
   TContext
 > => {
-  const mutationKey = getUpdateCaptchaSettingsApiV1SettingsCaptchaPutMutationKey();
+  const mutationKey = getUpdateCaptchaSettingsMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -2216,60 +1932,53 @@ export const getUpdateCaptchaSettingsApiV1SettingsCaptchaPutMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof updateCaptchaSettingsApiV1SettingsCaptchaPut>>,
-    UpdateCaptchaSettingsApiV1SettingsCaptchaPutMutationVariables
+    Awaited<ReturnType<typeof updateCaptchaSettings>>,
+    UpdateCaptchaSettingsMutationVariables
   > = (props) => {
     const { data } = props ?? {};
 
-    return updateCaptchaSettingsApiV1SettingsCaptchaPut(data, requestOptions);
+    return updateCaptchaSettings(data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type UpdateCaptchaSettingsApiV1SettingsCaptchaPutMutationResult = NonNullable<
-  Awaited<ReturnType<typeof updateCaptchaSettingsApiV1SettingsCaptchaPut>>
+export type UpdateCaptchaSettingsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateCaptchaSettings>>
 >;
-export type UpdateCaptchaSettingsApiV1SettingsCaptchaPutMutationBody =
-  BodyType<CaptchaSettingsUpdate>;
-export type UpdateCaptchaSettingsApiV1SettingsCaptchaPutMutationError =
-  ErrorType<HTTPValidationError>;
-export type UpdateCaptchaSettingsApiV1SettingsCaptchaPutMutationVariables = {
-  data: BodyType<CaptchaSettingsUpdate>;
-};
+export type UpdateCaptchaSettingsMutationBody = BodyType<CaptchaSettingsUpdate>;
+export type UpdateCaptchaSettingsMutationError = ErrorType<HTTPValidationError>;
+export type UpdateCaptchaSettingsMutationVariables = { data: BodyType<CaptchaSettingsUpdate> };
 
 /**
  * @summary Update Captcha Settings
  */
-export const useUpdateCaptchaSettingsApiV1SettingsCaptchaPut = <
+export const useUpdateCaptchaSettings = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof updateCaptchaSettingsApiV1SettingsCaptchaPut>>,
+      Awaited<ReturnType<typeof updateCaptchaSettings>>,
       TError,
-      UpdateCaptchaSettingsApiV1SettingsCaptchaPutMutationVariables,
+      UpdateCaptchaSettingsMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof updateCaptchaSettingsApiV1SettingsCaptchaPut>>,
+  Awaited<ReturnType<typeof updateCaptchaSettings>>,
   TError,
-  UpdateCaptchaSettingsApiV1SettingsCaptchaPutMutationVariables,
+  UpdateCaptchaSettingsMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getUpdateCaptchaSettingsApiV1SettingsCaptchaPutMutationOptions(options),
-    queryClient
-  );
+  return useMutation(getUpdateCaptchaSettingsMutationOptions(options), queryClient);
 };
 /**
  * @summary Get Push Settings
  */
-export const getPushSettingsApiV1SettingsPushGet = (
+export const getPushSettings = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
@@ -2279,56 +1988,45 @@ export const getPushSettingsApiV1SettingsPushGet = (
   );
 };
 
-export const getGetPushSettingsApiV1SettingsPushGetQueryKey = () => {
+export const getGetPushSettingsQueryKey = () => {
   return [`/api/v1/settings/push`] as const;
 };
 
-export const getGetPushSettingsApiV1SettingsPushGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof getPushSettingsApiV1SettingsPushGet>>,
+export const getGetPushSettingsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getPushSettings>>,
   TError = ErrorType<HTTPValidationError>,
 >(options?: {
-  query?: Partial<
-    UseQueryOptions<Awaited<ReturnType<typeof getPushSettingsApiV1SettingsPushGet>>, TError, TData>
-  >;
+  query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getPushSettings>>, TError, TData>>;
   request?: SecondParameter<typeof apiMutator>;
 }) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey = queryOptions?.queryKey ?? getGetPushSettingsApiV1SettingsPushGetQueryKey();
+  const queryKey = queryOptions?.queryKey ?? getGetPushSettingsQueryKey();
 
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof getPushSettingsApiV1SettingsPushGet>>> = ({
-    signal,
-  }) => getPushSettingsApiV1SettingsPushGet(requestOptions, signal);
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getPushSettings>>> = ({ signal }) =>
+    getPushSettings(requestOptions, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof getPushSettingsApiV1SettingsPushGet>>,
+    Awaited<ReturnType<typeof getPushSettings>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type GetPushSettingsApiV1SettingsPushGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof getPushSettingsApiV1SettingsPushGet>>
->;
-export type GetPushSettingsApiV1SettingsPushGetQueryError = ErrorType<HTTPValidationError>;
+export type GetPushSettingsQueryResult = NonNullable<Awaited<ReturnType<typeof getPushSettings>>>;
+export type GetPushSettingsQueryError = ErrorType<HTTPValidationError>;
 
-export function useGetPushSettingsApiV1SettingsPushGet<
-  TData = Awaited<ReturnType<typeof getPushSettingsApiV1SettingsPushGet>>,
+export function useGetPushSettings<
+  TData = Awaited<ReturnType<typeof getPushSettings>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options: {
-    query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getPushSettingsApiV1SettingsPushGet>>,
-        TError,
-        TData
-      >
-    > &
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getPushSettings>>, TError, TData>> &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getPushSettingsApiV1SettingsPushGet>>,
+          Awaited<ReturnType<typeof getPushSettings>>,
           TError,
-          Awaited<ReturnType<typeof getPushSettingsApiV1SettingsPushGet>>
+          Awaited<ReturnType<typeof getPushSettings>>
         >,
         "initialData"
       >;
@@ -2336,23 +2034,17 @@ export function useGetPushSettingsApiV1SettingsPushGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetPushSettingsApiV1SettingsPushGet<
-  TData = Awaited<ReturnType<typeof getPushSettingsApiV1SettingsPushGet>>,
+export function useGetPushSettings<
+  TData = Awaited<ReturnType<typeof getPushSettings>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getPushSettingsApiV1SettingsPushGet>>,
-        TError,
-        TData
-      >
-    > &
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getPushSettings>>, TError, TData>> &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getPushSettingsApiV1SettingsPushGet>>,
+          Awaited<ReturnType<typeof getPushSettings>>,
           TError,
-          Awaited<ReturnType<typeof getPushSettingsApiV1SettingsPushGet>>
+          Awaited<ReturnType<typeof getPushSettings>>
         >,
         "initialData"
       >;
@@ -2360,18 +2052,12 @@ export function useGetPushSettingsApiV1SettingsPushGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetPushSettingsApiV1SettingsPushGet<
-  TData = Awaited<ReturnType<typeof getPushSettingsApiV1SettingsPushGet>>,
+export function useGetPushSettings<
+  TData = Awaited<ReturnType<typeof getPushSettings>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getPushSettingsApiV1SettingsPushGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getPushSettings>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
@@ -2380,23 +2066,17 @@ export function useGetPushSettingsApiV1SettingsPushGet<
  * @summary Get Push Settings
  */
 
-export function useGetPushSettingsApiV1SettingsPushGet<
-  TData = Awaited<ReturnType<typeof getPushSettingsApiV1SettingsPushGet>>,
+export function useGetPushSettings<
+  TData = Awaited<ReturnType<typeof getPushSettings>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getPushSettingsApiV1SettingsPushGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getPushSettings>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getGetPushSettingsApiV1SettingsPushGetQueryOptions(options);
+  const queryOptions = getGetPushSettingsQueryOptions(options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -2408,7 +2088,7 @@ export function useGetPushSettingsApiV1SettingsPushGet<
 /**
  * @summary Update Push Settings
  */
-export const updatePushSettingsApiV1SettingsPushPut = (
+export const updatePushSettings = (
   pushSettingsUpdate: BodyType<PushSettingsUpdate>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
@@ -2425,27 +2105,26 @@ export const updatePushSettingsApiV1SettingsPushPut = (
   );
 };
 
-export const getUpdatePushSettingsApiV1SettingsPushPutMutationKey = () =>
-  ["updatePushSettingsApiV1SettingsPushPut"] as const;
+export const getUpdatePushSettingsMutationKey = () => ["updatePushSettings"] as const;
 
-export const getUpdatePushSettingsApiV1SettingsPushPutMutationOptions = <
+export const getUpdatePushSettingsMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof updatePushSettingsApiV1SettingsPushPut>>,
+    Awaited<ReturnType<typeof updatePushSettings>>,
     TError,
-    UpdatePushSettingsApiV1SettingsPushPutMutationVariables,
+    UpdatePushSettingsMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof updatePushSettingsApiV1SettingsPushPut>>,
+  Awaited<ReturnType<typeof updatePushSettings>>,
   TError,
-  UpdatePushSettingsApiV1SettingsPushPutMutationVariables,
+  UpdatePushSettingsMutationVariables,
   TContext
 > => {
-  const mutationKey = getUpdatePushSettingsApiV1SettingsPushPutMutationKey();
+  const mutationKey = getUpdatePushSettingsMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -2453,53 +2132,45 @@ export const getUpdatePushSettingsApiV1SettingsPushPutMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof updatePushSettingsApiV1SettingsPushPut>>,
-    UpdatePushSettingsApiV1SettingsPushPutMutationVariables
+    Awaited<ReturnType<typeof updatePushSettings>>,
+    UpdatePushSettingsMutationVariables
   > = (props) => {
     const { data } = props ?? {};
 
-    return updatePushSettingsApiV1SettingsPushPut(data, requestOptions);
+    return updatePushSettings(data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type UpdatePushSettingsApiV1SettingsPushPutMutationResult = NonNullable<
-  Awaited<ReturnType<typeof updatePushSettingsApiV1SettingsPushPut>>
+export type UpdatePushSettingsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updatePushSettings>>
 >;
-export type UpdatePushSettingsApiV1SettingsPushPutMutationBody = BodyType<PushSettingsUpdate>;
-export type UpdatePushSettingsApiV1SettingsPushPutMutationError = ErrorType<HTTPValidationError>;
-export type UpdatePushSettingsApiV1SettingsPushPutMutationVariables = {
-  data: BodyType<PushSettingsUpdate>;
-};
+export type UpdatePushSettingsMutationBody = BodyType<PushSettingsUpdate>;
+export type UpdatePushSettingsMutationError = ErrorType<HTTPValidationError>;
+export type UpdatePushSettingsMutationVariables = { data: BodyType<PushSettingsUpdate> };
 
 /**
  * @summary Update Push Settings
  */
-export const useUpdatePushSettingsApiV1SettingsPushPut = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
+export const useUpdatePushSettings = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof updatePushSettingsApiV1SettingsPushPut>>,
+      Awaited<ReturnType<typeof updatePushSettings>>,
       TError,
-      UpdatePushSettingsApiV1SettingsPushPutMutationVariables,
+      UpdatePushSettingsMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof updatePushSettingsApiV1SettingsPushPut>>,
+  Awaited<ReturnType<typeof updatePushSettings>>,
   TError,
-  UpdatePushSettingsApiV1SettingsPushPutMutationVariables,
+  UpdatePushSettingsMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getUpdatePushSettingsApiV1SettingsPushPutMutationOptions(options),
-    queryClient
-  );
+  return useMutation(getUpdatePushSettingsMutationOptions(options), queryClient);
 };
 /**
  * Get public FCM configuration for mobile app initialization.
@@ -2517,7 +2188,7 @@ export const useUpdatePushSettingsApiV1SettingsPushPut = <
  * unauthenticated and sessionless.
  * @summary Get Fcm Config
  */
-export const getFcmConfigApiV1SettingsFcmConfigGet = (
+export const getFcmConfig = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
@@ -2527,60 +2198,45 @@ export const getFcmConfigApiV1SettingsFcmConfigGet = (
   );
 };
 
-export const getGetFcmConfigApiV1SettingsFcmConfigGetQueryKey = () => {
+export const getGetFcmConfigQueryKey = () => {
   return [`/api/v1/settings/fcm-config`] as const;
 };
 
-export const getGetFcmConfigApiV1SettingsFcmConfigGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof getFcmConfigApiV1SettingsFcmConfigGet>>,
+export const getGetFcmConfigQueryOptions = <
+  TData = Awaited<ReturnType<typeof getFcmConfig>>,
   TError = ErrorType<unknown>,
 >(options?: {
-  query?: Partial<
-    UseQueryOptions<
-      Awaited<ReturnType<typeof getFcmConfigApiV1SettingsFcmConfigGet>>,
-      TError,
-      TData
-    >
-  >;
+  query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getFcmConfig>>, TError, TData>>;
   request?: SecondParameter<typeof apiMutator>;
 }) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey = queryOptions?.queryKey ?? getGetFcmConfigApiV1SettingsFcmConfigGetQueryKey();
+  const queryKey = queryOptions?.queryKey ?? getGetFcmConfigQueryKey();
 
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof getFcmConfigApiV1SettingsFcmConfigGet>>
-  > = ({ signal }) => getFcmConfigApiV1SettingsFcmConfigGet(requestOptions, signal);
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getFcmConfig>>> = ({ signal }) =>
+    getFcmConfig(requestOptions, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof getFcmConfigApiV1SettingsFcmConfigGet>>,
+    Awaited<ReturnType<typeof getFcmConfig>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type GetFcmConfigApiV1SettingsFcmConfigGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof getFcmConfigApiV1SettingsFcmConfigGet>>
->;
-export type GetFcmConfigApiV1SettingsFcmConfigGetQueryError = ErrorType<unknown>;
+export type GetFcmConfigQueryResult = NonNullable<Awaited<ReturnType<typeof getFcmConfig>>>;
+export type GetFcmConfigQueryError = ErrorType<unknown>;
 
-export function useGetFcmConfigApiV1SettingsFcmConfigGet<
-  TData = Awaited<ReturnType<typeof getFcmConfigApiV1SettingsFcmConfigGet>>,
+export function useGetFcmConfig<
+  TData = Awaited<ReturnType<typeof getFcmConfig>>,
   TError = ErrorType<unknown>,
 >(
   options: {
-    query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getFcmConfigApiV1SettingsFcmConfigGet>>,
-        TError,
-        TData
-      >
-    > &
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getFcmConfig>>, TError, TData>> &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getFcmConfigApiV1SettingsFcmConfigGet>>,
+          Awaited<ReturnType<typeof getFcmConfig>>,
           TError,
-          Awaited<ReturnType<typeof getFcmConfigApiV1SettingsFcmConfigGet>>
+          Awaited<ReturnType<typeof getFcmConfig>>
         >,
         "initialData"
       >;
@@ -2588,23 +2244,17 @@ export function useGetFcmConfigApiV1SettingsFcmConfigGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetFcmConfigApiV1SettingsFcmConfigGet<
-  TData = Awaited<ReturnType<typeof getFcmConfigApiV1SettingsFcmConfigGet>>,
+export function useGetFcmConfig<
+  TData = Awaited<ReturnType<typeof getFcmConfig>>,
   TError = ErrorType<unknown>,
 >(
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getFcmConfigApiV1SettingsFcmConfigGet>>,
-        TError,
-        TData
-      >
-    > &
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getFcmConfig>>, TError, TData>> &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getFcmConfigApiV1SettingsFcmConfigGet>>,
+          Awaited<ReturnType<typeof getFcmConfig>>,
           TError,
-          Awaited<ReturnType<typeof getFcmConfigApiV1SettingsFcmConfigGet>>
+          Awaited<ReturnType<typeof getFcmConfig>>
         >,
         "initialData"
       >;
@@ -2612,18 +2262,12 @@ export function useGetFcmConfigApiV1SettingsFcmConfigGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetFcmConfigApiV1SettingsFcmConfigGet<
-  TData = Awaited<ReturnType<typeof getFcmConfigApiV1SettingsFcmConfigGet>>,
+export function useGetFcmConfig<
+  TData = Awaited<ReturnType<typeof getFcmConfig>>,
   TError = ErrorType<unknown>,
 >(
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getFcmConfigApiV1SettingsFcmConfigGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getFcmConfig>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
@@ -2632,23 +2276,17 @@ export function useGetFcmConfigApiV1SettingsFcmConfigGet<
  * @summary Get Fcm Config
  */
 
-export function useGetFcmConfigApiV1SettingsFcmConfigGet<
-  TData = Awaited<ReturnType<typeof getFcmConfigApiV1SettingsFcmConfigGet>>,
+export function useGetFcmConfig<
+  TData = Awaited<ReturnType<typeof getFcmConfig>>,
   TError = ErrorType<unknown>,
 >(
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getFcmConfigApiV1SettingsFcmConfigGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getFcmConfig>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getGetFcmConfigApiV1SettingsFcmConfigGetQueryOptions(options);
+  const queryOptions = getGetFcmConfigQueryOptions(options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -2666,83 +2304,71 @@ export function useGetFcmConfigApiV1SettingsFcmConfigGet<
  * tier, under the ``guilds.manage`` policies on both; the caps join in a
  * single pass. Member counts and seats are totals read on the system engine
  * (``_member_tallies``), one grouped query each for the page.
- * @summary List Platform Guild Storage
+ * @summary List Platform Community Storage
  */
-export const listPlatformGuildStorageApiV1SettingsCommunitiesGet = (
-  params?: ListPlatformGuildStorageApiV1SettingsCommunitiesGetParams,
+export const listPlatformCommunityStorage = (
+  params?: ListPlatformCommunityStorageParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<PlatformGuildStorageListResponse>(
+  return apiMutator<PlatformCommunityStorageListResponse>(
     { url: `/api/v1/settings/communities`, method: "GET", params, signal },
     options
   );
 };
 
-export const getListPlatformGuildStorageApiV1SettingsCommunitiesGetQueryKey = (
-  params?: ListPlatformGuildStorageApiV1SettingsCommunitiesGetParams
+export const getListPlatformCommunityStorageQueryKey = (
+  params?: ListPlatformCommunityStorageParams
 ) => {
   return [`/api/v1/settings/communities`, ...(params ? [params] : [])] as const;
 };
 
-export const getListPlatformGuildStorageApiV1SettingsCommunitiesGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof listPlatformGuildStorageApiV1SettingsCommunitiesGet>>,
+export const getListPlatformCommunityStorageQueryOptions = <
+  TData = Awaited<ReturnType<typeof listPlatformCommunityStorage>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params?: ListPlatformGuildStorageApiV1SettingsCommunitiesGetParams,
+  params?: ListPlatformCommunityStorageParams,
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listPlatformGuildStorageApiV1SettingsCommunitiesGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof listPlatformCommunityStorage>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   }
 ) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey =
-    queryOptions?.queryKey ??
-    getListPlatformGuildStorageApiV1SettingsCommunitiesGetQueryKey(params);
+  const queryKey = queryOptions?.queryKey ?? getListPlatformCommunityStorageQueryKey(params);
 
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof listPlatformGuildStorageApiV1SettingsCommunitiesGet>>
-  > = ({ signal }) =>
-    listPlatformGuildStorageApiV1SettingsCommunitiesGet(params, requestOptions, signal);
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listPlatformCommunityStorage>>> = ({
+    signal,
+  }) => listPlatformCommunityStorage(params, requestOptions, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof listPlatformGuildStorageApiV1SettingsCommunitiesGet>>,
+    Awaited<ReturnType<typeof listPlatformCommunityStorage>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ListPlatformGuildStorageApiV1SettingsCommunitiesGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof listPlatformGuildStorageApiV1SettingsCommunitiesGet>>
+export type ListPlatformCommunityStorageQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listPlatformCommunityStorage>>
 >;
-export type ListPlatformGuildStorageApiV1SettingsCommunitiesGetQueryError =
-  ErrorType<HTTPValidationError>;
+export type ListPlatformCommunityStorageQueryError = ErrorType<HTTPValidationError>;
 
-export function useListPlatformGuildStorageApiV1SettingsCommunitiesGet<
-  TData = Awaited<ReturnType<typeof listPlatformGuildStorageApiV1SettingsCommunitiesGet>>,
+export function useListPlatformCommunityStorage<
+  TData = Awaited<ReturnType<typeof listPlatformCommunityStorage>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params: undefined | ListPlatformGuildStorageApiV1SettingsCommunitiesGetParams,
+  params: undefined | ListPlatformCommunityStorageParams,
   options: {
     query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listPlatformGuildStorageApiV1SettingsCommunitiesGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof listPlatformCommunityStorage>>, TError, TData>
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listPlatformGuildStorageApiV1SettingsCommunitiesGet>>,
+          Awaited<ReturnType<typeof listPlatformCommunityStorage>>,
           TError,
-          Awaited<ReturnType<typeof listPlatformGuildStorageApiV1SettingsCommunitiesGet>>
+          Awaited<ReturnType<typeof listPlatformCommunityStorage>>
         >,
         "initialData"
       >;
@@ -2750,24 +2376,20 @@ export function useListPlatformGuildStorageApiV1SettingsCommunitiesGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListPlatformGuildStorageApiV1SettingsCommunitiesGet<
-  TData = Awaited<ReturnType<typeof listPlatformGuildStorageApiV1SettingsCommunitiesGet>>,
+export function useListPlatformCommunityStorage<
+  TData = Awaited<ReturnType<typeof listPlatformCommunityStorage>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params?: ListPlatformGuildStorageApiV1SettingsCommunitiesGetParams,
+  params?: ListPlatformCommunityStorageParams,
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listPlatformGuildStorageApiV1SettingsCommunitiesGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof listPlatformCommunityStorage>>, TError, TData>
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listPlatformGuildStorageApiV1SettingsCommunitiesGet>>,
+          Awaited<ReturnType<typeof listPlatformCommunityStorage>>,
           TError,
-          Awaited<ReturnType<typeof listPlatformGuildStorageApiV1SettingsCommunitiesGet>>
+          Awaited<ReturnType<typeof listPlatformCommunityStorage>>
         >,
         "initialData"
       >;
@@ -2775,48 +2397,37 @@ export function useListPlatformGuildStorageApiV1SettingsCommunitiesGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListPlatformGuildStorageApiV1SettingsCommunitiesGet<
-  TData = Awaited<ReturnType<typeof listPlatformGuildStorageApiV1SettingsCommunitiesGet>>,
+export function useListPlatformCommunityStorage<
+  TData = Awaited<ReturnType<typeof listPlatformCommunityStorage>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params?: ListPlatformGuildStorageApiV1SettingsCommunitiesGetParams,
+  params?: ListPlatformCommunityStorageParams,
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listPlatformGuildStorageApiV1SettingsCommunitiesGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof listPlatformCommunityStorage>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
- * @summary List Platform Guild Storage
+ * @summary List Platform Community Storage
  */
 
-export function useListPlatformGuildStorageApiV1SettingsCommunitiesGet<
-  TData = Awaited<ReturnType<typeof listPlatformGuildStorageApiV1SettingsCommunitiesGet>>,
+export function useListPlatformCommunityStorage<
+  TData = Awaited<ReturnType<typeof listPlatformCommunityStorage>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params?: ListPlatformGuildStorageApiV1SettingsCommunitiesGetParams,
+  params?: ListPlatformCommunityStorageParams,
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listPlatformGuildStorageApiV1SettingsCommunitiesGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof listPlatformCommunityStorage>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListPlatformGuildStorageApiV1SettingsCommunitiesGetQueryOptions(
-    params,
-    options
-  );
+  const queryOptions = getListPlatformCommunityStorageQueryOptions(params, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -2843,48 +2454,47 @@ export function useListPlatformGuildStorageApiV1SettingsCommunitiesGet<
  * entitlements are refused and the status may only move to one of the row's
  * ``status_choices``; the triggers of migration 0364 hold the database to the
  * same rule.
- * @summary Update Platform Guild Storage
+ * @summary Update Platform Community Storage
  */
-export const updatePlatformGuildStorageApiV1SettingsCommunitiesGuildIdPatch = (
-  guildId: number,
-  platformGuildStorageUpdate: BodyType<PlatformGuildStorageUpdate>,
+export const updatePlatformCommunityStorage = (
+  communityId: number,
+  platformCommunityStorageUpdate: BodyType<PlatformCommunityStorageUpdate>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<PlatformGuildStorageRead>(
+  return apiMutator<PlatformCommunityStorageRead>(
     {
-      url: `/api/v1/settings/communities/${guildId}`,
+      url: `/api/v1/settings/communities/${communityId}`,
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      data: platformGuildStorageUpdate,
+      data: platformCommunityStorageUpdate,
       signal,
     },
     options
   );
 };
 
-export const getUpdatePlatformGuildStorageApiV1SettingsCommunitiesGuildIdPatchMutationKey = () =>
-  ["updatePlatformGuildStorageApiV1SettingsCommunitiesGuildIdPatch"] as const;
+export const getUpdatePlatformCommunityStorageMutationKey = () =>
+  ["updatePlatformCommunityStorage"] as const;
 
-export const getUpdatePlatformGuildStorageApiV1SettingsCommunitiesGuildIdPatchMutationOptions = <
+export const getUpdatePlatformCommunityStorageMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof updatePlatformGuildStorageApiV1SettingsCommunitiesGuildIdPatch>>,
+    Awaited<ReturnType<typeof updatePlatformCommunityStorage>>,
     TError,
-    UpdatePlatformGuildStorageApiV1SettingsCommunitiesGuildIdPatchMutationVariables,
+    UpdatePlatformCommunityStorageMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof updatePlatformGuildStorageApiV1SettingsCommunitiesGuildIdPatch>>,
+  Awaited<ReturnType<typeof updatePlatformCommunityStorage>>,
   TError,
-  UpdatePlatformGuildStorageApiV1SettingsCommunitiesGuildIdPatchMutationVariables,
+  UpdatePlatformCommunityStorageMutationVariables,
   TContext
 > => {
-  const mutationKey =
-    getUpdatePlatformGuildStorageApiV1SettingsCommunitiesGuildIdPatchMutationKey();
+  const mutationKey = getUpdatePlatformCommunityStorageMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -2892,61 +2502,51 @@ export const getUpdatePlatformGuildStorageApiV1SettingsCommunitiesGuildIdPatchMu
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof updatePlatformGuildStorageApiV1SettingsCommunitiesGuildIdPatch>>,
-    UpdatePlatformGuildStorageApiV1SettingsCommunitiesGuildIdPatchMutationVariables
+    Awaited<ReturnType<typeof updatePlatformCommunityStorage>>,
+    UpdatePlatformCommunityStorageMutationVariables
   > = (props) => {
-    const { guildId, data } = props ?? {};
+    const { communityId, data } = props ?? {};
 
-    return updatePlatformGuildStorageApiV1SettingsCommunitiesGuildIdPatch(
-      guildId,
-      data,
-      requestOptions
-    );
+    return updatePlatformCommunityStorage(communityId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type UpdatePlatformGuildStorageApiV1SettingsCommunitiesGuildIdPatchMutationResult =
-  NonNullable<
-    Awaited<ReturnType<typeof updatePlatformGuildStorageApiV1SettingsCommunitiesGuildIdPatch>>
-  >;
-export type UpdatePlatformGuildStorageApiV1SettingsCommunitiesGuildIdPatchMutationBody =
-  BodyType<PlatformGuildStorageUpdate>;
-export type UpdatePlatformGuildStorageApiV1SettingsCommunitiesGuildIdPatchMutationError =
-  ErrorType<HTTPValidationError>;
-export type UpdatePlatformGuildStorageApiV1SettingsCommunitiesGuildIdPatchMutationVariables = {
-  guildId: number;
-  data: BodyType<PlatformGuildStorageUpdate>;
+export type UpdatePlatformCommunityStorageMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updatePlatformCommunityStorage>>
+>;
+export type UpdatePlatformCommunityStorageMutationBody = BodyType<PlatformCommunityStorageUpdate>;
+export type UpdatePlatformCommunityStorageMutationError = ErrorType<HTTPValidationError>;
+export type UpdatePlatformCommunityStorageMutationVariables = {
+  communityId: number;
+  data: BodyType<PlatformCommunityStorageUpdate>;
 };
 
 /**
- * @summary Update Platform Guild Storage
+ * @summary Update Platform Community Storage
  */
-export const useUpdatePlatformGuildStorageApiV1SettingsCommunitiesGuildIdPatch = <
+export const useUpdatePlatformCommunityStorage = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof updatePlatformGuildStorageApiV1SettingsCommunitiesGuildIdPatch>>,
+      Awaited<ReturnType<typeof updatePlatformCommunityStorage>>,
       TError,
-      UpdatePlatformGuildStorageApiV1SettingsCommunitiesGuildIdPatchMutationVariables,
+      UpdatePlatformCommunityStorageMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof updatePlatformGuildStorageApiV1SettingsCommunitiesGuildIdPatch>>,
+  Awaited<ReturnType<typeof updatePlatformCommunityStorage>>,
   TError,
-  UpdatePlatformGuildStorageApiV1SettingsCommunitiesGuildIdPatchMutationVariables,
+  UpdatePlatformCommunityStorageMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getUpdatePlatformGuildStorageApiV1SettingsCommunitiesGuildIdPatchMutationOptions(options),
-    queryClient
-  );
+  return useMutation(getUpdatePlatformCommunityStorageMutationOptions(options), queryClient);
 };
 /**
  * What this community says its own arrivals look like, and whether
@@ -2957,101 +2557,72 @@ export const useUpdatePlatformGuildStorageApiV1SettingsCommunitiesGuildIdPatch =
  * so the answer is the deployment's. Support answers through the case raised
  * when they are written; this is the same question where a deployment runs
  * no intake, and the place to withdraw an answer either way.
- * @summary Read Guild Narrowings
+ * @summary Read Community Narrowings
  */
-export const readGuildNarrowingsApiV1SettingsCommunitiesGuildIdNarrowingsGet = (
-  guildId: number,
+export const readCommunityNarrowings = (
+  communityId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<GuildNarrowingPending[]>(
-    { url: `/api/v1/settings/communities/${guildId}/narrowings`, method: "GET", signal },
+  return apiMutator<CommunityNarrowingPending[]>(
+    { url: `/api/v1/settings/communities/${communityId}/narrowings`, method: "GET", signal },
     options
   );
 };
 
-export const getReadGuildNarrowingsApiV1SettingsCommunitiesGuildIdNarrowingsGetQueryKey = (
-  guildId: number
-) => {
-  return [`/api/v1/settings/communities/${guildId}/narrowings`] as const;
+export const getReadCommunityNarrowingsQueryKey = (communityId: number) => {
+  return [`/api/v1/settings/communities/${communityId}/narrowings`] as const;
 };
 
-export const getReadGuildNarrowingsApiV1SettingsCommunitiesGuildIdNarrowingsGetQueryOptions = <
-  TData = Awaited<
-    ReturnType<typeof readGuildNarrowingsApiV1SettingsCommunitiesGuildIdNarrowingsGet>
-  >,
+export const getReadCommunityNarrowingsQueryOptions = <
+  TData = Awaited<ReturnType<typeof readCommunityNarrowings>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readGuildNarrowingsApiV1SettingsCommunitiesGuildIdNarrowingsGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof readCommunityNarrowings>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   }
 ) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey =
-    queryOptions?.queryKey ??
-    getReadGuildNarrowingsApiV1SettingsCommunitiesGuildIdNarrowingsGetQueryKey(guildId);
+  const queryKey = queryOptions?.queryKey ?? getReadCommunityNarrowingsQueryKey(communityId);
 
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof readGuildNarrowingsApiV1SettingsCommunitiesGuildIdNarrowingsGet>>
-  > = ({ signal }) =>
-    readGuildNarrowingsApiV1SettingsCommunitiesGuildIdNarrowingsGet(
-      guildId,
-      requestOptions,
-      signal
-    );
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof readCommunityNarrowings>>> = ({
+    signal,
+  }) => readCommunityNarrowings(communityId, requestOptions, signal);
 
   return {
     queryKey,
     queryFn,
-    enabled: guildId !== null && guildId !== undefined,
+    enabled: communityId !== null && communityId !== undefined,
     ...queryOptions,
-  } as UseQueryOptions<
-    Awaited<ReturnType<typeof readGuildNarrowingsApiV1SettingsCommunitiesGuildIdNarrowingsGet>>,
-    TError,
-    TData
-  > & { queryKey: DataTag<QueryKey, TData, TError> };
+  } as UseQueryOptions<Awaited<ReturnType<typeof readCommunityNarrowings>>, TError, TData> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 };
 
-export type ReadGuildNarrowingsApiV1SettingsCommunitiesGuildIdNarrowingsGetQueryResult =
-  NonNullable<
-    Awaited<ReturnType<typeof readGuildNarrowingsApiV1SettingsCommunitiesGuildIdNarrowingsGet>>
-  >;
-export type ReadGuildNarrowingsApiV1SettingsCommunitiesGuildIdNarrowingsGetQueryError =
-  ErrorType<HTTPValidationError>;
+export type ReadCommunityNarrowingsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof readCommunityNarrowings>>
+>;
+export type ReadCommunityNarrowingsQueryError = ErrorType<HTTPValidationError>;
 
-export function useReadGuildNarrowingsApiV1SettingsCommunitiesGuildIdNarrowingsGet<
-  TData = Awaited<
-    ReturnType<typeof readGuildNarrowingsApiV1SettingsCommunitiesGuildIdNarrowingsGet>
-  >,
+export function useReadCommunityNarrowings<
+  TData = Awaited<ReturnType<typeof readCommunityNarrowings>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   options: {
     query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readGuildNarrowingsApiV1SettingsCommunitiesGuildIdNarrowingsGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof readCommunityNarrowings>>, TError, TData>
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<
-            ReturnType<typeof readGuildNarrowingsApiV1SettingsCommunitiesGuildIdNarrowingsGet>
-          >,
+          Awaited<ReturnType<typeof readCommunityNarrowings>>,
           TError,
-          Awaited<
-            ReturnType<typeof readGuildNarrowingsApiV1SettingsCommunitiesGuildIdNarrowingsGet>
-          >
+          Awaited<ReturnType<typeof readCommunityNarrowings>>
         >,
         "initialData"
       >;
@@ -3059,30 +2630,20 @@ export function useReadGuildNarrowingsApiV1SettingsCommunitiesGuildIdNarrowingsG
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadGuildNarrowingsApiV1SettingsCommunitiesGuildIdNarrowingsGet<
-  TData = Awaited<
-    ReturnType<typeof readGuildNarrowingsApiV1SettingsCommunitiesGuildIdNarrowingsGet>
-  >,
+export function useReadCommunityNarrowings<
+  TData = Awaited<ReturnType<typeof readCommunityNarrowings>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readGuildNarrowingsApiV1SettingsCommunitiesGuildIdNarrowingsGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof readCommunityNarrowings>>, TError, TData>
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<
-            ReturnType<typeof readGuildNarrowingsApiV1SettingsCommunitiesGuildIdNarrowingsGet>
-          >,
+          Awaited<ReturnType<typeof readCommunityNarrowings>>,
           TError,
-          Awaited<
-            ReturnType<typeof readGuildNarrowingsApiV1SettingsCommunitiesGuildIdNarrowingsGet>
-          >
+          Awaited<ReturnType<typeof readCommunityNarrowings>>
         >,
         "initialData"
       >;
@@ -3090,53 +2651,37 @@ export function useReadGuildNarrowingsApiV1SettingsCommunitiesGuildIdNarrowingsG
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadGuildNarrowingsApiV1SettingsCommunitiesGuildIdNarrowingsGet<
-  TData = Awaited<
-    ReturnType<typeof readGuildNarrowingsApiV1SettingsCommunitiesGuildIdNarrowingsGet>
-  >,
+export function useReadCommunityNarrowings<
+  TData = Awaited<ReturnType<typeof readCommunityNarrowings>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readGuildNarrowingsApiV1SettingsCommunitiesGuildIdNarrowingsGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof readCommunityNarrowings>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
- * @summary Read Guild Narrowings
+ * @summary Read Community Narrowings
  */
 
-export function useReadGuildNarrowingsApiV1SettingsCommunitiesGuildIdNarrowingsGet<
-  TData = Awaited<
-    ReturnType<typeof readGuildNarrowingsApiV1SettingsCommunitiesGuildIdNarrowingsGet>
-  >,
+export function useReadCommunityNarrowings<
+  TData = Awaited<ReturnType<typeof readCommunityNarrowings>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readGuildNarrowingsApiV1SettingsCommunitiesGuildIdNarrowingsGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof readCommunityNarrowings>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions =
-    getReadGuildNarrowingsApiV1SettingsCommunitiesGuildIdNarrowingsGetQueryOptions(
-      guildId,
-      options
-    );
+  const queryOptions = getReadCommunityNarrowingsQueryOptions(communityId, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -3151,128 +2696,100 @@ export function useReadGuildNarrowingsApiV1SettingsCommunitiesGuildIdNarrowingsG
  * Agreeing lets arrivals it counts as its own join on sight where the
  * community asked for that. Withdrawing leaves the connection and its values
  * as they are; what stops is joining people on arrival.
- * @summary Agree Guild Narrowing
+ * @summary Agree Community Narrowing
  */
-export const agreeGuildNarrowingApiV1SettingsCommunitiesGuildIdNarrowingsConnectionIdPut = (
-  guildId: number,
+export const agreeCommunityNarrowing = (
+  communityId: number,
   connectionId: number,
-  guildNarrowingAgreement: BodyType<GuildNarrowingAgreement>,
+  communityNarrowingAgreement: BodyType<CommunityNarrowingAgreement>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<GuildNarrowingPending>(
+  return apiMutator<CommunityNarrowingPending>(
     {
-      url: `/api/v1/settings/communities/${guildId}/narrowings/${connectionId}`,
+      url: `/api/v1/settings/communities/${communityId}/narrowings/${connectionId}`,
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      data: guildNarrowingAgreement,
+      data: communityNarrowingAgreement,
       signal,
     },
     options
   );
 };
 
-export const getAgreeGuildNarrowingApiV1SettingsCommunitiesGuildIdNarrowingsConnectionIdPutMutationKey =
-  () => ["agreeGuildNarrowingApiV1SettingsCommunitiesGuildIdNarrowingsConnectionIdPut"] as const;
+export const getAgreeCommunityNarrowingMutationKey = () => ["agreeCommunityNarrowing"] as const;
 
-export const getAgreeGuildNarrowingApiV1SettingsCommunitiesGuildIdNarrowingsConnectionIdPutMutationOptions =
-  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
-    mutation?: UseMutationOptions<
-      Awaited<
-        ReturnType<
-          typeof agreeGuildNarrowingApiV1SettingsCommunitiesGuildIdNarrowingsConnectionIdPut
-        >
-      >,
-      TError,
-      AgreeGuildNarrowingApiV1SettingsCommunitiesGuildIdNarrowingsConnectionIdPutMutationVariables,
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  }): UseMutationOptions<
-    Awaited<
-      ReturnType<typeof agreeGuildNarrowingApiV1SettingsCommunitiesGuildIdNarrowingsConnectionIdPut>
-    >,
+export const getAgreeCommunityNarrowingMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof agreeCommunityNarrowing>>,
     TError,
-    AgreeGuildNarrowingApiV1SettingsCommunitiesGuildIdNarrowingsConnectionIdPutMutationVariables,
+    AgreeCommunityNarrowingMutationVariables,
     TContext
-  > => {
-    const mutationKey =
-      getAgreeGuildNarrowingApiV1SettingsCommunitiesGuildIdNarrowingsConnectionIdPutMutationKey();
-    const { mutation: mutationOptions, request: requestOptions } = options
-      ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-        ? options
-        : { ...options, mutation: { ...options.mutation, mutationKey } }
-      : { mutation: { mutationKey }, request: undefined };
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof agreeCommunityNarrowing>>,
+  TError,
+  AgreeCommunityNarrowingMutationVariables,
+  TContext
+> => {
+  const mutationKey = getAgreeCommunityNarrowingMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
 
-    const mutationFn: MutationFunction<
-      Awaited<
-        ReturnType<
-          typeof agreeGuildNarrowingApiV1SettingsCommunitiesGuildIdNarrowingsConnectionIdPut
-        >
-      >,
-      AgreeGuildNarrowingApiV1SettingsCommunitiesGuildIdNarrowingsConnectionIdPutMutationVariables
-    > = (props) => {
-      const { guildId, connectionId, data } = props ?? {};
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof agreeCommunityNarrowing>>,
+    AgreeCommunityNarrowingMutationVariables
+  > = (props) => {
+    const { communityId, connectionId, data } = props ?? {};
 
-      return agreeGuildNarrowingApiV1SettingsCommunitiesGuildIdNarrowingsConnectionIdPut(
-        guildId,
-        connectionId,
-        data,
-        requestOptions
-      );
-    };
-
-    return { mutationFn, ...mutationOptions };
+    return agreeCommunityNarrowing(communityId, connectionId, data, requestOptions);
   };
 
-export type AgreeGuildNarrowingApiV1SettingsCommunitiesGuildIdNarrowingsConnectionIdPutMutationResult =
-  NonNullable<
-    Awaited<
-      ReturnType<typeof agreeGuildNarrowingApiV1SettingsCommunitiesGuildIdNarrowingsConnectionIdPut>
-    >
-  >;
-export type AgreeGuildNarrowingApiV1SettingsCommunitiesGuildIdNarrowingsConnectionIdPutMutationBody =
-  BodyType<GuildNarrowingAgreement>;
-export type AgreeGuildNarrowingApiV1SettingsCommunitiesGuildIdNarrowingsConnectionIdPutMutationError =
-  ErrorType<HTTPValidationError>;
-export type AgreeGuildNarrowingApiV1SettingsCommunitiesGuildIdNarrowingsConnectionIdPutMutationVariables =
-  { guildId: number; connectionId: number; data: BodyType<GuildNarrowingAgreement> };
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AgreeCommunityNarrowingMutationResult = NonNullable<
+  Awaited<ReturnType<typeof agreeCommunityNarrowing>>
+>;
+export type AgreeCommunityNarrowingMutationBody = BodyType<CommunityNarrowingAgreement>;
+export type AgreeCommunityNarrowingMutationError = ErrorType<HTTPValidationError>;
+export type AgreeCommunityNarrowingMutationVariables = {
+  communityId: number;
+  connectionId: number;
+  data: BodyType<CommunityNarrowingAgreement>;
+};
 
 /**
- * @summary Agree Guild Narrowing
+ * @summary Agree Community Narrowing
  */
-export const useAgreeGuildNarrowingApiV1SettingsCommunitiesGuildIdNarrowingsConnectionIdPut = <
+export const useAgreeCommunityNarrowing = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<
-        ReturnType<
-          typeof agreeGuildNarrowingApiV1SettingsCommunitiesGuildIdNarrowingsConnectionIdPut
-        >
-      >,
+      Awaited<ReturnType<typeof agreeCommunityNarrowing>>,
       TError,
-      AgreeGuildNarrowingApiV1SettingsCommunitiesGuildIdNarrowingsConnectionIdPutMutationVariables,
+      AgreeCommunityNarrowingMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<
-    ReturnType<typeof agreeGuildNarrowingApiV1SettingsCommunitiesGuildIdNarrowingsConnectionIdPut>
-  >,
+  Awaited<ReturnType<typeof agreeCommunityNarrowing>>,
   TError,
-  AgreeGuildNarrowingApiV1SettingsCommunitiesGuildIdNarrowingsConnectionIdPutMutationVariables,
+  AgreeCommunityNarrowingMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getAgreeGuildNarrowingApiV1SettingsCommunitiesGuildIdNarrowingsConnectionIdPutMutationOptions(
-      options
-    ),
-    queryClient
-  );
+  return useMutation(getAgreeCommunityNarrowingMutationOptions(options), queryClient);
 };
 /**
  * Bring a deleted guild back before its retention window runs out.
@@ -3292,48 +2809,46 @@ export const useAgreeGuildNarrowingApiV1SettingsCommunitiesGuildIdNarrowingsConn
  *
  * Writes only shared ``public`` columns (``guilds.status`` and, for the seat,
  * ``guild_memberships``), so no guild-schema routing is needed.
- * @summary Restore Platform Guild
+ * @summary Restore Platform Community
  */
-export const restorePlatformGuildApiV1SettingsCommunitiesGuildIdRestorePost = (
-  guildId: number,
-  platformGuildRestore: BodyType<PlatformGuildRestore>,
+export const restorePlatformCommunity = (
+  communityId: number,
+  platformCommunityRestore: BodyType<PlatformCommunityRestore>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<PlatformGuildStorageRead>(
+  return apiMutator<PlatformCommunityStorageRead>(
     {
-      url: `/api/v1/settings/communities/${guildId}/restore`,
+      url: `/api/v1/settings/communities/${communityId}/restore`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      data: platformGuildRestore,
+      data: platformCommunityRestore,
       signal,
     },
     options
   );
 };
 
-export const getRestorePlatformGuildApiV1SettingsCommunitiesGuildIdRestorePostMutationKey = () =>
-  ["restorePlatformGuildApiV1SettingsCommunitiesGuildIdRestorePost"] as const;
+export const getRestorePlatformCommunityMutationKey = () => ["restorePlatformCommunity"] as const;
 
-export const getRestorePlatformGuildApiV1SettingsCommunitiesGuildIdRestorePostMutationOptions = <
+export const getRestorePlatformCommunityMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof restorePlatformGuildApiV1SettingsCommunitiesGuildIdRestorePost>>,
+    Awaited<ReturnType<typeof restorePlatformCommunity>>,
     TError,
-    RestorePlatformGuildApiV1SettingsCommunitiesGuildIdRestorePostMutationVariables,
+    RestorePlatformCommunityMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof restorePlatformGuildApiV1SettingsCommunitiesGuildIdRestorePost>>,
+  Awaited<ReturnType<typeof restorePlatformCommunity>>,
   TError,
-  RestorePlatformGuildApiV1SettingsCommunitiesGuildIdRestorePostMutationVariables,
+  RestorePlatformCommunityMutationVariables,
   TContext
 > => {
-  const mutationKey =
-    getRestorePlatformGuildApiV1SettingsCommunitiesGuildIdRestorePostMutationKey();
+  const mutationKey = getRestorePlatformCommunityMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -3341,61 +2856,51 @@ export const getRestorePlatformGuildApiV1SettingsCommunitiesGuildIdRestorePostMu
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof restorePlatformGuildApiV1SettingsCommunitiesGuildIdRestorePost>>,
-    RestorePlatformGuildApiV1SettingsCommunitiesGuildIdRestorePostMutationVariables
+    Awaited<ReturnType<typeof restorePlatformCommunity>>,
+    RestorePlatformCommunityMutationVariables
   > = (props) => {
-    const { guildId, data } = props ?? {};
+    const { communityId, data } = props ?? {};
 
-    return restorePlatformGuildApiV1SettingsCommunitiesGuildIdRestorePost(
-      guildId,
-      data,
-      requestOptions
-    );
+    return restorePlatformCommunity(communityId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type RestorePlatformGuildApiV1SettingsCommunitiesGuildIdRestorePostMutationResult =
-  NonNullable<
-    Awaited<ReturnType<typeof restorePlatformGuildApiV1SettingsCommunitiesGuildIdRestorePost>>
-  >;
-export type RestorePlatformGuildApiV1SettingsCommunitiesGuildIdRestorePostMutationBody =
-  BodyType<PlatformGuildRestore>;
-export type RestorePlatformGuildApiV1SettingsCommunitiesGuildIdRestorePostMutationError =
-  ErrorType<HTTPValidationError>;
-export type RestorePlatformGuildApiV1SettingsCommunitiesGuildIdRestorePostMutationVariables = {
-  guildId: number;
-  data: BodyType<PlatformGuildRestore>;
+export type RestorePlatformCommunityMutationResult = NonNullable<
+  Awaited<ReturnType<typeof restorePlatformCommunity>>
+>;
+export type RestorePlatformCommunityMutationBody = BodyType<PlatformCommunityRestore>;
+export type RestorePlatformCommunityMutationError = ErrorType<HTTPValidationError>;
+export type RestorePlatformCommunityMutationVariables = {
+  communityId: number;
+  data: BodyType<PlatformCommunityRestore>;
 };
 
 /**
- * @summary Restore Platform Guild
+ * @summary Restore Platform Community
  */
-export const useRestorePlatformGuildApiV1SettingsCommunitiesGuildIdRestorePost = <
+export const useRestorePlatformCommunity = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof restorePlatformGuildApiV1SettingsCommunitiesGuildIdRestorePost>>,
+      Awaited<ReturnType<typeof restorePlatformCommunity>>,
       TError,
-      RestorePlatformGuildApiV1SettingsCommunitiesGuildIdRestorePostMutationVariables,
+      RestorePlatformCommunityMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof restorePlatformGuildApiV1SettingsCommunitiesGuildIdRestorePost>>,
+  Awaited<ReturnType<typeof restorePlatformCommunity>>,
   TError,
-  RestorePlatformGuildApiV1SettingsCommunitiesGuildIdRestorePostMutationVariables,
+  RestorePlatformCommunityMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getRestorePlatformGuildApiV1SettingsCommunitiesGuildIdRestorePostMutationOptions(options),
-    queryClient
-  );
+  return useMutation(getRestorePlatformCommunityMutationOptions(options), queryClient);
 };
 /**
  * Mint the operator handoff into the billing portal for one guild.
@@ -3407,140 +2912,106 @@ export const useRestorePlatformGuildApiV1SettingsCommunitiesGuildIdRestorePost =
  * recorded on both sides. A billing grant reaches the billing account and
  * nothing in the guild; what it may do there is the billing service's to
  * decide.
- * @summary Create Platform Guild Billing Service Handoff
+ * @summary Create Platform Community Billing Service Handoff
  */
-export const createPlatformGuildBillingServiceHandoffApiV1SettingsCommunitiesGuildIdBillingServiceHandoffPost =
-  (
-    guildId: number,
-    secondFactorAnswerNull?: BodyType<SecondFactorAnswer | null> | null,
-    params?: CreatePlatformGuildBillingServiceHandoffApiV1SettingsCommunitiesGuildIdBillingServiceHandoffPostParams,
-    options?: SecondParameter<typeof apiMutator>,
-    signal?: AbortSignal
-  ) => {
-    return apiMutator<BillingPortalHandoffResponse>(
-      {
-        url: `/api/v1/settings/communities/${guildId}/billing/service-handoff`,
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        data: secondFactorAnswerNull,
-        params,
-        signal,
-      },
-      options
-    );
+export const createPlatformCommunityBillingServiceHandoff = (
+  communityId: number,
+  secondFactorAnswerNull?: BodyType<SecondFactorAnswer | null> | null,
+  params?: CreatePlatformCommunityBillingServiceHandoffParams,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<BillingPortalHandoffResponse>(
+    {
+      url: `/api/v1/settings/communities/${communityId}/billing/service-handoff`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: secondFactorAnswerNull,
+      params,
+      signal,
+    },
+    options
+  );
+};
+
+export const getCreatePlatformCommunityBillingServiceHandoffMutationKey = () =>
+  ["createPlatformCommunityBillingServiceHandoff"] as const;
+
+export const getCreatePlatformCommunityBillingServiceHandoffMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createPlatformCommunityBillingServiceHandoff>>,
+    TError,
+    CreatePlatformCommunityBillingServiceHandoffMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createPlatformCommunityBillingServiceHandoff>>,
+  TError,
+  CreatePlatformCommunityBillingServiceHandoffMutationVariables,
+  TContext
+> => {
+  const mutationKey = getCreatePlatformCommunityBillingServiceHandoffMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createPlatformCommunityBillingServiceHandoff>>,
+    CreatePlatformCommunityBillingServiceHandoffMutationVariables
+  > = (props) => {
+    const { communityId, data, params } = props ?? {};
+
+    return createPlatformCommunityBillingServiceHandoff(communityId, data, params, requestOptions);
   };
 
-export const getCreatePlatformGuildBillingServiceHandoffApiV1SettingsCommunitiesGuildIdBillingServiceHandoffPostMutationKey =
-  () =>
-    [
-      "createPlatformGuildBillingServiceHandoffApiV1SettingsCommunitiesGuildIdBillingServiceHandoffPost",
-    ] as const;
+  return { mutationFn, ...mutationOptions };
+};
 
-export const getCreatePlatformGuildBillingServiceHandoffApiV1SettingsCommunitiesGuildIdBillingServiceHandoffPostMutationOptions =
-  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
+export type CreatePlatformCommunityBillingServiceHandoffMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createPlatformCommunityBillingServiceHandoff>>
+>;
+export type CreatePlatformCommunityBillingServiceHandoffMutationBody =
+  | BodyType<SecondFactorAnswer | null>
+  | undefined;
+export type CreatePlatformCommunityBillingServiceHandoffMutationError =
+  ErrorType<HTTPValidationError>;
+export type CreatePlatformCommunityBillingServiceHandoffMutationVariables = {
+  communityId: number;
+  data?: BodyType<SecondFactorAnswer | null>;
+  params?: CreatePlatformCommunityBillingServiceHandoffParams;
+};
+
+/**
+ * @summary Create Platform Community Billing Service Handoff
+ */
+export const useCreatePlatformCommunityBillingServiceHandoff = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
     mutation?: UseMutationOptions<
-      Awaited<
-        ReturnType<
-          typeof createPlatformGuildBillingServiceHandoffApiV1SettingsCommunitiesGuildIdBillingServiceHandoffPost
-        >
-      >,
+      Awaited<ReturnType<typeof createPlatformCommunityBillingServiceHandoff>>,
       TError,
-      CreatePlatformGuildBillingServiceHandoffApiV1SettingsCommunitiesGuildIdBillingServiceHandoffPostMutationVariables,
+      CreatePlatformCommunityBillingServiceHandoffMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
-  }): UseMutationOptions<
-    Awaited<
-      ReturnType<
-        typeof createPlatformGuildBillingServiceHandoffApiV1SettingsCommunitiesGuildIdBillingServiceHandoffPost
-      >
-    >,
-    TError,
-    CreatePlatformGuildBillingServiceHandoffApiV1SettingsCommunitiesGuildIdBillingServiceHandoffPostMutationVariables,
-    TContext
-  > => {
-    const mutationKey =
-      getCreatePlatformGuildBillingServiceHandoffApiV1SettingsCommunitiesGuildIdBillingServiceHandoffPostMutationKey();
-    const { mutation: mutationOptions, request: requestOptions } = options
-      ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-        ? options
-        : { ...options, mutation: { ...options.mutation, mutationKey } }
-      : { mutation: { mutationKey }, request: undefined };
-
-    const mutationFn: MutationFunction<
-      Awaited<
-        ReturnType<
-          typeof createPlatformGuildBillingServiceHandoffApiV1SettingsCommunitiesGuildIdBillingServiceHandoffPost
-        >
-      >,
-      CreatePlatformGuildBillingServiceHandoffApiV1SettingsCommunitiesGuildIdBillingServiceHandoffPostMutationVariables
-    > = (props) => {
-      const { guildId, data, params } = props ?? {};
-
-      return createPlatformGuildBillingServiceHandoffApiV1SettingsCommunitiesGuildIdBillingServiceHandoffPost(
-        guildId,
-        data,
-        params,
-        requestOptions
-      );
-    };
-
-    return { mutationFn, ...mutationOptions };
-  };
-
-export type CreatePlatformGuildBillingServiceHandoffApiV1SettingsCommunitiesGuildIdBillingServiceHandoffPostMutationResult =
-  NonNullable<
-    Awaited<
-      ReturnType<
-        typeof createPlatformGuildBillingServiceHandoffApiV1SettingsCommunitiesGuildIdBillingServiceHandoffPost
-      >
-    >
-  >;
-export type CreatePlatformGuildBillingServiceHandoffApiV1SettingsCommunitiesGuildIdBillingServiceHandoffPostMutationBody =
-  | BodyType<SecondFactorAnswer | null>
-  | undefined;
-export type CreatePlatformGuildBillingServiceHandoffApiV1SettingsCommunitiesGuildIdBillingServiceHandoffPostMutationError =
-  ErrorType<HTTPValidationError>;
-export type CreatePlatformGuildBillingServiceHandoffApiV1SettingsCommunitiesGuildIdBillingServiceHandoffPostMutationVariables =
-  {
-    guildId: number;
-    data?: BodyType<SecondFactorAnswer | null>;
-    params?: CreatePlatformGuildBillingServiceHandoffApiV1SettingsCommunitiesGuildIdBillingServiceHandoffPostParams;
-  };
-
-/**
- * @summary Create Platform Guild Billing Service Handoff
- */
-export const useCreatePlatformGuildBillingServiceHandoffApiV1SettingsCommunitiesGuildIdBillingServiceHandoffPost =
-  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
-    options?: {
-      mutation?: UseMutationOptions<
-        Awaited<
-          ReturnType<
-            typeof createPlatformGuildBillingServiceHandoffApiV1SettingsCommunitiesGuildIdBillingServiceHandoffPost
-          >
-        >,
-        TError,
-        CreatePlatformGuildBillingServiceHandoffApiV1SettingsCommunitiesGuildIdBillingServiceHandoffPostMutationVariables,
-        TContext
-      >;
-      request?: SecondParameter<typeof apiMutator>;
-    },
-    queryClient?: QueryClient
-  ): UseMutationResult<
-    Awaited<
-      ReturnType<
-        typeof createPlatformGuildBillingServiceHandoffApiV1SettingsCommunitiesGuildIdBillingServiceHandoffPost
-      >
-    >,
-    TError,
-    CreatePlatformGuildBillingServiceHandoffApiV1SettingsCommunitiesGuildIdBillingServiceHandoffPostMutationVariables,
-    TContext
-  > => {
-    return useMutation(
-      getCreatePlatformGuildBillingServiceHandoffApiV1SettingsCommunitiesGuildIdBillingServiceHandoffPostMutationOptions(
-        options
-      ),
-      queryClient
-    );
-  };
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof createPlatformCommunityBillingServiceHandoff>>,
+  TError,
+  CreatePlatformCommunityBillingServiceHandoffMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getCreatePlatformCommunityBillingServiceHandoffMutationOptions(options),
+    queryClient
+  );
+};

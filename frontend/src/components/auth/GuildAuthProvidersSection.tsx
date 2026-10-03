@@ -22,8 +22,8 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type {
+  CommunityProviderConnectionRead,
   ConnectableProviderRead,
-  GuildProviderConnectionRead,
 } from "@/api/generated/initiativeAPI.schemas";
 import { ProviderMark } from "@/components/auth/ProviderMark";
 import { Badge } from "@/components/ui/badge";
@@ -58,7 +58,7 @@ export const GuildAuthProvidersSection = ({
   const updateConnection = useUpdateProviderConnection(guildId);
   const disconnect = useDisconnectProvider(guildId);
 
-  const [removing, setRemoving] = useState<GuildProviderConnectionRead | null>(null);
+  const [removing, setRemoving] = useState<CommunityProviderConnectionRead | null>(null);
 
   const connections = connectionsQuery.data ?? [];
   // Only what this community said itself: a provider it merely inherits is
@@ -78,7 +78,7 @@ export const GuildAuthProvidersSection = ({
    *  community starts from what is already in force rather than a blank
    *  form; saving writes a connection of its own, which shadows the default
    *  from then on. */
-  const adopt = (row: GuildProviderConnectionRead) => onConnect(row.provider_id);
+  const adopt = (row: CommunityProviderConnectionRead) => onConnect(row.provider_id);
 
   return (
     <Card>

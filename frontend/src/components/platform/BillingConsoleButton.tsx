@@ -12,7 +12,7 @@ import { type ComponentProps, type ReactNode, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { SecondFactorAnswer } from "@/api/generated/initiativeAPI.schemas";
-import { createPlatformGuildBillingServiceHandoffApiV1SettingsCommunitiesGuildIdBillingServiceHandoffPost } from "@/api/generated/settings/settings";
+import { createPlatformCommunityBillingServiceHandoff } from "@/api/generated/settings/settings";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -55,12 +55,11 @@ export const BillingConsoleButton = ({
     const tab = window.open("about:blank", "_blank");
     if (tab) tab.opener = null;
     try {
-      const { handoff_token } =
-        await createPlatformGuildBillingServiceHandoffApiV1SettingsCommunitiesGuildIdBillingServiceHandoffPost(
-          guild.id,
-          answer,
-          { console }
-        );
+      const { handoff_token } = await createPlatformCommunityBillingServiceHandoff(
+        guild.id,
+        answer,
+        { console }
+      );
       const lang = i18n.resolvedLanguage ?? i18n.language;
       // The token rides in the fragment, which never leaves the browser. The
       // console reads the guild off the exchanged session, so the URL does not

@@ -14,7 +14,7 @@ from sqlalchemy import text
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.v1.platform_endpoints.break_glass_test import _enrol_factor, _next_code
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.testing import create_guild, create_guild_membership, create_user
 from app.testing.billing_managed import billing_manages_plans
 
@@ -197,7 +197,7 @@ async def _deleted_at(session: AsyncSession, recorded: str) -> int:
     guild = await create_guild(session, creator=seat)
     assert guild.id is not None
     await create_guild_membership(
-        session, user=seat, guild=guild, role=GuildRole.superadmin
+        session, user=seat, guild=guild, role=CommunityRole.superadmin
     )
     await _record(session, guild.id, recorded)
     await session.exec(

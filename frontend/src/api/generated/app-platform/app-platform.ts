@@ -27,9 +27,9 @@ import type {
   AppInstallationRead,
   AppOAuthErrorResponse,
   HTTPValidationError,
-  IssueAppAccessTokenApiV1AppPlatformOauthTokenPostBody,
-  ListAppInstallationsApiV1AppPlatformInstallationsGetParams,
-  ReadAppPlatformJwksApiV1AppPlatformJwksJsonGet200,
+  IssueAppAccessTokenBody,
+  ListAppInstallationsParams,
+  ReadAppPlatformJwks200,
 } from "../initiativeAPI.schemas";
 
 import { apiMutator } from "../../mutator";
@@ -63,71 +63,59 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
  * the same answer registering and verifying an app service already give.
  * @summary Read App Platform Jwks
  */
-export const readAppPlatformJwksApiV1AppPlatformJwksJsonGet = (
+export const readAppPlatformJwks = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<ReadAppPlatformJwksApiV1AppPlatformJwksJsonGet200>(
+  return apiMutator<ReadAppPlatformJwks200>(
     { url: `/api/v1/app-platform/jwks.json`, method: "GET", signal },
     options
   );
 };
 
-export const getReadAppPlatformJwksApiV1AppPlatformJwksJsonGetQueryKey = () => {
+export const getReadAppPlatformJwksQueryKey = () => {
   return [`/api/v1/app-platform/jwks.json`] as const;
 };
 
-export const getReadAppPlatformJwksApiV1AppPlatformJwksJsonGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof readAppPlatformJwksApiV1AppPlatformJwksJsonGet>>,
+export const getReadAppPlatformJwksQueryOptions = <
+  TData = Awaited<ReturnType<typeof readAppPlatformJwks>>,
   TError = ErrorType<unknown>,
 >(options?: {
-  query?: Partial<
-    UseQueryOptions<
-      Awaited<ReturnType<typeof readAppPlatformJwksApiV1AppPlatformJwksJsonGet>>,
-      TError,
-      TData
-    >
-  >;
+  query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readAppPlatformJwks>>, TError, TData>>;
   request?: SecondParameter<typeof apiMutator>;
 }) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey =
-    queryOptions?.queryKey ?? getReadAppPlatformJwksApiV1AppPlatformJwksJsonGetQueryKey();
+  const queryKey = queryOptions?.queryKey ?? getReadAppPlatformJwksQueryKey();
 
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof readAppPlatformJwksApiV1AppPlatformJwksJsonGet>>
-  > = ({ signal }) => readAppPlatformJwksApiV1AppPlatformJwksJsonGet(requestOptions, signal);
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof readAppPlatformJwks>>> = ({ signal }) =>
+    readAppPlatformJwks(requestOptions, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof readAppPlatformJwksApiV1AppPlatformJwksJsonGet>>,
+    Awaited<ReturnType<typeof readAppPlatformJwks>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ReadAppPlatformJwksApiV1AppPlatformJwksJsonGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof readAppPlatformJwksApiV1AppPlatformJwksJsonGet>>
+export type ReadAppPlatformJwksQueryResult = NonNullable<
+  Awaited<ReturnType<typeof readAppPlatformJwks>>
 >;
-export type ReadAppPlatformJwksApiV1AppPlatformJwksJsonGetQueryError = ErrorType<unknown>;
+export type ReadAppPlatformJwksQueryError = ErrorType<unknown>;
 
-export function useReadAppPlatformJwksApiV1AppPlatformJwksJsonGet<
-  TData = Awaited<ReturnType<typeof readAppPlatformJwksApiV1AppPlatformJwksJsonGet>>,
+export function useReadAppPlatformJwks<
+  TData = Awaited<ReturnType<typeof readAppPlatformJwks>>,
   TError = ErrorType<unknown>,
 >(
   options: {
     query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readAppPlatformJwksApiV1AppPlatformJwksJsonGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof readAppPlatformJwks>>, TError, TData>
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readAppPlatformJwksApiV1AppPlatformJwksJsonGet>>,
+          Awaited<ReturnType<typeof readAppPlatformJwks>>,
           TError,
-          Awaited<ReturnType<typeof readAppPlatformJwksApiV1AppPlatformJwksJsonGet>>
+          Awaited<ReturnType<typeof readAppPlatformJwks>>
         >,
         "initialData"
       >;
@@ -135,23 +123,19 @@ export function useReadAppPlatformJwksApiV1AppPlatformJwksJsonGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadAppPlatformJwksApiV1AppPlatformJwksJsonGet<
-  TData = Awaited<ReturnType<typeof readAppPlatformJwksApiV1AppPlatformJwksJsonGet>>,
+export function useReadAppPlatformJwks<
+  TData = Awaited<ReturnType<typeof readAppPlatformJwks>>,
   TError = ErrorType<unknown>,
 >(
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readAppPlatformJwksApiV1AppPlatformJwksJsonGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof readAppPlatformJwks>>, TError, TData>
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readAppPlatformJwksApiV1AppPlatformJwksJsonGet>>,
+          Awaited<ReturnType<typeof readAppPlatformJwks>>,
           TError,
-          Awaited<ReturnType<typeof readAppPlatformJwksApiV1AppPlatformJwksJsonGet>>
+          Awaited<ReturnType<typeof readAppPlatformJwks>>
         >,
         "initialData"
       >;
@@ -159,17 +143,13 @@ export function useReadAppPlatformJwksApiV1AppPlatformJwksJsonGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadAppPlatformJwksApiV1AppPlatformJwksJsonGet<
-  TData = Awaited<ReturnType<typeof readAppPlatformJwksApiV1AppPlatformJwksJsonGet>>,
+export function useReadAppPlatformJwks<
+  TData = Awaited<ReturnType<typeof readAppPlatformJwks>>,
   TError = ErrorType<unknown>,
 >(
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readAppPlatformJwksApiV1AppPlatformJwksJsonGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof readAppPlatformJwks>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
@@ -179,23 +159,19 @@ export function useReadAppPlatformJwksApiV1AppPlatformJwksJsonGet<
  * @summary Read App Platform Jwks
  */
 
-export function useReadAppPlatformJwksApiV1AppPlatformJwksJsonGet<
-  TData = Awaited<ReturnType<typeof readAppPlatformJwksApiV1AppPlatformJwksJsonGet>>,
+export function useReadAppPlatformJwks<
+  TData = Awaited<ReturnType<typeof readAppPlatformJwks>>,
   TError = ErrorType<unknown>,
 >(
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readAppPlatformJwksApiV1AppPlatformJwksJsonGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof readAppPlatformJwks>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getReadAppPlatformJwksApiV1AppPlatformJwksJsonGetQueryOptions(options);
+  const queryOptions = getReadAppPlatformJwksQueryOptions(options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -210,57 +186,36 @@ export function useReadAppPlatformJwksApiV1AppPlatformJwksJsonGet<
  * docstring for the parameters.
  * @summary Issue App Access Token
  */
-export const issueAppAccessTokenApiV1AppPlatformOauthTokenPost = (
-  issueAppAccessTokenApiV1AppPlatformOauthTokenPostBody: BodyType<IssueAppAccessTokenApiV1AppPlatformOauthTokenPostBody>,
+export const issueAppAccessToken = (
+  issueAppAccessTokenBody: BodyType<IssueAppAccessTokenBody>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   const formUrlEncoded = new URLSearchParams();
-  formUrlEncoded.append(
-    `grant_type`,
-    issueAppAccessTokenApiV1AppPlatformOauthTokenPostBody.grant_type
-  );
-  if (issueAppAccessTokenApiV1AppPlatformOauthTokenPostBody.client_assertion_type !== undefined) {
-    formUrlEncoded.append(
-      `client_assertion_type`,
-      issueAppAccessTokenApiV1AppPlatformOauthTokenPostBody.client_assertion_type
-    );
+  formUrlEncoded.append(`grant_type`, issueAppAccessTokenBody.grant_type);
+  if (issueAppAccessTokenBody.client_assertion_type !== undefined) {
+    formUrlEncoded.append(`client_assertion_type`, issueAppAccessTokenBody.client_assertion_type);
   }
-  if (issueAppAccessTokenApiV1AppPlatformOauthTokenPostBody.client_assertion !== undefined) {
-    formUrlEncoded.append(
-      `client_assertion`,
-      issueAppAccessTokenApiV1AppPlatformOauthTokenPostBody.client_assertion
-    );
+  if (issueAppAccessTokenBody.client_assertion !== undefined) {
+    formUrlEncoded.append(`client_assertion`, issueAppAccessTokenBody.client_assertion);
   }
-  if (issueAppAccessTokenApiV1AppPlatformOauthTokenPostBody.client_id !== undefined) {
-    formUrlEncoded.append(
-      `client_id`,
-      issueAppAccessTokenApiV1AppPlatformOauthTokenPostBody.client_id
-    );
+  if (issueAppAccessTokenBody.client_id !== undefined) {
+    formUrlEncoded.append(`client_id`, issueAppAccessTokenBody.client_id);
   }
-  if (issueAppAccessTokenApiV1AppPlatformOauthTokenPostBody.installation !== undefined) {
-    formUrlEncoded.append(
-      `installation`,
-      issueAppAccessTokenApiV1AppPlatformOauthTokenPostBody.installation
-    );
+  if (issueAppAccessTokenBody.installation !== undefined) {
+    formUrlEncoded.append(`installation`, issueAppAccessTokenBody.installation);
   }
-  if (issueAppAccessTokenApiV1AppPlatformOauthTokenPostBody.scope !== undefined) {
-    formUrlEncoded.append(`scope`, issueAppAccessTokenApiV1AppPlatformOauthTokenPostBody.scope);
+  if (issueAppAccessTokenBody.scope !== undefined) {
+    formUrlEncoded.append(`scope`, issueAppAccessTokenBody.scope);
   }
-  if (issueAppAccessTokenApiV1AppPlatformOauthTokenPostBody.resource !== undefined) {
-    formUrlEncoded.append(
-      `resource`,
-      issueAppAccessTokenApiV1AppPlatformOauthTokenPostBody.resource
-    );
+  if (issueAppAccessTokenBody.resource !== undefined) {
+    formUrlEncoded.append(`resource`, issueAppAccessTokenBody.resource);
   }
-  if (issueAppAccessTokenApiV1AppPlatformOauthTokenPostBody.level !== undefined) {
-    formUrlEncoded.append(`level`, issueAppAccessTokenApiV1AppPlatformOauthTokenPostBody.level);
+  if (issueAppAccessTokenBody.level !== undefined) {
+    formUrlEncoded.append(`level`, issueAppAccessTokenBody.level);
   }
-  if (issueAppAccessTokenApiV1AppPlatformOauthTokenPostBody.assertion !== undefined) {
-    formUrlEncoded.append(
-      `assertion`,
-      issueAppAccessTokenApiV1AppPlatformOauthTokenPostBody.assertion
-    );
+  if (issueAppAccessTokenBody.assertion !== undefined) {
+    formUrlEncoded.append(`assertion`, issueAppAccessTokenBody.assertion);
   }
 
   return apiMutator<AppAccessTokenResponse>(
@@ -275,27 +230,26 @@ export const issueAppAccessTokenApiV1AppPlatformOauthTokenPost = (
   );
 };
 
-export const getIssueAppAccessTokenApiV1AppPlatformOauthTokenPostMutationKey = () =>
-  ["issueAppAccessTokenApiV1AppPlatformOauthTokenPost"] as const;
+export const getIssueAppAccessTokenMutationKey = () => ["issueAppAccessToken"] as const;
 
-export const getIssueAppAccessTokenApiV1AppPlatformOauthTokenPostMutationOptions = <
+export const getIssueAppAccessTokenMutationOptions = <
   TError = ErrorType<AppOAuthErrorResponse>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof issueAppAccessTokenApiV1AppPlatformOauthTokenPost>>,
+    Awaited<ReturnType<typeof issueAppAccessToken>>,
     TError,
-    IssueAppAccessTokenApiV1AppPlatformOauthTokenPostMutationVariables,
+    IssueAppAccessTokenMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof issueAppAccessTokenApiV1AppPlatformOauthTokenPost>>,
+  Awaited<ReturnType<typeof issueAppAccessToken>>,
   TError,
-  IssueAppAccessTokenApiV1AppPlatformOauthTokenPostMutationVariables,
+  IssueAppAccessTokenMutationVariables,
   TContext
 > => {
-  const mutationKey = getIssueAppAccessTokenApiV1AppPlatformOauthTokenPostMutationKey();
+  const mutationKey = getIssueAppAccessTokenMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -303,55 +257,48 @@ export const getIssueAppAccessTokenApiV1AppPlatformOauthTokenPostMutationOptions
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof issueAppAccessTokenApiV1AppPlatformOauthTokenPost>>,
-    IssueAppAccessTokenApiV1AppPlatformOauthTokenPostMutationVariables
+    Awaited<ReturnType<typeof issueAppAccessToken>>,
+    IssueAppAccessTokenMutationVariables
   > = (props) => {
     const { data } = props ?? {};
 
-    return issueAppAccessTokenApiV1AppPlatformOauthTokenPost(data, requestOptions);
+    return issueAppAccessToken(data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type IssueAppAccessTokenApiV1AppPlatformOauthTokenPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof issueAppAccessTokenApiV1AppPlatformOauthTokenPost>>
+export type IssueAppAccessTokenMutationResult = NonNullable<
+  Awaited<ReturnType<typeof issueAppAccessToken>>
 >;
-export type IssueAppAccessTokenApiV1AppPlatformOauthTokenPostMutationBody =
-  BodyType<IssueAppAccessTokenApiV1AppPlatformOauthTokenPostBody>;
-export type IssueAppAccessTokenApiV1AppPlatformOauthTokenPostMutationError =
-  ErrorType<AppOAuthErrorResponse>;
-export type IssueAppAccessTokenApiV1AppPlatformOauthTokenPostMutationVariables = {
-  data: BodyType<IssueAppAccessTokenApiV1AppPlatformOauthTokenPostBody>;
-};
+export type IssueAppAccessTokenMutationBody = BodyType<IssueAppAccessTokenBody>;
+export type IssueAppAccessTokenMutationError = ErrorType<AppOAuthErrorResponse>;
+export type IssueAppAccessTokenMutationVariables = { data: BodyType<IssueAppAccessTokenBody> };
 
 /**
  * @summary Issue App Access Token
  */
-export const useIssueAppAccessTokenApiV1AppPlatformOauthTokenPost = <
+export const useIssueAppAccessToken = <
   TError = ErrorType<AppOAuthErrorResponse>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof issueAppAccessTokenApiV1AppPlatformOauthTokenPost>>,
+      Awaited<ReturnType<typeof issueAppAccessToken>>,
       TError,
-      IssueAppAccessTokenApiV1AppPlatformOauthTokenPostMutationVariables,
+      IssueAppAccessTokenMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof issueAppAccessTokenApiV1AppPlatformOauthTokenPost>>,
+  Awaited<ReturnType<typeof issueAppAccessToken>>,
   TError,
-  IssueAppAccessTokenApiV1AppPlatformOauthTokenPostMutationVariables,
+  IssueAppAccessTokenMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getIssueAppAccessTokenApiV1AppPlatformOauthTokenPostMutationOptions(options),
-    queryClient
-  );
+  return useMutation(getIssueAppAccessTokenMutationOptions(options), queryClient);
 };
 /**
  * The calling app's installs, a page at a time. Takes an app token.
@@ -360,8 +307,8 @@ export const useIssueAppAccessTokenApiV1AppPlatformOauthTokenPost = <
  * (RFC 8288, ``rel="next"``) carrying the ``cursor`` to ask with.
  * @summary List App Installations
  */
-export const listAppInstallationsApiV1AppPlatformInstallationsGet = (
-  params?: ListAppInstallationsApiV1AppPlatformInstallationsGetParams,
+export const listAppInstallations = (
+  params?: ListAppInstallationsParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
@@ -371,70 +318,55 @@ export const listAppInstallationsApiV1AppPlatformInstallationsGet = (
   );
 };
 
-export const getListAppInstallationsApiV1AppPlatformInstallationsGetQueryKey = (
-  params?: ListAppInstallationsApiV1AppPlatformInstallationsGetParams
-) => {
+export const getListAppInstallationsQueryKey = (params?: ListAppInstallationsParams) => {
   return [`/api/v1/app-platform/installations`, ...(params ? [params] : [])] as const;
 };
 
-export const getListAppInstallationsApiV1AppPlatformInstallationsGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof listAppInstallationsApiV1AppPlatformInstallationsGet>>,
+export const getListAppInstallationsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listAppInstallations>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params?: ListAppInstallationsApiV1AppPlatformInstallationsGetParams,
+  params?: ListAppInstallationsParams,
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listAppInstallationsApiV1AppPlatformInstallationsGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof listAppInstallations>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   }
 ) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey =
-    queryOptions?.queryKey ??
-    getListAppInstallationsApiV1AppPlatformInstallationsGetQueryKey(params);
+  const queryKey = queryOptions?.queryKey ?? getListAppInstallationsQueryKey(params);
 
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof listAppInstallationsApiV1AppPlatformInstallationsGet>>
-  > = ({ signal }) =>
-    listAppInstallationsApiV1AppPlatformInstallationsGet(params, requestOptions, signal);
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listAppInstallations>>> = ({ signal }) =>
+    listAppInstallations(params, requestOptions, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof listAppInstallationsApiV1AppPlatformInstallationsGet>>,
+    Awaited<ReturnType<typeof listAppInstallations>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ListAppInstallationsApiV1AppPlatformInstallationsGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof listAppInstallationsApiV1AppPlatformInstallationsGet>>
+export type ListAppInstallationsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listAppInstallations>>
 >;
-export type ListAppInstallationsApiV1AppPlatformInstallationsGetQueryError =
-  ErrorType<HTTPValidationError>;
+export type ListAppInstallationsQueryError = ErrorType<HTTPValidationError>;
 
-export function useListAppInstallationsApiV1AppPlatformInstallationsGet<
-  TData = Awaited<ReturnType<typeof listAppInstallationsApiV1AppPlatformInstallationsGet>>,
+export function useListAppInstallations<
+  TData = Awaited<ReturnType<typeof listAppInstallations>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params: undefined | ListAppInstallationsApiV1AppPlatformInstallationsGetParams,
+  params: undefined | ListAppInstallationsParams,
   options: {
     query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listAppInstallationsApiV1AppPlatformInstallationsGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof listAppInstallations>>, TError, TData>
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listAppInstallationsApiV1AppPlatformInstallationsGet>>,
+          Awaited<ReturnType<typeof listAppInstallations>>,
           TError,
-          Awaited<ReturnType<typeof listAppInstallationsApiV1AppPlatformInstallationsGet>>
+          Awaited<ReturnType<typeof listAppInstallations>>
         >,
         "initialData"
       >;
@@ -442,24 +374,20 @@ export function useListAppInstallationsApiV1AppPlatformInstallationsGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListAppInstallationsApiV1AppPlatformInstallationsGet<
-  TData = Awaited<ReturnType<typeof listAppInstallationsApiV1AppPlatformInstallationsGet>>,
+export function useListAppInstallations<
+  TData = Awaited<ReturnType<typeof listAppInstallations>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params?: ListAppInstallationsApiV1AppPlatformInstallationsGetParams,
+  params?: ListAppInstallationsParams,
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listAppInstallationsApiV1AppPlatformInstallationsGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof listAppInstallations>>, TError, TData>
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listAppInstallationsApiV1AppPlatformInstallationsGet>>,
+          Awaited<ReturnType<typeof listAppInstallations>>,
           TError,
-          Awaited<ReturnType<typeof listAppInstallationsApiV1AppPlatformInstallationsGet>>
+          Awaited<ReturnType<typeof listAppInstallations>>
         >,
         "initialData"
       >;
@@ -467,18 +395,14 @@ export function useListAppInstallationsApiV1AppPlatformInstallationsGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListAppInstallationsApiV1AppPlatformInstallationsGet<
-  TData = Awaited<ReturnType<typeof listAppInstallationsApiV1AppPlatformInstallationsGet>>,
+export function useListAppInstallations<
+  TData = Awaited<ReturnType<typeof listAppInstallations>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params?: ListAppInstallationsApiV1AppPlatformInstallationsGetParams,
+  params?: ListAppInstallationsParams,
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listAppInstallationsApiV1AppPlatformInstallationsGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof listAppInstallations>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
@@ -488,27 +412,20 @@ export function useListAppInstallationsApiV1AppPlatformInstallationsGet<
  * @summary List App Installations
  */
 
-export function useListAppInstallationsApiV1AppPlatformInstallationsGet<
-  TData = Awaited<ReturnType<typeof listAppInstallationsApiV1AppPlatformInstallationsGet>>,
+export function useListAppInstallations<
+  TData = Awaited<ReturnType<typeof listAppInstallations>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params?: ListAppInstallationsApiV1AppPlatformInstallationsGetParams,
+  params?: ListAppInstallationsParams,
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listAppInstallationsApiV1AppPlatformInstallationsGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof listAppInstallations>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListAppInstallationsApiV1AppPlatformInstallationsGetQueryOptions(
-    params,
-    options
-  );
+  const queryOptions = getListAppInstallationsQueryOptions(params, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -529,7 +446,7 @@ export function useListAppInstallationsApiV1AppPlatformInstallationsGet<
  * member (5 new requests an hour); past either the answer is 429.
  * @summary Request Member Consent
  */
-export const requestMemberConsentApiV1AppPlatformConsentRequestsPost = (
+export const requestMemberConsent = (
   appConsentRequestCreate: BodyType<AppConsentRequestCreate>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
@@ -546,27 +463,26 @@ export const requestMemberConsentApiV1AppPlatformConsentRequestsPost = (
   );
 };
 
-export const getRequestMemberConsentApiV1AppPlatformConsentRequestsPostMutationKey = () =>
-  ["requestMemberConsentApiV1AppPlatformConsentRequestsPost"] as const;
+export const getRequestMemberConsentMutationKey = () => ["requestMemberConsent"] as const;
 
-export const getRequestMemberConsentApiV1AppPlatformConsentRequestsPostMutationOptions = <
+export const getRequestMemberConsentMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof requestMemberConsentApiV1AppPlatformConsentRequestsPost>>,
+    Awaited<ReturnType<typeof requestMemberConsent>>,
     TError,
-    RequestMemberConsentApiV1AppPlatformConsentRequestsPostMutationVariables,
+    RequestMemberConsentMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof requestMemberConsentApiV1AppPlatformConsentRequestsPost>>,
+  Awaited<ReturnType<typeof requestMemberConsent>>,
   TError,
-  RequestMemberConsentApiV1AppPlatformConsentRequestsPostMutationVariables,
+  RequestMemberConsentMutationVariables,
   TContext
 > => {
-  const mutationKey = getRequestMemberConsentApiV1AppPlatformConsentRequestsPostMutationKey();
+  const mutationKey = getRequestMemberConsentMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -574,53 +490,46 @@ export const getRequestMemberConsentApiV1AppPlatformConsentRequestsPostMutationO
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof requestMemberConsentApiV1AppPlatformConsentRequestsPost>>,
-    RequestMemberConsentApiV1AppPlatformConsentRequestsPostMutationVariables
+    Awaited<ReturnType<typeof requestMemberConsent>>,
+    RequestMemberConsentMutationVariables
   > = (props) => {
     const { data } = props ?? {};
 
-    return requestMemberConsentApiV1AppPlatformConsentRequestsPost(data, requestOptions);
+    return requestMemberConsent(data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type RequestMemberConsentApiV1AppPlatformConsentRequestsPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof requestMemberConsentApiV1AppPlatformConsentRequestsPost>>
+export type RequestMemberConsentMutationResult = NonNullable<
+  Awaited<ReturnType<typeof requestMemberConsent>>
 >;
-export type RequestMemberConsentApiV1AppPlatformConsentRequestsPostMutationBody =
-  BodyType<AppConsentRequestCreate>;
-export type RequestMemberConsentApiV1AppPlatformConsentRequestsPostMutationError =
-  ErrorType<HTTPValidationError>;
-export type RequestMemberConsentApiV1AppPlatformConsentRequestsPostMutationVariables = {
-  data: BodyType<AppConsentRequestCreate>;
-};
+export type RequestMemberConsentMutationBody = BodyType<AppConsentRequestCreate>;
+export type RequestMemberConsentMutationError = ErrorType<HTTPValidationError>;
+export type RequestMemberConsentMutationVariables = { data: BodyType<AppConsentRequestCreate> };
 
 /**
  * @summary Request Member Consent
  */
-export const useRequestMemberConsentApiV1AppPlatformConsentRequestsPost = <
+export const useRequestMemberConsent = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof requestMemberConsentApiV1AppPlatformConsentRequestsPost>>,
+      Awaited<ReturnType<typeof requestMemberConsent>>,
       TError,
-      RequestMemberConsentApiV1AppPlatformConsentRequestsPostMutationVariables,
+      RequestMemberConsentMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof requestMemberConsentApiV1AppPlatformConsentRequestsPost>>,
+  Awaited<ReturnType<typeof requestMemberConsent>>,
   TError,
-  RequestMemberConsentApiV1AppPlatformConsentRequestsPostMutationVariables,
+  RequestMemberConsentMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getRequestMemberConsentApiV1AppPlatformConsentRequestsPostMutationOptions(options),
-    queryClient
-  );
+  return useMutation(getRequestMemberConsentMutationOptions(options), queryClient);
 };

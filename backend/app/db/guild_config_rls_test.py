@@ -14,7 +14,7 @@ from sqlalchemy import update
 from sqlalchemy.exc import DBAPIError
 from sqlmodel import select
 
-from app.models.platform.guild import GuildInvite, GuildRole
+from app.models.platform.guild import GuildInvite, CommunityRole
 from app.models.platform.guild_auth_policy import GuildAuthPolicy
 from app.models.platform.user import UserRole
 from app.testing import (
@@ -47,10 +47,10 @@ async def _invite_exists(session, code: str) -> bool:
 async def test_a_member_neither_reads_nor_writes_an_invite(
     session, acting_user, role_session
 ):
-    a = await acting_user(guild_role=GuildRole.admin)
+    a = await acting_user(guild_role=CommunityRole.admin)
     session.add(_invite(a.guild.id, a.user.id, "issued-by-the-admin"))
     await session.commit()
-    member = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+    member = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
     s = await _writing_as(role_session, user_id=member.user.id, guild_id=a.guild.id)
     assert list(await s.exec(select(GuildInvite.code))) == []
     s.add(_invite(a.guild.id, member.user.id, "by-a-member"))
@@ -63,7 +63,7 @@ async def test_a_member_neither_reads_nor_writes_an_invite(
 async def test_the_administrator_reads_and_writes_an_invite(
     session, acting_user, role_session
 ):
-    a = await acting_user(guild_role=GuildRole.admin)
+    a = await acting_user(guild_role=CommunityRole.admin)
     s = await _writing_as(role_session, user_id=a.user.id, guild_id=a.guild.id)
     s.add(_invite(a.guild.id, a.user.id, "by-the-admin"))
     await s.commit()
@@ -75,7 +75,7 @@ async def test_a_settings_grant_reads_invites_and_does_not_write_them(
     session, acting_user, role_session
 ):
     """A settings rung reads what a guild admin administers."""
-    a = await acting_user(guild_role=GuildRole.admin)
+    a = await acting_user(guild_role=CommunityRole.admin)
     session.add(_invite(a.guild.id, a.user.id, "issued-by-the-admin"))
     await session.commit()
     support = await create_user(session, role=UserRole.support)
@@ -98,7 +98,7 @@ async def test_a_settings_grant_beside_read_write_writes_an_invite(
 ):
     """The two asks together: the rung names the surface, the read_write grant
     lets it be changed."""
-    a = await acting_user(guild_role=GuildRole.admin)
+    a = await acting_user(guild_role=CommunityRole.admin)
     support = await create_user(session, role=UserRole.support)
     await create_access_grant(
         session, user=support, guild=a.guild, access_level="admin", purpose="settings"
@@ -135,7 +135,7 @@ async def test_a_lent_seat_changes_the_sign_in_rule_only_beside_read_write(
 ):
     """The seat's own write, lent for a window: read on the rung alone, and
     changed once a read_write grant stands beside it."""
-    a = await acting_user(guild_role=GuildRole.superadmin)
+    a = await acting_user(guild_role=CommunityRole.superadmin)
     provider = await create_auth_provider(session, slug="corp")
     await create_guild_auth_policy(session, a.guild, provider)
     before = await _sign_in_rule(session, a.guild.id)
@@ -176,7 +176,7 @@ async def test_a_content_grant_does_not_write_an_invite(
     session, acting_user, role_session
 ):
     """A content grant reaches the work, not the roster."""
-    a = await acting_user(guild_role=GuildRole.admin)
+    a = await acting_user(guild_role=CommunityRole.admin)
     support = await create_user(session, role=UserRole.support)
     await create_access_grant(
         session, user=support, guild=a.guild, access_level="read_write"

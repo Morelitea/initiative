@@ -2,7 +2,7 @@ import { AlertTriangle, CheckCircle2, ChevronDown, Filter, Loader2, XCircle } fr
 import { type ReactNode, useEffect, useId, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { useEstimateAggregateExportApiV1CGuildIdExportsEstimateGet } from "@/api/generated/exports/exports";
+import { useEstimateAggregateExport } from "@/api/generated/exports/exports";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import type { ExportExtraAction, ExportFormatOption } from "@/components/exports/ExportButton";
 import {
@@ -505,7 +505,7 @@ function AggregateExportWizard({
   // A keystroke in a search box is not a request.
   const estimateFilters = useDebouncedValue(filtersParam, 300);
 
-  const estimateQuery = useEstimateAggregateExportApiV1CGuildIdExportsEstimateGet(
+  const estimateQuery = useEstimateAggregateExport(
     guildId,
     {
       scope: scope.kind,

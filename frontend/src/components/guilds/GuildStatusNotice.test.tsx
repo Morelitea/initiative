@@ -33,10 +33,10 @@ vi.mock("@/hooks/useTickets", async () => {
   };
 });
 vi.mock("@/api/generated/communities/communities", () => ({
-  getReadGuildPaymentIssueApiV1CommunitiesGuildIdBillingPaymentIssueGetQueryKey: (id: number) => [
+  getReadCommunityPaymentIssueQueryKey: (id: number) => [
     `/api/v1/communities/${id}/billing/payment-issue`,
   ],
-  readGuildPaymentIssueApiV1CommunitiesGuildIdBillingPaymentIssueGet: askMock,
+  readCommunityPaymentIssue: askMock,
 }));
 
 import { GuildStatusNotice, guildStatusNoticeApplies } from "./GuildStatusNotice";

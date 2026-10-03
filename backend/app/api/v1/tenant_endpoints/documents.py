@@ -31,6 +31,7 @@ from app.services.tenant import relationships
 from app.services.tenant.relationships import Endpoint
 from app.api.actor_route import ActorRoute
 from app.api.deps import (
+    CommunityIdPath,
     ActorContext,
     ActorSessionDep,
     ActorUserDep,
@@ -1004,7 +1005,7 @@ async def _load_download_document(
     with the eager loads the access check needs.
 
     Downloads are served via iframe/window.open, which can't send headers, so
-    the guild rides in the ``/c/{guild_id}`` path segment and names exactly the
+    the guild rides in the ``/c/{community_id}`` path segment and names exactly the
     schema to read. Access is re-validated here (membership or live PAM grant).
     Leaves the session routed into the guild so a follow-up version query runs
     in the same schema.
@@ -1045,7 +1046,7 @@ async def _load_download_document(
 @limiter.limit("30/minute")
 async def download_document_file(
     request: Request,
-    guild_id: int,
+    guild_id: CommunityIdPath,
     document_id: int,
     current_user: UploadUserDep,
     # SessionDep (not RLSSessionDep) because the loader routes the session
@@ -1094,7 +1095,7 @@ async def download_document_file(
 @limiter.limit("30/minute")
 async def download_document_file_version(
     request: Request,
-    guild_id: int,
+    guild_id: CommunityIdPath,
     document_id: int,
     version_id: int,
     current_user: UploadUserDep,
