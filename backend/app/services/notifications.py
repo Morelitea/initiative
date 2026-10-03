@@ -2292,10 +2292,12 @@ async def _run_hold_summary_pass(session: AsyncSession, *, now: datetime) -> Non
         held_rows = await _hold_summary_rows(
             session, user_id=user.id, since=lift.opened, until=lift.closed
         )
-        if (
-            _rows_for(Channel.desktop, held_rows, prefs=prefs)
-            and (await notification_policy.for_send(session, None)).push
-        ):
+        # Only what each community still lets leave the app is counted.
+        policies = await notification_policy.for_send_many(
+            session, {guild_id for _, guild_id, _ in held_rows}
+        )
+        held_rows = [row for row in held_rows if policies[row[1]].push]
+        if _rows_for(Channel.desktop, held_rows, prefs=prefs):
             # The desktop app says so from the bell, which already holds it all.
             notification_stream.queue_summary_alert(session, cast(int, user.id))
         rows = _rows_for(Channel.push, held_rows, prefs=prefs)

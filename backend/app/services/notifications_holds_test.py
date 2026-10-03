@@ -419,6 +419,30 @@ async def test_the_desktop_hears_the_summary_with_mobile_off(
     assert len(_summary_alerts(desktop)) == 1
 
 
+async def test_a_community_with_push_off_is_left_out_of_the_summary(
+    session: AsyncSession, account_socket
+):
+    user = await create_user(session, timezone="UTC")
+    guild = await create_guild(session, creator=user)
+    guild.allow_push_notifications = False
+    session.add(guild)
+    await set_notification_prefs(session, user, dict(NIGHT))
+    notification = await user_notifications.create_notification(
+        session, user_id=user.id, notification_type=MENTION, data={"guild_id": guild.id}
+    )
+    assert notification is not None
+    notification.created_at = _at(23, day=8)
+    await session.commit()
+    desktop = account_socket(user.id)
+
+    with push_switched_on():
+        await _run_hold_summary_pass(session, now=_at(8))
+    await settle()
+
+    assert await _summaries(session) == []
+    assert _summary_alerts(desktop) == []
+
+
 async def test_a_quiet_night_is_not_reported(session: AsyncSession):
     user = await create_user(session, email="hold-quiet@example.com", timezone="UTC")
     await create_guild(session, creator=user)
