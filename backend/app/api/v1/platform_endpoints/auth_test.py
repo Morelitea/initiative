@@ -995,7 +995,7 @@ async def test_malformed_jwt_returns_401(client: AsyncClient):
     depends on this distinction to auto-redirect expired sessions to
     /welcome."""
     headers = {"Authorization": "Bearer not.a.valid.jwt"}
-    response = await client.get("/api/v1/users/me", headers=headers)
+    response = await client.get("/api/v1/me", headers=headers)
 
     assert response.status_code == 401
     assert response.headers.get("WWW-Authenticate") == "Bearer"
@@ -1008,7 +1008,7 @@ async def test_expired_jwt_returns_401(client: AsyncClient, session: AsyncSessio
     user = await create_user(session)
     expired_token = get_auth_token(user, expires_in=timedelta(seconds=-1))
     response = await client.get(
-        "/api/v1/users/me",
+        "/api/v1/me",
         headers={"Authorization": f"Bearer {expired_token}"},
     )
 
@@ -1031,7 +1031,7 @@ async def test_stale_token_version_returns_401(
     await session.commit()
 
     response = await client.get(
-        "/api/v1/users/me",
+        "/api/v1/me",
         headers={"Authorization": f"Bearer {stale_token}"},
     )
     assert response.status_code == 401
@@ -1047,7 +1047,7 @@ async def test_new_access_token_authenticates(
     token = get_auth_token(user)
 
     response = await client.get(
-        "/api/v1/users/me",
+        "/api/v1/me",
         headers={"Authorization": f"Bearer {token}"},
     )
     assert response.status_code == 200
@@ -1066,7 +1066,7 @@ async def test_new_access_token_stale_version_returns_401(
     await session.commit()
 
     response = await client.get(
-        "/api/v1/users/me",
+        "/api/v1/me",
         headers={"Authorization": f"Bearer {token}"},
     )
     assert response.status_code == 401
@@ -1081,7 +1081,7 @@ async def test_scoped_upload_token_rejected_on_session_path(
     upload_token, _ = create_upload_token(user_id=user.id)
 
     response = await client.get(
-        "/api/v1/users/me",
+        "/api/v1/me",
         headers={"Authorization": f"Bearer {upload_token}"},
     )
     assert response.status_code == 401
@@ -1145,7 +1145,7 @@ async def test_logout_leaves_the_account_signed_in_elsewhere(
     assert user.token_version == initial_version
 
     elsewhere = await client.get(
-        "/api/v1/users/me",
+        "/api/v1/me",
         headers={"Authorization": f"Bearer {another_device}"},
     )
     assert elsewhere.status_code == 200
@@ -1763,7 +1763,7 @@ async def test_oidc_refresh_cookie_rotates_into_access_token(
     access_token = resp.json()["access_token"]
 
     me = await client.get(
-        "/api/v1/users/me",
+        "/api/v1/me",
         headers={"Authorization": f"Bearer {access_token}"},
     )
     assert me.status_code == 200
@@ -2412,7 +2412,7 @@ async def test_password_reset_revokes_sessions_on_every_device(
 
     # Old JWT rejected (token_version bumped).
     post_jwt = await client.get(
-        "/api/v1/users/me",
+        "/api/v1/me",
         headers={"Authorization": f"Bearer {old_jwt}"},
     )
     assert post_jwt.status_code == 401
@@ -2599,7 +2599,7 @@ async def test_refresh_rotates_and_new_token_authenticates(
     assert resp.cookies.get("refresh_token")  # a new (rotated) refresh was set
 
     me = await client.get(
-        "/api/v1/users/me",
+        "/api/v1/me",
         headers={"Authorization": f"Bearer {access_token}"},
     )
     assert me.status_code == 200
@@ -2756,7 +2756,7 @@ async def test_password_change_revokes_refresh_session(
     captured = login.cookies.get("refresh_token")
 
     change = await client.patch(
-        "/api/v1/users/me",
+        "/api/v1/me",
         json={"password": "newpassword456", "current_password": password},
     )
     assert change.status_code == 200

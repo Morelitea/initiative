@@ -94,7 +94,7 @@ const PERSIST_ALLOWLIST = [
   "/api/v1/me/projects",
   "/api/v1/me/tools",
   // Enough identity and structure to render the shell around all of it.
-  "/api/v1/users/me",
+  "/api/v1/me",
   "/api/v1/communities",
   "/api/v1/recents",
 ] as const;

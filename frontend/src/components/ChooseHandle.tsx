@@ -29,7 +29,7 @@ export const ChooseHandle = () => {
     setSubmitting(true);
     setError(null);
     try {
-      await apiClient.patch("/users/me/username", {
+      await apiClient.patch("/me/username", {
         username: username.trim().toLowerCase(),
         offer: handle.offer ?? undefined,
       });

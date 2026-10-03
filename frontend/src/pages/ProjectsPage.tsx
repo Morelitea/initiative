@@ -77,7 +77,7 @@ export const ProjectsView = ({ fixedInitiativeId, canCreate }: ProjectsViewProps
   // fetch it unconditionally. Create access is derived from the same payload
   // by useToolCreateAccess, which already honors guild-admin / PAM grants — no
   // need to pre-gate on a claimed manager role from user.initiative_roles (the
-  // /users/me object no longer populates that field: initiative membership is
+  // /me object no longer populates that field: initiative membership is
   // guild-schema content).
   const initiativesQuery = useInitiatives();
   // Canonical create answer: the locked/filtered initiative's server-computed

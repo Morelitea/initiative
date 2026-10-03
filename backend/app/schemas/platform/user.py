@@ -43,7 +43,7 @@ from app.core.config import settings
 
 # ``avatar_url`` is where a user's picture is: either a path this API serves
 # (``/api/v1/users/{id}/avatar/{sha256}`` — the bytes live in ``user_avatars``
-# and are uploaded through ``PUT /users/me/avatar``) or a URL somewhere else,
+# and are uploaded through ``PUT /me/avatar``) or a URL somewhere else,
 # from an OIDC ``picture`` claim. The two are alternatives, and one field holds
 # whichever applies.
 #
@@ -644,12 +644,12 @@ class UserRead(UserBase):
     #: the signup form agreed there and never sees this; one provisioned by an
     #: identity provider met no form, so true blocks the app on the acceptance
     #: screen the way ``username_chosen`` false routes to the handle screen.
-    #: Populated by ``/users/me``; defaults false elsewhere.
+    #: Populated by ``/me``; defaults false elsewhere.
     legal_acceptance_required: bool = False
     #: This account's cookie answer, so a browser it has never been asked in
     #: can adopt it instead of asking again. Null where it has never answered,
     #: which is different from having answered and allowed nothing. Populated
-    #: by ``/users/me``; null elsewhere.
+    #: by ``/me``; null elsewhere.
     cookie_consent: Optional["CookieConsentRead"] = None
     status: UserStatus
     #: Both resolved from ``user_emails`` by whoever builds this shape (see
@@ -680,7 +680,7 @@ class UserRead(UserBase):
     # True when the account has a linked external identity (SSO). Consumed by
     # the profile/deletion UI to hide the password confirmation, since SSO-only
     # accounts have no usable password to type in. Populated by the self
-    # endpoints (/users/me and PATCH /users/me); defaults False elsewhere.
+    # endpoints (/me and PATCH /me); defaults False elsewhere.
     has_federated_identity: bool = False
     # True when the account holds a password it can be asked for. Read from
     # the stored hash rather than from the identity link above: an account can
@@ -728,7 +728,7 @@ class OperatorUserRead(UserRead):
     somebody has quoted at you, which is what the column is read for.
 
     Masking lives on the shape rather than in each operator route: subclassing
-    keeps ``/users/me`` — where the reader is the address's owner — on plain
+    keeps ``/me`` — where the reader is the address's owner — on plain
     ``UserRead``, while every operator route that returns an account gets the
     masked form without opting in.
     """

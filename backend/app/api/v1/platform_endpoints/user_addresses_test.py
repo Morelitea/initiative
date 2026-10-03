@@ -31,9 +31,7 @@ async def _enable_smtp(session: AsyncSession) -> None:
 
 
 async def _listing(client: AsyncClient, user) -> list[dict]:
-    response = await client.get(
-        "/api/v1/users/me/emails", headers=get_auth_headers(user)
-    )
+    response = await client.get("/api/v1/me/emails", headers=get_auth_headers(user))
     assert response.status_code == 200, response.text
     return response.json()["items"]
 
@@ -75,7 +73,7 @@ async def test_adding_an_address_holds_it_unproven(
     user = await create_user(session, email="primary@example.com")
 
     response = await client.post(
-        "/api/v1/users/me/emails",
+        "/api/v1/me/emails",
         json={"email": "second@example.com"},
         headers=get_auth_headers(user),
     )
@@ -99,12 +97,12 @@ async def test_adding_an_address_somebody_holds_says_the_same_thing(
     owner_id, other_id = owner.id, other.id
 
     taken = await client.post(
-        "/api/v1/users/me/emails",
+        "/api/v1/me/emails",
         json={"email": "taken@example.com"},
         headers=get_auth_headers(other),
     )
     free = await client.post(
-        "/api/v1/users/me/emails",
+        "/api/v1/me/emails",
         json={"email": "untaken@example.com"},
         headers=get_auth_headers(other),
     )
@@ -131,7 +129,7 @@ async def test_a_verification_token_proves_one_address(
     user = await create_user(session, email="holder@example.com")
     user_id = user.id
     await client.post(
-        "/api/v1/users/me/emails",
+        "/api/v1/me/emails",
         json={"email": "proveme@example.com"},
         headers=get_auth_headers(user),
     )
@@ -173,13 +171,13 @@ async def test_the_primary_moves_only_to_a_proven_address(
     unproven_id, proven_id = unproven.id, proven.id
 
     refused = await client.put(
-        f"/api/v1/users/me/emails/{unproven_id}/primary", headers=get_auth_headers(user)
+        f"/api/v1/me/emails/{unproven_id}/primary", headers=get_auth_headers(user)
     )
     assert refused.status_code == 400
     assert refused.json()["detail"] == "ADDRESS_NOT_VERIFIED"
 
     moved = await client.put(
-        f"/api/v1/users/me/emails/{proven_id}/primary", headers=get_auth_headers(user)
+        f"/api/v1/me/emails/{proven_id}/primary", headers=get_auth_headers(user)
     )
     assert moved.status_code == 200, moved.text
     assert moved.json()["is_primary"] is True
@@ -196,7 +194,7 @@ async def test_the_primary_address_is_not_removed(
     address_id = (await _listing(client, user))[0]["id"]
 
     refused = await client.delete(
-        f"/api/v1/users/me/emails/{address_id}", headers=get_auth_headers(user)
+        f"/api/v1/me/emails/{address_id}", headers=get_auth_headers(user)
     )
     assert refused.status_code == 400
     assert refused.json()["detail"] == "PRIMARY_ADDRESS"
@@ -220,7 +218,7 @@ async def test_the_last_proven_address_is_not_removed(
 
     # Hand the primary to the spare, leaving the original merely proven.
     moved = await client.put(
-        f"/api/v1/users/me/emails/{spare_id}/primary", headers=get_auth_headers(user)
+        f"/api/v1/me/emails/{spare_id}/primary", headers=get_auth_headers(user)
     )
     assert moved.status_code == 200, moved.text
 
@@ -228,13 +226,13 @@ async def test_the_last_proven_address_is_not_removed(
         i for i in await _listing(client, user) if i["email"] == "proven@example.com"
     ][0]
     gone = await client.delete(
-        f"/api/v1/users/me/emails/{original['id']}", headers=get_auth_headers(user)
+        f"/api/v1/me/emails/{original['id']}", headers=get_auth_headers(user)
     )
     assert gone.status_code == 204, gone.text
 
     # And now the spare is the only proven one, so it stays.
     refused = await client.delete(
-        f"/api/v1/users/me/emails/{spare_id}", headers=get_auth_headers(user)
+        f"/api/v1/me/emails/{spare_id}", headers=get_auth_headers(user)
     )
     assert refused.status_code == 400
     assert refused.json()["detail"] == "PRIMARY_ADDRESS"
@@ -249,11 +247,11 @@ async def test_an_address_on_another_account_is_not_yours_to_touch(
 
     for response in (
         await client.delete(
-            f"/api/v1/users/me/emails/{owner_address_id}",
+            f"/api/v1/me/emails/{owner_address_id}",
             headers=get_auth_headers(stranger),
         ),
         await client.put(
-            f"/api/v1/users/me/emails/{owner_address_id}/primary",
+            f"/api/v1/me/emails/{owner_address_id}/primary",
             headers=get_auth_headers(stranger),
         ),
     ):
@@ -272,7 +270,7 @@ async def test_an_unproven_claim_does_not_take_the_address(
     holder = await create_user(session, email="holder@example.com")
 
     claimed = await client.post(
-        "/api/v1/users/me/emails",
+        "/api/v1/me/emails",
         json={"email": "contested@example.com"},
         headers=get_auth_headers(other_claimant),
     )
@@ -280,7 +278,7 @@ async def test_an_unproven_claim_does_not_take_the_address(
 
     # The real holder can still make the same claim.
     theirs = await client.post(
-        "/api/v1/users/me/emails",
+        "/api/v1/me/emails",
         json={"email": "contested@example.com"},
         headers=get_auth_headers(holder),
     )
@@ -363,7 +361,7 @@ async def test_an_account_holds_a_bounded_number_of_addresses(
     await session.commit()
 
     refused = await client.post(
-        "/api/v1/users/me/emails",
+        "/api/v1/me/emails",
         json={"email": "one-too-many@example.com"},
         headers=get_auth_headers(user),
     )
@@ -381,7 +379,7 @@ async def test_asking_again_resends_rather_than_refusing(
 
     for _ in range(2):
         response = await client.post(
-            "/api/v1/users/me/emails",
+            "/api/v1/me/emails",
             json={"email": "again@example.com"},
             headers=get_auth_headers(user),
         )
@@ -421,12 +419,12 @@ async def test_a_full_account_answers_the_same_whoever_holds_the_address(
     await session.commit()
 
     taken = await client.post(
-        "/api/v1/users/me/emails",
+        "/api/v1/me/emails",
         json={"email": "spoken-for@example.com"},
         headers=get_auth_headers(full),
     )
     free = await client.post(
-        "/api/v1/users/me/emails",
+        "/api/v1/me/emails",
         json={"email": "nobody-has-this@example.com"},
         headers=get_auth_headers(full),
     )

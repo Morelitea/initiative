@@ -86,7 +86,7 @@ class TestRenaming:
         )
 
         claim = await client.patch(
-            "/api/v1/users/me/username",
+            "/api/v1/me/username",
             headers=get_auth_headers(subject),
             json={"username": "back-to-mine"},
         )
@@ -167,9 +167,7 @@ class TestSuspension:
         moderator, member, _guild = moderator_and_member
         await self._suspend(client, moderator, member)
 
-        response = await client.get(
-            "/api/v1/users/me", headers=get_auth_headers(member)
-        )
+        response = await client.get("/api/v1/me", headers=get_auth_headers(member))
 
         assert response.status_code == 200
         assert response.json()["status"] == "suspended"
@@ -627,8 +625,8 @@ class TestTimeOut:
     async def test_the_allow_list_answers(self, client, suspended):
         headers = get_auth_headers(suspended)
         for path in (
-            "/api/v1/users/me",
-            "/api/v1/users/me/time-out",
+            "/api/v1/me",
+            "/api/v1/me/time-out",
             "/api/v1/auth/sessions",
             "/api/v1/notifications/",
         ):
@@ -637,7 +635,7 @@ class TestTimeOut:
 
     async def test_it_holds_no_rung(self, client, suspended):
         headers = get_auth_headers(suspended)
-        me = (await client.get("/api/v1/users/me", headers=headers)).json()
+        me = (await client.get("/api/v1/me", headers=headers)).json()
         assert me["status"] == "suspended"
         assert me["capabilities"] == []
         assert me["can_create_guilds"] is False
@@ -648,9 +646,9 @@ class TestTimeOut:
     async def test_everything_else_is_refused(self, client, suspended):
         headers = get_auth_headers(suspended)
         for method, path, body in (
-            ("patch", "/api/v1/users/me", {"timezone": "UTC"}),
+            ("patch", "/api/v1/me", {"timezone": "UTC"}),
             ("post", "/api/v1/communities/", {"name": "Mine"}),
-            ("post", "/api/v1/users/me/delete-account", {}),
+            ("post", "/api/v1/me/delete-account", {}),
             ("get", "/api/v1/me/contacts", None),
             ("get", "/api/v1/me/tasks", None),
         ):
@@ -675,9 +673,7 @@ class TestTimeOut:
         await session.commit()
 
         body = (
-            await client.get(
-                "/api/v1/users/me/time-out", headers=get_auth_headers(suspended)
-            )
+            await client.get("/api/v1/me/time-out", headers=get_auth_headers(suspended))
         ).json()
         assert body["contact_email"] == "trust@example.com"
         assert body["since"] is not None
@@ -690,7 +686,7 @@ class TestTimeOut:
 
         async def _reason():
             screen = await client.get(
-                "/api/v1/users/me/time-out", headers=get_auth_headers(subject)
+                "/api/v1/me/time-out", headers=get_auth_headers(subject)
             )
             return screen.json()["reason"]
 

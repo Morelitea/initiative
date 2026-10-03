@@ -184,13 +184,13 @@ TASK_COMPLETION_VISUAL_FEEDBACK_VALUES: frozenset[str] = frozenset(
 
 logger = logging.getLogger(__name__)
 
+# Other people's public profiles. Mounted under /api/v1/users.
 router = APIRouter()
-# Cross-guild "my" aggregate (user stats). Mounted under /api/v1/me; user-scoped
-# (no guild context), with an optional guild_id filter.
+# The signed-in account: its profile, settings and stats. Mounted under
+# /api/v1/me; user-scoped (no guild context).
 me_router = APIRouter()
 # Guild-scoped member management (guild-admin lists/creates/approves/removes
-# members of one guild). Mounted under /c/{guild_id}/users — the /me/* and
-# platform user endpoints stay on ``router`` (top-level /users). The member
+# members of one guild). Mounted under /c/{guild_id}/users. The member
 # search is also what an installed app reads people through, under
 # ``members:read``.
 guild_router = APIRouter(route_class=ActorRoute)
@@ -201,7 +201,7 @@ members_router = APIRouter(route_class=ActorRoute)
 MembersRead = Annotated[ActorContext, Depends(app_scope("members:read"))]
 
 
-@router.get("/me/time-out", response_model=AccountTimeOutRead)
+@me_router.get("/time-out", response_model=AccountTimeOutRead)
 async def read_my_time_out(
     session: FactorExemptAccountHolderSessionDep,
     current_user: FactorExemptAccountHolder,
@@ -223,8 +223,8 @@ async def read_my_time_out(
     )
 
 
-@router.get("/me", response_model=UserRead)
-async def read_users_me(
+@me_router.get("", response_model=UserRead)
+async def read_me(
     session: FactorExemptAccountHolderSessionDep,
     current_user: FactorExemptAccountHolder,
 ) -> UserRead:
@@ -664,7 +664,7 @@ async def list_roster(
     )
 
 
-@router.get("/me/decorations", response_model=OwnedDecorationsResponse)
+@me_router.get("/decorations", response_model=OwnedDecorationsResponse)
 async def list_my_decorations(
     session: UserSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
@@ -720,7 +720,7 @@ def _pack_entry(
     )
 
 
-@router.get("/me/decoration-packs", response_model=DecorationPackListResponse)
+@me_router.get("/decoration-packs", response_model=DecorationPackListResponse)
 async def list_decoration_packs(
     session: UserSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
@@ -739,7 +739,7 @@ async def list_decoration_packs(
     )
 
 
-@router.post("/me/decoration-packs/{uid}", response_model=DecorationPack)
+@me_router.post("/decoration-packs/{uid}", response_model=DecorationPack)
 async def install_decoration_pack(
     uid: str,
     session: UserSessionDep,
@@ -770,7 +770,7 @@ async def install_decoration_pack(
     return _pack_entry(pack, installed=True)
 
 
-@router.delete("/me/decoration-packs/{uid}", response_model=DecorationPack)
+@me_router.delete("/decoration-packs/{uid}", response_model=DecorationPack)
 async def remove_decoration_pack(
     uid: str,
     session: UserSessionDep,
@@ -1036,7 +1036,7 @@ async def export_users_csv(
     )
 
 
-@router.patch("/me/username", response_model=UserRead)
+@me_router.patch("/username", response_model=UserRead)
 async def claim_my_username(
     payload: UsernameClaim,
     session: UserSessionDep,
@@ -1074,7 +1074,7 @@ async def claim_my_username(
     return await users_service.to_self_read(current_user)
 
 
-@router.post("/me/age-confirmation", response_model=UserRead)
+@me_router.post("/age-confirmation", response_model=UserRead)
 async def confirm_my_age(
     payload: AgeConfirmation,
     session: UserSessionDep,
@@ -1142,7 +1142,7 @@ def _cookie_consent_read(row: UserCookieConsent | None) -> CookieConsentRead | N
     return None if row is None else CookieConsentRead.model_validate(row)
 
 
-@router.put("/me/cookie-consent", response_model=CookieConsentRead)
+@me_router.put("/cookie-consent", response_model=CookieConsentRead)
 async def set_cookie_consent(
     payload: CookieConsentUpdate,
     session: UserSessionDep,
@@ -1170,7 +1170,7 @@ async def set_cookie_consent(
     return CookieConsentRead.model_validate(row)
 
 
-@router.post("/me/legal-acceptance", response_model=UserRead)
+@me_router.post("/legal-acceptance", response_model=UserRead)
 async def accept_legal_documents(
     session: UserSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
@@ -1215,7 +1215,7 @@ def _address_read(row) -> UserEmailRead:
     )
 
 
-@router.get("/me/emails", response_model=UserEmailListResponse)
+@me_router.get("/emails", response_model=UserEmailListResponse)
 async def list_my_addresses(
     system_session: SystemSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
@@ -1229,8 +1229,8 @@ async def list_my_addresses(
     return UserEmailListResponse(items=[_address_read(row) for row in rows])
 
 
-@router.post(
-    "/me/emails",
+@me_router.post(
+    "/emails",
     response_model=VerificationSendResponse,
     status_code=status.HTTP_202_ACCEPTED,
 )
@@ -1293,7 +1293,7 @@ async def add_my_address(
     return VerificationSendResponse(status="sent")
 
 
-@router.delete("/me/emails/{address_id}", status_code=status.HTTP_204_NO_CONTENT)
+@me_router.delete("/emails/{address_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def remove_my_address(
     address_id: int,
     system_session: SystemSessionDep,
@@ -1317,7 +1317,7 @@ async def remove_my_address(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.put("/me/emails/{address_id}/primary", response_model=UserEmailRead)
+@me_router.put("/emails/{address_id}/primary", response_model=UserEmailRead)
 async def make_my_address_primary(
     address_id: int,
     system_session: SystemSessionDep,
@@ -1343,8 +1343,8 @@ async def make_my_address_primary(
     return _address_read(row)
 
 
-@router.patch("/me", response_model=UserRead)
-async def update_users_me(
+@me_router.patch("", response_model=UserRead)
+async def update_me(
     request: Request,
     user_in: UserSelfUpdate,
     session: UserSessionDep,
@@ -1514,9 +1514,9 @@ async def update_users_me(
         # rather than at the next reconnect. Told after the commit, so nothing
         # is shown on the strength of a write that did not land.
         presence.online.chose(current_user.id, current_user.presence)
-    # Platform path — no initiative_roles enrichment (see read_users_me).
+    # Platform path — no initiative_roles enrichment (see read_me).
     # The SPA replaces its auth state with this response, so carry the same
-    # linked-identity signal /users/me serves.
+    # linked-identity signal /me serves.
     payload = await users_service.to_self_read(current_user)
     payload.has_federated_identity = is_sso_account
     payload.has_password = has_usable_password(current_user.hashed_password)
@@ -1524,7 +1524,7 @@ async def update_users_me(
     return payload
 
 
-@router.get("/me/deletion-eligibility", response_model=DeletionEligibilityResponse)
+@me_router.get("/deletion-eligibility", response_model=DeletionEligibilityResponse)
 async def check_deletion_eligibility(
     session: SystemSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
@@ -1543,7 +1543,7 @@ async def check_deletion_eligibility(
     )
 
 
-@router.post("/me/delete-account", response_model=AccountDeletionResponse)
+@me_router.post("/delete-account", response_model=AccountDeletionResponse)
 async def delete_own_account(
     http_request: Request,
     request: AccountDeletionRequest,
@@ -1636,7 +1636,7 @@ async def delete_own_account(
     )
 
 
-@router.get("/me/api-keys", response_model=ApiKeyListResponse)
+@me_router.get("/api-keys", response_model=ApiKeyListResponse)
 async def list_my_api_keys(
     session: SystemSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
@@ -1649,8 +1649,8 @@ async def list_my_api_keys(
     return ApiKeyListResponse(keys=keys)
 
 
-@router.post(
-    "/me/api-keys",
+@me_router.post(
+    "/api-keys",
     response_model=ApiKeyCreateResponse,
     status_code=status.HTTP_201_CREATED,
 )
@@ -1696,7 +1696,7 @@ async def create_my_api_key(
     return ApiKeyCreateResponse(api_key=api_key, secret=secret)
 
 
-@router.delete("/me/api-keys/{api_key_id}", status_code=status.HTTP_204_NO_CONTENT)
+@me_router.delete("/api-keys/{api_key_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_my_api_key(
     api_key_id: int,
     session: SystemSessionDep,
@@ -2067,7 +2067,7 @@ async def read_member_avatar(
         return await _avatar_response(reader, person, digest)
 
 
-@router.put("/me/avatar", response_model=UserRead)
+@me_router.put("/avatar", response_model=UserRead)
 async def upload_my_avatar(
     file: Annotated[UploadFile, File()],
     session: UserSessionDep,
@@ -2075,7 +2075,7 @@ async def upload_my_avatar(
 ) -> UserRead:
     """Replace the caller's profile picture.
 
-    Multipart rather than a base64 field on ``PATCH /users/me``: sending the
+    Multipart rather than a base64 field on ``PATCH /me``: sending the
     image inside JSON is the thing this endpoint exists to stop. The body is
     read under the cap so an oversized upload is refused rather than buffered
     whole, and the format and dimensions are read from the header — nothing
@@ -2102,7 +2102,7 @@ async def upload_my_avatar(
     return await users_service.to_self_read(current_user)
 
 
-@router.delete("/me/avatar", status_code=status.HTTP_204_NO_CONTENT)
+@me_router.delete("/avatar", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_my_avatar(
     session: UserSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],

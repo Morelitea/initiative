@@ -17,14 +17,14 @@ import {
 } from "./client";
 
 /**
- * The renewal round trip, as every case here needs it: `/users/me` answers 401
+ * The renewal round trip, as every case here needs it: `/me` answers 401
  * until a refresh has landed, and then answers. What the refresh saw is
  * returned so a test can assert on it; `answer` is how the refresh replies.
  */
 function stubRenewal(answer: () => Response = () => HttpResponse.json({ access_token: "fresh" })) {
   const seen = { calls: 0, body: null as string | null, renewed: false };
   server.use(
-    http.get("/api/v1/users/me", () =>
+    http.get("/api/v1/me", () =>
       seen.renewed ? HttpResponse.json({ id: 1 }) : new HttpResponse(null, { status: 401 })
     ),
     http.post("/api/v1/auth/refresh", async ({ request }) => {
@@ -101,7 +101,7 @@ describe("renewal for a client that holds its own refresh token", () => {
       HttpResponse.json({ access_token: "fresh", refresh_token: "rt-new" })
     );
 
-    await apiClient.get("/users/me");
+    await apiClient.get("/me");
 
     expect(JSON.parse(seen.body ?? "null")).toEqual({ refresh_token: "rt-old" });
     // Spent on use, so the one held has to be the replacement.
@@ -119,7 +119,7 @@ describe("renewal for a client that holds its own refresh token", () => {
     const signedOut = watch(AUTH_UNAUTHORIZED_EVENT);
     stubRenewal(() => HttpResponse.json({ access_token: "fresh", refresh_token: "rt-next" }));
 
-    const response = await apiClient.get("/users/me");
+    const response = await apiClient.get("/me");
 
     expect(response.data).toEqual({ id: 1 });
     expect(signedOut).not.toHaveBeenCalled();
@@ -129,7 +129,7 @@ describe("renewal for a client that holds its own refresh token", () => {
   it("sends no body when there is nothing stored", async () => {
     const seen = stubRenewal();
 
-    await apiClient.get("/users/me");
+    await apiClient.get("/me");
 
     // The browser's token is a cookie it cannot read; it sends nothing and the
     // server reads the jar.
@@ -177,7 +177,7 @@ describe("silent session renewal", () => {
   it("renews the session and retries the failed request", async () => {
     const seen = stubRenewal();
 
-    const response = await apiClient.get("/users/me");
+    const response = await apiClient.get("/me");
 
     expect(response.data).toEqual({ id: 1 });
     expect(seen.calls).toBe(1);
@@ -189,7 +189,7 @@ describe("silent session renewal", () => {
     const gated = () =>
       renewed ? HttpResponse.json({ ok: true }) : new HttpResponse(null, { status: 401 });
     server.use(
-      http.get("/api/v1/users/me", gated),
+      http.get("/api/v1/me", gated),
       http.get("/api/v1/notifications", gated),
       http.post("/api/v1/auth/refresh", () => {
         refreshCalls += 1;
@@ -198,7 +198,7 @@ describe("silent session renewal", () => {
       })
     );
 
-    const [a, b] = await Promise.all([apiClient.get("/users/me"), apiClient.get("/notifications")]);
+    const [a, b] = await Promise.all([apiClient.get("/me"), apiClient.get("/notifications")]);
 
     expect(a.data).toEqual({ ok: true });
     expect(b.data).toEqual({ ok: true });
@@ -206,14 +206,11 @@ describe("silent session renewal", () => {
   });
 
   it("surfaces the signed-out state when renewal fails", async () => {
-    const seen = stubFailedRenewal(
-      () => new HttpResponse(null, { status: 401 }),
-      "/api/v1/users/me"
-    );
+    const seen = stubFailedRenewal(() => new HttpResponse(null, { status: 401 }), "/api/v1/me");
     setHasActiveSession(true);
     const onUnauthorized = watch(AUTH_UNAUTHORIZED_EVENT);
 
-    await expect(apiClient.get("/users/me")).rejects.toMatchObject({
+    await expect(apiClient.get("/me")).rejects.toMatchObject({
       response: { status: 401 },
     });
     // Exactly one renewal attempt — the refresh endpoint's own 401 must not
@@ -225,14 +222,14 @@ describe("silent session renewal", () => {
   it("emits one signed-out event when concurrent 401s share a failed renewal", async () => {
     const seen = stubFailedRenewal(
       () => new HttpResponse(null, { status: 401 }),
-      "/api/v1/users/me",
+      "/api/v1/me",
       "/api/v1/notifications"
     );
     setHasActiveSession(true);
     const onUnauthorized = watch(AUTH_UNAUTHORIZED_EVENT);
 
     const results = await Promise.allSettled([
-      apiClient.get("/users/me"),
+      apiClient.get("/me"),
       apiClient.get("/notifications"),
     ]);
 
@@ -249,12 +246,12 @@ describe("silent session renewal", () => {
     ["a request declined before it was handled", () => new HttpResponse(null, { status: 403 })],
     ["nothing answering", () => HttpResponse.error()],
   ])("keeps the session when the renewal fails with %s", async (_label, failure) => {
-    stubFailedRenewal(failure, "/api/v1/users/me");
+    stubFailedRenewal(failure, "/api/v1/me");
     setHasActiveSession(true);
     const onUnauthorized = watch(AUTH_UNAUTHORIZED_EVENT);
 
     // The request still fails — it just doesn't take the session with it.
-    await expect(apiClient.get("/users/me")).rejects.toBeDefined();
+    await expect(apiClient.get("/me")).rejects.toBeDefined();
     expect(onUnauthorized).not.toHaveBeenCalled();
   });
 
@@ -276,7 +273,7 @@ describe("silent session renewal", () => {
       return HttpResponse.json({ access_token: "fresh" });
     });
 
-    const response = await apiClient.get("/users/me");
+    const response = await apiClient.get("/me");
 
     expect(response.data).toEqual({ id: 1 });
     expect(request).toHaveBeenCalledTimes(1);
@@ -314,7 +311,7 @@ describe("silent session renewal", () => {
     it("renews and says so, for the windows waiting on it", async () => {
       stubRenewal();
 
-      await expect(apiClient.get("/users/me")).resolves.toMatchObject({ data: { id: 1 } });
+      await expect(apiClient.get("/me")).resolves.toMatchObject({ data: { id: 1 } });
       // The turn is given up, and how it went is left where peers can read it.
       expect(localStorage.getItem(TURN_KEY)).toBeNull();
       expect(localStorage.getItem(DONE_KEY)).toMatch(/:ok$/);
@@ -323,7 +320,7 @@ describe("silent session renewal", () => {
     it("uses what another window renewed rather than renewing again", async () => {
       const seen = stubRenewal();
 
-      const pending = apiClient.get("/users/me");
+      const pending = apiClient.get("/me");
       // Another window claims the turn after this one — the last write wins —
       // and then reports that it went well, which in a real browser is what
       // the storage event carries.
@@ -338,7 +335,7 @@ describe("silent session renewal", () => {
     it("renews itself when the window holding the turn did not get there", async () => {
       stubRenewal();
 
-      const pending = apiClient.get("/users/me");
+      const pending = apiClient.get("/me");
       await takeTurnAsAnotherWindow();
       reportAsAnotherWindow("no");
 
@@ -450,7 +447,7 @@ describe("silent session renewal", () => {
   it("rotates an in-memory Bearer token so the retry does not resend the stale one", async () => {
     setAuthToken("stale");
     server.use(
-      http.get("/api/v1/users/me", ({ request }) =>
+      http.get("/api/v1/me", ({ request }) =>
         request.headers.get("Authorization") === "Bearer fresh"
           ? HttpResponse.json({ id: 1 })
           : new HttpResponse(null, { status: 401 })
@@ -458,7 +455,7 @@ describe("silent session renewal", () => {
       http.post("/api/v1/auth/refresh", () => HttpResponse.json({ access_token: "fresh" }))
     );
 
-    const response = await apiClient.get("/users/me");
+    const response = await apiClient.get("/me");
 
     expect(response.data).toEqual({ id: 1 });
   });

@@ -318,7 +318,7 @@ async def test_removing_keeps_this_device_signed_in(
     assert REFRESH_COOKIE_NAME in response.cookies
 
     # The caller carries on, on the cookies the answer set.
-    mine = await client.get("/api/v1/users/me")
+    mine = await client.get("/api/v1/me")
     assert mine.status_code == 200, mine.text
     assert mine.json()["id"] == user_id
 
@@ -693,7 +693,7 @@ async def _delete_account(
 ) -> Response:
     await _seed_passkey(session, user)
     return await client.post(
-        "/api/v1/users/me/delete-account",
+        "/api/v1/me/delete-account",
         headers=headers,
         json={
             "action": "soft_delete",
@@ -762,7 +762,7 @@ async def _set_a_password(
 ) -> Response:
     await _seed_passkey(session, user)
     return await client.patch(
-        "/api/v1/users/me", headers=headers, json={"password": NEW_PASSWORD}
+        "/api/v1/me", headers=headers, json={"password": NEW_PASSWORD}
     )
 
 
@@ -881,9 +881,9 @@ async def test_the_account_says_whether_its_password_is_asked_for(
     user = await _account(session, "pl-required@example.com")
     headers = get_auth_headers(user)
 
-    before = await client.get("/api/v1/users/me", headers=headers)
+    before = await client.get("/api/v1/me", headers=headers)
     await _withdraw_passwords(session)
-    after = await client.get("/api/v1/users/me", headers=headers)
+    after = await client.get("/api/v1/me", headers=headers)
 
     assert before.json()["password_required"] is True
     assert after.json()["has_password"] is True

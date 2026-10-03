@@ -32,7 +32,7 @@ from app.testing.factories import (
 )
 
 
-ME_URL = "/api/v1/users/me"
+ME_URL = "/api/v1/me"
 GUILDS_URL = "/api/v1/communities/"
 
 

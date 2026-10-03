@@ -72,12 +72,12 @@ describe("retainOnlyGuilds", () => {
   });
 
   it("leaves platform-level queries alone", async () => {
-    seed("/api/v1/users/me");
+    seed("/api/v1/me");
     seed("/api/v1/me/tasks");
 
     await retainOnlyGuilds([3], [3]);
 
-    expect(held("/api/v1/users/me")).toBe(true);
+    expect(held("/api/v1/me")).toBe(true);
     expect(held("/api/v1/me/tasks")).toBe(true);
   });
 

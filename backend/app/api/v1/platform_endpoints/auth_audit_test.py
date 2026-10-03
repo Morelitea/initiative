@@ -143,7 +143,7 @@ async def test_changing_a_password_is_recorded_with_how(
     user_id = user.id
     capfd.readouterr()
     response = await client.patch(
-        "/api/v1/users/me",
+        "/api/v1/me",
         headers=get_auth_headers(user),
         json={"current_password": PASSWORD, "password": "a-new-longer-secret-1"},
     )

@@ -12,8 +12,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.user_cookie_consent import UserCookieConsent
 
-CONSENT = "/api/v1/users/me/cookie-consent"
-ME = "/api/v1/users/me"
+CONSENT = "/api/v1/me/cookie-consent"
+ME = "/api/v1/me"
 
 
 async def test_an_account_that_has_never_answered_carries_no_answer(

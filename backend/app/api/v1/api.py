@@ -350,8 +350,8 @@ guild_router.include_router(trash.router, prefix="/trash", tags=["trash"])
 # No prefix: the two routes are /archive/{kind}/{id} and /unarchive/{kind}/{id},
 # one pair for every archivable kind (see tenant_endpoints/archive.py).
 guild_router.include_router(archive.router, tags=["archive"])
-# Guild member management (guild-admin). The /me/* + platform user endpoints
-# stay top-level on users.router.
+# Guild member management (guild-admin). The signed-in account's own routes are
+# under /me below; users.router keeps the routes about other people.
 guild_router.include_router(users.guild_router, prefix="/users", tags=["users"])
 guild_router.include_router(users.members_router, prefix="/members", tags=["users"])
 # Recents: the addressed DELETE is guild-scoped (the cross-guild GET list stays
@@ -366,9 +366,10 @@ guild_router.include_router(
 api_router.include_router(guild_router)
 
 # ---------------------------------------------------------------------------
-# Cross-guild "my X" aggregates for the personal/multi-guild pages. User-scoped
-# (no guild context); each routes per the user's member guilds. Tagged per
-# DOMAIN so Orval generates each hook into its existing domain file.
+# Everything about the signed-in account: its profile and settings, and the
+# cross-guild "my X" aggregates for the personal pages, which route per the
+# user's member guilds. No guild context. Tagged per DOMAIN so Orval generates
+# each hook into its existing domain file.
 # ---------------------------------------------------------------------------
 me_router = APIRouter(prefix="/me")
 me_router.include_router(tasks.me_router, tags=["tasks"])
@@ -380,7 +381,6 @@ me_router.include_router(me_tools.me_router, tags=["my-tools"])
 me_router.include_router(calendar_entries.me_router, tags=["calendar-entries"])
 me_router.include_router(me_trash.me_router, tags=["trash"])
 me_router.include_router(me_ai.me_router, tags=["ai-settings"])
-me_router.include_router(users.me_router, tags=["users"])
 me_router.include_router(notification_prefs.me_router, tags=["notifications"])
 me_router.include_router(contacts.me_router, tags=["contacts"])
 me_router.include_router(
@@ -392,3 +392,6 @@ me_router.include_router(
     dependencies=[DirectMessagesEnabledDep],
 )
 api_router.include_router(me_router)
+# The account itself (GET/PATCH /me): mounted with its own prefix, since a
+# router included without one cannot carry an empty path.
+api_router.include_router(users.me_router, prefix="/me", tags=["users"])

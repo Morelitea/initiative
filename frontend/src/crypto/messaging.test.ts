@@ -56,7 +56,7 @@ vi.mock("@/api/generated/direct-messages/direct-messages", () => ({
 }));
 
 vi.mock("@/api/generated/users/users", () => ({
-  readUsersMeApiV1UsersMeGet: () => api.readMe(),
+  readMeApiV1MeGet: () => api.readMe(),
 }));
 
 /**

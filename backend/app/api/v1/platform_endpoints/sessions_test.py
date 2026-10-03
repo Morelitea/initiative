@@ -426,7 +426,7 @@ async def test_a_password_change_closes_the_connections_opened_before_it(
     on_asking = await _open_stream(streams, asking_token, session)
 
     changed = await client.patch(
-        "/api/v1/users/me",
+        "/api/v1/me",
         json={"password": "newpassword456", "current_password": PASSWORD},
         headers={"Authorization": f"Bearer {asking_token}"},
     )
