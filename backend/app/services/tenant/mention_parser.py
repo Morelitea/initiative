@@ -10,25 +10,19 @@ An editor-state body (a document, a post, a wiki page) embeds a mention as a
 Lexical ``mention`` node carrying ``mentionUserId``, with ``mentionName`` and
 ``text`` empty.
 
-A mention written before names were left out still carries one, so
-``anonymize_user_mentions`` takes a user's name out of those, wherever
-somebody writes.
+Content therefore holds no name for ``anonymize_user_mentions`` to take out;
+it takes out what a collaboration state may still hold.
 """
 
-import re
-from typing import Any, Set
+from typing import Optional, Set
 
-from sqlalchemy import JSON, cast, func, Text
-from sqlalchemy.orm import undefer
-from sqlalchemy.orm.attributes import flag_modified
-from sqlmodel import update
+from pycrdt import Doc, Text, XmlElement, XmlText
+from pycrdt._base import base_types
+from sqlalchemy import Text as SqlText, cast
+from sqlmodel import select, update
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.identity_boundary import (
-    STORED_MENTION,
-    MentionForm,
-    without_mention_names,
-)
+from app.core.identity_boundary import STORED_MENTION
 from app.core.references import references_in_text
 from app.core.search import SearchEntityType
 from app.db import gucs
@@ -61,106 +55,100 @@ def extract_mentioned_task_ids(content: str) -> Set[int]:
     }
 
 
-def _markdown_mention(user_id: int) -> str:
-    """A markdown mention of ``user_id`` that still carries a name, as a regex
-    Python and Postgres read alike."""
-    return rf"@\[[^\]]+\]\({user_id}\)"
+def nameless_state(state: bytes) -> Optional[bytes]:
+    """A collaboration state with no mention of somebody by id holding a name,
+    or ``None`` where none held one.
 
-
-def _scrub_mentions(value: Any, user_id: int) -> tuple[Any, bool]:
-    """``value`` with ``user_id``'s mentions carrying no name — a Lexical
-    mention node, or the markdown form inside any string — and whether
-    anything changed."""
-    pattern = re.compile(_markdown_mention(user_id))
-    replacement = f"@[]({user_id})"
+    The editor's binding keeps a document under the root ``root``: an element
+    as an ``XmlText`` embedded in its parent, and a decorator, a mention among
+    them, as an ``XmlElement`` whose attributes are its properties, the name in
+    ``__mention`` and the id in ``__mentionUserId``. The name is cleared as an
+    edit on top of the state, so nothing else written into it changes. A state
+    that cannot be read is left as it is: collaboration never loads one, and
+    starts from the content instead.
+    """
+    doc = Doc()
     changed = False
 
-    def walk(node: Any) -> Any:
+    def walk(text: Text) -> None:
         nonlocal changed
-        if isinstance(node, str):
-            scrubbed = pattern.sub(replacement, node)
-            changed = changed or scrubbed != node
-            return scrubbed
-        if isinstance(node, list):
-            return [walk(item) for item in node]
-        if not isinstance(node, dict):
-            return node
-        if node.get("mentionUserId") == user_id and (
-            node.get("mentionName") or node.get("text")
-        ):
-            node = without_mention_names(node, MentionForm.lexical)
-            changed = True
-        return {key: walk(child) for key, child in node.items()}
+        for value, _ in text.diff():
+            # An embedded type comes back unwrapped; pycrdt keeps the wrappers
+            # by the type it returns.
+            kind = base_types.get(type(value))
+            node = kind(_doc=doc, _integrated=value) if kind else None
+            if isinstance(node, XmlText):
+                walk(node)
+            elif (
+                isinstance(node, XmlElement)
+                and node.attributes.get("__type") == "mention"
+                and node.attributes.get("__mentionUserId") is not None
+                and node.attributes.get("__mention")
+            ):
+                node.attributes["__mention"] = ""
+                changed = True
 
-    return walk(value), changed
+    try:
+        doc.apply_update(state)
+        walk(doc.get("root", type=Text))
+    except Exception:
+        return None
+    return bytes(doc.get_update()) if changed else None
 
 
 async def anonymize_user_mentions(session: AsyncSession, *, user_id: int) -> None:
-    """Scrub ``user_id``'s display name out of the CURRENTLY ROUTED guild schema.
+    """Take ``user_id``'s name out of the CURRENTLY ROUTED guild schema.
 
-    Every column somebody writes in (``search_index.written_columns`` — the
-    same surfaces search reads) is searched for the user's mentions: the
-    markdown form ``@[Display Name](id)`` in text, and Lexical mention nodes as
-    well in an editor state. Either loses the name, as a mention written now
-    never had one. A rewritten editor
-    state has its ``yjs_state`` cleared, so collaboration bootstraps from the
-    scrubbed content. Pending task-assignment digest rows lose the
-    ``assigned_by_name`` snapshot too.
+    Content holds none to take out: a mention is stored by id alone. A
+    collaboration state can, as an editor from before names were left out
+    writes one into it, so every document or wiki page that mentions the user
+    has its state's mentions made nameless (:func:`nameless_state`). Pending
+    task-assignment digest rows lose the ``assigned_by_name`` snapshot too.
 
     Caller owns routing (guild-admin context), flushing order, and the commit —
     everything here rides the caller's transaction. Soft-deleted and archived
     rows are included: something restored later must not resurrect the name.
     """
-    from app.db.search_index import SEARCH_SOURCES, written_columns
-    from app.db.soft_delete_filter import select_including_deleted
     from app.services.tenant.collaboration import collaboration_manager
-    from app.services.tenant.collaborative_resources import YJS_STATE_COLUMN
+    from app.services.tenant.collaborative_resources import (
+        YJS_STATE_COLUMN,
+        registered_types,
+        resource_for,
+    )
 
-    markdown = _markdown_mention(user_id)
-    replacement = f"@[]({user_id})"
-    # An editor state is prefiltered on its text, then decided in Python; a
-    # false positive costs one no-op load.
-    node = rf'"mentionUserId":\s*{user_id}[^0-9]'
+    mentioned = rf'"mentionUserId":\s*{user_id}[^0-9]'
 
-    # Finished work is scrubbed too: an archived task, or a comment in the
-    # trash, keeps its words and so would keep the name. Taking something that
-    # has to go out of frozen content is the purge's kind of write, so the
-    # scrub runs under the purge flag and lowers it again before the rest of
-    # the erasure (see ``app.db.gucs.PURGING``).
+    # Finished work is included: an archived document keeps its state. Writing
+    # to frozen content is the purge's kind of write, so this runs under the
+    # purge flag and lowers it again before the rest of the erasure (see
+    # ``app.db.gucs.PURGING``).
     await raise_flag(session, gucs.PURGING)
-    rooms: list[tuple[SearchEntityType, int]] = []
-    for model, columns in written_columns().items():
-        for column in columns:
-            field = getattr(model, column)
-            if not isinstance(field.type, JSON):
-                await session.exec(
-                    update(model)
-                    .where(field.op("~")(markdown))
-                    .values(
-                        {column: func.regexp_replace(field, markdown, replacement, "g")}
-                    )
-                    .execution_options(include_deleted=True, synchronize_session=False)
-                )
-                continue
-            stmt = (
-                select_including_deleted(model)
-                .where(cast(field, Text).op("~")(f"{node}|{markdown}"))
-                .options(undefer(field))
+    rooms: list[tuple[str, int]] = []
+    for kind in registered_types():
+        resource = resource_for(kind)
+        model = resource.model
+        state = getattr(model, YJS_STATE_COLUMN)
+        held = await session.exec(
+            select(model.id, state)
+            .where(
+                state.is_not(None),
+                cast(getattr(model, resource.content_column), SqlText).op("~")(
+                    mentioned
+                ),
             )
-            for row in (await session.exec(stmt)).all():
-                scrubbed, changed = _scrub_mentions(getattr(row, column), user_id)
-                if not changed:
-                    continue
-                setattr(row, column, scrubbed)
-                flag_modified(row, column)
-                if hasattr(model, YJS_STATE_COLUMN):
-                    # Yjs state takes precedence over content on load; clear it
-                    # so collaboration bootstraps from the scrubbed content.
-                    setattr(row, YJS_STATE_COLUMN, None)
-                    rooms.append(
-                        (SEARCH_SOURCES[model.__table__.name].entity_type, row.id)
-                    )
-                session.add(row)
+            .execution_options(include_deleted=True, include_archived=True)
+        )
+        for row_id, current in held.all():
+            nameless = nameless_state(current)
+            if nameless is None:
+                continue
+            await session.exec(
+                update(model)
+                .where(model.id == row_id)
+                .values({YJS_STATE_COLUMN: nameless})
+                .execution_options(synchronize_session=False)
+            )
+            rooms.append((kind, row_id))
 
     # Digest rows snapshot the assigner's name for the email body.
     await session.exec(
@@ -173,12 +161,10 @@ async def anonymize_user_mentions(session: AsyncSession, *, user_id: int) -> Non
     await session.flush()
     await raise_flag(session, gucs.PURGING, False)
 
-    # Drop idle collaboration rooms so a room's save can't overwrite the
-    # scrubbed content with a stale in-memory copy on next disconnect. Rooms are
-    # keyed by (guild, kind, id) and this runs once per guild, routed to it.
+    # Drop idle collaboration rooms so a room's save can't write a stale
+    # in-memory state back on next disconnect. Rooms are keyed by (guild,
+    # kind, id) and this runs once per guild, routed to it.
     guild_id = routed_guild_id(session)
     if guild_id is not None:
         for kind, row_id in rooms:
-            await collaboration_manager.invalidate_room_if_empty(
-                guild_id, kind.value, row_id
-            )
+            await collaboration_manager.invalidate_room_if_empty(guild_id, kind, row_id)
