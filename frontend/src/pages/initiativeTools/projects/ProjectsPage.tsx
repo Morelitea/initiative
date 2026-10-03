@@ -223,6 +223,7 @@ export const ProjectsView = ({ fixedInitiativeId, canCreate }: ProjectsViewProps
             // one: remounting drops any in-flight bulk selection with it.
             key={status}
             params={projectsParams}
+            status={status}
             loadingLabel={statusCopy.loading}
             errorLabel={statusCopy.error}
             noMatchesLabel={t("noMatchingProjects")}
