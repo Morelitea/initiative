@@ -955,6 +955,7 @@ async def _apply_update(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=CalendarEventMessages.CANNOT_CROSS_SCOPE,
             )
+        await resource_access.require_may_move(session, event, destination)
         # Into another initiative, drop property values — their definitions
         # belong to the old initiative and can't resolve in the new one. The
         # series' overrides move with it, so theirs go too. Done before the

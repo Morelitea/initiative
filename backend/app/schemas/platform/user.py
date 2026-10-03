@@ -38,6 +38,7 @@ from app.core.identity_boundary import (
     responding_to_install,
 )
 from app.models.platform.user import Presence, UserRole, UserStatus
+from app.services.platform import user_avatars
 from app.core.config import settings
 
 # ``avatar_url`` is where a user's picture is: either a path this API serves
@@ -119,26 +120,36 @@ class AppPerson(SanitizedBaseModel):
     """A person, as an installed app receives them wherever one appears.
 
     ``id`` is the install's own reference for them. Their handle (``username``
-    and ``discriminator``) and the name they set in the community
-    (``display_name``) come only to an install holding ``members:read``. A
-    field without a value is left out, so without that scope a person is their
-    ``id`` alone. ``avatar_url`` is not sent yet.
+    and ``discriminator``), the name they set in the community
+    (``display_name``) and the picture they uploaded (``avatar_url``) come only
+    to an install holding ``members:read``. A field without a value is left
+    out, so without that scope a person is their ``id`` alone.
     """
 
     id: PersonId
     username: Optional[str] = None
     discriminator: Optional[int] = None
     display_name: Optional[str] = None
-    avatar_url: Optional[str] = None
+    avatar_url: Optional[str] = Field(
+        default=None,
+        description=(
+            "Where the app reads the picture this member uploaded: "
+            "`/api/v1/c/0/members/{id}/avatar/{sha256}`, a path on Initiative "
+            "served under `members:read`. Absent when they have not uploaded one."
+        ),
+    )
 
     def for_install(self) -> dict[str, Any]:
         """This person, as the installed app being answered may know them."""
-        include = (
-            {"id"}
-            if names_withheld()
-            else {"id", "username", "discriminator", "display_name"}
-        )
-        return self.model_dump(mode="json", include=include, exclude_none=True)
+        if names_withheld():
+            return self.model_dump(mode="json", include={"id"})
+        person = self.model_dump(mode="json", exclude={"avatar_url"}, exclude_none=True)
+        digest = user_avatars.uploaded_digest(self.id, self.avatar_url)
+        if digest is not None:
+            # ``id`` is the response's marker for the person by now, which the
+            # route class writes the reference over, in the path as well.
+            person["avatar_url"] = user_avatars.member_avatar_url(person["id"], digest)
+        return person
 
 
 class PersonShape(SanitizedBaseModel):

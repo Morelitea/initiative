@@ -21,10 +21,6 @@ class EmailOtpSend(SanitizedBaseModel):
     #: Carried so that asking about an unknown address can tell whether a
     #: sign-up would be allowed before it posts a code inviting one.
     invite_code: Optional[str] = None
-    #: Whether the app asked rather than a browser. It decides what a finished
-    #: sign-in hands back — a refresh token to keep, or a cookie — and is
-    #: recorded on the challenge rather than asked for again at the end.
-    native: bool = False
 
 
 class EmailOtpSent(SanitizedBaseModel):

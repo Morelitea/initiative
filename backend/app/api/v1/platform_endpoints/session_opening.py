@@ -41,7 +41,7 @@ from app.api.v1.platform_endpoints.session_cookies import (
 )
 from app.core.audit_events import AuditEventType
 from app.core.auth_context import session_credential
-from app.core.config import settings
+from app.core.config import is_device, settings
 from app.core.login_methods import LoginMethod
 from app.core.messages import AuthMessages, SettingsMessages
 from app.core.rate_limit import (
@@ -68,7 +68,6 @@ from app.services.auth import sign_in_locks
 from app.services.auth import subject as subject_service
 from app.services.auth import totp as totp_service
 from app.services.platform import auth_posture
-from app.services.platform import push_tokens
 
 logger = logging.getLogger(__name__)
 
@@ -96,8 +95,8 @@ def current_session_row(request: Request) -> uuid.UUID | None:
     """The server-side session this request is on, or ``None``.
 
     Named by the request's own access token: every client carries one of
-    those, and a credential that is not a session — a device token, an API
-    key — names none.
+    those, and a credential that is not a session — an API key — names
+    none.
     """
     raw = getattr(request.state, "session_id", None)
     if not raw:
@@ -472,7 +471,7 @@ async def session_store(
 
     A sign-in *is* the session. If it cannot be written the request says so
     with a 503 rather than handing back a lesser credential. Anything the
-    caller stages inside — a device token, an audit record, the revocation of
+    caller stages inside — an audit record, the revocation of
     the session it replaces — commits with the session, or goes with it.
     """
     try:
@@ -497,6 +496,7 @@ async def issue_session(
     satisfied_providers: Sequence[int] = (),
     provider_auth: dict[str, Any] | None = None,
     device_name: str | None = None,
+    device: bool = False,
     replaces: uuid.UUID | None = None,
 ) -> OpenedSession:
     """Stage a session and mint the access token for it.
@@ -519,10 +519,11 @@ async def issue_session(
         user_agent=request.headers.get("user-agent"),
         ip=get_inet_client_ip(request),
         device_name=device_name,
+        device=device,
     )
     if replaces is not None:
         await session_service.revoke_chain(system_session, session_id=replaces)
-        await push_tokens.follow_session(
+        await session_service.follow_devices(
             system_session, from_id=replaces, to_id=issued.session.id
         )
     # The name the token will carry, in the same transaction as the session.
@@ -547,18 +548,19 @@ async def open_session(
     token_version: int,
     amr: Sequence[str],
     audit_detail: dict[str, Any],
-    return_refresh_token: bool = False,
+    device_name: str | None = None,
 ) -> Token:
     """Open the session a sign-in earned, and hand back its token.
 
     The access token carries sid/amr/sat; the rotating refresh cookie carries
-    the session. ``amr`` is what this
-    sign-in proved. ``return_refresh_token`` hands the refresh token back in
-    the body too, for the app, which keeps its own.
+    the session. ``amr`` is what this sign-in proved. A device's sign-in
+    (:func:`is_device`) opens a device session and is handed the refresh token
+    in the body too, since the app keeps its own; ``device_name`` labels it.
 
     Anything the caller staged in ``system_session`` — a credential's counter,
     a spent challenge — commits with the session, or goes with it.
     """
+    device = is_device(request)
     async with session_store(system_session, user_id=user_id):
         await audit_service.record(
             system_session,
@@ -574,9 +576,11 @@ async def open_session(
             user_id=user_id,
             token_version=token_version,
             amr=amr,
+            device_name=device_name if device else None,
+            device=device,
         )
     issued.set_cookies(response)
-    return issued.to_token(include_refresh=return_refresh_token)
+    return issued.to_token(include_refresh=device)
 
 
 async def replace_session(
@@ -607,6 +611,7 @@ async def replace_session(
     # and a rollback leaves its columns to be fetched again.
     user_id = user.id
     token_version = user.token_version
+    device = is_device(request)
     async with session_store(system_session, user_id=user_id):
         issued = await issue_session(
             request,
@@ -616,16 +621,17 @@ async def replace_session(
             amr=amr,
             satisfied_providers=satisfied_providers,
             provider_auth=provider_auth,
+            device=device,
         )
         credential = session_credential()
         if credential is not None:
-            await push_tokens.follow_session(
+            await session_service.follow_devices(
                 system_session,
                 from_id=credential.session_id,
                 to_id=issued.session.id,
             )
     issued.set_cookies(response)
-    return issued.to_token(include_refresh=False)
+    return issued.to_token(include_refresh=device)
 
 
 async def live_session_of(
@@ -683,6 +689,7 @@ async def upgrade_session(
             amr=sorted(set(prior.amr) | set(add_amr)),
             satisfied_providers=prior.satisfied_providers,
             provider_auth=prior.provider_auth,
+            device=prior.device,
             replaces=prior.id,
         )
     issued.set_cookies(response)

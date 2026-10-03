@@ -25,10 +25,6 @@ import type {
   BodyLoginAccessTokenApiV1AuthTokenPost,
   BootstrapStatusApiV1AuthBootstrapGet200,
   CheckUsernameAvailableApiV1AuthUsernameAvailableGetParams,
-  DeviceTokenExchangeRequest,
-  DeviceTokenInfo,
-  DeviceTokenRequest,
-  DeviceTokenResponse,
   EmailOtpRegister,
   EmailOtpSend,
   EmailOtpSent,
@@ -560,6 +556,10 @@ export function useBootstrapStatusApiV1AuthBootstrapGet<
 }
 
 /**
+ * Sign in with an address and password, from a browser or a device.
+ *
+ * A device (:func:`is_device`) is handed its refresh token in the body as well
+ * and opens a device session, labelled ``device_name``.
  * @summary Login Access Token
  */
 export const loginAccessTokenApiV1AuthTokenPost = (
@@ -568,6 +568,12 @@ export const loginAccessTokenApiV1AuthTokenPost = (
   signal?: AbortSignal
 ) => {
   const formUrlEncoded = new URLSearchParams();
+  if (
+    bodyLoginAccessTokenApiV1AuthTokenPost.device_name !== undefined &&
+    bodyLoginAccessTokenApiV1AuthTokenPost.device_name !== null
+  ) {
+    formUrlEncoded.append(`device_name`, bodyLoginAccessTokenApiV1AuthTokenPost.device_name);
+  }
   if (
     bodyLoginAccessTokenApiV1AuthTokenPost.grant_type !== undefined &&
     bodyLoginAccessTokenApiV1AuthTokenPost.grant_type !== null
@@ -1232,17 +1238,13 @@ export function useCheckUsernameAvailableApiV1AuthUsernameAvailableGet<
  * login. The access token it came in on is short-lived and the client drops
  * it.
  *
- * A native client authenticating with a device token consumes that row too —
- * the token is one installed client's, so consuming it is the same per-device
- * scope by another name.
- *
  * A client whose access token has already expired still signs out: the
  * refresh token it presents names its session, and holding it is what
  * renewing would have asked for. That session's chain is revoked and no
  * other.
  *
- * Connections opened on the ended session or device token are re-checked
- * once it commits, and close.
+ * Connections opened on the ended session are re-checked once it commits, and
+ * close.
  * @summary Logout
  */
 export const logoutApiV1AuthLogoutPost = (
@@ -1424,220 +1426,6 @@ export const useIssueUploadTokenApiV1AuthUploadTokenPost = <
   );
 };
 /**
- * Sign the app in with an address and password.
- *
- * Hands back a device token beside an ordinary session. The password is
- * proved the same way ``/token`` proves it, including whether the deployment
- * permits passwords at all.
- * @summary Create Device Token
- */
-export const createDeviceTokenApiV1AuthDeviceTokenPost = (
-  deviceTokenRequest: BodyType<DeviceTokenRequest>,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<DeviceTokenResponse>(
-    {
-      url: `/api/v1/auth/device-token`,
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      data: deviceTokenRequest,
-      signal,
-    },
-    options
-  );
-};
-
-export const getCreateDeviceTokenApiV1AuthDeviceTokenPostMutationKey = () =>
-  ["createDeviceTokenApiV1AuthDeviceTokenPost"] as const;
-
-export const getCreateDeviceTokenApiV1AuthDeviceTokenPostMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof createDeviceTokenApiV1AuthDeviceTokenPost>>,
-    TError,
-    CreateDeviceTokenApiV1AuthDeviceTokenPostMutationVariables,
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof createDeviceTokenApiV1AuthDeviceTokenPost>>,
-  TError,
-  CreateDeviceTokenApiV1AuthDeviceTokenPostMutationVariables,
-  TContext
-> => {
-  const mutationKey = getCreateDeviceTokenApiV1AuthDeviceTokenPostMutationKey();
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof createDeviceTokenApiV1AuthDeviceTokenPost>>,
-    CreateDeviceTokenApiV1AuthDeviceTokenPostMutationVariables
-  > = (props) => {
-    const { data } = props ?? {};
-
-    return createDeviceTokenApiV1AuthDeviceTokenPost(data, requestOptions);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type CreateDeviceTokenApiV1AuthDeviceTokenPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof createDeviceTokenApiV1AuthDeviceTokenPost>>
->;
-export type CreateDeviceTokenApiV1AuthDeviceTokenPostMutationBody = BodyType<DeviceTokenRequest>;
-export type CreateDeviceTokenApiV1AuthDeviceTokenPostMutationError = ErrorType<HTTPValidationError>;
-export type CreateDeviceTokenApiV1AuthDeviceTokenPostMutationVariables = {
-  data: BodyType<DeviceTokenRequest>;
-};
-
-/**
- * @summary Create Device Token
- */
-export const useCreateDeviceTokenApiV1AuthDeviceTokenPost = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof createDeviceTokenApiV1AuthDeviceTokenPost>>,
-      TError,
-      CreateDeviceTokenApiV1AuthDeviceTokenPostMutationVariables,
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof createDeviceTokenApiV1AuthDeviceTokenPost>>,
-  TError,
-  CreateDeviceTokenApiV1AuthDeviceTokenPostMutationVariables,
-  TContext
-> => {
-  return useMutation(
-    getCreateDeviceTokenApiV1AuthDeviceTokenPostMutationOptions(options),
-    queryClient
-  );
-};
-/**
- * Trade a device token for a session of the ordinary kind.
- *
- * How an installed client moves across without asking anybody to sign in
- * again: it presents the token it already holds and is handed an access token
- * and a refresh token. The device token is left alone — it keeps working
- * until the client stops sending it, and the build that stops is the one that
- * decides when.
- *
- * The session carries what the sign-in that minted the token recorded, and
- * only across the handoff: the relay sign-ins hand the app a token instead of
- * a session, so the first exchange inside the window is the rest of that
- * sign-in. After it — a later launch, a chain that lapsed — the app is
- * resuming on a string it has been keeping, and the session it gets records
- * nothing, which satisfies no community's sign-in requirement. See
- * ``user_tokens.claim_handoff_amr``.
- * @summary Exchange Device Token
- */
-export const exchangeDeviceTokenApiV1AuthDeviceTokenExchangePost = (
-  deviceTokenExchangeRequest: BodyType<DeviceTokenExchangeRequest>,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<Token>(
-    {
-      url: `/api/v1/auth/device-token/exchange`,
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      data: deviceTokenExchangeRequest,
-      signal,
-    },
-    options
-  );
-};
-
-export const getExchangeDeviceTokenApiV1AuthDeviceTokenExchangePostMutationKey = () =>
-  ["exchangeDeviceTokenApiV1AuthDeviceTokenExchangePost"] as const;
-
-export const getExchangeDeviceTokenApiV1AuthDeviceTokenExchangePostMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof exchangeDeviceTokenApiV1AuthDeviceTokenExchangePost>>,
-    TError,
-    ExchangeDeviceTokenApiV1AuthDeviceTokenExchangePostMutationVariables,
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof exchangeDeviceTokenApiV1AuthDeviceTokenExchangePost>>,
-  TError,
-  ExchangeDeviceTokenApiV1AuthDeviceTokenExchangePostMutationVariables,
-  TContext
-> => {
-  const mutationKey = getExchangeDeviceTokenApiV1AuthDeviceTokenExchangePostMutationKey();
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof exchangeDeviceTokenApiV1AuthDeviceTokenExchangePost>>,
-    ExchangeDeviceTokenApiV1AuthDeviceTokenExchangePostMutationVariables
-  > = (props) => {
-    const { data } = props ?? {};
-
-    return exchangeDeviceTokenApiV1AuthDeviceTokenExchangePost(data, requestOptions);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type ExchangeDeviceTokenApiV1AuthDeviceTokenExchangePostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof exchangeDeviceTokenApiV1AuthDeviceTokenExchangePost>>
->;
-export type ExchangeDeviceTokenApiV1AuthDeviceTokenExchangePostMutationBody =
-  BodyType<DeviceTokenExchangeRequest>;
-export type ExchangeDeviceTokenApiV1AuthDeviceTokenExchangePostMutationError =
-  ErrorType<HTTPValidationError>;
-export type ExchangeDeviceTokenApiV1AuthDeviceTokenExchangePostMutationVariables = {
-  data: BodyType<DeviceTokenExchangeRequest>;
-};
-
-/**
- * @summary Exchange Device Token
- */
-export const useExchangeDeviceTokenApiV1AuthDeviceTokenExchangePost = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof exchangeDeviceTokenApiV1AuthDeviceTokenExchangePost>>,
-      TError,
-      ExchangeDeviceTokenApiV1AuthDeviceTokenExchangePostMutationVariables,
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof exchangeDeviceTokenApiV1AuthDeviceTokenExchangePost>>,
-  TError,
-  ExchangeDeviceTokenApiV1AuthDeviceTokenExchangePostMutationVariables,
-  TContext
-> => {
-  return useMutation(
-    getExchangeDeviceTokenApiV1AuthDeviceTokenExchangePostMutationOptions(options),
-    queryClient
-  );
-};
-/**
  * Open the session a sign-in in the phone's browser earned.
  *
  * The app presents the code the browser handed back and the PKCE verifier it
@@ -1737,242 +1525,6 @@ export const useRedeemNativeSignInApiV1AuthNativeTokenPost = <
 > => {
   return useMutation(
     getRedeemNativeSignInApiV1AuthNativeTokenPostMutationOptions(options),
-    queryClient
-  );
-};
-/**
- * List all device tokens for the current user.
- * @summary List Device Tokens
- */
-export const listDeviceTokensApiV1AuthDeviceTokensGet = (
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<DeviceTokenInfo[]>(
-    { url: `/api/v1/auth/device-tokens`, method: "GET", signal },
-    options
-  );
-};
-
-export const getListDeviceTokensApiV1AuthDeviceTokensGetQueryKey = () => {
-  return [`/api/v1/auth/device-tokens`] as const;
-};
-
-export const getListDeviceTokensApiV1AuthDeviceTokensGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof listDeviceTokensApiV1AuthDeviceTokensGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(options?: {
-  query?: Partial<
-    UseQueryOptions<
-      Awaited<ReturnType<typeof listDeviceTokensApiV1AuthDeviceTokensGet>>,
-      TError,
-      TData
-    >
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}) => {
-  const { query: queryOptions, request: requestOptions } = options ?? {};
-
-  const queryKey = queryOptions?.queryKey ?? getListDeviceTokensApiV1AuthDeviceTokensGetQueryKey();
-
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof listDeviceTokensApiV1AuthDeviceTokensGet>>
-  > = ({ signal }) => listDeviceTokensApiV1AuthDeviceTokensGet(requestOptions, signal);
-
-  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof listDeviceTokensApiV1AuthDeviceTokensGet>>,
-    TError,
-    TData
-  > & { queryKey: DataTag<QueryKey, TData, TError> };
-};
-
-export type ListDeviceTokensApiV1AuthDeviceTokensGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof listDeviceTokensApiV1AuthDeviceTokensGet>>
->;
-export type ListDeviceTokensApiV1AuthDeviceTokensGetQueryError = ErrorType<HTTPValidationError>;
-
-export function useListDeviceTokensApiV1AuthDeviceTokensGet<
-  TData = Awaited<ReturnType<typeof listDeviceTokensApiV1AuthDeviceTokensGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  options: {
-    query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listDeviceTokensApiV1AuthDeviceTokensGet>>,
-        TError,
-        TData
-      >
-    > &
-      Pick<
-        DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listDeviceTokensApiV1AuthDeviceTokensGet>>,
-          TError,
-          Awaited<ReturnType<typeof listDeviceTokensApiV1AuthDeviceTokensGet>>
-        >,
-        "initialData"
-      >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListDeviceTokensApiV1AuthDeviceTokensGet<
-  TData = Awaited<ReturnType<typeof listDeviceTokensApiV1AuthDeviceTokensGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listDeviceTokensApiV1AuthDeviceTokensGet>>,
-        TError,
-        TData
-      >
-    > &
-      Pick<
-        UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listDeviceTokensApiV1AuthDeviceTokensGet>>,
-          TError,
-          Awaited<ReturnType<typeof listDeviceTokensApiV1AuthDeviceTokensGet>>
-        >,
-        "initialData"
-      >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListDeviceTokensApiV1AuthDeviceTokensGet<
-  TData = Awaited<ReturnType<typeof listDeviceTokensApiV1AuthDeviceTokensGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listDeviceTokensApiV1AuthDeviceTokensGet>>,
-        TError,
-        TData
-      >
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-/**
- * @summary List Device Tokens
- */
-
-export function useListDeviceTokensApiV1AuthDeviceTokensGet<
-  TData = Awaited<ReturnType<typeof listDeviceTokensApiV1AuthDeviceTokensGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listDeviceTokensApiV1AuthDeviceTokensGet>>,
-        TError,
-        TData
-      >
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListDeviceTokensApiV1AuthDeviceTokensGetQueryOptions(options);
-
-  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
-    queryKey: DataTag<QueryKey, TData, TError>;
-  };
-
-  return withQueryKey(query, queryOptions.queryKey);
-}
-
-/**
- * Revoke a device token.
- * @summary Revoke Device Token
- */
-export const revokeDeviceTokenApiV1AuthDeviceTokensTokenIdDelete = (
-  tokenId: number,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<void>(
-    { url: `/api/v1/auth/device-tokens/${tokenId}`, method: "DELETE", signal },
-    options
-  );
-};
-
-export const getRevokeDeviceTokenApiV1AuthDeviceTokensTokenIdDeleteMutationKey = () =>
-  ["revokeDeviceTokenApiV1AuthDeviceTokensTokenIdDelete"] as const;
-
-export const getRevokeDeviceTokenApiV1AuthDeviceTokensTokenIdDeleteMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof revokeDeviceTokenApiV1AuthDeviceTokensTokenIdDelete>>,
-    TError,
-    RevokeDeviceTokenApiV1AuthDeviceTokensTokenIdDeleteMutationVariables,
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof revokeDeviceTokenApiV1AuthDeviceTokensTokenIdDelete>>,
-  TError,
-  RevokeDeviceTokenApiV1AuthDeviceTokensTokenIdDeleteMutationVariables,
-  TContext
-> => {
-  const mutationKey = getRevokeDeviceTokenApiV1AuthDeviceTokensTokenIdDeleteMutationKey();
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof revokeDeviceTokenApiV1AuthDeviceTokensTokenIdDelete>>,
-    RevokeDeviceTokenApiV1AuthDeviceTokensTokenIdDeleteMutationVariables
-  > = (props) => {
-    const { tokenId } = props ?? {};
-
-    return revokeDeviceTokenApiV1AuthDeviceTokensTokenIdDelete(tokenId, requestOptions);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type RevokeDeviceTokenApiV1AuthDeviceTokensTokenIdDeleteMutationResult = NonNullable<
-  Awaited<ReturnType<typeof revokeDeviceTokenApiV1AuthDeviceTokensTokenIdDelete>>
->;
-
-export type RevokeDeviceTokenApiV1AuthDeviceTokensTokenIdDeleteMutationError =
-  ErrorType<HTTPValidationError>;
-export type RevokeDeviceTokenApiV1AuthDeviceTokensTokenIdDeleteMutationVariables = {
-  tokenId: number;
-};
-
-/**
- * @summary Revoke Device Token
- */
-export const useRevokeDeviceTokenApiV1AuthDeviceTokensTokenIdDelete = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof revokeDeviceTokenApiV1AuthDeviceTokensTokenIdDelete>>,
-      TError,
-      RevokeDeviceTokenApiV1AuthDeviceTokensTokenIdDeleteMutationVariables,
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof revokeDeviceTokenApiV1AuthDeviceTokensTokenIdDelete>>,
-  TError,
-  RevokeDeviceTokenApiV1AuthDeviceTokensTokenIdDeleteMutationVariables,
-  TContext
-> => {
-  return useMutation(
-    getRevokeDeviceTokenApiV1AuthDeviceTokensTokenIdDeleteMutationOptions(options),
     queryClient
   );
 };
@@ -5450,13 +5002,7 @@ export const useRevokeMySessionApiV1AuthSessionsSessionIdDelete = <
 /**
  * End every session the account holds except the one asking.
  *
- * Both credentials, because the list this backs shows both and a button that
- * signed out the browsers while leaving the phones would not be telling the
- * truth. Which one is spared depends on what the caller is holding: a browser
- * session spares its own row and takes every device token, a native client
- * spares its own token and takes every session.
- *
- * Both tables are the system engine's, so the two halves and the record
+ * ``auth_sessions`` is the system engine's, so the revocation and the record
  * commit together.
  * @summary Revoke My Other Sessions
  */

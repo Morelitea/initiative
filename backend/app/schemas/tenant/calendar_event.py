@@ -8,7 +8,7 @@ from pydantic import ConfigDict, Field, PrivateAttr, field_serializer, model_val
 from app.core import recurrence
 from app.core.identity_boundary import GuildId, PersonId, names_withheld
 from app.core.relationships import Related
-from app.schemas.base import SanitizedBaseModel, TitleStr
+from app.schemas.base import MentionStr, SanitizedBaseModel, TitleStr
 from app.schemas.recurrence import EventRule, OccurrenceScope
 
 from app.models.tenant.calendar_event import RSVPStatus
@@ -83,8 +83,8 @@ class CalendarEventDocumentRead(SanitizedBaseModel):
 
 class CalendarEventBase(SanitizedBaseModel):
     title: str = Field(..., min_length=1, max_length=255)
-    description: Optional[str] = None
-    location: Optional[str] = Field(default=None, max_length=500)
+    description: Optional[MentionStr] = None
+    location: Optional[MentionStr] = Field(default=None, max_length=500)
     start_at: datetime
     end_at: datetime
     all_day: bool = False
@@ -112,8 +112,8 @@ class CalendarEventCreate(CalendarEventBase, PropertiesOnCreate):
 
 class CalendarEventUpdate(PropertiesOnUpdate):
     title: Optional[TitleStr] = Field(default=None, min_length=1, max_length=255)
-    description: Optional[str] = None
-    location: Optional[str] = Field(default=None, max_length=500)
+    description: Optional[MentionStr] = None
+    location: Optional[MentionStr] = Field(default=None, max_length=500)
     start_at: Optional[datetime] = None
     end_at: Optional[datetime] = None
     all_day: Optional[bool] = None

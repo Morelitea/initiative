@@ -599,21 +599,23 @@ async def test_search_users_rejects_oversized_user_id_list(client, acting_user):
     assert response.status_code == 422
 
 
-async def test_self_service_password_change_revokes_sessions_and_device_tokens(
+async def test_self_service_password_change_revokes_sessions_on_every_device(
     client, session, acting_user
 ):
     """Changing your own password via PATCH /users/me must invalidate other
-    outstanding JWTs and active device tokens — completing the three-path
-    symmetry with the admin-reset and forgot-password flows (all share
-    ``revoke_user_sessions`` / ``revoke_active_device_tokens``)."""
-    from app.models.platform.user_token import UserToken, UserTokenPurpose
-    from app.services.platform import user_tokens
+    outstanding JWTs and every session, the app's included — completing the
+    three-path symmetry with the admin-reset and forgot-password flows (all
+    share ``revoke_user_sessions``)."""
+    from app.models.platform.auth_session import AuthSession
+    from app.services.auth import sessions as session_service
 
     a = await acting_user()
     old_jwt = get_auth_token(a.user)
-    device_token = await user_tokens.create_device_token(
-        session, user_id=a.user.id, device_name="Old phone"
+    phone = await session_service.create_session(
+        session, user_id=a.user.id, amr=["pwd"], satisfied_providers=[], device=True
     )
+    phone_id = phone.session.id
+    await session.commit()
 
     response = await client.patch(
         "/api/v1/users/me",
@@ -632,21 +634,11 @@ async def test_self_service_password_change_revokes_sessions_and_device_tokens(
     )
     assert stale.status_code == 401
 
-    # The device token was revoked (consumed).
-    stale_device = await client.get(
-        "/api/v1/users/me",
-        headers={"Authorization": f"DeviceToken {device_token}"},
-    )
-    assert stale_device.status_code == 401
-    token_row = (
-        await session.exec(
-            select(UserToken).where(
-                UserToken.user_id == a.user.id,
-                UserToken.purpose == UserTokenPurpose.device_auth,
-            )
-        )
-    ).one()
-    assert token_row.consumed_at is not None
+    # The phone's session was ended too.
+    session.expire_all()
+    ended = await session.get(AuthSession, phone_id)
+    assert ended is not None
+    assert ended.revoked_at is not None
 
 
 async def test_deletion_eligibility_surfaces_the_services_answer(client, acting_user):

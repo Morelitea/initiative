@@ -1386,6 +1386,7 @@ export interface BodyImportSpreadsheetFileApiV1CGuildIdDocumentsDocumentIdSpread
 }
 
 export interface BodyLoginAccessTokenApiV1AuthTokenPost {
+  device_name?: string | null;
   grant_type?: string | null;
   username: string;
   password: string;
@@ -3105,52 +3106,6 @@ export interface DeletionEligibilityResponse {
 }
 
 /**
- * A device token offered in return for a session.
- */
-export interface DeviceTokenExchangeRequest {
-  device_token: string;
-}
-
-/**
- * Information about a device token (for listing/management).
- */
-export interface DeviceTokenInfo {
-  id: number;
-  device_name: string | null;
-  created_at: string;
-}
-
-/**
- * Request body for creating a device token.
- */
-export interface DeviceTokenRequest {
-  email: string;
-  /** @minLength 1 */
-  password: string;
-  /**
-   * @minLength 1
-   * @maxLength 255
-   */
-  device_name: string;
-}
-
-/**
- * What a native sign-in is handed.
- *
- * The device token is what older builds read, and it keeps working. Beside it
- * is a session of the ordinary kind — an access token and the refresh token
- * that renews it — so a build that prefers them has them from the first
- * sign-in. A client that does not know the fields ignores them.
- */
-export interface DeviceTokenResponse {
-  device_token: string;
-  token_type: string;
-  access_token: string | null;
-  refresh_token: string | null;
-  expires_in: number | null;
-}
-
-/**
  * What this reader may do about that account, right now.
  *
  * ``denied`` covers every refusal with no distinguishing field: a policy that
@@ -3674,7 +3629,6 @@ export interface EmailOtpSend {
   email: string;
   captcha_token?: string | null;
   invite_code?: string | null;
-  native?: boolean;
 }
 
 /**
@@ -8419,16 +8373,13 @@ export interface SecondFactorStepUpAnswer {
 }
 
 /**
- * One browser session, as the account's own "where you're signed in" list
- * shows it.
+ * One place the account is signed in — a browser, the phone app or the
+ * desktop app — as its own "where you're signed in" list shows it.
+ * ``started_at`` is the sign-in, not the last renewal, so a browser left open
+ * for a month reads as a month old.
  *
- * Beside it in that list sit the account's native devices, which are
- * :class:`DeviceTokenInfo` and a different credential — this is the rotating
- * kind a browser holds. ``started_at`` is the sign-in, not the last renewal,
- * so a browser left open for a month reads as a month old.
- *
- * ``label`` is derived from the user agent (``core.user_agents``), because
- * only a native sign-in is handed a name to go by. ``is_current`` marks the
+ * ``label`` is the name a device signed in with, or else derived from the
+ * user agent (``core.user_agents``). ``is_current`` marks the
  * session doing the asking, which the list shows rather than offers to end.
  */
 export interface SignedInSessionInfo {

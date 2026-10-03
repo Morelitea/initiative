@@ -307,7 +307,7 @@ class AppSetting(SQLModel, table=True):
 
     # Whether a notification may reach a phone at all. On by default, which is
     # what every deployment has had. Off means this deployment sends none: no
-    # push leaves it, the registration endpoint declines, and the device tokens
+    # push leaves it, the registration endpoint declines, and the push tokens
     # it was holding are dropped, so switching it off is the whole answer rather
     # than the delivery half of one. Devices register again when it comes back.
     push_notifications_enabled: bool = Field(

@@ -44,6 +44,7 @@ from app.api.v1.platform_endpoints.session_opening import replace_session
 from app.core.password_policy import enforce_password_policy
 from app.core.identity_boundary import PersonId
 from app.core.user_display import handle_of
+from app.db import cohorts
 from app.db.guild_standing import InstallContext
 from app.core import usernames
 from app.core.capabilities import Capability
@@ -148,7 +149,7 @@ from app.services.platform import legal as legal_service
 from app.services.content_sockets import sockets as content_sockets
 from app.services.platform import presence
 from app.services.platform import usernames as username_service
-from app.models.platform.user_avatar import AVATAR_MAX_BYTES
+from app.models.platform.user_avatar import AVATAR_CONTENT_TYPES, AVATAR_MAX_BYTES
 from app.models.platform.user_profile_view import (
     GuildMember,
     MemberProfile,
@@ -193,6 +194,9 @@ me_router = APIRouter()
 # search is also what an installed app reads people through, under
 # ``members:read``.
 guild_router = APIRouter(route_class=ActorRoute)
+# A member's picture, by the reference an installed app knows them by. Mounted
+# under /c/{guild_id}/members.
+members_router = APIRouter(route_class=ActorRoute)
 
 MembersRead = Annotated[ActorContext, Depends(app_scope("members:read"))]
 
@@ -1377,7 +1381,7 @@ async def update_users_me(
         await enforce_password_policy(password)
         current_user.hashed_password = get_password_hash(password)
         current_user.password_set_at = datetime.now(timezone.utc)
-        # Bump token_version and revoke device tokens + API keys + refresh
+        # Bump token_version and revoke API keys + refresh
         # sessions so no stale credential can survive the password change.
         #
         # Staged, not committed: the replacement session below joins them in
@@ -1982,6 +1986,32 @@ async def delete_user(
 # --- profile pictures --------------------------------------------------------
 
 
+def _image_not_found() -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail=GuildMessages.IMAGE_NOT_FOUND,
+    )
+
+
+async def _avatar_response(
+    session: AsyncSession, user_id: int, digest: str
+) -> Response:
+    """``user_id``'s picture when ``digest`` is its current one, or a 404."""
+    if not user_avatars_service.is_valid_digest(digest):
+        raise _image_not_found()
+    avatar = await user_avatars_service.get_avatar(session, user_id=user_id)
+    if avatar is None or avatar.sha256 != digest:
+        raise _image_not_found()
+    return Response(
+        content=avatar.data,
+        media_type=avatar.content_type,
+        headers={
+            "Cache-Control": "public, max-age=31536000, immutable",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
+
+
 @router.get("/{user_id}/avatar/{digest}", include_in_schema=False)
 async def read_user_avatar(user_id: int, digest: str, session: SessionDep) -> Response:
     """Serve one user's profile picture.
@@ -1996,25 +2026,45 @@ async def read_user_avatar(user_id: int, digest: str, session: SessionDep) -> Re
     than a redirect to whatever is current, because the response is cached
     under the URL that was asked for.
     """
-    if not user_avatars_service.is_valid_digest(digest):
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=GuildMessages.IMAGE_NOT_FOUND,
+    return await _avatar_response(session, user_id, digest)
+
+
+@members_router.get(
+    "/{person}/avatar/{digest}",
+    response_class=Response,
+    responses={
+        200: {
+            "description": "The picture.",
+            "content": {media: {} for media in sorted(AVATAR_CONTENT_TYPES)},
+        }
+    },
+)
+async def read_member_avatar(
+    person: PersonId,
+    digest: str,
+    session: ActorSessionDep,
+    guild_context: MembersRead,
+) -> Response:
+    """Serve the picture a member of this community uploaded.
+
+    Where an installed app's ``avatar_url`` for a person points: the person is
+    named by the app's reference for them. The same bytes and caching as the
+    profile picture route, and a 404 for a digest that is not the member's
+    current picture, or for somebody who is not a member here.
+    """
+    current = (
+        await session.exec(
+            select(GuildMember.avatar_url).where(GuildMember.id == person)
         )
-    avatar = await user_avatars_service.get_avatar(session, user_id=user_id)
-    if avatar is None or avatar.sha256 != digest:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=GuildMessages.IMAGE_NOT_FOUND,
-        )
-    return Response(
-        content=avatar.data,
-        media_type=avatar.content_type,
-        headers={
-            "Cache-Control": "public, max-age=31536000, immutable",
-            "X-Content-Type-Options": "nosniff",
-        },
-    )
+    ).first()
+    if user_avatars_service.uploaded_digest(person, current) != digest:
+        raise _image_not_found()
+    # Membership is settled. The picture is read the way the profile picture
+    # route reads it, on a session of its own, once this one's connection is
+    # back in the pool.
+    await session.close()
+    async with cohorts.community_session(session, guild_context.guild_id) as reader:
+        return await _avatar_response(reader, person, digest)
 
 
 @router.put("/me/avatar", response_model=UserRead)

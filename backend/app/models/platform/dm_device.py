@@ -1,12 +1,11 @@
 """One installed client of one account, and the keys that identify it.
 
 A device is where a ratchet lives. It is deliberately *not* the same row as an
-``auth_session`` or a ``device_auth`` token: those track a login, which rotates
-and expires, and a key store has to outlive both — a laptop shut for three
-months comes back expecting its history. ``device_token_id`` links the two
-where a link exists, so Settings › Security stays the one device screen and one
-revoke means one thing. It is nullable because the web has no device token, and
-minting one to tidy the join would put a long-lived credential in a browser.
+``auth_session``: a session tracks a sign-in, which rotates and expires, and a
+key store has to outlive it — a laptop shut for three months comes back
+expecting its history. ``session_id`` names the sign-in it last collected
+under, followed across renewals, which is what its push registration names
+too.
 
 ``identity_key`` and ``fingerprint_key`` are public keys. The private halves
 are generated on the client and stay there.
@@ -62,15 +61,13 @@ class DmDevice(SQLModel, table=True):
     signature: Optional[bytes] = Field(
         default=None, sa_column=Column(LargeBinary, nullable=True)
     )
-    device_token_id: Optional[int] = Field(
-        default=None,
-        sa_column=Column(
-            Integer,
-            ForeignKey("user_tokens.id", ondelete="SET NULL"),
-            nullable=True,
-        ),
+    #: The sign-in this key store last collected under, at the live row its
+    #: chain has reached. A plain uuid, as ``push_tokens.session_id`` is:
+    #: session rows are purged on their own schedule.
+    session_id: Optional[uuid.UUID] = Field(
+        default=None, sa_column=Column(Uuid, nullable=True, index=True)
     )
-    #: Derived at registration from the device token's name or the user agent.
+    #: Derived at registration from the user agent.
     #: Never typed by hand — a device list nobody has to curate is one people
     #: actually read.
     label: Optional[str] = Field(default=None, sa_column=Column(Text, nullable=True))

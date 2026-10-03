@@ -10,6 +10,8 @@ from typing import Annotated, Any, Final, get_args, get_origin, get_type_hints
 import nh3
 from pydantic import BaseModel, model_validator
 
+from app.core.identity_boundary import MARKDOWN_MENTIONS
+
 # Hard ceiling on any plain-text field. Generous for names/titles/labels/tokens
 # while bounding both the stored size and the entity-decode loop in
 # strip_to_plain_text. Fields that legitimately hold large data (base64 images,
@@ -35,6 +37,13 @@ RichTextStr = Annotated[str, _RichTextMarker()]
 
 RawTextStr = Annotated[str, _RawTextMarker()]
 """str that opts out of sanitization AND the length cap (large/opaque data)."""
+
+MentionStr = Annotated[str, MARKDOWN_MENTIONS]
+"""str that may mention people (``@[Name](id)``), translated for an installed
+app (``app.core.identity_boundary.Mentions``)."""
+
+RichMentionStr = Annotated[RichTextStr, MARKDOWN_MENTIONS]
+"""Rich text that may mention people, translated as :data:`MentionStr` is."""
 
 
 # ``#`` and ``@`` are syntax wherever a name is written or read back. A comment

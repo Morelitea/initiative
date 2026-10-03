@@ -9,6 +9,7 @@ document (:func:`build_app_openapi`) is cut from it:
 - every identity field (``x-identity``) is a string, the install's reference;
 - every shape that draws a person (``x-person``) is ``AppPerson``, which is
   what an install receives in its place;
+- every field that mentions people (``x-mentions``) says how it names them;
 - paths start after ``/api/v1/c/{guild_id}``, served from ``/api/v1/c/0``: an
   install's community comes from its token;
 - each operation is named after its route;
@@ -23,18 +24,31 @@ from typing import Any
 from fastapi.routing import APIRoute
 
 from app.api.deps import route_app_scope_declaration
-from app.core.config import API_V1_STR
+from app.core.config import API_V1_STR, APP_SERVER_URL
+from app.core.identity_boundary import MentionForm
 from app.schemas.platform.user import AppPerson
 
 #: The prefix every route an app may call starts with.
 COMMUNITY_PREFIX = f"{API_V1_STR}/c/{{guild_id}}"
-#: Where the app's document serves from. The ``0`` stands for the install's own
-#: community.
-APP_SERVER_URL = f"{API_V1_STR}/c/0"
 
 _SCHEMA_REF = "#/components/schemas/"
 _APP_PERSON = AppPerson.__name__
 _SECURITY_SCHEME = "AppToken"
+
+#: What a field that mentions people says about them, by its ``x-mentions``.
+_MENTIONS = {
+    MentionForm.markdown.value: (
+        "A person is mentioned as `@[Name](<reference>)`, by your reference for "
+        "them. The name is empty without `members:read`. Write "
+        "`@[](<reference>)`: the person's name is filled in."
+    ),
+    MentionForm.lexical.value: (
+        "A Lexical editor state. A person is mentioned by a node whose "
+        "`mentionUserId` is your reference for them; its `mentionName` and "
+        "`text` are empty without `members:read`, and filled in when you write "
+        "one."
+    ),
+}
 
 
 def _scoped_operations(
@@ -98,14 +112,18 @@ def _as_app_people(node: Any, people: set[str]) -> Any:
 
 
 def _as_references(node: Any) -> Any:
-    """``node`` copied, with each identity field a string: what an install
-    sends and receives."""
+    """``node`` copied, with each identity field a string and each field that
+    mentions people described: what an install sends and receives."""
     if isinstance(node, dict):
         identity = node.get("x-identity")
         if identity is not None:
             kept = {key: node[key] for key in ("title", "description") if key in node}
             return {**kept, "type": "string", "x-identity": identity}
-        return {key: _as_references(value) for key, value in node.items()}
+        copied = {key: _as_references(value) for key, value in node.items()}
+        mentions = node.get("x-mentions")
+        if mentions is not None:
+            copied.setdefault("description", _MENTIONS[mentions])
+        return copied
     if isinstance(node, list):
         return [_as_references(item) for item in node]
     return node

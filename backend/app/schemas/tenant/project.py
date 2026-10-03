@@ -6,7 +6,12 @@ from typing import List, Literal, Optional
 from pydantic import ConfigDict, Field
 
 from app.core.identity_boundary import GuildId, PersonId
-from app.schemas.base import RichTextStr, SanitizedBaseModel, TitleStr
+from app.schemas.base import (
+    RichMentionStr,
+    RichTextStr,
+    SanitizedBaseModel,
+    TitleStr,
+)
 from app.schemas.query import PageMeta
 from app.schemas.tenant.archive import ToolCan, ToolState
 
@@ -32,7 +37,7 @@ PROJECT_ICON_MAX_LENGTH = 8
 
 class ProjectBase(SanitizedBaseModel):
     name: str
-    description: Optional[RichTextStr] = None
+    description: Optional[RichMentionStr] = None
     # The emoji shown beside the project's name, bounded to match the column.
     icon: Optional[str] = Field(default=None, max_length=PROJECT_ICON_MAX_LENGTH)
     # Optional whole-day schedule; either end may be set on its own.
@@ -51,7 +56,7 @@ class ProjectCreate(ProjectBase, PropertiesOnCreate):
 
 class ProjectUpdate(SanitizedBaseModel):
     name: Optional[TitleStr] = None
-    description: Optional[RichTextStr] = None
+    description: Optional[RichMentionStr] = None
     icon: Optional[str] = Field(default=None, max_length=PROJECT_ICON_MAX_LENGTH)
     is_template: Optional[bool] = None
     pinned: Optional[bool] = None

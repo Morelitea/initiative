@@ -49,7 +49,6 @@ from app.core.audit_events import AuditEventType
 from app.core.user_display import handle_of
 from app.core.login_methods import LoginMethod
 from app.core.messages import AuthMessages, NativeMessages
-from app.core.transitions import NATIVE_SIGN_IN_CODE
 from app.core.rate_limit import get_user_or_ip_key, limiter
 from app.db.session import get_session
 from app.models.platform.user import SIGN_IN_STATUSES, User
@@ -77,9 +76,7 @@ from app.services.auth import native_handoff
 from app.services.auth import identity as identity_service
 from app.services.auth import passkeys as passkey_service
 from app.services.auth.assurance import passkey_amr
-from app.services.platform import app_settings as app_settings_service
 from app.services.platform import auth_posture
-from app.services.platform import user_tokens
 
 logger = logging.getLogger(__name__)
 
@@ -561,37 +558,13 @@ async def finish_passkey_sign_in(
             redirect_to=f"{MOBILE_CALLBACK_URI}?{urlencode({'code': code})}"
         )
     if payload.mobile:
-        # An app bundle from before the code flow began this sign-in.
-        if await app_settings_service.transition_over(
-            system_session, NATIVE_SIGN_IN_CODE
-        ):
-            await system_session.rollback()
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=NativeMessages.APP_UPDATE_REQUIRED,
-            )
-        device_name = payload.device_name.strip() or _DEFAULT_DEVICE_NAME
-        device_token = await user_tokens.create_device_token(
-            system_session,
-            user_id=user_id,
-            device_name=device_name,
-            # What this ceremony proved, kept for the exchange the app makes
-            # next: the relay is a sign-in that hands back a token instead of
-            # a session, and the session is opened a moment later.
-            amr=passkey_amr(backed_up=backed_up),
-            commit=False,
+        # An app bundle from before the code flow began this sign-in. It can
+        # only be handed a session through the code, so it is asked to update.
+        await system_session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=NativeMessages.APP_UPDATE_REQUIRED,
         )
-        await audit_service.record(
-            system_session,
-            event_type=AuditEventType.AUTH_DEVICE_TOKEN_ISSUED,
-            actor_user_id=user_id,
-            detail={"method": "passkey", "device_name": device_name},
-        )
-        # One commit for the token, the record, the spent challenge and the
-        # credential's counter.
-        await system_session.commit()
-        redirect = urlencode({"token": device_token, "token_type": "device_token"})
-        return PasskeySignInResult(redirect_to=f"{MOBILE_CALLBACK_URI}?{redirect}")
 
     # The spent challenge and the credential's counter commit with the session.
     token = await open_session(

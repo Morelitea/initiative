@@ -25,7 +25,7 @@ from fastapi import (
 )
 
 from app.api.deps import UserSessionDep, CurrentUser
-from app.core.auth_context import device_token_id
+from app.core.auth_context import session_credential
 from app.core.messages import DirectMessageTransportMessages as Messages
 from app.core.rate_limit import limiter
 from app.core.user_display import handle_of
@@ -88,6 +88,12 @@ def _error(exc: service.DmTransportError) -> HTTPException:
     )
 
 
+def _session_id() -> uuid.UUID | None:
+    """The sign-in this request is on, which a key store is linked to."""
+    credential = session_credential()
+    return credential.session_id if credential is not None else None
+
+
 @me_router.post(
     "/dm/devices", response_model=DmDevicesResponse, status_code=status.HTTP_201_CREATED
 )
@@ -112,7 +118,7 @@ async def register_device(
             fallback_key=body.fallback_key,
             one_time_keys=body.one_time_keys,
             label=(user_agent or "")[:200] or None,
-            device_token_id=device_token_id(),
+            session_id=_session_id(),
         )
     except service.DmTransportError as exc:
         raise _error(exc) from exc
@@ -476,7 +482,7 @@ async def send_messages(
     if body.wake_own_devices:
         await dm_notifications.wake_own_devices(
             user_id=current_user.id,
-            except_device_token_id=device_token_id(),
+            except_session_id=_session_id(),
         )
     for recipient_id in outcome.reached:
         if body.silent:
@@ -509,7 +515,7 @@ async def collect_queue(
             session,
             user_id=current_user.id,
             device_id=device_id,
-            device_token_id=device_token_id(),
+            session_id=_session_id(),
         )
     except service.DmTransportError as exc:
         raise _error(exc) from exc

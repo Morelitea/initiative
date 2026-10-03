@@ -23,7 +23,6 @@ from app.models.platform.api_key import UserApiKey
 from app.models.platform.user_totp import UserTotp
 from app.services.platform import api_keys as api_keys_service
 from app.services.platform import app_settings as app_settings_service
-from app.services.platform import user_tokens
 from app.testing.factories import (
     create_guild,
     create_guild_membership,
@@ -225,24 +224,6 @@ async def test_a_personal_api_key_works_once_its_owner_holds_one(
 
     answered = await client.get(GUILDS_URL, headers=headers)
 
-    assert answered.status_code == 200, answered.text
-
-
-async def test_the_app_on_a_phone_waits_for_its_owner_too(
-    client: AsyncClient, session: AsyncSession
-):
-    user = await create_user(session)
-    device_token = await user_tokens.create_device_token(
-        session, user_id=user.id, device_name="phone"
-    )
-    await session.commit()
-    await _ask(session, SecondFactorRequirement.everyone)
-    headers = {"Authorization": f"DeviceToken {device_token}"}
-
-    _refused(await client.get(GUILDS_URL, headers=headers))
-
-    await _enrol(session, user)
-    answered = await client.get(GUILDS_URL, headers=headers)
     assert answered.status_code == 200, answered.text
 
 

@@ -106,7 +106,6 @@
     "loadingDevices": "Chargement des appareils…",
     "devicesError": "Impossible de charger les appareils.",
     "unknownDevice": "Appareil inconnu",
-    "loggedIn": "Connecté {{date}}",
     "revokeDialogCancel": "Annuler",
     "revoking": "Révocation en cours…",
     "revokeError": "Impossible de révoquer l'accès de l'appareil",

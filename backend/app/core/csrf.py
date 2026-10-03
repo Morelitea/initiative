@@ -9,8 +9,8 @@ serves.
 Scope, and why it is drawn here:
 
 * **Only cookie-authenticated callers.** An ``Authorization`` header is never
-  attached by a browser on someone else's behalf, so bearer tokens, API keys
-  and device tokens are not asked for anything. That is also what keeps mobile
+  attached by a browser on someone else's behalf, so bearer tokens and API
+  keys are not asked for anything. That is also what keeps mobile
   shells and API scripts working unchanged.
 * **Unsafe methods, and every WebSocket handshake.** ``OPTIONS`` is excluded
   along with the read methods: it is the CORS preflight and is answered before

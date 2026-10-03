@@ -102,7 +102,6 @@ async def test_switching_push_off_drops_the_tokens_and_declines_new_ones(
         user_id=owner.id,
         push_token="a-device",
         platform="android",
-        device_token_id=None,
     )
     assert len((await session.exec(select(PushToken))).all()) == 1
 
@@ -140,7 +139,6 @@ async def test_email_off_leaves_the_tokens_alone(client, session) -> None:
         user_id=owner.id,
         push_token="kept-device",
         platform="android",
-        device_token_id=None,
     )
 
     response = await client.put(

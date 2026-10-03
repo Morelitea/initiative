@@ -10,7 +10,7 @@ from pydantic import ConfigDict, Field, model_validator
 from app.core.identity_boundary import GuildId
 from app.core.messages import CounterMessages
 from app.models.tenant.counter import COUNTER_DIGITS, COUNTER_PLACES, CounterViewMode
-from app.schemas.base import SanitizedBaseModel, TitleStr
+from app.schemas.base import MentionStr, SanitizedBaseModel, TitleStr
 from app.schemas.query import PageMeta
 from app.schemas.tenant.property import (
     PropertiesOnCreate,
@@ -156,7 +156,7 @@ class CounterRead(SanitizedBaseModel):
 
 class CounterGroupBase(SanitizedBaseModel):
     name: str = Field(..., min_length=1, max_length=255)
-    description: Optional[str] = None
+    description: Optional[MentionStr] = None
 
 
 class CounterGroupCreate(CounterGroupBase, PropertiesOnCreate):
@@ -169,7 +169,7 @@ class CounterGroupCreate(CounterGroupBase, PropertiesOnCreate):
 
 class CounterGroupUpdate(SanitizedBaseModel):
     name: Optional[TitleStr] = Field(default=None, min_length=1, max_length=255)
-    description: Optional[str] = None
+    description: Optional[MentionStr] = None
 
 
 class CounterGroupSummary(CounterGroupBase, ToolSummaryBase):

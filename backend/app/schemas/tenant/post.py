@@ -1,12 +1,17 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import Any, List, Optional, TYPE_CHECKING
 
 from pydantic import ConfigDict, Field, model_validator
 
-from app.core.identity_boundary import PersonId
+from app.core.identity_boundary import (
+    MentionForm,
+    PersonId,
+    without_mention_names,
+)
 from app.schemas.base import SanitizedBaseModel, TitleStr
+from app.schemas.tenant.document import LexicalState
 from app.schemas.tenant.property import PropertiesOnCreate
 from app.schemas.query import PageMeta
 from app.schemas.platform.user import ProfileDecorations
@@ -48,7 +53,7 @@ class PostCreate(PostBase, PropertiesOnCreate):
     # A Lexical editor state, the same shape a native document stores — which
     # is what lets a post carry inline images and smart chips. Empty is
     # allowed: a headline with a picture under it is a legitimate notice.
-    body: Dict[str, Any] = Field(default_factory=dict)
+    body: LexicalState = Field(default_factory=dict)
     tag_ids: Optional[List[int]] = None
     # Initial sharing — the same grant list the PUT /grants endpoint takes.
     # A board notice defaults to readable by the whole initiative, which is the
@@ -66,7 +71,7 @@ class PostCreate(PostBase, PropertiesOnCreate):
 
 class PostUpdate(SanitizedBaseModel):
     name: Optional[TitleStr] = Field(default=None, min_length=1, max_length=255)
-    body: Optional[Dict[str, Any]] = None
+    body: Optional[LexicalState] = None
     #: Move or clear a *pending* schedule. ``null`` publishes the draft now; a
     #: new instant moves it. Meaningless once the notice is up — a published
     #: post cannot be unpublished, because the people it was announced to have
@@ -184,7 +189,7 @@ class PostRead(PostSummary):
     #: The Lexical editor state. Present on the board list too, because a board
     #: renders its notices rather than a table of headlines — which is why that
     #: list pages small.
-    body: Dict[str, Any] = Field(default_factory=dict)
+    body: LexicalState = Field(default_factory=dict)
     #: The question this notice asks, if it asks one — tallies, this reader's
     #: own ballot and all. Carried with the post rather than fetched per card:
     #: a board renders its polls, and five cards must not be five more requests.
@@ -331,8 +336,9 @@ def post_body_too_long(body: Any) -> bool:
 
 def post_excerpt(body: Any, *, limit: int = EXCERPT_CHARS) -> str:
     """The first line or so of a post, for the surfaces that show one in a
-    line — recents, search, the guild table."""
-    joined = post_text(body)
+    line — recents, search, the guild table. A mention names nobody to an
+    installed app that does not read names."""
+    joined = post_text(without_mention_names(body, MentionForm.lexical))
     if len(joined) <= limit:
         return joined
     # Cut on a word boundary where there is one nearby, so the excerpt does not

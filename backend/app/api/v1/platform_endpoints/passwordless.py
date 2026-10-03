@@ -17,7 +17,6 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import (
-    CREDENTIAL_DEVICE_TOKEN,
     require_first_party_session,
     SystemSessionDep,
     CurrentUser,
@@ -32,6 +31,7 @@ from app.api.v1.platform_endpoints.session_opening import (
     require_login_method,
 )
 from app.core.audit_events import AuditEventType
+from app.core.config import is_device
 from app.core.login_methods import LoginMethod
 from app.core.messages import AuthMessages
 from app.core.password_policy import enforce_password_policy
@@ -118,7 +118,7 @@ async def remove_password(
     and hands this caller a replacement session in cookies, which is not what
     the native app carries, so the app is told to do this on the web instead.
     """
-    if _first_party == CREDENTIAL_DEVICE_TOKEN:
+    if is_device(request):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=AuthMessages.SESSION_REQUIRED,
@@ -180,7 +180,7 @@ async def remove_password(
         event_type=AuditEventType.AUTH_PASSWORD_REMOVED,
         actor_user_id=account.id,
     )
-    # Bump token_version and retire the device tokens, API keys, refresh
+    # Bump token_version and retire the API keys, refresh
     # sessions and half-finished sign-ins that rested on the password.
     #
     # Staged, not committed: the replacement session below joins them in one
@@ -296,7 +296,7 @@ async def recover_with_code(
         actor_user_id=user.id,
         detail={"via": "recovery_code"},
     )
-    # Bump token_version and retire the device tokens, API keys and refresh
+    # Bump token_version and retire the API keys and refresh
     # sessions the account held before it was recovered.
     #
     # ``user`` is staged on ``system_session``, so its id is read here rather

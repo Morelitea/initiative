@@ -691,6 +691,35 @@ async def test_move_task_to_different_project(
     assert [assignee["id"] for assignee in data["assignees"]] == [a.user.id]
 
 
+async def test_a_task_moves_only_inside_an_initiative_that_keeps_its_content_in(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a.initiative.keep_content_in = True
+    session.add(a.initiative)
+    nearby = await create_project(session, a.initiative, a.user)
+    elsewhere = await create_project(
+        session, await create_initiative(session, a.guild, a.user), a.user
+    )
+    task = await create_task(session, a.project)
+    await session.commit()
+
+    refused = await client.post(
+        a.g(f"/tasks/{task.id}/move"),
+        headers=a.headers,
+        json={"target_project_id": elsewhere.id},
+    )
+    assert refused.status_code == 403
+    assert refused.json()["detail"] == "INITIATIVE_CONTENT_KEPT_IN"
+
+    moved = await client.post(
+        a.g(f"/tasks/{task.id}/move"),
+        headers=a.headers,
+        json={"target_project_id": nearby.id},
+    )
+    assert moved.status_code == 200, moved.text
+
+
 async def test_duplicate_task(client: AsyncClient, session: AsyncSession, acting_user):
     """A copy goes beside the original, at the end of its project, and is
     linked to what the original is linked to. It names only assignees who can
