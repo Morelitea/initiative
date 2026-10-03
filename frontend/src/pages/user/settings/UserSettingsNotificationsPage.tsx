@@ -214,9 +214,9 @@ export const UserSettingsNotificationsPage = ({
 
   const visibleChannels = CHANNELS.filter((channel) => channel !== "push" || showPushColumn);
 
-  const isOn = (row: NotificationCategoryRead, channel: Channel, guildId?: number) => {
-    const scoped = guildId
-      ? preferences?.communities?.find((entry) => entry.community_id === guildId)?.categories
+  const isOn = (row: NotificationCategoryRead, channel: Channel, communityId?: number) => {
+    const scoped = communityId
+      ? preferences?.communities?.find((entry) => entry.community_id === communityId)?.categories
       : preferences?.settings;
     const stored = scoped?.[row.category]?.[channel];
     if (typeof stored === "boolean") return stored;
@@ -227,21 +227,21 @@ export const UserSettingsNotificationsPage = ({
     row: NotificationCategoryRead,
     channel: Channel,
     next: boolean,
-    guildId?: number
+    communityId?: number
   ) => {
     writePreferences.mutate(
       {
         channels: [
-          { category: row.category, channel, enabled: next, community_id: guildId ?? null },
+          { category: row.category, channel, enabled: next, community_id: communityId ?? null },
         ],
       },
       { onError: () => toast.error(t("notifications.toggleError")) }
     );
   };
 
-  const setLevel = (guildId: number, level: NotificationLevel) => {
+  const setLevel = (communityId: number, level: NotificationLevel) => {
     writePreferences.mutate(
-      { levels: [{ community_id: guildId, level }] },
+      { levels: [{ community_id: communityId, level }] },
       { onError: () => toast.error(t("notifications.toggleError")) }
     );
   };
@@ -280,7 +280,7 @@ export const UserSettingsNotificationsPage = ({
 
   const gridColumns = { gridTemplateColumns: `1fr repeat(${visibleChannels.length}, auto)` };
 
-  const renderGrid = (guildId?: number) => (
+  const renderGrid = (communityId?: number) => (
     <div className="space-y-1">
       <div className="grid items-center gap-2 border-b pb-2 sm:gap-4" style={gridColumns}>
         <p className="font-medium text-muted-foreground text-sm">
@@ -303,7 +303,7 @@ export const UserSettingsNotificationsPage = ({
       </div>
 
       {grouped.map((section) => {
-        const rows = section.rows.filter((row) => !guildId || row.community_scoped);
+        const rows = section.rows.filter((row) => !communityId || row.community_scoped);
         if (rows.length === 0) return null;
         return (
           <div key={section.group}>
@@ -324,19 +324,19 @@ export const UserSettingsNotificationsPage = ({
                     return (
                       <div key={channel} className="flex w-10 justify-center sm:w-16">
                         <Switch
-                          checked={mutable ? isOn(row, channel, guildId) : true}
+                          checked={mutable ? isOn(row, channel, communityId) : true}
                           disabled={!mutable || writePreferences.isPending}
                           aria-label={t("notifications.switchLabel", {
                             category: t(`notifications.categories.${row.category}`),
                             channel: t(`notifications.channels.${channel}`),
                           })}
-                          onCheckedChange={(checked) => toggle(row, channel, checked, guildId)}
+                          onCheckedChange={(checked) => toggle(row, channel, checked, communityId)}
                         />
                       </div>
                     );
                   })}
                 </div>
-                {row.category === "event_reminders" && !guildId && (
+                {row.category === "event_reminders" && !communityId && (
                   <div className="flex items-center gap-2 pb-3 pl-1">
                     <Label htmlFor="reminder-lead-time" className="text-muted-foreground text-sm">
                       {t("notifications.reminderLeadTime.label")}
@@ -604,20 +604,20 @@ export const UserSettingsNotificationsPage = ({
           description={t("notifications.communities.description")}
         >
           <div className="space-y-3">
-            {preferences?.communities?.map((guild) => (
-              <details key={guild.community_id} className="rounded-md border">
+            {preferences?.communities?.map((community) => (
+              <details key={community.community_id} className="rounded-md border">
                 <summary className="flex cursor-pointer items-center justify-between gap-4 p-3">
-                  <span className="font-medium">{guild.community_name}</span>
+                  <span className="font-medium">{community.community_name}</span>
                   <Select
-                    value={guild.level}
+                    value={community.level}
                     onValueChange={(value) =>
-                      setLevel(guild.community_id, value as NotificationLevel)
+                      setLevel(community.community_id, value as NotificationLevel)
                     }
                   >
                     <SelectTrigger
                       className="w-56"
                       aria-label={t("notifications.communities.levelLabel", {
-                        guild: guild.community_name,
+                        community: community.community_name,
                       })}
                       onClick={(event) => event.preventDefault()}
                     >
@@ -633,12 +633,12 @@ export const UserSettingsNotificationsPage = ({
                   </Select>
                 </summary>
                 <div className="border-t p-3">
-                  {guild.level === "nothing" ? (
+                  {community.level === "nothing" ? (
                     <p className="text-muted-foreground text-sm">
                       {t("notifications.communities.mutedHelp")}
                     </p>
                   ) : (
-                    renderGrid(guild.community_id)
+                    renderGrid(community.community_id)
                   )}
                 </div>
               </details>

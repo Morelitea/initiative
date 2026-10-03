@@ -260,7 +260,7 @@ export const SettingsAppServicesPage = () => {
                           disabled={updateService.isPending}
                           onCheckedChange={(checked) => {
                             // Turning it back on is safe; turning it off stops
-                            // the app for every guild, so that side confirms.
+                            // the app for every community, so that side confirms.
                             if (checked) setEnabled(registration, true);
                             else setDisabling(registration);
                           }}

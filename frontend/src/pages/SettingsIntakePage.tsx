@@ -46,10 +46,10 @@ import {
   useIntakeSettings,
   useUpdateIntakeGeneralContact,
   useUpdateIntakeStreamContact,
-  useUpdateOperationsGuild,
+  useUpdateOperationsCommunity,
   useUpsertIntakeBinding,
 } from "@/hooks/useIntakeSettings";
-import { usePlatformGuilds } from "@/hooks/useSettings";
+import { usePlatformCommunities } from "@/hooks/useSettings";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { formatDateTime } from "@/lib/formatDate";
@@ -78,10 +78,10 @@ export const SettingsIntakePage = () => {
   } = useIntakeOptions({ enabled: isOwner });
   // Searched on the server while the picker is open, rather than every
   // community on the deployment loaded up front.
-  const [guildSearch, setGuildSearch] = useState("");
+  const [communitySearch, setCommunitySearch] = useState("");
   const [pickerOpen, setPickerOpen] = useState(false);
-  const guildsQuery = usePlatformGuilds(
-    { search: guildSearch || undefined, sort_by: "name", page_size: 25 },
+  const communitiesQuery = usePlatformCommunities(
+    { search: communitySearch || undefined, sort_by: "name", page_size: 25 },
     { enabled: isOwner && pickerOpen }
   );
 
@@ -92,8 +92,8 @@ export const SettingsIntakePage = () => {
 
   const [clearing, setClearing] = useState(false);
 
-  const updateGuild = useUpdateOperationsGuild({
-    onError: (err) => toast.error(getErrorMessage(err, "intake:guild.saveError")),
+  const updateCommunity = useUpdateOperationsCommunity({
+    onError: (err) => toast.error(getErrorMessage(err, "intake:community.saveError")),
   });
 
   if (!isOwner) {
@@ -125,7 +125,7 @@ export const SettingsIntakePage = () => {
     );
   }
 
-  const boundGuildId = settings?.operations_community_id ?? null;
+  const boundCommunityId = settings?.operations_community_id ?? null;
 
   return (
     <div className="space-y-6">
@@ -133,32 +133,32 @@ export const SettingsIntakePage = () => {
 
       <Card>
         <CardHeader>
-          <CardTitle>{t("guild.title")}</CardTitle>
-          <CardDescription>{t("guild.description")}</CardDescription>
+          <CardTitle>{t("community.title")}</CardTitle>
+          <CardDescription>{t("community.description")}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          <Label>{t("guild.label")}</Label>
+          <Label>{t("community.label")}</Label>
           <AsyncCombobox
             className="max-w-md"
-            aria-label={t("guild.label")}
-            value={boundGuildId === null ? NONE : String(boundGuildId)}
+            aria-label={t("community.label")}
+            value={boundCommunityId === null ? NONE : String(boundCommunityId)}
             selectedLabel={
-              boundGuildId === null
-                ? t("guild.none")
+              boundCommunityId === null
+                ? t("community.none")
                 : (settings?.operations_community_name ?? null)
             }
             items={[
-              { value: NONE, label: t("guild.none") },
-              ...(guildsQuery.data?.items ?? []).map((guild) => ({
-                value: String(guild.id),
-                label: guild.name,
+              { value: NONE, label: t("community.none") },
+              ...(communitiesQuery.data?.items ?? []).map((community) => ({
+                value: String(community.id),
+                label: community.name,
               })),
             ]}
-            onSearchChange={setGuildSearch}
+            onSearchChange={setCommunitySearch}
             onOpenChange={setPickerOpen}
-            loading={guildsQuery.isFetching}
-            placeholder={t("guild.placeholder")}
-            disabled={isLoading || !settled || updateGuild.isPending}
+            loading={communitiesQuery.isFetching}
+            placeholder={t("community.placeholder")}
+            disabled={isLoading || !settled || updateCommunity.isPending}
             onValueChange={(value) => {
               // Clearing it stops every stream at once, so it is confirmed;
               // choosing a different one is an ordinary change.
@@ -166,15 +166,15 @@ export const SettingsIntakePage = () => {
                 setClearing(true);
                 return;
               }
-              updateGuild.mutate({ community_id: Number(value) });
+              updateCommunity.mutate({ community_id: Number(value) });
             }}
           />
-          <p className="text-muted-foreground text-sm">{t("guild.helpText")}</p>
+          <p className="text-muted-foreground text-sm">{t("community.helpText")}</p>
         </CardContent>
       </Card>
 
-      {boundGuildId === null ? (
-        <p className="text-muted-foreground text-sm">{t("streams.chooseGuildFirst")}</p>
+      {boundCommunityId === null ? (
+        <p className="text-muted-foreground text-sm">{t("streams.chooseCommunityFirst")}</p>
       ) : (
         <div className="space-y-4">
           {(settings?.bindings ?? []).map((binding) => (
@@ -191,10 +191,10 @@ export const SettingsIntakePage = () => {
       <ConfirmDialog
         open={clearing}
         onOpenChange={setClearing}
-        title={t("guild.clearTitle")}
-        description={t("guild.clearBody")}
-        confirmLabel={t("guild.clearConfirm")}
-        onConfirm={() => updateGuild.mutate({ community_id: null })}
+        title={t("community.clearTitle")}
+        description={t("community.clearBody")}
+        confirmLabel={t("community.clearConfirm")}
+        onConfirm={() => updateCommunity.mutate({ community_id: null })}
       />
     </div>
   );

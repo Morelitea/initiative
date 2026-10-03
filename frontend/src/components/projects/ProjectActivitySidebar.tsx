@@ -16,9 +16,9 @@ import { CommentContent } from "@/components/comments/CommentContent";
 import { CommentReferences } from "@/components/comments/CommentReferences";
 import { Button } from "@/components/ui/button";
 import { RelativeTime } from "@/components/ui/relative-time";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
-import { useGuilds } from "@/hooks/useGuilds";
-import { guildPath } from "@/lib/guildUrl";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
+import { useCommunities } from "@/hooks/useCommunities";
+import { communityPath } from "@/lib/communityUrl";
 import { taskRoute } from "@/lib/tools";
 import { getUserDisplayName } from "@/lib/userDisplay";
 import { cn } from "@/lib/utils";
@@ -34,22 +34,22 @@ export const ProjectActivitySidebar = ({
   projectId,
   initiativeId,
 }: ProjectActivitySidebarProps) => {
-  const { activeGuildId } = useGuilds();
-  const guildId = useActiveGuildId();
+  const { activeCommunityId } = useCommunities();
+  const communityId = useActiveCommunityId();
   const { t } = useTranslation(["projects", "common"]);
   const [collapsed, setCollapsed] = useState(true);
   const isEnabled = Boolean(projectId && !collapsed);
 
-  // Helper to create guild-scoped paths
-  const gp = (path: string) => (activeGuildId ? guildPath(activeGuildId, path) : path);
+  // Helper to create community-scoped paths
+  const gp = (path: string) => (activeCommunityId ? communityPath(activeCommunityId, path) : path);
 
   const activityQuery = useInfiniteQuery<ProjectActivityResponse>({
-    queryKey: getProjectActivityFeedQueryKey(guildId, projectId!),
+    queryKey: getProjectActivityFeedQueryKey(communityId, projectId!),
     queryFn: async ({ pageParam = 1 }) => {
       if (!projectId) {
         throw new Error("Project id required");
       }
-      return projectActivityFeed(guildId, projectId, {
+      return projectActivityFeed(communityId, projectId, {
         page: pageParam as number,
       }) as unknown as Promise<ProjectActivityResponse>;
     },

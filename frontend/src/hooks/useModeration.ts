@@ -2,7 +2,7 @@
  * A community's moderation reports, and settling them.
  *
  * Who may read any of this is decided by the database — the tables admit the
- * people who already see everything in the initiative, plus guild admins — so
+ * people who already see everything in the initiative, plus community admins — so
  * these hooks carry no gate of their own. The initiative's `can.moderate` is
  * the same question, asked of the same function, for whether the surface is
  * offered.
@@ -32,24 +32,24 @@ import type { QueryOpts } from "@/types/query";
 export const REPORTS_PAGE_SIZE = 50;
 
 interface ReportsParams {
-  guildId: number;
+  communityId: number;
   initiativeId: number;
   settled?: boolean;
   page?: number;
 }
 
 export const useModerationReports = (
-  { guildId, initiativeId, settled = false, page = 1 }: ReportsParams,
+  { communityId, initiativeId, settled = false, page = 1 }: ReportsParams,
   options?: QueryOpts<ModerationReportList>
 ) =>
   useQuery<ModerationReportList>({
-    queryKey: getListReportsQueryKey(guildId, initiativeId, {
+    queryKey: getListReportsQueryKey(communityId, initiativeId, {
       settled,
       page,
       page_size: REPORTS_PAGE_SIZE,
     }),
     queryFn: () =>
-      listReports(guildId, initiativeId, {
+      listReports(communityId, initiativeId, {
         settled,
         page,
         page_size: REPORTS_PAGE_SIZE,
@@ -58,13 +58,13 @@ export const useModerationReports = (
   });
 
 export const useSettleReport = (
-  guildId: number,
+  communityId: number,
   initiativeId: number,
   options?: MutationOpts<ModerationReportRead, { reportId: number; body: ReportSettle }>
 ) =>
   useApiMutation<ModerationReportRead, { reportId: number; body: ReportSettle }>(
     {
-      mutationFn: ({ reportId, body }) => settleReport(guildId, reportId, body),
+      mutationFn: ({ reportId, body }) => settleReport(communityId, reportId, body),
       // Both lists move: the report leaves the open one and joins the settled.
       invalidate: () => invalidate(q.moderationReports(initiativeId)),
     },
@@ -78,12 +78,12 @@ export const useSettleReport = (
  * asked for from the console.
  */
 export const useInitiativeSharing = (
-  guildId: number,
+  communityId: number,
   initiativeId: number,
   options?: QueryOpts<InitiativeSharingRead>
 ) =>
   useQuery<InitiativeSharingRead>({
-    queryKey: getReadInitiativeSharingQueryKey(guildId, initiativeId),
-    queryFn: () => readInitiativeSharing(guildId, initiativeId),
+    queryKey: getReadInitiativeSharingQueryKey(communityId, initiativeId),
+    queryFn: () => readInitiativeSharing(communityId, initiativeId),
     ...options,
   });

@@ -53,14 +53,14 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { useAIEnabled } from "@/hooks/useAIEnabled";
 import { useArchiveEntity, useUnarchiveEntity } from "@/hooks/useArchive";
 import { useAuth } from "@/hooks/useAuth";
 import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
 import { useComments, useCommentsCache } from "@/hooks/useComments";
+import { useCommunities } from "@/hooks/useCommunities";
 import { useDateLocale } from "@/hooks/useDateLocale";
-import { useGuilds } from "@/hooks/useGuilds";
 import { useInitiative } from "@/hooks/useInitiatives";
 import { useReadOnOpen } from "@/hooks/useNotifications";
 import { usePastedImages } from "@/hooks/usePastedImages";
@@ -77,9 +77,9 @@ import {
   useUpdateTask,
 } from "@/hooks/useTasks";
 import { toast } from "@/lib/chesterToast";
+import { useCommunityPath } from "@/lib/communityUrl";
 import { dateRangeBounds } from "@/lib/dateRange";
 import { getHttpStatus } from "@/lib/errorMessage";
-import { useGuildPath } from "@/lib/guildUrl";
 import { queryClient } from "@/lib/queryClient";
 import { fromStored, rulePayload } from "@/lib/recurrence";
 import { referenceRef } from "@/lib/smartChips";
@@ -176,12 +176,12 @@ export const TaskEditPage = () => {
   };
   const parsedTaskId = Number(taskId);
   const router = useRouter();
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   const uploadImage = usePastedImages();
   const { user: currentUser } = useAuth();
-  useGuilds();
+  useCommunities();
   const { t } = useTranslation(["tasks", "common", "properties"]);
-  const gp = useGuildPath();
+  const gp = useCommunityPath();
   const dateLocale = useDateLocale();
   const { isEnabled: aiEnabled } = useAIEnabled();
 
@@ -280,7 +280,7 @@ export const TaskEditPage = () => {
       // here, unless it was the series' last and is gone.
       if (scope === "this") {
         try {
-          form.settle(formValueFromTask(await readTask(guildId, parsedTaskId)));
+          form.settle(formValueFromTask(await readTask(communityId, parsedTaskId)));
           toast.success(t("edit.taskSkipped"));
           return;
         } catch (error) {
@@ -307,7 +307,10 @@ export const TaskEditPage = () => {
 
   const moveTask = useMoveTask({
     onSuccess: (updatedTask) => {
-      queryClient.setQueryData<TaskRead>(getReadTaskQueryKey(guildId, parsedTaskId), updatedTask);
+      queryClient.setQueryData<TaskRead>(
+        getReadTaskQueryKey(communityId, parsedTaskId),
+        updatedTask
+      );
       const previousProjectId = moveContext?.previousProjectId;
       if (typeof previousProjectId === "number") {
         void invalidate(q.projectTaskStatuses(previousProjectId), q.project(previousProjectId));
@@ -432,7 +435,7 @@ export const TaskEditPage = () => {
 
   // Creator metadata for the inline "Created by …" chip in the title row.
   // The creator summary rides the task read payload; fall back to
-  // ``User #<id>`` if the author has since left the guild (creator absent).
+  // ``User #<id>`` if the author has since left the community (creator absent).
   const creator = task?.creator ?? null;
 
   const creationContext = useMemo(() => {
@@ -467,7 +470,7 @@ export const TaskEditPage = () => {
     : null;
 
   // Pure DAC: permissions inherited from project. Server-computed — already
-  // capped at "read" when the guild's content is frozen (read_only status).
+  // capped at "read" when the community's content is frozen (read_only status).
   const hasWritePermission = Boolean(project?.can.edit);
   const canWriteProject = hasWritePermission;
   const projectIsArchived = (project?.archived_at ?? null) !== null;

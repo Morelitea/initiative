@@ -1,5 +1,5 @@
 /**
- * Guild-wide search results.
+ * Community-wide search results.
  *
  * Tabs by KIND of thing rather than one per tool, and no counts on any of
  * them: a tab is a place to look, not a reported quantity. Per-tool tabs would
@@ -25,9 +25,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsBar, TabsContent, TabsTrigger } from "@/components/ui/tabs";
+import { useCommunities } from "@/hooks/useCommunities";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import { useGuilds } from "@/hooks/useGuilds";
-import { useGuildSearch } from "@/hooks/useSearch";
+import { useCommunitySearch } from "@/hooks/useSearch";
 import { useUserSearch } from "@/hooks/useUsers";
 import {
   categoryEntityTypes,
@@ -44,7 +44,7 @@ const PAGE_SIZE = 20;
 export function SearchPage() {
   const { t } = useTranslation(["search", "common"]);
   const navigate = useNavigate();
-  const { activeGuild } = useGuilds();
+  const { activeCommunity } = useCommunities();
   const search = useSearch({ strict: false }) as {
     q?: string;
     tab?: string;
@@ -124,7 +124,7 @@ export function SearchPage() {
   // `null` for members, who are not in the index: they are asked for from the
   // roster instead, a tab further down.
   const indexTypes = categoryEntityTypes(tab);
-  const results = useGuildSearch(
+  const results = useCommunitySearch(
     {
       search: query,
       types: indexTypes ?? TOOL_ENTITY_TYPES,
@@ -159,8 +159,8 @@ export function SearchPage() {
     <div className="space-y-6">
       <div className="space-y-4">
         <h1 className="font-semibold text-3xl tracking-tight">
-          {activeGuild
-            ? t("search:titleInGuild", { guildName: activeGuild.name })
+          {activeCommunity
+            ? t("search:titleInCommunity", { communityName: activeCommunity.name })
             : t("search:title")}
         </h1>
         <div className="relative max-w-2xl">
@@ -172,7 +172,7 @@ export function SearchPage() {
             autoFocus
             aria-label={t("search:title")}
             placeholder={t("search:placeholder", {
-              guildName: activeGuild?.name ?? t("common:appName"),
+              communityName: activeCommunity?.name ?? t("common:appName"),
             })}
           />
         </div>
@@ -261,7 +261,7 @@ export function SearchPage() {
  * arriving one has, or whether its tab holds anything. Anything drawing a
  * conclusion from a total reads it through here.
  */
-function settledTotal(query: ReturnType<typeof useGuildSearch>): number | undefined {
+function settledTotal(query: ReturnType<typeof useCommunitySearch>): number | undefined {
   if (query.isPlaceholderData || !query.isFetched) return undefined;
   return query.data?.total_count;
 }

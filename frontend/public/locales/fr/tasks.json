@@ -21,9 +21,9 @@
     "priorityLabel": "Priorité",
     "allPriorities": "Toutes les priorités",
     "noPriorities": "Aucune priorité disponible",
-    "filterByGuild": "Filtrer par communauté",
-    "allGuilds": "Tous les communautés",
-    "noGuilds": "Aucune communauté disponible",
+    "filterByCommunity": "Filtrer par communauté",
+    "allCommunities": "Tous les communautés",
+    "noCommunities": "Aucune communauté disponible",
     "filterPlaceholder": "Filtrer les tâches..."
   },
   "columns": {
@@ -33,7 +33,7 @@
     "startDate": "Date de début",
     "dueDate": "Date d'échéance",
     "dateWindow": "Fenêtre de dates",
-    "guild": "Communauté",
+    "community": "Communauté",
     "projectPath": "Chemin du projet",
     "priority": "Priorité",
     "tags": "Étiquettes",
@@ -44,7 +44,7 @@
     "markInProgress": "Marquer la tâche comme en cours"
   },
   "errors": {
-    "guildContext": "Impossible de déterminer le contexte de la communauté pour cette tâche.",
+    "communityContext": "Impossible de déterminer le contexte de la communauté pour cette tâche.",
     "statusUpdate": "Impossible de mettre à jour le statut de la tâche.",
     "statusNoMatch": "Impossible de mettre à jour le statut de la tâche. Aucun statut correspondant trouvé."
   },
@@ -134,10 +134,10 @@
   },
   "myTasks": {
     "title": "Mes tâches",
-    "noGuild": "Aucune communauté",
+    "noCommunity": "Aucune communauté",
     "loadError": "Impossible de charger vos tâches.",
     "groupByDate": "Date",
-    "groupByGuild": "Communauté"
+    "groupByCommunity": "Communauté"
   },
   "myCalendar": {
     "title": "Mon calendrier"
@@ -211,7 +211,7 @@
   "createWizard": {
     "title": "Ajouter une tâche",
     "lastUsed": "Dernier utilisé",
-    "selectGuild": "Sélectionnez une communauté",
+    "selectCommunity": "Sélectionnez une communauté",
     "selectInitiative": "Sélectionnez une initiative",
     "selectProject": "Sélectionnez un projet",
     "noInitiatives": "Aucune initiative trouvée dans cette communauté.",

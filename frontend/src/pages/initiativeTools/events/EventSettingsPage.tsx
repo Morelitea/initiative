@@ -39,15 +39,15 @@ import {
 import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
 import { useServerForm } from "@/hooks/useServerForm";
 import { toast } from "@/lib/chesterToast";
+import { useCommunityPath } from "@/lib/communityUrl";
 import { formatDate, formatDateTime } from "@/lib/formatDate";
-import { useGuildPath } from "@/lib/guildUrl";
 import { allDayReference, fromStored, rulePayload } from "@/lib/recurrence";
 import { eventRoute, eventSettingsRoute, toolDetailRoute, toolListRoute } from "@/lib/tools";
 
 export function EventSettingsPage() {
   const { t } = useTranslation(["calendars", "common", "access"]);
   const router = useRouter();
-  const gp = useGuildPath();
+  const gp = useCommunityPath();
   const { eventId: eventIdParam, calendarId: calendarIdParam } = useParams({ strict: false }) as {
     eventId?: string;
     calendarId?: string;
@@ -61,7 +61,7 @@ export function EventSettingsPage() {
 
   const { data: event, isLoading } = useCalendarEvent(Number.isFinite(eventId) ? eventId : null);
   // The path supplies the initiative while this loads; the event is the
-  // authority once it arrives, and null is a guild-level calendar's address.
+  // authority once it arrives, and null is a community-level calendar's address.
   const initiativeId = useCanonicalInitiativeId(event?.initiative_id);
 
   // Two cards, each with its own Save button — so two forms. One shared form
@@ -126,7 +126,7 @@ export function EventSettingsPage() {
 
   // Attendee candidates come from whatever the event's calendar belongs to
   // (MemberMultiSelect below): every member of its initiative, or every member
-  // of the guild when the calendar belongs to no initiative. Event DAC (the
+  // of the community when the calendar belongs to no initiative. Event DAC (the
   // ShareControl below) is a separate concern tracked in #948. The current
   // attendees carry their own user summaries, so the chips render immediately.
   const attendeeUsers = useMemo(
@@ -484,7 +484,7 @@ export function EventSettingsPage() {
       </Card>
 
       {/* Custom Properties — defined per initiative, so an event on a
-          guild-level calendar has none to offer. */}
+          community-level calendar has none to offer. */}
       {event.initiative_id !== null && (
         <Card>
           <CardHeader>

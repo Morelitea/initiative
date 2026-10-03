@@ -24,7 +24,7 @@
  * has asked for about motion; only the travel between sizes, and the swell
  * under the pointer, are motion, and only those are behind `motion-safe`.
  *
- * The rail follows the banner above it: a guild that centres its banner copy
+ * The rail follows the banner above it: a community that centres its banner copy
  * gets a centred rail under it, and one that aligns left keeps the circles
  * against the same edge its name sits on. Either way the rail scrolls rather
  * than wrapping once there are more circles than room.
@@ -49,7 +49,7 @@ export const TOOL_TRAY_SURFACE = "bg-muted";
  *  stands above the tray and half is already in it. */
 const TRAY_EDGE = "top-13";
 
-const GOO_FILTER_ID = "guild-tool-rail-goo";
+const GOO_FILTER_ID = "community-tool-rail-goo";
 
 interface ToolRailProps {
   tools: Tool[];

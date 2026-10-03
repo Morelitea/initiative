@@ -34,9 +34,9 @@ import {
   useSteppedCount,
 } from "@/hooks/useCounters";
 import { useCounterGroupRealtime } from "@/hooks/useResourceRealtime";
+import { useCommunityPath } from "@/lib/communityUrl";
 import { getContrastingTextColor } from "@/lib/counter-color";
 import { isAtMax, isAtMin } from "@/lib/counter-math";
-import { useGuildPath } from "@/lib/guildUrl";
 import { counterRoute, toolDetailRoute, toolListRoute } from "@/lib/tools";
 import { cn } from "@/lib/utils";
 
@@ -45,15 +45,15 @@ const SWIPE_THRESHOLD_PX = 60;
 export function CounterDetailPage() {
   const { t } = useTranslation(["counterGroups", "common"]);
   const navigate = useNavigate();
-  const gp = useGuildPath();
+  const gp = useCommunityPath();
   const {
-    guildId,
+    communityId,
     counterGroupId: groupIdParam,
     counterId: counterIdParam,
   } = useParams({
     strict: false,
   }) as {
-    guildId?: string;
+    communityId?: string;
     counterGroupId?: string;
     counterId?: string;
   };
@@ -90,7 +90,7 @@ export function CounterDetailPage() {
   const canWrite = Boolean(group?.can.edit);
 
   const goToCounter = (index: number) => {
-    if (counters.length === 0 || !guildId || !groupId) return;
+    if (counters.length === 0 || !communityId || !groupId) return;
     const wrapped = ((index % counters.length) + counters.length) % counters.length;
     const next = counters[wrapped];
     if (!next) return;

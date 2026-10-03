@@ -57,7 +57,7 @@ export const useAppConfig = () => {
      *  directory stays hidden unless the platform owner turned it on. */
     communityDirectoryEnabled: query.data?.community_directory_enabled ?? false,
     /** Whether this deployment asks an account to confirm it is 16 or older
-     *  before it joins a listed guild. True until the config loads, and true is
+     *  before it joins a listed community. True until the config loads, and true is
      *  also the default — the question is the safe thing to ask when we do not
      *  yet know, and the server refuses the join either way. */
     communityAgeGateEnabled: query.data?.community_age_gate_enabled ?? true,

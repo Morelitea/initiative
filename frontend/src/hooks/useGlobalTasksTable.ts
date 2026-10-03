@@ -17,8 +17,8 @@ import type {
 import { listTaskStatuses } from "@/api/generated/task-statuses/task-statuses";
 import { getListMyTasksQueryKey, listMyTasks } from "@/api/generated/tasks/tasks";
 import type { PropertyFilterCondition } from "@/components/properties/PropertyFilter";
-import { useGuilds } from "@/hooks/useGuilds";
-import { useUpdateTaskInGuild } from "@/hooks/useTasks";
+import { useCommunities } from "@/hooks/useCommunities";
+import { useUpdateTaskInCommunity } from "@/hooks/useTasks";
 import { useViewPreference } from "@/hooks/useViewPreference";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
@@ -32,7 +32,7 @@ const SORT_DEFAULTS: SortField[] = [
 type StoredPrefs = {
   statusFilters: TaskStatusCategory[];
   priorityFilters: TaskPriority[];
-  guildFilters: number[];
+  communityFilters: number[];
   propertyFilters: PropertyFilterCondition[];
   sorting: SortField[];
 };
@@ -44,7 +44,7 @@ const sameMembers = <T>(a: T[], b: T[]): boolean =>
 const FILTER_DEFAULTS: StoredPrefs = {
   statusFilters: ["backlog", "todo", "in_progress"] as TaskStatusCategory[],
   priorityFilters: [],
-  guildFilters: [],
+  communityFilters: [],
   propertyFilters: [],
   sorting: SORT_DEFAULTS,
 };
@@ -57,7 +57,9 @@ const sanitizeStoredPrefs = (raw: unknown): StoredPrefs => {
     priorityFilters: Array.isArray(v.priorityFilters)
       ? v.priorityFilters
       : FILTER_DEFAULTS.priorityFilters,
-    guildFilters: Array.isArray(v.guildFilters) ? v.guildFilters : FILTER_DEFAULTS.guildFilters,
+    communityFilters: Array.isArray(v.communityFilters)
+      ? v.communityFilters
+      : FILTER_DEFAULTS.communityFilters,
     propertyFilters: Array.isArray(v.propertyFilters)
       ? v.propertyFilters
       : FILTER_DEFAULTS.propertyFilters,
@@ -71,11 +73,11 @@ const PAGE_SIZE = 20;
  * Prefix shared by every `/me/tasks` cache entry — the table's page, the focus
  * summary's rule and pin queries. A status change patches all of them at once,
  * so the row it touched updates wherever it is on screen without waiting for
- * three cross-guild aggregates to come back.
+ * three cross-community aggregates to come back.
  */
 const MY_TASKS_QUERY_PREFIX = getListMyTasksQueryKey();
 
-/** Task ids repeat across guilds, so an in-flight row is addressed by both. */
+/** Task ids repeat across communities, so an in-flight row is addressed by both. */
 const taskKey = (task: Pick<TaskListRead, "id" | "community_id">) =>
   `${task.community_id ?? "none"}:${task.id}`;
 
@@ -97,7 +99,7 @@ const SORT_COLUMN_MAP: Record<string, string> = Object.fromEntries(
 
 export function useGlobalTasksTable() {
   const { t } = useTranslation(["tasks", "dates", "common"]);
-  const { activeGuildId } = useGuilds();
+  const { activeCommunityId } = useCommunities();
   const localQueryClient = useQueryClient();
   const router = useRouter();
   const searchParams = useSearch({ strict: false }) as { page?: number };
@@ -114,7 +116,8 @@ export function useGlobalTasksTable() {
   const [storedPrefsRaw, setStoredPrefs, { isLoaded: preferencesLoaded }] =
     useViewPreference<StoredPrefs>(storageKey, FILTER_DEFAULTS);
   const storedPrefs = useMemo(() => sanitizeStoredPrefs(storedPrefsRaw), [storedPrefsRaw]);
-  const { statusFilters, priorityFilters, guildFilters, propertyFilters, sorting } = storedPrefs;
+  const { statusFilters, priorityFilters, communityFilters, propertyFilters, sorting } =
+    storedPrefs;
 
   const makeSetter = useCallback(
     <K extends keyof StoredPrefs>(key: K) =>
@@ -132,7 +135,7 @@ export function useGlobalTasksTable() {
   );
   const setStatusFilters = useMemo(() => makeSetter("statusFilters"), [makeSetter]);
   const setPriorityFilters = useMemo(() => makeSetter("priorityFilters"), [makeSetter]);
-  const setGuildFilters = useMemo(() => makeSetter("guildFilters"), [makeSetter]);
+  const setCommunityFilters = useMemo(() => makeSetter("communityFilters"), [makeSetter]);
   const setPropertyFilters = useMemo(() => makeSetter("propertyFilters"), [makeSetter]);
   const setSorting = useMemo(() => makeSetter("sorting"), [makeSetter]);
 
@@ -146,15 +149,15 @@ export function useGlobalTasksTable() {
   const activeFilterCount =
     (sameMembers(statusFilters, FILTER_DEFAULTS.statusFilters) ? 0 : 1) +
     priorityFilters.length +
-    guildFilters.length +
+    communityFilters.length +
     propertyFilters.length;
 
   const clearFilters = useCallback(() => {
     setStatusFilters(FILTER_DEFAULTS.statusFilters);
     setPriorityFilters([]);
-    setGuildFilters([]);
+    setCommunityFilters([]);
     setPropertyFilters([]);
-  }, [setStatusFilters, setPriorityFilters, setGuildFilters, setPropertyFilters]);
+  }, [setStatusFilters, setPriorityFilters, setCommunityFilters, setPropertyFilters]);
 
   // --- Pagination state ---
   const [page, setPageState] = useState(() => searchParams.page ?? 1);
@@ -219,7 +222,7 @@ export function useGlobalTasksTable() {
   const propertyFiltersKey = JSON.stringify(propertyFilters);
   useEffect(() => {
     setPage(1);
-  }, [statusFilters, priorityFilters, guildFilters, propertyFiltersKey, setPage]);
+  }, [statusFilters, priorityFilters, communityFilters, propertyFiltersKey, setPage]);
 
   // --- User timezone for server-side date_group calculation ---
   const userTimezone = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone, []);
@@ -244,8 +247,8 @@ export function useGlobalTasksTable() {
       // The global tasks endpoint extracts this as ``community_ids`` (plural,
       // matching ``initiative_ids``); sending the singular ``community_id``
       // silently no-ops because the extraction looks for the plural key.
-      ...(guildFilters.length > 0
-        ? [{ field: "community_ids", op: "in_" as const, value: guildFilters }]
+      ...(communityFilters.length > 0
+        ? [{ field: "community_ids", op: "in_" as const, value: communityFilters }]
         : []),
       ...propertyConditions,
     ];
@@ -259,7 +262,7 @@ export function useGlobalTasksTable() {
   }, [
     statusFilters,
     priorityFilters,
-    guildFilters,
+    communityFilters,
     propertyFilters,
     page,
     pageSize,
@@ -296,7 +299,7 @@ export function useGlobalTasksTable() {
   );
 
   // --- Status mutation ---
-  const { mutateAsync: updateTaskStatusMutate } = useUpdateTaskInGuild({
+  const { mutateAsync: updateTaskStatusMutate } = useUpdateTaskInCommunity({
     onSuccess: (updatedTask) => {
       const cached = projectStatusCache.current.get(updatedTask.project_id);
       if (cached && !cached.statuses.some((status) => status.id === updatedTask.task_status.id)) {
@@ -379,30 +382,33 @@ export function useGlobalTasksTable() {
   }, [tasks]);
 
   // --- Status helpers ---
-  const fetchProjectStatuses = useCallback(async (projectId: number, guildId: number | null) => {
-    const cached = projectStatusCache.current.get(projectId);
-    if (cached?.complete) {
-      return cached.statuses;
-    }
-    if (!guildId) {
-      return cached?.statuses ?? [];
-    }
-    // Explicit guild address: the project lives in the task's guild, which
-    // need not be the user's current context on these cross-guild pages.
-    const statuses = await listTaskStatuses(guildId, projectId);
-    const merged = cached
-      ? [
-          ...cached.statuses,
-          ...statuses.filter((status) => !cached.statuses.some((s) => s.id === status.id)),
-        ]
-      : statuses;
-    projectStatusCache.current.set(projectId, { statuses: merged, complete: true });
-    return merged;
-  }, []);
+  const fetchProjectStatuses = useCallback(
+    async (projectId: number, communityId: number | null) => {
+      const cached = projectStatusCache.current.get(projectId);
+      if (cached?.complete) {
+        return cached.statuses;
+      }
+      if (!communityId) {
+        return cached?.statuses ?? [];
+      }
+      // Explicit community address: the project lives in the task's community, which
+      // need not be the user's current context on these cross-community pages.
+      const statuses = await listTaskStatuses(communityId, projectId);
+      const merged = cached
+        ? [
+            ...cached.statuses,
+            ...statuses.filter((status) => !cached.statuses.some((s) => s.id === status.id)),
+          ]
+        : statuses;
+      projectStatusCache.current.set(projectId, { statuses: merged, complete: true });
+      return merged;
+    },
+    []
+  );
 
   const resolveStatusIdForCategory = useCallback(
-    async (projectId: number, category: TaskStatusCategory, guildId: number | null) => {
-      const statuses = await fetchProjectStatuses(projectId, guildId);
+    async (projectId: number, category: TaskStatusCategory, communityId: number | null) => {
+      const statuses = await fetchProjectStatuses(projectId, communityId);
       return statusForCategory(statuses, category)?.id ?? null;
     },
     [fetchProjectStatuses]
@@ -410,9 +416,9 @@ export function useGlobalTasksTable() {
 
   const changeTaskStatusById = useCallback(
     async (task: TaskListRead, targetStatusId: number) => {
-      const targetGuildId = task.community_id ?? activeGuildId ?? null;
-      if (!targetGuildId) {
-        toast.error(t("errors.guildContext"));
+      const targetCommunityId = task.community_id ?? activeCommunityId ?? null;
+      if (!targetCommunityId) {
+        toast.error(t("errors.communityContext"));
         return;
       }
       // The status the row is moving to is already in hand whenever the caller
@@ -428,9 +434,9 @@ export function useGlobalTasksTable() {
         await updateTaskStatusMutate({
           taskId: task.id,
           data: { task_status_id: targetStatusId },
-          // Cross-guild update from the personal My Tasks table: per-guild task
-          // ids collide, so the update must name the task's own guild (path).
-          guildId: targetGuildId,
+          // Cross-community update from the personal My Tasks table: per-community task
+          // ids collide, so the update must name the task's own community (path).
+          communityId: targetCommunityId,
         });
       } catch (error) {
         rollback?.();
@@ -444,20 +450,20 @@ export function useGlobalTasksTable() {
         });
       }
     },
-    [activeGuildId, applyStatusLocally, updateTaskStatusMutate, t]
+    [activeCommunityId, applyStatusLocally, updateTaskStatusMutate, t]
   );
 
   const changeTaskStatus = useCallback(
     async (task: TaskListRead, targetCategory: TaskStatusCategory) => {
-      const targetGuildId = task.community_id ?? activeGuildId ?? null;
-      if (!targetGuildId) {
-        toast.error(t("errors.guildContext"));
+      const targetCommunityId = task.community_id ?? activeCommunityId ?? null;
+      if (!targetCommunityId) {
+        toast.error(t("errors.communityContext"));
         return;
       }
       const targetStatusId = await resolveStatusIdForCategory(
         task.project_id,
         targetCategory,
-        targetGuildId
+        targetCommunityId
       );
       if (!targetStatusId) {
         toast.error(t("errors.statusNoMatch"));
@@ -465,7 +471,7 @@ export function useGlobalTasksTable() {
       }
       await changeTaskStatusById(task, targetStatusId);
     },
-    [activeGuildId, changeTaskStatusById, resolveStatusIdForCategory, t]
+    [activeCommunityId, changeTaskStatusById, resolveStatusIdForCategory, t]
   );
 
   // --- Display tasks ---
@@ -489,8 +495,8 @@ export function useGlobalTasksTable() {
     setStatusFilters,
     priorityFilters,
     setPriorityFilters,
-    guildFilters,
-    setGuildFilters,
+    communityFilters,
+    setCommunityFilters,
     propertyFilters,
     setPropertyFilters,
     filtersOpen,
@@ -536,7 +542,7 @@ export function useGlobalTasksTable() {
     hasError,
 
     // Context
-    activeGuildId,
+    activeCommunityId,
     localQueryClient,
     t,
   };

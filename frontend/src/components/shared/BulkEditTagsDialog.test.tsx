@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { HttpResponse } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 import type { TagBulkEditRequest } from "@/api/generated/initiativeAPI.schemas";
@@ -38,7 +38,7 @@ describe("BulkEditTagsDialog", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     server.use(
-      guildHttp.get("/tags/", () =>
+      communityHttp.get("/tags/", () =>
         HttpResponse.json([
           { ...alpha, community_id: 1, created_at: "", updated_at: "" },
           { ...beta, community_id: 1, created_at: "", updated_at: "" },
@@ -50,7 +50,7 @@ describe("BulkEditTagsDialog", () => {
   it("adds tags with ONE bulk call carrying every selected item", async () => {
     const bodies: TagBulkEditRequest[] = [];
     server.use(
-      guildHttp.post("/tags/bulk", async ({ request }) => {
+      communityHttp.post("/tags/bulk", async ({ request }) => {
         bodies.push((await request.json()) as TagBulkEditRequest);
         return HttpResponse.json({ updated_count: 2 });
       })
@@ -68,7 +68,7 @@ describe("BulkEditTagsDialog", () => {
           { id: 12, tags: [beta] },
         ]}
         targetType="task"
-        guildId={1}
+        communityId={1}
         onInvalidate={onInvalidate}
         labels={LABELS}
       />
@@ -95,7 +95,7 @@ describe("BulkEditTagsDialog", () => {
   it("removes tags via the remove tab with a remove-only payload", async () => {
     const bodies: TagBulkEditRequest[] = [];
     server.use(
-      guildHttp.post("/tags/bulk", async ({ request }) => {
+      communityHttp.post("/tags/bulk", async ({ request }) => {
         bodies.push((await request.json()) as TagBulkEditRequest);
         return HttpResponse.json({ updated_count: 2 });
       })
@@ -111,7 +111,7 @@ describe("BulkEditTagsDialog", () => {
           { id: 12, tags: [beta] },
         ]}
         targetType="document"
-        guildId={1}
+        communityId={1}
         onInvalidate={vi.fn()}
         labels={LABELS}
       />
@@ -136,7 +136,7 @@ describe("BulkEditTagsDialog", () => {
 
   it("surfaces a failed bulk call and leaves the dialog open", async () => {
     server.use(
-      guildHttp.post("/tags/bulk", () =>
+      communityHttp.post("/tags/bulk", () =>
         HttpResponse.json({ detail: "INVALID_TAG_IDS" }, { status: 400 })
       )
     );
@@ -150,7 +150,7 @@ describe("BulkEditTagsDialog", () => {
         onSuccess={onSuccess}
         items={[{ id: 11, tags: [] }]}
         targetType="task"
-        guildId={1}
+        communityId={1}
         onInvalidate={vi.fn()}
         labels={LABELS}
       />

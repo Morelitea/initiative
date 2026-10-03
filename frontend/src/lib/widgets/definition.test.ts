@@ -193,7 +193,7 @@ describe("definitionsEqual", () => {
 describe("effectiveBinding", () => {
   it("layers instance config over the definition's binding", () => {
     // The seam that makes an installed listing work: the catalog definition
-    // cannot know this guild's counter ids, so the install fills them in.
+    // cannot know this community's counter ids, so the install fills them in.
     const definition = addWidget(EMPTY_DEFINITION, catalog, "stat", "query");
     const config = readConfig({
       widgets: { w1: { counter_group_id: 4, counter_id: 9 } },

@@ -477,7 +477,7 @@ export const WikiPageTree = ({
     // caller's — so naming it here costs nothing and keeps the rule honest.
   }, [activePageId, pages, setExpanded]);
 
-  // The same activation distances the guild rail uses, so a drag started
+  // The same activation distances the community rail uses, so a drag started
   // anywhere in the sidebar feels the same.
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),

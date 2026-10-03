@@ -23,7 +23,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useDocument } from "@/hooks/useDocuments";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useWiki } from "@/hooks/useWikis";
-import { useGuildPath } from "@/lib/guildUrl";
+import { useCommunityPath } from "@/lib/communityUrl";
 import { toolDetailRoute } from "@/lib/tools";
 import { cn } from "@/lib/utils";
 
@@ -41,7 +41,7 @@ import { cn } from "@/lib/utils";
  */
 export const WikiDocumentView = () => {
   const { t } = useTranslation(["wikis", "common"]);
-  const gp = useGuildPath();
+  const gp = useCommunityPath();
   const {
     wikiId: wikiIdParam,
     documentId: documentIdParam,

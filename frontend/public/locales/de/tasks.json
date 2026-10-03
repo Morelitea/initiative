@@ -21,9 +21,9 @@
     "priorityLabel": "Priorität",
     "allPriorities": "Alle Prioritäten",
     "noPriorities": "Keine Prioritäten verfügbar",
-    "filterByGuild": "Nach Community filtern",
-    "allGuilds": "Alle Communitys",
-    "noGuilds": "Keine Communitys verfügbar",
+    "filterByCommunity": "Nach Community filtern",
+    "allCommunities": "Alle Communitys",
+    "noCommunities": "Keine Communitys verfügbar",
     "filterPlaceholder": "Aufgaben filtern..."
   },
   "columns": {
@@ -33,7 +33,7 @@
     "startDate": "Startdatum",
     "dueDate": "Fälligkeitsdatum",
     "dateWindow": "Zeitfenster",
-    "guild": "Community",
+    "community": "Community",
     "projectPath": "Projektpfad",
     "priority": "Priorität",
     "tags": "Tags",
@@ -44,7 +44,7 @@
     "markInProgress": "Aufgabe als in Bearbeitung markieren"
   },
   "errors": {
-    "guildContext": "Der Community-Kontext für diese Aufgabe konnte nicht ermittelt werden.",
+    "communityContext": "Der Community-Kontext für diese Aufgabe konnte nicht ermittelt werden.",
     "statusUpdate": "Aufgabenstatus konnte nicht aktualisiert werden.",
     "statusNoMatch": "Aufgabenstatus konnte nicht aktualisiert werden. Kein passender Status gefunden."
   },
@@ -134,10 +134,10 @@
   },
   "myTasks": {
     "title": "Meine Aufgaben",
-    "noGuild": "Keine Community",
+    "noCommunity": "Keine Community",
     "loadError": "Deine Aufgaben konnten nicht geladen werden.",
     "groupByDate": "Datum",
-    "groupByGuild": "Community"
+    "groupByCommunity": "Community"
   },
   "myCalendar": {
     "title": "Mein Kalender"
@@ -211,7 +211,7 @@
   "createWizard": {
     "title": "Aufgabe hinzufügen",
     "lastUsed": "Zuletzt verwendet",
-    "selectGuild": "Eine Community auswählen",
+    "selectCommunity": "Eine Community auswählen",
     "selectInitiative": "Eine Initiative auswählen",
     "selectProject": "Ein Projekt auswählen",
     "noInitiatives": "Keine Initiativen in dieser Community gefunden.",

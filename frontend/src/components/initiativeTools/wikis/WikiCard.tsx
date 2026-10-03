@@ -6,7 +6,7 @@ import { Tool, type WikiSummary } from "@/api/generated/initiativeAPI.schemas";
 import { TagBadgeList } from "@/components/tags/TagBadge";
 import { Badge } from "@/components/ui/badge";
 import { useRelativeTime } from "@/hooks/useRelativeTime";
-import { useGuildPath } from "@/lib/guildUrl";
+import { useCommunityPath } from "@/lib/communityUrl";
 import { toolDetailRoute } from "@/lib/tools";
 import { cn } from "@/lib/utils";
 
@@ -25,7 +25,7 @@ interface WikiCardProps {
  */
 export const WikiCard = ({ wiki, className }: WikiCardProps) => {
   const { t } = useTranslation("wikis");
-  const gp = useGuildPath();
+  const gp = useCommunityPath();
   const relativeUpdatedAt = useRelativeTime(wiki.updated_at);
   const commentCount = wiki.comments_enabled ? (wiki.comment_count ?? 0) : null;
 

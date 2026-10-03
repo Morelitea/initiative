@@ -38,7 +38,7 @@ type Change =
  *
  * An account has several, any proven one signs in, and account mail reaches
  * all of them — so this is a list rather than a field. The primary is the one
- * shown back to a guild.
+ * shown back to a community.
  *
  * Changing the list changes how the account is signed into, so each change is
  * confirmed with the current password where the server asks for one. Where it

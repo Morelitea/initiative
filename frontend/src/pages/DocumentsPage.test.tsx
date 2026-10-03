@@ -4,7 +4,7 @@ import { HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
 
 import { buildDocumentSummary } from "@/__tests__/factories";
-import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { createTestQueryClient, renderPage } from "@/__tests__/helpers/render";
 import type { DocumentSummary } from "@/api/generated/initiativeAPI.schemas";
@@ -32,7 +32,7 @@ function renderDocuments() {
 function stubDocuments(items: DocumentSummary[] = []) {
   const requests: URLSearchParams[] = [];
   server.use(
-    guildHttp.get("/documents/", ({ request }) => {
+    communityHttp.get("/documents/", ({ request }) => {
       requests.push(new URL(request.url).searchParams);
       return HttpResponse.json({
         items,
@@ -44,7 +44,7 @@ function stubDocuments(items: DocumentSummary[] = []) {
         sort_dir: null,
       });
     }),
-    guildHttp.get("/tools/document/counts", () =>
+    communityHttp.get("/tools/document/counts", () =>
       HttpResponse.json({
         // Distinct totals so the toggle's badges are told apart.
         views: { active: 7, templates: 2, archived: 0 },

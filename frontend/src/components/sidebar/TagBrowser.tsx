@@ -29,7 +29,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDeleteTag, useUpdateTag } from "@/hooks/useTags";
 import { toast } from "@/lib/chesterToast";
-import { guildPath } from "@/lib/guildUrl";
+import { communityPath } from "@/lib/communityUrl";
 import { getItem, setItem } from "@/lib/storage";
 import { buildTagTree, type TagTreeNode } from "@/lib/tagTree";
 import { cn } from "@/lib/utils";
@@ -54,7 +54,7 @@ const TagEditContext = createContext<TagEditContextValue | null>(null);
 export interface TagBrowserProps {
   tags: TagType[];
   isLoading: boolean;
-  activeGuildId: number | null;
+  activeCommunityId: number | null;
   /** Changing this value re-syncs the open/closed state from storage. */
   collapseKey?: number;
   /** Edit mode is controlled by the sidebar header's pencil toggle. */
@@ -66,7 +66,7 @@ export interface TagBrowserProps {
 export const TagBrowser = ({
   tags,
   isLoading,
-  activeGuildId,
+  activeCommunityId,
   collapseKey,
   editMode = false,
   onExpandAll,
@@ -245,7 +245,7 @@ export const TagBrowser = ({
               key={node.fullPath}
               node={node}
               depth={0}
-              activeGuildId={activeGuildId}
+              activeCommunityId={activeCommunityId}
               collapseKey={collapseKey}
             />
           ))}
@@ -392,16 +392,17 @@ const EditableTagRow = ({ tag, label, count, bold, edit }: EditableTagRowProps) 
 interface TagTreeNodeComponentProps {
   node: TagTreeNode;
   depth: number;
-  activeGuildId: number | null;
+  activeCommunityId: number | null;
   collapseKey?: number;
 }
 
 const TagTreeNodeComponent = memo(
-  ({ node, depth, activeGuildId, collapseKey }: TagTreeNodeComponentProps) => {
+  ({ node, depth, activeCommunityId, collapseKey }: TagTreeNodeComponentProps) => {
     const { t } = useTranslation("nav");
     const edit = useContext(TagEditContext);
-    // Helper to create guild-scoped paths
-    const gp = (path: string) => (activeGuildId ? guildPath(activeGuildId, path) : path);
+    // Helper to create community-scoped paths
+    const gp = (path: string) =>
+      activeCommunityId ? communityPath(activeCommunityId, path) : path;
     const [isOpen, setIsOpen] = useState(() => {
       try {
         const stored = getItem("tag-group-collapsed-states");
@@ -549,7 +550,7 @@ const TagTreeNodeComponent = memo(
                 key={child.fullPath}
                 node={child}
                 depth={depth + 1}
-                activeGuildId={activeGuildId}
+                activeCommunityId={activeCommunityId}
                 collapseKey={collapseKey}
               />
             ))}

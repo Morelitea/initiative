@@ -21,9 +21,9 @@
     "priorityLabel": "Prioridad",
     "allPriorities": "Todas las prioridades",
     "noPriorities": "No hay prioridades disponibles",
-    "filterByGuild": "Filtrar por comunidad",
-    "allGuilds": "Todas las comunidades",
-    "noGuilds": "No hay comunidades disponibles",
+    "filterByCommunity": "Filtrar por comunidad",
+    "allCommunities": "Todas las comunidades",
+    "noCommunities": "No hay comunidades disponibles",
     "filterPlaceholder": "Filtrar tareas..."
   },
   "columns": {
@@ -33,7 +33,7 @@
     "startDate": "Fecha de inicio",
     "dueDate": "Fecha de vencimiento",
     "dateWindow": "Rango de fechas",
-    "guild": "Comunidad",
+    "community": "Comunidad",
     "projectPath": "Ruta del proyecto",
     "priority": "Prioridad",
     "tags": "Etiquetas",
@@ -44,7 +44,7 @@
     "markInProgress": "Marcar tarea como en progreso"
   },
   "errors": {
-    "guildContext": "No se pudo determinar el contexto de la comunidad para esta tarea.",
+    "communityContext": "No se pudo determinar el contexto de la comunidad para esta tarea.",
     "statusUpdate": "No se pudo actualizar el estado de la tarea.",
     "statusNoMatch": "No se pudo actualizar el estado de la tarea. No se encontró un estado coincidente."
   },
@@ -134,10 +134,10 @@
   },
   "myTasks": {
     "title": "Mis tareas",
-    "noGuild": "Sin comunidad",
+    "noCommunity": "Sin comunidad",
     "loadError": "No se pudieron cargar tus tareas.",
     "groupByDate": "Fecha",
-    "groupByGuild": "Comunidad"
+    "groupByCommunity": "Comunidad"
   },
   "myCalendar": {
     "title": "Mi calendario"
@@ -211,7 +211,7 @@
   "createWizard": {
     "title": "Agregar tarea",
     "lastUsed": "Último usado",
-    "selectGuild": "Selecciona una comunidad",
+    "selectCommunity": "Selecciona una comunidad",
     "selectInitiative": "Selecciona una iniciativa",
     "selectProject": "Selecciona un proyecto",
     "noInitiatives": "No se encontraron iniciativas en esta comunidad.",

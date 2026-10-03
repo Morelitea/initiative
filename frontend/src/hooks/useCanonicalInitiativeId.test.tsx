@@ -14,8 +14,8 @@ import { renderPage } from "@/__tests__/helpers/render";
 
 import { useCanonicalInitiativeId } from "./useCanonicalInitiativeId";
 
-const ROUTE = "/c/$guildId/i/$initiativeId/projects/$projectId";
-const PARAMS = { guildId: "3", initiativeId: "5", projectId: "1" };
+const ROUTE = "/c/$communityId/i/$initiativeId/projects/$projectId";
+const PARAMS = { communityId: "3", initiativeId: "5", projectId: "1" };
 
 /** A page whose entity says it belongs to `entityInitiativeId`. */
 const pageFor = (entityInitiativeId: number | null | undefined) => () => {

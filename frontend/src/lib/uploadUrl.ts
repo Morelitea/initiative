@@ -57,18 +57,18 @@ export function resolveHeaderlessApiUrl(apiPath: string): string {
 /**
  * Resolve a document ID to its authorized download URL (current version).
  *
- * The download is guild-scoped (``/c/{guildId}/…``): served via iframe/
- * window.open, which can't send headers, so the guild rides in the path.
+ * The download is community-scoped (``/c/{communityId}/…``): served via iframe/
+ * window.open, which can't send headers, so the community rides in the path.
  */
 export function resolveDocumentDownloadUrl(
   documentId: number,
-  guildId: number,
+  communityId: number,
   inline = false
 ): string | null {
-  if (!documentId || !guildId) {
+  if (!documentId || !communityId) {
     return null;
   }
-  const base = `/api/v1/c/${guildId}/documents/${documentId}/download`;
+  const base = `/api/v1/c/${communityId}/documents/${documentId}/download`;
   return resolveHeaderlessApiUrl(inline ? `${base}?inline=1` : base);
 }
 
@@ -80,13 +80,13 @@ export function resolveDocumentDownloadUrl(
 export function resolveDocumentVersionDownloadUrl(
   documentId: number,
   versionId: number,
-  guildId: number,
+  communityId: number,
   inline = false
 ): string | null {
-  if (!documentId || !versionId || !guildId) {
+  if (!documentId || !versionId || !communityId) {
     return null;
   }
-  const base = `/api/v1/c/${guildId}/documents/${documentId}/versions/${versionId}/download`;
+  const base = `/api/v1/c/${communityId}/documents/${documentId}/versions/${versionId}/download`;
   return resolveHeaderlessApiUrl(inline ? `${base}?inline=1` : base);
 }
 

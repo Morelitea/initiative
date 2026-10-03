@@ -10,7 +10,7 @@ import type { ReactNode } from "react";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { buildRecentItem } from "@/__tests__/factories";
-import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import type { RecentItemRead } from "@/api/generated/initiativeAPI.schemas";
 import { getListRecentsQueryKey } from "@/api/generated/recents/recents";
@@ -34,7 +34,7 @@ describe("useRecordRecentView", () => {
     ];
     queryClient.setQueryData<RecentItemRead[]>(key, [first, reopened]);
     server.use(
-      guildHttp.post("/recents/:entityType/:entityId", ({ params }) =>
+      communityHttp.post("/recents/:entityType/:entityId", ({ params }) =>
         HttpResponse.json({
           entity_type: "project",
           entity_id: Number(params.entityId),
@@ -58,7 +58,7 @@ describe("useRecordRecentView", () => {
 
     // An answer for an earlier view, arriving last, does not jump the queue.
     server.use(
-      guildHttp.post("/recents/:entityType/:entityId", ({ params }) =>
+      communityHttp.post("/recents/:entityType/:entityId", ({ params }) =>
         HttpResponse.json({
           entity_type: "project",
           entity_id: Number(params.entityId),

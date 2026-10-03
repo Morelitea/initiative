@@ -6,7 +6,7 @@ import type { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { Button } from "@/components/ui/button";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { useGuildPath } from "@/lib/guildUrl";
+import { useCommunityPath } from "@/lib/communityUrl";
 import { toolCreateLabelKey, toolCreateTarget } from "@/lib/tools";
 
 /**
@@ -15,7 +15,7 @@ import { toolCreateLabelKey, toolCreateTarget } from "@/lib/tools";
  * tool navigates to its list route's create dialog.
  */
 export function useToolCreate(tool: Tool, initiativeId: number) {
-  const gp = useGuildPath();
+  const gp = useCommunityPath();
   const _navigate = useNavigate();
   const { t } = useTranslation("nav");
 

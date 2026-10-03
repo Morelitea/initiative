@@ -435,7 +435,7 @@ class GuildAccessError(Exception):
         self.detail = detail
         # Set for COMMUNITY_AUTH_STEP_UP_REQUIRED: which provider the session must
         # satisfy (X-Auth-Step-Up) and which guild's login flow serves it
-        # (X-Auth-Step-Up-Guild) — guild-scoped providers resolve their login
+        # (X-Auth-Step-Up-Community) — guild-scoped providers resolve their login
         # URL through the guild, not a global slug.
         self.step_up_provider_slug = step_up_provider_slug
         self.step_up_guild_id = step_up_guild_id
@@ -886,7 +886,7 @@ def raise_for_guild_access(exc: GuildAccessError) -> NoReturn:
             detail=exc.detail,
             headers={
                 "WWW-Authenticate": STEP_UP_CHALLENGE,
-                "X-Auth-Step-Up-Guild": (
+                "X-Auth-Step-Up-Community": (
                     str(exc.step_up_guild_id)
                     if exc.step_up_guild_id is not None
                     else ""
@@ -907,7 +907,7 @@ def raise_for_guild_access(exc: GuildAccessError) -> NoReturn:
             headers={
                 "WWW-Authenticate": STEP_UP_CHALLENGE,
                 "X-Auth-Step-Up": exc.step_up_provider_slug or "",
-                "X-Auth-Step-Up-Guild": (
+                "X-Auth-Step-Up-Community": (
                     str(exc.step_up_guild_id)
                     if exc.step_up_guild_id is not None
                     else ""

@@ -21,8 +21,8 @@ import { AppUpdatesPanel } from "./AppUpdatesPanel";
 const patched: unknown[] = [];
 const upgraded = vi.fn();
 
-vi.mock("@/hooks/useGuildApps", () => ({
-  useUpdateGuildApp: () => ({
+vi.mock("@/hooks/useCommunityApps", () => ({
+  useUpdateCommunityApp: () => ({
     isPending: false,
     mutate: (body: unknown) => patched.push(body),
   }),
@@ -30,7 +30,7 @@ vi.mock("@/hooks/useGuildApps", () => ({
 
 const declined = vi.fn();
 
-vi.mock("@/hooks/useGuildAppDetail", () => ({
+vi.mock("@/hooks/useCommunityAppDetail", () => ({
   useUpgradeApp: () => ({ isPending: false, mutate: upgraded }),
   useDeclineAppUpgrade: () => ({ isPending: false, mutate: declined }),
 }));

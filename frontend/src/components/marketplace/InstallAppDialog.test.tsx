@@ -21,8 +21,8 @@ import { InstallAppDialog } from "./InstallAppDialog";
 
 const sent: CommunityAppInstall[] = [];
 
-vi.mock("@/hooks/useGuildApps", () => ({
-  useInstallGuildApp: () => ({
+vi.mock("@/hooks/useCommunityApps", () => ({
+  useInstallCommunityApp: () => ({
     isPending: false,
     mutate: (body: CommunityAppInstall) => sent.push(body),
   }),

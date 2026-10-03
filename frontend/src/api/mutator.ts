@@ -4,7 +4,7 @@ import type { AxiosRequestConfig } from "axios";
 import { API_BASE_URL, apiClient } from "./client";
 
 // Orval custom instance mutator (httpClient: "axios" mode)
-// Wraps the existing apiClient so all interceptors (auth, guild header) are preserved.
+// Wraps the existing apiClient so all interceptors (auth, community header) are preserved.
 // With httpClient: "axios", Orval calls this with (config, options) where config
 // is an AxiosRequestConfig-like object { url, method, data, params, headers, signal }.
 // Generated URLs already include the full /api/v1 prefix, so on web we set baseURL

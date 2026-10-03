@@ -41,8 +41,8 @@ import {
   useSearchUsers,
 } from "@/api/generated/users/users";
 import { invalidate, q } from "@/api/query-keys";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
-import { useApiMutation, useGuildMutation } from "@/hooks/useApiMutation";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
+import { useApiMutation, useCommunityMutation } from "@/hooks/useApiMutation";
 import { downloadBlob } from "@/lib/csv";
 import type { MutationOpts } from "@/types/mutation";
 import type { QueryOpts } from "@/types/query";
@@ -50,18 +50,18 @@ import type { QueryOpts } from "@/types/query";
 // ── Queries ─────────────────────────────────────────────────────────────────
 
 /**
- * One page of the active guild's roster, searched and ordered on the server —
- * the members table in guild settings. A picker wants {@link useUserSearch}
+ * One page of the active community's roster, searched and ordered on the server —
+ * the members table in community settings. A picker wants {@link useUserSearch}
  * instead: the same people, as the slimmer {@link UserSummary}.
  */
 export const useUsers = (
   params: ListUsersParams,
   options?: QueryOpts<UserCommunityMemberListResponse>
 ) => {
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   return useQuery<UserCommunityMemberListResponse>({
-    queryKey: getListUsersQueryKey(guildId, params),
-    queryFn: () => listUsers(guildId, params),
+    queryKey: getListUsersQueryKey(communityId, params),
+    queryFn: () => listUsers(communityId, params),
     // Keep the page on screen while the next one (or the next search) loads.
     placeholderData: keepPreviousData,
     ...options,
@@ -72,23 +72,23 @@ export const useUsers = (
 const ROSTER_PAGE_SIZE = 50;
 
 /**
- * The active guild's people roster, grown a page at a time.
+ * The active community's people roster, grown a page at a time.
  *
  * Presence is read when the page is served and not pushed, so it refetches
  * every minute while it is open.
  */
-export const useGuildRoster = () => {
-  const guildId = useActiveGuildId();
+export const useCommunityRoster = () => {
+  const communityId = useActiveCommunityId();
   return useInfiniteQuery({
-    queryKey: getListRosterQueryKey(guildId),
+    queryKey: getListRosterQueryKey(communityId),
     queryFn: ({ pageParam }) =>
-      listRoster(guildId, {
+      listRoster(communityId, {
         page: pageParam,
         page_size: ROSTER_PAGE_SIZE,
       }),
     initialPageParam: 1,
     getNextPageParam: (last) => (last.has_next ? last.page + 1 : undefined),
-    enabled: guildId > 0,
+    enabled: communityId > 0,
     staleTime: 30_000,
     refetchInterval: 60_000,
   });
@@ -121,8 +121,8 @@ export interface UserSearchOptions {
   /** Gate the request — pass the picker's `open` state so we don't fetch until
    *  the dropdown is shown. */
   enabled?: boolean;
-  /** Read a specific guild instead of the active one (cross-guild surfaces). */
-  guildIdOverride?: number;
+  /** Read a specific community instead of the active one (cross-community surfaces). */
+  communityIdOverride?: number;
   /** List the reader first, ahead of whatever order the rest takes. */
   selfFirst?: boolean;
 }
@@ -138,13 +138,13 @@ const memberSearchParams = (search: string | undefined, userIds: number[] | unde
  * (``jordan1234`` — see ``getUrlHandle``).
  *
  * Public and community-independent: the same page whoever opens it, so there
- * is no guild in the call.
+ * is no community in the call.
  */
 /**
  * The listed communities one person belongs to.
  *
  * Its own read rather than part of the profile: the profile is the public
- * projection of the account row, and this is about guilds. It also changes far
+ * projection of the account row, and this is about communities. It also changes far
  * more slowly than a status or a presence dot, so it is held longer.
  */
 export const useUserCommunities = (handle: string | null | undefined) =>
@@ -220,8 +220,8 @@ export const useMyDecorations = () =>
   });
 
 /**
- * Slim, server-side member typeahead for the active guild. Returns
- * {@link UserSummary} rows (id, name, avatar, status, guild role) for a bounded
+ * Slim, server-side member typeahead for the active community. Returns
+ * {@link UserSummary} rows (id, name, avatar, status, community role) for a bounded
  * page, so a picker never loads the whole roster to filter it client-side.
  * Debounce the `search` value at the call site.
  */
@@ -231,14 +231,14 @@ export const useUserSearch = ({
   userIds,
   pageSize = USER_SEARCH_PAGE_SIZE,
   enabled = true,
-  guildIdOverride,
+  communityIdOverride,
   canOpen,
   selfFirst,
 }: UserSearchOptions = {}) => {
-  const activeGuildId = useActiveGuildId();
-  const guildId = guildIdOverride ?? activeGuildId;
+  const activeCommunityId = useActiveCommunityId();
+  const communityId = communityIdOverride ?? activeCommunityId;
   return useSearchUsers(
-    guildId,
+    communityId,
     {
       ...memberSearchParams(search, userIds),
       page_size: pageSize,
@@ -248,7 +248,7 @@ export const useUserSearch = ({
     },
     {
       query: {
-        enabled: enabled && guildId != null && (!canOpen || canOpen.id != null),
+        enabled: enabled && communityId != null && (!canOpen || canOpen.id != null),
         staleTime: 30_000,
         // Keep the prior page visible while the next keystroke's request is in
         // flight so the dropdown doesn't flash empty on every character.
@@ -270,13 +270,13 @@ export const useInitiativeMemberSearch = (
     userIds,
     pageSize = USER_SEARCH_PAGE_SIZE,
     enabled = true,
-    guildIdOverride,
+    communityIdOverride,
   }: UserSearchOptions = {}
 ) => {
-  const activeGuildId = useActiveGuildId();
-  const guildId = guildIdOverride ?? activeGuildId;
+  const activeCommunityId = useActiveCommunityId();
+  const communityId = communityIdOverride ?? activeCommunityId;
   return useSearchInitiativeMembers(
-    guildId,
+    communityId,
     initiativeId as number,
     {
       ...memberSearchParams(search, userIds),
@@ -284,7 +284,7 @@ export const useInitiativeMemberSearch = (
     },
     {
       query: {
-        enabled: enabled && guildId != null && initiativeId != null,
+        enabled: enabled && communityId != null && initiativeId != null,
         staleTime: 30_000,
         placeholderData: keepPreviousData,
       },
@@ -294,14 +294,14 @@ export const useInitiativeMemberSearch = (
 
 /**
  * Which roster a member picker searches.
- * - `guild`: every guild member.
+ * - `community`: every community member.
  * - `initiative`: one initiative's members (mentions, linked members).
  * - `canOpen`: the people who can open one row, who are the ones that may be
  *   named on what it holds (task assignees, event attendees, person
  *   properties, queue items).
  */
 export type MemberSearchScope =
-  | { type: "guild"; guildIdOverride?: number }
+  | { type: "community"; communityIdOverride?: number }
   | { type: "initiative"; initiativeId: number | null | undefined }
   | { type: "canOpen"; tool: Tool; id: number | null | undefined };
 
@@ -317,14 +317,14 @@ export const useMemberSearch = (
     userIds,
     pageSize = USER_SEARCH_PAGE_SIZE,
     enabled = true,
-  }: Omit<UserSearchOptions, "guildIdOverride" | "canOpen"> = {}
+  }: Omit<UserSearchOptions, "communityIdOverride" | "canOpen"> = {}
 ) => {
-  const guildQuery = useUserSearch({
+  const communityQuery = useUserSearch({
     search,
     userIds,
     pageSize,
     enabled: enabled && scope.type !== "initiative",
-    guildIdOverride: scope.type === "guild" ? scope.guildIdOverride : undefined,
+    communityIdOverride: scope.type === "community" ? scope.communityIdOverride : undefined,
     canOpen: scope.type === "canOpen" ? { tool: scope.tool, id: scope.id } : undefined,
   });
   const initiativeQuery = useInitiativeMemberSearch(
@@ -332,7 +332,7 @@ export const useMemberSearch = (
     { search, userIds, pageSize, enabled: enabled && scope.type === "initiative" }
   );
 
-  return scope.type === "initiative" ? initiativeQuery : guildQuery;
+  return scope.type === "initiative" ? initiativeQuery : communityQuery;
 };
 
 export type { UserSummary };
@@ -360,21 +360,23 @@ export const useDeleteOwnAccount = (
     options
   );
 
-type UpdateGuildMembershipVars = { guildId: number; userId: number; role: CommunityRole };
+type UpdateCommunityMembershipVars = { communityId: number; userId: number; role: CommunityRole };
 
-export const useUpdateGuildMembership = (options?: MutationOpts<void, UpdateGuildMembershipVars>) =>
-  useApiMutation<void, UpdateGuildMembershipVars>(
+export const useUpdateCommunityMembership = (
+  options?: MutationOpts<void, UpdateCommunityMembershipVars>
+) =>
+  useApiMutation<void, UpdateCommunityMembershipVars>(
     {
       mutationFn: (data) =>
-        updateCommunityMembership(data.guildId, data.userId, {
+        updateCommunityMembership(data.communityId, data.userId, {
           role: data.role,
         } as Parameters<typeof updateCommunityMembership>[2]),
-      invalidate: () => invalidate(q.guildMembers()),
+      invalidate: () => invalidate(q.communityMembers()),
     },
     options
   );
 
-type SetDisplayNameVars = { guildId: number; userId?: number; displayName: string | null };
+type SetDisplayNameVars = { communityId: number; userId?: number; displayName: string | null };
 
 /**
  * What somebody is called in one community — their own, without `userId`, or
@@ -385,28 +387,31 @@ type SetDisplayNameVars = { guildId: number; userId?: number; displayName: strin
 export const useSetMemberDisplayName = (options?: MutationOpts<void, SetDisplayNameVars>) =>
   useApiMutation<void, SetDisplayNameVars>(
     {
-      mutationFn: async ({ guildId, userId, displayName }) => {
+      mutationFn: async ({ communityId, userId, displayName }) => {
         const body = { display_name: displayName };
         await (userId === undefined
-          ? setOwnDisplayName(guildId, body)
-          : setMemberDisplayName(guildId, userId, body));
+          ? setOwnDisplayName(communityId, body)
+          : setMemberDisplayName(communityId, userId, body));
       },
-      invalidate: () => invalidate(q.guildContent(), q.guildMembers(), q.contacts(), q.allGuilds()),
+      invalidate: () =>
+        invalidate(q.communityContent(), q.communityMembers(), q.contacts(), q.allCommunities()),
     },
     options
   );
 
-type ExportGuildUsersVars = {
+type ExportCommunityUsersVars = {
   params: ExportUsersCsvParams;
   filename: string;
 };
 
-/** Download the guild members CSV from the backend and trigger a browser save. */
-export const useExportGuildUsersCsv = (options?: MutationOpts<void, ExportGuildUsersVars>) =>
-  useGuildMutation<void, ExportGuildUsersVars>(
+/** Download the community members CSV from the backend and trigger a browser save. */
+export const useExportCommunityUsersCsv = (
+  options?: MutationOpts<void, ExportCommunityUsersVars>
+) =>
+  useCommunityMutation<void, ExportCommunityUsersVars>(
     {
-      mutationFn: async (guildId, { params, filename }) => {
-        const blob = (await exportUsersCsv(guildId, params, {
+      mutationFn: async (communityId, { params, filename }) => {
+        const blob = (await exportUsersCsv(communityId, params, {
           responseType: "blob",
           // FastAPI expects ?user_id=1&user_id=2; axios's default `[]` suffix gets ignored.
           paramsSerializer: { indexes: null },

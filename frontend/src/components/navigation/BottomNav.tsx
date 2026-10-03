@@ -71,7 +71,7 @@ export function BottomNav() {
   // Hide the add button entirely on a create-context route where the user lacks
   // permission. Non-create routes (no registration) fall back to the global menu,
   // which itself hides when the user can create neither tasks nor documents in
-  // any of their guilds.
+  // any of their communities.
   const canCreateGlobal = globalCreate.document || globalCreate.task;
   const hideAdd = isCreateContext ? action === null : !canCreateGlobal;
 

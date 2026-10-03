@@ -22,7 +22,7 @@ import {
   getToolCounts,
   getToolCountsByInitiative,
 } from "@/api/generated/tools/tools";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { TOOLS } from "@/lib/tools";
 
 /** One tool's counts, by initiative id. */
@@ -49,10 +49,10 @@ const toCountMap = (counts: Record<string, number> | undefined): Map<number, num
 };
 
 export function useToolCountsByInitiative(options?: UseToolCountsOptions): ToolCountsByInitiative {
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   const query = useQuery({
-    queryKey: getGetToolCountsByInitiativeQueryKey(guildId),
-    queryFn: () => getToolCountsByInitiative(guildId),
+    queryKey: getGetToolCountsByInitiativeQueryKey(communityId),
+    queryFn: () => getToolCountsByInitiative(communityId),
     enabled: options?.enabled ?? true,
     staleTime: options?.staleTime ?? 30_000,
   });
@@ -70,10 +70,10 @@ export function useToolCountsByInitiative(options?: UseToolCountsOptions): ToolC
  *  the view named by `params.view`. The previous answer stays on screen while
  *  the next view's arrives, so the badges do not blank out. */
 export const useToolCounts = (tool: Tool, params: GetToolCountsParams) => {
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   return useQuery<ToolCountsResponse>({
-    queryKey: getGetToolCountsQueryKey(guildId, tool, params),
-    queryFn: () => getToolCounts(guildId, tool, params),
+    queryKey: getGetToolCountsQueryKey(communityId, tool, params),
+    queryFn: () => getToolCounts(communityId, tool, params),
     placeholderData: keepPreviousData,
   });
 };

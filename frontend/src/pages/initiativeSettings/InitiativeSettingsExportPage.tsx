@@ -2,7 +2,7 @@
  * `/settings/export` — take everything in this initiative away with you, and
  * whether anything in it may leave on its own.
  *
- * Managers and guild admins only, enforced here rather than by the tab bar
+ * Managers and community admins only, enforced here rather than by the tab bar
  * alone: the address is typeable, and an export is a bulk read of the whole
  * initiative.
  */

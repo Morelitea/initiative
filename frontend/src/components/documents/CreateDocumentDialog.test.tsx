@@ -1,7 +1,7 @@
 /**
  * The template picker on the new-document dialog.
  *
- * It is backed by the guild lookup, which matches words — and before anything
+ * It is backed by the community lookup, which matches words — and before anything
  * is typed there are none, so the picker opened on "No templates available" in
  * a community with plenty of them. What it opens on now is the recent list,
  * asked for blueprints, which is the only way it can say that templates exist
@@ -13,7 +13,7 @@ import { HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
 
 import { buildSearchSuggestion } from "@/__tests__/factories";
-import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
@@ -25,7 +25,7 @@ describe("CreateDocumentDialog", () => {
   it("offers templates before anything is typed", async () => {
     const asked: URL[] = [];
     server.use(
-      guildHttp.get("/search/recent", ({ request }) => {
+      communityHttp.get("/search/recent", ({ request }) => {
         asked.push(new URL(request.url));
         return HttpResponse.json([
           buildSearchSuggestion({

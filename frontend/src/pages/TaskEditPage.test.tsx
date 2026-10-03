@@ -18,7 +18,7 @@ import {
   buildPropertySummary,
   buildTask,
 } from "@/__tests__/factories";
-import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
 import {
@@ -29,12 +29,12 @@ import {
 
 import { TaskEditPage } from "./TaskEditPage";
 
-const GUILD_ID = 1;
+const COMMUNITY_ID = 1;
 const INITIATIVE_ID = 5;
 const PROJECT_ID = 7;
 const TASK_ID = 2726;
 
-const TASK_ROUTE = "/c/$guildId/i/$initiativeId/projects/$projectId/tasks/$taskId";
+const TASK_ROUTE = "/c/$communityId/i/$initiativeId/projects/$projectId/tasks/$taskId";
 
 /** What the page asked the project list for, newest last. */
 const listed: URLSearchParams[] = [];
@@ -79,12 +79,12 @@ const renderTaskPage = ({
   const deleted = vi.fn();
 
   server.use(
-    guildHttp.get("/tasks/:taskId", () =>
+    communityHttp.get("/tasks/:taskId", () =>
       gone ? new HttpResponse(null, { status: 404 }) : HttpResponse.json(task)
     ),
     // The collection routes go first: `:projectId` would otherwise swallow
     // them and answer a list request with a single project.
-    guildHttp.get("/projects/", ({ request }) => {
+    communityHttp.get("/projects/", ({ request }) => {
       const params = new URL(request.url).searchParams;
       listed.push(params);
       // The move dialog's destinations come a page at a time.
@@ -92,15 +92,15 @@ const renderTaskPage = ({
         params.get("writable") === "true" ? buildPage([project, ...destinations]) : [project]
       );
     }),
-    guildHttp.get("/projects/writable", () => HttpResponse.json([project])),
-    guildHttp.get("/initiatives/:id", () =>
+    communityHttp.get("/projects/writable", () => HttpResponse.json([project])),
+    communityHttp.get("/initiatives/:id", () =>
       HttpResponse.json(buildInitiative({ id: INITIATIVE_ID, keep_content_in: keepContentIn }))
     ),
-    guildHttp.get("/projects/:projectId", () => HttpResponse.json(project)),
+    communityHttp.get("/projects/:projectId", () => HttpResponse.json(project)),
     ...(statuses
-      ? [guildHttp.get("/projects/:id/task-statuses/", () => HttpResponse.json(statuses))]
+      ? [communityHttp.get("/projects/:id/task-statuses/", () => HttpResponse.json(statuses))]
       : []),
-    guildHttp.delete("/tasks/:taskId", ({ request }) => {
+    communityHttp.delete("/tasks/:taskId", ({ request }) => {
       const scope = new URL(request.url).searchParams.get("scope");
       gone = scope !== "this" || lastOccurrence;
       deleted(scope);
@@ -111,7 +111,7 @@ const renderTaskPage = ({
   const { router } = renderPage(TaskEditPage, {
     initialRoute: TASK_ROUTE,
     routeParams: {
-      guildId: String(GUILD_ID),
+      communityId: String(COMMUNITY_ID),
       initiativeId: String(INITIATIVE_ID),
       projectId: String(PROJECT_ID),
       taskId: String(TASK_ID),
@@ -165,11 +165,11 @@ describe("TaskEditPage", () => {
     const sent: Record<string, unknown>[] = [];
     const put = vi.fn(() => HttpResponse.json([]));
     server.use(
-      guildHttp.patch("/tasks/:taskId", async ({ request }) => {
+      communityHttp.patch("/tasks/:taskId", async ({ request }) => {
         sent.push((await request.json()) as Record<string, unknown>);
         return HttpResponse.json(task);
       }),
-      guildHttp.put("/properties/:target/:entityId", put)
+      communityHttp.put("/properties/:target/:entityId", put)
     );
 
     const hours = await screen.findByPlaceholderText("0");
@@ -185,7 +185,7 @@ describe("TaskEditPage", () => {
   it("reports duplicate progress on the trigger once the menu closes", async () => {
     renderTaskPage();
     server.use(
-      guildHttp.post("/tasks/:taskId/duplicate", async () => {
+      communityHttp.post("/tasks/:taskId/duplicate", async () => {
         await delay("infinite");
         return new HttpResponse(null, { status: 204 });
       })
@@ -258,7 +258,7 @@ describe("TaskEditPage", () => {
     await waitFor(() => expect(deleted).toHaveBeenCalled());
     await waitFor(() =>
       expect(router.state.location.pathname).toBe(
-        `/c/${GUILD_ID}/i/${INITIATIVE_ID}/projects/${PROJECT_ID}`
+        `/c/${COMMUNITY_ID}/i/${INITIATIVE_ID}/projects/${PROJECT_ID}`
       )
     );
   });
@@ -289,7 +289,7 @@ describe("TaskEditPage", () => {
     await waitFor(() => expect(deleted).toHaveBeenCalledWith("this"));
     await waitFor(() =>
       expect(router.state.location.pathname).toBe(
-        `/c/${GUILD_ID}/i/${INITIATIVE_ID}/projects/${PROJECT_ID}`
+        `/c/${COMMUNITY_ID}/i/${INITIATIVE_ID}/projects/${PROJECT_ID}`
       )
     );
   });
@@ -305,7 +305,7 @@ describe("TaskEditPage", () => {
     await waitFor(() => expect(deleted).toHaveBeenCalled());
     await waitFor(() =>
       expect(router.state.location.pathname).toBe(
-        `/c/${GUILD_ID}/i/${INITIATIVE_ID}/projects/${MOVED_TO}`
+        `/c/${COMMUNITY_ID}/i/${INITIATIVE_ID}/projects/${MOVED_TO}`
       )
     );
   });

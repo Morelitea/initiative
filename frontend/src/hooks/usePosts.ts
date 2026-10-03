@@ -35,8 +35,8 @@ import {
 } from "@/api/generated/posts/posts";
 import { invalidate, patchCachedPost, q } from "@/api/query-keys";
 import { TOOL_HOOKS } from "@/hooks/toolHooks";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
-import { useGuildMutation } from "@/hooks/useApiMutation";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
+import { useCommunityMutation } from "@/hooks/useApiMutation";
 import type { MutationOpts } from "@/types/mutation";
 import type { QueryOpts } from "@/types/query";
 
@@ -62,10 +62,10 @@ export const useSetPostGrants = posts.useSetGrants;
  * much is fetched ahead of the reader, not how much they have to look at.
  */
 export const usePostsFeed = (params?: ListPostsParams) => {
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   return useInfiniteQuery({
-    queryKey: getListPostsQueryKey(guildId, params),
-    queryFn: ({ pageParam }) => listPosts(guildId, { ...params, page: pageParam as number }),
+    queryKey: getListPostsQueryKey(communityId, params),
+    queryFn: ({ pageParam }) => listPosts(communityId, { ...params, page: pageParam as number }),
     initialPageParam: 1,
     getNextPageParam: (last: PostListResponse) => (last.has_next ? last.page + 1 : undefined),
     placeholderData: keepPreviousData,
@@ -80,10 +80,10 @@ export const usePostsFeed = (params?: ListPostsParams) => {
  * opened.
  */
 export const usePostReaders = (postId: number, options?: QueryOpts<PostReaders>) => {
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   return useQuery<PostReaders>({
-    queryKey: getListPostReadersQueryKey(guildId, postId),
-    queryFn: () => listPostReaders(guildId, postId),
+    queryKey: getListPostReadersQueryKey(communityId, postId),
+    queryFn: () => listPostReaders(communityId, postId),
     ...options,
   });
 };
@@ -100,10 +100,10 @@ export const usePostsTimeline = (
   params?: GetPostTimelineParams,
   options?: QueryOpts<TimelineResponse>
 ) => {
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   return useQuery<TimelineResponse>({
-    queryKey: getGetPostTimelineQueryKey(guildId, params),
-    queryFn: () => getPostTimeline(guildId, params),
+    queryKey: getGetPostTimelineQueryKey(communityId, params),
+    queryFn: () => getPostTimeline(communityId, params),
     ...options,
   });
 };
@@ -120,9 +120,9 @@ const invalidatePostAndList = (postId: number) => invalidate(q.post(postId), q.a
  * stale.
  */
 export const useSetPostPin = (postId: number, options?: MutationOpts<PostRead, PostPinUpdate>) =>
-  useGuildMutation<PostRead, PostPinUpdate>(
+  useCommunityMutation<PostRead, PostPinUpdate>(
     {
-      mutationFn: (guildId, data) => setPostPin(guildId, postId, data),
+      mutationFn: (communityId, data) => setPostPin(communityId, postId, data),
       invalidate: () => invalidatePostAndList(postId),
       errorKey: "posts:error",
     },
@@ -157,9 +157,9 @@ const setCachedReadState = (postId: number, isRead: boolean) =>
  * so a dropped connection does not quietly mark a board read.
  */
 export const useMarkPostsRead = (options?: MutationOpts<PostReadReceipt, PostReadMarks>) =>
-  useGuildMutation<PostReadReceipt, PostReadMarks>(
+  useCommunityMutation<PostReadReceipt, PostReadMarks>(
     {
-      mutationFn: (guildId, data) => markPostsRead(guildId, data),
+      mutationFn: (communityId, data) => markPostsRead(communityId, data),
       errorKey: "posts:error",
     },
     {
@@ -193,9 +193,9 @@ export const useMarkPostsRead = (options?: MutationOpts<PostReadReceipt, PostRea
  * broken. Restored on failure.
  */
 export const useMarkPostUnread = (options?: MutationOpts<void, number>) =>
-  useGuildMutation<void, number>(
+  useCommunityMutation<void, number>(
     {
-      mutationFn: (guildId, postId) => markPostUnread(guildId, postId),
+      mutationFn: (communityId, postId) => markPostUnread(communityId, postId),
       errorKey: "posts:error",
     },
     {
@@ -226,10 +226,10 @@ export const useMarkPostUnread = (options?: MutationOpts<void, number>) =>
  * the card, and the names behind them are a click.
  */
 export const usePostPollVoters = (postId: number, options?: QueryOpts<PollVoters>) => {
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   return useQuery<PollVoters>({
-    queryKey: getListPostPollVotersQueryKey(guildId, postId),
-    queryFn: () => listPostPollVoters(guildId, postId),
+    queryKey: getListPostPollVotersQueryKey(communityId, postId),
+    queryFn: () => listPostPollVoters(communityId, postId),
     ...options,
   });
 };
@@ -290,9 +290,9 @@ const setCachedBallot = (postId: number, optionIds: number[]) =>
  * the surfaces that count or excerpt it are stale too.
  */
 export const useSetPostPoll = (postId: number, options?: MutationOpts<PostRead, PollWrite>) =>
-  useGuildMutation<PostRead, PollWrite>(
+  useCommunityMutation<PostRead, PollWrite>(
     {
-      mutationFn: (guildId, data) => setPostPoll(guildId, postId, data),
+      mutationFn: (communityId, data) => setPostPoll(communityId, postId, data),
       invalidate: () => invalidatePostAndList(postId),
       errorKey: "posts:error",
     },
@@ -300,9 +300,9 @@ export const useSetPostPoll = (postId: number, options?: MutationOpts<PostRead, 
   );
 
 export const useDeletePostPoll = (postId: number, options?: MutationOpts<PostRead, void>) =>
-  useGuildMutation<PostRead, void>(
+  useCommunityMutation<PostRead, void>(
     {
-      mutationFn: (guildId) => deletePostPoll(guildId, postId),
+      mutationFn: (communityId) => deletePostPoll(communityId, postId),
       invalidate: () => invalidatePostAndList(postId),
       errorKey: "posts:error",
     },
@@ -321,9 +321,9 @@ export const useVoteOnPostPoll = (
   postId: number,
   options?: MutationOpts<PostRead, PollVoteWrite>
 ) =>
-  useGuildMutation<PostRead, PollVoteWrite>(
+  useCommunityMutation<PostRead, PollVoteWrite>(
     {
-      mutationFn: (guildId, data) => voteOnPostPoll(guildId, postId, data),
+      mutationFn: (communityId, data) => voteOnPostPoll(communityId, postId, data),
       errorKey: "posts:error",
     },
     {
@@ -346,9 +346,9 @@ export const useVoteOnPostPoll = (
   );
 
 export const useRetractPostPollVote = (postId: number, options?: MutationOpts<PostRead, void>) =>
-  useGuildMutation<PostRead, void>(
+  useCommunityMutation<PostRead, void>(
     {
-      mutationFn: (guildId) => retractPostPollVote(guildId, postId),
+      mutationFn: (communityId) => retractPostPollVote(communityId, postId),
       errorKey: "posts:error",
     },
     {

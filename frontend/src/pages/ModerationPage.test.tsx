@@ -16,7 +16,7 @@ import {
   buildUser,
   buildUserPublic,
 } from "@/__tests__/factories";
-import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
 
@@ -86,7 +86,7 @@ const shared = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 });
 
-vi.mock("@/hooks/useActiveGuildId", () => ({ useActiveGuildId: () => 3 }));
+vi.mock("@/hooks/useActiveCommunityId", () => ({ useActiveCommunityId: () => 3 }));
 
 import { ModerationPage } from "./ModerationPage";
 
@@ -95,8 +95,8 @@ import { ModerationPage } from "./ModerationPage";
 const render = () =>
   renderPage(ModerationPage, {
     auth: { user: buildUser() },
-    initialRoute: "/c/$guildId/i/$initiativeId/moderation",
-    routeParams: { guildId: "3", initiativeId: "7" },
+    initialRoute: "/c/$communityId/i/$initiativeId/moderation",
+    routeParams: { communityId: "3", initiativeId: "7" },
   });
 
 /** Render and open the Sharing tab, which is where the second shape lives. */
@@ -251,7 +251,7 @@ describe("ModerationPage", () => {
 
   it("reads the initiative's roster a page at a time, each member with their role", async () => {
     server.use(
-      guildHttp.get("/initiatives/:id/members", ({ request }) => {
+      communityHttp.get("/initiatives/:id/members", ({ request }) => {
         const page = Number(new URL(request.url).searchParams.get("page"));
         const member =
           page === 2

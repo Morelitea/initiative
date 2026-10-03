@@ -29,7 +29,7 @@ export interface GuardServerState {
  * Serializes the guard-relevant slice of the router context.
  *
  * Deliberately narrow: only the fields the guards read are included, so
- * unrelated context churn (a refreshed user object, a guild list reorder)
+ * unrelated context churn (a refreshed user object, a community list reorder)
  * doesn't trigger a router-wide re-evaluation. While a slice is still
  * `loading` its concrete values are omitted — the guards don't act on them
  * yet, and including them would invalidate for a decision nobody makes.

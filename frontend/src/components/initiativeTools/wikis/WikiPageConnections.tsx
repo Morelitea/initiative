@@ -9,7 +9,7 @@ import type {
 } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { useRelationshipsFor } from "@/hooks/useRelationships";
-import { useGuildPath } from "@/lib/guildUrl";
+import { useCommunityPath } from "@/lib/communityUrl";
 import {
   entityRefRoute,
   TOOL_ICONS,
@@ -59,7 +59,7 @@ const hrefOf = (link: RelatedEnd) => {
 };
 
 const LinkList = ({ links, heading }: { links: RelationshipRead[]; heading: string }) => {
-  const gp = useGuildPath();
+  const gp = useCommunityPath();
   if (links.length === 0) return null;
 
   return (

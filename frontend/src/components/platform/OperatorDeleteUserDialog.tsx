@@ -180,9 +180,9 @@ export function OperatorDeleteUserDialog({
     deleteUser.mutate({ action: effectiveAction });
   };
 
-  // Holding the only superadmin seat of a guild is the only blocker. Owning content is not
+  // Holding the only superadmin seat of a community is the only blocker. Owning content is not
   // one — ownership is released as the memberships go, and what they owned is
-  // left for a guild admin to claim.
+  // left for a community admin to claim.
   const hasBlockers = (eligibility?.community_blockers.length ?? 0) > 0;
 
   // Validation
@@ -308,17 +308,20 @@ export function OperatorDeleteUserDialog({
                 <AlertDescription>{t("operatorDeleteUser.blockersDescription")}</AlertDescription>
               </Alert>
 
-              {eligibility.community_blockers.map((guildBlocker) => (
-                <div key={guildBlocker.community_id} className="space-y-3 rounded-lg border p-4">
+              {eligibility.community_blockers.map((communityBlocker) => (
+                <div
+                  key={communityBlocker.community_id}
+                  className="space-y-3 rounded-lg border p-4"
+                >
                   <div className="flex items-center justify-between">
                     <div>
                       <h4 className="font-medium">
-                        {t("operatorDeleteUser.guildBlockerTitle", {
-                          guildName: guildBlocker.community_name,
+                        {t("operatorDeleteUser.communityBlockerTitle", {
+                          communityName: communityBlocker.community_name,
                         })}
                       </h4>
                       <p className="text-muted-foreground text-sm">
-                        {t("operatorDeleteUser.guildBlockerDescription")}
+                        {t("operatorDeleteUser.communityBlockerDescription")}
                       </p>
                     </div>
                   </div>

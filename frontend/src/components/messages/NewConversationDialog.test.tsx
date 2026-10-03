@@ -28,8 +28,8 @@ vi.mock("@/hooks/useContacts", () => ({
   useContactSections: (search: string) => mocks.sections(search),
   useFavoriteContacts: (search: string) => mocks.favorites(search),
   useToggleFavoriteContact: () => mocks.setFavorite,
-  useMoreCommunityContacts: (guildId: number, search: string, enabled: boolean) =>
-    mocks.more(guildId, search, enabled),
+  useMoreCommunityContacts: (communityId: number, search: string, enabled: boolean) =>
+    mocks.more(communityId, search, enabled),
 }));
 
 // The field's own debounce is not what is on trial, and waiting 250ms of fake

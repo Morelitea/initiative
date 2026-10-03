@@ -59,16 +59,16 @@ import { useRecordRecentView } from "@/hooks/useRecents";
 import { useCounterGroupRealtime } from "@/hooks/useResourceRealtime";
 import { useViewPreference } from "@/hooks/useViewPreference";
 import { toast } from "@/lib/chesterToast";
-import { useGuildPath } from "@/lib/guildUrl";
+import { useCommunityPath } from "@/lib/communityUrl";
 import { counterRoute, toolListRoute, toolSettingsRoute } from "@/lib/tools";
 
 const layoutStorageKey = (groupId: number) => `counter-group-${groupId}-layout`;
 
 export function CounterGroupDetailPage() {
   const { t } = useTranslation(["counterGroups", "common"]);
-  const gp = useGuildPath();
-  const { guildId, counterGroupId: groupIdParam } = useParams({ strict: false }) as {
-    guildId: string;
+  const gp = useCommunityPath();
+  const { communityId, counterGroupId: groupIdParam } = useParams({ strict: false }) as {
+    communityId: string;
     counterGroupId?: string;
   };
   const groupId = groupIdParam ? Number(groupIdParam) : null;
@@ -121,7 +121,7 @@ export function CounterGroupDetailPage() {
   }, [group?.counters]);
 
   // Track recently viewed counter groups for the layout header tabs bar.
-  const recordViewMutation = useRecordRecentView("counter_group", Number(guildId));
+  const recordViewMutation = useRecordRecentView("counter_group", Number(communityId));
   const viewedGroupId = group?.id;
   useReadOnOpen(Tool.counter_group, viewedGroupId);
   useEffect(() => {

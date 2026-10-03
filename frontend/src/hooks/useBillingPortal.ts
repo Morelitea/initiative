@@ -10,14 +10,14 @@ import { useServer } from "@/hooks/useServer";
 export type BillingPortalPage = "manage" | "upgrade";
 
 /**
- * Link-out to the external billing portal for one guild.
+ * Link-out to the external billing portal for one community.
  *
  * `billing` is null when the deployment has no portal configured (the
  * self-hosted default) — callers must skip every tier/upgrade/manage
  * affordance then, and `reserveTab`/`openPortal` become no-ops. It is also
  * null while the config is still loading, which `isLoading` tells apart.
  *
- * `portalUrl` is the address itself: the portal page for one guild, with a
+ * `portalUrl` is the address itself: the portal page for one community, with a
  * freshly minted handoff in its fragment. It throws when the server refuses
  * the handoff, and is null with no portal configured.
  *
@@ -25,7 +25,7 @@ export type BillingPortalPage = "manage" | "upgrade";
  * portal page when the handoff fails. The tab is opened before the handoff
  * token is minted so the browser keeps attributing it to the click that
  * started it. `reserveTab` exposes that step on its own for callers with their
- * own await between the click and the hop (guild creation), which would
+ * own await between the click and the hop (community creation), which would
  * otherwise land the `window.open` outside the user gesture.
  *
  * `canSell` is whether this surface may lead anyone to a purchase: a portal
@@ -43,18 +43,18 @@ export const useBillingPortal = () => {
   const canSell = billing != null && !isNativePlatform;
 
   const pageUrl = useCallback(
-    (guildId: number, page: BillingPortalPage): string | null =>
+    (communityId: number, page: BillingPortalPage): string | null =>
       billing
-        ? `${billing.url}/${page}?community=${guildId}&lang=${encodeURIComponent(lang)}`
+        ? `${billing.url}/${page}?community=${communityId}&lang=${encodeURIComponent(lang)}`
         : null,
     [billing, lang]
   );
 
   const portalUrl = useCallback(
-    async (guildId: number, page: BillingPortalPage): Promise<string | null> => {
-      const base = pageUrl(guildId, page);
+    async (communityId: number, page: BillingPortalPage): Promise<string | null> => {
+      const base = pageUrl(communityId, page);
       if (!base) return null;
-      const { handoff_token } = await createCommunityBillingHandoff(guildId);
+      const { handoff_token } = await createCommunityBillingHandoff(communityId);
       return `${base}#handoff=${encodeURIComponent(handoff_token)}`;
     },
     [pageUrl]
@@ -68,14 +68,14 @@ export const useBillingPortal = () => {
   }, [canSell]);
 
   const openPortal = useCallback(
-    async (guildId: number, page: BillingPortalPage, reserved?: Window | null) => {
+    async (communityId: number, page: BillingPortalPage, reserved?: Window | null) => {
       if (!canSell) return;
-      const base = pageUrl(guildId, page);
+      const base = pageUrl(communityId, page);
       if (!base) return;
       const tab = reserved ?? reserveTab();
       let url = base;
       try {
-        url = (await portalUrl(guildId, page)) ?? base;
+        url = (await portalUrl(communityId, page)) ?? base;
       } catch {
         // Without a handoff, the bare portal page.
       }

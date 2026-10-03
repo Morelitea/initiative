@@ -23,9 +23,9 @@ const revokeMember = vi.fn();
 const revokeAll = vi.fn();
 let consents: CommunityAppMemberConsent[] = [];
 
-vi.mock("@/hooks/useGuildAppDetail", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/hooks/useGuildAppDetail")>()),
-  useGuildAppMembers: () => ({
+vi.mock("@/hooks/useCommunityAppDetail", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/hooks/useCommunityAppDetail")>()),
+  useCommunityAppMembers: () => ({
     isLoading: false,
     data: {
       ...buildPage([]),

@@ -39,7 +39,7 @@ export const NotificationBell = () => {
   const { user } = useAuth();
   // "exports" is loaded alongside so the export download's cross-namespace
   // toast keys (exports:export.*) are available when clicked from the bell.
-  const { t } = useTranslation(["guilds", "exports"]);
+  const { t } = useTranslation(["communities", "exports"]);
   const isEnabled = Boolean(user);
   const streamConnected = useNotificationStreamConnected();
 
@@ -102,7 +102,7 @@ export const NotificationBell = () => {
     if (exportTarget) {
       setOpen(false);
       await downloadExportArtifact(
-        exportTarget.guildId,
+        exportTarget.communityId,
         exportTarget.jobId,
         t as (key: string, options?: Record<string, unknown>) => string,
         exportTarget.source,

@@ -14,7 +14,7 @@
     "loginRequired": "You need to be logged in to manage your profile.",
     "goToLogin": "Go to login"
   },
-  "guildLayout": {
+  "communityLayout": {
     "title": "Community settings",
     "permissionDenied": "You need additional permissions to view this page.",
     "viewOnly": "You're viewing these settings on an access grant. Changing them takes a read/write grant beside it.",
@@ -24,7 +24,7 @@
       }
     },
     "tabs": {
-      "guild": "Community",
+      "community": "Community",
       "users": "Users",
       "initiatives": "Initiatives",
       "trash": "Trash",
@@ -121,9 +121,9 @@
     "neverExpires": "Never expires",
     "readOnlyLabel": "Read-only",
     "readOnlyHelp": "The key can read data but never create, change, or delete anything. Recommended for automation and integrations.",
-    "guildLabel": "Community access",
-    "guildAllGuilds": "All my communities",
-    "guildHelp": "Limit the key to a single community. It won't be able to reach any other community's data.",
+    "communityLabel": "Community access",
+    "communityAllCommunities": "All my communities",
+    "communityHelp": "Limit the key to a single community. It won't be able to reach any other community's data.",
     "generateButton": "Generate API key",
     "generating": "Generating…",
     "nameRequired": "Name is required",
@@ -135,7 +135,7 @@
     "statusExpired": "Expired",
     "statusDisabled": "Disabled",
     "scopeReadOnly": "Read-only",
-    "scopeGuild": "Community: {{guild}}",
+    "scopeCommunity": "Community: {{community}}",
     "scopeFull": "Full access",
     "deleteButton": "Delete",
     "deleting": "Removing…",
@@ -190,7 +190,7 @@
     "testError": "Unable to test connection",
     "httpWarning": "Using an unencrypted HTTP endpoint. Configure TLS / HTTPS for production deployments."
   },
-  "guildAI": {
+  "communityAI": {
     "title": "Community AI",
     "adminOnly": "Only community admins can manage AI connections. To set your own key, open AI in your profile settings.",
     "connectionsTitle": "Community connections",
@@ -405,7 +405,7 @@
     "communities": {
       "title": "Per community",
       "description": "One dial each. Set a community to say less without changing anything anywhere else.",
-      "levelLabel": "How much {{guild}} says",
+      "levelLabel": "How much {{community}} says",
       "mutedHelp": "This community says nothing at all — including if somebody names you directly.",
       "levels": {
         "everything": "Everything",
@@ -704,8 +704,8 @@
       "confirmAction": "Withdraw",
       "saved": "Ways in updated.",
       "saveError": "Could not change the ways in.",
-      "guildsRequire_one": "{{count}} community requires a sign-in through a provider of its own.",
-      "guildsRequire_other": "{{count}} communities require a sign-in through a provider of their own.",
+      "communitiesRequire_one": "{{count}} community requires a sign-in through a provider of its own.",
+      "communitiesRequire_other": "{{count}} communities require a sign-in through a provider of their own.",
       "totp": {
         "label": "Enable two-factor authentication",
         "help": "Let people protect their account with a code from an authenticator app. Each person turns it on for themselves; this is whether the server offers it at all."
@@ -882,8 +882,8 @@
     "hardDeleteDescription": "All user data is removed from the database. Comments, tasks, and other content authored by this user are deleted via cascade. Cannot be reversed.",
     "blockersTitle": "Blockers",
     "blockersDescription": "The following issues must be resolved before this user can be deleted:",
-    "guildBlockerTitle": "Only superadmin of community: {{guildName}}",
-    "guildBlockerDescription": "The account holder can make another member superadmin, or you can break glass into the community and, from its settings, appoint one or delete the community.",
+    "communityBlockerTitle": "Only superadmin of community: {{communityName}}",
+    "communityBlockerDescription": "The account holder can make another member superadmin, or you can break glass into the community and, from its settings, appoint one or delete the community.",
     "checkAgain": "Check again",
     "confirmTitle": "Confirm deletion",
     "confirmDeactivateTitle": "Confirm deactivation",
@@ -921,8 +921,8 @@
     },
     "queueTitle": "Approvals",
     "queueDescription": "Grant, deny, or revoke time-bound access requests.",
-    "guildIdLabel": "Community ID",
-    "guildIdPlaceholder": "e.g. 42",
+    "communityIdLabel": "Community ID",
+    "communityIdPlaceholder": "e.g. 42",
     "levelNone": "None",
     "nothingAsked": "Choose content access, settings access, or both.",
     "levelRead": "Read-only",
@@ -1093,7 +1093,7 @@
     "deleteDescription": "The registration is removed for good. Every community that installed this app stops reaching it, and adding it back means registering it again.",
     "deleteConfirmLabel": "Type the app identifier to confirm"
   },
-  "guilds": {
+  "communities": {
     "title": "Community limits",
     "description": "Set per-community caps on storage and on the number of users. Lowering a limit below current usage blocks new uploads or members, but never removes existing files or members.",
     "platformOnly": "You need the operator or owner role to manage community limits.",
@@ -1127,7 +1127,7 @@
     },
     "columns": {
       "id": "ID",
-      "guild": "Community",
+      "community": "Community",
       "users": "Users",
       "storageLimit": "Storage limit",
       "status": "Status",
@@ -1210,7 +1210,7 @@
     "tabs": {
       "users": "Users",
       "access": "Access",
-      "guilds": "Communities",
+      "communities": "Communities",
       "placement": "Sign-in placement",
       "announcements": "Announcements"
     }
@@ -1332,7 +1332,7 @@
       "failed": "Failed"
     }
   },
-  "guildAuth": {
+  "communityAuth": {
     "shareUrl": {
       "title": "Member sign-in link",
       "description": "Share this link with members — it offers this community's sign-in providers and brings them straight into the community.",
@@ -1616,7 +1616,7 @@
     "newTitle": "New connection",
     "editTitle": "Edit connection",
     "platformDialogDescription": "Every community can use this connection.",
-    "guildDialogDescription": "Members of this community can use this connection.",
+    "communityDialogDescription": "Members of this community can use this connection.",
     "labelLabel": "Label",
     "labelPlaceholder": "e.g. Team OpenAI",
     "apiKeyPlaceholderExisting": "••••••••",
@@ -1641,7 +1641,7 @@
   "memberAI": {
     "description": "See every AI connection available to you across your communities. Add your own API key where allowed and pick the one you use.",
     "noneAvailable": "No AI connections are available to you yet.",
-    "sharedKeyGuild": "Uses a shared key set by your community's admins.",
+    "sharedKeyCommunity": "Uses a shared key set by your community's admins.",
     "sharedKeyPlatform": "Uses a shared key set by whoever runs this server.",
     "selected": "In use",
     "requiresKey": "Needs your key",
@@ -1926,7 +1926,7 @@
       "offHelp": "A notification that leaves the app names what it is about: who acted, and on what."
     }
   },
-  "guildNotifications": {
+  "communityNotifications": {
     "title": "Notifications that leave the app",
     "description": "What this community's notifications carry once they leave. The server answers the same three questions for everybody, and the stricter answer applies.",
     "saved": "Notification settings saved",

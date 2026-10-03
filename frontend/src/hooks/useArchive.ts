@@ -12,23 +12,23 @@
 import { archiveEntity, unarchiveEntity } from "@/api/generated/archive/archive";
 import type { ArchivableType, ArchiveResponse } from "@/api/generated/initiativeAPI.schemas";
 import { invalidate, q } from "@/api/query-keys";
-import { useGuildMutation } from "@/hooks/useApiMutation";
+import { useCommunityMutation } from "@/hooks/useApiMutation";
 import type { MutationOpts } from "@/types/mutation";
 
 export type ArchiveTarget = { entityType: ArchivableType; entityId: number };
 
-// Everything the guild shows. Not a wide net for its own sake: archiving
+// Everything the community shows. Not a wide net for its own sake: archiving
 // cascades, so an initiative going away takes every tool in it and a project
 // takes its tasks, and the row's own detail changes state as well as its list.
 // The hand-written four this used to name predated archiving reaching every
 // tool, so a queue or a gallery kept showing the state it had before the call.
-const refresh = () => invalidate(q.guildContent());
+const refresh = () => invalidate(q.communityContent());
 
 export const useArchiveEntity = (options?: MutationOpts<ArchiveResponse, ArchiveTarget>) =>
-  useGuildMutation<ArchiveResponse, ArchiveTarget>(
+  useCommunityMutation<ArchiveResponse, ArchiveTarget>(
     {
-      mutationFn: (guildId, { entityType, entityId }) =>
-        archiveEntity(guildId, entityType, entityId),
+      mutationFn: (communityId, { entityType, entityId }) =>
+        archiveEntity(communityId, entityType, entityId),
       invalidate: refresh,
       errorKey: "common:archiveError",
     },
@@ -36,10 +36,10 @@ export const useArchiveEntity = (options?: MutationOpts<ArchiveResponse, Archive
   );
 
 export const useUnarchiveEntity = (options?: MutationOpts<ArchiveResponse, ArchiveTarget>) =>
-  useGuildMutation<ArchiveResponse, ArchiveTarget>(
+  useCommunityMutation<ArchiveResponse, ArchiveTarget>(
     {
-      mutationFn: (guildId, { entityType, entityId }) =>
-        unarchiveEntity(guildId, entityType, entityId),
+      mutationFn: (communityId, { entityType, entityId }) =>
+        unarchiveEntity(communityId, entityType, entityId),
       invalidate: refresh,
       errorKey: "common:unarchiveError",
     },

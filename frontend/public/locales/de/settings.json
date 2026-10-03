@@ -14,7 +14,7 @@
     "loginRequired": "Du musst angemeldet sein, um dein Profil zu verwalten.",
     "goToLogin": "Zur Anmeldung"
   },
-  "guildLayout": {
+  "communityLayout": {
     "title": "Community-Einstellungen",
     "permissionDenied": "Du benötigst zusätzliche Berechtigungen, um diese Seite anzuzeigen.",
     "viewOnly": "Du siehst diese Einstellungen über eine Zugriffsfreigabe. Um sie zu ändern, ist zusätzlich eine Lese-/Schreibfreigabe nötig.",
@@ -24,7 +24,7 @@
       }
     },
     "tabs": {
-      "guild": "Community",
+      "community": "Community",
       "users": "Benutzer",
       "initiatives": "Initiativen",
       "trash": "Papierkorb",
@@ -121,9 +121,9 @@
     "neverExpires": "Läuft nie ab",
     "readOnlyLabel": "Nur Lesen",
     "readOnlyHelp": "Der Schlüssel kann Daten lesen, aber niemals etwas erstellen, ändern oder löschen. Empfohlen für Automatisierungen und Integrationen.",
-    "guildLabel": "Community-Zugriff",
-    "guildAllGuilds": "Alle meine Communitys",
-    "guildHelp": "Beschränke den Schlüssel auf eine einzige Community. Er kann dann nicht auf Daten anderer Communitys zugreifen.",
+    "communityLabel": "Community-Zugriff",
+    "communityAllCommunities": "Alle meine Communitys",
+    "communityHelp": "Beschränke den Schlüssel auf eine einzige Community. Er kann dann nicht auf Daten anderer Communitys zugreifen.",
     "generateButton": "API-Schlüssel generieren",
     "generating": "Wird generiert…",
     "nameRequired": "Name ist erforderlich",
@@ -135,7 +135,7 @@
     "statusExpired": "Abgelaufen",
     "statusDisabled": "Deaktiviert",
     "scopeReadOnly": "Nur Lesen",
-    "scopeGuild": "Community: {{guild}}",
+    "scopeCommunity": "Community: {{community}}",
     "scopeFull": "Voller Zugriff",
     "deleteButton": "Löschen",
     "deleting": "Wird entfernt…",
@@ -190,7 +190,7 @@
     "testError": "Verbindung konnte nicht getestet werden",
     "httpWarning": "Es wird ein unverschlüsselter HTTP-Endpunkt verwendet. Konfiguriere TLS/HTTPS für den Produktivbetrieb."
   },
-  "guildAI": {
+  "communityAI": {
     "title": "Community-KI",
     "adminOnly": "Nur Community-Admins können KI-Verbindungen verwalten. Um deinen eigenen Schlüssel festzulegen, öffne „KI“ in deinen Profileinstellungen.",
     "connectionsTitle": "Community-Verbindungen",
@@ -405,7 +405,7 @@
     "communities": {
       "title": "Pro Community",
       "description": "Ein Regler pro Community. Stell eine leiser, ohne sonst etwas zu ändern.",
-      "levelLabel": "Wie viel {{guild}} sagt",
+      "levelLabel": "Wie viel {{community}} sagt",
       "mutedHelp": "Diese Community sagt gar nichts — auch nicht, wenn dich jemand direkt nennt.",
       "levels": {
         "everything": "Alles",
@@ -704,8 +704,8 @@
       "confirmAction": "Entziehen",
       "saved": "Zugangswege aktualisiert.",
       "saveError": "Die Zugangswege konnten nicht geändert werden.",
-      "guildsRequire_one": "{{count}} Community verlangt eine Anmeldung über einen eigenen Anbieter.",
-      "guildsRequire_other": "{{count}} Communities verlangen eine Anmeldung über einen eigenen Anbieter.",
+      "communitiesRequire_one": "{{count}} Community verlangt eine Anmeldung über einen eigenen Anbieter.",
+      "communitiesRequire_other": "{{count}} Communities verlangen eine Anmeldung über einen eigenen Anbieter.",
       "totp": {
         "label": "Zwei-Faktor-Authentifizierung aktivieren",
         "help": "Lass Leute ihr Konto mit einem Code aus einer Authenticator-App schützen. Einschalten tut das jede Person für sich; hier geht es darum, ob der Server es überhaupt anbietet."
@@ -882,8 +882,8 @@
     "hardDeleteDescription": "Alle Benutzerdaten werden aus der Datenbank entfernt. Von diesem Benutzer verfasste Kommentare, Aufgaben und andere Inhalte werden per Kaskade gelöscht. Kann nicht rückgängig gemacht werden.",
     "blockersTitle": "Blockierungen",
     "blockersDescription": "Die folgenden Probleme müssen behoben werden, bevor dieser Benutzer gelöscht werden kann:",
-    "guildBlockerTitle": "Einziger Superadmin der Community: {{guildName}}",
-    "guildBlockerDescription": "Wer das Konto besitzt, kann ein anderes Mitglied zum Superadmin machen. Oder du nimmst Notfallzugriff auf die Community und ernennst in ihren Einstellungen einen Superadmin oder löschst die Community dort.",
+    "communityBlockerTitle": "Einziger Superadmin der Community: {{communityName}}",
+    "communityBlockerDescription": "Wer das Konto besitzt, kann ein anderes Mitglied zum Superadmin machen. Oder du nimmst Notfallzugriff auf die Community und ernennst in ihren Einstellungen einen Superadmin oder löschst die Community dort.",
     "checkAgain": "Erneut prüfen",
     "confirmTitle": "Löschung bestätigen",
     "confirmDeactivateTitle": "Deaktivierung bestätigen",
@@ -921,8 +921,8 @@
     },
     "queueTitle": "Genehmigungen",
     "queueDescription": "Gewähre, verweigere oder widerrufe zeitlich begrenzte Zugriffsanfragen.",
-    "guildIdLabel": "Community-ID",
-    "guildIdPlaceholder": "z. B. 42",
+    "communityIdLabel": "Community-ID",
+    "communityIdPlaceholder": "z. B. 42",
     "levelNone": "Keiner",
     "nothingAsked": "Wähle Zugriff auf Inhalte, auf Einstellungen oder beides.",
     "levelRead": "Nur Lesen",
@@ -1098,7 +1098,7 @@
     "tabs": {
       "users": "Benutzer",
       "access": "Zugriff",
-      "guilds": "Communitys",
+      "communities": "Communitys",
       "placement": "Zuordnung bei Anmeldung",
       "announcements": "Ankündigungen"
     }
@@ -1171,7 +1171,7 @@
       "agreed": "Für {{community}} zugestimmt"
     }
   },
-  "guilds": {
+  "communities": {
     "title": "Community-Limits",
     "description": "Lege pro Community Obergrenzen für Speicher und Benutzeranzahl fest. Ein Limit unter die aktuelle Nutzung zu senken, blockiert neue Uploads oder Mitglieder, entfernt aber nie vorhandene Dateien oder Mitglieder.",
     "platformOnly": "Du benötigst die Operator- oder Eigentümerrolle, um Community-Limits zu verwalten.",
@@ -1205,7 +1205,7 @@
     },
     "columns": {
       "id": "ID",
-      "guild": "Community",
+      "community": "Community",
       "users": "Benutzer",
       "storageLimit": "Speicherlimit",
       "status": "Status",
@@ -1332,7 +1332,7 @@
       "failed": "Fehlgeschlagen"
     }
   },
-  "guildAuth": {
+  "communityAuth": {
     "shareUrl": {
       "title": "Anmeldelink für Mitglieder",
       "description": "Teile diesen Link mit Mitgliedern — er bietet die Anmeldeanbieter dieser Community an und führt sie direkt in die Community.",
@@ -1616,7 +1616,7 @@
     "newTitle": "Neue Verbindung",
     "editTitle": "Verbindung bearbeiten",
     "platformDialogDescription": "Jede Community kann diese Verbindung verwenden.",
-    "guildDialogDescription": "Mitglieder dieser Community können diese Verbindung verwenden.",
+    "communityDialogDescription": "Mitglieder dieser Community können diese Verbindung verwenden.",
     "labelLabel": "Bezeichnung",
     "labelPlaceholder": "z. B. Team OpenAI",
     "apiKeyPlaceholderExisting": "••••••••",
@@ -1641,7 +1641,7 @@
   "memberAI": {
     "description": "Sieh alle KI-Verbindungen, die dir in deinen Communitys zur Verfügung stehen. Füge dort, wo es erlaubt ist, deinen eigenen API-Schlüssel hinzu und wähle die Verbindung, die du verwendest.",
     "noneAvailable": "Dir sind noch keine KI-Verbindungen verfügbar.",
-    "sharedKeyGuild": "Verwendet einen gemeinsamen Schlüssel, den die Community-Administration festgelegt hat.",
+    "sharedKeyCommunity": "Verwendet einen gemeinsamen Schlüssel, den die Community-Administration festgelegt hat.",
     "sharedKeyPlatform": "Verwendet einen gemeinsamen Schlüssel, den die Person festgelegt hat, die diesen Server betreibt.",
     "selected": "In Verwendung",
     "requiresKey": "Benötigt deinen Schlüssel",
@@ -1926,7 +1926,7 @@
       "offHelp": "Eine Benachrichtigung, die die App verlässt, nennt, worum es geht: wer gehandelt hat und woran."
     }
   },
-  "guildNotifications": {
+  "communityNotifications": {
     "title": "Benachrichtigungen, die die App verlassen",
     "description": "Was die Benachrichtigungen dieser Community mitnehmen, wenn sie die App verlassen. Der Server beantwortet dieselben drei Fragen für alle; es gilt die strengere Antwort.",
     "saved": "Benachrichtigungseinstellungen gespeichert",

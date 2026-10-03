@@ -14,7 +14,7 @@
 import { screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { guildCan } from "@/__tests__/factories";
+import { communityCan } from "@/__tests__/factories";
 import { renderPage } from "@/__tests__/helpers/render";
 import type { MarketplaceListingDetail } from "@/api/generated/initiativeAPI.schemas";
 
@@ -22,7 +22,7 @@ import { MarketplaceListingPage } from "./MarketplaceListingPage";
 
 let listing: Partial<MarketplaceListingDetail> | undefined;
 let failed = false;
-let guildRole = "superadmin";
+let communityRole = "superadmin";
 let installedUids: string[] = [];
 let installsState: "ready" | "loading" | "error" = "ready";
 
@@ -30,13 +30,15 @@ vi.mock("@/hooks/useMarketplace", () => ({
   useMarketplaceListing: () => ({ data: listing, isError: failed }),
 }));
 vi.mock("@/hooks/useDashboards", () => ({ useWidgetCatalog: () => ({ data: undefined }) }));
-vi.mock("@/hooks/useGuilds", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/hooks/useGuilds")>()),
-  useGuilds: () => ({ activeGuild: { role: guildRole, can: guildCan(guildRole) } }),
+vi.mock("@/hooks/useCommunities", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/hooks/useCommunities")>()),
+  useCommunities: () => ({
+    activeCommunity: { role: communityRole, can: communityCan(communityRole) },
+  }),
 }));
-vi.mock("@/hooks/useGuildApps", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/hooks/useGuildApps")>()),
-  useGuildApps: () => ({
+vi.mock("@/hooks/useCommunityApps", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/hooks/useCommunityApps")>()),
+  useCommunityApps: () => ({
     data:
       installsState === "ready"
         ? { items: installedUids.map((uid) => ({ listing_uid: uid })) }
@@ -74,7 +76,7 @@ const backHref = () =>
 beforeEach(() => {
   listing = appListing();
   failed = false;
-  guildRole = "superadmin";
+  communityRole = "superadmin";
   installedUids = [];
   installsState = "ready";
 });
@@ -131,7 +133,7 @@ describe("MarketplaceListingPage", () => {
   });
 
   it("tells a member who can add an app they cannot", async () => {
-    guildRole = "member";
+    communityRole = "member";
     renderPage(MarketplaceListingPage, { routerSearch: { kind: "app" } });
 
     expect(
@@ -143,7 +145,7 @@ describe("MarketplaceListingPage", () => {
   });
 
   it("tells an ordinary admin that the superadmin adds apps", async () => {
-    guildRole = "admin";
+    communityRole = "admin";
     renderPage(MarketplaceListingPage, { routerSearch: { kind: "app" } });
 
     expect(
@@ -161,7 +163,7 @@ describe("MarketplaceListingPage", () => {
   });
 
   it("does not tell a member to ask for an app the community already has", async () => {
-    guildRole = "member";
+    communityRole = "member";
     installedUids = ["GLDCAL00000001"];
     renderPage(MarketplaceListingPage, { routerSearch: { kind: "app" } });
 
@@ -171,7 +173,7 @@ describe("MarketplaceListingPage", () => {
 
   it("does not guess at installed state while it is still loading", async () => {
     // Neither answer is known yet, so neither is claimed: no badge saying it is
-    // there, and no offer to add something the guild may already have.
+    // there, and no offer to add something the community may already have.
     installsState = "loading";
     renderPage(MarketplaceListingPage, { routerSearch: { kind: "app" } });
 
@@ -183,20 +185,20 @@ describe("MarketplaceListingPage", () => {
 
   it("says so when it could not check, rather than implying not installed", async () => {
     installsState = "error";
-    guildRole = "member";
+    communityRole = "member";
     renderPage(MarketplaceListingPage, { routerSearch: { kind: "app" } });
 
     expect(
       await screen.findByText("Could not check whether this app is already added.")
     ).toBeInTheDocument();
-    // The "go ask an admin" line asserts the guild does not have it, which is
+    // The "go ask an admin" line asserts the community does not have it, which is
     // exactly what failed to load.
     expect(screen.queryByText("Ask your community's superadmin to add this app.")).toBeNull();
   });
 
   it("does not offer the superadmin an install it cannot rule out as a duplicate", async () => {
     // The superadmin *may* install, so only the unknown state holds the button back
-    // here — the guild may already have this, and the server would refuse.
+    // here — the community may already have this, and the server would refuse.
     installsState = "error";
     renderPage(MarketplaceListingPage, { routerSearch: { kind: "app" } });
 

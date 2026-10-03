@@ -21,8 +21,8 @@ import {
 } from "@/api/generated/property-definitions/property-definitions";
 import { invalidate, q } from "@/api/query-keys";
 import { buildUniqueOptionSlug, findOptionByLabel } from "@/components/properties/propertyHelpers";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
-import { useGuildMutation } from "@/hooks/useApiMutation";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
+import { useCommunityMutation } from "@/hooks/useApiMutation";
 import { toast } from "@/lib/chesterToast";
 import type { MutationOpts } from "@/types/mutation";
 
@@ -38,14 +38,14 @@ import type { MutationOpts } from "@/types/mutation";
  *   events list) so property columns and filters aggregate across initiatives.
  */
 export const useProperties = (options?: { initiativeId?: number; enabled?: boolean }) => {
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   const initiativeId = options?.initiativeId;
   const params: { initiative_id?: number } = {};
   if (initiativeId !== undefined) params.initiative_id = initiativeId;
   const hasParams = Object.keys(params).length > 0;
   return useQuery<PropertyDefinitionRead[]>({
-    queryKey: getListPropertyDefinitionsQueryKey(guildId, hasParams ? params : undefined),
-    queryFn: () => listPropertyDefinitions(guildId, hasParams ? params : undefined),
+    queryKey: getListPropertyDefinitionsQueryKey(communityId, hasParams ? params : undefined),
+    queryFn: () => listPropertyDefinitions(communityId, hasParams ? params : undefined),
     enabled: options?.enabled ?? true,
     staleTime: 60 * 1000,
   });
@@ -56,9 +56,9 @@ export const useProperties = (options?: { initiativeId?: number; enabled?: boole
 export const useCreateProperty = (
   options?: MutationOpts<PropertyDefinitionRead, PropertyDefinitionCreate>
 ) =>
-  useGuildMutation<PropertyDefinitionRead, PropertyDefinitionCreate>(
+  useCommunityMutation<PropertyDefinitionRead, PropertyDefinitionCreate>(
     {
-      mutationFn: (guildId, data) => createPropertyDefinition(guildId, data),
+      mutationFn: (communityId, data) => createPropertyDefinition(communityId, data),
       invalidate: () => invalidate(q.allProperties()),
       errorKey: "properties:manager.createError",
     },
@@ -71,13 +71,13 @@ export const useUpdateProperty = (
     { propertyId: number; data: PropertyDefinitionUpdate }
   >
 ) =>
-  useGuildMutation<
+  useCommunityMutation<
     PropertyDefinitionUpdateResponse,
     { propertyId: number; data: PropertyDefinitionUpdate }
   >(
     {
-      mutationFn: (guildId, { propertyId, data }) =>
-        updatePropertyDefinition(guildId, propertyId, data),
+      mutationFn: (communityId, { propertyId, data }) =>
+        updatePropertyDefinition(communityId, propertyId, data),
       // Every row's embedded summaries carry the definition's name, options
       // and color.
       invalidate: () => invalidate(q.allProperties(), q.allPropertyHolders()),
@@ -87,9 +87,9 @@ export const useUpdateProperty = (
   );
 
 export const useDeleteProperty = (options?: MutationOpts<void, number>) =>
-  useGuildMutation<void, number>(
+  useCommunityMutation<void, number>(
     {
-      mutationFn: (guildId, propertyId) => deletePropertyDefinition(guildId, propertyId),
+      mutationFn: (communityId, propertyId) => deletePropertyDefinition(communityId, propertyId),
       invalidate: () => invalidate(q.allProperties(), q.allPropertyHolders()),
       errorKey: "properties:manager.deleteError",
     },
@@ -105,7 +105,7 @@ export const useDeleteProperty = (options?: MutationOpts<void, number>) =>
  */
 export const useAppendPropertyOption = () => {
   const { t } = useTranslation("properties");
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
 
   const mutation = useMutation({
     mutationFn: async (vars: {
@@ -129,7 +129,7 @@ export const useAppendPropertyOption = () => {
         color: vars.color ?? null,
       };
       const nextOptions: PropertyOption[] = [...currentOptions, newOption];
-      const saved = await updatePropertyDefinition(guildId, vars.definition.id, {
+      const saved = await updatePropertyDefinition(communityId, vars.definition.id, {
         options: nextOptions,
       });
       // The server keeps options it already holds as they are, so the one
@@ -170,10 +170,10 @@ export interface SetPropertiesVariables {
 export const useSetProperties = (
   options?: MutationOpts<PropertySummary[], SetPropertiesVariables>
 ) =>
-  useGuildMutation<PropertySummary[], SetPropertiesVariables>(
+  useCommunityMutation<PropertySummary[], SetPropertiesVariables>(
     {
-      mutationFn: (guildId, { target, id, values }) =>
-        setProperties(guildId, target, id, { values }),
+      mutationFn: (communityId, { target, id, values }) =>
+        setProperties(communityId, target, id, { values }),
       invalidate: (_data, vars) => invalidate(q.propertyHolder(vars.target)),
       errorKey: "properties:manager.setValuesError",
     },

@@ -31,18 +31,18 @@ export const useCommentReferences = () => useContext(CommentReferencesContext);
  */
 export function CommentReferences({
   contents,
-  guildId,
+  communityId,
   children,
 }: {
   contents: string[];
   /** The community the contents were written in, where that is not the one
    *  the page is in. */
-  guildId?: number;
+  communityId?: number;
   children: ReactNode;
 }) {
   const { refs } = useMemo(() => collectCommentReferences(contents), [contents]);
 
-  const chips = useSmartChipStates(refs, refs.length > 0, guildId);
+  const chips = useSmartChipStates(refs, refs.length > 0, communityId);
 
   const value = useMemo<Resolved>(() => {
     const titles = new Map<string, string>();
@@ -54,7 +54,7 @@ export function CommentReferences({
 
   return (
     <CommentReferencesContext.Provider value={value}>
-      <MentionedPeopleScope guildId={guildId}>
+      <MentionedPeopleScope communityId={communityId}>
         <ReportMentionedPeople texts={contents} />
         {children}
       </MentionedPeopleScope>

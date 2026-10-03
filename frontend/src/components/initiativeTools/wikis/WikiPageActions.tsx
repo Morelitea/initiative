@@ -41,7 +41,7 @@ import {
   useUpdateWikiPage,
 } from "@/hooks/useWikis";
 import { toast } from "@/lib/chesterToast";
-import { useGuildPath } from "@/lib/guildUrl";
+import { useCommunityPath } from "@/lib/communityUrl";
 import { toolDetailRoute, wikiPageRoute } from "@/lib/tools";
 
 interface WikiPageActionsProps {
@@ -69,7 +69,7 @@ export const WikiPageActions = ({
   onRemoveDocument,
 }: WikiPageActionsProps) => {
   const { t } = useTranslation(["wikis", "common"]);
-  const gp = useGuildPath();
+  const gp = useCommunityPath();
   const navigate = useNavigate();
   const updateWiki = useUpdateWiki(wiki.id);
   const deletePage = useDeleteWikiPage(wiki.id);

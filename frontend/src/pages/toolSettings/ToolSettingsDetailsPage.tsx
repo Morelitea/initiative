@@ -149,7 +149,7 @@ export const ToolSettingsDetailsPage = () => {
         </CardContent>
       </Card>
 
-      {/* Definitions belong to an initiative, so a guild-level tool has none
+      {/* Definitions belong to an initiative, so a community-level tool has none
           to offer. */}
       {entity.initiative_id !== null && (
         <Card>

@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import type { TaskListRead } from "@/api/generated/initiativeAPI.schemas";
 import { invalidate, q } from "@/api/query-keys";
 import { BulkEditTagsDialog } from "@/components/shared/BulkEditTagsDialog";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import type { DialogWithSuccessProps } from "@/types/dialog";
 
 interface BulkEditTaskTagsDialogProps extends DialogWithSuccessProps {
@@ -13,7 +13,7 @@ interface BulkEditTaskTagsDialogProps extends DialogWithSuccessProps {
 
 export function BulkEditTaskTagsDialog({ tasks, ...dialogProps }: BulkEditTaskTagsDialogProps) {
   const { t } = useTranslation(["tasks", "common"]);
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
 
   const labels = useMemo(
     () => ({
@@ -40,7 +40,7 @@ export function BulkEditTaskTagsDialog({ tasks, ...dialogProps }: BulkEditTaskTa
       {...dialogProps}
       items={tasks}
       targetType="task"
-      guildId={guildId}
+      communityId={communityId}
       onInvalidate={() => void invalidate(q.allTasks())}
       labels={labels}
     />

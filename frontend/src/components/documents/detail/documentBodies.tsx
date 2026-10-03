@@ -19,9 +19,9 @@ import { CreateReferencedThingDialog } from "@/components/references/CreateRefer
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import type { UseCollaborationResult } from "@/hooks/useCollaboration";
-import { useGuilds } from "@/hooks/useGuilds";
+import { useCommunities } from "@/hooks/useCommunities";
+import { useCommunityPath } from "@/lib/communityUrl";
 import { normalizeEditorState } from "@/lib/editorState";
-import { useGuildPath } from "@/lib/guildUrl";
 import { supportsEntityMentions } from "@/lib/mentions";
 import { referenceRef } from "@/lib/smartChips";
 import type { SpreadsheetSheetContent } from "@/lib/spreadsheet/content";
@@ -127,7 +127,7 @@ const NativeBody = ({
   onChange,
 }: DocumentBodyProps) => {
   const navigate = useNavigate();
-  const gp = useGuildPath();
+  const gp = useCommunityPath();
   // `[[ ]]` found nothing and offered to make it. The dialog owns which kind
   // and whether this writer may; the reference it answers with goes straight
   // into the sentence, so making something never costs the writer their place.
@@ -265,17 +265,17 @@ const SpreadsheetBody = ({
 }: DocumentBodyProps) => {
   const room = useRoomProvider(collaboration, live);
   const currentUser = usePresenceUser();
-  const { activeGuildId } = useGuilds();
-  // Reading a file is the host's job — it knows which document and guild the
+  const { activeCommunityId } = useCommunities();
+  // Reading a file is the host's job — it knows which document and community the
   // editor is showing. What comes back is sheets; the editor adds them to its
   // live workbook itself, in one transaction.
   const importSheets = useCallback(
     async (file: File) => {
-      if (!activeGuildId) return [];
-      const result = await importSpreadsheetFile(activeGuildId, document.id, { file });
+      if (!activeCommunityId) return [];
+      const result = await importSpreadsheetFile(activeCommunityId, document.id, { file });
       return result.sheets as unknown as SpreadsheetSheetContent[];
     },
-    [activeGuildId, document.id]
+    [activeCommunityId, document.id]
   );
 
   return (
@@ -320,7 +320,7 @@ const FileBody = ({ document, canEdit }: DocumentBodyProps) =>
   document.file_url ? (
     <FileDocumentViewer
       documentId={document.id}
-      guildId={document.community_id}
+      communityId={document.community_id}
       fileUrl={document.file_url}
       contentType={document.file_content_type}
       originalFilename={document.original_filename}

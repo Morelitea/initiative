@@ -42,8 +42,8 @@ import {
 } from "@/hooks/usePosts";
 import { useRecordRecentView } from "@/hooks/useRecents";
 import { toast } from "@/lib/chesterToast";
+import { useCommunityPath } from "@/lib/communityUrl";
 import { formatDateTime, fromLocalDateTimeInput, toLocalDateTimeInput } from "@/lib/formatDate";
-import { useGuildPath } from "@/lib/guildUrl";
 import { hasBody, MAX_POST_TEXT_CHARS } from "@/lib/posts";
 import { referenceRef } from "@/lib/smartChips";
 import { toolListRoute, toolSettingsRoute } from "@/lib/tools";
@@ -63,18 +63,18 @@ const Editor = lazy(() =>
  */
 export function PostDetailPage() {
   const { t } = useTranslation(["posts", "common"]);
-  const { guildId, postId } = useParams({ strict: false }) as {
-    guildId: string;
+  const { communityId, postId } = useParams({ strict: false }) as {
+    communityId: string;
     postId: string;
   };
   const parsedId = Number(postId);
-  const gp = useGuildPath();
+  const gp = useCommunityPath();
 
   const postQuery = usePost(Number.isFinite(parsedId) ? parsedId : null);
   const post = postQuery.data;
   const initiativeId = useCanonicalInitiativeId(post?.initiative_id);
 
-  const recordViewMutation = useRecordRecentView("post", Number(guildId));
+  const recordViewMutation = useRecordRecentView("post", Number(communityId));
   const viewedPostId = post?.id;
   useReadOnOpen(Tool.post, viewedPostId);
   useEffect(() => {

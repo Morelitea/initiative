@@ -36,8 +36,8 @@ const sectionParams = (search: string) =>
 const favoriteParams = (search: string) => (search.trim() ? { search } : undefined);
 
 /** One community, one page — the request a roster makes for itself. */
-const guildPageParams = (guildId: number, page: number, search: string) => ({
-  community_ids: [guildId],
+const communityPageParams = (communityId: number, page: number, search: string) => ({
+  community_ids: [communityId],
   page,
   page_size: CONTACTS_PAGE_SIZE,
   ...(search.trim() ? { search } : {}),
@@ -78,10 +78,11 @@ export const useFavoriteContacts = (search: string, options?: { enabled?: boolea
  * community, and it does not run at all until the reader asks for more, so a
  * roster nobody reaches the bottom of costs nothing.
  */
-export const useMoreCommunityContacts = (guildId: number, search: string, enabled: boolean) =>
+export const useMoreCommunityContacts = (communityId: number, search: string, enabled: boolean) =>
   useInfiniteQuery({
-    queryKey: ["contacts", "community", guildId, search.trim()] as const,
-    queryFn: ({ pageParam }) => listContactSections(guildPageParams(guildId, pageParam, search)),
+    queryKey: ["contacts", "community", communityId, search.trim()] as const,
+    queryFn: ({ pageParam }) =>
+      listContactSections(communityPageParams(communityId, pageParam, search)),
     initialPageParam: 2,
     // The section says whether there is one after it; the page number is how
     // many have been fetched, offset by the one that arrived with the walk.

@@ -66,7 +66,7 @@ export const PlatformAuthSection = () => {
   });
   if (query.isLoading || !query.data) return null;
 
-  const { methods, communities_requiring_sign_in: guilds_requiring_sign_in } = query.data;
+  const { methods, communities_requiring_sign_in } = query.data;
 
   const enabled = methods.filter((m) => m.enabled).map((m) => m.method);
   const busy = updateMethods.isPending;
@@ -124,10 +124,12 @@ export const PlatformAuthSection = () => {
                         {t("auth.methods.wouldStrand", { count: entry.would_strand })}
                       </p>
                     ) : null}
-                    {entry.method === "sso" && entry.enabled && guilds_requiring_sign_in > 0 ? (
+                    {entry.method === "sso" &&
+                    entry.enabled &&
+                    communities_requiring_sign_in > 0 ? (
                       <p className="text-amber-600 text-xs dark:text-amber-500">
-                        {t("auth.methods.guildsRequire", {
-                          count: guilds_requiring_sign_in,
+                        {t("auth.methods.communitiesRequire", {
+                          count: communities_requiring_sign_in,
                         })}
                       </p>
                     ) : null}

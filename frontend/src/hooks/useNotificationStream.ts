@@ -73,9 +73,9 @@ export const useNotificationStreamConnected = (): boolean =>
 /**
  * Subscribe to the signed-in user's notification channel.
  *
- * The inbox is personal and cross-guild, so this socket is addressed by
+ * The inbox is personal and cross-community, so this socket is addressed by
  * nothing but the credential — unlike `useRealtimeUpdates`, whose socket is
- * per-guild and only exists inside a `/c/{guildId}` route. It therefore stays
+ * per-community and only exists inside a `/c/{communityId}` route. It therefore stays
  * open on personal routes too, which is exactly where the bell still lives.
  *
  * Every frame is a content-free "your inbox changed"; the response is to

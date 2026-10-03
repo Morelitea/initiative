@@ -11,7 +11,7 @@
     "saved": "Contacts enregistrés.",
     "saveError": "Impossible d’enregistrer les contacts."
   },
-  "guild": {
+  "community": {
     "title": "Communauté d'exploitation",
     "description": "La communauté qui reçoit le travail de sécurité, de modération, d'assistance et de retours de cette installation.",
     "label": "Communauté",
@@ -24,7 +24,7 @@
     "clearConfirm": "Cesser de diriger"
   },
   "streams": {
-    "chooseGuildFirst": "Choisissez une communauté ci-dessus, puis indiquez où arrive chaque canal.",
+    "chooseCommunityFirst": "Choisissez une communauté ci-dessus, puis indiquez où arrive chaque canal.",
     "security": {
       "title": "Sécurité",
       "description": "Cas ouverts par les règles qui surveillent cette installation."

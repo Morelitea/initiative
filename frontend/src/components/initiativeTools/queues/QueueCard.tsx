@@ -5,7 +5,7 @@ import { type QueueSummary, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { TagBadgeList } from "@/components/tags/TagBadge";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useGuildPath } from "@/lib/guildUrl";
+import { useCommunityPath } from "@/lib/communityUrl";
 import { toolDetailRoute } from "@/lib/tools";
 import { cn } from "@/lib/utils";
 
@@ -16,7 +16,7 @@ interface QueueCardProps {
 
 export const QueueCard = ({ queue, className }: QueueCardProps) => {
   const { t } = useTranslation("queues");
-  const gp = useGuildPath();
+  const gp = useCommunityPath();
 
   return (
     <Link

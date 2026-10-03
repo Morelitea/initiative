@@ -78,7 +78,7 @@ describe("the mention composer", () => {
 
   it("shows a saved mention by the name the person goes by, changing nothing until someone types", async () => {
     server.use(
-      http.get("*/api/v1/c/:guildId/users/search", () =>
+      http.get("*/api/v1/c/:communityId/users/search", () =>
         HttpResponse.json({
           items: [buildUserSummary({ id: 4, display_name: "Ada King" })],
           total: 1,

@@ -46,7 +46,7 @@ import { CardGridSkeleton, SkeletonRegion } from "@/components/skeletons/PageSke
 import { ToolFilterFields, type ToolListFilters } from "@/components/tools/ToolFilterFields";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { useCounterGroupsList } from "@/hooks/useCounters";
 import { useCreateFromSearchParam } from "@/hooks/useCreateFromSearchParam";
 import { useDashboardsList } from "@/hooks/useDashboards";
@@ -58,7 +58,7 @@ import { useQueuesList } from "@/hooks/useQueues";
 import { useToolCounts } from "@/hooks/useToolCounts";
 import { useUnreadTree } from "@/hooks/useUnreadTree";
 import { useWikisList } from "@/hooks/useWikis";
-import { useGuildPath } from "@/lib/guildUrl";
+import { useCommunityPath } from "@/lib/communityUrl";
 import { type ToolView, toolDetailRoute, toolViewParams } from "@/lib/tools";
 import type { TranslateFn } from "@/types/i18n";
 
@@ -398,8 +398,8 @@ const ToolIndexBody = ({ tool, entry, fixedInitiativeId, canCreate }: ToolIndexB
   const { t: translate } = useTranslation([entry.text.ns, "common", "tags"]);
   const t = translate as TranslateFn;
   const router = useRouter();
-  const gp = useGuildPath();
-  const guildId = useActiveGuildId();
+  const gp = useCommunityPath();
+  const communityId = useActiveCommunityId();
   const unread = useUnreadTree();
 
   const [filters, setFilters] = useState<ToolListFilters>({});
@@ -557,7 +557,7 @@ const ToolIndexBody = ({ tool, entry, fixedInitiativeId, canCreate }: ToolIndexB
               >
                 <div className="relative">
                   {row.card}
-                  {unread.hasResource(guildId, tool, row.id) ? (
+                  {unread.hasResource(communityId, tool, row.id) ? (
                     <UnreadDot className="absolute top-3 right-3" />
                   ) : null}
                 </div>

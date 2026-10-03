@@ -2,8 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 
 import { getGetUserStatsQueryKey, getUserStats } from "@/api/generated/users/users";
 
-export function useUserStats(guildId?: number | null) {
-  const params = guildId ? { community_id: guildId } : undefined;
+export function useUserStats(communityId?: number | null) {
+  const params = communityId ? { community_id: communityId } : undefined;
 
   return useQuery({
     queryKey: getGetUserStatsQueryKey(params),

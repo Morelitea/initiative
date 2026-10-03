@@ -6,7 +6,7 @@ import { getOpenCommandCenter } from "@/components/CommandCenter";
 
 interface SidebarSearchButtonProps {
   /** Name of the community being searched; shown in the placeholder. */
-  guildName?: string | null;
+  communityName?: string | null;
 }
 
 /**
@@ -16,7 +16,7 @@ interface SidebarSearchButtonProps {
  * command palette is still reachable with ctrl/cmd-K, which the trailing hint
  * spells out.
  */
-export const SidebarSearchButton = ({ guildName }: SidebarSearchButtonProps) => {
+export const SidebarSearchButton = ({ communityName }: SidebarSearchButtonProps) => {
   const { t } = useTranslation(["search", "command"]);
 
   const shortcutLabel = useMemo(
@@ -28,7 +28,7 @@ export const SidebarSearchButton = ({ guildName }: SidebarSearchButtonProps) => 
   );
 
   // Same sentence the search page puts in its own input, from the same key.
-  const label = guildName ? t("search:placeholder", { guildName }) : t("search:title");
+  const label = communityName ? t("search:placeholder", { communityName }) : t("search:title");
 
   return (
     <button

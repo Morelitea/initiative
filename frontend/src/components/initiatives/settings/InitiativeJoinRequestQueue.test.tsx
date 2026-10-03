@@ -3,8 +3,12 @@ import userEvent from "@testing-library/user-event";
 import { HttpResponse } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { buildGuild, buildInitiativeJoinRequest, buildUserSummary } from "@/__tests__/factories";
-import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import {
+  buildCommunity,
+  buildInitiativeJoinRequest,
+  buildUserSummary,
+} from "@/__tests__/factories";
+import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
 import { queryClient } from "@/lib/queryClient";
@@ -31,7 +35,10 @@ const renderQueue = ({ appClient = false }: { appClient?: boolean } = {}) =>
       </>
     ),
     {
-      guilds: { activeGuildId: 1, activeGuild: buildGuild({ id: 1, role: "admin" }) },
+      communities: {
+        activeCommunityId: 1,
+        activeCommunity: buildCommunity({ id: 1, role: "admin" }),
+      },
       ...(appClient ? { queryClient } : {}),
     }
   );
@@ -40,8 +47,8 @@ const renderQueue = ({ appClient = false }: { appClient?: boolean } = {}) =>
 function stubQueue(requests: unknown[]) {
   const answered: string[] = [];
   server.use(
-    guildHttp.get("/initiatives/:id/join-requests", () => HttpResponse.json(requests)),
-    guildHttp.post("/initiatives/:id/join-requests/:requestId/approve", ({ params }) => {
+    communityHttp.get("/initiatives/:id/join-requests", () => HttpResponse.json(requests)),
+    communityHttp.post("/initiatives/:id/join-requests/:requestId/approve", ({ params }) => {
       answered.push(`approve:${params.requestId}`);
       return HttpResponse.json(
         buildInitiativeJoinRequest({
@@ -51,7 +58,7 @@ function stubQueue(requests: unknown[]) {
         })
       );
     }),
-    guildHttp.post("/initiatives/:id/join-requests/:requestId/deny", ({ params }) => {
+    communityHttp.post("/initiatives/:id/join-requests/:requestId/deny", ({ params }) => {
       answered.push(`deny:${params.requestId}`);
       return HttpResponse.json(
         buildInitiativeJoinRequest({
@@ -144,10 +151,10 @@ describe("InitiativeJoinRequestQueue", () => {
   it("drops the answered row when the queue re-reads", async () => {
     let resolved = false;
     server.use(
-      guildHttp.get("/initiatives/:id/join-requests", () =>
+      communityHttp.get("/initiatives/:id/join-requests", () =>
         HttpResponse.json(resolved ? [] : [knock()])
       ),
-      guildHttp.post("/initiatives/:id/join-requests/:requestId/approve", () => {
+      communityHttp.post("/initiatives/:id/join-requests/:requestId/approve", () => {
         resolved = true;
         return HttpResponse.json(buildInitiativeJoinRequest({ id: 11, status: "approved" }));
       })

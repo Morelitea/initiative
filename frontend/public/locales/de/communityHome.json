@@ -1,0 +1,86 @@
+{
+  "title": "Community",
+  "subtitle": "Alles in dieser Community, ein Werkzeug nach dem anderen.",
+  "toolRail": "Community-Werkzeuge",
+  "loading": "Wird geladen…",
+  "loadError": "Dieses Werkzeug konnte nicht geladen werden. Bitte versuche es später erneut.",
+  "communityWide": "Community-weit",
+  "searchPlaceholder": "Nach Namen suchen…",
+  "empty": {
+    "title": "Noch nichts vorhanden",
+    "description": "In der Community gibt es noch nichts dieser Art, oder nichts davon ist für dich freigegeben."
+  },
+  "emptyState": {
+    "title": "Du bist noch keiner Initiative beigetreten",
+    "adminTitle": "Diese Community hat noch keine Initiativen",
+    "description": "Initiativen enthalten alles in einer Community — Projekte, Dokumente und den Rest. Tritt einer bei, um ihre Arbeit zu sehen.",
+    "adminDescription": "Initiativen enthalten alles in einer Community — Projekte, Dokumente und den Rest. Erstelle die erste, um zu sagen, wofür diese Community da ist.",
+    "nothingListedTitle": "Noch nichts zum Beitreten",
+    "adminNothingListedTitle": "Erstelle die erste Initiative",
+    "nothingListedDescription": "Derzeit ist keine Initiative dieser Community zum Beitreten offen. Ein Community-Admin oder Projektmanager kann dich hinzufügen.",
+    "adminNothingListedDescription": "Benenne einen Arbeitsbereich — ein Team, eine Kampagne, eine Saison — und alles, was dazugehört, liegt darin."
+  },
+  "directory": {
+    "title": "Initiativen",
+    "subtitle": "Deine Initiativen und solche, denen du beitreten kannst.",
+    "memberBadge": "Beigetreten",
+    "memberCount_one": "{{count}} Mitglied",
+    "memberCount_other": "{{count}} Mitglieder",
+    "toolCount": "{{label}}: {{count}}",
+    "groups": {
+      "mine": "Deine Initiativen",
+      "joinable": "Zum Beitreten offen"
+    },
+    "join": "Beitreten",
+    "joining": "Trete bei…",
+    "joined": "Du bist {{name}} beigetreten.",
+    "requestToJoin": "Beitritt anfragen",
+    "requested": "Angefragt",
+    "pendingRequests_one": "{{count}} wartet auf Beitritt",
+    "pendingRequests_other": "{{count}} warten auf Beitritt",
+    "policy": {
+      "open": "Offen für alle Community-Mitglieder",
+      "request": "Beitritt auf Anfrage",
+      "private": "Nur auf Einladung"
+    },
+    "loadError": "Das Angebot dieser Community konnte nicht geladen werden. Bitte versuche es später erneut."
+  },
+  "columns": {
+    "name": "Name",
+    "community": "Community",
+    "initiative": "Initiative",
+    "tags": "Tags",
+    "updated": "Zuletzt aktualisiert",
+    "detail": {
+      "projects": "Fortschritt",
+      "documents": "Typ",
+      "calendars": "Beschreibung",
+      "dashboards": "Herkunft",
+      "posts": "Vorschau"
+    }
+  },
+  "detail": {
+    "tasksDone": "{{completed}} von {{total}} Aufgaben",
+    "fromMarketplace": "Marktplatz",
+    "builtHere": "Selbst erstellt",
+    "documentType": {
+      "native": "Dokument",
+      "file": "Datei",
+      "whiteboard": "Whiteboard",
+      "smart_link": "Link",
+      "spreadsheet": "Tabelle"
+    }
+  },
+  "recentComments": {
+    "title": "Neueste Kommentare",
+    "noComments": "Noch keine Kommentare",
+    "loadError": "Neueste Kommentare konnten nicht geladen werden. Bitte später erneut versuchen.",
+    "unknownAuthor": "Unbekannt",
+    "onTask": "zu {{taskTitle}}",
+    "onDocument": "zu {{documentTitle}}",
+    "onEntity": "zu {{entityName}}",
+    "inProject": "in {{projectName}}",
+    "readMore": "Mehr anzeigen",
+    "showLess": "Weniger anzeigen"
+  }
+}

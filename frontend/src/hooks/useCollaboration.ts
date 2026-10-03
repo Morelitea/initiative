@@ -16,7 +16,7 @@ import * as Y from "yjs";
 
 import { apiClient } from "@/api/client";
 import { toBase64 } from "@/lib/base64";
-import { buildGuildWsUrl } from "@/lib/wsUrl";
+import { buildCommunityWsUrl } from "@/lib/wsUrl";
 import {
   type CollaborationProvider,
   type CollaboratorInfo,
@@ -25,7 +25,7 @@ import {
 } from "@/lib/yjs/CollaborationProvider";
 
 import { useAuth } from "./useAuth";
-import { useGuilds } from "./useGuilds";
+import { useCommunities } from "./useCommunities";
 
 export type ConnectionStatus = "disconnected" | "connecting" | "connected" | "error";
 
@@ -35,7 +35,7 @@ const KEEPALIVE_LIMIT = 60_000;
 export interface UseCollaborationOptions {
   /**
    * The room, as the server addresses it: the collaboration path under
-   * `/c/{guildId}/collaboration/`. A document is
+   * `/c/{communityId}/collaboration/`. A document is
    * `documents/{id}/collaborate`; a wiki page is
    * `wiki-pages/{id}/collaborate`.
    *
@@ -52,7 +52,7 @@ export interface UseCollaborationOptions {
 export interface UseCollaborationResult {
   /**
    * Factory function for Lexical's CollaborationPlugin.
-   * Returns null if collaboration is not ready (missing auth, guild, etc.)
+   * Returns null if collaboration is not ready (missing auth, community, etc.)
    */
   providerFactory: ((id: string, yjsDocMap: Map<string, Y.Doc>) => CollaborationProvider) | null;
   /** Current connection status */
@@ -89,7 +89,7 @@ export function useCollaboration({
   onError,
 }: UseCollaborationOptions): UseCollaborationResult {
   const { user } = useAuth();
-  const { activeGuildId } = useGuilds();
+  const { activeCommunityId } = useCommunities();
 
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("disconnected");
   const [isSynced, setIsSynced] = useState(false);
@@ -118,17 +118,17 @@ export function useCollaboration({
   }, [onSynced, onError]);
 
   // Check if we have all required values
-  const isReady = Boolean(enabled && user && activeGuildId && socketPath);
+  const isReady = Boolean(enabled && user && activeCommunityId && socketPath);
 
   // Build the WebSocket URL (memoized to detect changes). The credential
-  // rides in the socket's first frame, never the URL; the guild is the
-  // /c/{guildId} path segment.
+  // rides in the socket's first frame, never the URL; the community is the
+  // /c/{communityId} path segment.
   const wsUrl = useMemo(() => {
-    if (!isReady || !activeGuildId) {
+    if (!isReady || !activeCommunityId) {
       return null;
     }
-    return buildGuildWsUrl(activeGuildId, `collaboration/${socketPath}`);
-  }, [isReady, activeGuildId, socketPath]);
+    return buildCommunityWsUrl(activeCommunityId, `collaboration/${socketPath}`);
+  }, [isReady, activeCommunityId, socketPath]);
 
   // Hand the room anything this tab has that it has not seen, as the page is
   // hidden or left while the socket is gone: the edits made meanwhile, as a
@@ -162,7 +162,7 @@ export function useCollaboration({
     };
   }, [handOver]);
 
-  // Clean up provider when URL changes (a guild change, or a move to another
+  // Clean up provider when URL changes (a community change, or a move to another
   // body entirely). A renewed credential is not a change: the socket reads it
   // as it writes each first frame.
   useEffect(() => {
@@ -179,8 +179,8 @@ export function useCollaboration({
     }
     currentWsUrlRef.current = wsUrl;
     handoverPathRef.current =
-      wsUrl && activeGuildId ? `/c/${activeGuildId}/collaboration/${socketPath}` : null;
-  }, [wsUrl, activeGuildId, socketPath, handOver]);
+      wsUrl && activeCommunityId ? `/c/${activeCommunityId}/collaboration/${socketPath}` : null;
+  }, [wsUrl, activeCommunityId, socketPath, handOver]);
 
   // Create the provider factory that Lexical's CollaborationPlugin will call
   const providerFactory = useMemo(() => {

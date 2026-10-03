@@ -81,7 +81,7 @@ export const readConfig = (raw: unknown): DashboardConfig => {
  * values layered on top.
  *
  * This is the seam that makes an installed listing work. A catalog definition
- * leaves the ids it cannot know as null — no listing knows this guild's counter
+ * leaves the ids it cannot know as null — no listing knows this community's counter
  * ids — and the config fills them in per install.
  */
 export const effectiveBinding = (

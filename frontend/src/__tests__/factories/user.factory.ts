@@ -174,18 +174,18 @@ export function buildUser(overrides: Partial<UserRead> = {}): UserRead {
   };
 }
 
-export function buildUserGuildMember(
+export function buildUserCommunityMember(
   overrides: Partial<UserCommunityMember> = {}
 ): UserCommunityMember {
   counter++;
-  const guildRole = overrides.community_role ?? "member";
+  const communityRole = overrides.community_role ?? "member";
   return {
     id: counter,
     username: `user-${counter}`,
     discriminator: 1000 + counter,
     display_name: `User ${counter}`,
     avatar_url: null,
-    community_role: guildRole,
+    community_role: communityRole,
     oidc_managed: false,
     status: "active",
     created_at: "2026-01-15T00:00:00.000Z",
@@ -194,7 +194,7 @@ export function buildUserGuildMember(
   };
 }
 
-/** A member's profile, as the rest of their guild sees them. Bare by default —
+/** A member's profile, as the rest of their community sees them. Bare by default —
  *  no status and nothing worn — so a test that asserts on a decoration has to
  *  have put it there. */
 export function buildUserProfile(overrides: Partial<UserProfile> = {}): UserProfile {

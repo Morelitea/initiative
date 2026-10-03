@@ -24,7 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { useAuth } from "@/hooks/useAuth";
 import { useCreateCalendarEvent } from "@/hooks/useCalendarEvents";
 import { useCalendar, useCalendarsList } from "@/hooks/useCalendars";
@@ -73,7 +73,7 @@ export const CreateEventDialog = ({
 }: CreateEventDialogProps) => {
   const { t } = useTranslation(["calendars", "common"]);
   const { user } = useAuth();
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -88,9 +88,9 @@ export const CreateEventDialog = ({
 
   // Calendars the current user may author events in (write on the calendar).
   // Locked to one calendar the picker is hidden, so there is no list to fill:
-  // that calendar is read on its own instead. A guild calendar's surface shows
-  // guild-level content only, and this is the one read on it that would
-  // otherwise span the guild's initiatives.
+  // that calendar is read on its own instead. A community calendar's surface shows
+  // community-level content only, and this is the one read on it that would
+  // otherwise span the community's initiatives.
   const calendarsQuery = useCalendarsList(
     { page_size: 200, ...(initiativeId ? { initiative_id: initiativeId } : {}) },
     { enabled: open && calendarId === undefined }
@@ -111,7 +111,7 @@ export const CreateEventDialog = ({
     [lockedCalendarQuery.data, calendarsQuery.data, effectiveCalendarId]
   );
 
-  // Default the picker: explicit default > last-used (per guild) > the only
+  // Default the picker: explicit default > last-used (per community) > the only
   // writable calendar.
   useEffect(() => {
     if (!open || calendarId !== undefined || selectedCalendarId) return;
@@ -119,7 +119,7 @@ export const CreateEventDialog = ({
       setSelectedCalendarId(String(defaultCalendarId));
       return;
     }
-    const lastUsed = Number(getItem(`${LAST_CALENDAR_KEY}:${guildId}`) ?? "");
+    const lastUsed = Number(getItem(`${LAST_CALENDAR_KEY}:${communityId}`) ?? "");
     if (lastUsed && writableCalendars.some((calendar) => calendar.id === lastUsed)) {
       setSelectedCalendarId(String(lastUsed));
       return;
@@ -127,7 +127,7 @@ export const CreateEventDialog = ({
     if (writableCalendars.length === 1) {
       setSelectedCalendarId(String(writableCalendars[0].id));
     }
-  }, [open, calendarId, selectedCalendarId, defaultCalendarId, guildId, writableCalendars]);
+  }, [open, calendarId, selectedCalendarId, defaultCalendarId, communityId, writableCalendars]);
 
   useEffect(() => {
     if (open) {
@@ -157,7 +157,7 @@ export const CreateEventDialog = ({
 
   const createEvent = useCreateCalendarEvent({
     onSuccess: (event) => {
-      setItem(`${LAST_CALENDAR_KEY}:${guildId}`, String(event.calendar_id));
+      setItem(`${LAST_CALENDAR_KEY}:${communityId}`, String(event.calendar_id));
       onOpenChange(false);
       onSuccess?.(event);
     },

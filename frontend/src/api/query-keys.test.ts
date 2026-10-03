@@ -5,8 +5,8 @@ import {
   invalidate,
   patchCachedPost,
   q,
-  resetGuildScopedQueries,
-  setInvalidationGuild,
+  resetCommunityScopedQueries,
+  setInvalidationCommunity,
 } from "@/api/query-keys";
 import { queryClient } from "@/lib/queryClient";
 import { TOOLS, toolRouteSegment } from "@/lib/tools";
@@ -17,47 +17,47 @@ const seed = (key: readonly unknown[]) => {
   return () => queryClient.getQueryState(key)?.isInvalidated ?? false;
 };
 
-describe("query-keys guild scoping", () => {
+describe("query-keys community scoping", () => {
   beforeEach(() => {
     queryClient.clear();
-    setInvalidationGuild(null);
+    setInvalidationCommunity(null);
   });
 
   afterEach(() => {
     queryClient.clear();
-    setInvalidationGuild(null);
+    setInvalidationCommunity(null);
   });
 
-  it("invalidates only the active guild's queries", async () => {
-    const activeGuild = seed(["/api/v1/c/5/tasks/"]);
-    const otherGuild = seed(["/api/v1/c/7/tasks/"]);
+  it("invalidates only the active community's queries", async () => {
+    const activeCommunity = seed(["/api/v1/c/5/tasks/"]);
+    const otherCommunity = seed(["/api/v1/c/7/tasks/"]);
 
-    setInvalidationGuild(5);
+    setInvalidationCommunity(5);
     await invalidate(q.allTasks());
 
-    expect(activeGuild()).toBe(true);
-    expect(otherGuild()).toBe(false);
+    expect(activeCommunity()).toBe(true);
+    expect(otherCommunity()).toBe(false);
   });
 
-  it("still invalidates the cross-guild /me aggregate", async () => {
-    const guildScoped = seed(["/api/v1/c/5/tasks/"]);
+  it("still invalidates the cross-community /me aggregate", async () => {
+    const communityScoped = seed(["/api/v1/c/5/tasks/"]);
     const meAggregate = seed(["/api/v1/me/tasks"]);
 
-    setInvalidationGuild(5);
+    setInvalidationCommunity(5);
     await invalidate(q.allTasks());
 
-    expect(guildScoped()).toBe(true);
+    expect(communityScoped()).toBe(true);
     expect(meAggregate()).toBe(true);
   });
 
-  it.each(TOOLS)("a %s list reaches its cross-guild /me twin", async (tool) => {
-    const guildList = seed([`/api/v1/c/5/${toolRouteSegment(tool)}/`]);
+  it.each(TOOLS)("a %s list reaches its cross-community /me twin", async (tool) => {
+    const communityList = seed([`/api/v1/c/5/${toolRouteSegment(tool)}/`]);
     const meList = seed([`/api/v1/me/${toolRouteSegment(tool)}`]);
 
-    setInvalidationGuild(5);
+    setInvalidationCommunity(5);
     await invalidate(q.toolList(tool));
 
-    expect(guildList()).toBe(true);
+    expect(communityList()).toBe(true);
     expect(meList()).toBe(true);
   });
 
@@ -67,7 +67,7 @@ describe("query-keys guild scoping", () => {
     const unrelated = seed(["/api/v1/c/5/documents/"]);
     const calendarEntries = seed(["/api/v1/c/5/calendar-entries/"]);
 
-    setInvalidationGuild(5);
+    setInvalidationCommunity(5);
     await invalidate(q.propertyHolder(PropertyTarget.wiki_page));
 
     expect(page()).toBe(true);
@@ -80,77 +80,77 @@ describe("query-keys guild scoping", () => {
     expect(calendarEntries()).toBe(true);
   });
 
-  it("falls back to plain matching when no active guild is set", async () => {
-    const guildA = seed(["/api/v1/c/5/tasks/"]);
-    const guildB = seed(["/api/v1/c/7/tasks/"]);
+  it("falls back to plain matching when no active community is set", async () => {
+    const communityA = seed(["/api/v1/c/5/tasks/"]);
+    const communityB = seed(["/api/v1/c/7/tasks/"]);
 
-    // No setInvalidationGuild call (personal mode / pre-mount): scoping is skipped.
+    // No setInvalidationCommunity call (personal mode / pre-mount): scoping is skipped.
     await invalidate(q.allTasks());
 
-    expect(guildA()).toBe(true);
-    expect(guildB()).toBe(true);
+    expect(communityA()).toBe(true);
+    expect(communityB()).toBe(true);
   });
 
   describe("boundaries do not cross", () => {
-    it("guild invalidation never touches personal / platform keys", async () => {
-      const guildScoped = seed(["/api/v1/c/5/initiatives/"]);
+    it("community invalidation never touches personal / platform keys", async () => {
+      const communityScoped = seed(["/api/v1/c/5/initiatives/"]);
       const meTasks = seed(["/api/v1/me/tasks"]);
       const notifications = seed(["/api/v1/notifications/"]);
       const recents = seed(["/api/v1/recents/"]);
 
-      setInvalidationGuild(5);
+      setInvalidationCommunity(5);
       await invalidate(q.allInitiatives());
 
-      expect(guildScoped()).toBe(true);
+      expect(communityScoped()).toBe(true);
       expect(meTasks()).toBe(false);
       expect(notifications()).toBe(false);
       expect(recents()).toBe(false);
     });
 
-    it("personal invalidation never touches guild keys", async () => {
+    it("personal invalidation never touches community keys", async () => {
       const notifications = seed(["/api/v1/notifications/"]);
-      const guildTasks = seed(["/api/v1/c/5/tasks/"]);
+      const communityTasks = seed(["/api/v1/c/5/tasks/"]);
 
-      setInvalidationGuild(5);
+      setInvalidationCommunity(5);
       await invalidate(q.notifications());
 
       expect(notifications()).toBe(true);
-      expect(guildTasks()).toBe(false);
+      expect(communityTasks()).toBe(false);
     });
 
-    // The guild member roster is guild-scoped (`/api/v1/c/{id}/users/`) even though
+    // The community member roster is community-scoped (`/api/v1/c/{id}/users/`) even though
     // its mutations go through the platform `/api/v1/communities/...` path — a role change
-    // must refresh the active guild's roster without a manual reload.
-    it("guild member invalidation hits the active guild roster only", async () => {
+    // must refresh the active community's roster without a manual reload.
+    it("community member invalidation hits the active community roster only", async () => {
       const activeRoster = seed(["/api/v1/c/5/users/", { page: 2, page_size: 20 }]);
       const activeSearch = seed(["/api/v1/c/5/users/search", { search: "ada" }]);
       const otherRoster = seed(["/api/v1/c/7/users/"]);
 
-      setInvalidationGuild(5);
-      await invalidate(q.guildMembers());
+      setInvalidationCommunity(5);
+      await invalidate(q.communityMembers());
 
       expect(activeRoster()).toBe(true);
       expect(activeSearch()).toBe(true);
       expect(otherRoster()).toBe(false);
     });
 
-    // Spanning helper: reaches platform AI (personal) AND the active guild's AI
-    // settings, but still never another guild's.
-    it("all-AI-settings spans both families without crossing guilds", async () => {
+    // Spanning helper: reaches platform AI (personal) AND the active community's AI
+    // settings, but still never another community's.
+    it("all-AI-settings spans both families without crossing communities", async () => {
       const platform = seed(["/api/v1/settings/ai/platform"]);
-      const guildAI = seed(["/api/v1/c/5/settings/ai/resolved"]);
-      const otherGuildAI = seed(["/api/v1/c/7/settings/ai/resolved"]);
+      const communityAI = seed(["/api/v1/c/5/settings/ai/resolved"]);
+      const otherCommunityAI = seed(["/api/v1/c/7/settings/ai/resolved"]);
 
-      setInvalidationGuild(5);
+      setInvalidationCommunity(5);
       await invalidate(q.allAISettings());
 
       expect(platform()).toBe(true);
-      expect(guildAI()).toBe(true);
-      expect(otherGuildAI()).toBe(false);
+      expect(communityAI()).toBe(true);
+      expect(otherCommunityAI()).toBe(false);
     });
   });
 
-  describe("guild switch", () => {
+  describe("community switch", () => {
     // Reset (unlike invalidate) drops the data, so a surviving key is one whose
     // cached value is still there afterwards.
     const survives = (key: readonly unknown[]) => {
@@ -158,8 +158,8 @@ describe("query-keys guild scoping", () => {
       return () => queryClient.getQueryData(key) !== undefined;
     };
 
-    it("drops guild-scoped data and keeps every key that addresses no guild", async () => {
-      const guildScoped = survives(["/api/v1/c/5/projects/"]);
+    it("drops community-scoped data and keeps every key that addresses no community", async () => {
+      const communityScoped = survives(["/api/v1/c/5/projects/"]);
       const kept = [
         ["/api/v1/communities/"],
         ["/api/v1/communities/directory", { search: "chess" }],
@@ -169,32 +169,32 @@ describe("query-keys guild scoping", () => {
         // The recents bar spans every community, so a switch must not blank it.
         ["/api/v1/recents/"],
         ["dm", "inbox"],
-        // Hand-written guild keys carry their guild, so another guild never reads them.
+        // Hand-written community keys carry their community, so another community never reads them.
         ["query", 5, "SELECT 1", null],
       ].map(survives);
 
-      await resetGuildScopedQueries();
+      await resetCommunityScopedQueries();
 
-      expect(guildScoped()).toBe(false);
+      expect(communityScoped()).toBe(false);
       for (const key of kept) expect(key()).toBe(true);
     });
 
-    it("keeps the arriving guild's own data — it is not the departing guild's", async () => {
+    it("keeps the arriving community's own data — it is not the departing community's", async () => {
       const arriving = survives(["/api/v1/c/5/projects/"]);
       const arrivingDetail = survives(["/api/v1/c/5/tasks/12"]);
       const departing = survives(["/api/v1/c/4/projects/"]);
 
-      await resetGuildScopedQueries(5);
+      await resetCommunityScopedQueries(5);
 
       expect(arriving()).toBe(true);
       expect(arrivingDetail()).toBe(true);
       expect(departing()).toBe(false);
     });
 
-    it("still drops everything guild-scoped when no arriving guild is named", async () => {
+    it("still drops everything community-scoped when no arriving community is named", async () => {
       const five = survives(["/api/v1/c/5/projects/"]);
 
-      await resetGuildScopedQueries();
+      await resetCommunityScopedQueries();
 
       expect(five()).toBe(false);
     });
@@ -213,12 +213,12 @@ describe("query-keys guild scoping", () => {
 describe("patchCachedPost", () => {
   beforeEach(() => {
     queryClient.clear();
-    setInvalidationGuild(null);
+    setInvalidationCommunity(null);
   });
 
   afterEach(() => {
     queryClient.clear();
-    setInvalidationGuild(null);
+    setInvalidationCommunity(null);
   });
 
   const markRead = (post: Record<string, unknown>) => ({ ...post, is_read: true });

@@ -109,7 +109,7 @@
     "some_other": "{{count}} Kalender",
     "label": "Anzuzeigende Kalender auswählen"
   },
-  "guildScope": {
+  "communityScope": {
     "empty": "Noch keine Kalender.",
     "emptyHint": "Lege einen an — für Feiertage, ein regelmäßiges Treffen oder einfach für dich."
   },

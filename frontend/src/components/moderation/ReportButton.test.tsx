@@ -12,7 +12,7 @@ import { describe, expect, it, vi } from "vitest";
 import { buildUser } from "@/__tests__/factories";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 
-vi.mock("@/hooks/useActiveGuildId", () => ({ useActiveGuildId: () => 3 }));
+vi.mock("@/hooks/useActiveCommunityId", () => ({ useActiveCommunityId: () => 3 }));
 vi.mock("@/hooks/useTickets", async () => {
   const actual = await vi.importActual<typeof import("@/hooks/useTickets")>("@/hooks/useTickets");
   return {

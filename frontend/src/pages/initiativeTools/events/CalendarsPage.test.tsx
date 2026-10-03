@@ -4,8 +4,8 @@ import { endOfDay, endOfMonth, format, startOfDay, startOfMonth } from "date-fns
 import { HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
 
-import { buildGuild, buildProject, buildTask, writerCan } from "@/__tests__/factories";
-import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { buildCommunity, buildProject, buildTask, writerCan } from "@/__tests__/factories";
+import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { createTestQueryClient, renderPage } from "@/__tests__/helpers/render";
 import type { FilterCondition, FilterGroup } from "@/api/generated/initiativeAPI.schemas";
@@ -55,11 +55,11 @@ function stubEntries(
 ) {
   const requests: URLSearchParams[] = [];
   server.use(
-    guildHttp.get("/calendar-entries/", ({ request }) => {
+    communityHttp.get("/calendar-entries/", ({ request }) => {
       requests.push(new URL(request.url).searchParams);
       return HttpResponse.json({ events, tasks });
     }),
-    guildHttp.get("/calendars/", () =>
+    communityHttp.get("/calendars/", () =>
       HttpResponse.json({
         items: calendars,
         total_count: calendars.length,
@@ -68,7 +68,7 @@ function stubEntries(
         has_next: false,
       })
     ),
-    guildHttp.get("/projects/", () =>
+    communityHttp.get("/projects/", () =>
       HttpResponse.json({
         items: projects,
         total_count: projects.length,
@@ -110,7 +110,7 @@ describe("CalendarsView calendar-entries query", () => {
   it("says why a range could not be shown", async () => {
     stubEntries({});
     server.use(
-      guildHttp.get("/calendar-entries/", () =>
+      communityHttp.get("/calendar-entries/", () =>
         HttpResponse.json({ detail: "CALENDAR_WINDOW_TOO_FULL" }, { status: 422 })
       )
     );
@@ -231,7 +231,7 @@ describe("CalendarsView calendar-entries query", () => {
     const requests = stubEntries({}, undefined, [calendar]);
     const exports: URLSearchParams[] = [];
     server.use(
-      guildHttp.get("/exports/events", ({ request }) => {
+      communityHttp.get("/exports/events", ({ request }) => {
         exports.push(new URL(request.url).searchParams);
         return new HttpResponse("BEGIN:VCALENDAR", {
           headers: { "Content-Type": "text/calendar" },
@@ -274,9 +274,9 @@ describe("CalendarsView calendar-entries query", () => {
   });
 });
 
-describe("CalendarsView on a guild calendar", () => {
-  /** The calendar the app mounts: guild-level, so it belongs to no initiative. */
-  const guildCalendar = {
+describe("CalendarsView on a community calendar", () => {
+  /** The calendar the app mounts: community-level, so it belongs to no initiative. */
+  const communityCalendar = {
     id: 42,
     name: "Community calendar",
     description: null,
@@ -299,11 +299,11 @@ describe("CalendarsView on a guild calendar", () => {
     const calendarList: string[] = [];
     const projectList: string[] = [];
     server.use(
-      guildHttp.get("/calendar-entries/", ({ request }) => {
+      communityHttp.get("/calendar-entries/", ({ request }) => {
         entries.push(new URL(request.url).searchParams);
         return HttpResponse.json({ events: [], tasks: [] });
       }),
-      guildHttp.get("/calendars/", ({ request }) => {
+      communityHttp.get("/calendars/", ({ request }) => {
         calendarList.push(request.url);
         return HttpResponse.json({
           items: [],
@@ -313,7 +313,7 @@ describe("CalendarsView on a guild calendar", () => {
           has_next: false,
         });
       }),
-      guildHttp.get("/projects/", ({ request }) => {
+      communityHttp.get("/projects/", ({ request }) => {
         projectList.push(request.url);
         return HttpResponse.json({
           items: [],
@@ -329,7 +329,7 @@ describe("CalendarsView on a guild calendar", () => {
     queryClient.setQueryData(VIEW_PREFERENCES_QUERY_KEY, {
       items: { [CALENDAR_VIEW_MODE_KEY]: "list" },
     });
-    const Page = () => <CalendarsView soloCalendar={guildCalendar} />;
+    const Page = () => <CalendarsView soloCalendar={communityCalendar} />;
     renderPage(Page, { queryClient });
 
     await waitFor(() => expect(entries.length).toBeGreaterThan(0));
@@ -341,19 +341,19 @@ describe("CalendarsView on a guild calendar", () => {
     expect(screen.getByRole("link", { name: "Settings" })).toBeInTheDocument();
 
     // Exactly this calendar, no task leg, and no initiative to narrow to.
-    expect(entries[0].getAll("calendar_ids")).toEqual([String(guildCalendar.id)]);
+    expect(entries[0].getAll("calendar_ids")).toEqual([String(communityCalendar.id)]);
     expect(entries[0].get("include_tasks")).toBe("false");
     expect(entries[0].get("initiative_id")).toBeNull();
 
     // The panel, the task-calendar rows and the filter bar are all initiative-
-    // shaped, so the surface never lists the guild's calendars or projects.
+    // shaped, so the surface never lists the community's calendars or projects.
     expect(calendarList).toEqual([]);
     expect(projectList).toEqual([]);
   });
 });
 
 describe("CalendarsView on the calendar app's own surface", () => {
-  const guildCalendar = (id: number, name: string) => ({
+  const communityCalendar = (id: number, name: string) => ({
     id,
     name,
     description: null,
@@ -370,17 +370,20 @@ describe("CalendarsView on the calendar app's own surface", () => {
     grants: [],
   });
 
-  /** Serve the guild's calendars, recording what the page asked for. */
-  function stubGuildScope(calendars: ReturnType<typeof guildCalendar>[], events: unknown[] = []) {
+  /** Serve the community's calendars, recording what the page asked for. */
+  function stubCommunityScope(
+    calendars: ReturnType<typeof communityCalendar>[],
+    events: unknown[] = []
+  ) {
     const entries: URLSearchParams[] = [];
     const calendarList: URLSearchParams[] = [];
     const projectList: string[] = [];
     server.use(
-      guildHttp.get("/calendar-entries/", ({ request }) => {
+      communityHttp.get("/calendar-entries/", ({ request }) => {
         entries.push(new URL(request.url).searchParams);
         return HttpResponse.json({ events, tasks: [] });
       }),
-      guildHttp.get("/calendars/", ({ request }) => {
+      communityHttp.get("/calendars/", ({ request }) => {
         calendarList.push(new URL(request.url).searchParams);
         return HttpResponse.json({
           items: calendars,
@@ -390,7 +393,7 @@ describe("CalendarsView on the calendar app's own surface", () => {
           has_next: false,
         });
       }),
-      guildHttp.get("/projects/", ({ request }) => {
+      communityHttp.get("/projects/", ({ request }) => {
         projectList.push(request.url);
         return HttpResponse.json({
           items: [],
@@ -404,26 +407,26 @@ describe("CalendarsView on the calendar app's own surface", () => {
     return { entries, calendarList, projectList };
   }
 
-  function renderGuildScope() {
+  function renderCommunityScope() {
     const queryClient = createTestQueryClient();
     queryClient.setQueryData(VIEW_PREFERENCES_QUERY_KEY, {
       items: { [CALENDAR_VIEW_MODE_KEY]: "list" },
     });
     // The community's own calendars are its admins' to add.
-    const guild = buildGuild({ id: 1, role: "admin" });
-    return renderPage(() => <CalendarsView guildScope />, {
+    const community = buildCommunity({ id: 1, role: "admin" });
+    return renderPage(() => <CalendarsView communityScope />, {
       queryClient,
-      guilds: { activeGuildId: 1, activeGuild: guild, guilds: [guild] },
+      communities: { activeCommunityId: 1, activeCommunity: community, communities: [community] },
     });
   }
 
-  it("asks for the guild's own calendars and overlays all of them", async () => {
-    const { entries, calendarList, projectList } = stubGuildScope([
-      guildCalendar(42, "Holidays"),
-      guildCalendar(43, "Game nights"),
+  it("asks for the community's own calendars and overlays all of them", async () => {
+    const { entries, calendarList, projectList } = stubCommunityScope([
+      communityCalendar(42, "Holidays"),
+      communityCalendar(43, "Game nights"),
     ]);
 
-    renderGuildScope();
+    renderCommunityScope();
 
     await waitFor(() => expect(entries.length).toBeGreaterThan(0));
 
@@ -457,10 +460,13 @@ describe("CalendarsView on the calendar app's own surface", () => {
   };
 
   it("lets a reader hide one of them, and keeps it hidden the next time", async () => {
-    stubGuildScope([guildCalendar(42, "Holidays"), guildCalendar(43, "Game nights")], [midsummer]);
+    stubCommunityScope(
+      [communityCalendar(42, "Holidays"), communityCalendar(43, "Game nights")],
+      [midsummer]
+    );
 
     const user = userEvent.setup();
-    const { unmount } = renderGuildScope();
+    const { unmount } = renderCommunityScope();
 
     expect(await screen.findByText("Midsummer")).toBeInTheDocument();
 
@@ -469,7 +475,7 @@ describe("CalendarsView on the calendar app's own surface", () => {
     await waitFor(() => expect(screen.queryByText("Midsummer")).toBeNull());
 
     unmount();
-    renderGuildScope();
+    renderCommunityScope();
 
     // One calendar left on: the title is its name, with its settings beside it.
     expect(await screen.findByRole("button", { name: "Game nights" })).toBeInTheDocument();
@@ -478,10 +484,10 @@ describe("CalendarsView on the calendar app's own surface", () => {
   });
 
   it("exports every date of the calendars on screen, leaving out a hidden one", async () => {
-    stubGuildScope([guildCalendar(42, "Holidays"), guildCalendar(43, "Game nights")]);
+    stubCommunityScope([communityCalendar(42, "Holidays"), communityCalendar(43, "Game nights")]);
     const exports: URLSearchParams[] = [];
     server.use(
-      guildHttp.get("/exports/events", ({ request }) => {
+      communityHttp.get("/exports/events", ({ request }) => {
         exports.push(new URL(request.url).searchParams);
         return new HttpResponse("BEGIN:VCALENDAR", {
           headers: { "Content-Type": "text/calendar" },
@@ -490,7 +496,7 @@ describe("CalendarsView on the calendar app's own surface", () => {
     );
 
     const user = userEvent.setup();
-    renderGuildScope();
+    renderCommunityScope();
 
     await user.click(await screen.findByRole("button", { name: /^export$/i }));
     await waitFor(() => expect(exports).toHaveLength(1));
@@ -508,9 +514,9 @@ describe("CalendarsView on the calendar app's own surface", () => {
   });
 
   it("titles the page with the picker and puts the way to add a calendar on it", async () => {
-    stubGuildScope([guildCalendar(42, "Holidays"), guildCalendar(43, "Game nights")]);
+    stubCommunityScope([communityCalendar(42, "Holidays"), communityCalendar(43, "Game nights")]);
 
-    renderGuildScope();
+    renderCommunityScope();
 
     // The picker is the page's title: this surface has no other filter, so
     // there is no disclosure to open before reaching it.
@@ -523,14 +529,14 @@ describe("CalendarsView on the calendar app's own surface", () => {
   });
 
   it("says how many calendars are showing, and shows them all again from the top", async () => {
-    stubGuildScope([
-      guildCalendar(42, "Holidays"),
-      guildCalendar(43, "Game nights"),
-      guildCalendar(44, "Birthdays"),
+    stubCommunityScope([
+      communityCalendar(42, "Holidays"),
+      communityCalendar(43, "Game nights"),
+      communityCalendar(44, "Birthdays"),
     ]);
 
     const user = userEvent.setup();
-    renderGuildScope();
+    renderCommunityScope();
 
     await user.click(await screen.findByRole("button", { name: "All calendars" }));
     await user.click(await screen.findByRole("checkbox", { name: "Holidays" }));
@@ -542,9 +548,9 @@ describe("CalendarsView on the calendar app's own surface", () => {
   });
 
   it("offers to make the first one rather than showing an empty grid", async () => {
-    stubGuildScope([]);
+    stubCommunityScope([]);
 
-    renderGuildScope();
+    renderCommunityScope();
 
     expect(await screen.findByText(/no calendars yet/i)).toBeInTheDocument();
     // An admin adds one here without holding an initiative role.

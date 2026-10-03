@@ -4,9 +4,9 @@ import { useTranslation } from "react-i18next";
 
 import { type CommunityCategory, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { useAuth } from "@/hooks/useAuth";
-import { useGuilds } from "@/hooks/useGuilds";
+import { useCommunities } from "@/hooks/useCommunities";
 import { toast } from "@/lib/chesterToast";
-import { guildPath } from "@/lib/guildUrl";
+import { communityPath } from "@/lib/communityUrl";
 import {
   clearStart,
   findStartedCommunity,
@@ -22,10 +22,10 @@ import { toolDetailRoute } from "@/lib/tools";
 export const useLandOnStarter = () => {
   const navigate = useNavigate();
   return useCallback(
-    async (guildId: number, starter: Starter | null) => {
+    async (communityId: number, starter: Starter | null) => {
       await navigate({
-        to: guildPath(
-          guildId,
+        to: communityPath(
+          communityId,
           starter?.projectId
             ? toolDetailRoute(Tool.project, starter.initiativeId, starter.projectId)
             : "/"
@@ -53,9 +53,9 @@ export const useOpenDirectory = () => {
 export const useSeedStarter = () => {
   const { t } = useTranslation("auth");
   return useCallback(
-    async (guildId: number, answers: StartAnswers): Promise<Starter | null> => {
+    async (communityId: number, answers: StartAnswers): Promise<Starter | null> => {
       try {
-        return await seedStarter(guildId, answers);
+        return await seedStarter(communityId, answers);
       } catch {
         toast.error(t("start.starterError"));
         return null;
@@ -71,7 +71,7 @@ export const useSeedStarter = () => {
  */
 export const useFinishPendingStart = (): void => {
   const { user } = useAuth();
-  const { guilds, loading, refreshGuilds } = useGuilds();
+  const { communities, loading, refreshCommunities } = useCommunities();
   const seed = useSeedStarter();
   const landOn = useLandOnStarter();
   const openDirectory = useOpenDirectory();
@@ -94,18 +94,18 @@ export const useFinishPendingStart = (): void => {
     }
     // Kept until the new community is in the list; a list read before it
     // existed is read once more.
-    const guild = findStartedCommunity(guilds, answers);
-    if (!guild) {
+    const community = findStartedCommunity(communities, answers);
+    if (!community) {
       if (!refetched.current) {
         refetched.current = true;
-        void refreshGuilds().catch(() => undefined);
+        void refreshCommunities().catch(() => undefined);
       }
       return;
     }
     done.current = true;
     void (async () => {
       await clearStart();
-      await landOn(guild.id, await seed(guild.id, answers));
+      await landOn(community.id, await seed(community.id, answers));
     })();
-  }, [user, loading, guilds, refreshGuilds, seed, landOn, openDirectory]);
+  }, [user, loading, communities, refreshCommunities, seed, landOn, openDirectory]);
 };

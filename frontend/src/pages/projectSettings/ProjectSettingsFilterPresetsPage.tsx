@@ -3,7 +3,7 @@
  * which one it opens on.
  *
  * Curating presets is a step above write access (a project manager, the owner,
- * or a guild admin). The server decides, and says so on the preset list.
+ * or a community admin). The server decides, and says so on the preset list.
  */
 
 import { useParams } from "@tanstack/react-router";

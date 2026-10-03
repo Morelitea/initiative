@@ -62,7 +62,7 @@
   },
   "connections": {
     "none": "Cette application ne demande aucune configuration.",
-    "guildScope": "Identifiant de la communauté",
+    "communityScope": "Identifiant de la communauté",
     "personalScope": "Votre compte",
     "set": "Renseigné",
     "notSet": "Non renseigné",
@@ -76,7 +76,7 @@
     "cleared": "Identifiant effacé.",
     "memberSet": "Une administratrice ou un administrateur de la communauté l'a configuré.",
     "memberNotSet": "Une administratrice ou un administrateur de la communauté doit encore le configurer.",
-    "guildFlowExplainer": "Celle-ci s'accorde chez le fournisseur plutôt qu'en la saisissant. Se connecter ouvre sa page d'installation, où vous choisissez le compte et ce que cette app peut voir.",
+    "communityFlowExplainer": "Celle-ci s'accorde chez le fournisseur plutôt qu'en la saisissant. Se connecter ouvre sa page d'installation, où vous choisissez le compte et ce que cette app peut voir.",
     "personalExplainer": "Celle-ci vous identifie en tant que vous, donc chaque membre connecte son propre compte. Personne d'autre ne voit le vôtre.",
     "connect": "Connecter",
     "reconnect": "Reconnecter",

@@ -1,18 +1,6 @@
 /**
  * What a write made stale, described once and matched once.
  *
- * NAMING — the UI calls these "communities"; the code calls them guilds.
- * Communities ended up being used far more broadly than the gaming guilds the
- * name was picked for, so the product renamed them. The rename reaches the
- * user-visible strings and the URLs — the UI's `/c/{id}` and the API's
- * `/api/v1/c/{community_id}` and `/api/v1/communities` — and stops there: the
- * database, path parameter names, schema and hook names, and every identifier
- * below still say `guild`, because moving those means a schema migration
- * across every tenant. Treat `guild` in code and `community` in copy and paths
- * as the same thing. This is deliberate and permanent, not a half-finished
- * rename -- if you are adding UI or a route, say community; if you are adding a
- * query, follow the `guild` that is already here.
- *
  * Orval keys queries by URL (e.g. `["/api/v1/tags/"]`), so a domain question
  * ("every task list") is a question about paths. The `q.*` builders answer it
  * as a **description** — a `Spec` naming paths, prefixes and thread ids — and
@@ -31,36 +19,36 @@
  * There are TWO disjoint families of keys, and a match MUST NOT cross between
  * them:
  *
- *  - GUILD-scoped keys live under `/api/v1/c/{guildId}/...`. `guildExact` and
- *    `guildPrefix` reach these and ONLY for the ACTIVE guild — never another
- *    guild, and never a non-guild key. This is the tenancy boundary: a mutation
- *    in one guild can't touch another guild's (or a personal) cached data.
+ *  - COMMUNITY-scoped keys live under `/api/v1/c/{communityId}/...`. `communityExact` and
+ *    `communityPrefix` reach these and ONLY for the ACTIVE community — never another
+ *    community, and never a non-community key. This is the tenancy boundary: a mutation
+ *    in one community can't touch another community's (or a personal) cached data.
  *  - PERSONAL / platform keys are everything else (`/api/v1/me/*`, `/settings`,
  *    `/users`, `/communities`, `/operator`, `/notifications`, `/version`, `/recents`).
  *    `personalExact` and `personalPrefix` reach these and ONLY these.
  *
- * A few resources genuinely span both (a guild list plus its cross-guild `/me`
- * aggregate; platform + guild AI settings). Those name a bucket from each
+ * A few resources genuinely span both (a community list plus its cross-community `/me`
+ * aggregate; platform + community AI settings). Those name a bucket from each
  * family in one `Spec` — still two boundary-respecting tests, decided in one
  * place rather than blurred into one path test. The whole rule now lives in
  * `matches()` below, the only code in the app that decides whether a cached key
- * belongs to the current guild.
+ * belongs to the current community.
  */
 import { PropertyTarget, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { queryClient } from "@/lib/queryClient";
 import { PARENT_TOOL, TOOLS, toolApiPath, toolRouteSegment } from "@/lib/tools";
 
-// The active guild is per-tab React state in `GuildProvider`, mirrored here (a
+// The active community is per-tab React state in `CommunityProvider`, mirrored here (a
 // module var is per-JS-context, so it stays per-tab — unlike shared storage) so
-// the guild matchers can scope without every call site threading a guild id.
-let scopedGuildId: number | null = null;
+// the community matchers can scope without every call site threading a community id.
+let scopedCommunityId: number | null = null;
 
-/** Mirror this tab's active guild so guild invalidation stays scoped to it. */
-export const setInvalidationGuild = (guildId: number | null) => {
-  scopedGuildId = guildId && guildId > 0 ? guildId : null;
+/** Mirror this tab's active community so community invalidation stays scoped to it. */
+export const setInvalidationCommunity = (communityId: number | null) => {
+  scopedCommunityId = communityId && communityId > 0 ? communityId : null;
 };
 
-const GUILD_SEGMENT = /^\/api\/v1\/c\/(\d+)(\/.*)?$/;
+const COMMUNITY_SEGMENT = /^\/api\/v1\/c\/(\d+)(\/.*)?$/;
 
 // ── What a write made stale ──────────────────────────────────────────────────
 
@@ -71,52 +59,52 @@ const GUILD_SEGMENT = /^\/api\/v1\/c\/(\d+)(\/.*)?$/;
  * builder names only the buckets it needs.
  */
 export type Spec = {
-  /** Guild-relative paths matched whole: `/api/v1/tasks/7`. */
-  guildExact?: readonly string[];
-  /** Guild-relative path prefixes: `/api/v1/tasks` reaches the lists under it. */
-  guildPrefix?: readonly string[];
-  /** Non-guild paths matched whole: `/api/v1/version`. */
+  /** Community-relative paths matched whole: `/api/v1/tasks/7`. */
+  communityExact?: readonly string[];
+  /** Community-relative path prefixes: `/api/v1/tasks` reaches the lists under it. */
+  communityPrefix?: readonly string[];
+  /** Non-community paths matched whole: `/api/v1/version`. */
   personalExact?: readonly string[];
-  /** Non-guild path prefixes: `/api/v1/me/tasks`. */
+  /** Non-community path prefixes: `/api/v1/me/tasks`. */
   personalPrefix?: readonly string[];
   /**
-   * Hand-written keys named by their first element and carrying their guild in
-   * the second (`["guild-app", guildId, appId]`). Scoped to the active guild by
-   * that element, like every other guild key.
+   * Hand-written keys named by their first element and carrying their community in
+   * the second (`["community-app", communityId, appId]`). Scoped to the active community by
+   * that element, like every other community key.
    */
-  guildNamed?: readonly string[];
+  communityNamed?: readonly string[];
   /** Hand-written keys matched by their first element alone (`["dm", …]`). */
   named?: readonly string[];
 };
 
 /** One or more specs, merged. Sets, so repeats cost nothing. */
 type Matcher = {
-  guildExact: Set<string>;
-  guildPrefix: string[];
+  communityExact: Set<string>;
+  communityPrefix: string[];
   personalExact: Set<string>;
   personalPrefix: string[];
-  guildNamed: Set<string>;
+  communityNamed: Set<string>;
   named: Set<string>;
 };
 
 const merge = (specs: readonly Spec[]): Matcher => {
   const matcher: Matcher = {
-    guildExact: new Set(),
-    guildPrefix: [],
+    communityExact: new Set(),
+    communityPrefix: [],
     personalExact: new Set(),
     personalPrefix: [],
-    guildNamed: new Set(),
+    communityNamed: new Set(),
     named: new Set(),
   };
   for (const spec of specs) {
-    for (const path of spec.guildExact ?? []) matcher.guildExact.add(path);
+    for (const path of spec.communityExact ?? []) matcher.communityExact.add(path);
     for (const path of spec.personalExact ?? []) matcher.personalExact.add(path);
-    for (const name of spec.guildNamed ?? []) matcher.guildNamed.add(name);
+    for (const name of spec.communityNamed ?? []) matcher.communityNamed.add(name);
     for (const name of spec.named ?? []) matcher.named.add(name);
     // Prefixes stay a list: there are only ever a handful, and each has to be
     // tested against the path rather than looked up.
-    for (const prefix of spec.guildPrefix ?? []) {
-      if (!matcher.guildPrefix.includes(prefix)) matcher.guildPrefix.push(prefix);
+    for (const prefix of spec.communityPrefix ?? []) {
+      if (!matcher.communityPrefix.includes(prefix)) matcher.communityPrefix.push(prefix);
     }
     for (const prefix of spec.personalPrefix ?? []) {
       if (!matcher.personalPrefix.includes(prefix)) matcher.personalPrefix.push(prefix);
@@ -129,27 +117,27 @@ const merge = (specs: readonly Spec[]): Matcher => {
  * Whether one cached query is named by the merged description.
  *
  * The only place in the app that decides which family a key belongs to, and the
- * only place the active guild is compared. A key addressing a guild is answered
- * from the guild buckets and never falls through to the personal ones — another
- * guild's key matches nothing at all.
+ * only place the active community is compared. A key addressing a community is answered
+ * from the community buckets and never falls through to the personal ones — another
+ * community's key matches nothing at all.
  */
 const matches = (matcher: Matcher, queryKey: readonly unknown[]): boolean => {
   const first = queryKey[0];
   if (typeof first !== "string") return false;
 
-  const guild = GUILD_SEGMENT.exec(first);
-  if (guild) {
-    if (scopedGuildId !== null && Number(guild[1]) !== scopedGuildId) return false;
-    const path = `/api/v1${guild[2] ?? ""}`;
-    if (matcher.guildExact.has(path)) return true;
-    for (const prefix of matcher.guildPrefix) {
+  const community = COMMUNITY_SEGMENT.exec(first);
+  if (community) {
+    if (scopedCommunityId !== null && Number(community[1]) !== scopedCommunityId) return false;
+    const path = `/api/v1${community[2] ?? ""}`;
+    if (matcher.communityExact.has(path)) return true;
+    for (const prefix of matcher.communityPrefix) {
       if (path.startsWith(prefix)) return true;
     }
     return false;
   }
 
-  if (matcher.guildNamed.has(first)) {
-    return scopedGuildId === null || queryKey[1] === scopedGuildId;
+  if (matcher.communityNamed.has(first)) {
+    return scopedCommunityId === null || queryKey[1] === scopedCommunityId;
   }
   if (matcher.named.has(first)) return true;
   if (matcher.personalExact.has(first)) return true;
@@ -185,23 +173,23 @@ export const describes = (...specs: readonly Spec[]) => {
 // a local name in any of the fifty-odd files that invalidate something.
 
 const compose = (...specs: Spec[]): Spec => ({
-  guildExact: specs.flatMap((spec) => spec.guildExact ?? []),
-  guildPrefix: specs.flatMap((spec) => spec.guildPrefix ?? []),
+  communityExact: specs.flatMap((spec) => spec.communityExact ?? []),
+  communityPrefix: specs.flatMap((spec) => spec.communityPrefix ?? []),
   personalExact: specs.flatMap((spec) => spec.personalExact ?? []),
   personalPrefix: specs.flatMap((spec) => spec.personalPrefix ?? []),
-  guildNamed: specs.flatMap((spec) => spec.guildNamed ?? []),
+  communityNamed: specs.flatMap((spec) => spec.communityNamed ?? []),
   named: specs.flatMap((spec) => spec.named ?? []),
 });
 
 /**
- * A resource's guild-scoped list AND its cross-guild "my" aggregate.
+ * A resource's community-scoped list AND its cross-community "my" aggregate.
  *
- * The `/api/v1/me/<r>` read is personal, so a guild prefix never reaches it and
+ * The `/api/v1/me/<r>` read is personal, so a community prefix never reaches it and
  * it has to be named explicitly or the "my <resource>" list goes stale until
  * remount.
  */
 const resourceAndMe = (resource: string): Spec => ({
-  guildPrefix: [`/api/v1/${resource}`],
+  communityPrefix: [`/api/v1/${resource}`],
   personalPrefix: [`/api/v1/me/${resource}`],
 });
 
@@ -210,55 +198,57 @@ const resourceAndMe = (resource: string): Spec => ({
 /** Both the reader's queue and the authoring list — one write moves both. */
 const announcements = (): Spec => ({ personalPrefix: ["/api/v1/announcements"] });
 
-// ── Tags (guild) ─────────────────────────────────────────────────────────────
+// ── Tags (community) ─────────────────────────────────────────────────────────────
 
-const allTags = (): Spec => ({ guildPrefix: ["/api/v1/tags"] });
+const allTags = (): Spec => ({ communityPrefix: ["/api/v1/tags"] });
 
-const tag = (tagId: number): Spec => ({ guildExact: [`/api/v1/tags/${tagId}`] });
+const tag = (tagId: number): Spec => ({ communityExact: [`/api/v1/tags/${tagId}`] });
 
-const tagEntities = (tagId: number): Spec => ({ guildExact: [`/api/v1/tags/${tagId}/entities`] });
+const tagEntities = (tagId: number): Spec => ({
+  communityExact: [`/api/v1/tags/${tagId}/entities`],
+});
 
-// ── Tasks (guild + me) ───────────────────────────────────────────────────────
+// ── Tasks (community + me) ───────────────────────────────────────────────────────
 
 // Also names the calendar-entries aggregate (a derived events+tasks view), so a
 // task mutation reflects on the calendar surfaces.
 const allTasks = (): Spec => compose(resourceAndMe("tasks"), resourceAndMe("calendar-entries"));
 
-const task = (taskId: number): Spec => ({ guildExact: [`/api/v1/tasks/${taskId}`] });
+const task = (taskId: number): Spec => ({ communityExact: [`/api/v1/tasks/${taskId}`] });
 
-// ── Projects (guild) ─────────────────────────────────────────────────────────
+// ── Projects (community) ─────────────────────────────────────────────────────────
 
 const projectTaskStatuses = (projectId: number): Spec => ({
-  guildExact: [`/api/v1/projects/${projectId}/task-statuses/`],
+  communityExact: [`/api/v1/projects/${projectId}/task-statuses/`],
 });
 
 const projectFilterPresets = (projectId: number): Spec => ({
-  guildExact: [`/api/v1/projects/${projectId}/filter-presets/`],
+  communityExact: [`/api/v1/projects/${projectId}/filter-presets/`],
 });
 
-// Recents list is a cross-guild personal endpoint (`/api/v1/recents/`, no /c/).
+// Recents list is a cross-community personal endpoint (`/api/v1/recents/`, no /c/).
 const recents = (): Spec => ({ personalExact: ["/api/v1/recents/"] });
 
-const favoriteProjects = (): Spec => ({ guildExact: ["/api/v1/projects/favorites"] });
+const favoriteProjects = (): Spec => ({ communityExact: ["/api/v1/projects/favorites"] });
 
-const writableProjects = (): Spec => ({ guildExact: ["/api/v1/projects/writable"] });
+const writableProjects = (): Spec => ({ communityExact: ["/api/v1/projects/writable"] });
 
-// ── Documents (guild) ────────────────────────────────────────────────────────
+// ── Documents (community) ────────────────────────────────────────────────────────
 
 /** Every read of the graph. One path serves them all, so one bucket does. */
 const relationships = (): Spec => ({
-  guildPrefix: ["/api/v1/relationships"],
+  communityPrefix: ["/api/v1/relationships"],
 });
 
 const documentVersions = (documentId: number): Spec => ({
-  guildExact: [`/api/v1/documents/${documentId}/versions`],
+  communityExact: [`/api/v1/documents/${documentId}/versions`],
 });
 
-// ── Comments (guild) ─────────────────────────────────────────────────────────
+// ── Comments (community) ─────────────────────────────────────────────────────────
 
-const allComments = (): Spec => ({ guildPrefix: ["/api/v1/comments"] });
+const allComments = (): Spec => ({ communityPrefix: ["/api/v1/comments"] });
 
-const recentComments = (): Spec => ({ guildPrefix: ["/api/v1/comments/recent"] });
+const recentComments = (): Spec => ({ communityPrefix: ["/api/v1/comments/recent"] });
 
 // ── Notifications (personal) ─────────────────────────────────────────────────
 
@@ -289,20 +279,20 @@ const contacts = (): Spec => ({ personalPrefix: ["/api/v1/me/contacts"] });
  */
 const directMessages = (): Spec => ({ named: ["dm"] });
 
-// ── Initiatives (guild) ──────────────────────────────────────────────────────
+// ── Initiatives (community) ──────────────────────────────────────────────────────
 
-const allInitiatives = (): Spec => ({ guildPrefix: ["/api/v1/initiatives"] });
+const allInitiatives = (): Spec => ({ communityPrefix: ["/api/v1/initiatives"] });
 
 const initiative = (initiativeId: number): Spec => ({
-  guildExact: [`/api/v1/initiatives/${initiativeId}`],
+  communityExact: [`/api/v1/initiatives/${initiativeId}`],
 });
 
 const initiativeRoles = (initiativeId: number): Spec => ({
-  guildExact: [`/api/v1/initiatives/${initiativeId}/roles`],
+  communityExact: [`/api/v1/initiatives/${initiativeId}/roles`],
 });
 
 const initiativeMembers = (initiativeId: number): Spec => ({
-  guildExact: [`/api/v1/initiatives/${initiativeId}/members`],
+  communityExact: [`/api/v1/initiatives/${initiativeId}/members`],
 });
 
 // One prefix reaches every reader of the queue: the manager's list (keyed with
@@ -310,20 +300,20 @@ const initiativeMembers = (initiativeId: number): Spec => ({
 // view — so a request or an answer never leaves one of them showing the old
 // truth. The directory's own badge rides on `allInitiatives`.
 const initiativeJoinRequests = (initiativeId: number): Spec => ({
-  guildPrefix: [`/api/v1/initiatives/${initiativeId}/join-requests`],
+  communityPrefix: [`/api/v1/initiatives/${initiativeId}/join-requests`],
 });
 
 // ── Settings (personal / platform) ───────────────────────────────────────────
 
 // "All settings" is a blunt flush spanning two DELIBERATELY separate backend
-// scopes: app/platform config (`/api/v1/settings/*`, owner-only) and a guild's
+// scopes: app/platform config (`/api/v1/settings/*`, owner-only) and a community's
 // AI settings (`/api/v1/c/{id}/settings/ai/*`, RLS-scoped). They live on
-// different paths by design — app config isn't guild-specific, and guild AI
-// settings must carry guild context — so name a bucket in each family rather
+// different paths by design — app config isn't community-specific, and community AI
+// settings must carry community context — so name a bucket in each family rather
 // than let one path test cross the boundary. (Not a backend inconsistency.)
 const allSettings = (): Spec => ({
   personalPrefix: ["/api/v1/settings"],
-  guildPrefix: ["/api/v1/settings"],
+  communityPrefix: ["/api/v1/settings"],
 });
 
 const emailSettings = (): Spec => ({ personalExact: ["/api/v1/settings/email"] });
@@ -333,8 +323,8 @@ const authSettings = (): Spec => ({ personalExact: ["/api/v1/settings/auth"] });
 const authProviders = (): Spec => ({ personalExact: ["/api/v1/settings/auth/providers/"] });
 
 /** What one community says its own arrivals look like, and who has agreed. */
-const guildNarrowings = (guildId: number): Spec => ({
-  personalExact: [`/api/v1/settings/communities/${guildId}/narrowings`],
+const communityNarrowings = (communityId: number): Spec => ({
+  personalExact: [`/api/v1/settings/communities/${communityId}/narrowings`],
 });
 
 const storageSettings = (): Spec => ({ personalExact: ["/api/v1/settings/storage"] });
@@ -382,12 +372,12 @@ const ticketAvailability = (): Spec => ({
 /** One initiative's moderation reports. A prefix, so the open list and the
  *  settled one — which differ only in their params — both move on a write. */
 const moderationReports = (initiativeId: number): Spec => ({
-  guildPrefix: [`/api/v1/initiatives/${initiativeId}/reports`],
+  communityPrefix: [`/api/v1/initiatives/${initiativeId}/reports`],
 });
 
-// The platform Guilds tab reads/writes only shared public tables (owner-only),
+// The platform Communities tab reads/writes only shared public tables (owner-only),
 // so its list lives in the personal/platform family, not under any /c/ key.
-const platformGuilds = (): Spec => ({ personalExact: ["/api/v1/settings/communities"] });
+const platformCommunities = (): Spec => ({ personalExact: ["/api/v1/settings/communities"] });
 
 // ── App services (personal / platform) ───────────────────────────────────────
 // Orval keys the list as `/api/v1/app-services/` (trailing slash) and each row
@@ -396,26 +386,26 @@ const platformGuilds = (): Spec => ({ personalExact: ["/api/v1/settings/communit
 // every detail read.
 const appServices = (): Spec => ({ personalPrefix: ["/api/v1/app-services"] });
 
-// ── Installed apps (guild) ───────────────────────────────────────────────────
+// ── Installed apps (community) ───────────────────────────────────────────────────
 // The other half of the same domain: a service is the platform's registration
 // of an app, an install is one community's copy of it.
 //
 // One description for every read of an install, because one write moves all of
 // them — the sidebar's list, the settings dialog's detail, the members view —
-// and because the bus names the install guild-wide, with no parent to carry it.
+// and because the bus names the install community-wide, with no parent to carry it.
 // Two key shapes: the list is Orval's URL key, while the detail and members
-// reads are hand-written and keyed by name. The named pair carries its guild in
-// element 1, so it is scoped like every other guild key rather than by name.
+// reads are hand-written and keyed by name. The named pair carries its community in
+// element 1, so it is scoped like every other community key rather than by name.
 const apps = (): Spec => ({
-  guildPrefix: ["/api/v1/apps"],
-  guildNamed: ["guild-app", "guild-app-members"],
+  communityPrefix: ["/api/v1/apps"],
+  communityNamed: ["community-app", "community-app-members"],
 });
 
-// ── AI Settings (platform config is personal; guild/member/resolved are guild) ──
+// ── AI Settings (platform config is personal; community/member/resolved are community) ──
 
 const allAISettings = (): Spec => ({
   personalPrefix: ["/api/v1/settings/ai"],
-  guildPrefix: ["/api/v1/settings/ai"],
+  communityPrefix: ["/api/v1/settings/ai"],
 });
 
 /** The platform owner's global mode + `allow_member_keys`. */
@@ -426,16 +416,18 @@ const platformAIConnections = (): Spec => ({
   personalExact: ["/api/v1/settings/ai/platform/connections"],
 });
 
-/** A guild admin's own connections list (`/c/{id}/settings/ai/connections`). */
-const guildAIConnections = (): Spec => ({ guildExact: ["/api/v1/settings/ai/connections"] });
+/** A community admin's own connections list (`/c/{id}/settings/ai/connections`). */
+const communityAIConnections = (): Spec => ({
+  communityExact: ["/api/v1/settings/ai/connections"],
+});
 
 /** The member's own view: selected connection, per-connection key state, on/off. */
-const memberAI = (): Spec => ({ guildExact: ["/api/v1/settings/ai/me"] });
+const memberAI = (): Spec => ({ communityExact: ["/api/v1/settings/ai/me"] });
 
-const resolvedAISettings = (): Spec => ({ guildExact: ["/api/v1/settings/ai/resolved"] });
+const resolvedAISettings = (): Spec => ({ communityExact: ["/api/v1/settings/ai/resolved"] });
 
-// The cross-guild personal aggregate powering the "My AI" page (a flat `/me/ai`
-// list across every guild the user belongs to) — personal, never guild-scoped.
+// The cross-community personal aggregate powering the "My AI" page (a flat `/me/ai`
+// list across every community the user belongs to) — personal, never community-scoped.
 const myAI = (): Spec => ({ personalExact: ["/api/v1/me/ai"] });
 
 // ── Users / Operator (personal / platform) ──────────────────────────────────────
@@ -446,26 +438,26 @@ const userStats = (): Spec => ({ personalPrefix: ["/api/v1/me/stats"] });
 
 const operatorUsers = (): Spec => ({ personalPrefix: ["/api/v1/operator"] });
 
-// ── Guild Members (guild) ────────────────────────────────────────────────────
-// The member roster is guild-scoped (`/api/v1/c/{id}/users/`), even though the
+// ── Community Members (community) ────────────────────────────────────────────────────
+// The member roster is community-scoped (`/api/v1/c/{id}/users/`), even though the
 // membership *mutations* go through the platform `/api/v1/communities/{id}/members/…`
-// path. It must stay in the guild bucket. The member search rides along: the
-// pickers read each person's guild role from it. So does the sidebar's people
+// path. It must stay in the community bucket. The member search rides along: the
+// pickers read each person's community role from it. So does the sidebar's people
 // roster.
 
-const guildMembers = (): Spec => ({
-  guildExact: ["/api/v1/users/", "/api/v1/users/search", "/api/v1/users/roster"],
+const communityMembers = (): Spec => ({
+  communityExact: ["/api/v1/users/", "/api/v1/users/search", "/api/v1/users/roster"],
 });
 
-// ── Guilds (personal / platform) ─────────────────────────────────────────────
+// ── Communities (personal / platform) ─────────────────────────────────────────────
 
-const allGuilds = (): Spec => ({ personalPrefix: ["/api/v1/communities"] });
+const allCommunities = (): Spec => ({ personalPrefix: ["/api/v1/communities"] });
 
-const guildInvites = (guildId: number): Spec => ({
-  personalExact: [`/api/v1/communities/${guildId}/invites`],
+const communityInvites = (communityId: number): Spec => ({
+  personalExact: [`/api/v1/communities/${communityId}/invites`],
 });
 
-// ── Calendar Events (guild + me) ─────────────────────────────────────────────
+// ── Calendar Events (community + me) ─────────────────────────────────────────────
 
 // The calendar-entries aggregate unions events + task markers; name it too so
 // event mutations reflect on the calendar surfaces.
@@ -475,10 +467,10 @@ const allCalendarEvents = (): Spec =>
   compose(resourceAndMe("calendar-events"), allCalendarEntries());
 
 const calendarEvent = (eventId: number): Spec => ({
-  guildExact: [`/api/v1/calendar-events/${eventId}`],
+  communityExact: [`/api/v1/calendar-events/${eventId}`],
 });
 
-// ── Posts (guild) ────────────────────────────────────────────────────────────
+// ── Posts (community) ────────────────────────────────────────────────────────────
 
 /**
  * The board's timeline rail only.
@@ -489,27 +481,27 @@ const calendarEvent = (eventId: number): Spec => ({
  * read state, so leaving it alone would show months that have since emptied.
  * This names that one query and nothing else.
  */
-const postTimeline = (): Spec => ({ guildPrefix: ["/api/v1/posts/timeline"] });
+const postTimeline = (): Spec => ({ communityPrefix: ["/api/v1/posts/timeline"] });
 
-// ── Galleries (guild) ────────────────────────────────────────────────────────
+// ── Galleries (community) ────────────────────────────────────────────────────────
 
 /** A gallery's pictures — every page of the list, the timeline rail, and
  *  each picture's own reads and versions — without the gallery row itself. */
 const galleryImages = (galleryId: number): Spec => ({
-  guildPrefix: [`/api/v1/galleries/${galleryId}/images`],
+  communityPrefix: [`/api/v1/galleries/${galleryId}/images`],
 });
 
-// ── Wikis (guild) ────────────────────────────────────────────────────────────
+// ── Wikis (community) ────────────────────────────────────────────────────────────
 
 /** A wiki's pages — the tree and each page's own read — without the wiki row
  *  itself. A page is read by its own id (`/wiki-pages/{id}`), which names no
  *  wiki, so every page read goes too. */
 const wikiPages = (wikiId: number): Spec => ({
-  guildPrefix: [`/api/v1/wikis/${wikiId}/pages`, "/api/v1/wiki-pages"],
+  communityPrefix: [`/api/v1/wikis/${wikiId}/pages`, "/api/v1/wiki-pages"],
 });
 
 /** One page's own read. */
-const wikiPage = (pageId: number): Spec => ({ guildExact: [`/api/v1/wiki-pages/${pageId}`] });
+const wikiPage = (pageId: number): Spec => ({ communityExact: [`/api/v1/wiki-pages/${pageId}`] });
 
 // ── Version (personal) ───────────────────────────────────────────────────────
 
@@ -517,23 +509,23 @@ const version = (): Spec => ({ personalExact: ["/api/v1/version"] });
 
 const latestVersion = (): Spec => ({ personalExact: ["/api/v1/version/latest"] });
 
-// ── Task Statuses (guild) ────────────────────────────────────────────────────
+// ── Task Statuses (community) ────────────────────────────────────────────────────
 
-const allTaskStatuses = (): Spec => ({ guildPrefix: ["/api/v1/projects"] });
+const allTaskStatuses = (): Spec => ({ communityPrefix: ["/api/v1/projects"] });
 
-// ── Properties (guild) ───────────────────────────────────────────────────────
+// ── Properties (community) ───────────────────────────────────────────────────────
 
-const allProperties = (): Spec => ({ guildPrefix: ["/api/v1/property-definitions"] });
+const allProperties = (): Spec => ({ communityPrefix: ["/api/v1/property-definitions"] });
 
-// ── Tools (guild + me) ───────────────────────────────────────────────────────
+// ── Tools (community + me) ───────────────────────────────────────────────────────
 // Every tool is cached the same way, so its keys are one rule over the `Tool`
 // enum rather than a table per tool: a new member is covered the day it lands.
 
 /** The sidebar's per-initiative counts, one query for every tool. */
-const toolCounts = (): Spec => ({ guildExact: ["/api/v1/tools/counts/by-initiative"] });
+const toolCounts = (): Spec => ({ communityExact: ["/api/v1/tools/counts/by-initiative"] });
 
 /**
- * Every list of one tool — its guild-wide list and the cross-guild `/me` twin
+ * Every list of one tool — its community-wide list and the cross-community `/me` twin
  * every tool has — and its page's counts, whose tag tree moves when a row's
  * tags do. A calendar's also reaches the events and entries views, which show
  * its name and colour. Not the sidebar's counts: changing what a row says
@@ -541,7 +533,7 @@ const toolCounts = (): Spec => ({ guildExact: ["/api/v1/tools/counts/by-initiati
  */
 const toolLists = (which: Tool): Spec => {
   const lists = compose(resourceAndMe(toolRouteSegment(which)), {
-    guildPrefix: [`/api/v1/tools/${which}/counts`],
+    communityPrefix: [`/api/v1/tools/${which}/counts`],
   });
   return which === Tool.calendar ? compose(lists, allCalendarEvents()) : lists;
 };
@@ -552,7 +544,7 @@ const toolList = (which: Tool): Spec => compose(toolLists(which), toolCounts());
 
 /** One tool entity's own read. */
 const toolEntity = (which: Tool, id: number): Spec => ({
-  guildExact: [`${toolApiPath(which)}/${id}`],
+  communityExact: [`${toolApiPath(which)}/${id}`],
 });
 
 /**
@@ -562,8 +554,8 @@ const toolEntity = (which: Tool, id: number): Spec => ({
  * project 10.
  */
 const toolSubtree = (which: Tool, id: number): Spec => ({
-  guildExact: [`${toolApiPath(which)}/${id}`],
-  guildPrefix: [`${toolApiPath(which)}/${id}/`],
+  communityExact: [`${toolApiPath(which)}/${id}`],
+  communityPrefix: [`${toolApiPath(which)}/${id}/`],
 });
 
 /** One entity and every list it sits in — what a generic per-tool write makes stale. */
@@ -589,7 +581,7 @@ const gallery = (id: number): Spec => toolEntity(Tool.gallery, id);
 const allWikis = (): Spec => toolList(Tool.wiki);
 const wiki = (id: number): Spec => toolEntity(Tool.wiki, id);
 
-// ── Property values (guild) ──────────────────────────────────────────────────
+// ── Property values (community) ──────────────────────────────────────────────────
 
 /**
  * Every read that shows one kind of row's property values: the kind's own
@@ -606,14 +598,14 @@ const propertyHolder = (target: PropertyTarget): Spec => {
 const allPropertyHolders = (): Spec =>
   compose(...Object.values(PropertyTarget).map(propertyHolder));
 
-// ── Everything this guild shows (cross-tool) ─────────────────────────────────
+// ── Everything this community shows (cross-tool) ─────────────────────────────────
 // Two callers, one description. Gaining (or losing) a membership row changes
-// what the guild returns for every tool, not just the initiative list: the
-// sidebar tree, the discovery directory, and each tool's guild-wide list all
+// what the community returns for every tool, not just the initiative list: the
+// sidebar tree, the discovery directory, and each tool's community-wide list all
 // read differently afterwards. And a realtime frame for a write too large to
 // name its rows one by one says so instead, and this is the answer.
 
-const guildContent = (): Spec =>
+const communityContent = (): Spec =>
   compose(allInitiatives(), ...TOOLS.map(toolList), allTasks(), allComments());
 
 /** Every description, by name. The only export a call site needs beside `invalidate`. */
@@ -627,7 +619,7 @@ export const q = {
   allDashboards,
   allDocuments,
   allGalleries,
-  allGuilds,
+  allCommunities,
   allInitiatives,
   allPosts,
   allProjects,
@@ -644,7 +636,7 @@ export const q = {
   appServices,
   apps,
   authProviders,
-  guildNarrowings,
+  communityNarrowings,
   authSettings,
   calendar,
   captchaSettings,
@@ -668,10 +660,10 @@ export const q = {
   emailSettings,
   favoriteProjects,
   fcmConfig,
-  guildAIConnections,
-  guildContent,
-  guildInvites,
-  guildMembers,
+  communityAIConnections,
+  communityContent,
+  communityInvites,
+  communityMembers,
   ignoredAccounts,
   initiative,
   initiativeJoinRequests,
@@ -684,7 +676,7 @@ export const q = {
   operatorUsers,
   platformAIConnections,
   platformAIMode,
-  platformGuilds,
+  platformCommunities,
   gallery,
   galleryImages,
   post,
@@ -715,29 +707,29 @@ export const q = {
   wikiPages,
 };
 
-// ── Guild Switch ─────────────────────────────────────────────────────────────
+// ── Community Switch ─────────────────────────────────────────────────────────────
 
 /**
- * Drop the departing guild's cached data on a guild switch.
+ * Drop the departing community's cached data on a community switch.
  *
- * Only keys that address a guild (`/api/v1/c/{guildId}/…`) are reset, and not
- * the arriving guild's own: those hold its data, not the departing guild's.
+ * Only keys that address a community (`/api/v1/c/{communityId}/…`) are reset, and not
+ * the arriving community's own: those hold its data, not the departing community's.
  * Online that changes nothing observable — they are stale on mount and refetch
  * anyway — but it is the difference between a cached page and an empty one
  * when the device has no connection to refetch from.
  *
  * Everything else survives. A platform or personal path (`/me/*`, `/users`,
- * `/communities`, `/recents`) answers the same in every guild, and a
- * hand-written key that holds guild data (`["query", guildId, …]`) carries the
- * guild's id, so another guild's entry is never the one read.
+ * `/communities`, `/recents`) answers the same in every community, and a
+ * hand-written key that holds community data (`["query", communityId, …]`) carries the
+ * community's id, so another community's entry is never the one read.
  */
-export const resetGuildScopedQueries = (arrivingGuildId?: number | null) =>
+export const resetCommunityScopedQueries = (arrivingCommunityId?: number | null) =>
   queryClient.resetQueries({
     predicate: (query) => {
       const first = query.queryKey[0];
       if (typeof first !== "string") return false;
-      const match = GUILD_SEGMENT.exec(first);
-      return match !== null && Number(match[1]) !== arrivingGuildId;
+      const match = COMMUNITY_SEGMENT.exec(first);
+      return match !== null && Number(match[1]) !== arrivingCommunityId;
     },
   });
 

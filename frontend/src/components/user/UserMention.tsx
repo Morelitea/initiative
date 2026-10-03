@@ -19,7 +19,7 @@ interface UserMentionProps {
   fallback: string;
   /** The community the mention was written in, where a list spans several.
    *  Defaults to the scope's own. */
-  guildId?: number;
+  communityId?: number;
   /** Render as plain words — see `UserHoverLink`. */
   disableLink?: boolean;
   className?: string;
@@ -38,12 +38,12 @@ interface UserMentionProps {
 export const UserMention = ({
   userId,
   fallback,
-  guildId,
+  communityId,
   disableLink,
   className,
 }: UserMentionProps) => {
   const { t } = useTranslation("common");
-  const { person, ready, failed } = useMentionedPerson(userId, guildId);
+  const { person, ready, failed } = useMentionedPerson(userId, communityId);
 
   let label: ReactNode;
   if (person) {

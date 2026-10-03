@@ -1088,7 +1088,7 @@ async def test_a_session_that_has_not_is_asked_for_it(
     )
     assert refused.status_code == 401
     assert refused.json()["detail"] == ask.refusal
-    assert refused.headers["X-Auth-Step-Up-Guild"] == str(guild_id)
+    assert refused.headers["X-Auth-Step-Up-Community"] == str(guild_id)
     # And the standard form beside it (RFC 9470), for a client that knows
     # OAuth and nothing about this app.
     assert "insufficient_user_authentication" in refused.headers["WWW-Authenticate"]

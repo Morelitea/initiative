@@ -13,7 +13,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useUpdateProject } from "@/hooks/useProjects";
-import { useGuildPath } from "@/lib/guildUrl";
+import { useCommunityPath } from "@/lib/communityUrl";
 import { toolListRoute } from "@/lib/tools";
 
 interface ProjectSettingsAdvancedTabProps {
@@ -28,7 +28,7 @@ export const ProjectSettingsAdvancedTab = ({
   canWriteProject,
 }: ProjectSettingsAdvancedTabProps) => {
   const { t } = useTranslation("projects");
-  const gp = useGuildPath();
+  const gp = useCommunityPath();
 
   const [templateMessage, setTemplateMessage] = useState<string | null>(null);
 

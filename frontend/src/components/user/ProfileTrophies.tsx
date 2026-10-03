@@ -26,7 +26,7 @@ import { cn } from "@/lib/utils";
  * The tray is not decoration. It is what the trophies and their names read
  * against at any brightness, and what makes a collection look like a
  * collection rather than a list. It also holds what the profile has to show —
- * the communities the person is in — the way the guild's tray holds the table
+ * the communities the person is in — the way the community's tray holds the table
  * of whatever its rail has selected. `continues` says the page carries that
  * surface on below the circles, so the tray opens at the bottom instead of
  * closing into a bar of its own.

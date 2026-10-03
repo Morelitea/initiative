@@ -21,7 +21,7 @@ import {
 } from "@/api/generated/initiativeAPI.schemas";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { useGrantAppConsent, useRevokeAppConsent } from "@/hooks/useGuildAppDetail";
+import { useGrantAppConsent, useRevokeAppConsent } from "@/hooks/useCommunityAppDetail";
 import { useInitiatives } from "@/hooks/useInitiatives";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";

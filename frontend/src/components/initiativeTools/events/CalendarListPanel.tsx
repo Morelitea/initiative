@@ -15,7 +15,7 @@ import { useUnreadTree } from "@/hooks/useUnreadTree";
  * calendar-entries tasks payload, never stored server-side. */
 export interface ProjectTaskCalendar {
   projectId: number;
-  guildId: number;
+  communityId: number;
   name: string;
   color: string;
 }
@@ -24,13 +24,13 @@ interface CalendarListPanelProps {
   calendars: CalendarSummary[];
   projectCalendars: ProjectTaskCalendar[];
   /** Callback predicates instead of id sets: callers own the keying (the My
-   * Calendar page is cross-guild, where per-guild ids collide). Visibility
+   * Calendar page is cross-community, where per-community ids collide). Visibility
    * defaults ON so new calendars appear checked. */
   isCalendarHidden: (calendar: CalendarSummary) => boolean;
   isProjectHidden: (project: ProjectTaskCalendar) => boolean;
   onToggleCalendar: (calendar: CalendarSummary) => void;
   onToggleProject: (project: ProjectTaskCalendar) => void;
-  /** Optional display label override (e.g. guild-suffixed cross-guild names). */
+  /** Optional display label override (e.g. community-suffixed cross-community names). */
   calendarLabel?: (calendar: CalendarSummary) => string;
   /** Settings link target for a manageable calendar; null hides the link. */
   settingsPathFor?: (calendar: CalendarSummary) => string | null;
@@ -298,11 +298,11 @@ export const CalendarListPanel = ({
           <ul className="space-y-0.5">
             {projectCalendars.map((project) => (
               <li
-                key={`${project.guildId}-${project.projectId}`}
+                key={`${project.communityId}-${project.projectId}`}
                 className="flex items-center gap-2 rounded px-1 py-0.5"
               >
                 <Checkbox
-                  id={`project-calendar-toggle-${project.guildId}-${project.projectId}`}
+                  id={`project-calendar-toggle-${project.communityId}-${project.projectId}`}
                   checked={!isProjectHidden(project)}
                   onCheckedChange={() => onToggleProject(project)}
                 />
@@ -311,7 +311,7 @@ export const CalendarListPanel = ({
                   style={{ backgroundColor: project.color }}
                 />
                 <Label
-                  htmlFor={`project-calendar-toggle-${project.guildId}-${project.projectId}`}
+                  htmlFor={`project-calendar-toggle-${project.communityId}-${project.projectId}`}
                   className="min-w-0 flex-1 cursor-pointer truncate font-normal text-sm"
                 >
                   {project.name}

@@ -41,8 +41,8 @@ import {
   updateTask,
 } from "@/api/generated/tasks/tasks";
 import { invalidate, q } from "@/api/query-keys";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
-import { useGuildMutation } from "@/hooks/useApiMutation";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
+import { useCommunityMutation } from "@/hooks/useApiMutation";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
@@ -59,41 +59,41 @@ import type { QueryOpts } from "@/types/query";
 // the list row that additionally carries the ``creator`` summary the edit page
 // renders. The list hooks stay on ``TaskListRead``.
 export const useTask = (taskId: number | null, options?: QueryOpts<TaskRead>) => {
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   const { enabled: userEnabled = true, ...rest } = options ?? {};
   return useQuery<TaskRead>({
-    queryKey: getReadTaskQueryKey(guildId, taskId!),
-    queryFn: () => readTask(guildId, taskId!),
+    queryKey: getReadTaskQueryKey(communityId, taskId!),
+    queryFn: () => readTask(communityId, taskId!),
     enabled: taskId !== null && Number.isFinite(taskId) && userEnabled,
     ...rest,
   });
 };
 
 /** The complete task list for `params`: the one key and fetch every reader of it shares. */
-export const tasksQuery = (guildId: number, params: ListTasksParams) => ({
-  queryKey: getListTasksQueryKey(guildId, params),
+export const tasksQuery = (communityId: number, params: ListTasksParams) => ({
+  queryKey: getListTasksQueryKey(communityId, params),
   // page_size=0 walks the server's fetch-all windows for the complete set.
-  queryFn: () => fetchAllPages(listTasks, guildId, params),
+  queryFn: () => fetchAllPages(listTasks, communityId, params),
 });
 
 export const useTasks = (params: ListTasksParams, options?: QueryOpts<TaskListResponse>) => {
-  const guildId = useActiveGuildId();
-  return useQuery<TaskListResponse>({ ...tasksQuery(guildId, params), ...options });
+  const communityId = useActiveCommunityId();
+  return useQuery<TaskListResponse>({ ...tasksQuery(communityId, params), ...options });
 };
 
 export const usePrefetchTasks = () => {
   const qc = useQueryClient();
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   return (params: ListTasksParams) =>
-    qc.prefetchQuery({ ...tasksQuery(guildId, params), staleTime: 30_000 });
+    qc.prefetchQuery({ ...tasksQuery(communityId, params), staleTime: 30_000 });
 };
 
 // ── Task Mutations ──────────────────────────────────────────────────────────
 
 export const useCreateTask = (options?: MutationOpts<TaskRead, Parameters<typeof createTask>[1]>) =>
-  useGuildMutation<TaskRead, Parameters<typeof createTask>[1]>(
+  useCommunityMutation<TaskRead, Parameters<typeof createTask>[1]>(
     {
-      mutationFn: (guildId, data) => createTask(guildId, data),
+      mutationFn: (communityId, data) => createTask(communityId, data),
       invalidate: () => invalidate(q.allTasks()),
       errorKey: "projects:tasks.createError",
     },
@@ -106,17 +106,17 @@ export const useCreateTask = (options?: MutationOpts<TaskRead, Parameters<typeof
 // task_status.category before a status-changing PATCH so the success path can
 // detect "transitioned into done" and fire the visual-feedback effect.
 const findCachedTask = (
-  guildId: number,
+  communityId: number,
   queryClient: ReturnType<typeof useQueryClient>,
   taskId: number
 ): TaskListRead | null => {
-  const direct = queryClient.getQueryData<TaskListRead>(getReadTaskQueryKey(guildId, taskId));
+  const direct = queryClient.getQueryData<TaskListRead>(getReadTaskQueryKey(communityId, taskId));
   if (direct?.task_status) return direct;
 
   const entries = queryClient.getQueriesData<TaskListResponse>({
     predicate: (query) => {
       const first = query.queryKey[0];
-      return typeof first === "string" && first.startsWith(`/api/v1/c/${guildId}/tasks/`);
+      return typeof first === "string" && first.startsWith(`/api/v1/c/${communityId}/tasks/`);
     },
   });
   for (const [, value] of entries) {
@@ -141,9 +141,9 @@ export interface OptimisticStatusChange {
 export interface UpdateTaskVariables {
   taskId: number;
   data: Parameters<typeof updateTask>[2];
-  /** Passthrough request options (e.g. AbortSignal). The guild is the
-   * active route's guild (path param). For cross-guild updates from
-   * personal surfaces use useUpdateTaskInGuild instead. */
+  /** Passthrough request options (e.g. AbortSignal). The community is the
+   * active route's community (path param). For cross-community updates from
+   * personal surfaces use useUpdateTaskInCommunity instead. */
   params?: Parameters<typeof updateTask>[3];
   statusChange?: OptimisticStatusChange;
 }
@@ -156,18 +156,18 @@ export const useUpdateTask = (
 ) => {
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
   const queryClient = useQueryClient();
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   const { user } = useAuth();
 
   return useMutation({
     ...rest,
     mutationFn: async ({ taskId, data, params }: UpdateTaskVariables) => {
-      return updateTask(guildId, taskId, withZone(data), params);
+      return updateTask(communityId, taskId, withZone(data), params);
     },
     onMutate: ({ taskId, statusChange }) => {
       // Snapshot the task's previous status category so onSuccess can detect
       // the non-done -> done transition that fires the celebratory effect.
-      const cached = findCachedTask(guildId, queryClient, taskId);
+      const cached = findCachedTask(communityId, queryClient, taskId);
       if (!statusChange) {
         return { previousCategory: cached?.task_status?.category ?? null };
       }
@@ -215,13 +215,13 @@ export const useUpdateTask = (
  */
 export const useSetTaskDone = () => {
   const { t } = useTranslation("tasks");
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   const queryClient = useQueryClient();
   const [resolving, setResolving] = useState(false);
   const { mutateAsync, isPending } = useUpdateTask({
     onSuccess: () =>
       queryClient.invalidateQueries({
-        queryKey: getReadSmartChipsQueryKey(guildId),
+        queryKey: getReadSmartChipsQueryKey(communityId),
       }),
   });
 
@@ -231,10 +231,10 @@ export const useSetTaskDone = () => {
       let targetId: number | null = null;
       try {
         const task = await queryClient.fetchQuery({
-          queryKey: getReadTaskQueryKey(guildId, taskId),
-          queryFn: () => readTask(guildId, taskId),
+          queryKey: getReadTaskQueryKey(communityId, taskId),
+          queryFn: () => readTask(communityId, taskId),
         });
-        const statuses = await listTaskStatuses(guildId, task.project_id);
+        const statuses = await listTaskStatuses(communityId, task.project_id);
         targetId = statusForCategory(statuses, done ? "done" : "in_progress")?.id ?? null;
       } catch (error) {
         toast.error(getErrorMessage(error, "tasks:errors.statusUpdate"));
@@ -249,23 +249,23 @@ export const useSetTaskDone = () => {
       // A failed update is reported by the update itself.
       await mutateAsync({ taskId, data: { task_status_id: targetId } }).catch(() => undefined);
     },
-    [guildId, mutateAsync, queryClient, t]
+    [communityId, mutateAsync, queryClient, t]
   );
 
   return { setDone, pending: resolving || isPending };
 };
 
 /**
- * Cross-guild task update for personal/My-Tasks surfaces. The task lives in its
- * OWN guild (per-guild task ids collide), so the guild is passed EXPLICITLY in
+ * Cross-community task update for personal/My-Tasks surfaces. The task lives in its
+ * OWN community (per-community task ids collide), so the community is passed EXPLICITLY in
  * the mutation variables rather than read from the active route. This is a
- * separate endpoint call from {@link useUpdateTask}, which is guild-page bound.
+ * separate endpoint call from {@link useUpdateTask}, which is community-page bound.
  */
-export const useUpdateTaskInGuild = (
+export const useUpdateTaskInCommunity = (
   options?: MutationOpts<
     TaskRead,
     {
-      guildId: number;
+      communityId: number;
       taskId: number;
       data: Parameters<typeof updateTask>[2];
     }
@@ -278,18 +278,18 @@ export const useUpdateTaskInGuild = (
   return useMutation({
     ...rest,
     mutationFn: async ({
-      guildId,
+      communityId,
       taskId,
       data,
     }: {
-      guildId: number;
+      communityId: number;
       taskId: number;
       data: Parameters<typeof updateTask>[2];
     }) => {
-      return updateTask(guildId, taskId, withZone(data));
+      return updateTask(communityId, taskId, withZone(data));
     },
-    onMutate: ({ guildId, taskId }) => {
-      const cached = findCachedTask(guildId, queryClient, taskId);
+    onMutate: ({ communityId, taskId }) => {
+      const cached = findCachedTask(communityId, queryClient, taskId);
       return { previousCategory: cached?.task_status?.category ?? null };
     },
     onSuccess: (...args) => {
@@ -319,10 +319,10 @@ export const useUpdateTaskInGuild = (
 type DeleteTaskVariables = { taskId: number; scope?: TaskUpdateScope };
 
 export const useDeleteTask = (options?: MutationOpts<void, DeleteTaskVariables>) =>
-  useGuildMutation<void, DeleteTaskVariables>(
+  useCommunityMutation<void, DeleteTaskVariables>(
     {
-      mutationFn: (guildId, { taskId, scope }) =>
-        deleteTask(guildId, taskId, scope ? { scope } : undefined),
+      mutationFn: (communityId, { taskId, scope }) =>
+        deleteTask(communityId, taskId, scope ? { scope } : undefined),
       invalidate: () => invalidate(q.allTasks()),
       errorKey: "projects:tasks.bulkDeleteError",
     },
@@ -331,9 +331,9 @@ export const useDeleteTask = (options?: MutationOpts<void, DeleteTaskVariables>)
 
 /** Move a repeating task on to its next occurrence without completing it. */
 export const useSkipTask = (options?: MutationOpts<TaskRead, number>) =>
-  useGuildMutation<TaskRead, number>(
+  useCommunityMutation<TaskRead, number>(
     {
-      mutationFn: (guildId, taskId) => skipTask(guildId, taskId),
+      mutationFn: (communityId, taskId) => skipTask(communityId, taskId),
       invalidate: (_data, taskId) => invalidate(q.allTasks(), q.task(taskId)),
       errorKey: "tasks:edit.skipError",
     },
@@ -341,10 +341,10 @@ export const useSkipTask = (options?: MutationOpts<TaskRead, number>) =>
   );
 
 export const useBulkDeleteTasks = (options?: MutationOpts<void, number[]>) =>
-  useGuildMutation<void, number[]>(
+  useCommunityMutation<void, number[]>(
     {
-      mutationFn: async (guildId, taskIds) => {
-        await Promise.all(taskIds.map((id) => deleteTask(guildId, id)));
+      mutationFn: async (communityId, taskIds) => {
+        await Promise.all(taskIds.map((id) => deleteTask(communityId, id)));
       },
       invalidate: () => invalidate(q.allTasks()),
       errorKey: "projects:tasks.bulkDeleteError",
@@ -358,10 +358,13 @@ export const useBulkUpdateTasks = (
     { taskIds: number[]; changes: Parameters<typeof updateTask>[2] }
   >
 ) =>
-  useGuildMutation<TaskRead[], { taskIds: number[]; changes: Parameters<typeof updateTask>[2] }>(
+  useCommunityMutation<
+    TaskRead[],
+    { taskIds: number[]; changes: Parameters<typeof updateTask>[2] }
+  >(
     {
-      mutationFn: (guildId, { taskIds, changes }) =>
-        Promise.all(taskIds.map((taskId) => updateTask(guildId, taskId, withZone(changes)))),
+      mutationFn: (communityId, { taskIds, changes }) =>
+        Promise.all(taskIds.map((taskId) => updateTask(communityId, taskId, withZone(changes)))),
       invalidate: () => invalidate(q.allTasks()),
       errorKey: "projects:tasks.bulkUpdateError",
     },
@@ -369,10 +372,10 @@ export const useBulkUpdateTasks = (
   );
 
 export const useBulkArchiveTasks = (options?: MutationOpts<ArchiveResponse[], number[]>) =>
-  useGuildMutation<ArchiveResponse[], number[]>(
+  useCommunityMutation<ArchiveResponse[], number[]>(
     {
-      mutationFn: (guildId, taskIds) =>
-        Promise.all(taskIds.map((taskId) => archiveEntity(guildId, "task", taskId))),
+      mutationFn: (communityId, taskIds) =>
+        Promise.all(taskIds.map((taskId) => archiveEntity(communityId, "task", taskId))),
       invalidate: () => invalidate(q.allTasks()),
       errorKey: "projects:tasks.archiveError",
     },
@@ -382,10 +385,10 @@ export const useBulkArchiveTasks = (options?: MutationOpts<ArchiveResponse[], nu
 export const useMoveTask = (
   options?: MutationOpts<TaskRead, { taskId: number; targetProjectId: number }>
 ) =>
-  useGuildMutation<TaskRead, { taskId: number; targetProjectId: number }>(
+  useCommunityMutation<TaskRead, { taskId: number; targetProjectId: number }>(
     {
-      mutationFn: (guildId, { taskId, targetProjectId }) =>
-        moveTask(guildId, taskId, {
+      mutationFn: (communityId, { taskId, targetProjectId }) =>
+        moveTask(communityId, taskId, {
           target_project_id: targetProjectId,
         }),
       invalidate: () => invalidate(q.allTasks()),
@@ -395,9 +398,9 @@ export const useMoveTask = (
   );
 
 export const useDuplicateTask = (options?: MutationOpts<TaskRead, number>) =>
-  useGuildMutation<TaskRead, number>(
+  useCommunityMutation<TaskRead, number>(
     {
-      mutationFn: (guildId, taskId) => duplicateTask(guildId, taskId),
+      mutationFn: (communityId, taskId) => duplicateTask(communityId, taskId),
       invalidate: () => invalidate(q.allTasks()),
       errorKey: "common:error",
     },
@@ -407,13 +410,13 @@ export const useDuplicateTask = (options?: MutationOpts<TaskRead, number>) =>
 export const useReorderTasks = (options?: MutationOpts<TaskRead[], TaskReorderRequest>) => {
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
   const queryClient = useQueryClient();
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   const { user } = useAuth();
 
   return useMutation({
     ...rest,
     mutationFn: async (payload: TaskReorderRequest) => {
-      return reorderTasks(guildId, payload as Parameters<typeof reorderTasks>[1]);
+      return reorderTasks(communityId, payload as Parameters<typeof reorderTasks>[1]);
     },
     onMutate: (payload) => {
       // Detect non-done -> done transitions in this reorder by inspecting
@@ -430,12 +433,14 @@ export const useReorderTasks = (options?: MutationOpts<TaskRead[], TaskReorderRe
       let assignedTransitionToDone = false;
       if (user) {
         for (const item of payload.items) {
-          const cached = findCachedTask(guildId, queryClient, item.id);
+          const cached = findCachedTask(communityId, queryClient, item.id);
           if (!cached) continue;
           if (cached.task_status_id === item.task_status_id) continue; // unchanged
           if (cached.task_status?.category === "done") continue; // already done
           const newStatus = queryClient
-            .getQueryData<TaskStatusRead[]>(getListTaskStatusesQueryKey(guildId, cached.project_id))
+            .getQueryData<TaskStatusRead[]>(
+              getListTaskStatusesQueryKey(communityId, cached.project_id)
+            )
             ?.find((s) => s.id === item.task_status_id);
           if (newStatus?.category !== "done") continue; // not moving into done
           didTransitionToDone = true;
@@ -471,10 +476,10 @@ export const useReorderTasks = (options?: MutationOpts<TaskRead[], TaskReorderRe
 export const useArchiveDoneTasks = (
   options?: MutationOpts<ArchiveDoneResponse, { projectId: number; taskStatusId?: number }>
 ) =>
-  useGuildMutation<ArchiveDoneResponse, { projectId: number; taskStatusId?: number }>(
+  useCommunityMutation<ArchiveDoneResponse, { projectId: number; taskStatusId?: number }>(
     {
-      mutationFn: (guildId, { projectId, taskStatusId }) =>
-        archiveDoneTasks(guildId, {
+      mutationFn: (communityId, { projectId, taskStatusId }) =>
+        archiveDoneTasks(communityId, {
           project_id: projectId,
           ...(taskStatusId !== undefined && { task_status_id: taskStatusId }),
         } as Parameters<typeof archiveDoneTasks>[1]),
@@ -487,9 +492,9 @@ export const useArchiveDoneTasks = (
 export const useGenerateTaskDescription = (
   options?: MutationOpts<GenerateDescriptionResponse, number>
 ) =>
-  useGuildMutation<GenerateDescriptionResponse, number>(
+  useCommunityMutation<GenerateDescriptionResponse, number>(
     {
-      mutationFn: (guildId, taskId) => generateTaskDescription(guildId, taskId),
+      mutationFn: (communityId, taskId) => generateTaskDescription(communityId, taskId),
       errorKey: "tasks:edit.generateDescriptionError",
     },
     options
@@ -503,10 +508,10 @@ export const useGenerateTaskDescription = (
 export const useToggleChecklistItem = (
   options?: MutationOpts<ChecklistItem[], { taskId: number; itemId: string; done: boolean }>
 ) =>
-  useGuildMutation<ChecklistItem[], { taskId: number; itemId: string; done: boolean }>(
+  useCommunityMutation<ChecklistItem[], { taskId: number; itemId: string; done: boolean }>(
     {
-      mutationFn: (guildId, { taskId, itemId, done }) =>
-        toggleChecklistItem(guildId, taskId, itemId, {
+      mutationFn: (communityId, { taskId, itemId, done }) =>
+        toggleChecklistItem(communityId, taskId, itemId, {
           done,
         }),
       invalidate: (_data, { taskId }) => {
@@ -518,9 +523,9 @@ export const useToggleChecklistItem = (
   );
 
 export const useGenerateChecklist = (options?: MutationOpts<GenerateChecklistResponse, number>) =>
-  useGuildMutation<GenerateChecklistResponse, number>(
+  useCommunityMutation<GenerateChecklistResponse, number>(
     {
-      mutationFn: (guildId, taskId) => generateTaskChecklist(guildId, taskId),
+      mutationFn: (communityId, taskId) => generateTaskChecklist(communityId, taskId),
       errorKey: "tasks:checklist.generateError",
     },
     options

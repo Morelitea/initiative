@@ -7,7 +7,7 @@
  * person. Showing them as one flat form would hide the distinction that
  * matters:
  *
- * - A **guild connection** is one credential the whole guild uses. A guild
+ * - A **community connection** is one credential the whole community uses. A community
  *   admin fills it in; everyone else sees whether it is set, because whether an
  *   app can do its job is not a secret. Some are typed and some are not: where
  *   the vendor authorizes an organization through a page of its own, the admin
@@ -43,7 +43,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { useConnectApp, useDisconnectApp, useUpdateAppConfig } from "@/hooks/useGuildAppDetail";
+import { useConnectApp, useDisconnectApp, useUpdateAppConfig } from "@/hooks/useCommunityAppDetail";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { localized } from "@/lib/widgets/widgetMeta";
@@ -67,7 +67,7 @@ type AppConfigValue = string | number | boolean | null;
 export interface AppConnectionsPanelProps {
   appId: number;
   connections: CommunityAppConnectionRead[];
-  /** Holds the seat, which sets the guild-wide connections. */
+  /** Holds the seat, which sets the community-wide connections. */
   canManage: boolean;
 }
 
@@ -82,7 +82,7 @@ export function AppConnectionsPanel({ appId, connections, canManage }: AppConnec
     <div className="space-y-4">
       {connections.map((connection) =>
         connection.scope === "static" ? (
-          <GuildConnection
+          <CommunityConnection
             key={connection.id}
             appId={appId}
             connection={connection}
@@ -141,9 +141,9 @@ function ConnectionShell({
   );
 }
 
-// --- the guild's own credential ---------------------------------------------
+// --- the community's own credential ---------------------------------------------
 
-function GuildConnection({
+function CommunityConnection({
   appId,
   connection,
   canManage,
@@ -212,13 +212,13 @@ function GuildConnection({
     <ConnectionShell
       connection={connection}
       icon={<KeyRound className="h-4 w-4 text-muted-foreground" aria-hidden />}
-      scopeLabel={t("apps:connections.guildScope")}
+      scopeLabel={t("apps:connections.communityScope")}
     >
       {canManage ? (
         <>
           {vendorFlow && (
             <p className="text-muted-foreground text-sm">
-              {t("apps:connections.guildFlowExplainer")}
+              {t("apps:connections.communityFlowExplainer")}
             </p>
           )}
           {recorded.length > 0 && (

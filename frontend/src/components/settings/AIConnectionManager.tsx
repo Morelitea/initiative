@@ -23,7 +23,7 @@ interface AIConnectionManagerProps {
   connections: AIConnectionResponse[];
   isLoading: boolean;
   isError: boolean;
-  /** Providers selectable in this scope (platform allows Ollama, guild does not). */
+  /** Providers selectable in this scope (platform allows Ollama, community does not). */
   providers: AIProvider[];
   mutations: ConnectionMutations;
 }
@@ -31,7 +31,7 @@ interface AIConnectionManagerProps {
 /**
  * Thin orchestrator for a list of AI connections: renders the rows, owns the
  * add/edit dialog and delete confirmation, and delegates all field/submit logic
- * to `AIConnectionDialog`. Platform and guild pages reuse it via `scope`.
+ * to `AIConnectionDialog`. Platform and community pages reuse it via `scope`.
  */
 export const AIConnectionManager = ({
   scope,

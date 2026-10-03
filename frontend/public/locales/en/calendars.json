@@ -109,7 +109,7 @@
     "some_other": "{{count}} calendars",
     "label": "Choose which calendars to show"
   },
-  "guildScope": {
+  "communityScope": {
     "empty": "No calendars yet.",
     "emptyHint": "Add one for holidays, for a recurring meetup, or just for yourself."
   },

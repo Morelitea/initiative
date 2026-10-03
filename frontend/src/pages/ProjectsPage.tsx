@@ -28,8 +28,8 @@ type ProjectsViewProps = { fixedInitiativeId: number; canCreate?: boolean };
 export const ProjectsView = ({ fixedInitiativeId, canCreate }: ProjectsViewProps) => {
   const { t } = useTranslation(["projects", "common", "access"]);
   // Single source of truth for "what can I do in each initiative" — honors
-  // guild-admin / PAM / membership so this page never re-derives access from
-  // raw membership flags (which would wrongly exclude guild admins).
+  // community-admin / PAM / membership so this page never re-derives access from
+  // raw membership flags (which would wrongly exclude community admins).
   const lockedInitiativeId = typeof fixedInitiativeId === "number" ? fixedInitiativeId : null;
 
   const handleRefresh = useCallback(async () => {
@@ -73,12 +73,12 @@ export const ProjectsView = ({ fixedInitiativeId, canCreate }: ProjectsViewProps
     lockedInitiativeId ? { initiative_id: lockedInitiativeId } : {}
   );
 
-  // This is a guild-scoped page and the initiatives list is cheap + cached, so
+  // This is a community-scoped page and the initiatives list is cheap + cached, so
   // fetch it unconditionally. Create access is derived from the same payload
-  // by useToolCreateAccess, which already honors guild-admin / PAM grants — no
+  // by useToolCreateAccess, which already honors community-admin / PAM grants — no
   // need to pre-gate on a claimed manager role from user.initiative_roles (the
   // /me object no longer populates that field: initiative membership is
-  // guild-schema content).
+  // community-schema content).
   const initiativesQuery = useInitiatives();
   // Canonical create answer: the locked/filtered initiative's server-computed
   // create flag, or (in the "All" view) whether any visible initiative grants

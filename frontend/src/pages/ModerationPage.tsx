@@ -7,7 +7,7 @@
  * did we do about this" is the question the row exists to answer.
  *
  * Who may see any of it is the database's decision: the tables admit the
- * people who already reach every item in the initiative, plus guild admins. A
+ * people who already reach every item in the initiative, plus community admins. A
  * reader who is not one of them gets an empty list, which is the same answer
  * they get for any content they are not in.
  */
@@ -24,15 +24,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { MentionText } from "@/components/user/MentionText";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { useInitiativeRoster } from "@/hooks/useInitiatives";
 import { MentionedPeopleScope, ReportMentionedPeople } from "@/hooks/useMentionedPeople";
 import { useInitiativeSharing, useModerationReports, useSettleReport } from "@/hooks/useModeration";
 import { toast } from "@/lib/chesterToast";
+import { communityPath } from "@/lib/communityUrl";
 import { entityRefTypeFor, isSearchEntityType } from "@/lib/entityResolver";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { formatDateTime } from "@/lib/formatDate";
-import { guildPath } from "@/lib/guildUrl";
 import { searchHitPath } from "@/lib/searchResults";
 
 /** The outcomes, in the order a moderator usually reaches for them. */
@@ -45,7 +45,7 @@ const OUTCOMES: ReportOutcome[] = [
 
 export const ModerationPage = () => {
   const { t } = useTranslation(["moderation", "common"]);
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   const { initiativeId } = useParams({ strict: false }) as { initiativeId?: string };
   const initiative = Number(initiativeId);
   const [area, setArea] = useState<ConsoleArea>("reports");
@@ -54,12 +54,12 @@ export const ModerationPage = () => {
 
   const { data, isLoading } = useModerationReports(
     {
-      guildId: guildId ?? 0,
+      communityId: communityId ?? 0,
       initiativeId: initiative,
       settled: tab === "settled",
       page,
     },
-    { enabled: Boolean(guildId) && Number.isFinite(initiative) }
+    { enabled: Boolean(communityId) && Number.isFinite(initiative) }
   );
 
   const reports = data?.items ?? [];
@@ -90,7 +90,9 @@ export const ModerationPage = () => {
       </Tabs>
 
       {area === "members" && <MembersArea initiativeId={initiative} />}
-      {area === "sharing" && <SharingArea guildId={guildId ?? 0} initiativeId={initiative} />}
+      {area === "sharing" && (
+        <SharingArea communityId={communityId ?? 0} initiativeId={initiative} />
+      )}
 
       {area === "reports" && (
         <Tabs value={tab} onValueChange={(v) => showTab(v as "open" | "settled")}>
@@ -121,7 +123,7 @@ export const ModerationPage = () => {
                   <ReportCard
                     key={report.id}
                     report={report}
-                    guildId={guildId ?? 0}
+                    communityId={communityId ?? 0}
                     initiativeId={initiative}
                   />
                 ))}
@@ -164,15 +166,15 @@ const MEMBERS_PAGE_SIZE = 50;
 
 interface ReportCardProps {
   report: ModerationReportRead;
-  guildId: number;
+  communityId: number;
   initiativeId: number;
 }
 
-const ReportCard = ({ report, guildId, initiativeId }: ReportCardProps) => {
+const ReportCard = ({ report, communityId, initiativeId }: ReportCardProps) => {
   const { t } = useTranslation("moderation");
   const [note, setNote] = useState("");
 
-  const settle = useSettleReport(guildId, initiativeId, {
+  const settle = useSettleReport(communityId, initiativeId, {
     onSuccess: () => toast.success(t("settledToast")),
     onError: (err) => toast.error(getErrorMessage(err, "moderation:settleError")),
   });
@@ -192,7 +194,7 @@ const ReportCard = ({ report, guildId, initiativeId }: ReportCardProps) => {
   const targetPath = report.target_link
     ? searchHitPath({ ...report.target_link, initiative_id: report.initiative_id })
     : null;
-  const gp = (path: string) => (guildId ? guildPath(guildId, path) : path);
+  const gp = (path: string) => (communityId ? communityPath(communityId, path) : path);
 
   return (
     <Card role="region" aria-labelledby={`report-${report.id}`}>
@@ -377,9 +379,15 @@ const MembersArea = ({ initiativeId }: { initiativeId: number }) => {
  * adds is the overview — how widely each thing is reached — so finding the one
  * shared too far does not mean opening all of them.
  */
-const SharingArea = ({ guildId, initiativeId }: { guildId: number; initiativeId: number }) => {
+const SharingArea = ({
+  communityId,
+  initiativeId,
+}: {
+  communityId: number;
+  initiativeId: number;
+}) => {
   const { t } = useTranslation(["moderation", "common"]);
-  const { data, isLoading, isError } = useInitiativeSharing(guildId, initiativeId);
+  const { data, isLoading, isError } = useInitiativeSharing(communityId, initiativeId);
   const items = data?.items ?? [];
 
   if (isLoading) {
@@ -413,7 +421,7 @@ const SharingArea = ({ guildId, initiativeId }: { guildId: number; initiativeId:
                 <span className="min-w-0 truncate text-sm">
                   {refType ? (
                     <Link
-                      to={guildPath(guildId, `/go/${refType}/${item.resource_id}`)}
+                      to={communityPath(communityId, `/go/${refType}/${item.resource_id}`)}
                       className="underline-offset-4 hover:underline"
                     >
                       {label}

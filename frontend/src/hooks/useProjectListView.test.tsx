@@ -15,7 +15,7 @@ import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildPage, buildProject } from "@/__tests__/factories";
-import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { createTestQueryClient } from "@/__tests__/helpers/render";
 import { useProjectListView } from "@/hooks/useProjectListView";
@@ -31,7 +31,7 @@ vi.mock("@/hooks/useViewPreference", () => ({
   ],
 }));
 vi.mock("@/hooks/useTags", () => ({ useTags: () => ({ data: [] }) }));
-vi.mock("@/hooks/useActiveGuildId", () => ({ useActiveGuildId: () => 1 }));
+vi.mock("@/hooks/useActiveCommunityId", () => ({ useActiveCommunityId: () => 1 }));
 
 const PREFIX = "project:list";
 
@@ -41,7 +41,7 @@ type Options = Omit<Parameters<typeof useProjectListView>[0], "params" | "storag
 const mount = async (projects: ReturnType<typeof buildProject>[], options: Options = {}) => {
   const requests: URLSearchParams[] = [];
   server.use(
-    guildHttp.get("/projects/", ({ request }) => {
+    communityHttp.get("/projects/", ({ request }) => {
       requests.push(new URL(request.url).searchParams);
       return HttpResponse.json(buildPage(projects));
     })

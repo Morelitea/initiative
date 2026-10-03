@@ -59,7 +59,7 @@ export function ImportPeopleStep({ people, value, onChange }: ImportPeopleStepPr
                 )}
               </p>
               <MemberSelect
-                scope={{ type: "guild" }}
+                scope={{ type: "community" }}
                 value={value[person.handle] ?? null}
                 onChange={(id) => onChange({ ...value, [person.handle]: id })}
                 placeholder={t("wizard.people.unmapped")}

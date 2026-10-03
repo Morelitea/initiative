@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import type { GalleryImageRead } from "@/api/generated/initiativeAPI.schemas";
 import { invalidate, q } from "@/api/query-keys";
 import { BulkEditTagsDialog as GenericBulkEditTagsDialog } from "@/components/shared/BulkEditTagsDialog";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import type { DialogWithSuccessProps } from "@/types/dialog";
 
 interface BulkEditImageTagsDialogProps extends DialogWithSuccessProps {
@@ -20,7 +20,7 @@ export function BulkEditImageTagsDialog({
   ...dialogProps
 }: BulkEditImageTagsDialogProps) {
   const { t } = useTranslation(["galleries", "common"]);
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
 
   const labels = useMemo(
     () => ({
@@ -47,7 +47,7 @@ export function BulkEditImageTagsDialog({
       {...dialogProps}
       items={images}
       targetType="gallery_image"
-      guildId={guildId}
+      communityId={communityId}
       onInvalidate={() =>
         void invalidate(q.galleryImages(galleryId), q.gallery(galleryId), q.allGalleries())
       }

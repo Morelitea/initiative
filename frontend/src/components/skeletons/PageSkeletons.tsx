@@ -564,7 +564,7 @@ export const SettingsPaneSkeleton = ({ label }: LabelledSkeletonProps) => (
 
 /** The community front page: its banner, the tool rail rising out of the
  *  tray with the table in it, the initiative directory, and recent comments. */
-export const GuildHomeSkeleton = ({ label }: LabelledSkeletonProps) => (
+export const CommunityHomeSkeleton = ({ label }: LabelledSkeletonProps) => (
   <SkeletonRegion label={label} className="space-y-6">
     {/* Full-bleed like the banner it stands in for. */}
     <div className="-mx-4 -mt-4 md:-mx-8 md:-mt-8">

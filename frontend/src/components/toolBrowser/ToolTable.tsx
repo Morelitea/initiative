@@ -30,16 +30,16 @@ import { DataTable } from "@/components/ui/data-table";
 import { RelativeTime } from "@/components/ui/relative-time";
 import { MentionText } from "@/components/user/MentionText";
 import { MentionedPeopleScope, ReportMentionedPeople } from "@/hooks/useMentionedPeople";
-import { guildPath } from "@/lib/guildUrl";
+import { communityPath } from "@/lib/communityUrl";
 import type { AppColumn, AppColumnDef } from "@/lib/table";
 import { TOOL_HAS_DETAIL, type ToolRow } from "@/lib/toolRows";
 import { initiativeRoute, toolCamelPlural } from "@/lib/tools";
 
-/** The leaf keys under `guildHome.columns.detail` — one per tool that has the
+/** The leaf keys under `communityHome.columns.detail` — one per tool that has the
  *  column. */
-type DetailColumnKey = Extract<ParseKeys<"guildHome">, `columns.detail.${string}`>;
+type DetailColumnKey = Extract<ParseKeys<"communityHome">, `columns.detail.${string}`>;
 
-/** guildHome.json header key for a tool's own column, e.g.
+/** communityHome.json header key for a tool's own column, e.g.
  *  `columns.detail.projects` — derived the same way as the nav labels in
  *  `lib/tools`, and pinned for every tool that has one by the tool-registry
  *  drift test. */
@@ -48,14 +48,14 @@ const detailColumnKey = (tool: Tool): DetailColumnKey =>
 
 /** An initiative, wherever it lives: ids repeat across communities, so the
  *  community is half the key. */
-const initiativeKey = (guildId: number | null, initiativeId: number) =>
-  `${guildId}:${initiativeId}`;
+const initiativeKey = (communityId: number | null, initiativeId: number) =>
+  `${communityId}:${initiativeId}`;
 
 const NameCell = ({ row }: { row: ToolRow }) => (
   <div className="flex min-w-[220px] items-center gap-2 sm:min-w-0">
     {row.glyph}
     <Link
-      to={guildPath(row.guildId, row.href)}
+      to={communityPath(row.communityId, row.href)}
       className="truncate font-medium text-primary hover:underline"
     >
       {row.name}
@@ -70,12 +70,12 @@ const CommunityCell = ({
   row: ToolRow;
   communities: Map<number, string>;
 }) => {
-  const name = communities.get(row.guildId);
+  const name = communities.get(row.communityId);
   if (!name) {
     return <span className="text-muted-foreground text-sm">—</span>;
   }
   return (
-    <Link to={guildPath(row.guildId, "/")} className="text-sm hover:underline">
+    <Link to={communityPath(row.communityId, "/")} className="text-sm hover:underline">
       {name}
     </Link>
   );
@@ -88,17 +88,17 @@ const InitiativeCell = ({
   row: ToolRow;
   initiatives: Map<string, InitiativeRead>;
 }) => {
-  const { t } = useTranslation("guildHome");
+  const { t } = useTranslation("communityHome");
   if (row.initiativeId === null) {
-    return <span className="text-muted-foreground text-sm">{t("guildWide")}</span>;
+    return <span className="text-muted-foreground text-sm">{t("communityWide")}</span>;
   }
-  const initiative = initiatives.get(initiativeKey(row.guildId, row.initiativeId));
+  const initiative = initiatives.get(initiativeKey(row.communityId, row.initiativeId));
   if (!initiative) {
     return <span className="text-muted-foreground text-sm">—</span>;
   }
   return (
     <Link
-      to={guildPath(row.guildId, initiativeRoute(initiative.id))}
+      to={communityPath(row.communityId, initiativeRoute(initiative.id))}
       className="text-sm hover:underline"
     >
       {initiative.name}
@@ -111,7 +111,7 @@ const InitiativeCell = ({
 const DetailCell = ({ row }: { row: ToolRow }) => {
   if (!row.detail) return <span className="text-muted-foreground">—</span>;
   if (typeof row.detail !== "string") return row.detail;
-  return <MentionText text={row.detail} guildId={row.guildId} />;
+  return <MentionText text={row.detail} communityId={row.communityId} />;
 };
 
 const TagsCell = ({ row }: { row: ToolRow }) => {
@@ -119,7 +119,10 @@ const TagsCell = ({ row }: { row: ToolRow }) => {
     return <span className="text-muted-foreground text-sm">—</span>;
   }
   return (
-    <TagBadgeList tags={row.tags} tagHref={(tag) => guildPath(row.guildId, `/tags/${tag.id}`)} />
+    <TagBadgeList
+      tags={row.tags}
+      tagHref={(tag) => communityPath(row.communityId, `/tags/${tag.id}`)}
+    />
   );
 };
 
@@ -128,12 +131,12 @@ export const TOOL_SORT_FIELDS = ["name", "initiative", "updated_at"] as const;
 export type ToolSortField = (typeof TOOL_SORT_FIELDS)[number];
 
 /**
- * What a cross-guild list can order by. One short of the full set: ordering by
+ * What a cross-community list can order by. One short of the full set: ordering by
  * initiative means ordering by its name, which a merged list — assembled in
  * Python from summaries that carry an initiative id and not its name — has no
  * way to do. So that header does not sort on My Tools.
  */
-export const CROSS_GUILD_TOOL_SORT_FIELDS = ["name", "updated_at"] as const;
+export const CROSS_COMMUNITY_TOOL_SORT_FIELDS = ["name", "updated_at"] as const;
 
 /** Table column id → the field name the endpoints take, and back. */
 const SORT_FIELD_BY_COLUMN: Record<string, ToolSortField> = {
@@ -198,7 +201,7 @@ export const ToolTable = ({
   onSortChange,
   sortFields = TOOL_SORT_FIELDS,
 }: ToolTableProps) => {
-  const { t } = useTranslation("guildHome");
+  const { t } = useTranslation("communityHome");
 
   const pageCount = Math.max(1, Math.ceil(totalCount / pageSize));
   // A bookmarked page outlives the rows it pointed at, and a hand-typed one may
@@ -221,13 +224,13 @@ export const ToolTable = ({
 
   // The people the rows' words mention, asked about once per community on the
   // page rather than once per row.
-  const detailsByGuild = useMemo(() => {
-    const byGuild = new Map<number, string[]>();
+  const detailsByCommunity = useMemo(() => {
+    const byCommunity = new Map<number, string[]>();
     for (const row of rows) {
       if (typeof row.detail !== "string") continue;
-      byGuild.set(row.guildId, [...(byGuild.get(row.guildId) ?? []), row.detail]);
+      byCommunity.set(row.communityId, [...(byCommunity.get(row.communityId) ?? []), row.detail]);
     }
-    return [...byGuild];
+    return [...byCommunity];
   }, [rows]);
 
   const columns = useMemo<AppColumnDef<ToolRow>[]>(() => {
@@ -299,14 +302,14 @@ export const ToolTable = ({
 
   return (
     <MentionedPeopleScope>
-      {detailsByGuild.map(([guildId, texts]) => (
-        <ReportMentionedPeople key={guildId} guildId={guildId} texts={texts} />
+      {detailsByCommunity.map(([communityId, texts]) => (
+        <ReportMentionedPeople key={communityId} communityId={communityId} texts={texts} />
       ))}
       <DataTable
         columns={columns}
         data={rows}
         // Ids repeat across communities, so the community is half the row key.
-        getRowId={(row: ToolRow) => `${row.guildId}:${row.id}`}
+        getRowId={(row: ToolRow) => `${row.communityId}:${row.id}`}
         enableFilterInput
         filterInputPlaceholder={t("searchPlaceholder")}
         filterValue={search}

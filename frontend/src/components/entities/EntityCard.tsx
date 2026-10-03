@@ -11,9 +11,9 @@ import { LazyImage } from "@/components/shared/LazyImage";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useRelativeTime } from "@/hooks/useRelativeTime";
+import { useCommunityPath } from "@/lib/communityUrl";
 import { documentIcon } from "@/lib/documentIcon";
 import { entityRefTypeFor } from "@/lib/entityResolver";
-import { useGuildPath } from "@/lib/guildUrl";
 import { relatedTarget } from "@/lib/relationships";
 import { hitIcon, searchHitPath } from "@/lib/searchResults";
 import { CHIP_TONE_CLASSES } from "@/lib/smartChips";
@@ -85,7 +85,7 @@ export const EntityCard = ({
   // Both namespaces: the kind names live with search, which is where they are
   // already written down for all fifteen of them.
   const { t } = useTranslation(["relations", "search"]);
-  const gp = useGuildPath();
+  const gp = useCommunityPath();
   const linked = useRelativeTime(linkedAt ?? null);
 
   const target = relatedTarget(end);

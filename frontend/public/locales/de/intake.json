@@ -11,7 +11,7 @@
     "saved": "Kontakte gespeichert.",
     "saveError": "Die Kontakte konnten nicht gespeichert werden."
   },
-  "guild": {
+  "community": {
     "title": "Betriebs-Community",
     "description": "Die Community, die Sicherheits-, Moderations-, Support- und Feedback-Vorgänge dieser Installation erhält.",
     "label": "Community",
@@ -24,7 +24,7 @@
     "clearConfirm": "Weiterleitung beenden"
   },
   "streams": {
-    "chooseGuildFirst": "Wähle oben eine Community und lege dann fest, wo jeder Kanal landet.",
+    "chooseCommunityFirst": "Wähle oben eine Community und lege dann fest, wo jeder Kanal landet.",
     "security": {
       "title": "Sicherheit",
       "description": "Vorgänge aus Regeln, die diese Installation überwachen."

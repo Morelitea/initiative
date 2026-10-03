@@ -19,7 +19,7 @@ const targetUser: OperatorUserRead = {
   api_key_count: 0,
 };
 
-const eligibilityWithGuildBlocker = {
+const eligibilityWithCommunityBlocker = {
   can_delete: false,
   blockers: ["Only superadmin of community Lone Community"],
   warnings: [],
@@ -46,7 +46,7 @@ describe("OperatorDeleteUserDialog community blocker resolution", () => {
         // First check: blocked by the community. Once the seat is resolved
         // inside the community, checking again comes back clear.
         return HttpResponse.json(
-          eligibilityCalls === 1 ? eligibilityWithGuildBlocker : eligibilityClear
+          eligibilityCalls === 1 ? eligibilityWithCommunityBlocker : eligibilityClear
         );
       })
     );

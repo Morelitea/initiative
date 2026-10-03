@@ -63,7 +63,7 @@ describe("RecentTabsBar", () => {
     expect(screen.getByText("⚒️")).toBeInTheDocument();
   });
 
-  it("links each item to its guild-scoped detail page", () => {
+  it("links each item to its community-scoped detail page", () => {
     const items = [
       buildRecentProjectItem({ entity_id: 11, name: "ProjectX" }),
       buildRecentDocumentItem({ entity_id: 22, name: "DocY" }),
@@ -97,9 +97,9 @@ describe("RecentTabsBar", () => {
     );
   });
 
-  // Only calendars can be guild-level (an app installs one). Those keep a
-  // guild address rather than being wedged under an initiative they lack.
-  it("links a guild-level calendar at its guild route", () => {
+  // Only calendars can be community-level (an app installs one). Those keep a
+  // community address rather than being wedged under an initiative they lack.
+  it("links a community-level calendar at its community route", () => {
     renderWithProviders(
       <RecentTabsBar
         items={[

@@ -20,7 +20,7 @@ import type { CommunityAppDetail } from "@/api/generated/initiativeAPI.schemas";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { useSetAppScopes } from "@/hooks/useGuildApps";
+import { useSetAppScopes } from "@/hooks/useCommunityApps";
 import {
   appScopeTarget,
   type ScopeAccess,

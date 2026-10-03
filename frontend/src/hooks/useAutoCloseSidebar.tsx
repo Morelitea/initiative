@@ -9,7 +9,7 @@ import { useSidebar } from "@/components/ui/sidebar";
  * and obscuring content after the user navigates to a new page.
  *
  * A navigation can opt out via `suppressNextAutoClose()` (e.g. switching
- * guilds, which navigates but should leave the sidebar open).
+ * communities, which navigates but should leave the sidebar open).
  */
 export const useAutoCloseSidebar = () => {
   const location = useLocation();

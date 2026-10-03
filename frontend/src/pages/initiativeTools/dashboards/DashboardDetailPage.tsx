@@ -19,17 +19,17 @@ import { useDashboardEditor } from "@/hooks/useDashboardEditor";
 import { useDashboard, useUpdateDashboard, useWidgetCatalog } from "@/hooks/useDashboards";
 import { useReadOnOpen } from "@/hooks/useNotifications";
 import { useRecordRecentView } from "@/hooks/useRecents";
-import { useGuildPath } from "@/lib/guildUrl";
+import { useCommunityPath } from "@/lib/communityUrl";
 import { toolListRoute, toolSettingsRoute } from "@/lib/tools";
 
 export function DashboardDetailPage() {
   const { t } = useTranslation(["dashboards", "common"]);
-  const { guildId, dashboardId } = useParams({ strict: false }) as {
-    guildId: string;
+  const { communityId, dashboardId } = useParams({ strict: false }) as {
+    communityId: string;
     dashboardId: string;
   };
   const parsedId = Number(dashboardId);
-  const gp = useGuildPath();
+  const gp = useCommunityPath();
 
   const dashboardQuery = useDashboard(Number.isFinite(parsedId) ? parsedId : null);
   const dashboard = dashboardQuery.data;
@@ -40,7 +40,7 @@ export function DashboardDetailPage() {
 
   // Track recently viewed dashboards for the layout header tabs bar — only
   // once the read succeeds (access checks passed).
-  const recordViewMutation = useRecordRecentView("dashboard", Number(guildId));
+  const recordViewMutation = useRecordRecentView("dashboard", Number(communityId));
   const viewedDashboardId = dashboard?.id;
   useReadOnOpen(Tool.dashboard, viewedDashboardId);
   useEffect(() => {

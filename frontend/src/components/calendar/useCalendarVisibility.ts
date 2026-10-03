@@ -4,9 +4,9 @@ import { getItem, setItem } from "@/lib/storage";
 
 type Id = number | null | undefined;
 
-// Keyed by guild as well: the cross-guild calendar holds several guilds'
+// Keyed by community as well: the cross-community calendar holds several communities'
 // calendars and projects, and their ids collide.
-const keyOf = (guildId: Id, id: number): string => `${guildId ?? 0}:${id}`;
+const keyOf = (communityId: Id, id: number): string => `${communityId ?? 0}:${id}`;
 
 const readHidden = (storageKey: string) => {
   try {
@@ -35,9 +35,9 @@ const withKey = (prev: ReadonlySet<string>, key: string, hidden: boolean): Set<s
   return next;
 };
 
-/** The stored keys of `guildId`'s calendars or projects. */
-const guildKeys = (keys: ReadonlySet<string>, guildId: Id): string[] => {
-  const prefix = keyOf(guildId, 0).slice(0, -1);
+/** The stored keys of `communityId`'s calendars or projects. */
+const communityKeys = (keys: ReadonlySet<string>, communityId: Id): string[] => {
+  const prefix = keyOf(communityId, 0).slice(0, -1);
   return [...keys].filter((key) => key.startsWith(prefix));
 };
 
@@ -69,22 +69,22 @@ export const useCalendarVisibility = (storageKey: string) => {
   // Stable across renders: they only write through the state setter.
   const actions = useMemo(
     () => ({
-      toggleCalendar: (guildId: Id, calendarId: number) => {
-        const key = keyOf(guildId, calendarId);
+      toggleCalendar: (communityId: Id, calendarId: number) => {
+        const key = keyOf(communityId, calendarId);
         setState((prev) => ({
           ...prev,
           calendars: withKey(prev.calendars, key, !prev.calendars.has(key)),
         }));
       },
-      toggleProject: (guildId: Id, projectId: number) => {
-        const key = keyOf(guildId, projectId);
+      toggleProject: (communityId: Id, projectId: number) => {
+        const key = keyOf(communityId, projectId);
         setState((prev) => ({
           ...prev,
           projects: withKey(prev.projects, key, !prev.projects.has(key)),
         }));
       },
-      showCalendar: (guildId: Id, calendarId: number) => {
-        const key = keyOf(guildId, calendarId);
+      showCalendar: (communityId: Id, calendarId: number) => {
+        const key = keyOf(communityId, calendarId);
         setState((prev) =>
           prev.calendars.has(key)
             ? { ...prev, calendars: withKey(prev.calendars, key, false) }
@@ -92,10 +92,10 @@ export const useCalendarVisibility = (storageKey: string) => {
         );
       },
       toggleTasks: () => setState((prev) => ({ ...prev, tasksHidden: !prev.tasksHidden })),
-      /** Every calendar of `guildId` back on, loaded on this page or not. */
-      showAllCalendars: (guildId: Id) =>
+      /** Every calendar of `communityId` back on, loaded on this page or not. */
+      showAllCalendars: (communityId: Id) =>
         setState((prev) => {
-          const keys = guildKeys(prev.calendars, guildId);
+          const keys = communityKeys(prev.calendars, communityId);
           if (keys.length === 0) return prev;
           const calendars = new Set(prev.calendars);
           for (const key of keys) calendars.delete(key);
@@ -117,14 +117,16 @@ export const useCalendarVisibility = (storageKey: string) => {
   return useMemo(
     () => ({
       ...actions,
-      isCalendarHidden: (guildId: Id, calendarId: number) =>
-        current.calendars.has(keyOf(guildId, calendarId)),
-      isProjectHidden: (guildId: Id, projectId: number) =>
-        current.projects.has(keyOf(guildId, projectId)),
-      /** Every calendar switched off in `guildId`, loaded on this page or not. */
-      hiddenCalendarIds: (guildId: Id): number[] => {
-        const prefix = keyOf(guildId, 0).slice(0, -1);
-        return guildKeys(current.calendars, guildId).map((key) => Number(key.slice(prefix.length)));
+      isCalendarHidden: (communityId: Id, calendarId: number) =>
+        current.calendars.has(keyOf(communityId, calendarId)),
+      isProjectHidden: (communityId: Id, projectId: number) =>
+        current.projects.has(keyOf(communityId, projectId)),
+      /** Every calendar switched off in `communityId`, loaded on this page or not. */
+      hiddenCalendarIds: (communityId: Id): number[] => {
+        const prefix = keyOf(communityId, 0).slice(0, -1);
+        return communityKeys(current.calendars, communityId).map((key) =>
+          Number(key.slice(prefix.length))
+        );
       },
       tasksHidden: current.tasksHidden,
       /** How far the tasks are narrowed: all of them off counts once, and

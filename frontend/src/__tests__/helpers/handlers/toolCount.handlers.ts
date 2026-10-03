@@ -1,6 +1,6 @@
 import { HttpResponse } from "msw";
 
-import { guildHttp } from "../guildHttp";
+import { communityHttp } from "../communityHttp";
 
 /**
  * Every tool's "how many of you are in each initiative?" is one request, and
@@ -9,8 +9,8 @@ import { guildHttp } from "../guildHttp";
  * says otherwise, and none of them warn about an unhandled call.
  */
 export const toolCountHandlers = [
-  guildHttp.get("/tools/counts/by-initiative", () => HttpResponse.json({ counts: {} })),
-  guildHttp.get("/tools/:tool/counts", () =>
+  communityHttp.get("/tools/counts/by-initiative", () => HttpResponse.json({ counts: {} })),
+  communityHttp.get("/tools/:tool/counts", () =>
     HttpResponse.json({ views: {}, tag_counts: {}, untagged_count: 0 })
   ),
 ];

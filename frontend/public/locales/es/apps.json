@@ -62,7 +62,7 @@
   },
   "connections": {
     "none": "Esta aplicación no pide nada que configurar.",
-    "guildScope": "Credencial de la comunidad",
+    "communityScope": "Credencial de la comunidad",
     "personalScope": "Tu cuenta",
     "set": "Configurada",
     "notSet": "Sin configurar",
@@ -76,7 +76,7 @@
     "cleared": "Credencial borrada.",
     "memberSet": "Un administrador de la comunidad ya la ha configurado.",
     "memberNotSet": "Un administrador de la comunidad todavía tiene que configurarla.",
-    "guildFlowExplainer": "Esta se concede en el proveedor en lugar de escribirse. Al conectar se abre su página de instalación, donde eliges la cuenta y qué puede ver esta app.",
+    "communityFlowExplainer": "Esta se concede en el proveedor en lugar de escribirse. Al conectar se abre su página de instalación, donde eliges la cuenta y qué puede ver esta app.",
     "personalExplainer": "Esta te identifica a ti, así que cada miembro conecta su propia cuenta. Nadie más ve la tuya.",
     "connect": "Conectar",
     "reconnect": "Volver a conectar",

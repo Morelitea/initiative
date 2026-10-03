@@ -8,7 +8,7 @@ import {
   buildPropertyOption,
   buildPropertySummary,
 } from "@/__tests__/factories/properties";
-import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 import {
@@ -54,10 +54,10 @@ describe("PropertyPanel", () => {
   it("attaches an added property without writing over a value just entered", async () => {
     const bodies: unknown[] = [];
     server.use(
-      guildHttp.get("/property-definitions/", () =>
+      communityHttp.get("/property-definitions/", () =>
         HttpResponse.json([buildPropertyDefinition({ id: 2, name: "Owner" })])
       ),
-      guildHttp.put("/properties/:target/:entityId", async ({ request }) => {
+      communityHttp.put("/properties/:target/:entityId", async ({ request }) => {
         bodies.push(await request.json());
         return HttpResponse.json([]);
       })
@@ -98,7 +98,7 @@ describe("PropertyPanel", () => {
   it("writes the values through the one route after the debounce when a value changes", async () => {
     const requests: Array<{ url: string; body: unknown }> = [];
     server.use(
-      guildHttp.put("/properties/:target/:entityId", async ({ request, params }) => {
+      communityHttp.put("/properties/:target/:entityId", async ({ request, params }) => {
         requests.push({
           url: `/api/v1/properties/${params.target}/${params.entityId}`,
           body: await request.json(),
@@ -135,7 +135,7 @@ describe("PropertyPanel", () => {
   it("sends an untouched user_reference property back as the user's id", async () => {
     const requests: Array<{ body: unknown }> = [];
     server.use(
-      guildHttp.put("/properties/:target/:entityId", async ({ request }) => {
+      communityHttp.put("/properties/:target/:entityId", async ({ request }) => {
         requests.push({ body: await request.json() });
         return HttpResponse.json([]);
       })
@@ -169,7 +169,7 @@ describe("PropertyPanel", () => {
   it("addresses a task by its target, not by the task's own update", async () => {
     const requests: Array<{ url: string; body: unknown }> = [];
     server.use(
-      guildHttp.put("/properties/:target/:entityId", async ({ request, params }) => {
+      communityHttp.put("/properties/:target/:entityId", async ({ request, params }) => {
         requests.push({
           url: `/api/v1/properties/${params.target}/${params.entityId}`,
           body: await request.json(),
@@ -196,7 +196,7 @@ describe("PropertyPanel", () => {
   it("omits the property from the payload when removed (remove button)", async () => {
     const requests: Array<{ body: unknown }> = [];
     server.use(
-      guildHttp.put("/properties/:target/:entityId", async ({ request }) => {
+      communityHttp.put("/properties/:target/:entityId", async ({ request }) => {
         requests.push({ body: await request.json() });
         return HttpResponse.json([]);
       })
@@ -336,7 +336,7 @@ describe("PropertyPanel", () => {
   it("sends an edit made just before it closes", async () => {
     const writes: { entityId: string; body: unknown }[] = [];
     server.use(
-      guildHttp.put("/properties/:target/:entityId", async ({ request, params }) => {
+      communityHttp.put("/properties/:target/:entityId", async ({ request, params }) => {
         writes.push({ entityId: String(params.entityId), body: await request.json() });
         return HttpResponse.json([]);
       })
@@ -368,7 +368,7 @@ describe("PropertyPanel", () => {
   it("keeps a row's edit on that row when the panel moves to another", async () => {
     const writes: { entityId: string; body: unknown }[] = [];
     server.use(
-      guildHttp.put("/properties/:target/:entityId", async ({ request, params }) => {
+      communityHttp.put("/properties/:target/:entityId", async ({ request, params }) => {
         writes.push({ entityId: String(params.entityId), body: await request.json() });
         return HttpResponse.json([]);
       })
@@ -410,7 +410,7 @@ describe("PropertyPanel", () => {
   it("coalesces rapid edits into a single PUT after the debounce", async () => {
     const requests: Array<{ body: unknown }> = [];
     server.use(
-      guildHttp.put("/properties/:target/:entityId", async ({ request }) => {
+      communityHttp.put("/properties/:target/:entityId", async ({ request }) => {
         requests.push({ body: await request.json() });
         return HttpResponse.json([]);
       })

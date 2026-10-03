@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 
 import type { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { Button } from "@/components/ui/button";
-import { useGuildPath } from "@/lib/guildUrl";
+import { useCommunityPath } from "@/lib/communityUrl";
 import { toolListingKind } from "@/lib/tools";
 
 type BrowseMarketplaceButtonProps = {
@@ -29,7 +29,7 @@ type BrowseMarketplaceButtonProps = {
  */
 export const BrowseMarketplaceButton = ({ tool, size = "sm" }: BrowseMarketplaceButtonProps) => {
   const { t } = useTranslation("marketplace");
-  const gp = useGuildPath();
+  const gp = useCommunityPath();
   const kind = toolListingKind(tool);
 
   if (!kind) return null;
