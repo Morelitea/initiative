@@ -24,15 +24,12 @@ from typing import Any
 from fastapi.routing import APIRoute
 
 from app.api.deps import route_app_scope_declaration
-from app.core.config import API_V1_STR
+from app.core.config import API_V1_STR, APP_SERVER_URL
 from app.core.identity_boundary import MentionForm
 from app.schemas.platform.user import AppPerson
 
 #: The prefix every route an app may call starts with.
 COMMUNITY_PREFIX = f"{API_V1_STR}/c/{{guild_id}}"
-#: Where the app's document serves from. The ``0`` stands for the install's own
-#: community.
-APP_SERVER_URL = f"{API_V1_STR}/c/0"
 
 _SCHEMA_REF = "#/components/schemas/"
 _APP_PERSON = AppPerson.__name__

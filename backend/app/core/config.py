@@ -25,6 +25,9 @@ from sqlalchemy.exc import ArgumentError
 # configurable only creates ways to break them.
 PROJECT_NAME = "Initiative API"
 API_V1_STR = "/api/v1"
+#: Where an installed app calls the API from. The ``0`` stands for the
+#: install's own community, which its token names.
+APP_SERVER_URL = f"{API_V1_STR}/c/0"
 
 # Origins used by the Capacitor native mobile app (iOS and Android).
 # Must always be allowed regardless of CORS_ALLOWED_ORIGINS setting.

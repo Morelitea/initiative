@@ -35,6 +35,8 @@ from app.models.tenant.guild_app import GuildApp
 from app.models.tenant.property import PropertyType
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.services.marketplace import app_refs
+from app.services.platform import user_avatars
+from app.services.platform.user_avatars_test import png
 from app.testing import (
     create_resource_grant,
     guild_url,
@@ -703,6 +705,71 @@ async def test_a_person_is_named_to_an_app_only_under_members_read(
         "display_name": "The Seat",
     }
     assert people == [{"id": ref, **(names if reads_names else {})}] * len(people)
+
+
+async def test_an_uploaded_picture_reaches_an_app_by_reference_under_members_read(
+    client, session, acting_user, role_session
+):
+    await lift_person_and_guild_ids(session)
+    reads = ["projects:read", "members:read"]
+    installed = await install_app(session, acting_user, role_session, granted=reads)
+    seat = installed.seat
+    elsewhere = await acting_user(guild_role=GuildRole.member)
+    picture = png(64, 64)
+    for person in (seat.user, elsewhere.user):
+        await user_avatars.store_avatar(
+            session, user=person, avatar=user_avatars.validate_avatar(picture)
+        )
+    await session.commit()
+    digest = user_avatars.validate_avatar(picture).sha256
+    project = await _open_project(session, installed, installed.placed, "Open A")
+    task = await create_task(session, project, assignees=[seat.user])
+    guild_id = installed.guild.id
+    task_url = guild_url(guild_id, f"/tasks/{task.id}")
+    headers = install_headers(installed, reads)
+
+    app_refs.forget_cached_install_refs()
+    with _counting() as cold:
+        read = await client.get(task_url, headers=headers)
+    with _counting() as warm:
+        await client.get(task_url, headers=headers)
+    assert read.status_code == 200, read.text
+    assert len(cold) == len(warm) + 1, (cold, warm)
+    assert_names_nobody(read.text, [seat.user.id, guild_id])
+    [assignee] = read.json()["assignees"]
+    picture_url = f"/api/v1/c/0/members/{assignee['id']}/avatar/{digest}"
+    assert assignee["avatar_url"] == picture_url
+
+    served = await client.get(picture_url, headers=headers)
+    assert served.status_code == 200, served.text
+    assert served.content == picture
+    assert served.headers["content-type"] == "image/png"
+    assert served.headers["cache-control"] == "public, max-age=31536000, immutable"
+    stale = await client.get(picture_url.replace(digest, "0" * 64), headers=headers)
+    assert stale.status_code == 404, stale.text
+
+    # Somebody the install has a reference for who is not a member here.
+    outsider = await app_refs.ensure_app_ref(
+        guild_id=guild_id, app_install_id=installed.app.id, user_id=elsewhere.user.id
+    )
+    away = await client.get(
+        f"/api/v1/c/0/members/{outsider}/avatar/{digest}", headers=headers
+    )
+    assert away.status_code == 404, away.text
+
+    # A person reads the same picture by row id, under the community's seam.
+    by_id = guild_url(guild_id, f"/members/{seat.user.id}/avatar/{digest}")
+    mine = await client.get(by_id, headers=seat.headers)
+    assert mine.status_code == 200, mine.text
+    assert mine.content == picture
+
+    # Without members:read: the person is their reference alone, and the
+    # picture route refuses.
+    tools_only = install_headers(installed, ["projects:read"])
+    bare = await client.get(task_url, headers=tools_only)
+    assert bare.json()["assignees"] == [{"id": assignee["id"]}]
+    refused = await client.get(picture_url, headers=tools_only)
+    assert refused.status_code == 403, refused.text
 
 
 async def test_a_write_naming_three_people_costs_the_same_two(

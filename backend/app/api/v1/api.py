@@ -353,6 +353,7 @@ guild_router.include_router(archive.router, tags=["archive"])
 # Guild member management (guild-admin). The /me/* + platform user endpoints
 # stay top-level on users.router.
 guild_router.include_router(users.guild_router, prefix="/users", tags=["users"])
+guild_router.include_router(users.members_router, prefix="/members", tags=["users"])
 # Recents: the addressed DELETE is guild-scoped (the cross-guild GET list stays
 # top-level — fully separate endpoints, see recents.py).
 guild_router.include_router(recents.guild_router, prefix="/recents", tags=["recents"])
