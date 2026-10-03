@@ -169,6 +169,49 @@ async def test_legacy_nodes_come_back_as_the_browser_shows_them():
     assert paragraph["children"][0]["text"] == "A page nobody wrote#idea"
 
 
+def _merged(*updates: bytes) -> bytes:
+    doc = Doc()
+    for update in updates:
+        doc.apply_update(update)
+    return bytes(doc.get_update())
+
+
+async def test_writing_what_a_state_already_reads_as_changes_nothing():
+    state = await editor_engine.bootstrap(DOCUMENT)
+
+    update = await editor_engine.apply(state, await editor_engine.render(state))
+
+    assert update == bytes(Doc().get_update())
+
+
+async def test_an_applied_edit_reads_back_as_written():
+    state = await editor_engine.bootstrap(DOCUMENT)
+    edited = await editor_engine.render(state)
+    edited["root"]["children"][1] = _paragraph(_text("Rewritten"))
+
+    update = await editor_engine.apply(state, edited)
+
+    rendered = await editor_engine.render(_merged(state, update))
+    assert _without_defaults(rendered) == _without_defaults(edited)
+
+
+async def test_two_edits_to_one_paragraph_keep_each_others_words():
+    """Each write changes only its own characters, so two made from the same
+    state merge as two people typing would."""
+    state = await editor_engine.bootstrap(_document(_paragraph(_text("hello world"))))
+
+    async def written(words: str) -> bytes:
+        return await editor_engine.apply(state, _document(_paragraph(_text(words))))
+
+    merged = _merged(
+        state, await written("hello brave world"), await written("hello world!")
+    )
+
+    rendered = await editor_engine.render(merged)
+    (paragraph,) = rendered["root"]["children"]
+    assert [node["text"] for node in paragraph["children"]] == ["hello brave world!"]
+
+
 async def test_content_the_editor_refuses_is_an_error():
     with pytest.raises(EditorError):
         await editor_engine.bootstrap(_document({"type": "no-such-node", "version": 1}))

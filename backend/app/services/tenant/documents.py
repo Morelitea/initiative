@@ -25,7 +25,7 @@ from app.services.tenant import content_references
 from app.services.tenant import ownership as ownership_service
 from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
-from app.services.tenant.collaboration import collaboration_manager
+from app.services.tenant.collaboration import collaboration_manager, written_into
 from app.db.session import routed_guild_id
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -308,9 +308,10 @@ async def unresolve_wikilinks_to_document(
             updated_content = deepcopy(doc.content)
             if unresolve_wikilinks_to(updated_content, deleted_document_id):
                 doc.content = updated_content
-                # Yjs state takes precedence over content on load; clear it so
-                # collaboration bootstraps from the repaired content.
-                doc.yjs_state = None
+                # A session opens on the Yjs state, so the repair is written
+                # into it too.
+                await session.refresh(doc, ["yjs_state"])
+                doc.yjs_state = await written_into(doc.yjs_state, updated_content)
                 flag_modified(doc, "content")
                 session.add(doc)
                 affected_doc_ids.append(doc.id)

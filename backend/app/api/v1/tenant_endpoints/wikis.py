@@ -58,7 +58,7 @@ from app.schemas.tenant.wiki import (
 )
 from app.schemas.tenant.tool import serialize_tool
 from app.services.tenant import attachments as attachments_service
-from app.services.tenant.collaboration import collaboration_manager
+from app.services.tenant.collaboration import collaboration_manager, written_into
 from app.services.tenant import comments as comments_service
 from app.services.tenant import content_references
 from app.services.tenant import relationships as relationships_service
@@ -572,9 +572,10 @@ async def update_wiki_page(
             )
     if content_updated:
         page.content = data["content"]
-        # No room is live, so this edit is newer than any stored Yjs state.
-        # Clearing it makes the next session start from this content.
-        page.yjs_state = None
+        # No room is live, so this edit is the newest thing about the page:
+        # its stored Yjs state has it written in, and the next session opens
+        # on it.
+        page.yjs_state = await written_into(page.yjs_state, page.content)
 
     session.add(page)
     await session.flush()

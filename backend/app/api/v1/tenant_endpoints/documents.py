@@ -91,7 +91,7 @@ from app.services import audit as audit_service
 from app.services.ai_generation import AIGenerationError, generate_document_summary
 from app.services.ai_settings import resolve_ai_settings
 from app.services.tenant import spreadsheet_import
-from app.services.tenant.collaboration import collaboration_manager
+from app.services.tenant.collaboration import collaboration_manager, written_into
 
 logger = logging.getLogger(__name__)
 
@@ -822,10 +822,17 @@ async def update_document(
         new_content_urls = attachments_service.extract_upload_urls(document.content)
         removed_upload_urls.update(previous_content_urls - new_content_urls)
         # Reaching here means no room is live, so this edit is the newest
-        # thing about the document and any stored Yjs state predates it. It is
-        # cleared so the next collaborative session bootstraps from this
-        # content rather than from state that never saw it.
-        document.yjs_state = None
+        # thing about the document. A native body's stored Yjs state has it
+        # written in, so the next session opens on it with its history; any
+        # other body's state is cleared, and the next session's first editor
+        # makes it from this content.
+        if document.document_type == DocumentType.native:
+            await session.refresh(document, ["yjs_state"])
+            document.yjs_state = await written_into(
+                document.yjs_state, document.content
+            )
+        else:
+            document.yjs_state = None
         content_updated = True
         updated = True
 

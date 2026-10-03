@@ -451,7 +451,7 @@ async def test_trash_listings_page_newest_first(session: AsyncSession, client):
             page += 1
 
     def keyed(items: list[dict]) -> list[tuple[int, str, int]]:
-        return [(i["guild_id"], i["entity_type"], i["entity_id"]) for i in items]
+        return [(i["community_id"], i["entity_type"], i["entity_id"]) for i in items]
 
     guild_total, guild_items = await walk(f"/api/v1/c/{guilds[0].id}/trash/")
     mine_total, mine_items = await walk("/api/v1/me/trash")
@@ -568,8 +568,9 @@ async def test_hard_purge_unresolves_wikilinks_in_linking_documents(
     session: AsyncSession,
 ):
     """Purging a document rewrites links pointing at it in surviving documents
-    (documentId -> null, yjs_state cleared) and takes the edges with it, so
-    nothing dangles after the row is gone."""
+    (documentId -> null) and takes the edges with it, so nothing dangles after
+    the row is gone. A Yjs state the editor cannot read is cleared, and the
+    next session makes it from the repaired content."""
     from sqlmodel import select
 
     from app.core.relationships import RelationshipType, node_id

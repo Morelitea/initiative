@@ -23,7 +23,7 @@ from typing import Any, Optional
 
 from app.services.worker_pool import Pool, PoolError
 
-__all__ = ["EditorError", "bootstrap", "render", "shutdown"]
+__all__ = ["EditorError", "apply", "bootstrap", "render", "shutdown"]
 
 _BACKEND = Path(__file__).resolve().parents[2]
 #: Where the editor's server build is: copied beside the backend in the image,
@@ -110,3 +110,17 @@ async def render(state: bytes) -> dict:
         {"op": "render", "state": base64.b64encode(state).decode("ascii")}
     )
     return reply["content"]
+
+
+async def apply(state: bytes, content: dict) -> bytes:
+    """The Yjs update that makes ``state`` read as ``content``, rewriting only
+    what changed. Written as a Yjs client of its own."""
+    reply = await _ask(
+        {
+            "op": "apply",
+            "state": base64.b64encode(state).decode("ascii"),
+            "content": content,
+            "client": secrets.randbits(32),
+        }
+    )
+    return base64.b64decode(reply["update"])
