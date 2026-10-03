@@ -156,7 +156,7 @@ class TestBrowse:
         actor = await acting_user(guild_role=CommunityRole.member)
         response = await client.get(
             actor.g("/marketplace/listings"),
-            params={"q": "Attributed"},
+            params={"search": "Attributed"},
             headers=actor.headers,
         )
         card = response.json()["items"][0]
@@ -165,11 +165,11 @@ class TestBrowse:
 
     async def test_search_narrows_the_page(self, client, acting_user, listing):
         actor = await acting_user(guild_role=CommunityRole.member)
-        assert await _shelf(client, actor, q="sprint") == ["tests.browse"]
+        assert await _shelf(client, actor, search="sprint") == ["tests.browse"]
 
         miss = await client.get(
             actor.g("/marketplace/listings"),
-            params={"q": "nothing-matches"},
+            params={"search": "nothing-matches"},
             headers=actor.headers,
         )
         assert miss.json()["items"] == []
@@ -186,7 +186,7 @@ class TestBrowse:
         actor = await acting_user(guild_role=CommunityRole.member)
         response = await client.get(
             actor.g("/marketplace/listings"),
-            params={"q": "Paged", "page": 2, "page_size": 2},
+            params={"search": "Paged", "page": 2, "page_size": 2},
             headers=actor.headers,
         )
         body = response.json()

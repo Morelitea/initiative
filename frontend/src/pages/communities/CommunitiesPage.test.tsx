@@ -224,7 +224,7 @@ describe("CommunitiesPage", () => {
 
     await screen.findByText("Riverside Players");
     expect(directoryFor).toHaveBeenCalledWith(
-      { q: undefined, category: undefined },
+      { search: undefined, category: undefined },
       { enabled: true }
     );
   });
@@ -234,7 +234,7 @@ describe("CommunitiesPage", () => {
   it.each([
     ["category", { category: "ttrpg" }, { category: ["ttrpg"] }],
     ["categories", { category: ["ttrpg", "gaming"] }, { category: ["ttrpg", "gaming"] }],
-    ["search", { q: "dice" }, { q: "dice" }],
+    ["search", { q: "dice" }, { search: "dice" }],
   ])("narrows the request to the %s in the address", async (_label, search, asked) => {
     renderDirectory(search);
 
@@ -252,7 +252,7 @@ describe("CommunitiesPage", () => {
 
     await waitFor(() =>
       expect(directoryFor).toHaveBeenCalledWith(
-        expect.objectContaining({ q: "dice" }),
+        expect.objectContaining({ search: "dice" }),
         expect.anything()
       )
     );

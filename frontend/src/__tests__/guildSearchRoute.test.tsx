@@ -209,7 +209,7 @@ describe("the guild search page", () => {
 
     expect(await screen.findByText("Search this community")).toBeInTheDocument();
     for (const call of mocks.search.mock.calls) {
-      expect(call[0].q).toBe("");
+      expect(call[0].search).toBe("");
     }
   });
 

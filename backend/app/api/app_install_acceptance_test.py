@@ -1051,7 +1051,9 @@ async def test_suggests_only_the_tasks_it_could_read(
     await create_task(session, open_b, title="harbor elsewhere")
     headers = install_headers(installed, ["projects:read"])
 
-    response = await _suggest(client, installed, headers, q="harbor", types=["task"])
+    response = await _suggest(
+        client, installed, headers, search="harbor", types=["task"]
+    )
     assert response.status_code == 200, response.text
     rows = response.json()
     assert [r["entity_id"] for r in rows] == [readable.id]
@@ -1060,7 +1062,7 @@ async def test_suggests_only_the_tasks_it_could_read(
     assert rows[0]["can_write"] is False
 
     # No types: the default scope, narrowed to what it may read.
-    unnamed = await _suggest(client, installed, headers, q="harbor")
+    unnamed = await _suggest(client, installed, headers, search="harbor")
     assert unnamed.status_code == 200, unnamed.text
     assert [r["entity_id"] for r in unnamed.json()] == [readable.id]
 
@@ -1080,13 +1082,13 @@ async def test_suggest_leaves_out_the_kinds_it_holds_no_scope_for(
     headers = install_headers(installed, ["projects:read"])
 
     both = await _suggest(
-        client, installed, headers, q="lantern", types=["task", "document"]
+        client, installed, headers, search="lantern", types=["task", "document"]
     )
     assert both.status_code == 200, both.text
     assert [r["entity_id"] for r in both.json()] == [task.id]
 
     refused = await _suggest(
-        client, installed, headers, q="lantern", types=["document"]
+        client, installed, headers, search="lantern", types=["document"]
     )
     assert refused.status_code == 403, refused.text
     assert refused.json()["detail"] == AppMessages.SCOPE_REQUIRED
@@ -1120,7 +1122,7 @@ async def test_suggest_asks_the_scope_of_the_tool_a_comment_is_on(
         client,
         installed,
         install_headers(installed, ["comments:read"]),
-        q="beacon",
+        search="beacon",
         types=["comment"],
     )
     assert comments_only.status_code == 200, comments_only.text
@@ -1130,7 +1132,7 @@ async def test_suggest_asks_the_scope_of_the_tool_a_comment_is_on(
         client,
         installed,
         install_headers(installed, ["comments:read", "projects:read"]),
-        q="beacon",
+        search="beacon",
         types=["comment"],
     )
     assert with_projects.status_code == 200, with_projects.text
@@ -1165,7 +1167,7 @@ async def test_a_cut_comment_title_ends_before_what_the_cut_goes_through(
         client,
         installed,
         install_headers(installed, scopes),
-        q="beacon",
+        search="beacon",
         types=["comment"],
     )
     assert response.status_code == 200, response.text
@@ -1197,7 +1199,7 @@ async def test_a_narrowed_token_suggests_only_its_initiative(
     scopes = ["projects:read"]
 
     wide = await _suggest(
-        client, installed, install_headers(installed, scopes), q="orchard"
+        client, installed, install_headers(installed, scopes), search="orchard"
     )
     assert wide.status_code == 200, wide.text
     assert sorted(r["entity_id"] for r in wide.json()) == sorted([in_a.id, in_b.id])
@@ -1206,7 +1208,7 @@ async def test_a_narrowed_token_suggests_only_its_initiative(
         client,
         installed,
         install_headers(installed, scopes, initiative_id=installed.placed.id),
-        q="orchard",
+        search="orchard",
     )
     assert narrow.status_code == 200, narrow.text
     assert [r["entity_id"] for r in narrow.json()] == [in_a.id]
@@ -1216,7 +1218,7 @@ async def test_a_narrowed_token_suggests_only_its_initiative(
         client,
         installed,
         install_headers(installed, scopes, initiative_id=installed.placed.id),
-        q="orchard",
+        search="orchard",
         initiative_id=installed.unplaced.id,
     )
     assert asked_b.status_code == 200, asked_b.text

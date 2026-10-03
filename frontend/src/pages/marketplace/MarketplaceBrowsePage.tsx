@@ -57,7 +57,7 @@ export function MarketplaceBrowsePage() {
 
   const listingsQuery = useMarketplaceListings({
     kind,
-    q: search.trim() || undefined,
+    search: search.trim() || undefined,
     page_size: PAGE_SIZE,
   });
 

@@ -66,11 +66,11 @@ async def list_placement_communities(
     session: SystemSessionDep,
     _operator: GuildsManageDep,
     provider_id: int,
-    q: Optional[str] = Query(default=None, max_length=100),
+    search: Optional[str] = Query(default=None, max_length=100),
 ) -> List[PlacementCommunityRead]:
     """Communities a rule for this provider may name, by name."""
     return await provider_placement.list_communities(
-        session, provider_id=provider_id, query=q
+        session, provider_id=provider_id, query=search
     )
 
 
