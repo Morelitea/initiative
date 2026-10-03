@@ -397,7 +397,7 @@ describe("FocusSummary", () => {
       ]),
     });
 
-    renderFocus({ pins: [{ guild_id: 1, task_id: 42 }] });
+    renderFocus({ pins: [{ community_id: 1, task_id: 42 }] });
 
     expect(await screen.findByText("Pinned far-future task")).toBeInTheDocument();
   });
@@ -413,7 +413,7 @@ describe("FocusSummary", () => {
       ]),
     });
 
-    renderFocus({ pins: [{ guild_id: 2, task_id: 7 }] });
+    renderFocus({ pins: [{ community_id: 2, task_id: 7 }] });
 
     expect(await screen.findByText("The pinned task 7")).toBeInTheDocument();
     expect(screen.queryByText("Someone else's task 7")).not.toBeInTheDocument();
@@ -493,7 +493,7 @@ describe("FocusSummary", () => {
       ]),
     });
 
-    renderFocus({ pins: [{ guild_id: 1, task_id: 55 }] });
+    renderFocus({ pins: [{ community_id: 1, task_id: 55 }] });
 
     if (today) {
       expect(await screen.findByText(title)).toHaveClass("line-through");

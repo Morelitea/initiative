@@ -1,6 +1,7 @@
-"""Migrations 20261003_0445 and 20261003_0446 rename the stored guild values
-to community and back. Loaded by path and run on rows an older release would
-have written, the way ``upload_initiative_backfill_test`` runs its revision."""
+"""Migrations 20261003_0445, 20261003_0446 and 20261003_0448 rename the stored
+guild values to community and back. Loaded by path and run on rows an older
+release would have written, the way ``upload_initiative_backfill_test`` runs its
+revision."""
 
 from __future__ import annotations
 
@@ -269,3 +270,104 @@ async def test_app_contract_says_community_and_back(session) -> None:
     await session.run_sync(run(migration.BACKWARD))
     await session.commit()
     assert await _app_contract(session, schema, listing.id, registration.id) == old
+
+
+_PREFERENCES = {
+    "my-tasks:focus": {
+        "open": True,
+        "pins": [{"guild_id": 3, "task_id": 4}, {"guild_id": None, "task_id": 5}, "x"],
+    },
+    "initiative-my-tasks-filters": {"statusFilters": ["todo"], "guildFilters": [3]},
+    "initiative-my-calendar-prefs": {"calendarViewMode": "week", "guildFilters": []},
+    "project:1:view-filters": {"guildFilters": [3]},
+}
+
+
+async def _view_state(session, user_id: int) -> dict:
+    rows = (
+        await _sql(
+            session,
+            text(
+                "SELECT scope_key, value FROM public.user_view_preferences "
+                "WHERE user_id = :u"
+            ),
+            {"u": user_id},
+        )
+    ).all()
+    notification = await _scalar(session, text("SELECT data FROM public.notifications"))
+    queued = await _scalar(session, text("SELECT data FROM public.notice_outbox"))
+    return {
+        "preferences": {row.scope_key: row.value for row in rows},
+        "links": (notification["smart_link"], queued["smart_link"]),
+    }
+
+
+async def test_view_preferences_say_community_and_back(session) -> None:
+    user = await create_user(session)
+    guild = await create_guild(session, creator=user)
+    for scope, value in _PREFERENCES.items():
+        await _sql(
+            session,
+            text(
+                "INSERT INTO public.user_view_preferences (user_id, scope_key, value) "
+                "VALUES (:u, :s, CAST(:v AS json))"
+            ),
+            {"u": user.id, "s": scope, "v": json.dumps(value)},
+        )
+    await user_notifications.create_notification(
+        session,
+        user_id=user.id,
+        notification_type=NotificationType.export_ready,
+        data={},
+    )
+    await notice_outbox.enqueue(
+        session,
+        [notice_outbox.row(user.id, guild.id, NotificationType.export_ready, {})],
+    )
+    link = {"smart_link": "https://app.example/navigate?guild_id=3&target=%2Fi"}
+    await _sql(
+        session,
+        text("UPDATE public.notifications SET data = :d"),
+        {"d": json.dumps(link)},
+    )
+    await _sql(
+        session,
+        text("UPDATE public.notice_outbox SET data = CAST(:d AS jsonb)"),
+        {"d": json.dumps(link)},
+    )
+    await session.commit()
+    migration = _load("20261003_0448_view_preferences_say_community.py")
+    old = await _view_state(session, user.id)
+
+    def run(names):
+        return lambda sync_session: migration._rewrite(sync_session.connection(), names)
+
+    await session.run_sync(run(migration.FORWARD))
+    await session.commit()
+    new_link = "https://app.example/navigate?community_id=3&target=%2Fi"
+    assert await _view_state(session, user.id) == {
+        "preferences": {
+            "my-tasks:focus": {
+                "open": True,
+                "pins": [
+                    {"community_id": 3, "task_id": 4},
+                    {"community_id": None, "task_id": 5},
+                    "x",
+                ],
+            },
+            "initiative-my-tasks-filters": {
+                "statusFilters": ["todo"],
+                "communityFilters": [3],
+            },
+            "initiative-my-calendar-prefs": {
+                "calendarViewMode": "week",
+                "communityFilters": [],
+            },
+            "project:1:view-filters": {"guildFilters": [3]},
+        },
+        "links": (new_link, new_link),
+    }
+
+    await session.run_sync(run(migration.BACKWARD))
+    await session.commit()
+    assert await _view_state(session, user.id) == old

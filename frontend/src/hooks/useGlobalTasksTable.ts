@@ -32,7 +32,7 @@ const SORT_DEFAULTS: SortField[] = [
 type StoredPrefs = {
   statusFilters: TaskStatusCategory[];
   priorityFilters: TaskPriority[];
-  guildFilters: number[];
+  communityFilters: number[];
   propertyFilters: PropertyFilterCondition[];
   sorting: SortField[];
 };
@@ -44,7 +44,7 @@ const sameMembers = <T>(a: T[], b: T[]): boolean =>
 const FILTER_DEFAULTS: StoredPrefs = {
   statusFilters: ["backlog", "todo", "in_progress"] as TaskStatusCategory[],
   priorityFilters: [],
-  guildFilters: [],
+  communityFilters: [],
   propertyFilters: [],
   sorting: SORT_DEFAULTS,
 };
@@ -57,7 +57,9 @@ const sanitizeStoredPrefs = (raw: unknown): StoredPrefs => {
     priorityFilters: Array.isArray(v.priorityFilters)
       ? v.priorityFilters
       : FILTER_DEFAULTS.priorityFilters,
-    guildFilters: Array.isArray(v.guildFilters) ? v.guildFilters : FILTER_DEFAULTS.guildFilters,
+    communityFilters: Array.isArray(v.communityFilters)
+      ? v.communityFilters
+      : FILTER_DEFAULTS.communityFilters,
     propertyFilters: Array.isArray(v.propertyFilters)
       ? v.propertyFilters
       : FILTER_DEFAULTS.propertyFilters,
@@ -114,13 +116,8 @@ export function useGlobalTasksTable() {
   const [storedPrefsRaw, setStoredPrefs, { isLoaded: preferencesLoaded }] =
     useViewPreference<StoredPrefs>(storageKey, FILTER_DEFAULTS);
   const storedPrefs = useMemo(() => sanitizeStoredPrefs(storedPrefsRaw), [storedPrefsRaw]);
-  const {
-    statusFilters,
-    priorityFilters,
-    guildFilters: communityFilters,
-    propertyFilters,
-    sorting,
-  } = storedPrefs;
+  const { statusFilters, priorityFilters, communityFilters, propertyFilters, sorting } =
+    storedPrefs;
 
   const makeSetter = useCallback(
     <K extends keyof StoredPrefs>(key: K) =>
@@ -138,7 +135,7 @@ export function useGlobalTasksTable() {
   );
   const setStatusFilters = useMemo(() => makeSetter("statusFilters"), [makeSetter]);
   const setPriorityFilters = useMemo(() => makeSetter("priorityFilters"), [makeSetter]);
-  const setCommunityFilters = useMemo(() => makeSetter("guildFilters"), [makeSetter]);
+  const setCommunityFilters = useMemo(() => makeSetter("communityFilters"), [makeSetter]);
   const setPropertyFilters = useMemo(() => makeSetter("propertyFilters"), [makeSetter]);
   const setSorting = useMemo(() => makeSetter("sorting"), [makeSetter]);
 

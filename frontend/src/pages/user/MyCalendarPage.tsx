@@ -50,7 +50,7 @@ type StoredPrefs = {
   calendarViewMode: CalendarViewMode;
   statusFilters: TaskStatusCategory[];
   priorityFilters: TaskPriority[];
-  guildFilters: number[];
+  communityFilters: number[];
 };
 
 const PREFS_DEFAULTS: StoredPrefs = {
@@ -58,7 +58,7 @@ const PREFS_DEFAULTS: StoredPrefs = {
   // Match the historical My Tasks default: hide done tasks unless the user opts in.
   statusFilters: ["backlog", "todo", "in_progress"],
   priorityFilters: [],
-  guildFilters: [],
+  communityFilters: [],
 };
 
 const sanitizeStoredPrefs = (raw: unknown): StoredPrefs => {
@@ -73,7 +73,9 @@ const sanitizeStoredPrefs = (raw: unknown): StoredPrefs => {
     priorityFilters: Array.isArray(v.priorityFilters)
       ? v.priorityFilters
       : PREFS_DEFAULTS.priorityFilters,
-    guildFilters: Array.isArray(v.guildFilters) ? v.guildFilters : PREFS_DEFAULTS.guildFilters,
+    communityFilters: Array.isArray(v.communityFilters)
+      ? v.communityFilters
+      : PREFS_DEFAULTS.communityFilters,
   };
 };
 
@@ -98,7 +100,7 @@ export const MyCalendarPage = () => {
       setStoredPrefs((prev) => ({ ...sanitizeStoredPrefs(prev), calendarViewMode: next })),
     [setStoredPrefs]
   );
-  const { statusFilters, priorityFilters, guildFilters: communityFilters } = storedPrefs;
+  const { statusFilters, priorityFilters, communityFilters } = storedPrefs;
   const setStatusFilters = useCallback(
     (next: TaskStatusCategory[]) =>
       setStoredPrefs((prev) => ({ ...sanitizeStoredPrefs(prev), statusFilters: next })),
@@ -111,7 +113,7 @@ export const MyCalendarPage = () => {
   );
   const setCommunityFilters = useCallback(
     (next: number[]) =>
-      setStoredPrefs((prev) => ({ ...sanitizeStoredPrefs(prev), guildFilters: next })),
+      setStoredPrefs((prev) => ({ ...sanitizeStoredPrefs(prev), communityFilters: next })),
     [setStoredPrefs]
   );
   // Closed until asked for. The filter button carries a count of what's set, so
