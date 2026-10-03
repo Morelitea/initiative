@@ -37,8 +37,8 @@ export function GuildBreakdownChart({ data }: GuildBreakdownChartProps) {
 
   const chartConfig = data.reduce(
     (acc, guild, index) => {
-      acc[`guild_${guild.guild_id}`] = {
-        label: guild.guild_name,
+      acc[`guild_${guild.community_id}`] = {
+        label: guild.community_name,
         color: COLORS[index % COLORS.length],
       };
       return acc;
@@ -48,9 +48,9 @@ export function GuildBreakdownChart({ data }: GuildBreakdownChartProps) {
 
   // Format data for pie chart
   const pieData = data.map((guild) => ({
-    name: guild.guild_name,
+    name: guild.community_name,
     value: guild.completed_count,
-    guild_id: guild.guild_id,
+    guild_id: guild.community_id,
   }));
 
   return (

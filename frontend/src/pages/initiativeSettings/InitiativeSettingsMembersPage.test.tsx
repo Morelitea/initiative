@@ -179,7 +179,7 @@ describe("InitiativeSettingsMembersPage", () => {
         searches.push(new URL(request.url).searchParams.get("search"));
         return HttpResponse.json(
           buildPage([
-            buildUserSummary({ id: 55, display_name: "Ada Admin", guild_role: "admin" }),
+            buildUserSummary({ id: 55, display_name: "Ada Admin", community_role: "admin" }),
             buildUserSummary({ id: 56, display_name: "Bo Member" }),
           ])
         );

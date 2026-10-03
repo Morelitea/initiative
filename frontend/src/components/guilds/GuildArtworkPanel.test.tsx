@@ -12,7 +12,7 @@ import { GuildArtworkPanel } from "./GuildArtworkPanel";
 const entitlements = (bannerImageEnabled: boolean) =>
   server.use(
     http.get("*/api/v1/communities/:guildId/entitlements", () =>
-      HttpResponse.json({ guild_id: 1, banner_image_enabled: bannerImageEnabled })
+      HttpResponse.json({ community_id: 1, banner_image_enabled: bannerImageEnabled })
     )
   );
 

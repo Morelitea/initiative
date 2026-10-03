@@ -39,7 +39,7 @@ export const GuildLoginPage = () => {
     enabled: guildId > 0 && !isNativePlatform,
   });
   const providers = providersQuery.data?.providers ?? [];
-  const guildName = providersQuery.data?.guild_name ?? null;
+  const guildName = providersQuery.data?.community_name ?? null;
 
   const signIn = (entry: LoginProviderEntry) => {
     const next = `/c/${guildId}`;

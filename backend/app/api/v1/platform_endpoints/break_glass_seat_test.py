@@ -52,7 +52,7 @@ async def test_a_break_glass_holder_seats_a_superadmin_from_the_guilds_own_route
 
     issued = await client.post(
         BREAK_GLASS,
-        json={"guild_id": guild_id, "reason": "sole superadmin unreachable"},
+        json={"community_id": guild_id, "reason": "sole superadmin unreachable"},
         headers=operator.headers,
     )
     assert issued.status_code == 201, issued.text
@@ -103,7 +103,7 @@ async def test_a_break_glass_holder_deletes_the_community_from_its_own_settings(
 
     issued = await client.post(
         BREAK_GLASS,
-        json={"guild_id": guild_id, "reason": "sole superadmin unreachable"},
+        json={"community_id": guild_id, "reason": "sole superadmin unreachable"},
         headers=operator.headers,
     )
     assert issued.status_code == 201, issued.text

@@ -169,7 +169,7 @@ describe("CommentSection", () => {
 
     const marked = (text: string) => screen.getByText(text).closest("[data-unread]") !== null;
     await waitFor(() => expect(marked("Named by a line")).toBe(true));
-    expect(read).toEqual({ guild_id: 1, subject_type: "task", subject_id: 3 });
+    expect(read).toEqual({ community_id: 1, subject_type: "task", subject_id: 3 });
     expect(marked("After the roll-up")).toBe(true);
     expect(marked("Before the roll-up")).toBe(false);
     expect(marked("My own reply")).toBe(false);

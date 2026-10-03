@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from typing import List, Optional
 
-from pydantic import ConfigDict, EmailStr, Field, field_validator
+from pydantic import AliasChoices, ConfigDict, EmailStr, Field, field_validator
 
 from app.core.user_agents import ClientKind
 from app.schemas.base import RawTextStr, SanitizedBaseModel
@@ -31,7 +31,9 @@ class LoginProvidersResponse(SanitizedBaseModel):
     # Guild-addressed listings only: the guild's display name for its login
     # page. Set exactly when the listing is non-empty, so a guild without
     # login-ready providers stays indistinguishable from an unknown id.
-    guild_name: Optional[str] = None
+    community_name: Optional[str] = Field(
+        default=None, validation_alias=AliasChoices("community_name", "guild_name")
+    )
 
 
 class VerificationSendResponse(SanitizedBaseModel):

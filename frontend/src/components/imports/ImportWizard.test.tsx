@@ -40,7 +40,7 @@ const MANIFEST = {
 
 const STAGED_JOB = {
   id: 55,
-  guild_id: 1,
+  community_id: 1,
   created_by: 1,
   source: "backup",
   params: {},

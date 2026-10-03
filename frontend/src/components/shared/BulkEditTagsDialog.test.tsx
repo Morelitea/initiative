@@ -40,8 +40,8 @@ describe("BulkEditTagsDialog", () => {
     server.use(
       guildHttp.get("/tags/", () =>
         HttpResponse.json([
-          { ...alpha, guild_id: 1, created_at: "", updated_at: "" },
-          { ...beta, guild_id: 1, created_at: "", updated_at: "" },
+          { ...alpha, community_id: 1, created_at: "", updated_at: "" },
+          { ...beta, community_id: 1, created_at: "", updated_at: "" },
         ])
       )
     );

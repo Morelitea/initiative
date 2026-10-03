@@ -246,7 +246,7 @@ async def _rule_read(
         provider_display_name=provider.display_name if provider else "",
         provider_icon=provider.icon if provider else None,
         claim_value=row.claim_value or "",
-        guild_role=row.guild_role,
+        community_role=row.guild_role,
         initiative_id=row.initiative_id,
         initiative_name=initiative_name,
         initiative_role_id=row.initiative_role_id,
@@ -348,7 +348,7 @@ async def create_rule(
     provider = await _connected_provider(
         session, guild_id=guild_id, provider_id=payload.provider_id
     )
-    _require_mappable_role(payload.guild_role)
+    _require_mappable_role(payload.community_role)
     claim_value = payload.claim_value.strip()
     target_type = await _resolve_destination(
         session,
@@ -368,7 +368,7 @@ async def create_rule(
         claim_value=claim_value,
         target_type=target_type,
         guild_id=guild_id,
-        guild_role=payload.guild_role,
+        guild_role=payload.community_role,
         initiative_id=payload.initiative_id,
         initiative_role_id=payload.initiative_role_id,
     )

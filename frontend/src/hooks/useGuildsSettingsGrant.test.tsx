@@ -75,8 +75,8 @@ describe("settings grants in the community switcher", () => {
         return Promise.resolve({
           data: [
             {
-              guild_id: 8,
-              guild_name: "Granted Community",
+              community_id: 8,
+              community_name: "Granted Community",
               purpose: "content",
               access_level: "read_write",
               is_live: true,
@@ -84,8 +84,8 @@ describe("settings grants in the community switcher", () => {
               expires_at: "2026-09-17T21:00:00Z",
             },
             {
-              guild_id: 8,
-              guild_name: "Granted Community",
+              community_id: 8,
+              community_name: "Granted Community",
               purpose: "settings",
               access_level: "superadmin",
               is_live: true,
@@ -119,8 +119,8 @@ describe("settings grants in the community switcher", () => {
         return Promise.resolve({
           data: [
             {
-              guild_id: 8,
-              guild_name: "Member Community",
+              community_id: 8,
+              community_name: "Member Community",
               purpose: "settings",
               access_level: "superadmin",
               is_live: true,
@@ -150,8 +150,8 @@ describe("settings grants in the community switcher", () => {
         return Promise.resolve({
           data: [
             {
-              guild_id: 8,
-              guild_name: "Granted Community",
+              community_id: 8,
+              community_name: "Granted Community",
               purpose: "settings",
               access_level: "admin",
               is_live: true,

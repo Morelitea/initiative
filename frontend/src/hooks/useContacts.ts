@@ -37,7 +37,7 @@ const favoriteParams = (search: string) => (search.trim() ? { search } : undefin
 
 /** One community, one page — the request a roster makes for itself. */
 const guildPageParams = (guildId: number, page: number, search: string) => ({
-  guild_ids: [guildId],
+  community_ids: [guildId],
   page,
   page_size: CONTACTS_PAGE_SIZE,
   ...(search.trim() ? { search } : {}),

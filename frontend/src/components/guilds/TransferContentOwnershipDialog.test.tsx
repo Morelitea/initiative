@@ -35,11 +35,11 @@ vi.mock("@/hooks/useUsers", () => ({
 
 import { TransferContentOwnershipDialog } from "./TransferContentOwnershipDialog";
 
-const admin = buildUserSummary({ id: 11, display_name: "Ada Admin", guild_role: "admin" });
+const admin = buildUserSummary({ id: 11, display_name: "Ada Admin", community_role: "admin" });
 const member = buildUserGuildMember({ id: 12, display_name: "Mel Member" });
 search.items = [
   admin,
-  buildUserSummary({ id: 12, display_name: "Mel Member", guild_role: "member" }),
+  buildUserSummary({ id: 12, display_name: "Mel Member", community_role: "member" }),
 ];
 
 const content = (overrides: Partial<OwnedContentResponse> = {}): OwnedContentResponse => ({

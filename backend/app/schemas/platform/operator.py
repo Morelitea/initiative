@@ -2,7 +2,7 @@
 
 from typing import Dict, List, Literal, Optional
 
-from pydantic import ConfigDict, Field
+from pydantic import AliasChoices, ConfigDict, Field
 
 from app.schemas.base import SanitizedBaseModel
 
@@ -29,8 +29,10 @@ class CommunityBlockerInfo(SanitizedBaseModel):
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
-    guild_id: int
-    guild_name: str
+    community_id: int = Field(validation_alias=AliasChoices("community_id", "guild_id"))
+    community_name: str = Field(
+        validation_alias=AliasChoices("community_name", "guild_name")
+    )
 
 
 class OperatorDeletionEligibilityResponse(SanitizedBaseModel):
@@ -40,7 +42,10 @@ class OperatorDeletionEligibilityResponse(SanitizedBaseModel):
 
     can_delete: bool
     blockers: List[str] = Field(default_factory=list)
-    guild_blockers: List[CommunityBlockerInfo] = Field(default_factory=list)
+    community_blockers: List[CommunityBlockerInfo] = Field(
+        default_factory=list,
+        validation_alias=AliasChoices("community_blockers", "guild_blockers"),
+    )
 
 
 class OperatorUsernameUpdate(SanitizedBaseModel):

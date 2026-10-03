@@ -200,7 +200,7 @@ async def export_events(
     guild_context: GuildContextDep,
     format: Literal["ics"] = Query(default="ics"),
     initiative_id: Optional[int] = Query(default=None),
-    scope: Optional[Literal["guild"]] = Query(default=None),
+    scope: Optional[Literal["community"]] = Query(default=None),
     calendar_ids: Optional[List[int]] = Query(default=None),
     exclude_calendar_ids: Optional[List[int]] = Query(
         default=None, description="Calendars to leave out, such as hidden ones"
@@ -330,7 +330,7 @@ async def estimate_aggregate_export(
     session: RLSSessionDep,
     current_user: CurrentUserDep,
     guild_context: GuildContextDep,
-    scope: Literal["initiative", "guild"] = Query(),
+    scope: Literal["initiative", "community"] = Query(),
     initiative_id: Optional[int] = Query(
         default=None, description="Required when scope=initiative"
     ),
@@ -343,14 +343,15 @@ async def estimate_aggregate_export(
     submitting. Guild scope requires the community's seat."""
     from app.services.export.adapters.backup import estimate_backup
 
-    if scope == "guild":
+    if scope == "community":
         require_seat(guild_context, detail=ExportMessages.EXPORT_SUPERADMIN_REQUIRED)
     with _export_errors():
         return await estimate_backup(
             session,
             current_user,
             guild_context.guild_id,
-            scope=scope,
+            # A backup records its scope as "guild" in its manifest.
+            scope="guild" if scope == "community" else scope,
             initiative_id=initiative_id,
             include_uploads=include_uploads,
             filters=_parse_json_param(filters),

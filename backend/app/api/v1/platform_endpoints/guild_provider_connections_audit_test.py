@@ -184,7 +184,7 @@ async def test_a_communitys_own_rule_is_recorded_through_its_life(
         json={
             "provider_id": provider_id,
             "claim_value": GROUP_CLAIM_VALUE,
-            "guild_role": "member",
+            "community_role": "member",
         },
     )
     assert created.status_code == 201, created.text

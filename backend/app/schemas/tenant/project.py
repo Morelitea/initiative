@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import List, Literal, Optional
 
-from pydantic import ConfigDict, Field
+from pydantic import AliasChoices, ConfigDict, Field
 
 from app.core.identity_boundary import GuildId, PersonId
 from app.schemas.base import (
@@ -102,7 +102,9 @@ class ProjectRead(ProjectBase, ToolState):
     #: The community this project lives in — the one fact a cross-guild list
     #: needs to address the row, and what every other tool summary carries.
     #: Left out of the slim picker projection, which never leaves one guild.
-    guild_id: Optional[GuildId] = None
+    community_id: Optional[GuildId] = Field(
+        default=None, validation_alias=AliasChoices("community_id", "guild_id")
+    )
     created_at: datetime
     updated_at: datetime
     is_template: bool

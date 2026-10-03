@@ -2656,7 +2656,7 @@ async def test_guild_export_belongs_to_the_seat(
     admin = await acting_user(guild_role=CommunityRole.admin, guild=seat.guild)
     member = await acting_user(guild_role=CommunityRole.member, guild=seat.guild)
     for caller in (admin, member):
-        for source, params in (("community", {}), ("estimate", {"scope": "guild"})):
+        for source, params in (("community", {}), ("estimate", {"scope": "community"})):
             resp = await _export(
                 client, caller, source, headers=caller.headers, **params
             )

@@ -23,7 +23,7 @@ from typing import (
     Union,
 )
 
-from pydantic import ConfigDict, Field
+from pydantic import AliasChoices, ConfigDict, Field
 
 from app.models.tenant.app_member_consent import ConsentAccess, ConsentStatus
 from app.schemas.base import SanitizedBaseModel
@@ -189,7 +189,10 @@ class AppSurfaceAccessRead(SanitizedBaseModel):
 
     surface_id: str
     #: Whether the viewer may open it at the community level.
-    openable_guild_wide: bool = False
+    openable_community_wide: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("openable_community_wide", "openable_guild_wide"),
+    )
     #: The initiatives the viewer may open it in.
     openable_initiatives: List[int] = []
 
@@ -200,7 +203,7 @@ class CommunityAppRead(SanitizedBaseModel):
     )
 
     id: int
-    guild_id: int
+    community_id: int = Field(validation_alias=AliasChoices("community_id", "guild_id"))
     listing_uid: str
     listing_version: str
     app_kind: str
@@ -515,7 +518,7 @@ def serialize_guild_app(
     service_state = install_state or InstallState()
     return CommunityAppRead(
         id=app.id,
-        guild_id=context.guild_id,
+        community_id=context.guild_id,
         listing_uid=app.listing_uid,
         listing_version=app.listing_version,
         app_kind=app.app_kind,
@@ -539,7 +542,7 @@ def serialize_guild_app(
         surface_access=[
             AppSurfaceAccessRead(
                 surface_id=one.surface_id,
-                openable_guild_wide=one.openable_guild_wide,
+                openable_community_wide=one.openable_guild_wide,
                 openable_initiatives=list(one.openable_initiatives),
             )
             for one in openability

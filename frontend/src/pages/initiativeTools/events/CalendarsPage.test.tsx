@@ -193,7 +193,7 @@ describe("CalendarsView calendar-entries query", () => {
         description: null,
         color: "#6366f1",
         initiative_id: INITIATIVE_ID,
-        guild_id: 1,
+        community_id: 1,
         created_by: 1,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -218,7 +218,7 @@ describe("CalendarsView calendar-entries query", () => {
       description: null,
       color: "#6366f1",
       initiative_id: INITIATIVE_ID,
-      guild_id: 1,
+      community_id: 1,
       created_by: 1,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -282,7 +282,7 @@ describe("CalendarsView on a guild calendar", () => {
     description: null,
     color: "#6366f1",
     initiative_id: null,
-    guild_id: 1,
+    community_id: 1,
     created_by: 1,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
@@ -359,7 +359,7 @@ describe("CalendarsView on the calendar app's own surface", () => {
     description: null,
     color: "#6366f1",
     initiative_id: null,
-    guild_id: 1,
+    community_id: 1,
     created_by: 1,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
@@ -429,11 +429,11 @@ describe("CalendarsView on the calendar app's own surface", () => {
 
     // The list is asked for by scope, not inferred from an absent initiative —
     // otherwise it would answer with every initiative's calendars too.
-    expect(calendarList[0].get("scope")).toBe("guild");
+    expect(calendarList[0].get("scope")).toBe("community");
     // The events are asked for by scope too, rather than by naming the
     // calendars: the list above is one page of them, and an event on a calendar
     // past the end of it would simply not be drawn.
-    expect(entries[0].get("scope")).toBe("guild");
+    expect(entries[0].get("scope")).toBe("community");
     expect(entries[0].getAll("calendar_ids")).toEqual([]);
     expect(entries[0].get("include_tasks")).toBe("false");
     expect(entries[0].get("initiative_id")).toBeNull();
@@ -444,7 +444,7 @@ describe("CalendarsView on the calendar app's own surface", () => {
   const midsummer = {
     id: 1,
     calendar_id: 42,
-    guild_id: 1,
+    community_id: 1,
     title: "Midsummer",
     description: null,
     start_at: inFocusMonth(3),
@@ -494,7 +494,7 @@ describe("CalendarsView on the calendar app's own surface", () => {
 
     await user.click(await screen.findByRole("button", { name: /^export$/i }));
     await waitFor(() => expect(exports).toHaveLength(1));
-    expect(exports[0].get("scope")).toBe("guild");
+    expect(exports[0].get("scope")).toBe("community");
     expect(exports[0].getAll("calendar_ids")).toEqual([]);
     expect(exports[0].get("start_after")).toBeNull();
 
@@ -503,7 +503,7 @@ describe("CalendarsView on the calendar app's own surface", () => {
     await user.keyboard("{Escape}");
     await user.click(screen.getByRole("button", { name: /^export$/i }));
     await waitFor(() => expect(exports).toHaveLength(2));
-    expect(exports[1].get("scope")).toBe("guild");
+    expect(exports[1].get("scope")).toBe("community");
     expect(exports[1].getAll("exclude_calendar_ids")).toEqual(["42"]);
   });
 

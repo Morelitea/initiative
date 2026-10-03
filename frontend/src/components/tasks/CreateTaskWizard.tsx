@@ -130,7 +130,7 @@ export const CreateTaskWizard = () => {
 
   const projectsQuery = useGlobalProjects(
     {
-      guild_ids: guild ? [guild.id] : undefined,
+      community_ids: guild ? [guild.id] : undefined,
       search: projectSearch || undefined,
       page_size: 25,
       page: projectPage,

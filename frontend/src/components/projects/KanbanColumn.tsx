@@ -303,7 +303,7 @@ const KanbanCardContent = memo(
     const { t } = useTranslation(["projects", "dates"]);
     const { t: tRelations } = useTranslation("relations");
     const gp = useGuildPath();
-    const unreadDot = useUnreadTree().hasSubject(task.guild_id, "task", task.id) ? (
+    const unreadDot = useUnreadTree().hasSubject(task.community_id, "task", task.id) ? (
       <UnreadDot className="ml-2 inline-block align-middle" />
     ) : null;
 

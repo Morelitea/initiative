@@ -87,7 +87,7 @@ async def test_a_mention_reaches_only_people_the_project_is_shared_with(
     opened = await client.post(
         "/api/v1/notifications/read-subject",
         json={
-            "guild_id": owner.guild.id,
+            "community_id": owner.guild.id,
             "subject_type": "task",
             "subject_id": task.id,
         },

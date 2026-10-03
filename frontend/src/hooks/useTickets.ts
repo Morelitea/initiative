@@ -41,7 +41,7 @@ export const useTicketAvailability = (
   guildId: number | null,
   options?: QueryOpts<TicketAvailability>
 ) => {
-  const params = guildId == null ? undefined : { guild_id: guildId };
+  const params = guildId == null ? undefined : { community_id: guildId };
   return useQuery<TicketAvailability>({
     queryKey: getReadTicketAvailabilityQueryKey(params),
     queryFn: () => readTicketAvailability(params),

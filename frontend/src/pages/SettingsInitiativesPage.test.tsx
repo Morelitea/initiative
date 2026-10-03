@@ -71,13 +71,13 @@ function stubTable(managers: ReturnType<typeof buildInitiativeMember>[]) {
             id: ADMIN_ID,
             username: "ada",
             display_name: "Ada Lovelace",
-            guild_role: "admin",
+            community_role: "admin",
           }),
           buildUserSummary({
             id: MEMBER_ID,
             username: "bo",
             display_name: "Bo Diddley",
-            guild_role: "member",
+            community_role: "member",
           }),
         ])
       )

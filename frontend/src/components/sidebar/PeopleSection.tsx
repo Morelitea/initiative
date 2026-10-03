@@ -50,9 +50,9 @@ const RosterRow = ({ member }: { member: CommunityRosterMember }) => {
         <span className="min-w-0 flex-1">
           <span className="flex min-w-0 items-center gap-1 text-sm">
             <span className="truncate">{getUserDisplayName(member)}</span>
-            {isAdminRole(member.guild_role) && (
+            {isAdminRole(member.community_role) && (
               <Badge variant="secondary" className="shrink-0 px-1.5 py-0 text-3xs">
-                {member.guild_role === CommunityRole.superadmin
+                {member.community_role === CommunityRole.superadmin
                   ? t("members.superadmin")
                   : t("members.admin")}
               </Badge>
@@ -87,7 +87,7 @@ export const PeopleSection = () => {
     dmEnabled &&
     (dmSettings?.dm_policy === "private" ||
       (dmSettings?.dm_policy === "community" &&
-        dmSettings.communities.some((c) => c.guild_id === guildId && !c.enabled)));
+        dmSettings.communities.some((c) => c.community_id === guildId && !c.enabled)));
 
   const pages = roster.data?.pages;
   const counts = pages?.[0]?.presence_counts;

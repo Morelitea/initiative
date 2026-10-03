@@ -14,7 +14,7 @@ describe("recentRoute", () => {
     const item = buildRecentItem({
       entity_type: "project",
       entity_id: 7,
-      guild_id: 3,
+      community_id: 3,
       initiative_id: 5,
     });
     expect(recentRoute(item)).toBe("/c/3/i/5/projects/7");
@@ -25,7 +25,7 @@ describe("recentRoute", () => {
     const item = buildRecentItem({
       entity_type: "calendar",
       entity_id: 9,
-      guild_id: 3,
+      community_id: 3,
       initiative_id: null,
     });
     expect(recentRoute(item)).toBe("/c/3/calendars/9");
@@ -74,7 +74,7 @@ describe("getActiveRecentKey", () => {
 
 describe("recentKeyMatches", () => {
   it("matches on guild too, since entity ids collide across guilds", () => {
-    const item = buildRecentItem({ entity_type: "project", entity_id: 4, guild_id: 1 });
+    const item = buildRecentItem({ entity_type: "project", entity_id: 4, community_id: 1 });
     expect(recentKeyMatches(getActiveRecentKey("/c/1/i/2/projects/4"), item)).toBe(true);
     expect(recentKeyMatches(getActiveRecentKey("/c/9/i/2/projects/4"), item)).toBe(false);
     expect(recentKeyMatches(null, item)).toBe(false);

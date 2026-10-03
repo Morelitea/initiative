@@ -295,7 +295,7 @@ export const CalendarsView = ({
   // names the entries to fetch.
   const calendarsQuery = useCalendarsList(
     guildScope
-      ? { page_size: 200, scope: "guild" }
+      ? { page_size: 200, scope: "community" }
       : { page_size: 200, ...(initiativeId ? { initiative_id: initiativeId } : {}) },
     { enabled: !solo }
   );
@@ -318,7 +318,7 @@ export const CalendarsView = ({
     // on one that fell off the end would simply not be drawn.
     if (guildOnly) {
       return {
-        ...(solo ? { calendar_ids: [soloCalendar.id] } : { scope: "guild" as const }),
+        ...(solo ? { calendar_ids: [soloCalendar.id] } : { scope: "community" as const }),
         start_after: span.start.toISOString(),
         start_before: span.end.toISOString(),
         tz: userTimezone,
@@ -373,7 +373,7 @@ export const CalendarsView = ({
       ...(solo
         ? { calendar_ids: [soloCalendar.id] }
         : guildScope
-          ? { scope: "guild" as const }
+          ? { scope: "community" as const }
           : initiativeId
             ? { initiative_id: initiativeId }
             : {}),
@@ -416,7 +416,7 @@ export const CalendarsView = ({
       if (task.project_id == null || seen.has(task.project_id)) continue;
       seen.set(task.project_id, {
         projectId: task.project_id,
-        guildId: task.guild_id ?? guildId,
+        guildId: task.community_id ?? guildId,
         name: projectNamesById.get(task.project_id) ?? `#${task.project_id}`,
         color: getProjectColor(task.project_id),
       });
@@ -454,7 +454,7 @@ export const CalendarsView = ({
         buildEventCalendarEntry(
           event,
           calendarsById.get(event.calendar_id)?.color,
-          unread.hasSubject(event.guild_id, "calendar_event", event.id)
+          unread.hasSubject(event.community_id, "calendar_event", event.id)
         )
       );
     }

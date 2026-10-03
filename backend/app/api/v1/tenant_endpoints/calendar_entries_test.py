@@ -323,7 +323,7 @@ async def _guild_with_project(session, user, *, name):
 async def test_guild_scope_returns_every_guild_calendar_s_events(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """``scope=guild`` asks by kind, so the answer does not depend on the caller
+    """``scope=community`` asks by kind, so the answer does not depend on the caller
     first assembling a list of calendar ids — a list which would be one page of
     them, with everything after it silently undrawn."""
     a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
@@ -347,7 +347,7 @@ async def test_guild_scope_returns_every_guild_calendar_s_events(
         a.g("/calendar-entries/"),
         headers=a.headers,
         params={
-            "scope": "guild",
+            "scope": "community",
             "start_after": WINDOW_START,
             "start_before": WINDOW_END,
             "include_tasks": "false",

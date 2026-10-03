@@ -5,7 +5,7 @@ carries exported content — the artifact is fetched via the download route."""
 from datetime import datetime, timezone
 from typing import Any, Optional
 
-from pydantic import ConfigDict, Field, computed_field
+from pydantic import AliasChoices, ConfigDict, Field, computed_field
 
 from app.models.tenant.export_job import ExportJob, ExportJobStatus
 from app.schemas.base import SanitizedBaseModel
@@ -17,7 +17,7 @@ class ExportJobRead(SanitizedBaseModel):
     )
 
     id: int
-    guild_id: int
+    community_id: int = Field(validation_alias=AliasChoices("community_id", "guild_id"))
     created_by: int
     source: str
     template_id: str
@@ -73,7 +73,7 @@ def serialize_export_job(job: ExportJob, *, guild_id: int) -> ExportJobRead:
     }
     if artifact_expired(job):
         fields["status"] = ExportJobStatus.expired
-    return ExportJobRead(guild_id=guild_id, **fields)
+    return ExportJobRead(community_id=guild_id, **fields)
 
 
 class CommunityExportStatus(SanitizedBaseModel):

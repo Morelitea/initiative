@@ -155,11 +155,11 @@ export const FileTicketDialog = ({
         target_id: ticket.targetId,
         reason,
         detail: body.trim() || null,
-        guild_id: guildId,
+        community_id: guildId,
       };
     }
     if (guildId == null || !subject.trim() || !body.trim()) return null;
-    return { stream: "support", guild_id: guildId, subject: subject.trim(), body: body.trim() };
+    return { stream: "support", community_id: guildId, subject: subject.trim(), body: body.trim() };
   };
   const ready = payload();
 

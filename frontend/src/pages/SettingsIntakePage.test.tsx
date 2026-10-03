@@ -51,8 +51,8 @@ vi.mock("@/hooks/useIntakeSettings", () => ({
     data: state.isError
       ? undefined
       : {
-          operations_guild_id: state.operationsGuildId,
-          operations_guild_name: state.operationsGuildId ? "Operations" : null,
+          operations_community_id: state.operationsGuildId,
+          operations_community_name: state.operationsGuildId ? "Operations" : null,
           bindings: state.bindings,
           general_contact_email: state.generalContact,
           contact_emails: state.contactEmails,

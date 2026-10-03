@@ -212,7 +212,7 @@ export const ToolTable = ({
     () =>
       new Map(
         initiatives.map((initiative) => [
-          initiativeKey(initiative.guild_id, initiative.id),
+          initiativeKey(initiative.community_id, initiative.id),
           initiative,
         ])
       ),

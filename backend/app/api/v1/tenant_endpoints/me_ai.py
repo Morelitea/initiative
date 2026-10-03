@@ -58,8 +58,8 @@ async def list_my_ai(
         view = await get_member_ai_view(guild_session, current_user, guild_id)
         return [
             MyAIConnectionRow(
-                guild_id=guild_id,
-                guild_name=names.get(guild_id, ""),
+                community_id=guild_id,
+                community_name=names.get(guild_id, ""),
                 scope=c.scope,
                 connection_id=c.id,
                 label=c.label,

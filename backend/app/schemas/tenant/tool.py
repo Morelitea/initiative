@@ -6,7 +6,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, List, Optional, TYPE_CHECKING, TypeVar
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
 from app.core.identity_boundary import GuildId, PersonId
 from app.schemas.base import MAX_TITLE_LENGTH, SanitizedBaseModel
@@ -33,7 +33,9 @@ class ToolSummaryBase(ToolState):
 
     id: int
     initiative_id: int
-    guild_id: GuildId
+    community_id: GuildId = Field(
+        validation_alias=AliasChoices("community_id", "guild_id")
+    )
     created_by: PersonId | None = None
     created_at: datetime
     updated_at: datetime

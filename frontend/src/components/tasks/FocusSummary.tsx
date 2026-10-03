@@ -33,7 +33,7 @@ export type FocusSummaryProps = {
 };
 
 const taskHref = (task: TaskListRead, activeGuildId: number | null) => {
-  const guildId = task.guild_id ?? activeGuildId;
+  const guildId = task.community_id ?? activeGuildId;
   // A task's URL names its project and initiative; a row missing either
   // resolves through `/go` rather than pointing at an address that isn't one.
   const path =
@@ -63,7 +63,7 @@ const FocusRow = ({
   done = false,
 }: FocusRowProps) => {
   const { t } = useTranslation(["tasks", "common"]);
-  const context = [task.project_name, task.guild_name].filter(Boolean).join(" · ");
+  const context = [task.project_name, task.community_name].filter(Boolean).join(" · ");
 
   return (
     <div className="group flex items-center gap-3 rounded-md px-2 py-1.5 hover:bg-muted/50">
@@ -187,7 +187,7 @@ export const FocusSummary = ({
 
   const renderRow = (task: TaskListRead, done: boolean) => (
     <FocusRow
-      key={`${task.guild_id ?? "none"}:${task.id}`}
+      key={`${task.community_id ?? "none"}:${task.id}`}
       task={task}
       activeGuildId={activeGuildId}
       isPinned={focus.isPinned(task)}

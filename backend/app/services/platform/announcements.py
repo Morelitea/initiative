@@ -222,7 +222,7 @@ def to_operator_read(announcement: Announcement) -> AnnouncementOperatorRead:
         dismissals_required=announcement.dismissals_required,
         trigger_route=announcement.trigger_route,
         min_platform_role=UserRole(announcement.min_platform_role),
-        guild_admins_only=announcement.guild_admins_only,
+        community_admins_only=announcement.guild_admins_only,
         audience_accounts=AnnouncementAudienceAccounts(announcement.audience_accounts),
         expires_at=announcement.expires_at,
         created_at=announcement.created_at,
@@ -243,7 +243,7 @@ def builtin_operator_read(builtin: BuiltinAnnouncement) -> AnnouncementOperatorR
         dismissals_required=builtin.dismissals_required,
         trigger_route=builtin.trigger_route,
         min_platform_role=builtin.min_platform_role,
-        guild_admins_only=builtin.guild_admins_only,
+        community_admins_only=builtin.guild_admins_only,
         audience_accounts=builtin.audience_accounts,
         expires_at=builtin.expires_at,
     )
@@ -458,7 +458,7 @@ async def create(session: AsyncSession, *, payload: AnnouncementWrite) -> Announ
         category=payload.category.value,
         sections=[s.model_dump(mode="json") for s in payload.sections],
         min_platform_role=payload.min_platform_role.value,
-        guild_admins_only=payload.guild_admins_only,
+        guild_admins_only=payload.community_admins_only,
         audience_accounts=payload.audience_accounts.value,
         published_at=payload.published_at,
         expires_at=payload.expires_at,
@@ -483,8 +483,8 @@ async def update(
         announcement.sections = [s.model_dump(mode="json") for s in payload.sections]
     if payload.min_platform_role is not None:
         announcement.min_platform_role = payload.min_platform_role.value
-    if payload.guild_admins_only is not None:
-        announcement.guild_admins_only = payload.guild_admins_only
+    if payload.community_admins_only is not None:
+        announcement.guild_admins_only = payload.community_admins_only
     if payload.audience_accounts is not None:
         announcement.audience_accounts = payload.audience_accounts.value
     if payload.dismissals_required is not None:

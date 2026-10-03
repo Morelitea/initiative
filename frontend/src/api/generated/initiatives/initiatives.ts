@@ -64,13 +64,13 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
 
 /**
  * The initiatives the caller belongs to, or — for a guild admin asking for
- * ``scope=guild`` — every initiative in the guild.
+ * ``scope=community`` — every initiative in the guild.
  *
  * The default is the caller's own workspace: what the sidebar and the
  * initiative pickers show. A guild admin's authority over their whole guild is
  * unchanged; it simply no longer decides what appears in their navigation.
  * They bring an initiative into it by taking the project manager role from the
- * guild-settings initiative table, which is also what ``scope=guild`` feeds.
+ * guild-settings initiative table, which is also what ``scope=community`` feeds.
  * @summary List Initiatives
  */
 export const listInitiatives = (
@@ -296,7 +296,7 @@ export const useCreateInitiative = <TError = ErrorType<HTTPValidationError>, TCo
  * Initiatives whose policy is ``private`` are listed only to their own
  * members, guild admins included: an admin's authority over the guild is
  * unchanged, but the front page shows what they are in and what is on offer,
- * read the same way for everyone. ``/initiatives/?scope=guild`` is the
+ * read the same way for everyone. ``/initiatives/?scope=community`` is the
  * whole-guild listing, and guild settings is where it is managed.
  *
  * Declared before ``/{initiative_id}`` so the literal path wins the match.

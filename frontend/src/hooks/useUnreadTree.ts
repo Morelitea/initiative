@@ -28,7 +28,7 @@ export const useUnreadTree = (options?: { enabled?: boolean }) => {
     const keys = new Set<string>();
 
     for (const place of places) {
-      const guild = place.guild_id;
+      const guild = place.community_id;
       if (guild == null) continue;
       keys.add(`g:${guild}`);
       if (place.initiative_id != null) {

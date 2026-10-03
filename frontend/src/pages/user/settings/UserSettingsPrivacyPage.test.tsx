@@ -43,7 +43,7 @@ const dmSettings = (overrides: Record<string, unknown> = {}) => ({
   data: {
     dm_policy: "private",
     age_confirmed_at: "2026-01-01T00:00:00Z",
-    communities: [{ guild_id: 1, name: "Ravenloft Table", icon_url: null, enabled: true }],
+    communities: [{ community_id: 1, name: "Ravenloft Table", icon_url: null, enabled: true }],
     ...overrides,
   },
   isLoading: false,

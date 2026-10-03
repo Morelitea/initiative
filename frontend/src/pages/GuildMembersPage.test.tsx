@@ -67,7 +67,7 @@ const person = (id: number, username: string, overrides: Record<string, unknown>
   status: "active" as const,
   // The server answers "does this one administer the place"; a role override
   // here carries it, the way the real payload does.
-  is_guild_admin: overrides.guild_role === "admin" || overrides.guild_role === "superadmin",
+  is_guild_admin: overrides.community_role === "admin" || overrides.community_role === "superadmin",
   ...overrides,
 });
 
@@ -169,8 +169,8 @@ describe("a community's members page", () => {
     // Only the exception is worn: badging every ordinary member "member" would
     // say nothing and cost the width the actions need.
     answer([
-      person(1, "ada", { guild_role: "admin" }),
-      person(2, "bram", { guild_role: "member" }),
+      person(1, "ada", { community_role: "admin" }),
+      person(2, "bram", { community_role: "member" }),
     ]);
     setup();
 

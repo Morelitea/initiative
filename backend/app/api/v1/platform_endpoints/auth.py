@@ -1513,7 +1513,7 @@ async def list_community_login_providers(
     if entries:
         guild = await system_session.get(Guild, guild_id)
         guild_name = guild.name if guild else None
-    return LoginProvidersResponse(providers=entries, guild_name=guild_name)
+    return LoginProvidersResponse(providers=entries, community_name=guild_name)
 
 
 @router.get("/{provider_slug}/login")

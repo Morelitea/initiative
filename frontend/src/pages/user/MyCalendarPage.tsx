@@ -172,7 +172,7 @@ export const MyCalendarPage = () => {
       include_tasks: true,
     };
     if (guildFilters.length > 0) {
-      params.guild_ids = guildFilters;
+      params.community_ids = guildFilters;
     }
     return params;
   }, [visibleRange, taskConditions, userTimezone, guildFilters]);
@@ -182,13 +182,13 @@ export const MyCalendarPage = () => {
   // The user's visible calendars across guilds — the grouping panel's rows and
   // the color source for events without their own color.
   const calendarsQuery = useMyCalendars(
-    guildFilters.length > 0 ? { guild_ids: guildFilters } : undefined
+    guildFilters.length > 0 ? { community_ids: guildFilters } : undefined
   );
   const calendars = useMemo(() => calendarsQuery.data?.items ?? [], [calendarsQuery.data]);
   const calendarColors = useMemo(() => {
     const map = new Map<string, string>();
     for (const calendar of calendars)
-      map.set(`${calendar.guild_id}:${calendar.id}`, calendar.color);
+      map.set(`${calendar.community_id}:${calendar.id}`, calendar.color);
     return map;
   }, [calendars]);
 
@@ -209,14 +209,14 @@ export const MyCalendarPage = () => {
     const data = entriesQuery.data;
     for (const task of [...(data?.tasks ?? []), ...(data?.task_occurrences ?? [])]) {
       if (task.project_id == null) continue;
-      const key = `${task.guild_id ?? 0}:${task.project_id}`;
+      const key = `${task.community_id ?? 0}:${task.project_id}`;
       if (seen.has(key)) continue;
       const guildName =
-        multiGuild && task.guild_id != null ? guildNamesById.get(task.guild_id) : undefined;
+        multiGuild && task.community_id != null ? guildNamesById.get(task.community_id) : undefined;
       const baseName = task.project_name ?? `#${task.project_id}`;
       seen.set(key, {
         projectId: task.project_id,
-        guildId: task.guild_id ?? 0,
+        guildId: task.community_id ?? 0,
         name: guildName ? `${baseName} · ${guildName}` : baseName,
         color: getProjectColor(task.project_id),
       });
@@ -236,7 +236,10 @@ export const MyCalendarPage = () => {
     const data = entriesQuery.data;
     const occurrences = new Set(data?.task_occurrences);
     for (const task of [...(data?.tasks ?? []), ...occurrences]) {
-      if (task.project_id != null && visibility.isProjectHidden(task.guild_id, task.project_id)) {
+      if (
+        task.project_id != null &&
+        visibility.isProjectHidden(task.community_id, task.project_id)
+      ) {
         continue;
       }
       const color = getProjectColor(task.project_id);
@@ -245,18 +248,18 @@ export const MyCalendarPage = () => {
         : buildTaskCalendarEntries(task, color, false)) {
         entries.push({
           ...entry,
-          meta: { ...(entry.meta as Record<string, unknown>), guildId: task.guild_id },
+          meta: { ...(entry.meta as Record<string, unknown>), guildId: task.community_id },
         });
       }
     }
 
     for (const event of entriesQuery.data?.events ?? []) {
-      if (visibility.isCalendarHidden(event.guild_id, event.calendar_id)) continue;
+      if (visibility.isCalendarHidden(event.community_id, event.calendar_id)) continue;
       entries.push(
         buildEventCalendarEntry(
           event,
-          calendarColors.get(`${event.guild_id}:${event.calendar_id}`),
-          unread.hasSubject(event.guild_id, "calendar_event", event.id)
+          calendarColors.get(`${event.community_id}:${event.calendar_id}`),
+          unread.hasSubject(event.community_id, "calendar_event", event.id)
         )
       );
     }
@@ -334,24 +337,26 @@ export const MyCalendarPage = () => {
                 calendars={calendars}
                 projectCalendars={projectCalendars}
                 isCalendarHidden={(calendar) =>
-                  visibility.isCalendarHidden(calendar.guild_id, calendar.id)
+                  visibility.isCalendarHidden(calendar.community_id, calendar.id)
                 }
                 isProjectHidden={(project) =>
                   visibility.isProjectHidden(project.guildId, project.projectId)
                 }
                 onToggleCalendar={(calendar) =>
-                  visibility.toggleCalendar(calendar.guild_id, calendar.id)
+                  visibility.toggleCalendar(calendar.community_id, calendar.id)
                 }
                 onToggleProject={(project) =>
                   visibility.toggleProject(project.guildId, project.projectId)
                 }
                 calendarLabel={(calendar) => {
-                  const guildName = multiGuild ? guildNamesById.get(calendar.guild_id) : undefined;
+                  const guildName = multiGuild
+                    ? guildNamesById.get(calendar.community_id)
+                    : undefined;
                   return guildName ? `${calendar.name} · ${guildName}` : calendar.name;
                 }}
                 settingsPathFor={(calendar) =>
                   guildPath(
-                    calendar.guild_id,
+                    calendar.community_id,
                     toolSettingsRoute(Tool.calendar, calendar.initiative_id, calendar.id)
                   )
                 }

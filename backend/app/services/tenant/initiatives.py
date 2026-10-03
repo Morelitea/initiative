@@ -574,7 +574,7 @@ async def list_directory_entries(
     One reading for everyone, guild admin included: their authority still
     reaches every initiative, but the front page lists the ones they are in and
     the ones on offer, the same as anyone else. The whole-guild listing is
-    ``scope=guild`` on the initiatives endpoint, which backs guild settings.
+    ``scope=community`` on the initiatives endpoint, which backs guild settings.
 
     Managers additionally get the size of their own join-request queue, so the
     guild home needs no second call to badge it. A guild admin gets it for the

@@ -82,7 +82,7 @@ async def test_no_key_is_minted_into_a_guild_that_declines_them(
     response = await client.post(
         "/api/v1/me/api-keys",
         headers=get_auth_headers(user),
-        json={"name": "no", "guild_id": guild.id},
+        json={"name": "no", "community_id": guild.id},
     )
     assert response.status_code == 403
     assert response.json()["detail"] == "GUILD_API_KEYS_REFUSED"

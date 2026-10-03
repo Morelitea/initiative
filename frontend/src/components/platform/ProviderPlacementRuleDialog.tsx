@@ -71,9 +71,9 @@ export const ProviderPlacementRuleDialog = ({
   const [scopeClaim, setScopeClaim] = useState(rule?.scope_claim ?? "");
   const [scopeValue, setScopeValue] = useState(rule?.scope_value ?? "");
   const [community, setCommunity] = useState<{ id: number; name: string } | null>(
-    rule ? { id: rule.guild_id, name: rule.guild_name } : null
+    rule ? { id: rule.community_id, name: rule.community_name } : null
   );
-  const [guildRole, setGuildRole] = useState(rule?.guild_role ?? "member");
+  const [guildRole, setGuildRole] = useState(rule?.community_role ?? "member");
   const [initiativeId, setInitiativeId] = useState(
     rule?.initiative_id != null ? String(rule.initiative_id) : COMMUNITY_ONLY
   );
@@ -145,7 +145,7 @@ export const ProviderPlacementRuleDialog = ({
       claim_value: trimmedGroup || null,
       scope_claim: directoryComplete ? trimmedClaim : null,
       scope_value: directoryComplete ? trimmedValue : null,
-      guild_role: guildRole,
+      community_role: guildRole,
       // Both halves or neither: somebody placed in an initiative needs the
       // role to hold there.
       initiative_id: chosenInitiative,
@@ -166,7 +166,7 @@ export const ProviderPlacementRuleDialog = ({
       return;
     }
     createRule.mutate(
-      { ...fields, provider_id: provider.id, guild_id: community.id },
+      { ...fields, provider_id: provider.id, community_id: community.id },
       {
         onSuccess: () => {
           toast.success(t("providerPlacement.added"));
@@ -189,7 +189,7 @@ export const ProviderPlacementRuleDialog = ({
             {rule
               ? t("providerPlacement.editDescription", {
                   provider: provider.display_name,
-                  community: rule.guild_name,
+                  community: rule.community_name,
                 })
               : t("providerPlacement.addDescription", { provider: provider.display_name })}
           </DialogDescription>

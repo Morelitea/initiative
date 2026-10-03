@@ -343,7 +343,7 @@ export const NewConversationDialog = () => {
                     // different term it is a different set of people, and
                     // carrying the expansion over would fetch a second page
                     // nobody asked for.
-                    key={`${group.guild_id}:${settled}`}
+                    key={`${group.community_id}:${settled}`}
                     section={group}
                     search={settled}
                     answers={answers}
@@ -395,7 +395,7 @@ const CommunityRoster = ({
 }) => {
   const { t } = useTranslation(["messages", "contacts"]);
   const [wantsMore, setWantsMore] = useState(false);
-  const more = useMoreCommunityContacts(section.guild_id, search, wantsMore);
+  const more = useMoreCommunityContacts(section.community_id, search, wantsMore);
 
   const extra = useMemo(
     () => more.data?.pages.flatMap((page) => page.sections?.[0]?.items ?? []) ?? [],
@@ -418,10 +418,10 @@ const CommunityRoster = ({
         <Avatar aria-hidden className="size-4 rounded-md">
           {section.icon_url ? <AvatarImage src={section.icon_url} alt="" /> : null}
           <AvatarFallback className="rounded-md bg-muted text-3xs text-muted-foreground">
-            {getInitials(section.guild_name, "G")}
+            {getInitials(section.community_name, "G")}
           </AvatarFallback>
         </Avatar>
-        <span className="min-w-0 flex-1 truncate">{section.guild_name}</span>
+        <span className="min-w-0 flex-1 truncate">{section.community_name}</span>
         <span className="shrink-0 tabular-nums">{section.total_count}</span>
       </h3>
       <ul>

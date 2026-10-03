@@ -103,8 +103,8 @@ vi.mock("@/hooks/useAppConfig", () => ({
 // outside it has agreed.
 let narrowings: {
   connection_id: number;
-  guild_id: number;
-  guild_name: string;
+  community_id: number;
+  community_name: string;
   provider_display_name: string;
   claim: string;
   claim_values: string[];
@@ -437,8 +437,8 @@ describe("OperatorDashboardGuildsPage", () => {
     const claiming = (agreed: boolean) => [
       {
         connection_id: 3,
-        guild_id: 7,
-        guild_name: "Capped Community",
+        community_id: 7,
+        community_name: "Capped Community",
         provider_display_name: "Corp SSO",
         claim: "hd",
         claim_values: ["acme.example"],

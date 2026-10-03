@@ -2,7 +2,7 @@ from datetime import datetime
 from enum import Enum
 from typing import List, Optional
 
-from pydantic import ConfigDict, Field, field_validator, model_validator
+from pydantic import AliasChoices, ConfigDict, Field, field_validator, model_validator
 
 from app.core.identity_boundary import GuildId
 from app.core.tools import TAG_TARGETS
@@ -74,7 +74,9 @@ class TagRead(TagBase):
     )
 
     id: int
-    guild_id: GuildId
+    community_id: GuildId = Field(
+        validation_alias=AliasChoices("community_id", "guild_id")
+    )
     created_at: datetime
     updated_at: datetime
 
@@ -88,7 +90,7 @@ def serialize_tag(tag, *, guild_id: int) -> TagRead:
     fields = {
         name: getattr(tag, name) for name in TagRead.model_fields if name != "guild_id"
     }
-    return TagRead(guild_id=guild_id, **fields)
+    return TagRead(community_id=guild_id, **fields)
 
 
 class TagSetRequest(SanitizedBaseModel):

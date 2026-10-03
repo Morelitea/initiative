@@ -28,7 +28,7 @@ const CALENDAR = {
   description: null,
   color: "#336699",
   initiative_id: 3,
-  guild_id: 1,
+  community_id: 1,
   created_by: 1,
   created_at: "2026-01-01T00:00:00Z",
   updated_at: "2026-01-01T00:00:00Z",
