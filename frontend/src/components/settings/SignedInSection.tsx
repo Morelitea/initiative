@@ -1,11 +1,15 @@
 /**
- * Where the account is signed in.
+ * Where the account is signed in, one row per device.
  *
- * Every place is a session (`auth_sessions`): a browser names itself by what
- * its user agent says it is, and the app by the name it signed in with.
+ * A row is a session (`auth_sessions`) with the message device collecting under
+ * it, or a message device with no sign-in. A browser names itself by what its
+ * user agent says it is, and the app by the name it signed in with.
  *
- * The session doing the reading is marked rather than offered an end: signing
- * the current one out is what the sign-out button is, on every page.
+ * A phone or desktop app, and a device with no sign-in, are removed: signed out
+ * and their messages withdrawn. A browser is signed out, which withdraws its
+ * messages too. The session doing the reading is marked rather than offered an
+ * end: signing the current one out is what the sign-out button is, on every
+ * page.
  */
 import { Monitor, MonitorSmartphone, Smartphone, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -29,7 +33,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useRelativeTime } from "@/hooks/useRelativeTime";
-import { useMySessions, useRevokeOtherSessions, useRevokeSession } from "@/hooks/useSecurity";
+import { useEndSignedIn, useMySessions, useRevokeOtherSessions } from "@/hooks/useSecurity";
 import { toast } from "@/lib/chesterToast";
 
 const KIND_ICONS = {
@@ -40,6 +44,9 @@ const KIND_ICONS = {
 
 /** When a session was last used, or when it began if it has not been since. */
 const lastActiveAt = (session: SignedInSessionInfo) => session.last_used_at ?? session.started_at;
+
+/** A device is removed; a browser is signed out. */
+const isRemoved = (session: SignedInSessionInfo) => session.id === null || session.device;
 
 const SignedInRow = ({
   session,
@@ -53,7 +60,13 @@ const SignedInRow = ({
   const { t } = useTranslation("settings");
   const active = useRelativeTime(lastActiveAt(session));
   const Icon = KIND_ICONS[session.kind] ?? MonitorSmartphone;
-  const detail = [session.ip, t("security.activeAt", { when: active })].filter(Boolean).join(" · ");
+  const detail = [
+    session.id === null ? t("security.notSignedIn") : null,
+    session.ip,
+    t("security.activeAt", { when: active }),
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
     <div className="flex items-center justify-between gap-4 rounded-lg border p-4">
@@ -74,7 +87,7 @@ const SignedInRow = ({
       {session.is_current ? null : (
         <Button type="button" variant="outline" size="sm" onClick={onEnd} disabled={busy}>
           <Trash2 className="h-4 w-4" />
-          {t("security.signOut")}
+          {isRemoved(session) ? t("security.removeDevice") : t("security.signOut")}
         </Button>
       )}
     </div>
@@ -88,8 +101,9 @@ export const SignedInSection = () => {
 
   const sessionsQuery = useMySessions();
 
-  const revokeSession = useRevokeSession({
-    onSuccess: () => toast.success(t("security.signedOutOne")),
+  const endSignedIn = useEndSignedIn({
+    onSuccess: (_, row) =>
+      toast.success(isRemoved(row) ? t("security.removedDevice") : t("security.signedOutOne")),
     onError: () => toast.error(t("security.revokeError")),
     onSettled: () => setPendingEnd(null),
   });
@@ -109,7 +123,8 @@ export const SignedInSection = () => {
     [sessionsQuery.data]
   );
 
-  const endable = sessions.filter((session) => !session.is_current);
+  const endable = sessions.filter((session) => session.id !== null && !session.is_current);
+  const removing = pendingEnd !== null && isRemoved(pendingEnd);
 
   return (
     <SettingsSection
@@ -132,9 +147,9 @@ export const SignedInSection = () => {
         <div className="space-y-3">
           {sessions.map((session) => (
             <SignedInRow
-              key={session.id}
+              key={session.id ?? session.message_device_id}
               session={session}
-              busy={revokeSession.isPending}
+              busy={endSignedIn.isPending}
               onEnd={() => setPendingEnd(session)}
             />
           ))}
@@ -157,10 +172,16 @@ export const SignedInSection = () => {
       <AlertDialog open={pendingEnd !== null} onOpenChange={() => setPendingEnd(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{t("security.signOutDialogTitle")}</AlertDialogTitle>
+            <AlertDialogTitle>
+              {removing ? t("security.removeDeviceDialogTitle") : t("security.signOutDialogTitle")}
+            </AlertDialogTitle>
             <AlertDialogDescription>
               <Trans
-                i18nKey="security.signOutDialogDescription"
+                i18nKey={
+                  removing
+                    ? "security.removeDeviceDialogDescription"
+                    : "security.signOutDialogDescription"
+                }
                 ns="settings"
                 values={{ deviceName: pendingEnd?.label ?? t("security.unknownDevice") }}
                 components={{ bold: <span className="font-medium" /> }}
@@ -170,10 +191,14 @@ export const SignedInSection = () => {
           <AlertDialogFooter>
             <AlertDialogCancel>{t("security.revokeDialogCancel")}</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => pendingEnd && revokeSession.mutate(pendingEnd.id)}
-              disabled={revokeSession.isPending}
+              onClick={() => pendingEnd && endSignedIn.mutate(pendingEnd)}
+              disabled={endSignedIn.isPending}
             >
-              {revokeSession.isPending ? t("security.revoking") : t("security.signOutConfirm")}
+              {endSignedIn.isPending
+                ? t("security.revoking")
+                : removing
+                  ? t("security.removeDeviceConfirm")
+                  : t("security.signOutConfirm")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

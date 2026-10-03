@@ -8356,16 +8356,21 @@ export interface SecondFactorStepUpAnswer {
 
 /**
  * One place the account is signed in — a browser, the phone app or the
- * desktop app — as its own "where you're signed in" list shows it.
- * ``started_at`` is the sign-in, not the last renewal, so a browser left open
- * for a month reads as a month old.
+ * desktop app — or one of its message devices that is not signed in, as its
+ * own "where you're signed in" list shows it. ``started_at`` is the sign-in,
+ * not the last renewal, so a browser left open for a month reads as a month
+ * old.
  *
- * ``label`` is the name a device signed in with, or else derived from the
- * user agent (``core.user_agents``). ``is_current`` marks the
+ * ``id`` is the session, ``None`` for a message device with no live sign-in;
+ * ``message_device_id`` is the key store, where there is one. ``device`` marks
+ * a session the phone or desktop app opened. ``label`` is the name a device
+ * signed in with, or else derived from the user agent (``core.user_agents``). ``is_current`` marks the
  * session doing the asking, which the list shows rather than offers to end.
  */
 export interface SignedInSessionInfo {
-  id: string;
+  id: string | null;
+  message_device_id: string | null;
+  device: boolean;
   label: string | null;
   kind: ClientKind;
   ip: string | null;

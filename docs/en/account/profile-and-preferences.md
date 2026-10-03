@@ -98,9 +98,11 @@ How the app reads to you. Each choice saves as you make it — no Save button.
 
 ## Where you're signed in
 
-**User settings → Security** lists every browser and phone with your account open: what each one is — *Chrome on macOS*, *Firefox on Windows* — where it last connected from, when it was last used, and which one is the one you're reading this on.
+**User settings → Security** lists every browser, phone and computer with your account open, one row each: what each one is — *Chrome on macOS*, *Firefox on Windows* — where it last connected from, when it was last used, and which one is the one you're reading this on.
 
-**Sign out** ends that one and leaves the rest alone. **Sign out everywhere else** closes the lot in one go and keeps you where you are, which is the button for the laptop you borrowed at your mum's and the library computer you have thought about twice since.
+**Sign out** ends a browser's session and leaves the rest alone. **Remove device** is the phone and desktop app version: it signs the app out and stops your messages going to it, which is the button for the phone that went in the canal. A device marked **not signed in** still holds your messages from an earlier sign-in; remove it once it's gone for good.
+
+**Sign out everywhere else** closes the lot in one go and keeps you where you are, which is the button for the laptop you borrowed at your mum's and the library computer you have thought about twice since. Phones and computers keep their messages, and pick up where they left off when you sign back in.
 
 Changing your password, resetting it, or turning off a second factor signs out everything, everywhere, including you. That's the biggest hammer in the drawer. This is the one for when you don't need the hammer.
 

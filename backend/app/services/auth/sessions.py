@@ -442,7 +442,9 @@ async def get_live_session_by_refresh_token(
 _LIVE_SESSIONS_SQL = text(
     """
     WITH RECURSIVE live AS (
-        SELECT id, parent_id, created_at, last_used_at, user_agent, ip, device_name
+        SELECT
+            id, parent_id, created_at, last_used_at, user_agent, ip, device_name,
+            device
         FROM auth_sessions
         WHERE user_id = :uid AND revoked_at IS NULL AND expires_at > :now
     ),
@@ -461,7 +463,8 @@ _LIVE_SESSIONS_SQL = text(
         live.last_used_at,
         live.user_agent,
         host(live.ip) AS ip,
-        live.device_name
+        live.device_name,
+        live.device
     FROM live JOIN roots ON roots.tip = live.id
     ORDER BY COALESCE(live.last_used_at, roots.started_at) DESC
     """
@@ -482,6 +485,8 @@ class LiveSession:
     user_agent: str | None
     ip: str | None
     device_name: str | None
+    #: Opened by the phone or desktop app.
+    device: bool
 
 
 async def list_live_for_user(
