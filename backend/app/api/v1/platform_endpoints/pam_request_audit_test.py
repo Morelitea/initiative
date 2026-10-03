@@ -31,7 +31,7 @@ async def outsider(acting_user, session: AsyncSession):
 async def _break_glass(client: AsyncClient, actor: Actor, guild: Guild) -> None:
     issued = await client.post(
         BREAK_GLASS,
-        json={"guild_id": guild.id, "reason": "prod incident #42"},
+        json={"community_id": guild.id, "reason": "prod incident #42"},
         headers=actor.headers,
     )
     assert issued.status_code == 201, issued.text

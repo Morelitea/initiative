@@ -103,7 +103,7 @@ export const GuildClaimRulesSection = ({ guildId }: { guildId: number }) => {
       {
         provider_id: Number(providerId),
         claim_value: claimValue.trim(),
-        guild_role: guildRole,
+        community_role: guildRole,
         // Both halves or neither: somebody placed in an initiative needs the
         // standing to hold there.
         initiative_id: chosenInitiative,
@@ -169,13 +169,13 @@ export const GuildClaimRulesSection = ({ guildId }: { guildId: number }) => {
                       {rule.initiative_name
                         ? t("guildAuth.rules.landsInInitiative", {
                             provider: rule.provider_display_name,
-                            role: roleLabel(rule.guild_role),
+                            role: roleLabel(rule.community_role),
                             initiative: rule.initiative_name,
                             initiativeRole: rule.initiative_role_name ?? "",
                           })
                         : t("guildAuth.rules.landsInCommunity", {
                             provider: rule.provider_display_name,
-                            role: roleLabel(rule.guild_role),
+                            role: roleLabel(rule.community_role),
                           })}
                     </p>
                   </div>
@@ -223,13 +223,13 @@ export const GuildClaimRulesSection = ({ guildId }: { guildId: number }) => {
                       {rule.initiative_name
                         ? t("guildAuth.rules.landsInInitiative", {
                             provider: rule.provider_display_name,
-                            role: roleLabel(rule.guild_role),
+                            role: roleLabel(rule.community_role),
                             initiative: rule.initiative_name,
                             initiativeRole: rule.initiative_role_name ?? "",
                           })
                         : t("guildAuth.rules.landsInCommunity", {
                             provider: rule.provider_display_name,
-                            role: roleLabel(rule.guild_role),
+                            role: roleLabel(rule.community_role),
                           })}
                     </p>
                   </div>

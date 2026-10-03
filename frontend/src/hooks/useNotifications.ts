@@ -51,14 +51,14 @@ export const useNotifications = (options?: {
     queryKey: getListNotificationsQueryKey({
       limit: NOTIFICATION_PAGE_SIZE,
       unread_only: options?.unreadOnly,
-      guild_id: options?.guildId,
+      community_id: options?.guildId,
       personal_only: options?.personalOnly,
     }),
     queryFn: () =>
       listNotifications({
         limit: NOTIFICATION_PAGE_SIZE,
         unread_only: options?.unreadOnly,
-        guild_id: options?.guildId,
+        community_id: options?.guildId,
         personal_only: options?.personalOnly,
       }),
     enabled: options?.enabled,
@@ -255,7 +255,7 @@ export const useReadOnOpen = (kind: string, id: number | undefined) => {
     queryKey: [...OPENED_KEY, guildId, kind, id],
     queryFn: async () => {
       const read = await readNotificationSubject({
-        guild_id: guildId,
+        community_id: guildId,
         subject_type: kind,
         subject_id: id as number,
       });

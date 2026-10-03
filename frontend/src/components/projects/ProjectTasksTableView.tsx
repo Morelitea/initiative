@@ -566,7 +566,7 @@ type TaskCellProps = {
 
 const TaskCell = ({ task, taskHref }: TaskCellProps) => {
   const { t } = useTranslation(["projects", "dates", "comments"]);
-  const unreadDot = useUnreadTree().hasSubject(task.guild_id, "task", task.id) ? (
+  const unreadDot = useUnreadTree().hasSubject(task.community_id, "task", task.id) ? (
     <UnreadDot />
   ) : null;
   // Memoize expensive recurrence computation

@@ -261,7 +261,9 @@ async def get_user_stats(
     session: UserSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_id: Optional[int] = Query(
-        default=None, description="Optional guild ID to filter stats"
+        default=None,
+        description="Optional guild ID to filter stats",
+        alias="community_id",
     ),
     days: int = Query(
         default=90, ge=1, le=365, description="Number of days to analyze"
@@ -1537,7 +1539,7 @@ async def check_deletion_eligibility(
     return DeletionEligibilityResponse(
         can_delete=can_delete,
         blockers=blockers,
-        sole_superadmin_guilds=await users_service.is_last_guild_superadmin(
+        sole_superadmin_communities=await users_service.is_last_guild_superadmin(
             session, current_user.id
         ),
     )
@@ -1664,13 +1666,13 @@ async def create_my_api_key(
     # Runs on the system engine (user_api_keys has no request-path grant, see
     # list_my_api_keys); the current_user scoping below and in the service is
     # the ownership boundary.
-    if payload.guild_id is not None:
+    if payload.community_id is not None:
         # A guild-bound key must target a guild the caller belongs to. Membership
         # is in the public guild_memberships table (readable on the system
         # engine); the explicit user_id filter is the scope. Validating here also
         # turns an unknown guild into a 403 instead of a 500 (FK violation).
         membership = await guilds_service.get_membership(
-            session, guild_id=payload.guild_id, user_id=current_user.id
+            session, guild_id=payload.community_id, user_id=current_user.id
         )
         if membership is None:
             raise HTTPException(
@@ -1679,7 +1681,7 @@ async def create_my_api_key(
             )
         # And the guild has to accept the credential at all. Asked here as well
         # as at the gate so a key that could never be used is never handed over.
-        guild = await session.get(Guild, payload.guild_id)
+        guild = await session.get(Guild, payload.community_id)
         if guild is not None and await refuses_api_keys(session, guild):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -1691,7 +1693,7 @@ async def create_my_api_key(
         name=payload.name,
         expires_at=payload.expires_at,
         read_only=payload.read_only,
-        guild_id=payload.guild_id,
+        guild_id=payload.community_id,
     )
     return ApiKeyCreateResponse(api_key=api_key, secret=secret)
 

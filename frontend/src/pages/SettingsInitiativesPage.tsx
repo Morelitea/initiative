@@ -137,7 +137,7 @@ const InitiativeManagersCell = ({ initiative }: { initiative: InitiativeRead }) 
       });
       return;
     }
-    if (isAdminRole(knownManagers.get(userId)?.guild_role) || !memberRole) {
+    if (isAdminRole(knownManagers.get(userId)?.community_role) || !memberRole) {
       removeMember.mutate({ initiativeId: initiative.id, userId });
     } else {
       updateMember.mutate({

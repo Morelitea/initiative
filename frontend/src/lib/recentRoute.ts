@@ -23,7 +23,7 @@ export type RecentKey = {
  */
 export function recentRoute(item: RecentItemRead): string {
   return guildPath(
-    item.guild_id,
+    item.community_id,
     toolDetailRoute(item.entity_type as Tool, item.initiative_id, item.entity_id)
   );
 }
@@ -85,6 +85,6 @@ export function recentKeyMatches(activeKey: RecentKey | null, item: RecentItemRe
   return (
     activeKey.entityType === item.entity_type &&
     activeKey.entityId === item.entity_id &&
-    activeKey.guildId === item.guild_id
+    activeKey.guildId === item.community_id
   );
 }

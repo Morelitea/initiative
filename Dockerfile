@@ -19,6 +19,8 @@ ENV VITE_VERSION_SUFFIX=$VITE_VERSION_SUFFIX
 ENV VITE_OTA_DEV_PUBLIC_KEY=$VITE_OTA_DEV_PUBLIC_KEY
 # Browser SPA build (base "/") served by the backend at /app/static.
 RUN pnpm run build
+# The document editor for the server (backend/app/services/editor_engine.py).
+RUN pnpm build:editor-server
 # Capacitor-flavored OTA bundle (base "", __IS_CAPACITOR__=true) shipped at /app/ota so the
 # native app can download the web bundle matching this backend version. build:capacitor
 # overwrites dist/, so stash the browser build first, then zip the capacitor build with
@@ -111,6 +113,7 @@ COPY MIN_NATIVE_VERSION ./MIN_NATIVE_VERSION
 COPY MIN_DESKTOP_VERSION ./MIN_DESKTOP_VERSION
 COPY CHANGELOG.md ./CHANGELOG.md
 COPY --from=frontend-build /frontend/dist ./static
+COPY --from=frontend-build /frontend/dist-editor/editor.js ./editor/editor.js
 COPY --from=frontend-build /ota/ ./ota/
 COPY backend/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh && mkdir -p /app/uploads

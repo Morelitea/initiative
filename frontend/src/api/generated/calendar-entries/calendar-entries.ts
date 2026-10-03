@@ -55,7 +55,7 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
  * leg to named calendars — a surface showing a single calendar asks for
  * exactly it rather than everything and filtering client-side.
  *
- * ``scope=guild`` is the same question asked by kind rather than by name: every
+ * ``scope=community`` is the same question asked by kind rather than by name: every
  * guild calendar, however many there are. The calendar app shows all of them
  * at once, and a list of ids it had to assemble first would be a page of them.
  * @summary List Calendar Entries

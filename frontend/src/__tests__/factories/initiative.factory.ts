@@ -59,7 +59,7 @@ export function buildInitiative(overrides: Partial<InitiativeRead> = {}): Initia
   counter++;
   return {
     id: counter,
-    guild_id: 1,
+    community_id: 1,
     name: `Initiative ${counter}`,
     description: `Description for initiative ${counter}`,
     color: "#3b82f6",

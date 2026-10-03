@@ -63,7 +63,7 @@ async def list_notifications(
     limit: int = Query(default=50, ge=1, le=100),
     cursor: str | None = Query(default=None),
     unread_only: bool = Query(default=False),
-    guild_id: int | None = Query(default=None),
+    guild_id: int | None = Query(default=None, alias="community_id"),
     personal_only: bool = Query(default=False),
 ) -> NotificationListResponse:
     """One page of the inbox, newest first.
@@ -146,7 +146,7 @@ async def read_notification_subject(
     comment_ids, since = await notifications_service.read_subject(
         session,
         user_id=current_user.id,
-        guild_id=payload.guild_id,
+        guild_id=payload.community_id,
         subject_type=payload.subject_type,
         subject_id=payload.subject_id,
     )
@@ -232,7 +232,7 @@ async def dismiss_notification(
 async def mark_all_notifications_read(
     session: UserSessionDep,
     current_user: User = Depends(get_current_active_user),
-    guild_id: int | None = Query(default=None),
+    guild_id: int | None = Query(default=None, alias="community_id"),
 ) -> NotificationCountResponse:
     """Clear the unread set, or just one community's part of it."""
     await notifications_service.mark_all_notifications_read(

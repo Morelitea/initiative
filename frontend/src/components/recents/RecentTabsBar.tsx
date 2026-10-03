@@ -60,7 +60,7 @@ export const RecentTabsBar = ({
           items?.map((item) => {
             const isActive = recentKeyMatches(activeKey ?? null, item);
             return (
-              <ContextMenu key={`${item.guild_id}-${item.entity_type}-${item.entity_id}`}>
+              <ContextMenu key={`${item.community_id}-${item.entity_type}-${item.entity_id}`}>
                 <ContextMenuTrigger asChild>
                   <div className="flex items-center">
                     <Link

@@ -24,7 +24,7 @@ vi.mock("@/lib/chesterToast", () => ({
 function job(overrides: Partial<ImportJobRead> = {}): ImportJobRead {
   return {
     id: 77,
-    guild_id: 1,
+    community_id: 1,
     created_by: 1,
     source: "atlassian",
     params: {},

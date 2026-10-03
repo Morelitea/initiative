@@ -216,7 +216,7 @@ export const UserSettingsNotificationsPage = ({
 
   const isOn = (row: NotificationCategoryRead, channel: Channel, guildId?: number) => {
     const scoped = guildId
-      ? preferences?.guilds?.find((entry) => entry.guild_id === guildId)?.categories
+      ? preferences?.communities?.find((entry) => entry.community_id === guildId)?.categories
       : preferences?.settings;
     const stored = scoped?.[row.category]?.[channel];
     if (typeof stored === "boolean") return stored;
@@ -231,7 +231,9 @@ export const UserSettingsNotificationsPage = ({
   ) => {
     writePreferences.mutate(
       {
-        channels: [{ category: row.category, channel, enabled: next, guild_id: guildId ?? null }],
+        channels: [
+          { category: row.category, channel, enabled: next, community_id: guildId ?? null },
+        ],
       },
       { onError: () => toast.error(t("notifications.toggleError")) }
     );
@@ -239,7 +241,7 @@ export const UserSettingsNotificationsPage = ({
 
   const setLevel = (guildId: number, level: NotificationLevel) => {
     writePreferences.mutate(
-      { levels: [{ guild_id: guildId, level }] },
+      { levels: [{ community_id: guildId, level }] },
       { onError: () => toast.error(t("notifications.toggleError")) }
     );
   };
@@ -301,7 +303,7 @@ export const UserSettingsNotificationsPage = ({
       </div>
 
       {grouped.map((section) => {
-        const rows = section.rows.filter((row) => !guildId || row.guild_scoped);
+        const rows = section.rows.filter((row) => !guildId || row.community_scoped);
         if (rows.length === 0) return null;
         return (
           <div key={section.group}>
@@ -596,24 +598,26 @@ export const UserSettingsNotificationsPage = ({
         )}
       </SettingsSection>
 
-      {(preferences?.guilds?.length ?? 0) > 0 && (
+      {(preferences?.communities?.length ?? 0) > 0 && (
         <SettingsSection
           title={t("notifications.communities.title")}
           description={t("notifications.communities.description")}
         >
           <div className="space-y-3">
-            {preferences?.guilds?.map((guild) => (
-              <details key={guild.guild_id} className="rounded-md border">
+            {preferences?.communities?.map((guild) => (
+              <details key={guild.community_id} className="rounded-md border">
                 <summary className="flex cursor-pointer items-center justify-between gap-4 p-3">
-                  <span className="font-medium">{guild.guild_name}</span>
+                  <span className="font-medium">{guild.community_name}</span>
                   <Select
                     value={guild.level}
-                    onValueChange={(value) => setLevel(guild.guild_id, value as NotificationLevel)}
+                    onValueChange={(value) =>
+                      setLevel(guild.community_id, value as NotificationLevel)
+                    }
                   >
                     <SelectTrigger
                       className="w-56"
                       aria-label={t("notifications.communities.levelLabel", {
-                        guild: guild.guild_name,
+                        guild: guild.community_name,
                       })}
                       onClick={(event) => event.preventDefault()}
                     >
@@ -634,7 +638,7 @@ export const UserSettingsNotificationsPage = ({
                       {t("notifications.communities.mutedHelp")}
                     </p>
                   ) : (
-                    renderGrid(guild.guild_id)
+                    renderGrid(guild.community_id)
                   )}
                 </div>
               </details>

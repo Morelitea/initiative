@@ -47,7 +47,7 @@ export const TaskPrioritySelector = ({ task, disabled }: TaskPrioritySelectorPro
     const newPriority = value as TaskPriority;
     if (newPriority !== task.priority) {
       updatePriority.mutate({
-        guildId: task.guild_id ?? activeGuildId,
+        guildId: task.community_id ?? activeGuildId,
         taskId: task.id,
         data: { priority: newPriority },
       });

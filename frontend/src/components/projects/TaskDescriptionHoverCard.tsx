@@ -10,7 +10,7 @@ import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { cn } from "@/lib/utils";
 
 interface TaskDescriptionHoverCardProps {
-  task: Pick<TaskListRead, "id" | "guild_id" | "has_description" | "description_excerpt">;
+  task: Pick<TaskListRead, "id" | "community_id" | "has_description" | "description_excerpt">;
   className?: string;
 }
 
@@ -25,7 +25,7 @@ interface TaskDescriptionHoverCardProps {
 export const TaskDescriptionHoverCard = ({ task, className }: TaskDescriptionHoverCardProps) => {
   const [open, setOpen] = useState(false);
   const activeGuildId = useActiveGuildId();
-  const { data } = useReadTask(task.guild_id ?? activeGuildId, task.id, undefined, {
+  const { data } = useReadTask(task.community_id ?? activeGuildId, task.id, undefined, {
     query: { enabled: open },
   });
 
@@ -41,7 +41,7 @@ export const TaskDescriptionHoverCard = ({ task, className }: TaskDescriptionHov
       <HoverCardContent className="max-h-120 w-screen max-w-120 overflow-y-auto">
         <TaskDescription
           content={data?.description || task.description_excerpt || ""}
-          guildId={task.guild_id ?? undefined}
+          guildId={task.community_id ?? undefined}
         />
       </HoverCardContent>
     </HoverCard>

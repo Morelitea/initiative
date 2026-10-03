@@ -216,7 +216,7 @@ async def test_a_community_can_be_set_to_say_less(client, acting_user):
     response = await client.put(
         "/api/v1/me/notification-preferences",
         headers=a.headers,
-        json={"levels": [{"guild_id": a.guild.id, "level": "personal"}]},
+        json={"levels": [{"community_id": a.guild.id, "level": "personal"}]},
     )
 
     assert response.status_code == 200

@@ -76,8 +76,8 @@ async def _settings(session: AsyncSession) -> IntakeSettingsRead:
         ).one_or_none()
     general, per_stream = await intake_setup.contacts(session)
     return IntakeSettingsRead(
-        operations_guild_id=guild_id,
-        operations_guild_name=guild_name,
+        operations_community_id=guild_id,
+        operations_community_name=guild_name,
         bindings=[_read(view) for view in views],
         general_contact_email=general,
         contact_emails={IntakeStream(key): email for key, email in per_stream.items()},
@@ -124,7 +124,7 @@ async def update_operations_community(
     Clearing it stops every stream at once and touches no binding inside the
     guild, so pointing back restores exactly what was there.
     """
-    await intake_setup.set_operations_guild(session, payload.guild_id)
+    await intake_setup.set_operations_guild(session, payload.community_id)
     return await _settings(session)
 
 

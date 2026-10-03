@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any, List
 
-from pydantic import ConfigDict, Field
+from pydantic import AliasChoices, ConfigDict, Field
 
 from app.schemas.base import SanitizedBaseModel
 
@@ -20,7 +20,9 @@ class NotificationRead(SanitizedBaseModel):
     read_at: datetime | None = None
     #: Where it happened, each level independently optional. The row shows the
     #: community; the navigation lights from the same three values.
-    guild_id: int | None = None
+    community_id: int | None = Field(
+        default=None, validation_alias=AliasChoices("community_id", "guild_id")
+    )
     initiative_id: int | None = None
     tool: str | None = None
 
@@ -64,7 +66,9 @@ class NotificationPlace(SanitizedBaseModel):
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
-    guild_id: int | None = None
+    community_id: int | None = Field(
+        default=None, validation_alias=AliasChoices("community_id", "guild_id")
+    )
     initiative_id: int | None = None
     tool: str | None = None
     #: The tool's row: the project, calendar or wiki the item is in.
@@ -86,7 +90,7 @@ class UnreadPlacesResponse(SanitizedBaseModel):
 class SubjectReadRequest(SanitizedBaseModel):
     """The item its reader just opened."""
 
-    guild_id: int
+    community_id: int
     subject_type: str = Field(max_length=32)
     subject_id: int
 

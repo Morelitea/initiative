@@ -87,7 +87,7 @@ const NewApiKeyDialog = ({
       name: string;
       expires_at?: string | null;
       read_only?: boolean;
-      guild_id?: number | null;
+      community_id?: number | null;
     } = { name: trimmedName, read_only: readOnly };
     if (expiresAtInput) {
       const parsed = new Date(expiresAtInput);
@@ -96,7 +96,7 @@ const NewApiKeyDialog = ({
       }
     }
     if (guildId !== "all") {
-      payload.guild_id = Number(guildId);
+      payload.community_id = Number(guildId);
     }
     createKey.mutate(payload);
   };
@@ -282,12 +282,12 @@ export const UserSettingsSecurityPage = () => {
                         {key.read_only ? (
                           <Badge variant="secondary">{t("security.scopeReadOnly")}</Badge>
                         ) : null}
-                        {key.guild_id != null ? (
+                        {key.community_id != null ? (
                           <Badge variant="outline">
-                            {t("security.scopeGuild", { guild: guildName(key.guild_id) })}
+                            {t("security.scopeGuild", { guild: guildName(key.community_id) })}
                           </Badge>
                         ) : null}
-                        {!key.read_only && key.guild_id == null ? (
+                        {!key.read_only && key.community_id == null ? (
                           <Badge variant="outline">{t("security.scopeFull")}</Badge>
                         ) : null}
                       </p>

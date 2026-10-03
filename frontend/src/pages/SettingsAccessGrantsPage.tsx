@@ -56,8 +56,10 @@ const STATUS_VARIANT: Record<
 // Always surface the guild id alongside the name so approvers can
 // disambiguate similarly-named guilds (and fall back cleanly when the name
 // isn't populated).
-const guildLabel = (grant: { guild_name?: string | null; guild_id: number }): string =>
-  grant.guild_name ? `${grant.guild_name} (#${grant.guild_id})` : `#${grant.guild_id}`;
+const guildLabel = (grant: { community_name?: string | null; community_id: number }): string =>
+  grant.community_name
+    ? `${grant.community_name} (#${grant.community_id})`
+    : `#${grant.community_id}`;
 
 // Float the actionable grants to the top so they're never buried under dead
 // history: pending (you can cancel) first, then live (currently usable), then
@@ -216,7 +218,7 @@ const BreakGlassSection = () => {
     // No level to choose: breaking glass issues write access to the content
     // and a settings grant at superadmin. Somebody who wants less asks below.
     breakGlass.mutate({
-      guild_id: gid,
+      community_id: gid,
       reason: reason.trim(),
       requested_duration_minutes: Number.parseInt(duration, 10),
       ...answer,
@@ -382,7 +384,7 @@ const RequestSection = () => {
     const gid = Number.parseInt(guildId, 10);
     if (!gid || !reason.trim() || !asksForSomething || !duration) return;
     createRequest.mutate({
-      guild_id: gid,
+      community_id: gid,
       ...(level === "none" ? {} : { access_level: level as "read" | "read_write" }),
       ...(settingsLevel === "none"
         ? {}

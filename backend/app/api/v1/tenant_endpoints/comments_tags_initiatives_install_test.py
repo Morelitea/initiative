@@ -385,7 +385,7 @@ async def test_reads_the_initiatives_it_is_placed_in(
     assert other.status_code == 404, other.text
 
     whole_guild = await client.get(
-        guild_url(guild_id, "/initiatives/?scope=guild"), headers=headers
+        guild_url(guild_id, "/initiatives/?scope=community"), headers=headers
     )
     assert whole_guild.status_code == 403, whole_guild.text
 

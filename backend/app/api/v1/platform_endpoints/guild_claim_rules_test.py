@@ -78,7 +78,7 @@ async def test_the_seat_writes_reads_and_removes_a_rule(
         json={
             "provider_id": provider.id,
             "claim_value": "eng-platform",
-            "guild_role": "member",
+            "community_role": "member",
         },
     )
     assert created.status_code == 201, created.text
@@ -143,7 +143,7 @@ async def test_a_rule_can_place_somebody_in_an_initiative(
         json={
             "provider_id": provider.id,
             "claim_value": "design",
-            "guild_role": "member",
+            "community_role": "member",
             "initiative_id": initiative_id,
             "initiative_role_id": role_id,
         },
@@ -215,7 +215,7 @@ async def test_a_rule_hands_out_no_seat_that_decides_who_may_enter(
         json={
             "provider_id": provider.id,
             "claim_value": "staff",
-            "guild_role": "superadmin",
+            "community_role": "superadmin",
         },
     )
     assert refused.status_code == 400, refused.text

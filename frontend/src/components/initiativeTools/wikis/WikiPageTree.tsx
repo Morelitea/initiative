@@ -295,7 +295,7 @@ const WikiPageRow = ({
                 </span>
                 {/* A borrowed document is read as the document it is. */}
                 {unread.hasSubject(
-                  page.guild_id,
+                  page.community_id,
                   isDocument ? Tool.document : "wiki_page",
                   page.id
                 ) ? (

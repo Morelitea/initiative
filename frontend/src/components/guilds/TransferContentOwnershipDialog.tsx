@@ -153,7 +153,7 @@ export const TransferContentOwnershipDialog = ({
     const term = search.trim().toLowerCase();
     return [
       ...(adminSearch.data?.items ?? [])
-        .filter((user) => isAdminRole(user.guild_role) && user.status !== "anonymized")
+        .filter((user) => isAdminRole(user.community_role) && user.status !== "anonymized")
         .map((admin) => ({ value: personRecipient(admin.id), label: getUserDisplayName(admin) })),
       ...(content?.eligible_apps ?? [])
         .filter((app) => app.name.toLowerCase().includes(term))

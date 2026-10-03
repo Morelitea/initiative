@@ -493,7 +493,7 @@ async def test_break_glass_reads_a_suspended_guild(
     resp = await client.post(
         "/api/v1/access-grants/break-glass",
         json={
-            "guild_id": guild.id,
+            "community_id": guild.id,
             "reason": "billing hold review",
             "access_level": "read_write",
         },

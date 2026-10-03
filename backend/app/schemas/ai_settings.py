@@ -9,7 +9,7 @@ their own key and pick a connection, but never set a destination.
 from enum import Enum
 from typing import Optional
 
-from pydantic import ConfigDict
+from pydantic import AliasChoices, ConfigDict, Field
 
 from app.schemas.base import RawTextStr, SanitizedBaseModel
 
@@ -132,8 +132,10 @@ class MyAIConnectionRow(SanitizedBaseModel):
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
-    guild_id: int
-    guild_name: str
+    community_id: int = Field(validation_alias=AliasChoices("community_id", "guild_id"))
+    community_name: str = Field(
+        validation_alias=AliasChoices("community_name", "guild_name")
+    )
     scope: ConnectionScope
     connection_id: int
     label: str

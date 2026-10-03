@@ -432,6 +432,9 @@ importers:
       emojibase-data:
         specifier: ^17.0.0
         version: 17.0.0(emojibase@17.0.0)
+      esbuild:
+        specifier: 0.28.2
+        version: 0.28.2
       fake-indexeddb:
         specifier: ^6.2.5
         version: 6.2.5

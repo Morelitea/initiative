@@ -46,7 +46,9 @@ async def read_ticket_availability(
     session: UserSessionDep,
     current_user: CurrentUser,
     guild_id: Optional[int] = Query(
-        default=None, description="The community the reader is standing in."
+        default=None,
+        description="The community the reader is standing in.",
+        alias="community_id",
     ),
 ) -> TicketAvailability:
     """What each kind of ticket offers the reader from where they are.
@@ -98,7 +100,7 @@ async def _ask_for_help(
 ) -> TicketAccepted:
     try:
         await support_service.request_help(
-            guild_id=payload.guild_id,
+            guild_id=payload.community_id,
             requester=requester,
             subject=payload.subject,
             body=payload.body,
@@ -139,6 +141,6 @@ async def _report(
         target_id=payload.target_id,
         reason=payload.reason,
         detail=payload.detail,
-        guild_id=payload.guild_id,
+        guild_id=payload.community_id,
     )
     return TicketAccepted(venue=filed.venue)

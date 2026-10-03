@@ -18,7 +18,7 @@ const live: AnnouncementOperatorRead = {
   published_at: "2026-09-01T00:00:00Z",
   is_builtin: false,
   min_platform_role: "member",
-  guild_admins_only: false,
+  community_admins_only: false,
 };
 
 const draft: AnnouncementOperatorRead = {

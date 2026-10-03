@@ -419,7 +419,7 @@ async def test_a_guild_calendar_needs_the_app(
 async def test_guild_scope_lists_only_the_guild_s_own(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """``scope=guild`` is the calendar app's own list: guild calendars, and no
+    """``scope=community`` is the calendar app's own list: guild calendars, and no
     initiative's."""
     a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _calendars_enabled(session, a.initiative)
@@ -429,7 +429,7 @@ async def test_guild_scope_lists_only_the_guild_s_own(
     )
 
     response = await client.get(
-        a.g("/calendars/"), headers=a.headers, params={"scope": "guild"}
+        a.g("/calendars/"), headers=a.headers, params={"scope": "community"}
     )
     assert response.status_code == 200, response.text
     body = response.json()
@@ -455,7 +455,7 @@ async def test_a_guild_calendar_is_hidden_when_it_is_not_shared(
     )
 
     response = await client.get(
-        a.g("/calendars/"), headers=a.headers, params={"scope": "guild"}
+        a.g("/calendars/"), headers=a.headers, params={"scope": "community"}
     )
     assert response.status_code == 200, response.text
     assert response.json()["items"] == []

@@ -91,7 +91,7 @@ export const ProjectCardLink = ({
             <CardTitle className="flex flex-wrap items-center gap-2 text-xl">
               {project.icon ? <span className="text-2xl leading-none">{project.icon}</span> : null}
               <span>{project.name}</span>
-              {unread.hasResource(project.guild_id, Tool.project, project.id) ? (
+              {unread.hasResource(project.community_id, Tool.project, project.id) ? (
                 <UnreadDot />
               ) : null}
               <ProjectStateBadge project={project} />
@@ -189,7 +189,7 @@ export const ProjectRowLink = ({
             <div className="min-w-[200px] flex-1">
               <div className="flex flex-wrap items-center gap-2">
                 <p className="font-semibold">{project.name}</p>
-                {unread.hasResource(project.guild_id, Tool.project, project.id) ? (
+                {unread.hasResource(project.community_id, Tool.project, project.id) ? (
                   <UnreadDot />
                 ) : null}
                 <ProjectStateBadge project={project} />

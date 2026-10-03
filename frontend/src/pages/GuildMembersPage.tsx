@@ -140,9 +140,9 @@ export const GuildMembersPage = () => {
             {/* Only the exception is worn. Badging the other nine rows in ten
                 "member" would say nothing and cost the width the actions
                 need. */}
-            {isAdminRole(row.original.guild_role) ? (
+            {isAdminRole(row.original.community_role) ? (
               <Badge variant="secondary" className="shrink-0">
-                {row.original.guild_role === CommunityRole.superadmin
+                {row.original.community_role === CommunityRole.superadmin
                   ? t("members.superadmin")
                   : t("members.admin")}
               </Badge>

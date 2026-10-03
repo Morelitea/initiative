@@ -20,8 +20,8 @@ export const taskReadToListRow = (
     // replaces until the list is read again.
     description_excerpt: description ? (previous?.description_excerpt ?? null) : null,
     has_description: Boolean(description),
-    guild_id: guildId,
-    guild_name: null,
+    community_id: guildId,
+    community_name: null,
     project_name: project?.name ?? null,
     initiative_id: project?.initiative_id ?? null,
     initiative_name: project?.initiative?.name ?? null,

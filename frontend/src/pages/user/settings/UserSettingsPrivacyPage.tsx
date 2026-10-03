@@ -75,7 +75,7 @@ export const UserSettingsPrivacyPage = () => {
           disabled={!ageConfirmed || updateSettings.isPending}
           onPolicyChange={(policy) => save({ dm_policy: policy })}
           onCommunityChange={(guildId, enabled) =>
-            save({ communities: [{ guild_id: guildId, enabled }] })
+            save({ communities: [{ community_id: guildId, enabled }] })
           }
         />
         <div className="border-t pt-4">

@@ -76,8 +76,8 @@ const PAGE_SIZE = 20;
 const MY_TASKS_QUERY_PREFIX = getListMyTasksQueryKey();
 
 /** Task ids repeat across guilds, so an in-flight row is addressed by both. */
-const taskKey = (task: Pick<TaskListRead, "id" | "guild_id">) =>
-  `${task.guild_id ?? "none"}:${task.id}`;
+const taskKey = (task: Pick<TaskListRead, "id" | "community_id">) =>
+  `${task.community_id ?? "none"}:${task.id}`;
 
 /** Map DataTable column IDs to backend sort field names */
 const SORT_FIELD_MAP: Record<string, string> = {
@@ -311,7 +311,7 @@ export function useGlobalTasksTable() {
   // saving.
   const [updatingTasks, setUpdatingTasks] = useState<ReadonlySet<string>>(() => new Set());
   const isUpdatingTask = useCallback(
-    (task: Pick<TaskListRead, "id" | "guild_id">) => updatingTasks.has(taskKey(task)),
+    (task: Pick<TaskListRead, "id" | "community_id">) => updatingTasks.has(taskKey(task)),
     [updatingTasks]
   );
 
@@ -322,7 +322,7 @@ export function useGlobalTasksTable() {
    * changed at once don't undo each other when one of them fails.
    */
   const writeStatusToCache = useCallback(
-    (task: Pick<TaskListRead, "id" | "guild_id">, status: TaskStatusRead) => {
+    (task: Pick<TaskListRead, "id" | "community_id">, status: TaskStatusRead) => {
       const key = taskKey(task);
       localQueryClient.setQueriesData<TaskListResponse>(
         { queryKey: MY_TASKS_QUERY_PREFIX },
@@ -410,7 +410,7 @@ export function useGlobalTasksTable() {
 
   const changeTaskStatusById = useCallback(
     async (task: TaskListRead, targetStatusId: number) => {
-      const targetGuildId = task.guild_id ?? activeGuildId ?? null;
+      const targetGuildId = task.community_id ?? activeGuildId ?? null;
       if (!targetGuildId) {
         toast.error(t("errors.guildContext"));
         return;
@@ -449,7 +449,7 @@ export function useGlobalTasksTable() {
 
   const changeTaskStatus = useCallback(
     async (task: TaskListRead, targetCategory: TaskStatusCategory) => {
-      const targetGuildId = task.guild_id ?? activeGuildId ?? null;
+      const targetGuildId = task.community_id ?? activeGuildId ?? null;
       if (!targetGuildId) {
         toast.error(t("errors.guildContext"));
         return;

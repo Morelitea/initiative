@@ -12,7 +12,7 @@ export function buildDocumentSummary(overrides: Partial<DocumentSummary> = {}): 
   counter++;
   return {
     id: counter,
-    guild_id: 1,
+    community_id: 1,
     initiative_id: 1,
     name: `Document ${counter}`,
     featured_image_url: null,
