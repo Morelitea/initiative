@@ -127,7 +127,7 @@ export const ProjectDetailPage = () => {
 
   return (
     <PullToRefresh onRefresh={handleRefresh}>
-      <div className="space-y-6">
+      <div className="space-y-4">
         <ProjectHeader project={project} projectIsArchived={projectIsArchived} />
         <ProjectRelationships
           projectId={project.id}
