@@ -448,6 +448,7 @@ async def test_update_task_with_tags_and_properties(
             a.g(f"/tasks/{task.id}"), headers=a.headers, json={field: None}
         )
         assert response.status_code == 422, field
+        assert "FIELD_CANNOT_BE_NULL" in response.text, field
 
     # An explicit empty list clears the tags.
     response = await client.patch(

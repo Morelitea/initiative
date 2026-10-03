@@ -96,6 +96,7 @@
   "SMTP_NOT_CONFIGURED": "SMTP-Einstellungen sind unvollständig.",
   "INVALID_OR_EXPIRED_TOKEN": "Ungültiges oder abgelaufenes Token",
   "RESERVED_SIGIL_IN_NAME": "Namen und Titel dürfen kein # oder @ enthalten.",
+  "FIELD_CANNOT_BE_NULL": "Dieses Feld darf nicht leer bleiben.",
   "PROJECT_NOT_FOUND": "Projekt nicht gefunden",
   "PROJECT_IS_ARCHIVED": "Projekt ist archiviert",
   "CONTENT_IS_FROZEN": "Dies ist archiviert oder im Papierkorb. Stelle es wieder her, bevor du Änderungen vornimmst.",

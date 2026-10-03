@@ -8,7 +8,7 @@ from functools import lru_cache
 from typing import Annotated, Any, Final, get_args, get_origin, get_type_hints
 
 import nh3
-from pydantic import BaseModel, ValidationInfo, field_validator, model_validator
+from pydantic import BaseModel, field_validator, model_validator
 
 from app.core.identity_boundary import MARKDOWN_MENTIONS
 
@@ -56,6 +56,9 @@ RESERVED_SIGILS: Final = frozenset("#@")
 #: Flat code raised for a name carrying one, mapped in ``errors.json``.
 RESERVED_SIGIL_CODE: Final = "RESERVED_SIGIL_IN_NAME"
 
+#: Flat code raised for a null on a field ``reject_null`` names.
+NULL_FIELD_CODE: Final = "FIELD_CANNOT_BE_NULL"
+
 
 # A name or title is a label: it is read in a sidebar, a breadcrumb, a card and
 # a notification line, where the room it gets is a line rather than a page. Well
@@ -76,9 +79,9 @@ holds a reserved sigil. Read schemas deliberately do NOT use it — a row stored
 before the rules has to stay readable."""
 
 
-def _reject_none(value: Any, info: ValidationInfo) -> Any:
+def _reject_none(value: Any) -> Any:
     if value is None:
-        raise ValueError(f"{info.field_name} cannot be null")
+        raise ValueError(NULL_FIELD_CODE)
     return value
 
 
