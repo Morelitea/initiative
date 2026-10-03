@@ -37,7 +37,10 @@ import { ToolFilterPanel } from "@/components/initiativeTools/shared/ToolFilterP
 import { ToolListToolbar } from "@/components/initiativeTools/shared/ToolListToolbar";
 import { ToolViewFilter } from "@/components/initiativeTools/shared/ToolViewFilter";
 import { WikiCard } from "@/components/initiativeTools/wikis/WikiCard";
-import { BrowseMarketplaceButton } from "@/components/marketplace/BrowseMarketplaceButton";
+import {
+  BrowseMarketplaceButton,
+  BrowseMarketplaceMenuItem,
+} from "@/components/marketplace/BrowseMarketplaceButton";
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
 import { UnreadDot } from "@/components/notifications/UnreadDot";
 import { PaginationBar } from "@/components/PaginationBar";
@@ -63,7 +66,13 @@ import { useUnreadTree } from "@/hooks/useUnreadTree";
 import { useViewPreference } from "@/hooks/useViewPreference";
 import { useWikisList } from "@/hooks/useWikis";
 import { useCommunityPath } from "@/lib/communityUrl";
-import { TOOL_ICONS, type ToolView, toolDetailRoute, toolViewParams } from "@/lib/tools";
+import {
+  TOOL_ICONS,
+  type ToolView,
+  toolDetailRoute,
+  toolListingKind,
+  toolViewParams,
+} from "@/lib/tools";
 import type { TranslateFn } from "@/types/i18n";
 
 // ---------------------------------------------------------------------------
@@ -579,8 +588,14 @@ const ToolIndexBody = ({ tool, entry, fixedInitiativeId, canCreate }: ToolIndexB
           ],
           label: t("common:toolbar.view"),
         }}
-        trailing={canCreateHere ? <BrowseMarketplaceButton tool={tool} /> : null}
-        menuItems={importAction.menuItem}
+        menuItems={
+          (canCreateHere && toolListingKind(tool)) || importAction.menuItem ? (
+            <>
+              {canCreateHere ? <BrowseMarketplaceMenuItem tool={tool} /> : null}
+              {importAction.menuItem}
+            </>
+          ) : null
+        }
         onEnterSelection={!selection.active && list.rows.length > 0 ? selection.enter : undefined}
       />
       {importAction.dialog}
@@ -697,7 +712,7 @@ const ToolIndexBody = ({ tool, entry, fixedInitiativeId, canCreate }: ToolIndexB
               fixedInitiativeId={fixedInitiativeId}
               variant="button"
             />
-            {canCreateHere ? <BrowseMarketplaceButton tool={tool} size="default" /> : null}
+            {canCreateHere ? <BrowseMarketplaceButton tool={tool} /> : null}
           </CardContent>
         </Card>
       )}
