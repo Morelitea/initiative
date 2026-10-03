@@ -8,7 +8,7 @@ from functools import lru_cache
 from typing import Annotated, Any, Final, get_args, get_origin, get_type_hints
 
 import nh3
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, ValidationInfo, field_validator, model_validator
 
 from app.core.identity_boundary import MARKDOWN_MENTIONS
 
@@ -74,6 +74,19 @@ TitleStr = Annotated[str, _SigilFreeMarker()]
 """str for a name/title a person types: sanitized, bounded, and rejected if it
 holds a reserved sigil. Read schemas deliberately do NOT use it — a row stored
 before the rules has to stay readable."""
+
+
+def _reject_none(value: Any, info: ValidationInfo) -> Any:
+    if value is None:
+        raise ValueError(f"{info.field_name} cannot be null")
+    return value
+
+
+def reject_null(*fields: str) -> Any:
+    """A validator for an update schema's fields where omitted means "keep" and
+    null has no meaning: the column it lands in is required. Assign it in the
+    class body (``_required = reject_null("name")``)."""
+    return field_validator(*fields)(_reject_none)
 
 
 def strip_to_plain_text(value: str) -> str:

@@ -870,7 +870,7 @@ async def update_initiative(
             )
         if join_policy is not None:
             update_data["join_policy"] = join_policy
-    if "name" in update_data and update_data["name"] is not None:
+    if "name" in update_data:
         await ensure_name_free(
             session,
             Initiative.name,

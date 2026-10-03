@@ -1034,6 +1034,15 @@ async def test_update_project_as_owner(
     assert data["name"] == "Updated Name"
     assert data["description"] == "Updated description"
 
+    # A required field is omitted to keep it, never nulled.
+    for field in ("name", "is_template"):
+        response = await client.patch(
+            owner.g(f"/projects/{project.id}"),
+            headers=owner.headers,
+            json={field: None},
+        )
+        assert response.status_code == 422, field
+
 
 async def test_update_project_as_admin(
     client: AsyncClient, session: AsyncSession, acting_user
