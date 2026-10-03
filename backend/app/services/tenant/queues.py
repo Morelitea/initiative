@@ -5,7 +5,6 @@ This module handles:
     pattern in ``permissions.py``)
   - Queue and queue-item fetching with eager-loaded relationships
   - Turn management (advance, previous, start, stop, reset, set active item)
-  - Tag / document / task attachment helpers for queue items
 """
 
 from datetime import datetime, timezone
@@ -16,18 +15,13 @@ from sqlalchemy.orm import selectinload, undefer
 from sqlmodel import select
 
 from app.core.messages import QueueMessages
-from app.models.tenant.document import Document
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.queue import (
     Queue,
     QueueItem,
 )
 from app.models.tenant.resource_grant import ResourceGrant
-from app.core.relationships import RelationshipType
-from app.core.search import SearchEntityType
-from app.models.tenant.task import Task
 from app.services.permissions import with_tool
-from app.services.tenant import relationships
 from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
 
@@ -466,76 +460,3 @@ async def release_held(
     queue.updated_at = datetime.now(timezone.utc)
     session.add(queue)
     return queue
-
-
-# ---------------------------------------------------------------------------
-# Tag / document / task attachment helpers
-# ---------------------------------------------------------------------------
-
-
-async def set_queue_item_documents(
-    session: AsyncSession,
-    item: QueueItem,
-    document_ids: list[int],
-    guild_id: int,
-    user_id: int,
-) -> None:
-    """Replace all document links on a queue item.
-
-    Validates that the referenced documents exist. The RLS layer handles
-    guild/initiative access scoping, so we only do an existence check here.
-    """
-    if document_ids:
-        docs_stmt = select(Document.id).where(Document.id.in_(document_ids))
-        docs_result = await session.exec(docs_stmt)
-        valid_ids = set(docs_result.all())
-
-        missing = set(document_ids) - valid_ids
-        if missing:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=QueueMessages.ITEM_NOT_FOUND,
-            )
-
-    await relationships.set_related(
-        session,
-        relationships.Endpoint(SearchEntityType.queue_item, item.id),
-        relationship_type=RelationshipType.attached,
-        other_kind=SearchEntityType.document,
-        ids=document_ids,
-        created_by=user_id,
-    )
-
-
-async def set_queue_item_tasks(
-    session: AsyncSession,
-    item: QueueItem,
-    task_ids: list[int],
-    guild_id: int,
-    user_id: int,
-) -> None:
-    """Replace all task links on a queue item.
-
-    Validates that the referenced tasks exist. The RLS layer handles
-    guild/initiative access scoping, so we only do an existence check here.
-    """
-    if task_ids:
-        tasks_stmt = select(Task.id).where(Task.id.in_(task_ids))
-        tasks_result = await session.exec(tasks_stmt)
-        valid_ids = set(tasks_result.all())
-
-        missing = set(task_ids) - valid_ids
-        if missing:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=QueueMessages.ITEM_NOT_FOUND,
-            )
-
-    await relationships.set_related(
-        session,
-        relationships.Endpoint(SearchEntityType.queue_item, item.id),
-        relationship_type=RelationshipType.attached,
-        other_kind=SearchEntityType.task,
-        ids=task_ids,
-        created_by=user_id,
-    )

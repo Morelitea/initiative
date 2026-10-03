@@ -257,8 +257,7 @@ async def test_a_guild_calendars_event_holds_no_initiative_content(
 ):
     """An event takes its initiative from its calendar, and a guild calendar
     has none — so its events are guild-level content and a document is not
-    theirs to link. The per-tool endpoint called this
-    ``GUILD_CALENDAR_NO_DOCUMENTS``; it was never about documents."""
+    theirs to link."""
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
     document = await create_document(session, a.initiative, a.user)
     calendar = await create_guild_calendar(session, a.guild, a.user)

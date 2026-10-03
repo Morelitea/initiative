@@ -2,13 +2,15 @@
 Integration tests for queue endpoints — CRUD, items, turns, permissions.
 """
 
+from datetime import datetime, timezone
+
 from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.guild import GuildRole
 from app.models.tenant.initiative import InitiativeRoleModel
-from app.core.messages import SharingMessages
+from app.core.messages import RelationshipMessages, SharingMessages
 from app.core.tools import Tool
 from app.testing import (
     Actor,
@@ -206,6 +208,32 @@ async def test_add_queue_item(client: AsyncClient, acting_user):
     )
     assert refused.status_code == 422
     assert refused.json()["detail"] == "PERSON_CANNOT_READ"
+
+
+async def test_an_item_attaches_only_what_a_picker_could(
+    client: AsyncClient, acting_user, session: AsyncSession
+):
+    """A new item's documents and tasks answer to what the relationships surface
+    asks of a link: both ends in one initiative, neither archived."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    queue_data = await _create_queue_via_api(client, a)
+    elsewhere = await create_initiative(session, a.guild, a.user)
+    foreign_doc = await create_document(session, elsewhere, a.user)
+    archived_task = await create_task(
+        session, a.project, archived_at=datetime.now(timezone.utc)
+    )
+
+    for attach, detail in (
+        ({"document_ids": [foreign_doc.id]}, RelationshipMessages.CROSS_INITIATIVE),
+        ({"task_ids": [archived_task.id]}, RelationshipMessages.ENDPOINT_ARCHIVED),
+    ):
+        refused = await client.post(
+            a.g(f"/queues/{queue_data['id']}/items"),
+            headers=a.headers,
+            json={"label": "Elara", **attach},
+        )
+        assert refused.status_code == 400, refused.text
+        assert refused.json()["detail"] == detail
 
 
 async def test_update_queue_item(client: AsyncClient, acting_user):
