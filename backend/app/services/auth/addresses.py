@@ -583,14 +583,30 @@ async def verify_for_user(
     return row
 
 
-def proved_an_added_address(row: UserEmail | None, *, at: datetime) -> bool:
-    """Whether ``row`` is an address its holder added, proved at ``at``.
+async def proved_a_new_way_in(
+    session: AsyncSession, row: UserEmail | None, *, at: datetime
+) -> bool:
+    """Whether ``row`` was proved at ``at`` on an account that already had a
+    proved address.
 
-    A new way into an account that already had one, which the account is told
-    about wherever the proof arrives: the emailed link, or a provider asserting
-    the address at sign-in.
+    A new way into the account, which it is told about wherever the proof
+    arrives: the emailed link, or a provider at sign-in, on the first assertion
+    or a later one. An account's first proved address is not news.
     """
-    return row is not None and row.verified_at == at and row.source == SOURCE_ADDED
+    if row is None or row.verified_at != at:
+        return False
+    others = (
+        await session.exec(
+            select(func.count())
+            .select_from(UserEmail)
+            .where(
+                UserEmail.user_id == row.user_id,
+                UserEmail.id != row.id,
+                UserEmail.verified_at.is_not(None),
+            )
+        )
+    ).one()
+    return others > 0
 
 
 async def remove_for_user(
