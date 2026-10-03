@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
 import { catalogUrl, portalPricingUrl } from "@/hooks/useBillingCatalog";
-import { androidApkUrl, DOCS_URL, docsUrl, REPO_URL } from "@/lib/links";
+import { androidApkUrl, DOCS_URL, desktopInstallerUrl, docsUrl, REPO_URL } from "@/lib/links";
 import { TOOLS, toolCamelPlural } from "@/lib/tools";
 
 import landing from "../../../public/locales/en/landing.json";
@@ -299,21 +299,34 @@ describe("DownloadPage", () => {
     expect(await screen.findByText(landing.download.descriptionPush)).toBeInTheDocument();
   });
 
+  it("offers this computer's installer from the same release", async () => {
+    renderDownload();
+
+    // jsdom says Linux.
+    const [installer] = await screen.findAllByTestId("desktop-installer");
+    expect(installer).toHaveAttribute("href", desktopInstallerUrl(NATIVE_FLOOR, "linux"));
+    expect(installer).toHaveAttribute("download");
+  });
+
   it("shows the browser's install prompt once, then points at the guide", async () => {
     renderDownload();
-    const install = await screen.findByRole("link", { name: landing.download.desktop.button });
+    const [install] = await screen.findAllByRole("link", {
+      name: landing.download.browserInstall,
+    });
 
     const prompt = vi.fn().mockResolvedValue(undefined);
     act(() => {
       window.dispatchEvent(Object.assign(new Event("beforeinstallprompt"), { prompt }));
     });
-    fireEvent.click(await screen.findByRole("button", { name: landing.download.desktop.button }));
+    const [button] = await screen.findAllByRole("button", {
+      name: landing.download.browserInstall,
+    });
+    fireEvent.click(button);
     expect(prompt).toHaveBeenCalledTimes(1);
 
     // Spent after one use, whatever the answer: the guide again.
-    expect(
-      await screen.findByRole("link", { name: landing.download.desktop.button })
-    ).toHaveAttribute("href", install.getAttribute("href"));
+    const [again] = await screen.findAllByRole("link", { name: landing.download.browserInstall });
+    expect(again).toHaveAttribute("href", install.getAttribute("href"));
   });
 
   it("mentions passkeys only where the server offers them", async () => {

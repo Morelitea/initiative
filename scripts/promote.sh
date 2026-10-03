@@ -161,15 +161,16 @@ parse_version() {
 # Detect whether the native shell changed between two refs. OTA can only ship web assets,
 # so when Capacitor plugins/config or the committed native projects change, the minimum
 # native app version must move forward (old installs can't run the new web bundle) and CI
-# must build a fresh APK/IPA. Used as an `if` condition, so it is exempt from `set -e`.
+# must build a fresh APK and desktop installers. Used as an `if` condition, so it is exempt from `set -e`.
 detect_native_change() {
     local base="$1" head="$2"
     # capacitor.config.ts changed?
     git diff --quiet "$base" "$head" -- frontend/capacitor.config.ts || return 0
-    # committed native project files changed (Android/iOS source, Gradle, SPM, manifests)?
-    git diff --quiet "$base" "$head" -- frontend/android frontend/ios || return 0
-    # any @capacitor / @capacitor-community / @capgo dependency added/removed/bumped?
-    local re='"@(capacitor|capacitor-community|capgo)/'
+    # committed native project files changed (Android/iOS source, Gradle, SPM, manifests,
+    # the desktop app's Electron project and its plugins)?
+    git diff --quiet "$base" "$head" -- frontend/android frontend/ios frontend/electron || return 0
+    # any @capacitor / @capacitor-community / @capgo / @capawesome dependency added/removed/bumped?
+    local re='"@(capacitor|capacitor-community|capgo|capawesome)/'
     local old new
     old=$(git show "$base:frontend/package.json" 2>/dev/null | grep -E "$re" | sort || true)
     new=$(git show "$head:frontend/package.json" 2>/dev/null | grep -E "$re" | sort || true)

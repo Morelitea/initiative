@@ -3,9 +3,10 @@
  *
  * Android gets a real file: the APK attached to the release the server's
  * native floor names, which is the newest one that runs this server's web
- * bundle. A computer installs from the browser, in one click where the
- * browser offers its own install prompt and by the guide where it doesn't.
- * An iPhone adds it to the home screen from Safari.
+ * bundle. A computer gets its installer from the same release, or installs
+ * from the browser: in one click where the browser offers its own install
+ * prompt and by the guide where it doesn't. An iPhone adds it to the home
+ * screen from Safari.
  */
 
 import { Link } from "@tanstack/react-router";
@@ -25,7 +26,13 @@ import { Trans, useTranslation } from "react-i18next";
 
 import { useGetFcmConfigApiV1SettingsFcmConfigGet } from "@/api/generated/settings/settings";
 import { Button } from "@/components/ui/button";
-import { androidApkUrl, docsUrl, OBTAINIUM_URL, RELEASES_URL } from "@/lib/links";
+import {
+  androidApkUrl,
+  desktopInstallerUrl,
+  docsUrl,
+  OBTAINIUM_URL,
+  RELEASES_URL,
+} from "@/lib/links";
 
 import { DarkBand } from "./DarkBand";
 import { LandingShell } from "./LandingShell";
@@ -110,6 +117,34 @@ const ApkButton = ({
   <Button size="lg" variant={variant} className={className} asChild>
     {minNativeVersion ? (
       <a href={androidApkUrl(minNativeVersion)} download data-testid="android-apk">
+        {children}
+      </a>
+    ) : (
+      <a href={RELEASES_URL} target="_blank" rel="noopener noreferrer">
+        {children}
+      </a>
+    )}
+  </Button>
+);
+
+/** The installer for this computer, from the release the server's native
+ *  floor names; every release when either is unknown. */
+const DesktopButton = ({
+  os,
+  minNativeVersion,
+  className,
+  variant,
+  children,
+}: {
+  os: DesktopOs | null;
+  minNativeVersion: string | null;
+  className?: string;
+  variant?: "default" | "outline";
+  children: ReactNode;
+}) => (
+  <Button size="lg" variant={variant} className={className} asChild>
+    {os && minNativeVersion ? (
+      <a href={desktopInstallerUrl(minNativeVersion, os)} download data-testid="desktop-installer">
         {children}
       </a>
     ) : (
@@ -246,12 +281,21 @@ export const DownloadPage = () => {
               </Button>
             ) : (
               <>
-                <InstallButton prompt={prompt} className="h-14 text-base">
+                <DesktopButton
+                  os={desktopOs}
+                  minNativeVersion={minNativeVersion}
+                  className="h-14 text-base"
+                >
                   <Download className="h-5 w-5" aria-hidden="true" />
                   {desktopLabel}
+                </DesktopButton>
+                <InstallButton prompt={prompt} variant="outline">
+                  {t("download.browserInstall")}
                 </InstallButton>
                 <p className="text-center text-muted-foreground text-sm">
-                  {t("download.desktopMeta")}
+                  {minNativeVersion
+                    ? t("download.version", { version: minNativeVersion })
+                    : t("download.desktopMeta")}
                 </p>
               </>
             )}
@@ -313,9 +357,20 @@ export const DownloadPage = () => {
             platform="desktop"
           >
             <p className="flex-1 text-muted-foreground text-sm">{t("download.desktop.body")}</p>
-            <InstallButton prompt={prompt} variant="outline" className="w-full">
+            <DesktopButton
+              // A phone's browser also says Linux; only a computer is offered a file.
+              os={platform === "desktop" ? desktopOs : null}
+              minNativeVersion={minNativeVersion}
+              variant="outline"
+              className="w-full"
+            >
               <Download className="h-4 w-4" aria-hidden="true" />
-              {t("download.desktop.button")}
+              {platform === "desktop" && desktopOs && minNativeVersion
+                ? desktopLabel
+                : t("download.releases")}
+            </DesktopButton>
+            <InstallButton prompt={prompt} variant="outline" className="w-full">
+              {t("download.browserInstall")}
             </InstallButton>
           </PlatformCard>
           <PlatformCard

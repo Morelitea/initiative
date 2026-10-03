@@ -255,7 +255,7 @@
     "iosTitle": "Initiative para iPhone y iPad",
     "iosBody": "Toca Compartir y luego Añadir a la pantalla de inicio. Es el mismo Initiative, pero los iPhone todavía no reciben notificaciones push.",
     "desktopTitle": "Initiative para tu ordenador",
-    "desktopBody": "Su propia ventana y su propio icono en el dock o la barra de tareas. Se instala directamente desde el navegador.",
+    "desktopBody": "Su propia ventana y su propio icono en el dock o la barra de tareas, con la sesión iniciada como uno de tus dispositivos.",
     "androidButton": "Descargar para Android",
     "iosButton": "Añadir a tu iPhone",
     "windowsButton": "Descargar para Windows",
@@ -265,6 +265,7 @@
     "version": "Versión {{version}}, la que usa este servidor",
     "releases": "Ver todas las versiones",
     "desktopMeta": "Windows, Mac y Linux",
+    "browserInstall": "O instálalo desde el navegador",
     "cardsAria": "Todas las formas de conseguir Initiative",
     "android": {
       "title": "Android",
@@ -284,8 +285,7 @@
     "desktop": {
       "title": "Ordenador",
       "sub": "Windows, Mac, Linux",
-      "body": "Chrome y Edge lo instalan con un clic. En Safari es Archivo y luego Añadir al Dock.",
-      "button": "Instalar Initiative"
+      "body": "Un instalador para Windows, Mac o Linux. Chrome y Edge también lo instalan directamente desde el navegador, y Safari desde Archivo y luego Añadir al Dock."
     },
     "browser": {
       "title": "Navegador",

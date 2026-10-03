@@ -24,6 +24,8 @@ interface NativeBundleManifest {
 interface PromptState {
   show: boolean;
   version: string;
+  /** The app version the bundle needs, which names the release holding it. */
+  minNativeVersion?: string;
 }
 
 const HIDDEN: PromptState = { show: false, version: "" };
@@ -188,7 +190,11 @@ export const useNativeUpdate = () => {
         // Mark handled so we don't re-prompt on every foreground resume this session
         // (re-checked on the next cold start).
         handledVersionRef.current = statement.version;
-        setNativeUpdateRequired({ show: true, version: statement.version });
+        setNativeUpdateRequired({
+          show: true,
+          version: statement.version,
+          minNativeVersion: statement.minNativeVersion,
+        });
         return;
       }
 

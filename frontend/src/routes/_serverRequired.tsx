@@ -72,6 +72,7 @@ function ServerRequiredLayout() {
       <NativeUpdateRequiredDialog
         open={nativeUpdateRequired.show}
         version={nativeUpdateRequired.version}
+        minNativeVersion={nativeUpdateRequired.minNativeVersion}
         onClose={dismissNativeUpdateRequired}
       />
     </>
