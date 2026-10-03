@@ -100,7 +100,7 @@ describe("GuildContextMenu invite action", () => {
     await waitFor(() => expect(mintHandoff).toHaveBeenCalledWith(guild.id));
     await waitFor(() =>
       expect(tab.location.href).toBe(
-        "https://billing.example.com/upgrade?guild=42&lang=en#handoff=TOK"
+        "https://billing.example.com/upgrade?community=42&lang=en#handoff=TOK"
       )
     );
     openSpy.mockRestore();
@@ -125,7 +125,7 @@ describe("GuildContextMenu billing action", () => {
 
     await waitFor(() =>
       expect(tab.location.href).toBe(
-        "https://billing.example.com/manage?guild=42&lang=en#handoff=TOK"
+        "https://billing.example.com/manage?community=42&lang=en#handoff=TOK"
       )
     );
     openSpy.mockRestore();

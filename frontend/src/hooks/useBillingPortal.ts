@@ -44,7 +44,9 @@ export const useBillingPortal = () => {
 
   const pageUrl = useCallback(
     (guildId: number, page: BillingPortalPage): string | null =>
-      billing ? `${billing.url}/${page}?guild=${guildId}&lang=${encodeURIComponent(lang)}` : null,
+      billing
+        ? `${billing.url}/${page}?community=${guildId}&lang=${encodeURIComponent(lang)}`
+        : null,
     [billing, lang]
   );
 

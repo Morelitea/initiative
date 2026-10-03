@@ -383,7 +383,7 @@ async def test_a_capability_package_sets_the_switches_and_withdraws_them(
             feature_keys=[
                 "banner_image",
                 "help_requests",
-                "guild_sign_in",
+                "community_sign_in",
                 "security_standards",
             ],
         ),
@@ -395,7 +395,7 @@ async def test_a_capability_package_sets_the_switches_and_withdraws_them(
     assert sorted(administration.auth_options) == ["providers", "restrictions"]
     assert sorted(granted.json()["feature_keys"]) == [
         "banner_image",
-        "guild_sign_in",
+        "community_sign_in",
         "help_requests",
         "security_standards",
     ]
