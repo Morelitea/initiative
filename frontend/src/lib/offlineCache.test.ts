@@ -58,6 +58,11 @@ describe("isPersistablePath", () => {
       "/api/v1/auth/providers",
       "/api/v1/config",
       "/api/v1/settings/branding",
+      "/api/v1/c/3/settings",
+      "/api/v1/c/3/settings/ai",
+      "/api/v1/c/3/members",
+      "/api/v1/c/3/webhooks/subscriptions",
+      "/api/v1/c/3/apps",
       "/api/v1/operator/users",
       "/api/v1/access-grants/",
       "/api/v1/ai-settings",
@@ -70,12 +75,24 @@ describe("isPersistablePath", () => {
   it("never persists message surfaces, whose plaintext has its own erase contract", () => {
     expect(isPersistablePath("/api/v1/me/dm-settings")).toBe(false);
     expect(isPersistablePath("/api/v1/me/connections")).toBe(false);
+    expect(isPersistablePath("/api/v1/me/dm-permissions")).toBe(false);
+    expect(isPersistablePath("/api/v1/me/contacts")).toBe(false);
+    expect(isPersistablePath("/api/v1/me/ignored")).toBe(false);
     expect(isPersistablePath("/api/v1/users/8/dm/devices")).toBe(false);
+  });
+
+  it("never persists the account's settings, keys or addresses", () => {
+    expect(isPersistablePath("/api/v1/me/api-keys")).toBe(false);
+    expect(isPersistablePath("/api/v1/me/emails")).toBe(false);
+    expect(isPersistablePath("/api/v1/me/ai")).toBe(false);
+    expect(isPersistablePath("/api/v1/me/notification-preferences")).toBe(false);
+    expect(isPersistablePath("/api/v1/me/reports")).toBe(false);
   });
 
   it("never persists search or trash", () => {
     expect(isPersistablePath("/api/v1/c/3/search")).toBe(false);
     expect(isPersistablePath("/api/v1/c/3/trash")).toBe(false);
+    expect(isPersistablePath("/api/v1/me/trash")).toBe(false);
   });
 
   it("excludes a guild reached only by a time-bound PAM grant", () => {
