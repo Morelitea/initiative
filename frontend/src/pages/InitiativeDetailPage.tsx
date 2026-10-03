@@ -1,6 +1,6 @@
 import { Link, Navigate, useParams } from "@tanstack/react-router";
-import { ChevronDown, SearchX, Settings } from "lucide-react";
-import { type ComponentType, type CSSProperties, Suspense, useMemo } from "react";
+import { Info, SearchX, Settings } from "lucide-react";
+import { type ComponentType, type CSSProperties, Suspense, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
@@ -13,13 +13,13 @@ import {
   ToolListSkeleton,
 } from "@/components/skeletons/PageSkeletons";
 import { Button } from "@/components/ui/button";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Tabs, TabsBar, TabsContent, TabsTrigger } from "@/components/ui/tabs";
 import { useCommunities } from "@/hooks/useCommunities";
 import { useInitiative } from "@/hooks/useInitiatives";
 import { useCommunityPath } from "@/lib/communityUrl";
 import { resolveInitiativeColor } from "@/lib/initiativeColors";
 import { initiativeRoute, TOOLS, toolCamelPlural, toolListRoute } from "@/lib/tools";
+import { cn } from "@/lib/utils";
 
 import { CounterGroupsView } from "./initiativeTools/counters/CounterGroupsPage";
 import { DashboardsView } from "./initiativeTools/dashboards/DashboardsPage";
@@ -104,6 +104,8 @@ export const InitiativeDetailPage = ({ tool }: InitiativeDetailPageProps = {}) =
 
   const memberCount = initiative?.member_count ?? 0;
 
+  const [descriptionOpen, setDescriptionOpen] = useState(false);
+
   const roleBadgeLabel =
     initiative?.role_display_name ?? (isCommunityAdmin ? communityAdminLabel : null);
 
@@ -166,10 +168,32 @@ export const InitiativeDetailPage = ({ tool }: InitiativeDetailPageProps = {}) =
         {/* The initiative's colour as a rule down the side of its name: the
             line the sidebar draws under the same initiative's tools. */}
         <div className="min-w-0 flex-1 border-l-2 pl-4" style={{ borderColor: color }}>
-          <h1 className="min-w-0 break-words font-semibold text-3xl tracking-tight">
-            {initiative.name}
-          </h1>
-          {description ? <div className="mt-2 hidden sm:block">{description}</div> : null}
+          <div className="flex items-start gap-1">
+            <h1 className="min-w-0 break-words font-semibold text-3xl tracking-tight">
+              {initiative.name}
+            </h1>
+            {/* On a phone the description waits behind a small toggle beside
+                the name, so it costs no row until somebody asks for it. */}
+            {description ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className={cn(
+                  "mt-1.5 h-6 w-6 shrink-0 rounded-full text-muted-foreground sm:hidden",
+                  descriptionOpen && "bg-accent text-foreground"
+                )}
+                aria-expanded={descriptionOpen}
+                aria-label={t("common:description")}
+                onClick={() => setDescriptionOpen((open) => !open)}
+              >
+                <Info className="h-3.5 w-3.5" />
+              </Button>
+            ) : null}
+          </div>
+          {description ? (
+            <div className={cn("mt-2 sm:block", !descriptionOpen && "hidden")}>{description}</div>
+          ) : null}
           {/* One quiet line: the reader's role here, then who else is. Words in
               a row rather than a pill and a count strip, shown at every width:
               who is here is the point of the place. */}
@@ -203,18 +227,6 @@ export const InitiativeDetailPage = ({ tool }: InitiativeDetailPageProps = {}) =
           ) : null}
         </div>
       </div>
-
-      {description ? (
-        <Collapsible className="group sm:hidden">
-          <CollapsibleTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-8 px-0 text-muted-foreground">
-              {t("common:description")}
-              <ChevronDown className="h-4 w-4 transition-transform group-data-[state=open]:rotate-180" />
-            </Button>
-          </CollapsibleTrigger>
-          <CollapsibleContent className="pt-2">{description}</CollapsibleContent>
-        </Collapsible>
-      ) : null}
 
       <Tabs value={activeTab}>
         {/* Words on a rule rather than a pill bar, the open one underlined in
