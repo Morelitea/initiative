@@ -20,7 +20,7 @@ A mention of somebody whose account is gone (anonymized, or no longer
 readable) crosses as the name it was written with where it has one, and
 nothing else.
 
-A rendered export is read away from the app, so :func:`name_mentions` writes
+A rendered export is read away from the app, so :func:`mention_namer` writes
 into it the name each mention reads as now.
 """
 
@@ -50,6 +50,9 @@ _MENTION_NODES = ("mention", "custom-mention")
 
 #: The placeholder an exported mention node carries in place of its account.
 MENTION_HANDLE = "mentionHandle"
+
+#: A mention of somebody an export could not name: no account, and no name.
+_NOBODY = "@[]()"
 
 
 def markdown_mention_ids(text: str | None) -> set[int]:
@@ -103,7 +106,9 @@ def detach_markdown_mentions(
     def detach(match: re.Match[str]) -> str:
         handle = handles.get(int(match.group(2)))
         if handle is None:
-            return f"@{match.group(1)}" if match.group(1) else ""
+            # One with no name stays a mention of nobody named, which reads as
+            # a former member wherever it is shown.
+            return f"@{match.group(1)}" if match.group(1) else _NOBODY
         if handle not in named:
             named.append(handle)
         return f"@{handle}"
@@ -265,12 +270,14 @@ def _is_id(value: Any) -> bool:
 _LABEL_BREAKS = re.compile(r"[\]\n]")
 
 
-async def name_mentions(session: AsyncSession, data: dict, *, missing: str) -> None:
-    """Write into ``data``, a rendered export's payload, the name each mention
-    of somebody reads as now: their name in the community, or ``missing`` for
+async def mention_namer(
+    session: AsyncSession, value: Any, *, missing: str
+) -> Callable[[Any], Any]:
+    """What writes into a rendered export the name each mention of somebody in
+    ``value`` reads as now: their name in the community, or ``missing`` for
     somebody no longer in it. Markdown mentions and editor-state mention nodes
-    alike, at any depth. Replaces what it rewrites rather than editing it, as
-    the content inside is usually a loaded row's column."""
+    alike, at any depth, looked up once for all of ``value``. What it returns
+    is a copy, as the content inside is usually a loaded row's column."""
     wanted: set[int] = set()
 
     def collect(value: Any) -> None:
@@ -285,17 +292,19 @@ async def name_mentions(session: AsyncSession, data: dict, *, missing: str) -> N
             for child in value:
                 collect(child)
 
-    collect(data)
-    if not wanted:
-        return
-    names: dict[int, str] = dict(
-        (
-            await session.exec(
-                select(GuildMember.id, GuildMember.display_name).where(
-                    GuildMember.id.in_(wanted)
+    collect(value)
+    names: dict[int, str] = (
+        dict(
+            (
+                await session.exec(
+                    select(GuildMember.id, GuildMember.display_name).where(
+                        GuildMember.id.in_(wanted)
+                    )
                 )
-            )
-        ).all()
+            ).all()
+        )
+        if wanted
+        else {}
     )
 
     def named(value: Any) -> Any:
@@ -306,7 +315,7 @@ async def name_mentions(session: AsyncSession, data: dict, *, missing: str) -> N
                     f"({match.group(2)})"
                 ),
                 value,
-            )
+            ).replace(_NOBODY, f"@{missing}")
         if isinstance(value, list):
             return [named(child) for child in value]
         if not isinstance(value, dict):
@@ -315,6 +324,8 @@ async def name_mentions(session: AsyncSession, data: dict, *, missing: str) -> N
         if _is_id(node.get("mentionUserId")):
             name = names.get(node["mentionUserId"], missing)
             node |= {"mentionName": name, "text": name}
+        elif node.get("type") in _MENTION_NODES and not node.get("mentionName"):
+            node |= {"mentionName": missing, "text": missing}
         return node
 
-    data.update(named(data))
+    return named

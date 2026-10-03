@@ -360,11 +360,15 @@ class ToolExportAdapter:
         else:
             # A report is read away from the app, so each mention is written
             # with the name it reads as now.
-            from app.services.import_engine.mentions import name_mentions
+            from app.services.import_engine.mentions import mention_namer
 
-            missing = et("fallback.formerMember", export_locale(user))
+            named = await mention_namer(
+                session,
+                [item.data for item in batch],
+                missing=et("fallback.formerMember", export_locale(user)),
+            )
             for item in batch:
-                await name_mentions(session, item.data, missing=missing)
+                item.data.update(named(item.data))
         return RenderRequest(
             guild_id=guild_id,
             template_id=self.template_id,
