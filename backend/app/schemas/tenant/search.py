@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict
 
 from app.core.search import SearchEntityType
 from app.core.tools import Tool
+from app.schemas.base import MentionStr
 
 
 class SearchHit(BaseModel):
@@ -47,7 +48,9 @@ class SearchSuggestion(BaseModel):
 
     entity_type: SearchEntityType
     entity_id: int
-    title: str
+    #: A comment's is the start of what was written, so it mentions as the
+    #: comment does.
+    title: MentionStr
     initiative_id: Optional[int] = None
     tool: Optional[Tool] = None
     tool_id: Optional[int] = None

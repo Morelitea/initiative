@@ -2,6 +2,8 @@ import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
 import type { SearchHit } from "@/api/generated/initiativeAPI.schemas";
+import { MentionText } from "@/components/user/MentionText";
+import { MentionedPeopleScope, ReportMentionedPeople } from "@/hooks/useMentionedPeople";
 import { useGuildPath } from "@/lib/guildUrl";
 import { hitIcon, searchHitPath } from "@/lib/searchResults";
 
@@ -34,9 +36,10 @@ export function splitSnippet(snippet: string): Array<{ text: string; match: bool
  *
  * A hit whose address can't be built renders as plain text rather than a dead
  * link — it was still found, and saying so is better than offering a link that
- * goes nowhere.
+ * goes nowhere. A comment is shown by its opening words, and those and any
+ * snippet can mention people, who read as chips inside the row's link.
  */
-export function SearchResultRow({ hit }: { hit: SearchHit }) {
+function SearchResultRow({ hit }: { hit: SearchHit }) {
   const { t } = useTranslation("search");
   const getGuildPath = useGuildPath();
   const Icon = hitIcon(hit);
@@ -48,7 +51,9 @@ export function SearchResultRow({ hit }: { hit: SearchHit }) {
       <Icon className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline gap-2">
-          <span className="truncate font-medium">{hit.title}</span>
+          <span className="truncate font-medium">
+            <MentionText text={hit.title} disableLink />
+          </span>
           <span className="shrink-0 text-muted-foreground text-xs">{kind}</span>
         </div>
         {hit.snippet && (
@@ -61,7 +66,9 @@ export function SearchResultRow({ hit }: { hit: SearchHit }) {
                 </mark>
               ) : (
                 // biome-ignore lint/suspicious/noArrayIndexKey: snippet pieces have no id
-                <span key={index}>{part.text}</span>
+                <span key={index}>
+                  <MentionText text={part.text} disableLink />
+                </span>
               )
             )}
           </p>
@@ -77,5 +84,17 @@ export function SearchResultRow({ hit }: { hit: SearchHit }) {
     <Link to={getGuildPath(path)} className="flex gap-3 rounded-md px-3 py-2 hover:bg-accent">
       {body}
     </Link>
+  );
+}
+
+/** A list of results, with the people their words mention asked about once. */
+export function SearchResultList({ hits }: { hits: SearchHit[] }) {
+  return (
+    <MentionedPeopleScope>
+      <ReportMentionedPeople texts={hits.flatMap((hit) => [hit.title, hit.snippet ?? ""])} />
+      {hits.map((hit) => (
+        <SearchResultRow key={`${hit.entity_type}-${hit.entity_id}`} hit={hit} />
+      ))}
+    </MentionedPeopleScope>
   );
 }

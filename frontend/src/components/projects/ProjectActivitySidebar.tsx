@@ -13,6 +13,7 @@ import {
   projectActivityFeed,
 } from "@/api/generated/projects/projects";
 import { CommentContent } from "@/components/comments/CommentContent";
+import { CommentReferences } from "@/components/comments/CommentReferences";
 import { Button } from "@/components/ui/button";
 import { RelativeTime } from "@/components/ui/relative-time";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
@@ -66,6 +67,7 @@ export const ProjectActivitySidebar = ({
     }
     return activityQuery.data.pages.flatMap((page) => page.items);
   }, [activityQuery.data]);
+  const contents = useMemo(() => entries.map((entry) => entry.content), [entries]);
 
   if (!projectId) {
     return null;
@@ -125,36 +127,39 @@ export const ProjectActivitySidebar = ({
             ) : entries.length === 0 ? (
               <p className="text-muted-foreground text-sm">{t("activitySidebar.noComments")}</p>
             ) : (
-              <ul className="space-y-3">
-                {entries.map((entry) => {
-                  const authorName = getUserDisplayName(entry.author);
-                  return (
-                    <li
-                      key={entry.comment_id}
-                      className="rounded-lg border border-border/60 bg-background px-3 py-2"
-                    >
-                      <div className="flex items-center justify-between text-muted-foreground text-xs">
-                        <span className="font-medium text-foreground">{authorName}</span>
-                        <RelativeTime date={entry.created_at} showTitle={false} />
-                      </div>
-                      <p className="text-foreground text-sm">
-                        {t("activitySidebar.commentedOn")}{" "}
-                        <Link
-                          to={gp(taskRoute(initiativeId, projectId as number, entry.task_id))}
-                          className="font-medium hover:underline"
-                        >
-                          {entry.task_title}
-                        </Link>
-                      </p>
-                      <CommentContent
-                        content={entry.content}
-                        compact
-                        className="mt-1 line-clamp-3 border-border border-l-2 pl-2 text-muted-foreground"
-                      />
-                    </li>
-                  );
-                })}
-              </ul>
+              // What the comments mention is read for the whole feed at once.
+              <CommentReferences contents={contents}>
+                <ul className="space-y-3">
+                  {entries.map((entry) => {
+                    const authorName = getUserDisplayName(entry.author);
+                    return (
+                      <li
+                        key={entry.comment_id}
+                        className="rounded-lg border border-border/60 bg-background px-3 py-2"
+                      >
+                        <div className="flex items-center justify-between text-muted-foreground text-xs">
+                          <span className="font-medium text-foreground">{authorName}</span>
+                          <RelativeTime date={entry.created_at} showTitle={false} />
+                        </div>
+                        <p className="text-foreground text-sm">
+                          {t("activitySidebar.commentedOn")}{" "}
+                          <Link
+                            to={gp(taskRoute(initiativeId, projectId as number, entry.task_id))}
+                            className="font-medium hover:underline"
+                          >
+                            {entry.task_title}
+                          </Link>
+                        </p>
+                        <CommentContent
+                          content={entry.content}
+                          compact
+                          className="mt-1 line-clamp-3 border-border border-l-2 pl-2 text-muted-foreground"
+                        />
+                      </li>
+                    );
+                  })}
+                </ul>
+              </CommentReferences>
             )}
             {activityQuery.hasNextPage ? (
               <Button

@@ -2,6 +2,8 @@
   "deletedUserName": "Gelöschter Benutzer #{{id}}",
   "user": "Benutzer",
   "userWithId": "Benutzer #{{id}}",
+  "formerMember": "Ehemaliges Mitglied",
+  "mentionNotLoaded": "Dieser Name konnte nicht geladen werden",
   "save": "Speichern",
   "cancel": "Abbrechen",
   "delete": "Löschen",

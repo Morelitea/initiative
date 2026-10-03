@@ -9,8 +9,10 @@ from app.schemas.tenant.post import post_excerpt
 
 
 def test_excerpt_reads_every_kind_of_text_node():
-    """Mentions and chips keep their words in ``text`` like a text node, so the
-    excerpt reads what the post says rather than only its plain runs."""
+    """Chips keep their words in ``text`` like a text node, so the excerpt
+    reads what the post says rather than only its plain runs. A mention of
+    somebody reads as its markdown, which the client names; one with no
+    account as the name it has."""
     body = {
         "root": {
             "children": [
@@ -18,7 +20,8 @@ def test_excerpt_reads_every_kind_of_text_node():
                     "type": "paragraph",
                     "children": [
                         {"type": "text", "text": "Ping"},
-                        {"type": "mention", "text": "@Ada"},
+                        {"type": "mention", "mentionUserId": 42, "text": "Ada"},
+                        {"type": "mention", "mentionUserId": None, "text": "Bo"},
                         {"type": "text", "text": "about"},
                         {"type": "smart-chip", "text": "Ship it"},
                     ],
@@ -26,7 +29,7 @@ def test_excerpt_reads_every_kind_of_text_node():
             ]
         }
     }
-    assert post_excerpt(body) == "Ping @Ada about Ship it"
+    assert post_excerpt(body) == "Ping @[](42) Bo about Ship it"
 
 
 def test_excerpt_of_a_body_with_no_words_is_empty():
@@ -52,3 +55,18 @@ def test_excerpt_truncates_on_a_word_boundary():
     assert len(excerpt) <= 20
     assert excerpt.endswith("…")
     assert not excerpt.endswith("w…")
+    # A mention the cut goes through is left out whole.
+    cut = {
+        "root": {
+            "children": [
+                {
+                    "type": "paragraph",
+                    "children": [
+                        {"type": "text", "text": "wo"},
+                        {"type": "mention", "mentionUserId": 4242424242, "text": ""},
+                    ],
+                }
+            ]
+        }
+    }
+    assert post_excerpt(cut, limit=12) == "wo …"

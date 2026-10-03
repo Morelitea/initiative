@@ -58,9 +58,12 @@ const combineBatches = (results: { data?: SmartChipStateList; isFetched: boolean
  *
  * A document with thirty chips makes one call, not thirty: the scope collects
  * the references out of the editor and asks for them together.
+ * `guildIdOverride` reads them in a community other than the page's, for a
+ * surface that spans communities.
  */
-export const useSmartChipStates = (refs: string[], enabled = true) => {
-  const guildId = useActiveGuildId();
+export const useSmartChipStates = (refs: string[], enabled = true, guildIdOverride?: number) => {
+  const activeGuildId = useActiveGuildId();
+  const guildId = guildIdOverride ?? activeGuildId;
   const batches = referenceBatches(refs);
   return useQueries({
     queries: batches.map((ref) => ({

@@ -219,6 +219,31 @@ async def test_issue_upload_token_endpoint(
     assert response.status_code == 200
 
 
+async def test_an_upload_token_ends_with_the_session_that_asked(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """A session with two minutes left gets an upload token for two minutes at
+    most, not the usual ten."""
+    from datetime import timedelta
+
+    import jwt
+
+    from app.testing.factories import get_auth_token
+
+    user = await create_user(session)
+    access = get_auth_token(user, expires_in=timedelta(minutes=2))
+    mint = await client.post(
+        "/api/v1/auth/upload-token", headers={"Authorization": f"Bearer {access}"}
+    )
+    assert mint.status_code == 200, mint.text
+    assert 0 < mint.json()["expires_in"] <= 120
+    minted = jwt.decode(
+        mint.json()["upload_token"], options={"verify_signature": False}
+    )
+    asked_with = jwt.decode(access, options={"verify_signature": False})
+    assert minted["exp"] <= asked_with["exp"]
+
+
 async def test_issue_upload_token_requires_auth(client: AsyncClient) -> None:
     """The mint endpoint itself requires an authenticated session."""
     response = await client.post("/api/v1/auth/upload-token")

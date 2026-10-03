@@ -45,7 +45,9 @@ export interface ToolRow {
   tags: TagSummary[];
   updatedAt: string;
   /** The tool's own column: what this row is, in its own terms. Left out
-   *  for a tool without one ({@link TOOL_HAS_DETAIL}). */
+   *  for a tool without one ({@link TOOL_HAS_DETAIL}). Text here is read for
+   *  the people it mentions, which a post's opening or a calendar's
+   *  description can hold. */
   detail?: ReactNode;
 }
 
@@ -228,7 +230,8 @@ export function buildToolRows(
         updatedAt: post.updated_at,
         // The first line of the notice. A table of posts is a table of
         // things people said, and the headline alone rarely distinguishes two
-        // of them — the server derives this from the body for exactly here.
+        // of them — the server derives this from the body for exactly here,
+        // with the people it mentions left in for the table to name.
         detail: post.excerpt,
       }));
     case Tool.gallery:

@@ -47,9 +47,7 @@ def test_people_and_things_are_written_the_way_a_comment_names_them():
             )
         )
     )
-    assert body == (
-        "@[Sam Bee](42) and @Nobody Here see #wiki_page[The Guide](9) SCRUM-1"
-    )
+    assert body == ("@[](42) and @Nobody Here see #wiki_page[The Guide](9) SCRUM-1")
 
 
 def test_structure_reads_as_markdown_and_a_picture_keeps_its_address():

@@ -25,6 +25,7 @@ from app.api.deps import route_app_scopes
 from app.core.identity_boundary import BoundaryPhase
 from app.core.app_scopes import ALL_SCOPES
 from app.core.messages import AppMessages
+from app.db.search_index import COMMENT_PREVIEW_CHARS
 from app.main import app
 from app.models.platform.guild import Guild, CommunityRole, CommunityStatus
 from app.models.platform.notification import Notification, NotificationType
@@ -820,22 +821,35 @@ async def test_a_write_naming_three_people_costs_the_same_two(
 # ---------------------------------------------------------------------------
 
 
+def _with_picture(body: dict[str, Any], src: str) -> dict[str, Any]:
+    """``body`` with an image node after its paragraph."""
+    picture = {"type": "image", "src": src, "altText": "shot", "width": 0}
+    body["root"]["children"].append(picture)
+    return body
+
+
 @pytest.mark.parametrize("reads_names", [True, False])
-async def test_a_mention_names_a_person_by_reference_and_by_name_under_members_read(
+async def test_a_mention_names_a_person_by_reference_and_never_by_name(
     reads_names, client, session, acting_user, role_session
 ):
+    """Content written before names were left out still carries one, and it
+    reaches no app, nor does anything derived from the text."""
     await lift_person_and_guild_ids(session)
     reads = ["projects:read", "comments:read", "documents:read", "posts:read"]
     installed = await install_app(
         session, acting_user, role_session, granted=[*reads, "members:read"]
     )
     seat = installed.seat
-    mention = f"Over to @[The Seat]({seat.user.id})"
+    picture = f"/uploads/{installed.guild.id}/pasted-shot.png"
+    mention = f"Over to @[The Seat]({seat.user.id}) ![shot]({picture})"
     post = await create_post(
         session,
         installed.placed,
         seat.user,
-        body=lexical_body("Over to ", mentioning=seat.user.id, name="The Seat"),
+        body=_with_picture(
+            lexical_body("Over to ", mentioning=seat.user.id, name="The Seat"),
+            picture,
+        ),
     )
     project = await _open_project(session, installed, installed.placed, "Open A")
     task = await create_task(
@@ -846,7 +860,10 @@ async def test_a_mention_names_a_person_by_reference_and_by_name_under_members_r
         session,
         installed.placed,
         seat.user,
-        content=lexical_body("Over to ", mentioning=seat.user.id, name="The Seat"),
+        content=_with_picture(
+            lexical_body("Over to ", mentioning=seat.user.id, name="The Seat"),
+            picture,
+        ),
     )
     await share_with_members(session, document, installed.placed.id)
     headers = install_headers(
@@ -867,21 +884,19 @@ async def test_a_mention_names_a_person_by_reference_and_by_name_under_members_r
     for response in responses:
         assert response.status_code == 200, response.text
         assert_names_nobody(response.text, [seat.user.id, guild_id])
-        assert ("The Seat" in response.text) is reads_names
+        assert "The Seat" not in response.text
+        assert "/uploads/" not in response.text
     read, comments, opened, posted, listed = (r.json() for r in responses)
     ref = read["assignees"][0]["id"]
-    name = "The Seat" if reads_names else ""
-    assert read["description"] == f"Over to @[{name}]({ref})"
+    # A stored picture is there, without its path.
+    assert read["description"] == f"Over to @[]({ref}) ![shot]()"
     assert comments["comments"][0]["content"] == read["description"]
     [_, node] = opened["content"]["root"]["children"][0]["children"]
-    assert (node["mentionUserId"], node["mentionName"], node["text"]) == (
-        ref,
-        name,
-        name,
-    )
-    # What is derived from the text shows the name only as the text does.
-    assert posted["excerpt"] == f"Over to {name}".strip()
-    assert listed["items"][0]["description_excerpt"] == f"Over to @{name}"
+    assert (node["mentionUserId"], node["mentionName"], node["text"]) == (ref, "", "")
+    assert opened["content"]["root"]["children"][1]["src"] == ""
+    assert posted["body"]["root"]["children"][1]["src"] == ""
+    assert posted["excerpt"] == f"Over to @[]({ref})"
+    assert listed["items"][0]["description_excerpt"] == f"Over to @[]({ref})"
     # The person's handle finds what mentions them only for an app that may
     # read names.
     found = await client.get(
@@ -891,6 +906,11 @@ async def test_a_mention_names_a_person_by_reference_and_by_name_under_members_r
     )
     assert found.status_code == 200, found.text
     assert len(found.json()["items"]) == int(reads_names)
+    # A person reads the same with its paths.
+    for path in (f"/tasks/{task.id}", f"/documents/{document.id}", f"/posts/{post.id}"):
+        as_person = await client.get(guild_url(guild_id, path), headers=seat.headers)
+        assert as_person.status_code == 200, as_person.text
+        assert picture in as_person.text
 
 
 async def test_a_response_mentioning_three_people_costs_one_statement_cold(
@@ -926,7 +946,7 @@ async def test_a_response_mentioning_three_people_costs_one_statement_cold(
     assert len(cold) == len(warm) + 1, (cold, warm)
 
 
-async def test_a_mention_it_writes_is_stored_by_row_id_under_the_member_s_name(
+async def test_a_mention_it_writes_is_stored_by_row_id(
     client, session, acting_user, role_session
 ):
     scopes = ["comments:write", "documents:write", "members:read"]
@@ -937,9 +957,6 @@ async def test_a_mention_it_writes_is_stored_by_row_id_under_the_member_s_name(
         initiative=installed.placed,
         initiative_role="member",
     )
-    member.membership.display_name = "Sam Bee"
-    session.add(member.membership)
-    await session.commit()
     document = await _open_document(session, installed)
     headers = install_headers(installed, scopes)
     guild_id = installed.guild.id
@@ -956,7 +973,7 @@ async def test_a_mention_it_writes_is_stored_by_row_id_under_the_member_s_name(
         json={"content": f"Over to @[]({ref})", "document_id": document.id},
     )
     assert posted.status_code == 201, posted.text
-    assert posted.json()["content"] == f"Over to @[Sam Bee]({ref})"
+    assert posted.json()["content"] == f"Over to @[]({ref})"
     created = await client.post(
         guild_url(guild_id, "/documents/"),
         headers=headers,
@@ -971,13 +988,11 @@ async def test_a_mention_it_writes_is_stored_by_row_id_under_the_member_s_name(
     await route_session_to_guild(session, guild_id)
     comment = await session.get(Comment, posted.json()["id"])
     assert comment is not None
-    assert comment.content == f"Over to @[Sam Bee]({member.user.id})"
+    assert comment.content == f"Over to @[]({member.user.id})"
     stored = await session.exec(
         select(Document.content).where(Document.id == created.json()["id"])
     )
-    assert stored.one() == lexical_body(
-        "Over to ", mentioning=member.user.id, name="Sam Bee"
-    )
+    assert stored.one() == lexical_body("Over to ", mentioning=member.user.id)
 
     # The person it mentioned hears of it, as from anybody.
     await drain_notices()
@@ -1081,7 +1096,9 @@ async def test_suggest_asks_the_scope_of_the_tool_a_comment_is_on(
     client, session, acting_user, role_session
 ):
     """A comment on a task is read through the task's project, so finding one
-    needs ``projects:read`` beside ``comments:read``."""
+    needs ``projects:read`` beside ``comments:read``. Its title is the start of
+    what was written, and mentions and shows files as the comment does."""
+    await lift_person_and_guild_ids(session)
     installed = await install_app(
         session,
         acting_user,
@@ -1090,8 +1107,13 @@ async def test_suggest_asks_the_scope_of_the_tool_a_comment_is_on(
     )
     project = await _open_project(session, installed, installed.placed, "Open A")
     task = await create_task(session, project, title="stage build")
+    seat = installed.seat.user
+    picture = f"/uploads/{installed.guild.id}/pasted-shot.png?size=small"
     comment = await create_comment(
-        session, installed.seat.user, task=task, content="beacon confirmed"
+        session,
+        seat,
+        task=task,
+        content=f"beacon confirmed @[The Seat]({seat.id}) ![shot]({picture})",
     )
 
     comments_only = await _suggest(
@@ -1112,7 +1134,42 @@ async def test_suggest_asks_the_scope_of_the_tool_a_comment_is_on(
         types=["comment"],
     )
     assert with_projects.status_code == 200, with_projects.text
-    assert [r["entity_id"] for r in with_projects.json()] == [comment.id]
+    [found] = with_projects.json()
+    assert found["entity_id"] == comment.id
+    assert found["title"].startswith("beacon confirmed @[](")
+    assert found["title"].endswith(") ![shot]()")
+    assert_names_nobody(found["title"], [seat.id, installed.guild.id])
+
+
+@pytest.mark.parametrize(
+    "written", ["@[The Seat]({seat})", "![shot](/uploads/{guild}/pasted-shot.png)"]
+)
+async def test_a_cut_comment_title_ends_before_what_the_cut_goes_through(
+    written, client, session, acting_user, role_session
+):
+    """A comment's title is its first characters. When they end inside a
+    mention or a stored file's address, the title ends before it."""
+    scopes = ["projects:read", "comments:read"]
+    await lift_person_and_guild_ids(session)
+    installed = await install_app(session, acting_user, role_session, granted=scopes)
+    seat = installed.seat.user
+    project = await _open_project(session, installed, installed.placed, "Open A")
+    task = await create_task(session, project, title="stage build")
+    written = written.format(seat=seat.id, guild=installed.guild.id)
+    row_id = str(seat.id) if "@" in written else str(installed.guild.id)
+    # The cut goes through the row id's first digit.
+    lead = "beacon " + "x" * (COMMENT_PREVIEW_CHARS - written.index(row_id) - 9)
+    await create_comment(session, seat, task=task, content=f"{lead} {written} end")
+
+    response = await _suggest(
+        client,
+        installed,
+        install_headers(installed, scopes),
+        q="beacon",
+        types=["comment"],
+    )
+    assert response.status_code == 200, response.text
+    assert [found["title"] for found in response.json()] == [f"{lead} "]
 
 
 async def test_a_narrowed_token_suggests_only_its_initiative(

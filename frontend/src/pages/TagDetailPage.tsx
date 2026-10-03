@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { StatusMessage } from "@/components/StatusMessage";
-import { SearchResultRow } from "@/components/search/SearchResultRow";
+import { SearchResultList } from "@/components/search/SearchResultRow";
 import { TagDetailSkeleton } from "@/components/skeletons/PageSkeletons";
 import {
   AlertDialog,
@@ -211,9 +211,7 @@ export const TagDetailPage = () => {
           </TabsBar>
           {groups.map(({ tool, hits }) => (
             <TabsContent key={tool} value={tool}>
-              {hits.map((hit) => (
-                <SearchResultRow key={`${hit.entity_type}-${hit.entity_id}`} hit={hit} />
-              ))}
+              <SearchResultList hits={hits} />
             </TabsContent>
           ))}
         </Tabs>
