@@ -17,7 +17,12 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlalchemy import text
 
 from app.db.schema_provisioning import guild_schema_name
-from app.core.messages import CalendarEventMessages, CommonMessages, PropertyMessages
+from app.core.messages import (
+    CalendarEventMessages,
+    CommonMessages,
+    PropertyMessages,
+    RelationshipMessages,
+)
 from app.models.platform.guild import GuildRole
 from app.models.platform.notification import Notification, NotificationType
 from app.models.tenant.calendar_event import CalendarEvent
@@ -1224,8 +1229,8 @@ class TestGuildCalendarEvents:
         calendar = await create_guild_calendar(session, a.guild, a.user)
 
         # Asked of the create path, which is where an event names its documents
-        # now that the per-tool attach route is one generic one. The generic
-        # surface refuses the same pairing — see ``relationships_test``.
+        # now that the per-tool attach route is one generic one. Both ask the
+        # same seam — see ``relationships_test``.
         response = await client.post(
             a.g("/calendar-events/"),
             headers=a.headers,
@@ -1238,10 +1243,7 @@ class TestGuildCalendarEvents:
             },
         )
         assert response.status_code == 400
-        assert (
-            response.json()["detail"]
-            == CalendarEventMessages.GUILD_CALENDAR_NO_DOCUMENTS
-        )
+        assert response.json()["detail"] == RelationshipMessages.CROSS_INITIATIVE
 
     async def test_an_event_cannot_move_across_the_scope_line(
         self, client: AsyncClient, acting_user, session

@@ -275,7 +275,7 @@ async def _writable_sources(
 
 
 async def resolve(
-    session: AsyncSession, end: Endpoint, user_id: int
+    session: AsyncSession, end: Endpoint, user_id: int | None
 ) -> reference_targets.Resolved:
     """The row behind one end, or a 404.
 
@@ -308,8 +308,7 @@ def refuse_across_initiatives(
     * An **event on a guild calendar** belongs to none because that is what a
       guild calendar is: an event takes its initiative from its calendar, and a
       guild calendar has none. So it is guild-level content, and initiative
-      content is not its to link. That is the rule the calendar endpoint spelled
-      out as ``GUILD_CALENDAR_NO_DOCUMENTS``, which was never about documents.
+      content is not its to link.
 
     What tells them apart is whether the KIND belongs to initiatives at all:
     ``calendar_events`` does and this row does not, where ``tags`` never does.
@@ -677,16 +676,36 @@ async def set_related(
     relationship_type: RelationshipType,
     other_kind: SearchEntityType,
     ids: Sequence[int],
-    created_by: int | None = None,
+    user_id: int | None,
 ) -> None:
-    """Replace one slice of an entity's edges — what a multi-select dialog does.
+    """Replace one slice of an entity's edges on a person's behalf — what a
+    multi-select dialog does.
+
+    Asks of the entity and of every id named what :func:`link` asks of a link's
+    two ends: each resolves for this reader, they share an initiative, and
+    neither is archived. Who may drop an edge is the caller's to ask first.
 
     Removing here is a plain delete rather than a tombstone: a replace is the UI
     restating the whole set, not a person pointing at one link and taking it
     back, and reading every dropped item as a considered negative would flood the
     signal that makes tombstones worth keeping.
     """
+    refuse_derived(relationship_type)
+    anchor = await resolve(session, entity, user_id)
+    refuse_archived(anchor)
     wanted = list(dict.fromkeys(ids))
+    resolved = await reference_targets.resolve_many(
+        session, other_kind, wanted, user_id=user_id
+    )
+    for other_id in wanted:
+        found = resolved.get(other_id)
+        if found is None:
+            raise Refused(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=RelationshipMessages.ENDPOINT_NOT_FOUND,
+            )
+        refuse_across_initiatives(anchor, found)
+        refuse_archived(found)
     current = await list_for_entity(
         session, entity, relationship_type=relationship_type, other_kind=other_kind
     )
@@ -695,7 +714,7 @@ async def set_related(
     for row in current:
         other = row.target_id if row.source_node == entity.node else row.source_id
         if other not in keep:
-            await remove(session, row, removed_by=created_by, tombstone=False)
+            await remove(session, row, removed_by=user_id, tombstone=False)
 
     have = {
         (row.target_id if row.source_node == entity.node else row.source_id)
@@ -709,7 +728,7 @@ async def set_related(
             source=entity,
             relationship_type=relationship_type,
             target=Endpoint(other_kind, other_id),
-            created_by=created_by,
+            created_by=user_id,
         )
 
 

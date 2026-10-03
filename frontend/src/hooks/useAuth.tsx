@@ -331,7 +331,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     readSeqRef.current += 1;
     const readId = readSeqRef.current;
     const epoch = identityEpochRef.current;
-    const response = await apiClient.get<UserRead>("/users/me");
+    const response = await apiClient.get<UserRead>("/me");
     if (epoch !== identityEpochRef.current) {
       // Somebody signed in or out while this was in flight; it is about a
       // person who is no longer the one here.
@@ -346,13 +346,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     applyRead(response.data);
   }, [applyRead]);
 
-  // Bootstrap user on mount — always attempt /users/me.
+  // Bootstrap user on mount — always attempt /me.
   // Web: cookie is sent automatically (withCredentials). Native: token was loaded by the effect above.
   useEffect(() => {
     const bootstrap = async () => {
       setLoading(true);
       try {
-        const response = await apiClient.get<UserRead>("/users/me");
+        const response = await apiClient.get<UserRead>("/me");
         setUser(response.data);
       } catch (error) {
         // Two different failures used to land here together. An answer of any
@@ -586,7 +586,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   // Memoized: the OIDC callback page calls this from an effect, and this
   // function also sets the user it depends on. An unstable identity would make
-  // that effect re-run on every render it causes — an endless /users/me loop.
+  // that effect re-run on every render it causes — an endless /me loop.
   const completeOidcLogin = useCallback(
     async (credential?: NativeSession) => {
       if (credential) {
@@ -595,7 +595,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setTokenState(credential.accessToken);
       }
       // A browser's cookie was set by the server's redirect.
-      const me = await apiClient.get<UserRead>("/users/me");
+      const me = await apiClient.get<UserRead>("/me");
       replaceIdentity(me.data);
       beginSession();
     },

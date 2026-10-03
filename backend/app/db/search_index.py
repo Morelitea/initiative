@@ -20,9 +20,10 @@ import hashlib
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 
-from sqlalchemy import DateTime, Enum, MetaData
+from sqlalchemy import JSON, DateTime, Enum, MetaData
 from sqlmodel import SQLModel
 
+from app.core.identity_boundary import STORED_MENTION
 from app.core.search import SearchEntityType
 from app.core.tools import Tool
 from app.db.initiative_rls import COMMENT_PARENTS, initiative_locator
@@ -40,6 +41,12 @@ MAX_CHUNKS = 2000
 
 #: How much of a comment stands in for its title.
 COMMENT_PREVIEW_CHARS = 140
+
+#: What an entry holds for each person its body mentions: this and their id, as
+#: a word of its own. The parser never starts a word with it, so nothing typed
+#: is read as one; a search names a person's mentions by rewriting a word that
+#: names them (``app.services.tenant.search``).
+MENTION_LEXEME = "@"
 
 
 @dataclass(frozen=True)
@@ -268,6 +275,40 @@ def _flag_expr(table: str, flag: str, row: str) -> str | None:
     return f"{row}.{column}"
 
 
+def _written(table: str, source: "SearchSource") -> tuple[str, ...]:
+    """The body columns somebody writes in: all of them, less a column that only
+    names a kind (an enum)."""
+    columns = SQLModel.metadata.tables[table].columns
+    return tuple(c for c in source.body if not isinstance(columns[c].type, Enum))
+
+
+def _mentions_expr(table: str, source: "SearchSource", row: str = ROW) -> str:
+    """Row expression yielding the people a source's body mentions, as words.
+
+    A markdown mention in any written column, and in an editor state a mention
+    node's ``mentionUserId`` as well. Empty where the source writes nothing.
+    """
+    columns = SQLModel.metadata.tables[table].columns
+    markdown = STORED_MENTION.pattern
+    found: list[str] = []
+    for column in _written(table, source):
+        value = f"{row}.{column}"
+        if isinstance(columns[column].type, JSON):
+            found.append(
+                "SELECT v #>> '{}' FROM jsonb_path_query("
+                f"{value}, 'strict $.**.mentionUserId ? (@.type() == \"number\")',"
+                " '{}'::jsonb, true) v"
+            )
+            value = f"{value}::text"
+        found.append(f"SELECT m[2] FROM regexp_matches({value}, '{markdown}', 'g') m")
+    if not found:
+        return ""
+    return (
+        f"ARRAY(SELECT DISTINCT '{MENTION_LEXEME}' || id"
+        f" FROM ({' UNION ALL '.join(found)}) AS mentioned(id))"
+    )
+
+
 def _body_expr(source: "SearchSource", row: str = ROW) -> str:
     """Row expression yielding a source's body text."""
     if source.body_sql is not None:
@@ -397,11 +438,7 @@ def written_columns() -> dict[type[SQLModel], tuple[str, ...]]:
         if mapper.local_table.name in SEARCH_SOURCES
     }
     written = {
-        models[table]: tuple(
-            column
-            for column in source.body
-            if not isinstance(models[table].__table__.c[column].type, Enum)
-        )
+        models[table]: _written(table, source)
         for table, source in SEARCH_SOURCES.items()
     }
     return {model: columns for model, columns in written.items() if columns}
@@ -508,12 +545,19 @@ CREATE OR REPLACE FUNCTION {write_fn}(
     p_title       text,
     p_body        text,
     p_archived    boolean,
-    p_template    boolean
+    p_template    boolean,
+    p_mentions    text[]
 ) RETURNS void
     LANGUAGE plpgsql AS $write$
 DECLARE
     v_title text := coalesce(p_title, '');
     v_body  text := coalesce(p_body, '');
+    -- Every chunk carries them: a mention says who the whole entity is about,
+    -- so "Ada budget" finds a long document whose mention and words sit apart.
+    v_people tsvector := coalesce((
+        SELECT string_agg(quote_literal(l) || ':1B', ' ')
+          FROM unnest(p_mentions) l
+    )::tsvector, '');
     v_chunk text;
     v_ix    smallint := 0;
     v_pos   integer := 1;
@@ -558,11 +602,11 @@ BEGIN
             ') VALUES ($1, $2, $3, $4, nullif($5, ''''), $6, $7, nullif($8, ''''),'
             '  coalesce($9, false), coalesce($10, false), now(),'
             '  setweight(to_tsvector(''simple'', $7), ''A'') ||'
-            '  setweight(to_tsvector(''simple'', $8), ''B''))',
+            '  setweight(to_tsvector(''simple'', $8), ''B'') || $11)',
             p_schema
         ) USING p_entity_type, p_entity_id, v_ix, p_initiative,
                 p_dac_tool, p_dac_id, v_title, v_chunk,
-                p_archived, p_template;
+                p_archived, p_template, v_people;
 
         v_ix := v_ix + 1;
         v_pos := v_pos + v_cut;
@@ -586,6 +630,7 @@ DECLARE
     v_dac_tool   text;
     v_archived   boolean := false;
     v_template   boolean := false;
+    v_mentions   text[];
 BEGIN
     IF TG_OP = 'DELETE' THEN
         v_row := OLD;
@@ -629,11 +674,14 @@ BEGIN
     IF TG_ARGV[8] <> '' THEN
         EXECUTE 'SELECT ' || TG_ARGV[8] INTO v_template USING v_row;
     END IF;
+    IF TG_ARGV[9] <> '' THEN
+        EXECUTE 'SELECT ' || TG_ARGV[9] INTO v_mentions USING v_row;
+    END IF;
 
     PERFORM {write_fn}(
         TG_TABLE_SCHEMA, TG_ARGV[1], v_entity, v_initiative,
         v_dac_tool, v_dac_id, v_title, v_body,
-        v_archived, v_template
+        v_archived, v_template, v_mentions
     );
     RETURN NULL;
 END
@@ -702,11 +750,12 @@ def _write_call(table: str, source: SearchSource, row: str, schema: str) -> str:
     body = _body_expr(source, row) or "''"
     archived = _flag_expr(table, "archived", row) or "false"
     template = _flag_expr(table, "template", row) or "false"
+    mentions = _mentions_expr(table, source, row) or "NULL::text[]"
     return (
         f"{WRITE_FUNCTION}({schema}, '{source.entity_type.value}', {row}.id,"
         f" ({initiative_locator(table)(row)})::integer,"
         f" {dac_tool}, {dac_id}, {_title_expr(source, row)}, {body},"
-        f" {archived}, {template})"
+        f" {archived}, {template}, {mentions})"
     )
 
 
@@ -739,10 +788,11 @@ def _dependency_block(
 
 
 def _call_args(table: str, source: SearchSource) -> list[str]:
-    """The nine trigger arguments, shared by both triggers on a table.
+    """The ten trigger arguments, shared by both triggers on a table.
 
     An argument is the empty string where the source has nothing to say — no
-    body, no sharing gate, no flag column — and the function skips it.
+    body, no sharing gate, no flag column, nobody it could mention — and the
+    function skips it.
     """
     locator = initiative_locator(table)
     dac_tool, dac_id = _dac_exprs(source)
@@ -755,7 +805,8 @@ def _call_args(table: str, source: SearchSource) -> list[str]:
         f"    {_quoted(dac_tool)},",
         f"    {_quoted(dac_id)},",
         f"    {_quoted(_flag_expr(table, 'archived', ROW) or '')},",
-        f"    {_quoted(_flag_expr(table, 'template', ROW) or '')}",
+        f"    {_quoted(_flag_expr(table, 'template', ROW) or '')},",
+        f"    {_quoted(_mentions_expr(table, source))}",
     ]
 
 

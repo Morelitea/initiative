@@ -41,7 +41,7 @@ async def _assume(session, tier: str, user_id: int) -> None:
 
 async def _upload(client: AsyncClient, headers: dict, data: bytes | None = None):
     return await client.put(
-        "/api/v1/users/me/avatar",
+        "/api/v1/me/avatar",
         headers=headers,
         files={"file": ("avatar.png", data or png(256, 256), "image/png")},
     )
@@ -103,9 +103,7 @@ async def test_removing_a_picture_makes_its_url_stop_working(
     await _upload(client, get_auth_headers(user))
     digest = service.validate_avatar(png(256, 256)).sha256
 
-    deleted = await client.delete(
-        "/api/v1/users/me/avatar", headers=get_auth_headers(user)
-    )
+    deleted = await client.delete("/api/v1/me/avatar", headers=get_auth_headers(user))
 
     assert deleted.status_code == 204
     assert (
@@ -130,7 +128,7 @@ async def test_refused_uploads(
     user = await create_user(session)
 
     response = await client.put(
-        "/api/v1/users/me/avatar",
+        "/api/v1/me/avatar",
         headers=get_auth_headers(user),
         files={"file": (filename, data, "image/png")},
     )
@@ -190,7 +188,7 @@ async def test_a_read_payload_url_cannot_be_written_back_as_an_external_one(
     user = await create_user(session)
 
     response = await client.patch(
-        "/api/v1/users/me",
+        "/api/v1/me",
         headers=get_auth_headers(user),
         json={"avatar_url": f"/api/v1/users/{user.id}/avatar/{'ab' * 32}"},
     )
@@ -198,7 +196,7 @@ async def test_a_read_payload_url_cannot_be_written_back_as_an_external_one(
 
     for elsewhere in ("http://example.com/me.png", "data:image/png;base64,AAAA"):
         response = await client.patch(
-            "/api/v1/users/me",
+            "/api/v1/me",
             headers=get_auth_headers(user),
             json={"avatar_url": elsewhere},
         )
@@ -212,7 +210,7 @@ async def test_setting_an_external_picture_drops_the_uploaded_one(
     await _upload(client, get_auth_headers(user))
 
     response = await client.patch(
-        "/api/v1/users/me",
+        "/api/v1/me",
         headers=get_auth_headers(user),
         json={"avatar_url": "https://idp.example/pic.png"},
     )

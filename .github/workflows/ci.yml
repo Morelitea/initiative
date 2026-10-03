@@ -431,9 +431,6 @@ jobs:
     needs: changes
     # A failed change detection leaves the outputs empty, which runs the job.
     if: ${{ !cancelled() && needs.changes.outputs.upgrade != 'false' }}
-    permissions:
-      contents: read
-      packages: read  # the uv image on ghcr.io
     uses: ./.github/workflows/upgrade.yml
     with:
       mode: ${{ needs.changes.outputs.upgrade || 'hop' }}
@@ -497,7 +494,6 @@ jobs:
     permissions:
       contents: read
       id-token: write  # the image's signature
-      packages: read  # the uv image on ghcr.io
     uses: ./.github/workflows/dev-build.yml
     # inherit, not a list: the build's environment secrets (OTA_SIGNING_KEY)
     # read as empty without it.

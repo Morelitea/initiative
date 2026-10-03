@@ -32,7 +32,7 @@ export const AcceptTerms = () => {
     setSubmitting(true);
     setError(null);
     try {
-      await apiClient.post("/users/me/legal-acceptance");
+      await apiClient.post("/me/legal-acceptance");
       await refreshUser();
     } catch (err) {
       setError(getErrorMessage(err, "legal:acceptError"));

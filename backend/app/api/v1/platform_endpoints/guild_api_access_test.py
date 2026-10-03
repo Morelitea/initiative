@@ -24,7 +24,7 @@ from app.testing.factories import (
 async def _key_headers(client: AsyncClient, headers: dict, **body) -> dict[str, str]:
     """Mint a key for the caller and return the headers that present it."""
     created = await client.post(
-        "/api/v1/users/me/api-keys", headers=headers, json={"name": "k", **body}
+        "/api/v1/me/api-keys", headers=headers, json={"name": "k", **body}
     )
     assert created.status_code == 201, created.text
     return {"Authorization": f"Bearer {created.json()['secret']}"}
@@ -80,7 +80,7 @@ async def test_no_key_is_minted_into_a_guild_that_declines_them(
     )
 
     response = await client.post(
-        "/api/v1/users/me/api-keys",
+        "/api/v1/me/api-keys",
         headers=get_auth_headers(user),
         json={"name": "no", "guild_id": guild.id},
     )

@@ -162,7 +162,7 @@ class TestClaimingAHandle:
         user = await create_user(session, username_chosen=False)
 
         response = await client.patch(
-            "/api/v1/users/me/username",
+            "/api/v1/me/username",
             headers=get_auth_headers(user),
             json={"username": "mine-now"},
         )
@@ -177,7 +177,7 @@ class TestClaimingAHandle:
         user = await create_user(session, username_chosen=True)
 
         response = await client.patch(
-            "/api/v1/users/me/username",
+            "/api/v1/me/username",
             headers=get_auth_headers(user),
             json={"username": "second-thoughts"},
         )
@@ -191,7 +191,7 @@ class TestClaimingAHandle:
         user = await create_user(session, username_chosen=False)
 
         response = await client.patch(
-            "/api/v1/users/me/username",
+            "/api/v1/me/username",
             headers=get_auth_headers(user),
             json={"username": "owner"},
         )

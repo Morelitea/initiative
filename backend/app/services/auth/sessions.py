@@ -192,6 +192,7 @@ _REVOKE_CHAIN_SQL = text(
     UPDATE auth_sessions SET revoked_at = :now
     WHERE revoked_at IS NULL
       AND id IN (SELECT id FROM ancestors UNION SELECT id FROM descendants)
+    RETURNING id
     """
 )
 
@@ -442,7 +443,9 @@ async def get_live_session_by_refresh_token(
 _LIVE_SESSIONS_SQL = text(
     """
     WITH RECURSIVE live AS (
-        SELECT id, parent_id, created_at, last_used_at, user_agent, ip, device_name
+        SELECT
+            id, parent_id, created_at, last_used_at, user_agent, ip, device_name,
+            device
         FROM auth_sessions
         WHERE user_id = :uid AND revoked_at IS NULL AND expires_at > :now
     ),
@@ -461,7 +464,8 @@ _LIVE_SESSIONS_SQL = text(
         live.last_used_at,
         live.user_agent,
         host(live.ip) AS ip,
-        live.device_name
+        live.device_name,
+        live.device
     FROM live JOIN roots ON roots.tip = live.id
     ORDER BY COALESCE(live.last_used_at, roots.started_at) DESC
     """
@@ -482,6 +486,8 @@ class LiveSession:
     user_agent: str | None
     ip: str | None
     device_name: str | None
+    #: Opened by the phone or desktop app.
+    device: bool
 
 
 async def list_live_for_user(
@@ -564,18 +570,41 @@ async def revoke_session(
     return result.rowcount
 
 
+async def _revoke_until_settled(
+    session: AsyncSession, statement: Any, params: dict[str, object]
+) -> list[Any]:
+    """Run a revoking ``statement`` until a pass after the first ends nothing,
+    and return every row it revoked.
+
+    A renewal that claimed a row before the first pass holds it until it
+    commits. That pass waits for it and skips the row it spent, and the row
+    the renewal opened is visible only to the next statement, so each pass
+    revokes what the one before could not see.
+    """
+    revoked: list[Any] = []
+    passes = 0
+    while True:
+        found = (await session.exec(statement, params=params)).all()
+        revoked.extend(found)
+        passes += 1
+        if not found and passes > 1:
+            return revoked
+
+
 async def revoke_chain(
     session: AsyncSession,
     *,
     session_id: uuid.UUID,
     now: datetime | None = None,
-) -> int:
+) -> set[uuid.UUID]:
     """Revoke every still-live session in ``session_id``'s rotation chain (theft
-    response, or unlink-provider cleanup). Returns the number of rows revoked."""
-    result = await session.exec(
-        _REVOKE_CHAIN_SQL, params={"sid": session_id, "now": now or utcnow()}
+    response, or unlink-provider cleanup). Returns the ids it revoked, which
+    include the live row a renewal has moved the chain to, one committed while
+    this ran among them."""
+    rows = await _revoke_until_settled(
+        session, _REVOKE_CHAIN_SQL, {"sid": session_id, "now": now or utcnow()}
     )
-    return result.rowcount
+    return {row.id for row in rows}
 
 
 async def revoke_all_for_user(
@@ -584,25 +613,36 @@ async def revoke_all_for_user(
     user_id: int,
     now: datetime | None = None,
     except_session_id: str | None = None,
-) -> int:
+) -> dict[uuid.UUID, bool]:
     """Revoke all of a user's live sessions — the refresh-side of "sign out
     everywhere" (paired with the ``users.token_version`` bump that invalidates
-    outstanding access tokens). Returns the number of rows revoked.
+    outstanding access tokens). Returns each revoked id and whether it was a
+    device's session, a renewal committed while this ran included.
 
-    ``except_session_id`` spares one, for the caller who asked: a change made
-    from a settings page should not sign that page out. Left unset, nothing is
-    spared and this is "everywhere" in full.
+    ``except_session_id`` spares one sign-in, for the caller who asked: a change
+    made from a settings page should not sign that page out. Its renewals are
+    spared with it. Left unset, nothing is spared and this is "everywhere" in
+    full.
     """
-    sql = (
-        "UPDATE auth_sessions SET revoked_at = :now "
-        "WHERE user_id = :uid AND revoked_at IS NULL"
-    )
     params: dict[str, object] = {"now": now or utcnow(), "uid": user_id}
+    kept = ""
     if except_session_id is not None:
-        sql += " AND id <> CAST(:keep AS uuid)"
+        kept = (
+            "WITH RECURSIVE kept AS ("
+            " SELECT id FROM auth_sessions WHERE id = CAST(:keep AS uuid)"
+            " UNION"
+            " SELECT s.id FROM auth_sessions s JOIN kept k ON s.parent_id = k.id"
+            ") "
+        )
         params["keep"] = except_session_id
-    result = await session.exec(text(sql), params=params)
-    return result.rowcount
+    statement = text(
+        kept + "UPDATE auth_sessions SET revoked_at = :now "
+        "WHERE user_id = :uid AND revoked_at IS NULL"
+        + (" AND id NOT IN (SELECT id FROM kept)" if kept else "")
+        + " RETURNING id, device"
+    )
+    rows = await _revoke_until_settled(session, statement, params)
+    return {row.id: row.device for row in rows}
 
 
 async def delete_all_for_user(session: AsyncSession, *, user_id: int) -> int:

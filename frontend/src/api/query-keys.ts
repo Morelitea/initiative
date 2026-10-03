@@ -434,7 +434,7 @@ const myAI = (): Spec => ({ personalExact: ["/api/v1/me/ai"] });
 
 // ── Users / Operator (personal / platform) ──────────────────────────────────────
 
-const currentUser = (): Spec => ({ personalExact: ["/api/v1/users/me"] });
+const currentUser = (): Spec => ({ personalExact: ["/api/v1/me"] });
 
 const userStats = (): Spec => ({ personalPrefix: ["/api/v1/me/stats"] });
 

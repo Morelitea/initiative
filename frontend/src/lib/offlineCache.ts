@@ -94,7 +94,7 @@ const PERSIST_ALLOWLIST = [
   "/api/v1/me/projects",
   "/api/v1/me/tools",
   // Enough identity and structure to render the shell around all of it.
-  "/api/v1/users/me",
+  "/api/v1/me",
   "/api/v1/communities",
   "/api/v1/recents",
 ] as const;
@@ -108,6 +108,10 @@ const PERSIST_DENYLIST = [
   "/api/v1/auth/",
   "/api/v1/config",
   "/api/v1/settings",
+  "/api/v1/c/{g}/settings",
+  "/api/v1/c/{g}/members",
+  "/api/v1/c/{g}/webhooks",
+  "/api/v1/c/{g}/apps",
   "/api/v1/operator",
   "/api/v1/access-grants",
   "/api/v1/ai-settings",
@@ -118,10 +122,19 @@ const PERSIST_DENYLIST = [
   "/api/v1/native",
   "/api/v1/search",
   "/api/v1/trash",
+  "/api/v1/me/trash",
+  // The account's own settings, credentials and addresses.
+  "/api/v1/me/api-keys",
+  "/api/v1/me/emails",
+  "/api/v1/me/ai",
+  "/api/v1/me/notification-preferences",
+  "/api/v1/me/reports",
   // Messages keep their own store, with its own rules about what stays on a
   // device (see `src/crypto/`). They are not duplicated here.
-  "/api/v1/me/dm-settings",
+  "/api/v1/me/dm",
   "/api/v1/me/connections",
+  "/api/v1/me/contacts",
+  "/api/v1/me/ignored",
   "/api/v1/me/message-requests",
   "/dm/",
 ] as const;
@@ -164,14 +177,18 @@ export const guildIdOfPath = (path: string): number | null => {
   return match ? Number(match[1]) : null;
 };
 
+/** A list entry with its `{g}` filled in from the path it is matched against. */
+const resolveEntry = (entry: string, path: string): string =>
+  entry.replace("/c/{g}", `/c/${guildIdOfPath(path) ?? ""}`);
+
 const matchesAllowlist = (path: string): boolean =>
   PERSIST_ALLOWLIST.some((entry) => {
-    const prefix = entry.replace("/c/{g}", `/c/${guildIdOfPath(path) ?? ""}`);
+    const prefix = resolveEntry(entry, path);
     return path === prefix || path.startsWith(`${prefix}/`) || path.startsWith(`${prefix}?`);
   });
 
 const matchesDenylist = (path: string): boolean =>
-  PERSIST_DENYLIST.some((entry) => path.includes(entry));
+  PERSIST_DENYLIST.some((entry) => path.includes(resolveEntry(entry, path)));
 
 /**
  * Whether one request path may be written to disk. Default deny: a path has to

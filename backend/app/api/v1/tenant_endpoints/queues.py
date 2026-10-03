@@ -383,25 +383,20 @@ async def add_queue_item(
             tag_ids=item_in.tag_ids,
         )
 
-    # Set document links if provided
-    if item_in.document_ids:
-        await queues_service.set_queue_item_documents(
-            session,
-            item,
-            item_in.document_ids,
-            routed_guild_id(session),
-            current_user.id,
-        )
-
-    # Set task links if provided
-    if item_in.task_ids:
-        await queues_service.set_queue_item_tasks(
-            session,
-            item,
-            item_in.task_ids,
-            routed_guild_id(session),
-            current_user.id,
-        )
+    # Set document and task links if provided
+    for other_kind, ids in (
+        (SearchEntityType.document, item_in.document_ids),
+        (SearchEntityType.task, item_in.task_ids),
+    ):
+        if ids:
+            await relationships.set_related(
+                session,
+                relationships.Endpoint(SearchEntityType.queue_item, item.id),
+                relationship_type=RelationshipType.attached,
+                other_kind=other_kind,
+                ids=ids,
+                user_id=current_user.id,
+            )
 
     await attachments_service.claim_uploads(session, item)
     await properties_service.write_on_create(session, item, item_in.properties)

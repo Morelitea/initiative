@@ -8,7 +8,7 @@ endpoints, and those requests — own-row, or answered by
 ``public.dm_apparent_permission`` — are where anything is decided.
 
 Its own channel rather than an arm on the account one, because an ``account``
-frame means "re-read ``GET /users/me``", and a membership change would
+frame means "re-read ``GET /me``", and a membership change would
 otherwise drag a refetch of three contact lists behind it.
 
 **Being ignored sends nothing.** The account that was ignored is signalled

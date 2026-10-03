@@ -1,6 +1,6 @@
 """Which response shapes may carry an address, and which may not.
 
-Two shapes carry a stored address in full: ``UserRead`` on the ``/users/me``
+Two shapes carry a stored address in full: ``UserRead`` on the ``/me``
 routes, and ``UserEmailRead`` on the routes listing the addresses an account
 holds. Both are served only to the address's owner. Every other route that
 returns an account returns ``OperatorUserRead``, which masks it, and the shapes
@@ -25,15 +25,15 @@ from app.main import app
 SELF_SHAPES = {
     "UserRead": {
         "/api/v1/auth/register",
-        "/api/v1/users/me",
-        "/api/v1/users/me/username",
-        "/api/v1/users/me/age-confirmation",
-        "/api/v1/users/me/avatar",
-        "/api/v1/users/me/legal-acceptance",
+        "/api/v1/me",
+        "/api/v1/me/username",
+        "/api/v1/me/age-confirmation",
+        "/api/v1/me/avatar",
+        "/api/v1/me/legal-acceptance",
     },
     "UserEmailRead": {
-        "/api/v1/users/me/emails",
-        "/api/v1/users/me/emails/{address_id}/primary",
+        "/api/v1/me/emails",
+        "/api/v1/me/emails/{address_id}/primary",
     },
 }
 

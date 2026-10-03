@@ -789,12 +789,13 @@ async def create_calendar_event(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=AppMessages.SCOPE_REQUIRED,
             )
-        await events_service.set_event_documents(
+        await relationships.set_related(
             session,
-            event,
-            event_in.document_ids,
-            guild_context.guild_id,
-            guild_context.user_id,
+            relationships.Endpoint(SearchEntityType.calendar_event, event.id),
+            relationship_type=RelationshipType.attached,
+            other_kind=SearchEntityType.document,
+            ids=event_in.document_ids,
+            user_id=guild_context.user_id,
         )
 
     invite_ids = [

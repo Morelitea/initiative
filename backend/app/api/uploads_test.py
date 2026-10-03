@@ -180,7 +180,7 @@ async def test_scoped_upload_token_rejected_as_general_api_credential(
     user = await create_user(session)
     token, _ = create_upload_token(user_id=user.id)
     response = await client.get(
-        "/api/v1/users/me", headers={"Authorization": f"Bearer {token}"}
+        "/api/v1/me", headers={"Authorization": f"Bearer {token}"}
     )
     assert response.status_code == 401
 

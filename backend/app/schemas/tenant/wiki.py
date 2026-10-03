@@ -22,7 +22,7 @@ from app.schemas.tenant.tag import TagSummary, annotated_tags
 from app.schemas.tenant.tool import ToolSummaryBase, from_row
 
 if TYPE_CHECKING:  # pragma: no cover
-    from app.db.guild_standing import GuildContext
+    from app.db.guild_standing import ActorContext, GuildContext
 
 
 class WikiBase(SanitizedBaseModel):
@@ -239,7 +239,7 @@ class WikiPageTree(SanitizedBaseModel):
 
 
 def serialize_wiki_page_summary(
-    page: "Any", *, context: GuildContext, heading_nodes: Optional[list] = None
+    page: "Any", *, context: ActorContext, heading_nodes: Optional[list] = None
 ) -> WikiPageSummary:
     """A page as a row. ``heading_nodes`` are its headings as the tree read
     them (``wikis.heading_nodes``), in place of its body."""
@@ -259,7 +259,7 @@ def serialize_wiki_page_summary(
 def serialize_document_as_page(
     document: "Any",
     *,
-    context: GuildContext,
+    context: ActorContext,
     wiki_id: int,
     position: int,
     heading_nodes: list,

@@ -12,7 +12,7 @@ import {
   topUpKeysApiV1MeDmOneTimeKeysPost as topUpKeys,
 } from "@/api/generated/direct-messages/direct-messages";
 import type { DmConversationRead, DmDeviceRead } from "@/api/generated/initiativeAPI.schemas";
-import { readUsersMeApiV1UsersMeGet as readMe } from "@/api/generated/users/users";
+import { readMeApiV1MeGet as readMe } from "@/api/generated/users/users";
 
 import { ratchet, stopRatchet } from "./client";
 import { withAccount } from "./sessions";
@@ -143,8 +143,9 @@ async function signItself(self: number, device: string): Promise<DmDeviceRead[] 
 export async function ensureDeviceContext(): Promise<Context> {
   const existing = await storedDeviceId.get();
   if (existing) {
-    // A device the server no longer knows about — revoked from another tab, or
-    // the account erased — has to be registered again rather than used.
+    // A device the server no longer knows about — removed from the account, or
+    // the account erased — has to be registered again rather than used, and
+    // what it held goes with it.
     const devices = (await listDevices()).devices;
     const known = devices.find((device) => device.id === existing);
     if (known) {

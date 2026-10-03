@@ -282,13 +282,13 @@ async def test_operator_mutations_return_masked_addresses(client, acting_user):
 async def test_own_account_still_reads_its_whole_address(client, acting_user):
     """The one reader entitled to an address is the person it belongs to.
 
-    ``/users/me`` backs the account screen, where the address is shown so you
+    ``/me`` backs the account screen, where the address is shown so you
     can check which account you are signed in as. Masking it there would be
     withholding it from its owner.
     """
     owner = await acting_user("owner", email="owner@example.com")
 
-    response = await client.get("/api/v1/users/me", headers=owner.headers)
+    response = await client.get("/api/v1/me", headers=owner.headers)
 
     assert response.status_code == 200
     assert response.json()["email"] == "owner@example.com"

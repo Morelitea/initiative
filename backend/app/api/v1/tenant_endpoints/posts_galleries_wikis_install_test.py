@@ -3,7 +3,8 @@
 Each test installs an app the way a community does (``install_app``: placed in
 initiative A and not in B, granted scopes by the seat), seals an installation
 token for it, and calls the routes of these three tools that name a scope: the
-list, read, create and update, and a post's pin.
+list, read, create and update, a post's pin, a wiki's pages and a gallery's
+pictures.
 """
 
 from __future__ import annotations
@@ -15,15 +16,18 @@ import pytest
 from sqlmodel import select
 
 from app.core.messages import AppMessages
+from app.main import app_openapi
 from app.models.tenant.post import Post
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.testing import (
     create_resource_grant,
     guild_url,
     create_gallery,
+    create_gallery_image,
     create_post,
     create_post_poll,
     create_wiki,
+    create_wiki_page,
     guild_of,
     route_session_to_guild,
 )
@@ -149,6 +153,80 @@ async def test_a_post_it_reads_carries_no_one_s_own_state(
         assert row["reactions"] == []
         assert row["poll"]["options"][0]["text"] == "Tuesday"
         assert_names_nobody(response.text, [seat.user.id, guild_id])
+
+
+async def test_lists_a_wiki_s_pages_with_the_read_scope(
+    client, session, acting_user, role_session
+):
+    await lift_person_and_guild_ids(session)
+    installed = await install_app(
+        session, acting_user, role_session, granted=["wikis:read"]
+    )
+    seat = installed.seat
+    guild_id = installed.guild.id
+    await _switch_on(session, TOOLS[2], installed.placed)
+    wiki = await create_wiki(session, installed.placed, seat.user)
+    await create_wiki_page(session, wiki, seat.user, title="Start here")
+    path = guild_url(guild_id, f"/wikis/{wiki.id}/pages")
+
+    listed = await client.get(path, headers=install_headers(installed, ["wikis:read"]))
+    assert listed.status_code == 200, listed.text
+    (page,) = listed.json()["items"]
+    assert page["title"] == "Start here"
+    assert isinstance(page["created_by"], str)
+    assert_names_nobody(listed.text, [seat.user.id, guild_id])
+
+    refused = await client.get(
+        path, headers=install_headers(installed, ["galleries:read"])
+    )
+    assert refused.status_code == 403, refused.text
+    assert refused.json()["detail"] == AppMessages.SCOPE_REQUIRED
+
+
+async def test_lists_a_gallery_s_pictures_with_the_read_scope(
+    client, session, acting_user, role_session
+):
+    await lift_person_and_guild_ids(session)
+    installed = await install_app(
+        session, acting_user, role_session, granted=["galleries:read"]
+    )
+    seat = installed.seat
+    guild_id = installed.guild.id
+    await _switch_on(session, TOOLS[1], installed.placed)
+    gallery = await create_gallery(session, installed.placed, seat.user)
+    await create_gallery_image(
+        session, gallery, seat.user, title="Harbour", write_blob=False
+    )
+    path = guild_url(guild_id, f"/galleries/{gallery.id}/images")
+
+    listed = await client.get(
+        path, headers=install_headers(installed, ["galleries:read"])
+    )
+    assert listed.status_code == 200, listed.text
+    (image,) = listed.json()["items"]
+    assert image["title"] == "Harbour"
+    assert isinstance(image["created_by"], str)
+    assert isinstance(image["guild_id"], str)
+    assert isinstance(image["uploader"]["id"], str)
+    # A picture's URLs are paths on the community's upload route, which name
+    # the community; everything else names nobody.
+    assert image.pop("file_url").startswith(f"/uploads/{guild_id}/")
+    image.pop("thumbnail_url")
+    assert_names_nobody(str(image), [seat.user.id, guild_id])
+
+    refused = await client.get(path, headers=install_headers(installed, ["wikis:read"]))
+    assert refused.status_code == 403, refused.text
+    assert refused.json()["detail"] == AppMessages.SCOPE_REQUIRED
+
+
+def test_the_app_document_lists_a_wiki_s_pages_and_a_gallery_s_pictures():
+    operations = {
+        operation["operationId"]: operation
+        for item in app_openapi()["paths"].values()
+        for operation in item.values()
+    }
+    assert operations["list_wiki_pages"]["x-app-scope"] == "wikis:read"
+    assert operations["list_gallery_images"]["x-app-scope"] == "galleries:read"
 
 
 # ---------------------------------------------------------------------------

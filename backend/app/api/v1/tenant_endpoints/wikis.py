@@ -257,9 +257,9 @@ async def read_after_write(
 @router.get("/{wiki_id}/pages", response_model=WikiPageTree)
 async def list_wiki_pages(
     wiki_id: int,
-    session: RLSSessionDep,
-    current_user: CurrentUserDep,
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: WikisRead,
 ) -> WikiPageTree:
     """Every page of a wiki, in reading order.
 

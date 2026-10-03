@@ -69,6 +69,7 @@ __all__ = [
     "MentionForm",
     "Mentions",
     "PersonId",
+    "STORED_MENTION",
     "UNKNOWN_REFERENCE_ERROR",
     "admit_install",
     "boundary_scope",
@@ -291,8 +292,8 @@ class MentionForm(str, Enum):
     lexical = "lexical"
 
 
-#: A stored markdown mention: its name and the row id.
-_STORED_MENTION = re.compile(r"@\[([^\]]*)\]\((\d+)\)")
+#: A stored markdown mention: its name and the row id. Postgres reads it alike.
+STORED_MENTION = re.compile(r"@\[([^\]]*)\]\((\d+)\)")
 #: A markdown mention an install writes: whatever it names, which must be a
 #: reference.
 _WRITTEN_MENTION = re.compile(r"@\[[^\]]*\]\(([A-Za-z0-9_-]+)\)")
@@ -328,7 +329,7 @@ def _markdown_out(value: Any, boundary: InstallBoundary) -> Any:
         marker = boundary.mark(IdentityEntity.user, int(match.group(2)))
         return f"@[{label}]({marker})"
 
-    return _STORED_MENTION.sub(marked, value)
+    return STORED_MENTION.sub(marked, value)
 
 
 def _rewrite_nodes(value: Any, rewrite: Callable[[dict[str, Any]], Any]) -> Any:
@@ -380,7 +381,7 @@ def without_mention_names(value: Any, form: MentionForm) -> Any:
         )
     if not isinstance(value, str):
         return value
-    return _STORED_MENTION.sub(lambda match: f"@[]({match.group(2)})", value)
+    return STORED_MENTION.sub(lambda match: f"@[]({match.group(2)})", value)
 
 
 _TRANSLATIONS = {

@@ -55,9 +55,7 @@ class TestAPackCarriesItsArt:
         path = await _publish_pack(client, owner)
         member = await acting_user("member")
 
-        shelf = await client.get(
-            "/api/v1/users/me/decoration-packs", headers=member.headers
-        )
+        shelf = await client.get("/api/v1/me/decoration-packs", headers=member.headers)
 
         assert shelf.status_code == 200, shelf.text
         [pack] = [item for item in shelf.json()["items"] if item["uid"] == UID]
@@ -70,13 +68,11 @@ class TestAPackCarriesItsArt:
         path = await _publish_pack(client, owner)
         member = await acting_user("member")
         installed = await client.post(
-            f"/api/v1/users/me/decoration-packs/{UID}", headers=member.headers
+            f"/api/v1/me/decoration-packs/{UID}", headers=member.headers
         )
         assert installed.status_code == 200, installed.text
 
-        library = await client.get(
-            "/api/v1/users/me/decorations", headers=member.headers
-        )
+        library = await client.get("/api/v1/me/decorations", headers=member.headers)
 
         [star] = [item for item in library.json()["items"] if item["id"] == "ours.star"]
         assert star["image_url"] == path
