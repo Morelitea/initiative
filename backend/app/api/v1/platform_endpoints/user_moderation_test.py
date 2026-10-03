@@ -246,6 +246,13 @@ class TestSuspension:
             f"/api/v1/c/{guild.id}/users/search", headers=get_auth_headers(onlooker)
         )
         assert member.id not in {row["id"] for row in response.json()["items"]}
+        # Somebody something already names — a mention — is still named.
+        named = await client.get(
+            f"/api/v1/c/{guild.id}/users/search",
+            headers=get_auth_headers(onlooker),
+            params={"user_id": member.id},
+        )
+        assert [row["id"] for row in named.json()["items"]] == [member.id]
 
     async def test_the_person_is_told_with_the_reason(
         self, client, session, moderator_and_member

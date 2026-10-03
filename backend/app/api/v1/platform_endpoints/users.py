@@ -14,7 +14,7 @@ from fastapi import (
     UploadFile,
     status,
 )
-from sqlalchemy import case, func, literal
+from sqlalchemy import ColumnElement, case, func, literal
 from sqlmodel import select
 
 from app.api.actor_route import ActorRoute
@@ -376,7 +376,7 @@ async def _search_members_for_app(
     """
     base = select(MemberProfile).where(
         MemberProfile.id.in_(select(GuildMember.id)),
-        users_service.visible_to_other_people(),
+        _named_or_visible(user_id),
     )
     if initiative_id is not None:
         base = base.where(_in_initiative(initiative_id))
@@ -384,8 +384,6 @@ async def _search_members_for_app(
     if search and (term := search.strip()):
         matches, closest = users_service.member_match(term, match_names=False)
         base = base.where(matches)
-    if user_id:
-        base = base.where(MemberProfile.id.in_(user_id))
 
     count_stmt = select(func.count()).select_from(base.subquery())
     data_stmt = base.order_by(
@@ -407,6 +405,16 @@ def _membership_standing(role: GuildRole | None) -> dict[str, object]:
     """The membership field a picker row carries: the rung, which is both what
     a row shows and what a surface asks the ladder about."""
     return {"guild_role": role.value if role is not None else None}
+
+
+def _named_or_visible(user_id: Optional[list[int]]) -> ColumnElement[bool]:
+    """The members ``user_id`` names, when it names any, and otherwise those
+    who may be listed. Naming people something already names — a mention, a
+    picker's saved choice — names a suspended member as their own work still
+    does; looking for people does not offer one."""
+    if user_id:
+        return MemberProfile.id.in_(user_id)
+    return users_service.visible_to_other_people()
 
 
 @guild_router.get("/search", response_model=UserSummaryListResponse)
@@ -493,7 +501,7 @@ async def search_users(
         .join(GuildMembership, GuildMembership.user_id == MemberProfile.id)
         .where(
             GuildMembership.guild_id == guild_context.guild_id,
-            users_service.visible_to_other_people(),
+            _named_or_visible(user_id),
         )
     )
     if initiative_id is not None:
@@ -514,8 +522,6 @@ async def search_users(
     if search and (term := search.strip()):
         matches, closest = users_service.member_match(term)
         base = base.where(matches)
-    if user_id:
-        base = base.where(MemberProfile.id.in_(user_id))
 
     count_stmt = select(func.count()).select_from(base.subquery())
     you_first = (

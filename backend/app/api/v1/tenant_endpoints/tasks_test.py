@@ -117,7 +117,7 @@ async def test_list_tasks_in_project(
             " with everyone. Draft…",
             True,
         ),
-        short.id: ("Ask @Mel about the budget.", True),
+        short.id: (f"Ask @[]({a.user.id}) about the budget.", True),
         linked.id: ("Read…", True),
         bare.id: (None, False),
     }

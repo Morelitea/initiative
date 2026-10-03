@@ -216,9 +216,12 @@ def _comment_preview(row: str) -> str:
 
     A comment has no title. Storing the whole of one would put an essay where a
     name goes; the full text is still indexed as the body, so what matched is
-    findable either way.
+    findable either way. A mention the cut goes through is left out whole.
     """
-    return f"left({row}.content, {COMMENT_PREVIEW_CHARS})"
+    return (
+        f"regexp_replace(left({row}.content, {COMMENT_PREVIEW_CHARS}),"
+        r" '@\[[^\]]*(\](\([0-9]*)?)?$', '')"
+    )
 
 
 def _comment_dac(row: str) -> tuple[str, str]:

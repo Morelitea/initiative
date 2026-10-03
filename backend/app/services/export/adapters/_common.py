@@ -31,6 +31,7 @@ from app.models.tenant.project import Project
 from app.models.tenant.task import Task
 from app.services.export.contract import RenderItem, RenderRequest
 from app.services.export.engine import ExportError
+from app.services.export.i18n import et, export_locale
 from app.services.export.filters import narrow, parse_filters
 from app.services.permissions import (
     DAC_RESOURCES,
@@ -356,6 +357,14 @@ class ToolExportAdapter:
             for item in batch:
                 await detach_envelope_mentions(session, item.data)
                 detach_envelope_references(item.data, guild_id=guild_id)
+        else:
+            # A report is read away from the app, so each mention is written
+            # with the name it reads as now.
+            from app.services.import_engine.mentions import name_mentions
+
+            missing = et("fallback.formerMember", export_locale(user))
+            for item in batch:
+                await name_mentions(session, item.data, missing=missing)
         return RenderRequest(
             guild_id=guild_id,
             template_id=self.template_id,

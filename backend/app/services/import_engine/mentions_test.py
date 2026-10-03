@@ -10,8 +10,10 @@ from app.services.import_engine.mentions import (
     editor_mention_ids,
     markdown_mention_ids,
     mention_handles_in,
+    name_mentions,
     place_editor_mentions,
 )
+from app.testing import create_guild, create_guild_membership, create_user
 
 
 def _mention(name: str, user_id: int | None) -> dict:
@@ -38,14 +40,14 @@ def _inline(content: dict) -> list[dict]:
 
 
 def test_a_markdown_mention_crosses_as_its_handle():
-    text = "Ask @[Sam Bee](42) and @[Sam Bee](42), not @[Gone](7)"
+    text = "Ask @[Sam Bee](42) and @[](42), not @[Gone](7) nor @[](8)"
 
-    assert markdown_mention_ids(text) == {42, 7}
+    assert markdown_mention_ids(text) == {42, 7, 8}
     detached, named = detach_markdown_mentions(text, {42: "sam#0042"})
 
     # Somebody with no handle to give crosses as the name they were written
-    # with, and no id rides along with either.
-    assert detached == "Ask @sam#0042 and @sam#0042, not @Gone"
+    # with, where there is one, and no id rides along with any.
+    assert detached == "Ask @sam#0042 and @sam#0042, not @Gone nor "
     assert named == ["sam#0042"]
 
 
@@ -89,6 +91,8 @@ def test_an_exported_mention_is_placed_or_left_a_name():
 
     sam, ann = _inline(placed)
     assert sam["mentionUserId"] == 5 and MENTION_HANDLE not in sam
+    # Placed on somebody, it is stored as every mention is: with no name.
+    assert (sam["mentionName"], sam["text"]) == ("", "")
     assert ann["mentionUserId"] is None and MENTION_HANDLE not in ann
     assert ann["mentionName"] == "Ann"
 
@@ -113,3 +117,36 @@ def test_every_listed_handle_is_found_at_any_depth():
     }
 
     assert mention_handles_in(envelope) == ["sam#0042", "ann#0009", "bo#0003"]
+
+
+async def test_a_report_names_each_mention_as_it_reads_now(session, reading_as):
+    """By the name somebody goes by in the community, and as ``missing`` once
+    they are not in it. A mention with no account keeps its name."""
+    guild = await create_guild(session)
+    ada = await create_user(session)
+    await create_guild_membership(
+        session, user=ada, guild=guild, display_name="Ada Countess"
+    )
+    gone = await create_user(session)
+    content = _editor(
+        _mention("", ada.id), _mention("Old", gone.id), _mention("Bo", None)
+    )
+    before = copy.deepcopy(content)
+    data = {
+        "rows": [{"description": f"@[]({ada.id}) and @[Old]({gone.id})"}],
+        "content": content,
+    }
+
+    await name_mentions(
+        await reading_as(ada.id, guild.id), data, missing="Former member"
+    )
+
+    assert data["rows"] == [
+        {"description": f"@[Ada Countess]({ada.id}) and @[Former member]({gone.id})"}
+    ]
+    assert _inline(data["content"]) == [
+        _mention("Ada Countess", ada.id),
+        _mention("Former member", gone.id),
+        _mention("Bo", None),
+    ]
+    assert content == before

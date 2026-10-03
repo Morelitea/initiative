@@ -27,6 +27,7 @@ from sqlalchemy import update as sa_update
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlmodel import select
 
+from app.core.identity_boundary import MentionForm, without_mention_names
 from app.db import cohorts
 from app.db.session import set_rls_context
 from app.services.content_sockets import resource_room, sockets
@@ -248,13 +249,14 @@ class CollaborationRoom:
         snapshot, and takes the rendering from the connection that last moved
         the document — that is the tab whose view of it is current. Another
         tab's rendering is of the document as it stood before, and its own
-        next offer will carry the merged state.
+        next offer will carry the merged state. A mention in it is kept by id
+        with no name, as every other write keeps one.
 
         Returns whether the offer was taken.
         """
         if self._last_writer is not None and connection is not self._last_writer:
             return False
-        self._content = content
+        self._content = without_mention_names(content, MentionForm.lexical)
         self._revision += 1
         self._content_revision = self._revision
         return True
