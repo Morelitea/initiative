@@ -2129,6 +2129,7 @@ export const Channel = {
   in_app: "in_app",
   email: "email",
   push: "push",
+  desktop: "desktop",
 } as const;
 
 /**
@@ -6138,57 +6139,6 @@ export interface NativeSignInRedeem {
   code_verifier: string;
 }
 
-export type NotificationCategory = (typeof NotificationCategory)[keyof typeof NotificationCategory];
-
-export const NotificationCategory = {
-  mentions: "mentions",
-  replies: "replies",
-  comments: "comments",
-  reactions: "reactions",
-  assignments: "assignments",
-  due_dates: "due_dates",
-  membership: "membership",
-  approvals: "approvals",
-  posts: "posts",
-  events: "events",
-  event_reminders: "event_reminders",
-  direct_messages: "direct_messages",
-  connections: "connections",
-  jobs: "jobs",
-  account: "account",
-} as const;
-
-/**
- * One row of the settings grid, described by the backend.
- */
-export interface NotificationCategoryRead {
-  category: NotificationCategory;
-  group: CategoryGroup;
-  personal: boolean;
-  guild_scoped: boolean;
-  mutable_channels: Channel[];
-  defaults: Partial<Record<Channel, boolean>>;
-}
-
-/**
- * One switch being moved. ``guild_id`` scopes it to one community.
- */
-export interface NotificationChannelSet {
-  guild_id?: number | null;
-  category: NotificationCategory;
-  channel: Channel;
-  enabled: boolean;
-}
-
-export interface NotificationCountResponse {
-  unread_count: number;
-}
-
-export interface NotificationLevelSet {
-  guild_id: number;
-  level: NotificationLevel;
-}
-
 export type NotificationType = (typeof NotificationType)[keyof typeof NotificationType];
 
 export const NotificationType = {
@@ -6247,6 +6197,74 @@ export interface NotificationRead {
   guild_id: number | null;
   initiative_id: number | null;
   tool: string | null;
+}
+
+/**
+ * The kind-only wording a phone's push carries where content is
+ * redacted.
+ */
+export interface RedactedAlert {
+  title: string;
+  body: string;
+}
+
+/**
+ * What the desktop app shows for one line.
+ */
+export interface NotificationAlertRead {
+  notification: NotificationRead;
+  redacted: RedactedAlert | null;
+}
+
+export type NotificationCategory = (typeof NotificationCategory)[keyof typeof NotificationCategory];
+
+export const NotificationCategory = {
+  mentions: "mentions",
+  replies: "replies",
+  comments: "comments",
+  reactions: "reactions",
+  assignments: "assignments",
+  due_dates: "due_dates",
+  membership: "membership",
+  approvals: "approvals",
+  posts: "posts",
+  events: "events",
+  event_reminders: "event_reminders",
+  direct_messages: "direct_messages",
+  connections: "connections",
+  jobs: "jobs",
+  account: "account",
+} as const;
+
+/**
+ * One row of the settings grid, described by the backend.
+ */
+export interface NotificationCategoryRead {
+  category: NotificationCategory;
+  group: CategoryGroup;
+  personal: boolean;
+  guild_scoped: boolean;
+  mutable_channels: Channel[];
+  defaults: Partial<Record<Channel, boolean>>;
+}
+
+/**
+ * One switch being moved. ``guild_id`` scopes it to one community.
+ */
+export interface NotificationChannelSet {
+  guild_id?: number | null;
+  category: NotificationCategory;
+  channel: Channel;
+  enabled: boolean;
+}
+
+export interface NotificationCountResponse {
+  unread_count: number;
+}
+
+export interface NotificationLevelSet {
+  guild_id: number;
+  level: NotificationLevel;
 }
 
 export interface NotificationListResponse {

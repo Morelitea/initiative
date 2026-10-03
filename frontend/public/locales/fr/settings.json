@@ -362,7 +362,8 @@
     "channels": {
       "in_app": "Cloche",
       "email": "E-mail",
-      "push": "Mobile"
+      "push": "Mobile",
+      "desktop": "Ordinateur"
     },
     "groups": {
       "addressed_to_me": "Qui m'est adressé",
@@ -389,7 +390,7 @@
     },
     "quietHours": {
       "title": "Heures calmes",
-      "description": "Retient e-mail et mobile la nuit. La cloche continue de collecter, et un résumé part à la fin.",
+      "description": "Retient e-mail, mobile et ordinateur la nuit. La cloche continue de collecter, et un résumé part à la fin.",
       "from": "De",
       "to": "Jusqu'à"
     },
@@ -424,7 +425,7 @@
       "respectPresenceHelp": "Si vous êtes déjà là, la cloche vous l'a dit. L'e-mail attend quelques minutes et le mobile reste silencieux.",
       "pause": {
         "title": "Mettre les notifications en pause",
-        "description": "L'e-mail et le mobile s'arrêtent les jours que vous choisissez. La cloche continue de collecter, et vous recevez un récapitulatif à votre retour.",
+        "description": "L'e-mail, le mobile et l'ordinateur s'arrêtent les jours que vous choisissez. La cloche continue de collecter, et vous recevez un récapitulatif à votre retour.",
         "active": "En pause jusqu'au {{until}}",
         "scheduled": "Pause du {{from}} au {{until}}",
         "resume": "Reprendre",
@@ -1899,9 +1900,9 @@
     "saved": "Paramètres de notification enregistrés",
     "error": "Impossible d'enregistrer les paramètres de notification",
     "push": {
-      "label": "Notifications mobiles",
-      "onHelp": "Les notifications atteignent les téléphones via Apple et Google.",
-      "offHelp": "Ce serveur n'envoie rien à un téléphone et ne conserve aucun enregistrement d'appareil."
+      "label": "Notifications sur téléphone et ordinateur",
+      "onHelp": "Les notifications atteignent les téléphones via Apple et Google, et l'application de bureau directement.",
+      "offHelp": "Ce serveur n'envoie rien à un téléphone ni à l'application de bureau, et ne conserve aucun enregistrement d'appareil."
     },
     "email": {
       "label": "Notifications par e-mail",
@@ -1920,10 +1921,10 @@
     "saved": "Paramètres de notification enregistrés",
     "error": "Impossible d'enregistrer les paramètres de notification",
     "push": {
-      "label": "Notifications mobiles",
-      "onHelp": "Les notifications de cette communauté atteignent les téléphones des membres.",
-      "offHelp": "Rien de cette communauté n'est envoyé à un téléphone. Les membres gardent la cloche, et l'e-mail s'il est actif.",
-      "platformHelp": "Ce serveur n'envoie rien à un téléphone : il n'y a rien à décider ici."
+      "label": "Notifications sur téléphone et ordinateur",
+      "onHelp": "Les notifications de cette communauté atteignent les téléphones et les applications de bureau des membres.",
+      "offHelp": "Rien de cette communauté n'est envoyé à un téléphone ni à l'application de bureau. Les membres gardent la cloche, et l'e-mail s'il est actif.",
+      "platformHelp": "Ce serveur n'envoie rien à un téléphone ni à l'application de bureau : il n'y a rien à décider ici."
     },
     "email": {
       "label": "Notifications par e-mail",

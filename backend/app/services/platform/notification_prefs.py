@@ -162,9 +162,11 @@ def in_quiet_hours(
 
 
 #: The channels a hold can hold. The bell is not one of them: it interrupts
-#: nobody, it is the record, and it is what makes holding the other two safe —
+#: nobody, it is the record, and it is what makes holding the others safe —
 #: nothing is lost, it is simply waiting where it was always going to be.
-HELD_CHANNELS: frozenset[Channel] = frozenset({Channel.email, Channel.push})
+HELD_CHANNELS: frozenset[Channel] = frozenset(
+    {Channel.email, Channel.push, Channel.desktop}
+)
 
 #: How long after a hold lifts its summary is still worth sending. Past this
 #: the news has kept until whenever the account next looks, and a "while you
@@ -417,7 +419,13 @@ def reachable(
     if channel not in HELD_CHANNELS:
         return True
     return not holds_in_force(
-        prefs, tz_name=tz_name, last_active_at=last_active_at, now=now
+        prefs,
+        tz_name=tz_name,
+        # The desktop app alerts only while its own window is not in front,
+        # which says whether somebody is looking better than recent activity
+        # anywhere does.
+        last_active_at=None if channel is Channel.desktop else last_active_at,
+        now=now,
     )
 
 

@@ -14,7 +14,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.tools import COMMENT_TARGETS, Tool
 from app.models.platform.guild import GuildRole
 from app.models.platform.notification import NotificationType
-from app.services.platform import user_notifications
+from app.services.platform import notification_policy, user_notifications
 from app.testing.factories import (
     create_guild,
     create_task,
@@ -269,11 +269,44 @@ async def test_cannot_read_other_users_notification(
     other = await create_user(session)
     notification_id = await _seed_notification(session, owner.id)
 
-    response = await client.post(
-        f"/api/v1/notifications/{notification_id}/read",
-        headers=get_auth_headers(other),
+    for request in (
+        client.post(
+            f"/api/v1/notifications/{notification_id}/read",
+            headers=get_auth_headers(other),
+        ),
+        client.get(
+            f"/api/v1/notifications/{notification_id}/alert",
+            headers=get_auth_headers(other),
+        ),
+    ):
+        assert (await request).status_code == 404
+
+
+async def test_the_desktop_alert_is_the_line_unless_its_community_redacts(
+    client: AsyncClient, session: AsyncSession
+):
+    user = await create_user(session)
+    guild = await create_guild(session, creator=user)
+    line = await user_notifications.create_notification(
+        session,
+        user_id=user.id,
+        notification_type=NotificationType.mention,
+        data={"guild_id": guild.id, "context": "Q3 budget"},
     )
-    assert response.status_code == 404
+    await session.commit()
+    assert line is not None
+    url = f"/api/v1/notifications/{line.id}/alert"
+
+    body = (await client.get(url, headers=get_auth_headers(user))).json()
+    assert body["notification"]["id"] == line.id
+    assert body["redacted"] is None
+
+    guild.redact_notification_content = True
+    session.add(guild)
+    await session.commit()
+    body = (await client.get(url, headers=get_auth_headers(user))).json()
+    title, text = notification_policy.redacted_push(NotificationType.mention, "en")
+    assert body["redacted"] == {"title": title, "body": text}
 
 
 async def test_the_bell_reads_the_title_back_from_the_community(
