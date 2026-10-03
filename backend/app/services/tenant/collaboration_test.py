@@ -273,6 +273,10 @@ class FakeExecResult:
     def __init__(self, rowcount: int) -> None:
         self.rowcount = rowcount
 
+    def one_or_none(self) -> None:
+        # Nothing stored since the room read it.
+        return None
+
 
 class RecordingSession:
     def __init__(self, rowcount: int = 1) -> None:

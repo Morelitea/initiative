@@ -138,6 +138,18 @@ For any real deployment you'll put Initiative behind a reverse proxy that handle
 !!! warning "Only enable proxy trust behind an actual proxy"
     `BEHIND_PROXY` tells Initiative to believe the `X-Forwarded-*` headers it receives. Only turn it on when a trusted proxy is the one setting them.
 
+## Running more than one copy
+
+Several copies of Initiative can serve one address. Here's what they share and what each keeps to itself.
+
+| | Where it lives |
+|---|---|
+| Everything people save, including live edits | The database, so every copy sees it |
+| Live editing sessions, cursors and who's here | Each copy, for the people connected to it |
+| Rate-limit counts | Each copy, unless `RATE_LIMIT_STORAGE_URI` gives them one shared count (a `redis://` URL) |
+
+People editing a document through the same copy see each other's typing as it happens. Through different copies, each one's changes reach the others within about half a minute, when their copy saves, and nobody's edits are lost: every save merges with what the other copies saved.
+
 ## Keeping bots out (captcha)
 
 To keep automated sign-ups out of open registration, ask for a captcha. It's set in **Settings → Platform → Security**, under **Captcha**, and applies to signing up and to asking for an emailed sign-in code.
