@@ -32,7 +32,7 @@ from app.core.identity_boundary import MentionForm
 from app.schemas.platform.user import AppPerson
 
 #: The prefix every route an app may call starts with.
-COMMUNITY_PREFIX = f"{API_V1_STR}/c/{{guild_id}}"
+COMMUNITY_PREFIX = f"{API_V1_STR}/c/{{community_id}}"
 
 _SCHEMA_REF = "#/components/schemas/"
 _APP_PERSON = AppPerson.__name__

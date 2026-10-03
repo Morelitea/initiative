@@ -85,7 +85,7 @@ def test_the_app_document_names_no_community_and_no_row_id():
     for item in document["paths"].values():
         for operation in item.values():
             names = {p["name"] for p in operation.get("parameters", ())}
-            assert "guild_id" not in names, operation["operationId"]
+            assert "community_id" not in names, operation["operationId"]
     identities = [node for node in _nodes(document) if "x-identity" in node]
     assert identities
     assert all(node["type"] == "string" for node in identities)
