@@ -147,7 +147,8 @@ export const InitiativeMembersPeek = ({
       ) : faces.length > 0 ? (
         <>
           {/* The faces say who is here; the count is for a screen reader. */}
-          <span role="group" aria-label={onlineLabel} className="inline-flex items-center gap-1.5">
+          <span className="inline-flex items-center gap-1.5">
+            <span className="sr-only">{onlineLabel}</span>
             {faces.map((member) => (
               <UserHoverLink
                 key={member.user.id}

@@ -58,7 +58,7 @@ export const DocumentFeaturedImage = ({
           className="aspect-[3/1] w-full object-cover"
         />
         {canEdit ? (
-          <div className="absolute top-2 right-2 flex gap-2 transition-opacity md:opacity-0 md:group-focus-within:opacity-100 md:group-hover:opacity-100">
+          <div className="absolute top-2 right-2 flex gap-2 transition-opacity md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100">
             {upload(t("featuredImage.replace"), "secondary")}
             <Button
               type="button"

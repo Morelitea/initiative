@@ -279,8 +279,9 @@ const pose = ({ css, eyes, blink, winkEye, mouth = [], altMouth = [], extras = "
 
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${VIEW_BOX}">
 <!-- Drawn by frontend/scripts/build-chester.mjs from base.svg; edit those and run it again. -->
-<style>${BASE_CSS}${css}
-@media (prefers-reduced-motion: reduce) { * { animation: none !important; } }
+<style>${BASE_CSS}
+@media (prefers-reduced-motion: no-preference) {${css}
+}
 </style>
 <defs>
 <filter id="halo" filterUnits="userSpaceOnUse" x="-20" y="-30" width="350" height="350">
