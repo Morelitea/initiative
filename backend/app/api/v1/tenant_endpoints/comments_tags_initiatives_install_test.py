@@ -218,7 +218,7 @@ async def test_lists_the_tags_naming_the_community_by_reference(
     )
     assert listed.status_code == 200, listed.text
     assert [t["name"] for t in listed.json()] == ["alpha", "beta"]
-    assert all(isinstance(t["guild_id"], str) for t in listed.json())
+    assert all(isinstance(t["community_id"], str) for t in listed.json())
     assert_names_nobody(listed.text, [installed.seat.user.id, installed.guild.id])
 
 
@@ -362,7 +362,7 @@ async def test_reads_the_initiatives_it_is_placed_in(
     assert listed.status_code == 200, listed.text
     [only] = listed.json()
     assert only["id"] == installed.placed.id
-    assert isinstance(only["guild_id"], str)
+    assert isinstance(only["community_id"], str)
     # Neither the list nor one initiative's read names a roster.
     assert "members" not in only
     assert_names_nobody(listed.text, [installed.seat.user.id, guild_id])

@@ -59,7 +59,7 @@ async def test_each_request_through_a_grant_is_written_down(
         "method": "GET",
         "route": "/api/v1/c/{community_id}/initiatives/",
         "status": 200,
-        "reached": {"guild_id": guild.id},
+        "reached": {"community_id": guild.id},
     }
 
 
@@ -139,6 +139,6 @@ async def test_reaching_nothing_still_records_the_attempt(
     (line,) = emitted(capfd, PAM)
     assert line["detail"]["status"] == 404
     assert line["detail"]["reached"] == {
-        "guild_id": guild.id,
+        "community_id": guild.id,
         "initiative_id": 9999,
     }

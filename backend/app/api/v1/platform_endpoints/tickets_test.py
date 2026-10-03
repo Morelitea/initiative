@@ -33,7 +33,7 @@ TICKETS = "/api/v1/me/tickets"
 async def _ask(client, actor, guild_id, **body):
     payload = {
         "stream": "support",
-        "guild_id": guild_id,
+        "community_id": guild_id,
         "subject": "Cannot open a project",
         "body": "It spins forever.",
     }
@@ -43,7 +43,7 @@ async def _ask(client, actor, guild_id, **body):
 
 async def _offered(client, actor, guild_id=None) -> dict:
     """What every stream offers ``actor``, standing in ``guild_id``."""
-    params = {} if guild_id is None else {"guild_id": guild_id}
+    params = {} if guild_id is None else {"community_id": guild_id}
     response = await client.get(
         f"{TICKETS}/availability", params=params, headers=actor.headers
     )

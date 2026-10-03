@@ -590,15 +590,15 @@ async def test_search_initiative_members_slim_and_filtered(
         "avatar_url",
         "status",
         "profile_decorations",
-        "guild_role",
+        "community_role",
     }
     # Asserted as a value, not only as a key: the schema leaves it unset, so a
     # key-set check passes just as happily on an endpoint that never fills it
     # in.
     by_id = {item["id"]: item for item in body["items"]}
-    assert by_id[admin.user.id]["guild_role"] == "admin"
-    assert by_id[alice.user.id]["guild_role"] == "member"
-    assert by_id[bob.user.id]["guild_role"] == "member"
+    assert by_id[admin.user.id]["community_role"] == "admin"
+    assert by_id[alice.user.id]["community_role"] == "member"
+    assert by_id[bob.user.id]["community_role"] == "member"
 
     # Filtered by handle, which every guild has for every member.
     response = await client.get(
@@ -2094,7 +2094,7 @@ async def test_a_knock_reaches_the_managers_on_both_channels(
     assert "I maintain the parser" in sent[0]["body"]
     # Guild-scoped news, so the link carries the guild rather than being a bare
     # frontend path.
-    assert f"guild_id={manager.guild.id}" in sent[0]["link"]
+    assert f"community_id={manager.guild.id}" in sent[0]["link"]
 
     assert (
         await _notifications_for(
@@ -2161,7 +2161,7 @@ async def test_a_resolution_reaches_the_requester_on_both_channels(
     # Being told the answer is membership news, not something to act on.
     assert sent[0]["category"] is NotificationCategory.membership
     assert sent[0]["subject"] == subject
-    assert f"guild_id={manager.guild.id}" in sent[0]["link"]
+    assert f"community_id={manager.guild.id}" in sent[0]["link"]
 
 
 @pytest.mark.parametrize(

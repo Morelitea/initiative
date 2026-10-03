@@ -107,6 +107,8 @@ _PUBLIC_FERNET_COLUMNS: list[tuple[str, str, bytes]] = [
     # ciphertext and same salt as the two address columns above, so it is
     # re-keyed with them.
     ("auth_challenges", "email_encrypted", SALT_EMAIL),
+    # The address an account letter goes to, held until the letter is sent.
+    ("email_outbox", "recipient_encrypted", SALT_EMAIL),
 ]
 
 # Shared-table JSONB columns holding one ciphertext per key: what an operator
