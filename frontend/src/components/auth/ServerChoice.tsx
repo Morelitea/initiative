@@ -4,7 +4,6 @@ import { useTranslation } from "react-i18next";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -26,10 +25,9 @@ import { cn } from "@/lib/utils";
 export const ServerChip = () => {
   const { t } = useTranslation("auth");
   return (
-    <p className="flex items-center gap-2 text-muted-foreground text-sm">
-      {t("server.label")}
-      <Badge variant="secondary">{t("server.selfHosted")}</Badge>
-    </p>
+    <Badge variant="secondary" aria-label={`${t("server.label")}: ${t("server.selfHosted")}`}>
+      {t("server.selfHosted")}
+    </Badge>
   );
 };
 
@@ -88,22 +86,17 @@ const AppServerPicker = ({ className }: { className?: string }) => {
 
   return (
     <form className={cn("space-y-2", className)} onSubmit={handleConnect}>
-      <div className="flex items-center gap-2">
-        <Label htmlFor="server" className="font-normal text-muted-foreground">
-          {t("server.label")}
-        </Label>
-        <Select value={where} onValueChange={setWhere}>
-          <SelectTrigger id="server" className="h-8 w-auto gap-2">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="cloud" disabled>
-              {t("server.cloud")} · {t("server.cloudSoon")}
-            </SelectItem>
-            <SelectItem value="selfHosted">{t("server.selfHosted")}</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+      <Select value={where} onValueChange={setWhere}>
+        <SelectTrigger aria-label={t("server.label")} className="h-8 w-auto gap-2">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="cloud" disabled>
+            {t("server.cloud")} · {t("server.cloudSoon")}
+          </SelectItem>
+          <SelectItem value="selfHosted">{t("server.selfHosted")}</SelectItem>
+        </SelectContent>
+      </Select>
       {where === "selfHosted" ? (
         <div className="flex gap-2">
           <Input

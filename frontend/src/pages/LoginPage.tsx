@@ -55,22 +55,14 @@ const FALLBACK_DEVICE_NAME = "Mobile Device";
 const flag = (value: unknown): string => String(value ?? "");
 
 export const LoginPage = () => {
-  const { t } = useTranslation("auth");
   const { isNativePlatform, isServerConfigured, serverUrl } = useServer();
 
   // The app needs a server before anything else can load, so until it has
-  // one the server is all the card asks for.
+  // one the server is all there is.
   if (isNativePlatform && !isServerConfigured) {
     return (
       <SignInFrame pickServer>
-        <Card className="w-full max-w-md shadow-lg">
-          <CardHeader>
-            <CardTitle>{t("server.label")}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ServerPicker />
-          </CardContent>
-        </Card>
+        <ServerPicker className="w-full max-w-md" />
       </SignInFrame>
     );
   }
