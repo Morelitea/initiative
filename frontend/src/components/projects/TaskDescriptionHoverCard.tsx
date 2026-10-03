@@ -41,7 +41,7 @@ export const TaskDescriptionHoverCard = ({ task, className }: TaskDescriptionHov
       <HoverCardContent className="max-h-120 w-screen max-w-120 overflow-y-auto">
         <TaskDescription
           content={data?.description || task.description_excerpt || ""}
-          guildId={task.guild_id ?? undefined}
+          guildId={task.community_id ?? undefined}
         />
       </HoverCardContent>
     </HoverCard>
