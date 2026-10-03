@@ -308,6 +308,10 @@
       "description": "Empêche l'écran de cet appareil de s'atténuer ou de se verrouiller tant que l'application est ouverte. Ce paramètre est enregistré uniquement sur cet appareil.",
       "unsupported": "Votre navigateur ne prend pas en charge le maintien de l'écran allumé."
     },
+    "desktopAutoUpdate": {
+      "label": "Mettre à jour l'application automatiquement",
+      "description": "Quand votre serveur a besoin d'une application de bureau plus récente, elle est téléchargée et installée au redémarrage. Enregistré sur cet ordinateur uniquement."
+    },
     "completionTitle": "Quand vous terminez une tâche",
     "completionDescription": "Ce que fait l'app dès qu'une tâche est cochée. Essayez chacune avant de la garder."
   },

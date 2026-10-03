@@ -371,7 +371,12 @@
     "nativeUpdateRequiredDescription": "La version {{version}} est disponible, mais elle nécessite une version de l'application plus récente que celle installée. Veuillez mettre à jour Initiative depuis votre magasin d'applications ou installer le dernier APK.",
     "nativeUpdateRequiredDescriptionDesktop": "La version {{version}} est disponible, mais elle nécessite une version de l'application plus récente que celle installée. Téléchargez la dernière version d'Initiative pour votre ordinateur.",
     "nativeUpdateRequiredAcknowledge": "Compris",
-    "nativeUpdateDownload": "Télécharger"
+    "nativeUpdateDownload": "Télécharger",
+    "alwaysUpdate": "Toujours mettre à jour automatiquement",
+    "updateNow": "Mettre à jour",
+    "updating": "Mise à jour…",
+    "notNow": "Pas maintenant",
+    "updateFailed": "La mise à jour n'a pas abouti. Téléchargez-la plutôt."
   },
   "temporaryAccess": "Accès temporaire",
   "expiresInMinutes": "expire dans {{minutes}} min",

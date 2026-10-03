@@ -308,6 +308,10 @@
       "description": "Evita que la pantalla de este dispositivo se atenúe o se bloquee mientras la aplicación está abierta. Esta preferencia se guarda solo en este dispositivo.",
       "unsupported": "Tu navegador no admite mantener la pantalla activa."
     },
+    "desktopAutoUpdate": {
+      "label": "Actualizar la aplicación automáticamente",
+      "description": "Cuando tu servidor necesite una aplicación de escritorio más reciente, se descarga y se instala al reiniciar. Solo se guarda en este ordenador."
+    },
     "completionTitle": "Cuando terminas una tarea",
     "completionDescription": "Lo que hace la app en cuanto marcas una tarea. Prueba cada opción antes de quedártela."
   },

@@ -8,7 +8,9 @@ import { useTranslation } from "react-i18next";
 import { compareVersions } from "@/hooks/useDockerHubVersion";
 import { useServer } from "@/hooks/useServer";
 import { toast } from "@/lib/chesterToast";
+import { autoUpdateConsented, desktopCanUpdate } from "@/lib/desktopUpdates";
 import { type UpdateStatement, verifiedStatement } from "@/lib/otaTrust";
+import DesktopUpdater from "@/plugins/desktopUpdater";
 
 const CURRENT_VERSION = __APP_VERSION__;
 
@@ -202,6 +204,22 @@ export const useNativeUpdate = () => {
         // Mark handled so we don't re-prompt on every foreground resume this session
         // (re-checked on the next cold start).
         handledVersionRef.current = statement.version;
+        // Where the person allowed it, the desktop app fetches its replacement
+        // itself and only asks to restart. Otherwise, or if that fails, it asks.
+        if (autoUpdateConsented() && (await desktopCanUpdate())) {
+          try {
+            await DesktopUpdater.download({ version: minNativeVersion });
+            toast.info(t("nativeUpdate.desktopReady"), {
+              action: {
+                label: t("nativeUpdate.restart"),
+                onClick: () => void DesktopUpdater.install(),
+              },
+            });
+            return;
+          } catch (error) {
+            console.debug("Desktop app update failed:", error);
+          }
+        }
         setNativeUpdateRequired({
           show: true,
           version: statement.version,

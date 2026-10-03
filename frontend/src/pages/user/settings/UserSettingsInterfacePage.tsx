@@ -18,6 +18,7 @@ import { Switch } from "@/components/ui/switch";
 import { useKeepScreenAwake } from "@/hooks/useKeepScreenAwake";
 import { useUpdateCurrentUser } from "@/hooks/useUsers";
 import { toast } from "@/lib/chesterToast";
+import { autoUpdateConsented, desktopCanUpdate, setAutoUpdateConsent } from "@/lib/desktopUpdates";
 import {
   dispatchTaskCompletionVisualFeedback,
   parseTaskCompletionVisualFeedback,
@@ -234,6 +235,12 @@ export const UserSettingsInterfacePage = ({
     setEnabled: setKeepAwake,
     supported: keepAwakeSupported,
   } = useKeepScreenAwake();
+  const [canAutoUpdate, setCanAutoUpdate] = useState(false);
+  const [autoUpdate, setAutoUpdate] = useState(autoUpdateConsented);
+
+  useEffect(() => {
+    void desktopCanUpdate().then(setCanAutoUpdate);
+  }, []);
 
   useEffect(() => {
     setWeekStartsOn(user.week_starts_on ?? 0);
@@ -454,6 +461,22 @@ export const UserSettingsInterfacePage = ({
             aria-label={t("interface.keepScreenAwake.label")}
           />
         </Preference>
+
+        {canAutoUpdate ? (
+          <Preference
+            label={t("interface.desktopAutoUpdate.label")}
+            description={t("interface.desktopAutoUpdate.description")}
+          >
+            <Switch
+              checked={autoUpdate}
+              onCheckedChange={(next) => {
+                setAutoUpdate(next);
+                setAutoUpdateConsent(next);
+              }}
+              aria-label={t("interface.desktopAutoUpdate.label")}
+            />
+          </Preference>
+        ) : null}
       </SettingsSection>
 
       <ThemeColorPreview themeId={colorTheme} />

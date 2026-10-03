@@ -371,7 +371,12 @@
     "nativeUpdateRequiredDescription": "Version {{version}} ist verfügbar, benötigt aber eine neuere Version der App als die installierte. Bitte aktualisiere Initiative über deinen App-Store oder installiere die neueste APK.",
     "nativeUpdateRequiredDescriptionDesktop": "Version {{version}} ist verfügbar, braucht aber eine neuere Version der App als die installierte. Lade die neueste Version von Initiative für deinen Computer herunter.",
     "nativeUpdateRequiredAcknowledge": "Verstanden",
-    "nativeUpdateDownload": "Herunterladen"
+    "nativeUpdateDownload": "Herunterladen",
+    "alwaysUpdate": "Immer automatisch aktualisieren",
+    "updateNow": "Jetzt aktualisieren",
+    "updating": "Wird aktualisiert…",
+    "notNow": "Nicht jetzt",
+    "updateFailed": "Die Aktualisierung wurde nicht abgeschlossen. Lade sie stattdessen herunter."
   },
   "temporaryAccess": "Temporärer Zugriff",
   "expiresInMinutes": "läuft in {{minutes}} Min. ab",

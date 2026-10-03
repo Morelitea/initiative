@@ -492,6 +492,7 @@ jobs:
             artifacts/*.exe
             artifacts/*.dmg
             artifacts/*.deb
+            artifacts/latest*.yml
             artifacts/initiative-app-api.json
           body_path: release_body.md
           draft: false

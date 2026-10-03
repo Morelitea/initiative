@@ -68,4 +68,5 @@ jobs:
             frontend/electron/dist/*.deb
             frontend/electron/dist/*.exe
             frontend/electron/dist/*.dmg
+            frontend/electron/dist/latest*.yml
           if-no-files-found: error

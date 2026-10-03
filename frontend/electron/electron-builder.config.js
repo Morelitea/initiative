@@ -51,5 +51,11 @@ module.exports = {
     // Lets the desktop link the running window to the app's launcher entry.
     syncDesktopName: true,
   },
-  publish: null,
+  // Writes the metadata the app updates itself from (latest.yml for Windows,
+  // latest-linux.yml for Debian), attached to the release beside the
+  // installers. The app sets the release it updates from itself.
+  publish: {
+    provider: "generic",
+    url: "https://github.com/Morelitea/initiative/releases/download/v${version}",
+  },
 };
