@@ -3,10 +3,10 @@ import { useTranslation } from "react-i18next";
 
 import { setAuthToken } from "@/api/client";
 import {
-  getListPasskeysApiV1AuthPasskeysGetQueryKey,
-  getReadSecondFactorApiV1AuthTotpGetQueryKey,
-  useListPasskeysApiV1AuthPasskeysGet,
-  useRemovePasswordApiV1AuthPasswordRemovePost,
+  getListPasskeysQueryKey,
+  getReadSecondFactorQueryKey,
+  useListPasskeys,
+  useRemovePassword,
 } from "@/api/generated/auth/auth";
 import type { UserRead, UserSelfUpdate } from "@/api/generated/initiativeAPI.schemas";
 import { AddressManager } from "@/components/settings/AddressManager";
@@ -105,7 +105,7 @@ export const UserSettingsAccountPage = ({ user, refreshUser }: UserSettingsAccou
   const { passwordLoginEnabled } = useAppConfig();
   // What else the account could sign in with. Nothing else on this page reads
   // it, so it is asked for only where the offer stands.
-  const passkeys = useListPasskeysApiV1AuthPasskeysGet({
+  const passkeys = useListPasskeys({
     query: { enabled: offersRemoval },
   });
   const canRemovePassword =
@@ -121,7 +121,7 @@ export const UserSettingsAccountPage = ({ user, refreshUser }: UserSettingsAccou
     setRemoveError(null);
   };
 
-  const removePassword = useRemovePasswordApiV1AuthPasswordRemovePost({
+  const removePassword = useRemovePassword({
     mutation: {
       onSuccess: async (data) => {
         setRemoveError(null);
@@ -139,10 +139,10 @@ export const UserSettingsAccountPage = ({ user, refreshUser }: UserSettingsAccou
           setAuthToken(null);
         }
         void queryClient.invalidateQueries({
-          queryKey: getReadSecondFactorApiV1AuthTotpGetQueryKey(),
+          queryKey: getReadSecondFactorQueryKey(),
         });
         void queryClient.invalidateQueries({
-          queryKey: getListPasskeysApiV1AuthPasskeysGetQueryKey(),
+          queryKey: getListPasskeysQueryKey(),
         });
         try {
           await refreshUser();

@@ -7,18 +7,18 @@ import type {
   InitiativeRoleRead,
   ResourceGrantBulkItem,
   ResourceGrantSchema,
-  SearchInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembersSearchGetParams,
+  SearchInitiativeMembersParams,
   Tool,
   ToolCan,
   UserSummary,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
-  getListInitiativeRolesApiV1CGuildIdInitiativesInitiativeIdRolesGetQueryKey,
-  getSearchInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembersSearchGetQueryKey,
-  listInitiativeRolesApiV1CGuildIdInitiativesInitiativeIdRolesGet,
-  searchInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembersSearchGet,
+  getListInitiativeRolesQueryKey,
+  getSearchInitiativeMembersQueryKey,
+  listInitiativeRoles,
+  searchInitiativeMembers,
 } from "@/api/generated/initiatives/initiatives";
-import { bulkSetResourceGrantsApiV1CGuildIdResourceGrantsBulkPut } from "@/api/generated/resource-grants/resource-grants";
+import { bulkSetResourceGrants } from "@/api/generated/resource-grants/resource-grants";
 import { Button } from "@/components/ui/button";
 import {
   Command,
@@ -91,8 +91,7 @@ interface SelectableRole {
 // The bulk endpoint caps items per request; chunk larger selections transparently.
 const MAX_BULK_ITEMS = 200;
 
-type MemberSearchParams =
-  SearchInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembersSearchGetParams;
+type MemberSearchParams = SearchInitiativeMembersParams;
 
 const toSelectableUser = (member: UserSummary): SelectableUser => ({
   id: member.id,
@@ -166,18 +165,8 @@ export function BulkEditAccessDialog({
   // One query per initiative and params: the people matching what was typed
   // (grant), or the people already granted, named by id (revoke).
   const memberQuery = (initiativeId: number, params: MemberSearchParams, enabled: boolean) => ({
-    queryKey:
-      getSearchInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembersSearchGetQueryKey(
-        guildId,
-        initiativeId,
-        params
-      ),
-    queryFn: () =>
-      searchInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembersSearchGet(
-        guildId,
-        initiativeId,
-        params
-      ),
+    queryKey: getSearchInitiativeMembersQueryKey(guildId, initiativeId, params),
+    queryFn: () => searchInitiativeMembers(guildId, initiativeId, params),
     enabled,
   });
 
@@ -238,15 +227,8 @@ export function BulkEditAccessDialog({
   // Fetch roles for each relevant initiative (reuses same query key as useInitiativeRoles)
   const roleQueries = useQueries({
     queries: initiativeIds.map((id) => ({
-      queryKey: getListInitiativeRolesApiV1CGuildIdInitiativesInitiativeIdRolesGetQueryKey(
-        guildId,
-        id
-      ),
-      queryFn: () =>
-        listInitiativeRolesApiV1CGuildIdInitiativesInitiativeIdRolesGet(
-          guildId,
-          id
-        ) as unknown as Promise<InitiativeRoleRead[]>,
+      queryKey: getListInitiativeRolesQueryKey(guildId, id),
+      queryFn: () => listInitiativeRoles(guildId, id) as unknown as Promise<InitiativeRoleRead[]>,
       enabled: open,
     })),
   });
@@ -420,7 +402,7 @@ export function BulkEditAccessDialog({
           resource_id: e.resourceId,
           grants: e.grants,
         }));
-        await bulkSetResourceGrantsApiV1CGuildIdResourceGrantsBulkPut(guildId, {
+        await bulkSetResourceGrants(guildId, {
           items: bulkItems,
         });
       }

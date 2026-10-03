@@ -3,7 +3,7 @@
 Each test installs an app the way a community does (``install_app``: placed in
 initiative A and not in B, granted scopes by the seat, registered by the
 operator), seals an installation token for it, and calls ordinary
-``/c/{guild_id}/…`` routes with that token. Postgres decides what the install
+``/c/{community_id}/…`` routes with that token. Postgres decides what the install
 reaches; these tests hold the routes' side of it: reach, narrowing, live
 revocation, authorship, the identity boundary, route opt-in and round trips.
 """

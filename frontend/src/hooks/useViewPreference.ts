@@ -21,8 +21,8 @@ import { useCallback, useEffect } from "react";
 
 import type { UserViewPreferencesMap } from "@/api/generated/initiativeAPI.schemas";
 import {
-  listViewPreferencesApiV1UserViewPreferencesGet,
-  putViewPreferenceApiV1UserViewPreferencesScopeKeyPut,
+  listViewPreferences,
+  putViewPreference,
 } from "@/api/generated/user-view-preferences/user-view-preferences";
 import { useAuth } from "@/hooks/useAuth";
 import { PREFERENCES_STALE_TIME_MS, VIEW_PREFERENCES_QUERY_KEY } from "@/lib/viewPreferences";
@@ -47,7 +47,7 @@ const flushWrite = async (scopeKey: string): Promise<void> => {
   const pending = pendingWrites.get(scopeKey);
   if (!pending) return;
   pendingWrites.delete(scopeKey);
-  await putViewPreferenceApiV1UserViewPreferencesScopeKeyPut(scopeKey, {
+  await putViewPreference(scopeKey, {
     value: pending.value,
   });
 };
@@ -71,7 +71,7 @@ export function useViewPreference<T>(
   // forgot password) should not fire this query.
   const query = useQuery<UserViewPreferencesMap>({
     queryKey: VIEW_PREFERENCES_QUERY_KEY,
-    queryFn: ({ signal }) => listViewPreferencesApiV1UserViewPreferencesGet(undefined, signal),
+    queryFn: ({ signal }) => listViewPreferences(undefined, signal),
     enabled: user !== null,
     // Filter state changes rarely from the server's perspective; we own
     // the source of truth in this client and write through, so a long

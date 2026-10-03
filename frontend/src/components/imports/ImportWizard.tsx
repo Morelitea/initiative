@@ -4,11 +4,11 @@ import { type ChangeEvent, type ReactNode, useCallback, useEffect, useMemo, useS
 import { useTranslation } from "react-i18next";
 
 import {
-  useCancelImportJobApiV1CGuildIdImportsJobsJobIdDelete,
-  useConfirmImportApiV1CGuildIdImportsJobsJobIdConfirmPost,
-  useImportForeignApiV1CGuildIdImportsForeignSourcePost,
-  usePreviewForeignImportApiV1CGuildIdImportsForeignSourcePreviewPost,
-  useUploadBackupApiV1CGuildIdImportsBackupPost,
+  useCancelImportJob,
+  useConfirmImport,
+  useImportForeign,
+  usePreviewForeignImport,
+  useUploadBackup,
 } from "@/api/generated/imports/imports";
 import type { ForeignPreview, ImportJobRead } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
@@ -157,11 +157,11 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
   // matches; a handle left out of it stays unmapped on purpose.
   const [peopleMap, setPeopleMap] = useState<Record<string, number | null>>({});
 
-  const uploadMutation = useUploadBackupApiV1CGuildIdImportsBackupPost();
-  const confirmMutation = useConfirmImportApiV1CGuildIdImportsJobsJobIdConfirmPost();
-  const cancelMutation = useCancelImportJobApiV1CGuildIdImportsJobsJobIdDelete();
-  const previewMutation = usePreviewForeignImportApiV1CGuildIdImportsForeignSourcePreviewPost();
-  const importMutation = useImportForeignApiV1CGuildIdImportsForeignSourcePost();
+  const uploadMutation = useUploadBackup();
+  const confirmMutation = useConfirmImport();
+  const cancelMutation = useCancelImportJob();
+  const previewMutation = usePreviewForeignImport();
+  const importMutation = useImportForeign();
 
   const initiativesQuery = useInitiatives();
   const creatableInitiatives = useMemo(
@@ -318,7 +318,11 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
       return;
     }
     try {
-      const described = await previewMutation.mutateAsync({ guildId, source, data: text });
+      const described = await previewMutation.mutateAsync({
+        communityId: guildId,
+        source,
+        data: text,
+      });
       if (described.options.length === 0) {
         setPickError(t("wizard.file.nothingInIt"));
         return;
@@ -341,7 +345,7 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
     }
     go("uploading");
     try {
-      const job = await uploadMutation.mutateAsync({ guildId, data: { file } });
+      const job = await uploadMutation.mutateAsync({ communityId: guildId, data: { file } });
       setStagedJob(job);
       commit("plan");
     } catch (err) {
@@ -356,7 +360,7 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
     }
     try {
       const response = (await importMutation.mutateAsync({
-        guildId,
+        communityId: guildId,
         source,
         data: {
           initiative_id: Number(initiativeId),
@@ -403,7 +407,7 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
     const mapped = Object.fromEntries(Object.entries(peopleMap).filter(([, id]) => id != null));
     try {
       const job = await confirmMutation.mutateAsync({
-        guildId,
+        communityId: guildId,
         jobId: stagedJob.id,
         data: {
           ...(Object.keys(mapped).length > 0 ? { people_map: mapped } : {}),
@@ -426,7 +430,7 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
       return;
     }
     try {
-      await cancelMutation.mutateAsync({ guildId, jobId: stagedJob.id });
+      await cancelMutation.mutateAsync({ communityId: guildId, jobId: stagedJob.id });
     } catch {
       // Already expired/started — nothing to cancel; closing is still right.
     }

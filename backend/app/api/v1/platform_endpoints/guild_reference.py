@@ -138,7 +138,7 @@ async def _answer_installation(
 
 
 @router.post("/community-reference", response_model=CommunityReferenceRead)
-async def read_guild_reference(
+async def read_community_reference(
     request: Request,
     session: SessionDep,
     system_session: SystemSessionDep,

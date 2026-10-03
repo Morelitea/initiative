@@ -2,7 +2,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 
-import { deleteGuildApiV1CommunitiesGuildIdDelete } from "@/api/generated/communities/communities";
+import { deleteCommunity } from "@/api/generated/communities/communities";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -57,7 +57,7 @@ export const SettingsGuildDangerZonePage = () => {
     setDeleting(true);
     setDeleteError(null);
     try {
-      await deleteGuildApiV1CommunitiesGuildIdDelete(activeGuild.id, {
+      await deleteCommunity(activeGuild.id, {
         password,
         confirmation_text: deleteConfirmText,
       });

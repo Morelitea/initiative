@@ -18,7 +18,7 @@ import { latestSocket, MockWebSocket } from "@/__tests__/helpers/mockWebSocket";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 import { setAuthToken } from "@/api/client";
-import { getListCommentsApiV1CGuildIdCommentsGetQueryKey } from "@/api/generated/comments/comments";
+import { getListCommentsQueryKey } from "@/api/generated/comments/comments";
 import type { CommentRead } from "@/api/generated/initiativeAPI.schemas";
 import { setInvalidationGuild } from "@/api/query-keys";
 import { commentThreadQueryOptions } from "@/hooks/useComments";
@@ -52,7 +52,7 @@ const seedThread = (
   id: number,
   { comments = [], open = true }: { comments?: CommentRead[]; open?: boolean } = {}
 ) => {
-  const key = getListCommentsApiV1CGuildIdCommentsGetQueryKey(GUILD, { [param]: id });
+  const key = getListCommentsQueryKey(GUILD, { [param]: id });
   queryClient.setQueryData(key, {
     pages: [{ comments, next_cursor: null }],
     pageParams: [undefined],

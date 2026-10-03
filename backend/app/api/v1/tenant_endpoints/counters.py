@@ -18,6 +18,7 @@ from fastapi import (
 from app.db.session import routed_guild_id
 from app.api.actor_route import ActorRoute
 from app.api.deps import (
+    CommunityIdPath,
     ActorContext,
     ActorSessionDep,
     ActorUserDep,
@@ -589,7 +590,7 @@ async def read_after_write(
 
 @router.websocket("/{group_id}/ws")
 async def websocket_counter_group(
-    websocket: WebSocket, guild_id: int, group_id: int
+    websocket: WebSocket, guild_id: CommunityIdPath, group_id: int
 ) -> None:
     """Change signals for one counter group: ``{type, id, timestamp}`` frames and a
     heartbeat. The client refetches on each; see ``serve_tool_stream``."""

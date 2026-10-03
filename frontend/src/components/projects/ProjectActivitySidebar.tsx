@@ -9,8 +9,8 @@ import type {
   ProjectActivityResponse,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
-  getProjectActivityFeedApiV1CGuildIdProjectsProjectIdActivityGetQueryKey,
-  projectActivityFeedApiV1CGuildIdProjectsProjectIdActivityGet,
+  getProjectActivityFeedQueryKey,
+  projectActivityFeed,
 } from "@/api/generated/projects/projects";
 import { CommentContent } from "@/components/comments/CommentContent";
 import { Button } from "@/components/ui/button";
@@ -43,15 +43,12 @@ export const ProjectActivitySidebar = ({
   const gp = (path: string) => (activeGuildId ? guildPath(activeGuildId, path) : path);
 
   const activityQuery = useInfiniteQuery<ProjectActivityResponse>({
-    queryKey: getProjectActivityFeedApiV1CGuildIdProjectsProjectIdActivityGetQueryKey(
-      guildId,
-      projectId!
-    ),
+    queryKey: getProjectActivityFeedQueryKey(guildId, projectId!),
     queryFn: async ({ pageParam = 1 }) => {
       if (!projectId) {
         throw new Error("Project id required");
       }
-      return projectActivityFeedApiV1CGuildIdProjectsProjectIdActivityGet(guildId, projectId, {
+      return projectActivityFeed(guildId, projectId, {
         page: pageParam as number,
       }) as unknown as Promise<ProjectActivityResponse>;
     },

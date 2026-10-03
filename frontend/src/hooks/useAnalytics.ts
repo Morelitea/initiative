@@ -1,7 +1,7 @@
 import { useRouterState } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
 
-import { recordPageViewApiV1PageViewsPost } from "@/api/generated/health/health";
+import { recordPageView as recordPageViewRequest } from "@/api/generated/health/health";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useConsent } from "@/hooks/useConsent";
 import { pauseAnalytics, recordPageView, startAnalytics } from "@/lib/analytics";
@@ -51,7 +51,7 @@ export const useAnalytics = () => {
     if (countPageViews === null) return;
     for (const route of unsent.current.splice(0)) {
       if (!countPageViews) continue;
-      recordPageViewApiV1PageViewsPost({ route }).catch(() => {
+      recordPageViewRequest({ route }).catch(() => {
         // A view that was not counted costs nothing; the page carries on.
       });
     }

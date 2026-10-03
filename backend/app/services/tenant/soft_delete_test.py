@@ -398,7 +398,7 @@ async def test_trash_listing_dedupes_nested_comment_replies(
     await session.commit()
 
     # Hit the listing endpoint and confirm only the parent appears. Guild context
-    # is path-based now (/c/{guild_id}); the headers just carry auth.
+    # is path-based now (/c/{community_id}); the headers just carry auth.
     headers = get_auth_headers(user)
     response = await client.get(f"/api/v1/c/{guild.id}/trash/", headers=headers)
     assert response.status_code == 200, response.text

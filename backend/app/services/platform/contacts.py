@@ -47,7 +47,7 @@ async def ordered_member_guilds(
 
     ``GuildMembership.position`` is the order they dragged the rail into, so
     this is the same rule the rail uses rather than a second one. A suspended
-    guild is left out, matching ``member_guild_ids`` and the ``/c/{guild_id}``
+    guild is left out, matching ``member_guild_ids`` and the ``/c/{community_id}``
     path it stands in for.
     """
     await set_rls_context(session, Platform(user_id=user_id))

@@ -23,6 +23,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import delete as sql_delete, select
 
 from app.api.deps import (
+    CommunityIdPath,
     SessionDep,
     get_current_active_user,
     get_current_user_optional,
@@ -1478,9 +1479,9 @@ async def _begin_provider_login(
     return response
 
 
-@router.get("/c/{guild_id}/providers", response_model=LoginProvidersResponse)
-async def list_guild_login_providers(
-    session: SessionDep, system_session: SystemSessionDep, guild_id: int
+@router.get("/c/{community_id}/providers", response_model=LoginProvidersResponse)
+async def list_community_login_providers(
+    session: SessionDep, system_session: SystemSessionDep, guild_id: CommunityIdPath
 ) -> LoginProvidersResponse:
     """The ways in this community counts as its own — non-secret metadata
     only, plus its display name for its sign-in page.

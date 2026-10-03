@@ -57,7 +57,7 @@ async def test_each_request_through_a_grant_is_written_down(
     assert line["is_write"] is False
     assert line["detail"] == {
         "method": "GET",
-        "route": "/api/v1/c/{guild_id}/initiatives/",
+        "route": "/api/v1/c/{community_id}/initiatives/",
         "status": 200,
         "reached": {"guild_id": guild.id},
     }

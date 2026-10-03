@@ -52,7 +52,7 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
  * with the registry.
  * @summary Read Field Catalog
  */
-export const readFieldCatalogApiV1FieldsDatasetGet = (
+export const readFieldCatalog = (
   dataset: DatasetName,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
@@ -63,70 +63,52 @@ export const readFieldCatalogApiV1FieldsDatasetGet = (
   );
 };
 
-export const getReadFieldCatalogApiV1FieldsDatasetGetQueryKey = (dataset: DatasetName) => {
+export const getReadFieldCatalogQueryKey = (dataset: DatasetName) => {
   return [`/api/v1/fields/${dataset}`] as const;
 };
 
-export const getReadFieldCatalogApiV1FieldsDatasetGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof readFieldCatalogApiV1FieldsDatasetGet>>,
+export const getReadFieldCatalogQueryOptions = <
+  TData = Awaited<ReturnType<typeof readFieldCatalog>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   dataset: DatasetName,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readFieldCatalogApiV1FieldsDatasetGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readFieldCatalog>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   }
 ) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey =
-    queryOptions?.queryKey ?? getReadFieldCatalogApiV1FieldsDatasetGetQueryKey(dataset);
+  const queryKey = queryOptions?.queryKey ?? getReadFieldCatalogQueryKey(dataset);
 
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof readFieldCatalogApiV1FieldsDatasetGet>>
-  > = ({ signal }) => readFieldCatalogApiV1FieldsDatasetGet(dataset, requestOptions, signal);
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof readFieldCatalog>>> = ({ signal }) =>
+    readFieldCatalog(dataset, requestOptions, signal);
 
   return {
     queryKey,
     queryFn,
     enabled: dataset !== null && dataset !== undefined,
     ...queryOptions,
-  } as UseQueryOptions<
-    Awaited<ReturnType<typeof readFieldCatalogApiV1FieldsDatasetGet>>,
-    TError,
-    TData
-  > & { queryKey: DataTag<QueryKey, TData, TError> };
+  } as UseQueryOptions<Awaited<ReturnType<typeof readFieldCatalog>>, TError, TData> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 };
 
-export type ReadFieldCatalogApiV1FieldsDatasetGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof readFieldCatalogApiV1FieldsDatasetGet>>
->;
-export type ReadFieldCatalogApiV1FieldsDatasetGetQueryError = ErrorType<HTTPValidationError>;
+export type ReadFieldCatalogQueryResult = NonNullable<Awaited<ReturnType<typeof readFieldCatalog>>>;
+export type ReadFieldCatalogQueryError = ErrorType<HTTPValidationError>;
 
-export function useReadFieldCatalogApiV1FieldsDatasetGet<
-  TData = Awaited<ReturnType<typeof readFieldCatalogApiV1FieldsDatasetGet>>,
+export function useReadFieldCatalog<
+  TData = Awaited<ReturnType<typeof readFieldCatalog>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   dataset: DatasetName,
   options: {
-    query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readFieldCatalogApiV1FieldsDatasetGet>>,
-        TError,
-        TData
-      >
-    > &
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof readFieldCatalog>>, TError, TData>> &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readFieldCatalogApiV1FieldsDatasetGet>>,
+          Awaited<ReturnType<typeof readFieldCatalog>>,
           TError,
-          Awaited<ReturnType<typeof readFieldCatalogApiV1FieldsDatasetGet>>
+          Awaited<ReturnType<typeof readFieldCatalog>>
         >,
         "initialData"
       >;
@@ -134,24 +116,18 @@ export function useReadFieldCatalogApiV1FieldsDatasetGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadFieldCatalogApiV1FieldsDatasetGet<
-  TData = Awaited<ReturnType<typeof readFieldCatalogApiV1FieldsDatasetGet>>,
+export function useReadFieldCatalog<
+  TData = Awaited<ReturnType<typeof readFieldCatalog>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   dataset: DatasetName,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readFieldCatalogApiV1FieldsDatasetGet>>,
-        TError,
-        TData
-      >
-    > &
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readFieldCatalog>>, TError, TData>> &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readFieldCatalogApiV1FieldsDatasetGet>>,
+          Awaited<ReturnType<typeof readFieldCatalog>>,
           TError,
-          Awaited<ReturnType<typeof readFieldCatalogApiV1FieldsDatasetGet>>
+          Awaited<ReturnType<typeof readFieldCatalog>>
         >,
         "initialData"
       >;
@@ -159,19 +135,13 @@ export function useReadFieldCatalogApiV1FieldsDatasetGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadFieldCatalogApiV1FieldsDatasetGet<
-  TData = Awaited<ReturnType<typeof readFieldCatalogApiV1FieldsDatasetGet>>,
+export function useReadFieldCatalog<
+  TData = Awaited<ReturnType<typeof readFieldCatalog>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   dataset: DatasetName,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readFieldCatalogApiV1FieldsDatasetGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readFieldCatalog>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
@@ -180,24 +150,18 @@ export function useReadFieldCatalogApiV1FieldsDatasetGet<
  * @summary Read Field Catalog
  */
 
-export function useReadFieldCatalogApiV1FieldsDatasetGet<
-  TData = Awaited<ReturnType<typeof readFieldCatalogApiV1FieldsDatasetGet>>,
+export function useReadFieldCatalog<
+  TData = Awaited<ReturnType<typeof readFieldCatalog>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   dataset: DatasetName,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readFieldCatalogApiV1FieldsDatasetGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readFieldCatalog>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getReadFieldCatalogApiV1FieldsDatasetGetQueryOptions(dataset, options);
+  const queryOptions = getReadFieldCatalogQueryOptions(dataset, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -214,7 +178,7 @@ export function useReadFieldCatalogApiV1FieldsDatasetGet<
  * client needs to complete a statement somebody is writing.
  * @summary Read Query Vocabulary
  */
-export const readQueryVocabularyApiV1QueryVocabularyGet = (
+export const readQueryVocabulary = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
@@ -224,61 +188,49 @@ export const readQueryVocabularyApiV1QueryVocabularyGet = (
   );
 };
 
-export const getReadQueryVocabularyApiV1QueryVocabularyGetQueryKey = () => {
+export const getReadQueryVocabularyQueryKey = () => {
   return [`/api/v1/query/vocabulary`] as const;
 };
 
-export const getReadQueryVocabularyApiV1QueryVocabularyGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof readQueryVocabularyApiV1QueryVocabularyGet>>,
+export const getReadQueryVocabularyQueryOptions = <
+  TData = Awaited<ReturnType<typeof readQueryVocabulary>>,
   TError = ErrorType<HTTPValidationError>,
 >(options?: {
-  query?: Partial<
-    UseQueryOptions<
-      Awaited<ReturnType<typeof readQueryVocabularyApiV1QueryVocabularyGet>>,
-      TError,
-      TData
-    >
-  >;
+  query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readQueryVocabulary>>, TError, TData>>;
   request?: SecondParameter<typeof apiMutator>;
 }) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey =
-    queryOptions?.queryKey ?? getReadQueryVocabularyApiV1QueryVocabularyGetQueryKey();
+  const queryKey = queryOptions?.queryKey ?? getReadQueryVocabularyQueryKey();
 
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof readQueryVocabularyApiV1QueryVocabularyGet>>
-  > = ({ signal }) => readQueryVocabularyApiV1QueryVocabularyGet(requestOptions, signal);
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof readQueryVocabulary>>> = ({ signal }) =>
+    readQueryVocabulary(requestOptions, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof readQueryVocabularyApiV1QueryVocabularyGet>>,
+    Awaited<ReturnType<typeof readQueryVocabulary>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ReadQueryVocabularyApiV1QueryVocabularyGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof readQueryVocabularyApiV1QueryVocabularyGet>>
+export type ReadQueryVocabularyQueryResult = NonNullable<
+  Awaited<ReturnType<typeof readQueryVocabulary>>
 >;
-export type ReadQueryVocabularyApiV1QueryVocabularyGetQueryError = ErrorType<HTTPValidationError>;
+export type ReadQueryVocabularyQueryError = ErrorType<HTTPValidationError>;
 
-export function useReadQueryVocabularyApiV1QueryVocabularyGet<
-  TData = Awaited<ReturnType<typeof readQueryVocabularyApiV1QueryVocabularyGet>>,
+export function useReadQueryVocabulary<
+  TData = Awaited<ReturnType<typeof readQueryVocabulary>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options: {
     query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readQueryVocabularyApiV1QueryVocabularyGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof readQueryVocabulary>>, TError, TData>
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readQueryVocabularyApiV1QueryVocabularyGet>>,
+          Awaited<ReturnType<typeof readQueryVocabulary>>,
           TError,
-          Awaited<ReturnType<typeof readQueryVocabularyApiV1QueryVocabularyGet>>
+          Awaited<ReturnType<typeof readQueryVocabulary>>
         >,
         "initialData"
       >;
@@ -286,23 +238,19 @@ export function useReadQueryVocabularyApiV1QueryVocabularyGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadQueryVocabularyApiV1QueryVocabularyGet<
-  TData = Awaited<ReturnType<typeof readQueryVocabularyApiV1QueryVocabularyGet>>,
+export function useReadQueryVocabulary<
+  TData = Awaited<ReturnType<typeof readQueryVocabulary>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readQueryVocabularyApiV1QueryVocabularyGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof readQueryVocabulary>>, TError, TData>
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readQueryVocabularyApiV1QueryVocabularyGet>>,
+          Awaited<ReturnType<typeof readQueryVocabulary>>,
           TError,
-          Awaited<ReturnType<typeof readQueryVocabularyApiV1QueryVocabularyGet>>
+          Awaited<ReturnType<typeof readQueryVocabulary>>
         >,
         "initialData"
       >;
@@ -310,17 +258,13 @@ export function useReadQueryVocabularyApiV1QueryVocabularyGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadQueryVocabularyApiV1QueryVocabularyGet<
-  TData = Awaited<ReturnType<typeof readQueryVocabularyApiV1QueryVocabularyGet>>,
+export function useReadQueryVocabulary<
+  TData = Awaited<ReturnType<typeof readQueryVocabulary>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readQueryVocabularyApiV1QueryVocabularyGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof readQueryVocabulary>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
@@ -330,23 +274,19 @@ export function useReadQueryVocabularyApiV1QueryVocabularyGet<
  * @summary Read Query Vocabulary
  */
 
-export function useReadQueryVocabularyApiV1QueryVocabularyGet<
-  TData = Awaited<ReturnType<typeof readQueryVocabularyApiV1QueryVocabularyGet>>,
+export function useReadQueryVocabulary<
+  TData = Awaited<ReturnType<typeof readQueryVocabulary>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readQueryVocabularyApiV1QueryVocabularyGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof readQueryVocabulary>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getReadQueryVocabularyApiV1QueryVocabularyGetQueryOptions(options);
+  const queryOptions = getReadQueryVocabularyQueryOptions(options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;

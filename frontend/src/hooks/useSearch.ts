@@ -1,18 +1,18 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import type {
-  SearchGuildApiV1CGuildIdSearchGetParams,
+  SearchCommunityParams,
   SearchResults,
   SearchSuggestion,
-  SuggestGuildApiV1CGuildIdSearchSuggestGetParams,
+  SuggestCommunityParams,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
-  getRecentGuildApiV1CGuildIdSearchRecentGetQueryKey,
-  getSearchGuildApiV1CGuildIdSearchGetQueryKey,
-  getSuggestGuildApiV1CGuildIdSearchSuggestGetQueryKey,
-  recentGuildApiV1CGuildIdSearchRecentGet,
-  searchGuildApiV1CGuildIdSearchGet,
-  suggestGuildApiV1CGuildIdSearchSuggestGet,
+  getRecentCommunityQueryKey,
+  getSearchCommunityQueryKey,
+  getSuggestCommunityQueryKey,
+  recentCommunity,
+  searchCommunity,
+  suggestCommunity,
 } from "@/api/generated/search/search";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import type { QueryOpts } from "@/types/query";
@@ -25,20 +25,20 @@ import type { QueryOpts } from "@/types/query";
  * keystrokes.
  */
 export const useGuildSearch = (
-  params: SearchGuildApiV1CGuildIdSearchGetParams,
+  params: SearchCommunityParams,
   options?: QueryOpts<SearchResults>
 ) => {
   const guildId = useActiveGuildId();
   return useQuery<SearchResults>({
-    queryKey: getSearchGuildApiV1CGuildIdSearchGetQueryKey(guildId, params),
-    queryFn: () => searchGuildApiV1CGuildIdSearchGet(guildId, params),
+    queryKey: getSearchCommunityQueryKey(guildId, params),
+    queryFn: () => searchCommunity(guildId, params),
     placeholderData: keepPreviousData,
     ...options,
   });
 };
 
 /** What a caller narrows a lookup to, beyond the words themselves. */
-export type SuggestFilters = Omit<SuggestGuildApiV1CGuildIdSearchSuggestGetParams, "q">;
+export type SuggestFilters = Omit<SuggestCommunityParams, "q">;
 
 /**
  * Every field a lookup narrows by, named once.
@@ -100,10 +100,10 @@ export const useGuildSearchSuggest = (
 ) => {
   const guildId = useActiveGuildId();
   const { filters, queryOptions } = splitFilters<SearchSuggestion[]>(options);
-  const params: SuggestGuildApiV1CGuildIdSearchSuggestGetParams = { q: query, ...filters };
+  const params: SuggestCommunityParams = { q: query, ...filters };
   return useQuery<SearchSuggestion[]>({
-    queryKey: getSuggestGuildApiV1CGuildIdSearchSuggestGetQueryKey(guildId, params),
-    queryFn: () => suggestGuildApiV1CGuildIdSearchSuggestGet(guildId, params),
+    queryKey: getSuggestCommunityQueryKey(guildId, params),
+    queryFn: () => suggestCommunity(guildId, params),
     placeholderData: keepPreviousData,
     ...queryOptions,
   });
@@ -124,8 +124,8 @@ const useGuildRecentSuggestions = (options?: QueryOpts<SearchSuggestion[]> & Sug
   const { filters, queryOptions } = splitFilters<SearchSuggestion[]>(options);
   const params = { ...filters };
   return useQuery<SearchSuggestion[]>({
-    queryKey: getRecentGuildApiV1CGuildIdSearchRecentGetQueryKey(guildId, params),
-    queryFn: () => recentGuildApiV1CGuildIdSearchRecentGet(guildId, params),
+    queryKey: getRecentCommunityQueryKey(guildId, params),
+    queryFn: () => recentCommunity(guildId, params),
     ...queryOptions,
   });
 };

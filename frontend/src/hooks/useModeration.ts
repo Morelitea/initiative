@@ -17,11 +17,11 @@ import type {
   ReportSettle,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
-  getListReportsApiV1CGuildIdInitiativesInitiativeIdReportsGetQueryKey,
-  getReadInitiativeSharingApiV1CGuildIdInitiativesInitiativeIdSharingGetQueryKey,
-  listReportsApiV1CGuildIdInitiativesInitiativeIdReportsGet,
-  readInitiativeSharingApiV1CGuildIdInitiativesInitiativeIdSharingGet,
-  settleReportApiV1CGuildIdReportsReportIdSettlePost,
+  getListReportsQueryKey,
+  getReadInitiativeSharingQueryKey,
+  listReports,
+  readInitiativeSharing,
+  settleReport,
 } from "@/api/generated/moderation/moderation";
 import { invalidate, q } from "@/api/query-keys";
 import { useApiMutation } from "@/hooks/useApiMutation";
@@ -43,13 +43,13 @@ export const useModerationReports = (
   options?: QueryOpts<ModerationReportList>
 ) =>
   useQuery<ModerationReportList>({
-    queryKey: getListReportsApiV1CGuildIdInitiativesInitiativeIdReportsGetQueryKey(
-      guildId,
-      initiativeId,
-      { settled, limit: REPORTS_PAGE_SIZE, offset }
-    ),
+    queryKey: getListReportsQueryKey(guildId, initiativeId, {
+      settled,
+      limit: REPORTS_PAGE_SIZE,
+      offset,
+    }),
     queryFn: () =>
-      listReportsApiV1CGuildIdInitiativesInitiativeIdReportsGet(guildId, initiativeId, {
+      listReports(guildId, initiativeId, {
         settled,
         limit: REPORTS_PAGE_SIZE,
         offset,
@@ -64,8 +64,7 @@ export const useSettleReport = (
 ) =>
   useApiMutation<ModerationReportRead, { reportId: number; body: ReportSettle }>(
     {
-      mutationFn: ({ reportId, body }) =>
-        settleReportApiV1CGuildIdReportsReportIdSettlePost(guildId, reportId, body),
+      mutationFn: ({ reportId, body }) => settleReport(guildId, reportId, body),
       // Both lists move: the report leaves the open one and joins the settled.
       invalidate: () => invalidate(q.moderationReports(initiativeId)),
     },
@@ -84,11 +83,7 @@ export const useInitiativeSharing = (
   options?: QueryOpts<InitiativeSharingRead>
 ) =>
   useQuery<InitiativeSharingRead>({
-    queryKey: getReadInitiativeSharingApiV1CGuildIdInitiativesInitiativeIdSharingGetQueryKey(
-      guildId,
-      initiativeId
-    ),
-    queryFn: () =>
-      readInitiativeSharingApiV1CGuildIdInitiativesInitiativeIdSharingGet(guildId, initiativeId),
+    queryKey: getReadInitiativeSharingQueryKey(guildId, initiativeId),
+    queryFn: () => readInitiativeSharing(guildId, initiativeId),
     ...options,
   });

@@ -20,10 +20,7 @@ import { Loader2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import {
-  createGuildAppHandoffApiV1CGuildIdAppsAppIdHandoffSurfaceIdPost,
-  createInitiativeAppHandoffApiV1CGuildIdInitiativesInitiativeIdAppsAppIdHandoffSurfaceIdPost,
-} from "@/api/generated/apps/apps";
+import { createCommunityAppHandoff, createInitiativeAppHandoff } from "@/api/generated/apps/apps";
 import type { CommunityAppHandoff } from "@/api/generated/initiativeAPI.schemas";
 import {
   EditorSkeleton,
@@ -87,12 +84,8 @@ export function GuildAppPage({ appId, initiativeId }: GuildAppPageProps) {
   const mint = useCallback(
     () =>
       (initiativeId === undefined
-        ? createGuildAppHandoffApiV1CGuildIdAppsAppIdHandoffSurfaceIdPost(
-            guildId,
-            appId,
-            activeId ?? ""
-          )
-        : createInitiativeAppHandoffApiV1CGuildIdInitiativesInitiativeIdAppsAppIdHandoffSurfaceIdPost(
+        ? createCommunityAppHandoff(guildId, appId, activeId ?? "")
+        : createInitiativeAppHandoff(
             guildId,
             initiativeId,
             appId,

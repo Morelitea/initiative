@@ -27,6 +27,7 @@ from fastapi import APIRouter, Depends, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import (
+    CommunityIdPath,
     SeatWriteSessionDep,
     SettingsAdminContextDep,
     get_current_active_user,
@@ -64,10 +65,11 @@ async def _require_connection_option(
 
 
 @router.get(
-    "/{guild_id}/auth/connections", response_model=List[CommunityProviderConnectionRead]
+    "/{community_id}/auth/connections",
+    response_model=List[CommunityProviderConnectionRead],
 )
-async def list_guild_provider_connections(
-    guild_id: int,
+async def list_community_provider_connections(
+    guild_id: CommunityIdPath,
     _guild_context: SettingsAdminContextDep,
     system_session: SystemSessionDep,
 ) -> List[CommunityProviderConnectionRead]:
@@ -78,11 +80,11 @@ async def list_guild_provider_connections(
 
 
 @router.get(
-    "/{guild_id}/auth/connections/available",
+    "/{community_id}/auth/connections/available",
     response_model=List[ConnectableProviderRead],
 )
 async def list_connectable_providers(
-    guild_id: int,
+    guild_id: CommunityIdPath,
     _guild_context: SettingsAdminContextDep,
     system_session: SystemSessionDep,
 ) -> List[ConnectableProviderRead]:
@@ -97,12 +99,12 @@ async def list_connectable_providers(
 
 
 @router.post(
-    "/{guild_id}/auth/connections",
+    "/{community_id}/auth/connections",
     response_model=CommunityProviderConnectionRead,
     status_code=status.HTTP_201_CREATED,
 )
-async def create_guild_provider_connection(
-    guild_id: int,
+async def create_community_provider_connection(
+    guild_id: CommunityIdPath,
     payload: CommunityProviderConnectionCreate,
     _session: SeatWriteSessionDep,
     system_session: SystemSessionDep,
@@ -115,11 +117,11 @@ async def create_guild_provider_connection(
 
 
 @router.patch(
-    "/{guild_id}/auth/connections/{connection_id}",
+    "/{community_id}/auth/connections/{connection_id}",
     response_model=CommunityProviderConnectionRead,
 )
-async def update_guild_provider_connection(
-    guild_id: int,
+async def update_community_provider_connection(
+    guild_id: CommunityIdPath,
     connection_id: int,
     payload: CommunityProviderConnectionUpdate,
     session: SeatWriteSessionDep,
@@ -139,11 +141,11 @@ async def update_guild_provider_connection(
 
 
 @router.delete(
-    "/{guild_id}/auth/connections/{connection_id}",
+    "/{community_id}/auth/connections/{connection_id}",
     status_code=status.HTTP_204_NO_CONTENT,
 )
-async def delete_guild_provider_connection(
-    guild_id: int,
+async def delete_community_provider_connection(
+    guild_id: CommunityIdPath,
     connection_id: int,
     session: SeatWriteSessionDep,
     system_session: SystemSessionDep,
@@ -164,9 +166,9 @@ async def delete_guild_provider_connection(
     )
 
 
-@router.get("/{guild_id}/auth/rules", response_model=CommunityClaimRulesResponse)
-async def list_guild_claim_rules(
-    guild_id: int,
+@router.get("/{community_id}/auth/rules", response_model=CommunityClaimRulesResponse)
+async def list_community_claim_rules(
+    guild_id: CommunityIdPath,
     _guild_context: SettingsAdminContextDep,
     system_session: SystemSessionDep,
 ) -> CommunityClaimRulesResponse:
@@ -178,12 +180,12 @@ async def list_guild_claim_rules(
 
 
 @router.post(
-    "/{guild_id}/auth/rules",
+    "/{community_id}/auth/rules",
     response_model=CommunityClaimRuleRead,
     status_code=status.HTTP_201_CREATED,
 )
-async def create_guild_claim_rule(
-    guild_id: int,
+async def create_community_claim_rule(
+    guild_id: CommunityIdPath,
     payload: CommunityClaimRuleCreate,
     _session: SeatWriteSessionDep,
     system_session: SystemSessionDep,
@@ -202,10 +204,10 @@ async def create_guild_claim_rule(
 
 
 @router.delete(
-    "/{guild_id}/auth/rules/{rule_id}", status_code=status.HTTP_204_NO_CONTENT
+    "/{community_id}/auth/rules/{rule_id}", status_code=status.HTTP_204_NO_CONTENT
 )
-async def delete_guild_claim_rule(
-    guild_id: int,
+async def delete_community_claim_rule(
+    guild_id: CommunityIdPath,
     rule_id: int,
     _session: SeatWriteSessionDep,
     system_session: SystemSessionDep,

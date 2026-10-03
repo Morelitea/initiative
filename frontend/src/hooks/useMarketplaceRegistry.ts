@@ -15,18 +15,18 @@ import type {
   RegistryStatusRead,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
-  getReadRegistryStatusApiV1MarketplaceRegistryStatusGetQueryKey,
-  readRegistryStatusApiV1MarketplaceRegistryStatusGet,
-  refreshRegistryNowApiV1MarketplaceRegistryRefreshPost,
-  updateRegistrySettingsApiV1MarketplaceRegistrySettingsPut,
-  uploadRegistryBundleApiV1MarketplaceRegistryBundlePost,
+  getReadRegistryStatusQueryKey,
+  readRegistryStatus,
+  refreshRegistryNow,
+  updateRegistrySettings,
+  uploadRegistryBundle,
 } from "@/api/generated/marketplace/marketplace";
 import type { MutationOpts } from "@/types/mutation";
 import type { QueryOpts } from "@/types/query";
 
 const invalidateRegistry = (queryClient: QueryClient) => {
   void queryClient.invalidateQueries({
-    queryKey: getReadRegistryStatusApiV1MarketplaceRegistryStatusGetQueryKey(),
+    queryKey: getReadRegistryStatusQueryKey(),
   });
   // The shelf is keyed per community, so every community's copy is dropped.
   void queryClient.invalidateQueries({
@@ -37,8 +37,8 @@ const invalidateRegistry = (queryClient: QueryClient) => {
 
 export const useRegistryStatus = (options?: QueryOpts<RegistryStatusRead>) =>
   useQuery<RegistryStatusRead>({
-    queryKey: getReadRegistryStatusApiV1MarketplaceRegistryStatusGetQueryKey(),
-    queryFn: () => readRegistryStatusApiV1MarketplaceRegistryStatusGet(),
+    queryKey: getReadRegistryStatusQueryKey(),
+    queryFn: () => readRegistryStatus(),
     ...options,
   });
 
@@ -49,7 +49,7 @@ export const useUpdateRegistrySettings = (
   const { onSuccess, ...rest } = options ?? {};
   return useMutation<RegistrySettings, Error, RegistrySettings>({
     ...rest,
-    mutationFn: (data) => updateRegistrySettingsApiV1MarketplaceRegistrySettingsPut(data),
+    mutationFn: (data) => updateRegistrySettings(data),
     onSuccess: (...args) => {
       invalidateRegistry(queryClient);
       onSuccess?.(...args);
@@ -62,7 +62,7 @@ export const useRefreshRegistry = (options?: MutationOpts<RegistryRefreshRead, v
   const { onSuccess, onError, ...rest } = options ?? {};
   return useMutation<RegistryRefreshRead, Error, void>({
     ...rest,
-    mutationFn: () => refreshRegistryNowApiV1MarketplaceRegistryRefreshPost(),
+    mutationFn: () => refreshRegistryNow(),
     onSuccess: (...args) => {
       invalidateRegistry(queryClient);
       onSuccess?.(...args);
@@ -80,7 +80,7 @@ export const useUploadRegistryBundle = (options?: MutationOpts<RegistryRefreshRe
   const { onSuccess, onError, ...rest } = options ?? {};
   return useMutation<RegistryRefreshRead, Error, File>({
     ...rest,
-    mutationFn: (file) => uploadRegistryBundleApiV1MarketplaceRegistryBundlePost({ file }),
+    mutationFn: (file) => uploadRegistryBundle({ file }),
     onSuccess: (...args) => {
       invalidateRegistry(queryClient);
       onSuccess?.(...args);

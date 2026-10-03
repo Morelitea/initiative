@@ -48,7 +48,7 @@ vi.mock("@/api/generated/communities/communities", async () => {
   );
   return {
     ...actual,
-    createGuildBillingHandoffApiV1CommunitiesGuildIdBillingHandoffPost: mintMock,
+    createCommunityBillingHandoff: mintMock,
   };
 });
 vi.mock("@/lib/chesterToast", () => ({

@@ -10,12 +10,12 @@ import { type FormEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
-  getListPasskeysApiV1AuthPasskeysGetQueryKey,
-  useBeginPasskeyRegistrationApiV1AuthPasskeysRegisterBeginPost,
-  useFinishPasskeyRegistrationApiV1AuthPasskeysRegisterFinishPost,
-  useListPasskeysApiV1AuthPasskeysGet,
-  useRemovePasskeyApiV1AuthPasskeysPasskeyIdRemovePost,
-  useRenamePasskeyApiV1AuthPasskeysPasskeyIdPatch,
+  getListPasskeysQueryKey,
+  useBeginPasskeyRegistration,
+  useFinishPasskeyRegistration,
+  useListPasskeys,
+  useRemovePasskey,
+  useRenamePasskey,
 } from "@/api/generated/auth/auth";
 import type {
   PasskeyRead,
@@ -93,9 +93,8 @@ export const PasskeysSection = () => {
   const { t } = useTranslation(["settings", "errors", "common"]);
   const { isNativePlatform, getServerOrigin } = useServer();
 
-  const list = useListPasskeysApiV1AuthPasskeysGet();
-  const refresh = () =>
-    queryClient.invalidateQueries({ queryKey: getListPasskeysApiV1AuthPasskeysGetQueryKey() });
+  const list = useListPasskeys();
+  const refresh = () => queryClient.invalidateQueries({ queryKey: getListPasskeysQueryKey() });
 
   const [addOpen, setAddOpen] = useState(false);
   const { step, go, back, reset } = useWizard<AddStep>("details");
@@ -143,7 +142,7 @@ export const PasskeysSection = () => {
     setError(null);
   };
 
-  const finish = useFinishPasskeyRegistrationApiV1AuthPasskeysRegisterFinishPost({
+  const finish = useFinishPasskeyRegistration({
     mutation: {
       onSuccess: () => {
         toast.success(t("passkeys.added"));
@@ -157,7 +156,7 @@ export const PasskeysSection = () => {
     },
   });
 
-  const begin = useBeginPasskeyRegistrationApiV1AuthPasskeysRegisterBeginPost({
+  const begin = useBeginPasskeyRegistration({
     mutation: {
       onSuccess: async (data) => {
         setError(null);
@@ -183,7 +182,7 @@ export const PasskeysSection = () => {
     },
   });
 
-  const rename = useRenamePasskeyApiV1AuthPasskeysPasskeyIdPatch({
+  const rename = useRenamePasskey({
     mutation: {
       onSuccess: () => {
         toast.success(t("passkeys.renamed"));
@@ -194,7 +193,7 @@ export const PasskeysSection = () => {
     },
   });
 
-  const remove = useRemovePasskeyApiV1AuthPasskeysPasskeyIdRemovePost({
+  const remove = useRemovePasskey({
     mutation: {
       onSuccess: () => {
         toast.success(t("passkeys.removed"));

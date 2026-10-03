@@ -133,7 +133,7 @@ async def read_image(
 def image_url(guild_id: int, sha256: str) -> str:
     """The serving URL for one image.
 
-    A platform path, not ``/c/{guild_id}/…``: these are public-plane identity,
+    A platform path, not ``/c/{community_id}/…``: these are public-plane identity,
     and the caller they are served to may hold no guild context at all.
     """
     return f"/api/v1/communities/{guild_id}/image/{sha256}"

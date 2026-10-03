@@ -22,16 +22,16 @@ import type {
 
 import type {
   ArchiveDoneResponse,
-  ArchiveDoneTasksApiV1CGuildIdTasksArchiveDonePostParams,
+  ArchiveDoneTasksParams,
   ChecklistItem,
   ChecklistItemToggle,
-  DeleteTaskApiV1CGuildIdTasksTaskIdDeleteParams,
+  DeleteTaskParams,
   GenerateChecklistResponse,
   GenerateDescriptionResponse,
   HTTPValidationError,
-  ListMyTasksApiV1MeTasksGetParams,
-  ListTasksApiV1CGuildIdTasksGetParams,
-  ReadTaskApiV1CGuildIdTasksTaskIdGetParams,
+  ListMyTasksParams,
+  ListTasksParams,
+  ReadTaskParams,
   TaskCreate,
   TaskListResponse,
   TaskMoveRequest,
@@ -63,79 +63,66 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
 /**
  * @summary List Tasks
  */
-export const listTasksApiV1CGuildIdTasksGet = (
-  guildId: number,
-  params?: ListTasksApiV1CGuildIdTasksGetParams,
+export const listTasks = (
+  communityId: number,
+  params?: ListTasksParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<TaskListResponse>(
-    { url: `/api/v1/c/${guildId}/tasks/`, method: "GET", params, signal },
+    { url: `/api/v1/c/${communityId}/tasks/`, method: "GET", params, signal },
     options
   );
 };
 
-export const getListTasksApiV1CGuildIdTasksGetQueryKey = (
-  guildId: number,
-  params?: ListTasksApiV1CGuildIdTasksGetParams
-) => {
-  return [`/api/v1/c/${guildId}/tasks/`, ...(params ? [params] : [])] as const;
+export const getListTasksQueryKey = (communityId: number, params?: ListTasksParams) => {
+  return [`/api/v1/c/${communityId}/tasks/`, ...(params ? [params] : [])] as const;
 };
 
-export const getListTasksApiV1CGuildIdTasksGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof listTasksApiV1CGuildIdTasksGet>>,
+export const getListTasksQueryOptions = <
+  TData = Awaited<ReturnType<typeof listTasks>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
-  params?: ListTasksApiV1CGuildIdTasksGetParams,
+  communityId: number,
+  params?: ListTasksParams,
   options?: {
-    query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listTasksApiV1CGuildIdTasksGet>>, TError, TData>
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listTasks>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   }
 ) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey =
-    queryOptions?.queryKey ?? getListTasksApiV1CGuildIdTasksGetQueryKey(guildId, params);
+  const queryKey = queryOptions?.queryKey ?? getListTasksQueryKey(communityId, params);
 
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof listTasksApiV1CGuildIdTasksGet>>> = ({
-    signal,
-  }) => listTasksApiV1CGuildIdTasksGet(guildId, params, requestOptions, signal);
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listTasks>>> = ({ signal }) =>
+    listTasks(communityId, params, requestOptions, signal);
 
   return {
     queryKey,
     queryFn,
-    enabled: guildId !== null && guildId !== undefined,
+    enabled: communityId !== null && communityId !== undefined,
     ...queryOptions,
-  } as UseQueryOptions<
-    Awaited<ReturnType<typeof listTasksApiV1CGuildIdTasksGet>>,
-    TError,
-    TData
-  > & { queryKey: DataTag<QueryKey, TData, TError> };
+  } as UseQueryOptions<Awaited<ReturnType<typeof listTasks>>, TError, TData> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 };
 
-export type ListTasksApiV1CGuildIdTasksGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof listTasksApiV1CGuildIdTasksGet>>
->;
-export type ListTasksApiV1CGuildIdTasksGetQueryError = ErrorType<HTTPValidationError>;
+export type ListTasksQueryResult = NonNullable<Awaited<ReturnType<typeof listTasks>>>;
+export type ListTasksQueryError = ErrorType<HTTPValidationError>;
 
-export function useListTasksApiV1CGuildIdTasksGet<
-  TData = Awaited<ReturnType<typeof listTasksApiV1CGuildIdTasksGet>>,
+export function useListTasks<
+  TData = Awaited<ReturnType<typeof listTasks>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
-  params: undefined | ListTasksApiV1CGuildIdTasksGetParams,
+  communityId: number,
+  params: undefined | ListTasksParams,
   options: {
-    query: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listTasksApiV1CGuildIdTasksGet>>, TError, TData>
-    > &
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof listTasks>>, TError, TData>> &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listTasksApiV1CGuildIdTasksGet>>,
+          Awaited<ReturnType<typeof listTasks>>,
           TError,
-          Awaited<ReturnType<typeof listTasksApiV1CGuildIdTasksGet>>
+          Awaited<ReturnType<typeof listTasks>>
         >,
         "initialData"
       >;
@@ -143,21 +130,19 @@ export function useListTasksApiV1CGuildIdTasksGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListTasksApiV1CGuildIdTasksGet<
-  TData = Awaited<ReturnType<typeof listTasksApiV1CGuildIdTasksGet>>,
+export function useListTasks<
+  TData = Awaited<ReturnType<typeof listTasks>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
-  params?: ListTasksApiV1CGuildIdTasksGetParams,
+  communityId: number,
+  params?: ListTasksParams,
   options?: {
-    query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listTasksApiV1CGuildIdTasksGet>>, TError, TData>
-    > &
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listTasks>>, TError, TData>> &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listTasksApiV1CGuildIdTasksGet>>,
+          Awaited<ReturnType<typeof listTasks>>,
           TError,
-          Awaited<ReturnType<typeof listTasksApiV1CGuildIdTasksGet>>
+          Awaited<ReturnType<typeof listTasks>>
         >,
         "initialData"
       >;
@@ -165,16 +150,14 @@ export function useListTasksApiV1CGuildIdTasksGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListTasksApiV1CGuildIdTasksGet<
-  TData = Awaited<ReturnType<typeof listTasksApiV1CGuildIdTasksGet>>,
+export function useListTasks<
+  TData = Awaited<ReturnType<typeof listTasks>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
-  params?: ListTasksApiV1CGuildIdTasksGetParams,
+  communityId: number,
+  params?: ListTasksParams,
   options?: {
-    query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listTasksApiV1CGuildIdTasksGet>>, TError, TData>
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listTasks>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
@@ -183,21 +166,19 @@ export function useListTasksApiV1CGuildIdTasksGet<
  * @summary List Tasks
  */
 
-export function useListTasksApiV1CGuildIdTasksGet<
-  TData = Awaited<ReturnType<typeof listTasksApiV1CGuildIdTasksGet>>,
+export function useListTasks<
+  TData = Awaited<ReturnType<typeof listTasks>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
-  params?: ListTasksApiV1CGuildIdTasksGetParams,
+  communityId: number,
+  params?: ListTasksParams,
   options?: {
-    query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listTasksApiV1CGuildIdTasksGet>>, TError, TData>
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listTasks>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListTasksApiV1CGuildIdTasksGetQueryOptions(guildId, params, options);
+  const queryOptions = getListTasksQueryOptions(communityId, params, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -209,15 +190,15 @@ export function useListTasksApiV1CGuildIdTasksGet<
 /**
  * @summary Create Task
  */
-export const createTaskApiV1CGuildIdTasksPost = (
-  guildId: number,
+export const createTask = (
+  communityId: number,
   taskCreate: BodyType<TaskCreate>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<TaskRead>(
     {
-      url: `/api/v1/c/${guildId}/tasks/`,
+      url: `/api/v1/c/${communityId}/tasks/`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
       data: taskCreate,
@@ -227,27 +208,26 @@ export const createTaskApiV1CGuildIdTasksPost = (
   );
 };
 
-export const getCreateTaskApiV1CGuildIdTasksPostMutationKey = () =>
-  ["createTaskApiV1CGuildIdTasksPost"] as const;
+export const getCreateTaskMutationKey = () => ["createTask"] as const;
 
-export const getCreateTaskApiV1CGuildIdTasksPostMutationOptions = <
+export const getCreateTaskMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof createTaskApiV1CGuildIdTasksPost>>,
+    Awaited<ReturnType<typeof createTask>>,
     TError,
-    CreateTaskApiV1CGuildIdTasksPostMutationVariables,
+    CreateTaskMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof createTaskApiV1CGuildIdTasksPost>>,
+  Awaited<ReturnType<typeof createTask>>,
   TError,
-  CreateTaskApiV1CGuildIdTasksPostMutationVariables,
+  CreateTaskMutationVariables,
   TContext
 > => {
-  const mutationKey = getCreateTaskApiV1CGuildIdTasksPostMutationKey();
+  const mutationKey = getCreateTaskMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -255,141 +235,115 @@ export const getCreateTaskApiV1CGuildIdTasksPostMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof createTaskApiV1CGuildIdTasksPost>>,
-    CreateTaskApiV1CGuildIdTasksPostMutationVariables
+    Awaited<ReturnType<typeof createTask>>,
+    CreateTaskMutationVariables
   > = (props) => {
-    const { guildId, data } = props ?? {};
+    const { communityId, data } = props ?? {};
 
-    return createTaskApiV1CGuildIdTasksPost(guildId, data, requestOptions);
+    return createTask(communityId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type CreateTaskApiV1CGuildIdTasksPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof createTaskApiV1CGuildIdTasksPost>>
->;
-export type CreateTaskApiV1CGuildIdTasksPostMutationBody = BodyType<TaskCreate>;
-export type CreateTaskApiV1CGuildIdTasksPostMutationError = ErrorType<HTTPValidationError>;
-export type CreateTaskApiV1CGuildIdTasksPostMutationVariables = {
-  guildId: number;
-  data: BodyType<TaskCreate>;
-};
+export type CreateTaskMutationResult = NonNullable<Awaited<ReturnType<typeof createTask>>>;
+export type CreateTaskMutationBody = BodyType<TaskCreate>;
+export type CreateTaskMutationError = ErrorType<HTTPValidationError>;
+export type CreateTaskMutationVariables = { communityId: number; data: BodyType<TaskCreate> };
 
 /**
  * @summary Create Task
  */
-export const useCreateTaskApiV1CGuildIdTasksPost = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
+export const useCreateTask = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof createTaskApiV1CGuildIdTasksPost>>,
+      Awaited<ReturnType<typeof createTask>>,
       TError,
-      CreateTaskApiV1CGuildIdTasksPostMutationVariables,
+      CreateTaskMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof createTaskApiV1CGuildIdTasksPost>>,
+  Awaited<ReturnType<typeof createTask>>,
   TError,
-  CreateTaskApiV1CGuildIdTasksPostMutationVariables,
+  CreateTaskMutationVariables,
   TContext
 > => {
-  return useMutation(getCreateTaskApiV1CGuildIdTasksPostMutationOptions(options), queryClient);
+  return useMutation(getCreateTaskMutationOptions(options), queryClient);
 };
 /**
  * @summary Read Task
  */
-export const readTaskApiV1CGuildIdTasksTaskIdGet = (
-  guildId: number,
+export const readTask = (
+  communityId: number,
   taskId: number,
-  params?: ReadTaskApiV1CGuildIdTasksTaskIdGetParams,
+  params?: ReadTaskParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<TaskRead>(
-    { url: `/api/v1/c/${guildId}/tasks/${taskId}`, method: "GET", params, signal },
+    { url: `/api/v1/c/${communityId}/tasks/${taskId}`, method: "GET", params, signal },
     options
   );
 };
 
-export const getReadTaskApiV1CGuildIdTasksTaskIdGetQueryKey = (
-  guildId: number,
+export const getReadTaskQueryKey = (
+  communityId: number,
   taskId: number,
-  params?: ReadTaskApiV1CGuildIdTasksTaskIdGetParams
+  params?: ReadTaskParams
 ) => {
-  return [`/api/v1/c/${guildId}/tasks/${taskId}`, ...(params ? [params] : [])] as const;
+  return [`/api/v1/c/${communityId}/tasks/${taskId}`, ...(params ? [params] : [])] as const;
 };
 
-export const getReadTaskApiV1CGuildIdTasksTaskIdGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof readTaskApiV1CGuildIdTasksTaskIdGet>>,
+export const getReadTaskQueryOptions = <
+  TData = Awaited<ReturnType<typeof readTask>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   taskId: number,
-  params?: ReadTaskApiV1CGuildIdTasksTaskIdGetParams,
+  params?: ReadTaskParams,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readTaskApiV1CGuildIdTasksTaskIdGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readTask>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   }
 ) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey =
-    queryOptions?.queryKey ??
-    getReadTaskApiV1CGuildIdTasksTaskIdGetQueryKey(guildId, taskId, params);
+  const queryKey = queryOptions?.queryKey ?? getReadTaskQueryKey(communityId, taskId, params);
 
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof readTaskApiV1CGuildIdTasksTaskIdGet>>> = ({
-    signal,
-  }) => readTaskApiV1CGuildIdTasksTaskIdGet(guildId, taskId, params, requestOptions, signal);
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof readTask>>> = ({ signal }) =>
+    readTask(communityId, taskId, params, requestOptions, signal);
 
   return {
     queryKey,
     queryFn,
-    enabled: guildId !== null && guildId !== undefined && taskId !== null && taskId !== undefined,
+    enabled:
+      communityId !== null && communityId !== undefined && taskId !== null && taskId !== undefined,
     ...queryOptions,
-  } as UseQueryOptions<
-    Awaited<ReturnType<typeof readTaskApiV1CGuildIdTasksTaskIdGet>>,
-    TError,
-    TData
-  > & { queryKey: DataTag<QueryKey, TData, TError> };
+  } as UseQueryOptions<Awaited<ReturnType<typeof readTask>>, TError, TData> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 };
 
-export type ReadTaskApiV1CGuildIdTasksTaskIdGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof readTaskApiV1CGuildIdTasksTaskIdGet>>
->;
-export type ReadTaskApiV1CGuildIdTasksTaskIdGetQueryError = ErrorType<HTTPValidationError>;
+export type ReadTaskQueryResult = NonNullable<Awaited<ReturnType<typeof readTask>>>;
+export type ReadTaskQueryError = ErrorType<HTTPValidationError>;
 
-export function useReadTaskApiV1CGuildIdTasksTaskIdGet<
-  TData = Awaited<ReturnType<typeof readTaskApiV1CGuildIdTasksTaskIdGet>>,
+export function useReadTask<
+  TData = Awaited<ReturnType<typeof readTask>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   taskId: number,
-  params: undefined | ReadTaskApiV1CGuildIdTasksTaskIdGetParams,
+  params: undefined | ReadTaskParams,
   options: {
-    query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readTaskApiV1CGuildIdTasksTaskIdGet>>,
-        TError,
-        TData
-      >
-    > &
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof readTask>>, TError, TData>> &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readTaskApiV1CGuildIdTasksTaskIdGet>>,
+          Awaited<ReturnType<typeof readTask>>,
           TError,
-          Awaited<ReturnType<typeof readTaskApiV1CGuildIdTasksTaskIdGet>>
+          Awaited<ReturnType<typeof readTask>>
         >,
         "initialData"
       >;
@@ -397,26 +351,20 @@ export function useReadTaskApiV1CGuildIdTasksTaskIdGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadTaskApiV1CGuildIdTasksTaskIdGet<
-  TData = Awaited<ReturnType<typeof readTaskApiV1CGuildIdTasksTaskIdGet>>,
+export function useReadTask<
+  TData = Awaited<ReturnType<typeof readTask>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   taskId: number,
-  params?: ReadTaskApiV1CGuildIdTasksTaskIdGetParams,
+  params?: ReadTaskParams,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readTaskApiV1CGuildIdTasksTaskIdGet>>,
-        TError,
-        TData
-      >
-    > &
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readTask>>, TError, TData>> &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readTaskApiV1CGuildIdTasksTaskIdGet>>,
+          Awaited<ReturnType<typeof readTask>>,
           TError,
-          Awaited<ReturnType<typeof readTaskApiV1CGuildIdTasksTaskIdGet>>
+          Awaited<ReturnType<typeof readTask>>
         >,
         "initialData"
       >;
@@ -424,21 +372,15 @@ export function useReadTaskApiV1CGuildIdTasksTaskIdGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadTaskApiV1CGuildIdTasksTaskIdGet<
-  TData = Awaited<ReturnType<typeof readTaskApiV1CGuildIdTasksTaskIdGet>>,
+export function useReadTask<
+  TData = Awaited<ReturnType<typeof readTask>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   taskId: number,
-  params?: ReadTaskApiV1CGuildIdTasksTaskIdGetParams,
+  params?: ReadTaskParams,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readTaskApiV1CGuildIdTasksTaskIdGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readTask>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
@@ -447,31 +389,20 @@ export function useReadTaskApiV1CGuildIdTasksTaskIdGet<
  * @summary Read Task
  */
 
-export function useReadTaskApiV1CGuildIdTasksTaskIdGet<
-  TData = Awaited<ReturnType<typeof readTaskApiV1CGuildIdTasksTaskIdGet>>,
+export function useReadTask<
+  TData = Awaited<ReturnType<typeof readTask>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   taskId: number,
-  params?: ReadTaskApiV1CGuildIdTasksTaskIdGetParams,
+  params?: ReadTaskParams,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readTaskApiV1CGuildIdTasksTaskIdGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readTask>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getReadTaskApiV1CGuildIdTasksTaskIdGetQueryOptions(
-    guildId,
-    taskId,
-    params,
-    options
-  );
+  const queryOptions = getReadTaskQueryOptions(communityId, taskId, params, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -483,8 +414,8 @@ export function useReadTaskApiV1CGuildIdTasksTaskIdGet<
 /**
  * @summary Update Task
  */
-export const updateTaskApiV1CGuildIdTasksTaskIdPatch = (
-  guildId: number,
+export const updateTask = (
+  communityId: number,
   taskId: number,
   taskUpdate: BodyType<TaskUpdate>,
   options?: SecondParameter<typeof apiMutator>,
@@ -492,7 +423,7 @@ export const updateTaskApiV1CGuildIdTasksTaskIdPatch = (
 ) => {
   return apiMutator<TaskRead>(
     {
-      url: `/api/v1/c/${guildId}/tasks/${taskId}`,
+      url: `/api/v1/c/${communityId}/tasks/${taskId}`,
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       data: taskUpdate,
@@ -502,27 +433,26 @@ export const updateTaskApiV1CGuildIdTasksTaskIdPatch = (
   );
 };
 
-export const getUpdateTaskApiV1CGuildIdTasksTaskIdPatchMutationKey = () =>
-  ["updateTaskApiV1CGuildIdTasksTaskIdPatch"] as const;
+export const getUpdateTaskMutationKey = () => ["updateTask"] as const;
 
-export const getUpdateTaskApiV1CGuildIdTasksTaskIdPatchMutationOptions = <
+export const getUpdateTaskMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof updateTaskApiV1CGuildIdTasksTaskIdPatch>>,
+    Awaited<ReturnType<typeof updateTask>>,
     TError,
-    UpdateTaskApiV1CGuildIdTasksTaskIdPatchMutationVariables,
+    UpdateTaskMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof updateTaskApiV1CGuildIdTasksTaskIdPatch>>,
+  Awaited<ReturnType<typeof updateTask>>,
   TError,
-  UpdateTaskApiV1CGuildIdTasksTaskIdPatchMutationVariables,
+  UpdateTaskMutationVariables,
   TContext
 > => {
-  const mutationKey = getUpdateTaskApiV1CGuildIdTasksTaskIdPatchMutationKey();
+  const mutationKey = getUpdateTaskMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -530,24 +460,22 @@ export const getUpdateTaskApiV1CGuildIdTasksTaskIdPatchMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof updateTaskApiV1CGuildIdTasksTaskIdPatch>>,
-    UpdateTaskApiV1CGuildIdTasksTaskIdPatchMutationVariables
+    Awaited<ReturnType<typeof updateTask>>,
+    UpdateTaskMutationVariables
   > = (props) => {
-    const { guildId, taskId, data } = props ?? {};
+    const { communityId, taskId, data } = props ?? {};
 
-    return updateTaskApiV1CGuildIdTasksTaskIdPatch(guildId, taskId, data, requestOptions);
+    return updateTask(communityId, taskId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type UpdateTaskApiV1CGuildIdTasksTaskIdPatchMutationResult = NonNullable<
-  Awaited<ReturnType<typeof updateTaskApiV1CGuildIdTasksTaskIdPatch>>
->;
-export type UpdateTaskApiV1CGuildIdTasksTaskIdPatchMutationBody = BodyType<TaskUpdate>;
-export type UpdateTaskApiV1CGuildIdTasksTaskIdPatchMutationError = ErrorType<HTTPValidationError>;
-export type UpdateTaskApiV1CGuildIdTasksTaskIdPatchMutationVariables = {
-  guildId: number;
+export type UpdateTaskMutationResult = NonNullable<Awaited<ReturnType<typeof updateTask>>>;
+export type UpdateTaskMutationBody = BodyType<TaskUpdate>;
+export type UpdateTaskMutationError = ErrorType<HTTPValidationError>;
+export type UpdateTaskMutationVariables = {
+  communityId: number;
   taskId: number;
   data: BodyType<TaskUpdate>;
 };
@@ -555,30 +483,24 @@ export type UpdateTaskApiV1CGuildIdTasksTaskIdPatchMutationVariables = {
 /**
  * @summary Update Task
  */
-export const useUpdateTaskApiV1CGuildIdTasksTaskIdPatch = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
+export const useUpdateTask = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof updateTaskApiV1CGuildIdTasksTaskIdPatch>>,
+      Awaited<ReturnType<typeof updateTask>>,
       TError,
-      UpdateTaskApiV1CGuildIdTasksTaskIdPatchMutationVariables,
+      UpdateTaskMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof updateTaskApiV1CGuildIdTasksTaskIdPatch>>,
+  Awaited<ReturnType<typeof updateTask>>,
   TError,
-  UpdateTaskApiV1CGuildIdTasksTaskIdPatchMutationVariables,
+  UpdateTaskMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getUpdateTaskApiV1CGuildIdTasksTaskIdPatchMutationOptions(options),
-    queryClient
-  );
+  return useMutation(getUpdateTaskMutationOptions(options), queryClient);
 };
 /**
  * Trash the task. For a repeating one, ``this`` skips it so the series
@@ -587,40 +509,39 @@ export const useUpdateTaskApiV1CGuildIdTasksTaskIdPatch = <
  * other task of the series too.
  * @summary Delete Task
  */
-export const deleteTaskApiV1CGuildIdTasksTaskIdDelete = (
-  guildId: number,
+export const deleteTask = (
+  communityId: number,
   taskId: number,
-  params?: DeleteTaskApiV1CGuildIdTasksTaskIdDeleteParams,
+  params?: DeleteTaskParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<void>(
-    { url: `/api/v1/c/${guildId}/tasks/${taskId}`, method: "DELETE", params, signal },
+    { url: `/api/v1/c/${communityId}/tasks/${taskId}`, method: "DELETE", params, signal },
     options
   );
 };
 
-export const getDeleteTaskApiV1CGuildIdTasksTaskIdDeleteMutationKey = () =>
-  ["deleteTaskApiV1CGuildIdTasksTaskIdDelete"] as const;
+export const getDeleteTaskMutationKey = () => ["deleteTask"] as const;
 
-export const getDeleteTaskApiV1CGuildIdTasksTaskIdDeleteMutationOptions = <
+export const getDeleteTaskMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof deleteTaskApiV1CGuildIdTasksTaskIdDelete>>,
+    Awaited<ReturnType<typeof deleteTask>>,
     TError,
-    DeleteTaskApiV1CGuildIdTasksTaskIdDeleteMutationVariables,
+    DeleteTaskMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof deleteTaskApiV1CGuildIdTasksTaskIdDelete>>,
+  Awaited<ReturnType<typeof deleteTask>>,
   TError,
-  DeleteTaskApiV1CGuildIdTasksTaskIdDeleteMutationVariables,
+  DeleteTaskMutationVariables,
   TContext
 > => {
-  const mutationKey = getDeleteTaskApiV1CGuildIdTasksTaskIdDeleteMutationKey();
+  const mutationKey = getDeleteTaskMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -628,61 +549,53 @@ export const getDeleteTaskApiV1CGuildIdTasksTaskIdDeleteMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof deleteTaskApiV1CGuildIdTasksTaskIdDelete>>,
-    DeleteTaskApiV1CGuildIdTasksTaskIdDeleteMutationVariables
+    Awaited<ReturnType<typeof deleteTask>>,
+    DeleteTaskMutationVariables
   > = (props) => {
-    const { guildId, taskId, params } = props ?? {};
+    const { communityId, taskId, params } = props ?? {};
 
-    return deleteTaskApiV1CGuildIdTasksTaskIdDelete(guildId, taskId, params, requestOptions);
+    return deleteTask(communityId, taskId, params, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type DeleteTaskApiV1CGuildIdTasksTaskIdDeleteMutationResult = NonNullable<
-  Awaited<ReturnType<typeof deleteTaskApiV1CGuildIdTasksTaskIdDelete>>
->;
+export type DeleteTaskMutationResult = NonNullable<Awaited<ReturnType<typeof deleteTask>>>;
 
-export type DeleteTaskApiV1CGuildIdTasksTaskIdDeleteMutationError = ErrorType<HTTPValidationError>;
-export type DeleteTaskApiV1CGuildIdTasksTaskIdDeleteMutationVariables = {
-  guildId: number;
+export type DeleteTaskMutationError = ErrorType<HTTPValidationError>;
+export type DeleteTaskMutationVariables = {
+  communityId: number;
   taskId: number;
-  params?: DeleteTaskApiV1CGuildIdTasksTaskIdDeleteParams;
+  params?: DeleteTaskParams;
 };
 
 /**
  * @summary Delete Task
  */
-export const useDeleteTaskApiV1CGuildIdTasksTaskIdDelete = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
+export const useDeleteTask = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof deleteTaskApiV1CGuildIdTasksTaskIdDelete>>,
+      Awaited<ReturnType<typeof deleteTask>>,
       TError,
-      DeleteTaskApiV1CGuildIdTasksTaskIdDeleteMutationVariables,
+      DeleteTaskMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof deleteTaskApiV1CGuildIdTasksTaskIdDelete>>,
+  Awaited<ReturnType<typeof deleteTask>>,
   TError,
-  DeleteTaskApiV1CGuildIdTasksTaskIdDeleteMutationVariables,
+  DeleteTaskMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getDeleteTaskApiV1CGuildIdTasksTaskIdDeleteMutationOptions(options),
-    queryClient
-  );
+  return useMutation(getDeleteTaskMutationOptions(options), queryClient);
 };
 /**
  * @summary Move Task
  */
-export const moveTaskApiV1CGuildIdTasksTaskIdMovePost = (
-  guildId: number,
+export const moveTask = (
+  communityId: number,
   taskId: number,
   taskMoveRequest: BodyType<TaskMoveRequest>,
   options?: SecondParameter<typeof apiMutator>,
@@ -690,7 +603,7 @@ export const moveTaskApiV1CGuildIdTasksTaskIdMovePost = (
 ) => {
   return apiMutator<TaskRead>(
     {
-      url: `/api/v1/c/${guildId}/tasks/${taskId}/move`,
+      url: `/api/v1/c/${communityId}/tasks/${taskId}/move`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
       data: taskMoveRequest,
@@ -700,27 +613,26 @@ export const moveTaskApiV1CGuildIdTasksTaskIdMovePost = (
   );
 };
 
-export const getMoveTaskApiV1CGuildIdTasksTaskIdMovePostMutationKey = () =>
-  ["moveTaskApiV1CGuildIdTasksTaskIdMovePost"] as const;
+export const getMoveTaskMutationKey = () => ["moveTask"] as const;
 
-export const getMoveTaskApiV1CGuildIdTasksTaskIdMovePostMutationOptions = <
+export const getMoveTaskMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof moveTaskApiV1CGuildIdTasksTaskIdMovePost>>,
+    Awaited<ReturnType<typeof moveTask>>,
     TError,
-    MoveTaskApiV1CGuildIdTasksTaskIdMovePostMutationVariables,
+    MoveTaskMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof moveTaskApiV1CGuildIdTasksTaskIdMovePost>>,
+  Awaited<ReturnType<typeof moveTask>>,
   TError,
-  MoveTaskApiV1CGuildIdTasksTaskIdMovePostMutationVariables,
+  MoveTaskMutationVariables,
   TContext
 > => {
-  const mutationKey = getMoveTaskApiV1CGuildIdTasksTaskIdMovePostMutationKey();
+  const mutationKey = getMoveTaskMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -728,24 +640,22 @@ export const getMoveTaskApiV1CGuildIdTasksTaskIdMovePostMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof moveTaskApiV1CGuildIdTasksTaskIdMovePost>>,
-    MoveTaskApiV1CGuildIdTasksTaskIdMovePostMutationVariables
+    Awaited<ReturnType<typeof moveTask>>,
+    MoveTaskMutationVariables
   > = (props) => {
-    const { guildId, taskId, data } = props ?? {};
+    const { communityId, taskId, data } = props ?? {};
 
-    return moveTaskApiV1CGuildIdTasksTaskIdMovePost(guildId, taskId, data, requestOptions);
+    return moveTask(communityId, taskId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type MoveTaskApiV1CGuildIdTasksTaskIdMovePostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof moveTaskApiV1CGuildIdTasksTaskIdMovePost>>
->;
-export type MoveTaskApiV1CGuildIdTasksTaskIdMovePostMutationBody = BodyType<TaskMoveRequest>;
-export type MoveTaskApiV1CGuildIdTasksTaskIdMovePostMutationError = ErrorType<HTTPValidationError>;
-export type MoveTaskApiV1CGuildIdTasksTaskIdMovePostMutationVariables = {
-  guildId: number;
+export type MoveTaskMutationResult = NonNullable<Awaited<ReturnType<typeof moveTask>>>;
+export type MoveTaskMutationBody = BodyType<TaskMoveRequest>;
+export type MoveTaskMutationError = ErrorType<HTTPValidationError>;
+export type MoveTaskMutationVariables = {
+  communityId: number;
   taskId: number;
   data: BodyType<TaskMoveRequest>;
 };
@@ -753,30 +663,24 @@ export type MoveTaskApiV1CGuildIdTasksTaskIdMovePostMutationVariables = {
 /**
  * @summary Move Task
  */
-export const useMoveTaskApiV1CGuildIdTasksTaskIdMovePost = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
+export const useMoveTask = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof moveTaskApiV1CGuildIdTasksTaskIdMovePost>>,
+      Awaited<ReturnType<typeof moveTask>>,
       TError,
-      MoveTaskApiV1CGuildIdTasksTaskIdMovePostMutationVariables,
+      MoveTaskMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof moveTaskApiV1CGuildIdTasksTaskIdMovePost>>,
+  Awaited<ReturnType<typeof moveTask>>,
   TError,
-  MoveTaskApiV1CGuildIdTasksTaskIdMovePostMutationVariables,
+  MoveTaskMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getMoveTaskApiV1CGuildIdTasksTaskIdMovePostMutationOptions(options),
-    queryClient
-  );
+  return useMutation(getMoveTaskMutationOptions(options), queryClient);
 };
 /**
  * Copy the task beside itself, at the end of its project, as
@@ -784,39 +688,38 @@ export const useMoveTaskApiV1CGuildIdTasksTaskIdMovePost = <
  * checklist starts unticked.
  * @summary Duplicate Task
  */
-export const duplicateTaskApiV1CGuildIdTasksTaskIdDuplicatePost = (
-  guildId: number,
+export const duplicateTask = (
+  communityId: number,
   taskId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<TaskRead>(
-    { url: `/api/v1/c/${guildId}/tasks/${taskId}/duplicate`, method: "POST", signal },
+    { url: `/api/v1/c/${communityId}/tasks/${taskId}/duplicate`, method: "POST", signal },
     options
   );
 };
 
-export const getDuplicateTaskApiV1CGuildIdTasksTaskIdDuplicatePostMutationKey = () =>
-  ["duplicateTaskApiV1CGuildIdTasksTaskIdDuplicatePost"] as const;
+export const getDuplicateTaskMutationKey = () => ["duplicateTask"] as const;
 
-export const getDuplicateTaskApiV1CGuildIdTasksTaskIdDuplicatePostMutationOptions = <
+export const getDuplicateTaskMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof duplicateTaskApiV1CGuildIdTasksTaskIdDuplicatePost>>,
+    Awaited<ReturnType<typeof duplicateTask>>,
     TError,
-    DuplicateTaskApiV1CGuildIdTasksTaskIdDuplicatePostMutationVariables,
+    DuplicateTaskMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof duplicateTaskApiV1CGuildIdTasksTaskIdDuplicatePost>>,
+  Awaited<ReturnType<typeof duplicateTask>>,
   TError,
-  DuplicateTaskApiV1CGuildIdTasksTaskIdDuplicatePostMutationVariables,
+  DuplicateTaskMutationVariables,
   TContext
 > => {
-  const mutationKey = getDuplicateTaskApiV1CGuildIdTasksTaskIdDuplicatePostMutationKey();
+  const mutationKey = getDuplicateTaskMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -824,93 +727,80 @@ export const getDuplicateTaskApiV1CGuildIdTasksTaskIdDuplicatePostMutationOption
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof duplicateTaskApiV1CGuildIdTasksTaskIdDuplicatePost>>,
-    DuplicateTaskApiV1CGuildIdTasksTaskIdDuplicatePostMutationVariables
+    Awaited<ReturnType<typeof duplicateTask>>,
+    DuplicateTaskMutationVariables
   > = (props) => {
-    const { guildId, taskId } = props ?? {};
+    const { communityId, taskId } = props ?? {};
 
-    return duplicateTaskApiV1CGuildIdTasksTaskIdDuplicatePost(guildId, taskId, requestOptions);
+    return duplicateTask(communityId, taskId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type DuplicateTaskApiV1CGuildIdTasksTaskIdDuplicatePostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof duplicateTaskApiV1CGuildIdTasksTaskIdDuplicatePost>>
->;
+export type DuplicateTaskMutationResult = NonNullable<Awaited<ReturnType<typeof duplicateTask>>>;
 
-export type DuplicateTaskApiV1CGuildIdTasksTaskIdDuplicatePostMutationError =
-  ErrorType<HTTPValidationError>;
-export type DuplicateTaskApiV1CGuildIdTasksTaskIdDuplicatePostMutationVariables = {
-  guildId: number;
-  taskId: number;
-};
+export type DuplicateTaskMutationError = ErrorType<HTTPValidationError>;
+export type DuplicateTaskMutationVariables = { communityId: number; taskId: number };
 
 /**
  * @summary Duplicate Task
  */
-export const useDuplicateTaskApiV1CGuildIdTasksTaskIdDuplicatePost = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
+export const useDuplicateTask = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof duplicateTaskApiV1CGuildIdTasksTaskIdDuplicatePost>>,
+      Awaited<ReturnType<typeof duplicateTask>>,
       TError,
-      DuplicateTaskApiV1CGuildIdTasksTaskIdDuplicatePostMutationVariables,
+      DuplicateTaskMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof duplicateTaskApiV1CGuildIdTasksTaskIdDuplicatePost>>,
+  Awaited<ReturnType<typeof duplicateTask>>,
   TError,
-  DuplicateTaskApiV1CGuildIdTasksTaskIdDuplicatePostMutationVariables,
+  DuplicateTaskMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getDuplicateTaskApiV1CGuildIdTasksTaskIdDuplicatePostMutationOptions(options),
-    queryClient
-  );
+  return useMutation(getDuplicateTaskMutationOptions(options), queryClient);
 };
 /**
  * Move a repeating task on to its next occurrence without completing it.
  * @summary Skip Task
  */
-export const skipTaskApiV1CGuildIdTasksTaskIdSkipPost = (
-  guildId: number,
+export const skipTask = (
+  communityId: number,
   taskId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<TaskRead>(
-    { url: `/api/v1/c/${guildId}/tasks/${taskId}/skip`, method: "POST", signal },
+    { url: `/api/v1/c/${communityId}/tasks/${taskId}/skip`, method: "POST", signal },
     options
   );
 };
 
-export const getSkipTaskApiV1CGuildIdTasksTaskIdSkipPostMutationKey = () =>
-  ["skipTaskApiV1CGuildIdTasksTaskIdSkipPost"] as const;
+export const getSkipTaskMutationKey = () => ["skipTask"] as const;
 
-export const getSkipTaskApiV1CGuildIdTasksTaskIdSkipPostMutationOptions = <
+export const getSkipTaskMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof skipTaskApiV1CGuildIdTasksTaskIdSkipPost>>,
+    Awaited<ReturnType<typeof skipTask>>,
     TError,
-    SkipTaskApiV1CGuildIdTasksTaskIdSkipPostMutationVariables,
+    SkipTaskMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof skipTaskApiV1CGuildIdTasksTaskIdSkipPost>>,
+  Awaited<ReturnType<typeof skipTask>>,
   TError,
-  SkipTaskApiV1CGuildIdTasksTaskIdSkipPostMutationVariables,
+  SkipTaskMutationVariables,
   TContext
 > => {
-  const mutationKey = getSkipTaskApiV1CGuildIdTasksTaskIdSkipPostMutationKey();
+  const mutationKey = getSkipTaskMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -918,67 +808,56 @@ export const getSkipTaskApiV1CGuildIdTasksTaskIdSkipPostMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof skipTaskApiV1CGuildIdTasksTaskIdSkipPost>>,
-    SkipTaskApiV1CGuildIdTasksTaskIdSkipPostMutationVariables
+    Awaited<ReturnType<typeof skipTask>>,
+    SkipTaskMutationVariables
   > = (props) => {
-    const { guildId, taskId } = props ?? {};
+    const { communityId, taskId } = props ?? {};
 
-    return skipTaskApiV1CGuildIdTasksTaskIdSkipPost(guildId, taskId, requestOptions);
+    return skipTask(communityId, taskId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type SkipTaskApiV1CGuildIdTasksTaskIdSkipPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof skipTaskApiV1CGuildIdTasksTaskIdSkipPost>>
->;
+export type SkipTaskMutationResult = NonNullable<Awaited<ReturnType<typeof skipTask>>>;
 
-export type SkipTaskApiV1CGuildIdTasksTaskIdSkipPostMutationError = ErrorType<HTTPValidationError>;
-export type SkipTaskApiV1CGuildIdTasksTaskIdSkipPostMutationVariables = {
-  guildId: number;
-  taskId: number;
-};
+export type SkipTaskMutationError = ErrorType<HTTPValidationError>;
+export type SkipTaskMutationVariables = { communityId: number; taskId: number };
 
 /**
  * @summary Skip Task
  */
-export const useSkipTaskApiV1CGuildIdTasksTaskIdSkipPost = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
+export const useSkipTask = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof skipTaskApiV1CGuildIdTasksTaskIdSkipPost>>,
+      Awaited<ReturnType<typeof skipTask>>,
       TError,
-      SkipTaskApiV1CGuildIdTasksTaskIdSkipPostMutationVariables,
+      SkipTaskMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof skipTaskApiV1CGuildIdTasksTaskIdSkipPost>>,
+  Awaited<ReturnType<typeof skipTask>>,
   TError,
-  SkipTaskApiV1CGuildIdTasksTaskIdSkipPostMutationVariables,
+  SkipTaskMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getSkipTaskApiV1CGuildIdTasksTaskIdSkipPostMutationOptions(options),
-    queryClient
-  );
+  return useMutation(getSkipTaskMutationOptions(options), queryClient);
 };
 /**
  * @summary Reorder Tasks
  */
-export const reorderTasksApiV1CGuildIdTasksReorderPost = (
-  guildId: number,
+export const reorderTasks = (
+  communityId: number,
   taskReorderRequest: BodyType<TaskReorderRequest>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<TaskRead[]>(
     {
-      url: `/api/v1/c/${guildId}/tasks/reorder`,
+      url: `/api/v1/c/${communityId}/tasks/reorder`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
       data: taskReorderRequest,
@@ -988,27 +867,26 @@ export const reorderTasksApiV1CGuildIdTasksReorderPost = (
   );
 };
 
-export const getReorderTasksApiV1CGuildIdTasksReorderPostMutationKey = () =>
-  ["reorderTasksApiV1CGuildIdTasksReorderPost"] as const;
+export const getReorderTasksMutationKey = () => ["reorderTasks"] as const;
 
-export const getReorderTasksApiV1CGuildIdTasksReorderPostMutationOptions = <
+export const getReorderTasksMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof reorderTasksApiV1CGuildIdTasksReorderPost>>,
+    Awaited<ReturnType<typeof reorderTasks>>,
     TError,
-    ReorderTasksApiV1CGuildIdTasksReorderPostMutationVariables,
+    ReorderTasksMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof reorderTasksApiV1CGuildIdTasksReorderPost>>,
+  Awaited<ReturnType<typeof reorderTasks>>,
   TError,
-  ReorderTasksApiV1CGuildIdTasksReorderPostMutationVariables,
+  ReorderTasksMutationVariables,
   TContext
 > => {
-  const mutationKey = getReorderTasksApiV1CGuildIdTasksReorderPostMutationKey();
+  const mutationKey = getReorderTasksMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1016,93 +894,84 @@ export const getReorderTasksApiV1CGuildIdTasksReorderPostMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof reorderTasksApiV1CGuildIdTasksReorderPost>>,
-    ReorderTasksApiV1CGuildIdTasksReorderPostMutationVariables
+    Awaited<ReturnType<typeof reorderTasks>>,
+    ReorderTasksMutationVariables
   > = (props) => {
-    const { guildId, data } = props ?? {};
+    const { communityId, data } = props ?? {};
 
-    return reorderTasksApiV1CGuildIdTasksReorderPost(guildId, data, requestOptions);
+    return reorderTasks(communityId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type ReorderTasksApiV1CGuildIdTasksReorderPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof reorderTasksApiV1CGuildIdTasksReorderPost>>
->;
-export type ReorderTasksApiV1CGuildIdTasksReorderPostMutationBody = BodyType<TaskReorderRequest>;
-export type ReorderTasksApiV1CGuildIdTasksReorderPostMutationError = ErrorType<HTTPValidationError>;
-export type ReorderTasksApiV1CGuildIdTasksReorderPostMutationVariables = {
-  guildId: number;
+export type ReorderTasksMutationResult = NonNullable<Awaited<ReturnType<typeof reorderTasks>>>;
+export type ReorderTasksMutationBody = BodyType<TaskReorderRequest>;
+export type ReorderTasksMutationError = ErrorType<HTTPValidationError>;
+export type ReorderTasksMutationVariables = {
+  communityId: number;
   data: BodyType<TaskReorderRequest>;
 };
 
 /**
  * @summary Reorder Tasks
  */
-export const useReorderTasksApiV1CGuildIdTasksReorderPost = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
+export const useReorderTasks = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof reorderTasksApiV1CGuildIdTasksReorderPost>>,
+      Awaited<ReturnType<typeof reorderTasks>>,
       TError,
-      ReorderTasksApiV1CGuildIdTasksReorderPostMutationVariables,
+      ReorderTasksMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof reorderTasksApiV1CGuildIdTasksReorderPost>>,
+  Awaited<ReturnType<typeof reorderTasks>>,
   TError,
-  ReorderTasksApiV1CGuildIdTasksReorderPostMutationVariables,
+  ReorderTasksMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getReorderTasksApiV1CGuildIdTasksReorderPostMutationOptions(options),
-    queryClient
-  );
+  return useMutation(getReorderTasksMutationOptions(options), queryClient);
 };
 /**
  * Archive every live task in a 'done' status of a project, as archiving
  * each one would, under one stamp.
  * @summary Archive Done Tasks
  */
-export const archiveDoneTasksApiV1CGuildIdTasksArchiveDonePost = (
-  guildId: number,
-  params: ArchiveDoneTasksApiV1CGuildIdTasksArchiveDonePostParams,
+export const archiveDoneTasks = (
+  communityId: number,
+  params: ArchiveDoneTasksParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<ArchiveDoneResponse>(
-    { url: `/api/v1/c/${guildId}/tasks/archive-done`, method: "POST", params, signal },
+    { url: `/api/v1/c/${communityId}/tasks/archive-done`, method: "POST", params, signal },
     options
   );
 };
 
-export const getArchiveDoneTasksApiV1CGuildIdTasksArchiveDonePostMutationKey = () =>
-  ["archiveDoneTasksApiV1CGuildIdTasksArchiveDonePost"] as const;
+export const getArchiveDoneTasksMutationKey = () => ["archiveDoneTasks"] as const;
 
-export const getArchiveDoneTasksApiV1CGuildIdTasksArchiveDonePostMutationOptions = <
+export const getArchiveDoneTasksMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof archiveDoneTasksApiV1CGuildIdTasksArchiveDonePost>>,
+    Awaited<ReturnType<typeof archiveDoneTasks>>,
     TError,
-    ArchiveDoneTasksApiV1CGuildIdTasksArchiveDonePostMutationVariables,
+    ArchiveDoneTasksMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof archiveDoneTasksApiV1CGuildIdTasksArchiveDonePost>>,
+  Awaited<ReturnType<typeof archiveDoneTasks>>,
   TError,
-  ArchiveDoneTasksApiV1CGuildIdTasksArchiveDonePostMutationVariables,
+  ArchiveDoneTasksMutationVariables,
   TContext
 > => {
-  const mutationKey = getArchiveDoneTasksApiV1CGuildIdTasksArchiveDonePostMutationKey();
+  const mutationKey = getArchiveDoneTasksMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1110,55 +979,48 @@ export const getArchiveDoneTasksApiV1CGuildIdTasksArchiveDonePostMutationOptions
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof archiveDoneTasksApiV1CGuildIdTasksArchiveDonePost>>,
-    ArchiveDoneTasksApiV1CGuildIdTasksArchiveDonePostMutationVariables
+    Awaited<ReturnType<typeof archiveDoneTasks>>,
+    ArchiveDoneTasksMutationVariables
   > = (props) => {
-    const { guildId, params } = props ?? {};
+    const { communityId, params } = props ?? {};
 
-    return archiveDoneTasksApiV1CGuildIdTasksArchiveDonePost(guildId, params, requestOptions);
+    return archiveDoneTasks(communityId, params, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type ArchiveDoneTasksApiV1CGuildIdTasksArchiveDonePostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof archiveDoneTasksApiV1CGuildIdTasksArchiveDonePost>>
+export type ArchiveDoneTasksMutationResult = NonNullable<
+  Awaited<ReturnType<typeof archiveDoneTasks>>
 >;
 
-export type ArchiveDoneTasksApiV1CGuildIdTasksArchiveDonePostMutationError =
-  ErrorType<HTTPValidationError>;
-export type ArchiveDoneTasksApiV1CGuildIdTasksArchiveDonePostMutationVariables = {
-  guildId: number;
-  params: ArchiveDoneTasksApiV1CGuildIdTasksArchiveDonePostParams;
+export type ArchiveDoneTasksMutationError = ErrorType<HTTPValidationError>;
+export type ArchiveDoneTasksMutationVariables = {
+  communityId: number;
+  params: ArchiveDoneTasksParams;
 };
 
 /**
  * @summary Archive Done Tasks
  */
-export const useArchiveDoneTasksApiV1CGuildIdTasksArchiveDonePost = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
+export const useArchiveDoneTasks = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof archiveDoneTasksApiV1CGuildIdTasksArchiveDonePost>>,
+      Awaited<ReturnType<typeof archiveDoneTasks>>,
       TError,
-      ArchiveDoneTasksApiV1CGuildIdTasksArchiveDonePostMutationVariables,
+      ArchiveDoneTasksMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof archiveDoneTasksApiV1CGuildIdTasksArchiveDonePost>>,
+  Awaited<ReturnType<typeof archiveDoneTasks>>,
   TError,
-  ArchiveDoneTasksApiV1CGuildIdTasksArchiveDonePostMutationVariables,
+  ArchiveDoneTasksMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getArchiveDoneTasksApiV1CGuildIdTasksArchiveDonePostMutationOptions(options),
-    queryClient
-  );
+  return useMutation(getArchiveDoneTasksMutationOptions(options), queryClient);
 };
 /**
  * Tick or untick one checklist item.
@@ -1169,8 +1031,8 @@ export const useArchiveDoneTasksApiV1CGuildIdTasksArchiveDonePost = <
  * only that item, so two ticks on different items both land.
  * @summary Toggle Checklist Item
  */
-export const toggleChecklistItemApiV1CGuildIdTasksTaskIdChecklistItemIdPatch = (
-  guildId: number,
+export const toggleChecklistItem = (
+  communityId: number,
   taskId: number,
   itemId: string,
   checklistItemToggle: BodyType<ChecklistItemToggle>,
@@ -1179,7 +1041,7 @@ export const toggleChecklistItemApiV1CGuildIdTasksTaskIdChecklistItemIdPatch = (
 ) => {
   return apiMutator<ChecklistItem[]>(
     {
-      url: `/api/v1/c/${guildId}/tasks/${taskId}/checklist/${itemId}`,
+      url: `/api/v1/c/${communityId}/tasks/${taskId}/checklist/${itemId}`,
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       data: checklistItemToggle,
@@ -1189,28 +1051,26 @@ export const toggleChecklistItemApiV1CGuildIdTasksTaskIdChecklistItemIdPatch = (
   );
 };
 
-export const getToggleChecklistItemApiV1CGuildIdTasksTaskIdChecklistItemIdPatchMutationKey = () =>
-  ["toggleChecklistItemApiV1CGuildIdTasksTaskIdChecklistItemIdPatch"] as const;
+export const getToggleChecklistItemMutationKey = () => ["toggleChecklistItem"] as const;
 
-export const getToggleChecklistItemApiV1CGuildIdTasksTaskIdChecklistItemIdPatchMutationOptions = <
+export const getToggleChecklistItemMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof toggleChecklistItemApiV1CGuildIdTasksTaskIdChecklistItemIdPatch>>,
+    Awaited<ReturnType<typeof toggleChecklistItem>>,
     TError,
-    ToggleChecklistItemApiV1CGuildIdTasksTaskIdChecklistItemIdPatchMutationVariables,
+    ToggleChecklistItemMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof toggleChecklistItemApiV1CGuildIdTasksTaskIdChecklistItemIdPatch>>,
+  Awaited<ReturnType<typeof toggleChecklistItem>>,
   TError,
-  ToggleChecklistItemApiV1CGuildIdTasksTaskIdChecklistItemIdPatchMutationVariables,
+  ToggleChecklistItemMutationVariables,
   TContext
 > => {
-  const mutationKey =
-    getToggleChecklistItemApiV1CGuildIdTasksTaskIdChecklistItemIdPatchMutationKey();
+  const mutationKey = getToggleChecklistItemMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1218,33 +1078,24 @@ export const getToggleChecklistItemApiV1CGuildIdTasksTaskIdChecklistItemIdPatchM
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof toggleChecklistItemApiV1CGuildIdTasksTaskIdChecklistItemIdPatch>>,
-    ToggleChecklistItemApiV1CGuildIdTasksTaskIdChecklistItemIdPatchMutationVariables
+    Awaited<ReturnType<typeof toggleChecklistItem>>,
+    ToggleChecklistItemMutationVariables
   > = (props) => {
-    const { guildId, taskId, itemId, data } = props ?? {};
+    const { communityId, taskId, itemId, data } = props ?? {};
 
-    return toggleChecklistItemApiV1CGuildIdTasksTaskIdChecklistItemIdPatch(
-      guildId,
-      taskId,
-      itemId,
-      data,
-      requestOptions
-    );
+    return toggleChecklistItem(communityId, taskId, itemId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type ToggleChecklistItemApiV1CGuildIdTasksTaskIdChecklistItemIdPatchMutationResult =
-  NonNullable<
-    Awaited<ReturnType<typeof toggleChecklistItemApiV1CGuildIdTasksTaskIdChecklistItemIdPatch>>
-  >;
-export type ToggleChecklistItemApiV1CGuildIdTasksTaskIdChecklistItemIdPatchMutationBody =
-  BodyType<ChecklistItemToggle>;
-export type ToggleChecklistItemApiV1CGuildIdTasksTaskIdChecklistItemIdPatchMutationError =
-  ErrorType<HTTPValidationError>;
-export type ToggleChecklistItemApiV1CGuildIdTasksTaskIdChecklistItemIdPatchMutationVariables = {
-  guildId: number;
+export type ToggleChecklistItemMutationResult = NonNullable<
+  Awaited<ReturnType<typeof toggleChecklistItem>>
+>;
+export type ToggleChecklistItemMutationBody = BodyType<ChecklistItemToggle>;
+export type ToggleChecklistItemMutationError = ErrorType<HTTPValidationError>;
+export type ToggleChecklistItemMutationVariables = {
+  communityId: number;
   taskId: number;
   itemId: string;
   data: BodyType<ChecklistItemToggle>;
@@ -1253,68 +1104,61 @@ export type ToggleChecklistItemApiV1CGuildIdTasksTaskIdChecklistItemIdPatchMutat
 /**
  * @summary Toggle Checklist Item
  */
-export const useToggleChecklistItemApiV1CGuildIdTasksTaskIdChecklistItemIdPatch = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
+export const useToggleChecklistItem = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof toggleChecklistItemApiV1CGuildIdTasksTaskIdChecklistItemIdPatch>>,
+      Awaited<ReturnType<typeof toggleChecklistItem>>,
       TError,
-      ToggleChecklistItemApiV1CGuildIdTasksTaskIdChecklistItemIdPatchMutationVariables,
+      ToggleChecklistItemMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof toggleChecklistItemApiV1CGuildIdTasksTaskIdChecklistItemIdPatch>>,
+  Awaited<ReturnType<typeof toggleChecklistItem>>,
   TError,
-  ToggleChecklistItemApiV1CGuildIdTasksTaskIdChecklistItemIdPatchMutationVariables,
+  ToggleChecklistItemMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getToggleChecklistItemApiV1CGuildIdTasksTaskIdChecklistItemIdPatchMutationOptions(options),
-    queryClient
-  );
+  return useMutation(getToggleChecklistItemMutationOptions(options), queryClient);
 };
 /**
  * Suggest checklist steps for a task.
  * @summary Generate Task Checklist
  */
-export const generateTaskChecklistApiV1CGuildIdTasksTaskIdAiChecklistPost = (
-  guildId: number,
+export const generateTaskChecklist = (
+  communityId: number,
   taskId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<GenerateChecklistResponse>(
-    { url: `/api/v1/c/${guildId}/tasks/${taskId}/ai/checklist`, method: "POST", signal },
+    { url: `/api/v1/c/${communityId}/tasks/${taskId}/ai/checklist`, method: "POST", signal },
     options
   );
 };
 
-export const getGenerateTaskChecklistApiV1CGuildIdTasksTaskIdAiChecklistPostMutationKey = () =>
-  ["generateTaskChecklistApiV1CGuildIdTasksTaskIdAiChecklistPost"] as const;
+export const getGenerateTaskChecklistMutationKey = () => ["generateTaskChecklist"] as const;
 
-export const getGenerateTaskChecklistApiV1CGuildIdTasksTaskIdAiChecklistPostMutationOptions = <
+export const getGenerateTaskChecklistMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof generateTaskChecklistApiV1CGuildIdTasksTaskIdAiChecklistPost>>,
+    Awaited<ReturnType<typeof generateTaskChecklist>>,
     TError,
-    GenerateTaskChecklistApiV1CGuildIdTasksTaskIdAiChecklistPostMutationVariables,
+    GenerateTaskChecklistMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof generateTaskChecklistApiV1CGuildIdTasksTaskIdAiChecklistPost>>,
+  Awaited<ReturnType<typeof generateTaskChecklist>>,
   TError,
-  GenerateTaskChecklistApiV1CGuildIdTasksTaskIdAiChecklistPostMutationVariables,
+  GenerateTaskChecklistMutationVariables,
   TContext
 > => {
-  const mutationKey = getGenerateTaskChecklistApiV1CGuildIdTasksTaskIdAiChecklistPostMutationKey();
+  const mutationKey = getGenerateTaskChecklistMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1322,99 +1166,85 @@ export const getGenerateTaskChecklistApiV1CGuildIdTasksTaskIdAiChecklistPostMuta
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof generateTaskChecklistApiV1CGuildIdTasksTaskIdAiChecklistPost>>,
-    GenerateTaskChecklistApiV1CGuildIdTasksTaskIdAiChecklistPostMutationVariables
+    Awaited<ReturnType<typeof generateTaskChecklist>>,
+    GenerateTaskChecklistMutationVariables
   > = (props) => {
-    const { guildId, taskId } = props ?? {};
+    const { communityId, taskId } = props ?? {};
 
-    return generateTaskChecklistApiV1CGuildIdTasksTaskIdAiChecklistPost(
-      guildId,
-      taskId,
-      requestOptions
-    );
+    return generateTaskChecklist(communityId, taskId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type GenerateTaskChecklistApiV1CGuildIdTasksTaskIdAiChecklistPostMutationResult =
-  NonNullable<
-    Awaited<ReturnType<typeof generateTaskChecklistApiV1CGuildIdTasksTaskIdAiChecklistPost>>
-  >;
+export type GenerateTaskChecklistMutationResult = NonNullable<
+  Awaited<ReturnType<typeof generateTaskChecklist>>
+>;
 
-export type GenerateTaskChecklistApiV1CGuildIdTasksTaskIdAiChecklistPostMutationError =
-  ErrorType<HTTPValidationError>;
-export type GenerateTaskChecklistApiV1CGuildIdTasksTaskIdAiChecklistPostMutationVariables = {
-  guildId: number;
-  taskId: number;
-};
+export type GenerateTaskChecklistMutationError = ErrorType<HTTPValidationError>;
+export type GenerateTaskChecklistMutationVariables = { communityId: number; taskId: number };
 
 /**
  * @summary Generate Task Checklist
  */
-export const useGenerateTaskChecklistApiV1CGuildIdTasksTaskIdAiChecklistPost = <
+export const useGenerateTaskChecklist = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof generateTaskChecklistApiV1CGuildIdTasksTaskIdAiChecklistPost>>,
+      Awaited<ReturnType<typeof generateTaskChecklist>>,
       TError,
-      GenerateTaskChecklistApiV1CGuildIdTasksTaskIdAiChecklistPostMutationVariables,
+      GenerateTaskChecklistMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof generateTaskChecklistApiV1CGuildIdTasksTaskIdAiChecklistPost>>,
+  Awaited<ReturnType<typeof generateTaskChecklist>>,
   TError,
-  GenerateTaskChecklistApiV1CGuildIdTasksTaskIdAiChecklistPostMutationVariables,
+  GenerateTaskChecklistMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getGenerateTaskChecklistApiV1CGuildIdTasksTaskIdAiChecklistPostMutationOptions(options),
-    queryClient
-  );
+  return useMutation(getGenerateTaskChecklistMutationOptions(options), queryClient);
 };
 /**
  * Generate AI-powered description for a task.
  * @summary Generate Task Description
  */
-export const generateTaskDescriptionApiV1CGuildIdTasksTaskIdAiDescriptionPost = (
-  guildId: number,
+export const generateTaskDescription = (
+  communityId: number,
   taskId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<GenerateDescriptionResponse>(
-    { url: `/api/v1/c/${guildId}/tasks/${taskId}/ai/description`, method: "POST", signal },
+    { url: `/api/v1/c/${communityId}/tasks/${taskId}/ai/description`, method: "POST", signal },
     options
   );
 };
 
-export const getGenerateTaskDescriptionApiV1CGuildIdTasksTaskIdAiDescriptionPostMutationKey = () =>
-  ["generateTaskDescriptionApiV1CGuildIdTasksTaskIdAiDescriptionPost"] as const;
+export const getGenerateTaskDescriptionMutationKey = () => ["generateTaskDescription"] as const;
 
-export const getGenerateTaskDescriptionApiV1CGuildIdTasksTaskIdAiDescriptionPostMutationOptions = <
+export const getGenerateTaskDescriptionMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof generateTaskDescriptionApiV1CGuildIdTasksTaskIdAiDescriptionPost>>,
+    Awaited<ReturnType<typeof generateTaskDescription>>,
     TError,
-    GenerateTaskDescriptionApiV1CGuildIdTasksTaskIdAiDescriptionPostMutationVariables,
+    GenerateTaskDescriptionMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof generateTaskDescriptionApiV1CGuildIdTasksTaskIdAiDescriptionPost>>,
+  Awaited<ReturnType<typeof generateTaskDescription>>,
   TError,
-  GenerateTaskDescriptionApiV1CGuildIdTasksTaskIdAiDescriptionPostMutationVariables,
+  GenerateTaskDescriptionMutationVariables,
   TContext
 > => {
-  const mutationKey =
-    getGenerateTaskDescriptionApiV1CGuildIdTasksTaskIdAiDescriptionPostMutationKey();
+  const mutationKey = getGenerateTaskDescriptionMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1422,60 +1252,48 @@ export const getGenerateTaskDescriptionApiV1CGuildIdTasksTaskIdAiDescriptionPost
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof generateTaskDescriptionApiV1CGuildIdTasksTaskIdAiDescriptionPost>>,
-    GenerateTaskDescriptionApiV1CGuildIdTasksTaskIdAiDescriptionPostMutationVariables
+    Awaited<ReturnType<typeof generateTaskDescription>>,
+    GenerateTaskDescriptionMutationVariables
   > = (props) => {
-    const { guildId, taskId } = props ?? {};
+    const { communityId, taskId } = props ?? {};
 
-    return generateTaskDescriptionApiV1CGuildIdTasksTaskIdAiDescriptionPost(
-      guildId,
-      taskId,
-      requestOptions
-    );
+    return generateTaskDescription(communityId, taskId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type GenerateTaskDescriptionApiV1CGuildIdTasksTaskIdAiDescriptionPostMutationResult =
-  NonNullable<
-    Awaited<ReturnType<typeof generateTaskDescriptionApiV1CGuildIdTasksTaskIdAiDescriptionPost>>
-  >;
+export type GenerateTaskDescriptionMutationResult = NonNullable<
+  Awaited<ReturnType<typeof generateTaskDescription>>
+>;
 
-export type GenerateTaskDescriptionApiV1CGuildIdTasksTaskIdAiDescriptionPostMutationError =
-  ErrorType<HTTPValidationError>;
-export type GenerateTaskDescriptionApiV1CGuildIdTasksTaskIdAiDescriptionPostMutationVariables = {
-  guildId: number;
-  taskId: number;
-};
+export type GenerateTaskDescriptionMutationError = ErrorType<HTTPValidationError>;
+export type GenerateTaskDescriptionMutationVariables = { communityId: number; taskId: number };
 
 /**
  * @summary Generate Task Description
  */
-export const useGenerateTaskDescriptionApiV1CGuildIdTasksTaskIdAiDescriptionPost = <
+export const useGenerateTaskDescription = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof generateTaskDescriptionApiV1CGuildIdTasksTaskIdAiDescriptionPost>>,
+      Awaited<ReturnType<typeof generateTaskDescription>>,
       TError,
-      GenerateTaskDescriptionApiV1CGuildIdTasksTaskIdAiDescriptionPostMutationVariables,
+      GenerateTaskDescriptionMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof generateTaskDescriptionApiV1CGuildIdTasksTaskIdAiDescriptionPost>>,
+  Awaited<ReturnType<typeof generateTaskDescription>>,
   TError,
-  GenerateTaskDescriptionApiV1CGuildIdTasksTaskIdAiDescriptionPostMutationVariables,
+  GenerateTaskDescriptionMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getGenerateTaskDescriptionApiV1CGuildIdTasksTaskIdAiDescriptionPostMutationOptions(options),
-    queryClient
-  );
+  return useMutation(getGenerateTaskDescriptionMutationOptions(options), queryClient);
 };
 /**
  * Tasks assigned to the current user across every guild they belong to,
@@ -1484,8 +1302,8 @@ export const useGenerateTaskDescriptionApiV1CGuildIdTasksTaskIdAiDescriptionPost
  * An optional ``guild_ids`` conditions entry narrows to a subset of guilds.
  * @summary List My Tasks
  */
-export const listMyTasksApiV1MeTasksGet = (
-  params?: ListMyTasksApiV1MeTasksGetParams,
+export const listMyTasks = (
+  params?: ListMyTasksParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
@@ -1495,58 +1313,49 @@ export const listMyTasksApiV1MeTasksGet = (
   );
 };
 
-export const getListMyTasksApiV1MeTasksGetQueryKey = (
-  params?: ListMyTasksApiV1MeTasksGetParams
-) => {
+export const getListMyTasksQueryKey = (params?: ListMyTasksParams) => {
   return [`/api/v1/me/tasks`, ...(params ? [params] : [])] as const;
 };
 
-export const getListMyTasksApiV1MeTasksGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof listMyTasksApiV1MeTasksGet>>,
+export const getListMyTasksQueryOptions = <
+  TData = Awaited<ReturnType<typeof listMyTasks>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params?: ListMyTasksApiV1MeTasksGetParams,
+  params?: ListMyTasksParams,
   options?: {
-    query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listMyTasksApiV1MeTasksGet>>, TError, TData>
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyTasks>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   }
 ) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey = queryOptions?.queryKey ?? getListMyTasksApiV1MeTasksGetQueryKey(params);
+  const queryKey = queryOptions?.queryKey ?? getListMyTasksQueryKey(params);
 
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof listMyTasksApiV1MeTasksGet>>> = ({
-    signal,
-  }) => listMyTasksApiV1MeTasksGet(params, requestOptions, signal);
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listMyTasks>>> = ({ signal }) =>
+    listMyTasks(params, requestOptions, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof listMyTasksApiV1MeTasksGet>>,
+    Awaited<ReturnType<typeof listMyTasks>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ListMyTasksApiV1MeTasksGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof listMyTasksApiV1MeTasksGet>>
->;
-export type ListMyTasksApiV1MeTasksGetQueryError = ErrorType<HTTPValidationError>;
+export type ListMyTasksQueryResult = NonNullable<Awaited<ReturnType<typeof listMyTasks>>>;
+export type ListMyTasksQueryError = ErrorType<HTTPValidationError>;
 
-export function useListMyTasksApiV1MeTasksGet<
-  TData = Awaited<ReturnType<typeof listMyTasksApiV1MeTasksGet>>,
+export function useListMyTasks<
+  TData = Awaited<ReturnType<typeof listMyTasks>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params: undefined | ListMyTasksApiV1MeTasksGetParams,
+  params: undefined | ListMyTasksParams,
   options: {
-    query: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listMyTasksApiV1MeTasksGet>>, TError, TData>
-    > &
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyTasks>>, TError, TData>> &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listMyTasksApiV1MeTasksGet>>,
+          Awaited<ReturnType<typeof listMyTasks>>,
           TError,
-          Awaited<ReturnType<typeof listMyTasksApiV1MeTasksGet>>
+          Awaited<ReturnType<typeof listMyTasks>>
         >,
         "initialData"
       >;
@@ -1554,20 +1363,18 @@ export function useListMyTasksApiV1MeTasksGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListMyTasksApiV1MeTasksGet<
-  TData = Awaited<ReturnType<typeof listMyTasksApiV1MeTasksGet>>,
+export function useListMyTasks<
+  TData = Awaited<ReturnType<typeof listMyTasks>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params?: ListMyTasksApiV1MeTasksGetParams,
+  params?: ListMyTasksParams,
   options?: {
-    query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listMyTasksApiV1MeTasksGet>>, TError, TData>
-    > &
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyTasks>>, TError, TData>> &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listMyTasksApiV1MeTasksGet>>,
+          Awaited<ReturnType<typeof listMyTasks>>,
           TError,
-          Awaited<ReturnType<typeof listMyTasksApiV1MeTasksGet>>
+          Awaited<ReturnType<typeof listMyTasks>>
         >,
         "initialData"
       >;
@@ -1575,15 +1382,13 @@ export function useListMyTasksApiV1MeTasksGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListMyTasksApiV1MeTasksGet<
-  TData = Awaited<ReturnType<typeof listMyTasksApiV1MeTasksGet>>,
+export function useListMyTasks<
+  TData = Awaited<ReturnType<typeof listMyTasks>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params?: ListMyTasksApiV1MeTasksGetParams,
+  params?: ListMyTasksParams,
   options?: {
-    query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listMyTasksApiV1MeTasksGet>>, TError, TData>
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyTasks>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
@@ -1592,20 +1397,18 @@ export function useListMyTasksApiV1MeTasksGet<
  * @summary List My Tasks
  */
 
-export function useListMyTasksApiV1MeTasksGet<
-  TData = Awaited<ReturnType<typeof listMyTasksApiV1MeTasksGet>>,
+export function useListMyTasks<
+  TData = Awaited<ReturnType<typeof listMyTasks>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params?: ListMyTasksApiV1MeTasksGetParams,
+  params?: ListMyTasksParams,
   options?: {
-    query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listMyTasksApiV1MeTasksGet>>, TError, TData>
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyTasks>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListMyTasksApiV1MeTasksGetQueryOptions(params, options);
+  const queryOptions = getListMyTasksQueryOptions(params, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;

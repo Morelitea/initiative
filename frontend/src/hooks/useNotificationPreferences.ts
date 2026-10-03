@@ -5,9 +5,9 @@ import type {
   NotificationPreferencesUpdate,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
-  getReadMyNotificationPreferencesApiV1MeNotificationPreferencesGetQueryKey,
-  readMyNotificationPreferencesApiV1MeNotificationPreferencesGet,
-  updateMyNotificationPreferencesApiV1MeNotificationPreferencesPut,
+  getReadMyNotificationPreferencesQueryKey,
+  readMyNotificationPreferences,
+  updateMyNotificationPreferences,
 } from "@/api/generated/notifications/notifications";
 import { useApiMutation } from "@/hooks/useApiMutation";
 import type { MutationOpts } from "@/types/mutation";
@@ -21,8 +21,8 @@ import type { MutationOpts } from "@/types/mutation";
  */
 export const useNotificationPreferences = (options?: { enabled?: boolean }) =>
   useQuery<NotificationPreferencesRead>({
-    queryKey: getReadMyNotificationPreferencesApiV1MeNotificationPreferencesGetQueryKey(),
-    queryFn: () => readMyNotificationPreferencesApiV1MeNotificationPreferencesGet(),
+    queryKey: getReadMyNotificationPreferencesQueryKey(),
+    queryFn: () => readMyNotificationPreferences(),
     enabled: options?.enabled,
   });
 
@@ -39,8 +39,7 @@ export const useUpdateNotificationPreferences = (
   const client = useQueryClient();
   return useApiMutation<NotificationPreferencesRead, NotificationPreferencesUpdate>(
     {
-      mutationFn: (payload) =>
-        updateMyNotificationPreferencesApiV1MeNotificationPreferencesPut(payload),
+      mutationFn: (payload) => updateMyNotificationPreferences(payload),
     },
     {
       ...options,
@@ -49,10 +48,7 @@ export const useUpdateNotificationPreferences = (
         // The server answered with the whole document, so there is nothing to
         // refetch — writing it straight in keeps the grid from flickering back
         // through a loading state on every switch.
-        client.setQueryData(
-          getReadMyNotificationPreferencesApiV1MeNotificationPreferencesGetQueryKey(),
-          settled
-        );
+        client.setQueryData(getReadMyNotificationPreferencesQueryKey(), settled);
         options?.onSuccess?.(...args);
       },
     }

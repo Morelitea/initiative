@@ -1,6 +1,6 @@
 """Trash-can endpoints: list / restore / immediate-purge.
 
-Guild routes operate on the guild in the ``/c/{guild_id}`` path; the
+Guild routes operate on the guild in the ``/c/{community_id}`` path; the
 cross-guild ``/me/trash`` view (see ``me_trash.py``) spans the user's guilds.
 A guild's listing is one statement: a UNION ALL over the trashable models,
 each leg selecting only the columns a :class:`TrashItem` carries, ordered and
@@ -204,7 +204,7 @@ async def trash_page(
 
 
 @router.get("/", response_model=TrashListResponse)
-async def list_guild_trash(
+async def list_community_trash(
     session: RLSSessionDep,
     guild_context: Annotated[
         GuildContext, Depends(require_guild_roles(CommunityRole.admin))

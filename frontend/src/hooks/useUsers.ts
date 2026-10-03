@@ -6,39 +6,39 @@ import {
 } from "@tanstack/react-query";
 
 import {
-  setMemberDisplayNameApiV1CommunitiesGuildIdMembersUserIdDisplayNamePut,
-  setOwnDisplayNameApiV1CommunitiesGuildIdMembershipDisplayNamePut,
-  updateGuildMembershipApiV1CommunitiesGuildIdMembersUserIdPatch,
+  setMemberDisplayName,
+  setOwnDisplayName,
+  updateCommunityMembership,
 } from "@/api/generated/communities/communities";
 import type {
   AccountDeletionRequest,
   AccountDeletionResponse,
   CommunityRole,
-  ExportUsersCsvApiV1CGuildIdUsersExportCsvGetParams,
-  ListUsersApiV1CGuildIdUsersGetParams,
+  ExportUsersCsvParams,
+  ListUsersParams,
   Tool,
   UserCommunityMemberListResponse,
   UserRead,
   UserSummary,
 } from "@/api/generated/initiativeAPI.schemas";
-import { useSearchInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembersSearchGet } from "@/api/generated/initiatives/initiatives";
+import { useSearchInitiativeMembers } from "@/api/generated/initiatives/initiatives";
 import {
-  deleteOwnAccountApiV1MeDeleteAccountPost,
-  exportUsersCsvApiV1CGuildIdUsersExportCsvGet,
-  getListDecorationPacksApiV1MeDecorationPacksGetQueryKey,
-  getListMyDecorationsApiV1MeDecorationsGetQueryKey,
-  getListRosterApiV1CGuildIdUsersRosterGetQueryKey,
-  getListUsersApiV1CGuildIdUsersGetQueryKey,
-  installDecorationPackApiV1MeDecorationPacksUidPost,
-  listRosterApiV1CGuildIdUsersRosterGet,
-  listUsersApiV1CGuildIdUsersGet,
-  removeDecorationPackApiV1MeDecorationPacksUidDelete,
-  updateMeApiV1MePatch,
-  useListDecorationPacksApiV1MeDecorationPacksGet,
-  useListMyDecorationsApiV1MeDecorationsGet,
-  useReadUserCommunitiesApiV1UsersHandleCommunitiesGet,
-  useReadUserProfileApiV1UsersHandleProfileGet,
-  useSearchUsersApiV1CGuildIdUsersSearchGet,
+  deleteOwnAccount,
+  exportUsersCsv,
+  getListDecorationPacksQueryKey,
+  getListMyDecorationsQueryKey,
+  getListRosterQueryKey,
+  getListUsersQueryKey,
+  installDecorationPack,
+  listRoster,
+  listUsers,
+  removeDecorationPack,
+  updateMe,
+  useListDecorationPacks,
+  useListMyDecorations,
+  useReadUserCommunities,
+  useReadUserProfile,
+  useSearchUsers,
 } from "@/api/generated/users/users";
 import { invalidate, q } from "@/api/query-keys";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
@@ -55,13 +55,13 @@ import type { QueryOpts } from "@/types/query";
  * instead: the same people, as the slimmer {@link UserSummary}.
  */
 export const useUsers = (
-  params: ListUsersApiV1CGuildIdUsersGetParams,
+  params: ListUsersParams,
   options?: QueryOpts<UserCommunityMemberListResponse>
 ) => {
   const guildId = useActiveGuildId();
   return useQuery<UserCommunityMemberListResponse>({
-    queryKey: getListUsersApiV1CGuildIdUsersGetQueryKey(guildId, params),
-    queryFn: () => listUsersApiV1CGuildIdUsersGet(guildId, params),
+    queryKey: getListUsersQueryKey(guildId, params),
+    queryFn: () => listUsers(guildId, params),
     // Keep the page on screen while the next one (or the next search) loads.
     placeholderData: keepPreviousData,
     ...options,
@@ -80,9 +80,9 @@ const ROSTER_PAGE_SIZE = 50;
 export const useGuildRoster = () => {
   const guildId = useActiveGuildId();
   return useInfiniteQuery({
-    queryKey: getListRosterApiV1CGuildIdUsersRosterGetQueryKey(guildId),
+    queryKey: getListRosterQueryKey(guildId),
     queryFn: ({ pageParam }) =>
-      listRosterApiV1CGuildIdUsersRosterGet(guildId, {
+      listRoster(guildId, {
         page: pageParam,
         page_size: ROSTER_PAGE_SIZE,
       }),
@@ -148,12 +148,12 @@ const memberSearchParams = (search: string | undefined, userIds: number[] | unde
  * more slowly than a status or a presence dot, so it is held longer.
  */
 export const useUserCommunities = (handle: string | null | undefined) =>
-  useReadUserCommunitiesApiV1UsersHandleCommunitiesGet(handle as string, {
+  useReadUserCommunities(handle as string, {
     query: { enabled: Boolean(handle), staleTime: 5 * 60_000 },
   });
 
 export const useUserProfile = (handle: string | null | undefined) =>
-  useReadUserProfileApiV1UsersHandleProfileGet(handle as string, {
+  useReadUserProfile(handle as string, {
     query: {
       enabled: Boolean(handle),
       // A profile changes without the reader doing anything — the subject
@@ -173,7 +173,7 @@ export const useUserProfile = (handle: string | null | undefined) =>
  * give back a pack, so it is held until a mutation says otherwise.
  */
 export const useDecorationPacks = () =>
-  useListDecorationPacksApiV1MeDecorationPacksGet({
+  useListDecorationPacks({
     query: { staleTime: 5 * 60_000 },
   });
 
@@ -189,10 +189,10 @@ const useDecorationPackMutation = (
       mutationFn: run,
       invalidate: () => {
         void queryClient.invalidateQueries({
-          queryKey: getListDecorationPacksApiV1MeDecorationPacksGetQueryKey(),
+          queryKey: getListDecorationPacksQueryKey(),
         });
         void queryClient.invalidateQueries({
-          queryKey: getListMyDecorationsApiV1MeDecorationsGetQueryKey(),
+          queryKey: getListMyDecorationsQueryKey(),
         });
         // Giving a pack back can take pieces off the profile server-side, so
         // the account the form reads from has changed too.
@@ -204,16 +204,10 @@ const useDecorationPackMutation = (
 };
 
 export const useInstallDecorationPack = (options?: MutationOpts<unknown, string>) =>
-  useDecorationPackMutation(
-    (packId) => installDecorationPackApiV1MeDecorationPacksUidPost(packId),
-    options
-  );
+  useDecorationPackMutation((packId) => installDecorationPack(packId), options);
 
 export const useRemoveDecorationPack = (options?: MutationOpts<unknown, string>) =>
-  useDecorationPackMutation(
-    (packId) => removeDecorationPackApiV1MeDecorationPacksUidDelete(packId),
-    options
-  );
+  useDecorationPackMutation((packId) => removeDecorationPack(packId), options);
 
 /**
  * What the signed-in account may dress its profile in — what ships with the
@@ -221,7 +215,7 @@ export const useRemoveDecorationPack = (options?: MutationOpts<unknown, string>)
  * a library changes only when a pack is installed, so it is held a good while.
  */
 export const useMyDecorations = () =>
-  useListMyDecorationsApiV1MeDecorationsGet({
+  useListMyDecorations({
     query: { staleTime: 5 * 60_000 },
   });
 
@@ -243,7 +237,7 @@ export const useUserSearch = ({
 }: UserSearchOptions = {}) => {
   const activeGuildId = useActiveGuildId();
   const guildId = guildIdOverride ?? activeGuildId;
-  return useSearchUsersApiV1CGuildIdUsersSearchGet(
+  return useSearchUsers(
     guildId,
     {
       ...memberSearchParams(search, userIds),
@@ -281,7 +275,7 @@ export const useInitiativeMemberSearch = (
 ) => {
   const activeGuildId = useActiveGuildId();
   const guildId = guildIdOverride ?? activeGuildId;
-  return useSearchInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembersSearchGet(
+  return useSearchInitiativeMembers(
     guildId,
     initiativeId as number,
     {
@@ -345,12 +339,12 @@ export type { UserSummary };
 
 // ── Mutations ───────────────────────────────────────────────────────────────
 
-type UpdateCurrentUserVars = Parameters<typeof updateMeApiV1MePatch>[0];
+type UpdateCurrentUserVars = Parameters<typeof updateMe>[0];
 
 export const useUpdateCurrentUser = (options?: MutationOpts<UserRead, UpdateCurrentUserVars>) =>
   useApiMutation<UserRead, UpdateCurrentUserVars>(
     {
-      mutationFn: (data) => updateMeApiV1MePatch(data),
+      mutationFn: (data) => updateMe(data),
       invalidate: () => invalidate(q.currentUser()),
     },
     options
@@ -361,7 +355,7 @@ export const useDeleteOwnAccount = (
 ) =>
   useApiMutation<AccountDeletionResponse, AccountDeletionRequest>(
     {
-      mutationFn: (data) => deleteOwnAccountApiV1MeDeleteAccountPost(data),
+      mutationFn: (data) => deleteOwnAccount(data),
     },
     options
   );
@@ -372,9 +366,9 @@ export const useUpdateGuildMembership = (options?: MutationOpts<void, UpdateGuil
   useApiMutation<void, UpdateGuildMembershipVars>(
     {
       mutationFn: (data) =>
-        updateGuildMembershipApiV1CommunitiesGuildIdMembersUserIdPatch(data.guildId, data.userId, {
+        updateCommunityMembership(data.guildId, data.userId, {
           role: data.role,
-        } as Parameters<typeof updateGuildMembershipApiV1CommunitiesGuildIdMembersUserIdPatch>[2]),
+        } as Parameters<typeof updateCommunityMembership>[2]),
       invalidate: () => invalidate(q.guildMembers()),
     },
     options
@@ -394,12 +388,8 @@ export const useSetMemberDisplayName = (options?: MutationOpts<void, SetDisplayN
       mutationFn: async ({ guildId, userId, displayName }) => {
         const body = { display_name: displayName };
         await (userId === undefined
-          ? setOwnDisplayNameApiV1CommunitiesGuildIdMembershipDisplayNamePut(guildId, body)
-          : setMemberDisplayNameApiV1CommunitiesGuildIdMembersUserIdDisplayNamePut(
-              guildId,
-              userId,
-              body
-            ));
+          ? setOwnDisplayName(guildId, body)
+          : setMemberDisplayName(guildId, userId, body));
       },
       invalidate: () => invalidate(q.guildContent(), q.guildMembers(), q.contacts(), q.allGuilds()),
     },
@@ -407,7 +397,7 @@ export const useSetMemberDisplayName = (options?: MutationOpts<void, SetDisplayN
   );
 
 type ExportGuildUsersVars = {
-  params: ExportUsersCsvApiV1CGuildIdUsersExportCsvGetParams;
+  params: ExportUsersCsvParams;
   filename: string;
 };
 
@@ -416,7 +406,7 @@ export const useExportGuildUsersCsv = (options?: MutationOpts<void, ExportGuildU
   useGuildMutation<void, ExportGuildUsersVars>(
     {
       mutationFn: async (guildId, { params, filename }) => {
-        const blob = (await exportUsersCsvApiV1CGuildIdUsersExportCsvGet(guildId, params, {
+        const blob = (await exportUsersCsv(guildId, params, {
           responseType: "blob",
           // FastAPI expects ?user_id=1&user_id=2; axios's default `[]` suffix gets ignored.
           paramsSerializer: { indexes: null },
@@ -433,7 +423,7 @@ export const useUpdateNotificationPreferences = (
   useApiMutation<void, Record<string, boolean | string | number | null>>(
     {
       mutationFn: async (data) => {
-        await updateMeApiV1MePatch(data as Parameters<typeof updateMeApiV1MePatch>[0]);
+        await updateMe(data as Parameters<typeof updateMe>[0]);
       },
       invalidate: () => invalidate(q.currentUser()),
     },

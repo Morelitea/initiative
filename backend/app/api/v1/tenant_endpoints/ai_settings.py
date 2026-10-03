@@ -1,4 +1,4 @@
-"""Guild-scoped AI config endpoints, mounted under ``/c/{guild_id}/settings``.
+"""Guild-scoped AI config endpoints, mounted under ``/c/{community_id}/settings``.
 
 Two surfaces:
 - **Guild admin** — CRUD of ``guild_ai_connections`` (used when the global mode
@@ -58,7 +58,7 @@ GuildMemberContext = Annotated[GuildContext, Depends(get_guild_membership)]
 
 # --- Guild connections (guild admin — guild config mode) ---------------------
 @router.get("/ai/connections", response_model=list[AIConnectionResponse])
-async def list_guild_connections(
+async def list_community_connections(
     session: SettingsRLSSessionDep,
     _ctx: GuildSeatContext,
 ) -> list[AIConnectionResponse]:
@@ -66,7 +66,7 @@ async def list_guild_connections(
 
 
 @router.post("/ai/connections", response_model=AIConnectionResponse)
-async def create_guild_connection(
+async def create_community_connection(
     payload: AIConnectionCreate,
     session: SettingsRLSSessionDep,
     ctx: GuildSeatWriteContext,
@@ -78,7 +78,7 @@ async def create_guild_connection(
 
 
 @router.put("/ai/connections/{connection_id}", response_model=AIConnectionResponse)
-async def update_guild_connection(
+async def update_community_connection(
     connection_id: int,
     payload: AIConnectionUpdate,
     session: SettingsRLSSessionDep,
@@ -93,7 +93,7 @@ async def update_guild_connection(
 @router.delete(
     "/ai/connections/{connection_id}", status_code=status.HTTP_204_NO_CONTENT
 )
-async def delete_guild_connection(
+async def delete_community_connection(
     connection_id: int,
     session: SettingsRLSSessionDep,
     _ctx: GuildSeatWriteContext,
@@ -107,7 +107,7 @@ async def delete_guild_connection(
 @router.post(
     "/ai/connections/{connection_id}/test", response_model=AIConnectionTestResponse
 )
-async def test_guild_connection(
+async def test_community_connection(
     connection_id: int,
     session: SettingsRLSSessionDep,
     _ctx: GuildSeatContext,
@@ -116,7 +116,7 @@ async def test_guild_connection(
 
 
 @router.post("/ai/connections/{connection_id}/models", response_model=AIModelsResponse)
-async def fetch_guild_connection_models(
+async def fetch_community_connection_models(
     connection_id: int,
     session: SettingsRLSSessionDep,
     _ctx: GuildSeatContext,

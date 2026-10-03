@@ -3,12 +3,12 @@ import { type FormEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
-  getReadSecondFactorApiV1AuthTotpGetQueryKey,
-  useBeginSecondFactorApiV1AuthTotpEnrollPost,
-  useConfirmSecondFactorApiV1AuthTotpConfirmPost,
-  useDisableSecondFactorApiV1AuthTotpDisablePost,
-  useReadSecondFactorApiV1AuthTotpGet,
-  useRegenerateRecoveryCodesApiV1AuthRecoveryCodesRegeneratePost,
+  getReadSecondFactorQueryKey,
+  useBeginSecondFactor,
+  useConfirmSecondFactor,
+  useDisableSecondFactor,
+  useReadSecondFactor,
+  useRegenerateRecoveryCodes,
 } from "@/api/generated/auth/auth";
 import { RecoveryCodesPanel } from "@/components/settings/RecoveryCodesPanel";
 import { Badge } from "@/components/ui/badge";
@@ -52,9 +52,9 @@ type Errand = "enrol" | "regenerate";
  */
 export const TwoFactorSection = () => {
   const { t } = useTranslation(["settings", "errors"]);
-  const status = useReadSecondFactorApiV1AuthTotpGet();
+  const status = useReadSecondFactor();
   const refreshStatus = () =>
-    queryClient.invalidateQueries({ queryKey: getReadSecondFactorApiV1AuthTotpGetQueryKey() });
+    queryClient.invalidateQueries({ queryKey: getReadSecondFactorQueryKey() });
 
   const [enrolOpen, setEnrolOpen] = useState(false);
   const { step, commit, reset } = useWizard<EnrolStep>("password");
@@ -84,7 +84,7 @@ export const TwoFactorSection = () => {
     setError(null);
   };
 
-  const begin = useBeginSecondFactorApiV1AuthTotpEnrollPost({
+  const begin = useBeginSecondFactor({
     mutation: {
       onSuccess: (data) => {
         setSecret(data.secret);
@@ -96,7 +96,7 @@ export const TwoFactorSection = () => {
     },
   });
 
-  const confirm = useConfirmSecondFactorApiV1AuthTotpConfirmPost({
+  const confirm = useConfirmSecondFactor({
     mutation: {
       onSuccess: (data) => {
         setCodes(data.codes);
@@ -111,7 +111,7 @@ export const TwoFactorSection = () => {
     },
   });
 
-  const regenerate = useRegenerateRecoveryCodesApiV1AuthRecoveryCodesRegeneratePost({
+  const regenerate = useRegenerateRecoveryCodes({
     mutation: {
       onSuccess: (data) => {
         setCodes(data.codes);
@@ -130,7 +130,7 @@ export const TwoFactorSection = () => {
     },
   });
 
-  const disable = useDisableSecondFactorApiV1AuthTotpDisablePost({
+  const disable = useDisableSecondFactor({
     mutation: {
       onSuccess: () => {
         toast.success(t("twoFactor.turnedOff"));

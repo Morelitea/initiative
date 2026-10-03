@@ -9,7 +9,7 @@ that guild's routed context, and merges by ``last_viewed_at``. Opening a tab
 navigates into the entity's guild (which sets the server-held context) before
 any content is fetched.
 
-Opening and closing a tab are guild-addressed (``/c/{guild_id}/recents/…``):
+Opening and closing a tab are guild-addressed (``/c/{community_id}/recents/…``):
 per-schema ids are only unique within a guild.
 """
 
@@ -43,7 +43,7 @@ from app.services.tenant.recent_views import RecentEntityType
 
 router = APIRouter()
 # Guild-scoped sub-router: opening and closing a tab mount under
-# /c/{guild_id}/recents. The cross-guild tabs-bar list stays on the top-level
+# /c/{community_id}/recents. The cross-guild tabs-bar list stays on the top-level
 # router above — fully separate endpoints.
 guild_router = APIRouter()
 
@@ -235,7 +235,7 @@ async def clear_recent(
 ) -> None:
     """Close a tab: delete the caller's own recent-view row.
 
-    Guild-scoped — mounted under /c/{guild_id}/recents because a tab can belong
+    Guild-scoped — mounted under /c/{community_id}/recents because a tab can belong
     to any of the user's guilds and per-schema ids are only unique within a
     guild. Idempotent.
     """

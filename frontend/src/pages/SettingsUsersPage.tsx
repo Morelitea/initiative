@@ -5,9 +5,9 @@ import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react
 import { useTranslation } from "react-i18next";
 
 import {
-  createGuildInviteApiV1CommunitiesGuildIdInvitesPost,
-  deleteGuildInviteApiV1CommunitiesGuildIdInvitesInviteIdDelete,
-  listGuildInvitesApiV1CommunitiesGuildIdInvitesGet,
+  createCommunityInvite,
+  deleteCommunityInvite,
+  listCommunityInvites,
 } from "@/api/generated/communities/communities";
 import type {
   CommunityInviteRead,
@@ -135,9 +135,9 @@ export const SettingsUsersPage = () => {
     setInvitesLoading(true);
     setInvitesError(null);
     try {
-      const data = await (listGuildInvitesApiV1CommunitiesGuildIdInvitesGet(
-        activeGuildId
-      ) as unknown as Promise<CommunityInviteRead[]>);
+      const data = await (listCommunityInvites(activeGuildId) as unknown as Promise<
+        CommunityInviteRead[]
+      >);
       setInvites(data);
     } catch (error) {
       console.error("Failed to load invites", error);
@@ -361,9 +361,9 @@ export const SettingsUsersPage = () => {
         max_uses: inviteMaxUses > 0 ? inviteMaxUses : null,
         expires_at: expiresAt,
       };
-      await createGuildInviteApiV1CommunitiesGuildIdInvitesPost(
+      await createCommunityInvite(
         activeGuildId,
-        payload as Parameters<typeof createGuildInviteApiV1CommunitiesGuildIdInvitesPost>[1]
+        payload as Parameters<typeof createCommunityInvite>[1]
       );
       await loadInvites();
     } catch (error) {
@@ -379,7 +379,7 @@ export const SettingsUsersPage = () => {
       return;
     }
     try {
-      await deleteGuildInviteApiV1CommunitiesGuildIdInvitesInviteIdDelete(activeGuildId, inviteId);
+      await deleteCommunityInvite(activeGuildId, inviteId);
       await loadInvites();
     } catch (error) {
       console.error(error);

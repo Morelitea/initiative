@@ -22,7 +22,7 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 /**
  * @summary Record Page View
  */
-export const recordPageViewApiV1PageViewsPost = (
+export const recordPageView = (
   pageView: BodyType<PageView>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
@@ -39,27 +39,26 @@ export const recordPageViewApiV1PageViewsPost = (
   );
 };
 
-export const getRecordPageViewApiV1PageViewsPostMutationKey = () =>
-  ["recordPageViewApiV1PageViewsPost"] as const;
+export const getRecordPageViewMutationKey = () => ["recordPageView"] as const;
 
-export const getRecordPageViewApiV1PageViewsPostMutationOptions = <
+export const getRecordPageViewMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof recordPageViewApiV1PageViewsPost>>,
+    Awaited<ReturnType<typeof recordPageView>>,
     TError,
-    RecordPageViewApiV1PageViewsPostMutationVariables,
+    RecordPageViewMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof recordPageViewApiV1PageViewsPost>>,
+  Awaited<ReturnType<typeof recordPageView>>,
   TError,
-  RecordPageViewApiV1PageViewsPostMutationVariables,
+  RecordPageViewMutationVariables,
   TContext
 > => {
-  const mutationKey = getRecordPageViewApiV1PageViewsPostMutationKey();
+  const mutationKey = getRecordPageViewMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -67,46 +66,41 @@ export const getRecordPageViewApiV1PageViewsPostMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof recordPageViewApiV1PageViewsPost>>,
-    RecordPageViewApiV1PageViewsPostMutationVariables
+    Awaited<ReturnType<typeof recordPageView>>,
+    RecordPageViewMutationVariables
   > = (props) => {
     const { data } = props ?? {};
 
-    return recordPageViewApiV1PageViewsPost(data, requestOptions);
+    return recordPageView(data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type RecordPageViewApiV1PageViewsPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof recordPageViewApiV1PageViewsPost>>
->;
-export type RecordPageViewApiV1PageViewsPostMutationBody = BodyType<PageView>;
-export type RecordPageViewApiV1PageViewsPostMutationError = ErrorType<HTTPValidationError>;
-export type RecordPageViewApiV1PageViewsPostMutationVariables = { data: BodyType<PageView> };
+export type RecordPageViewMutationResult = NonNullable<Awaited<ReturnType<typeof recordPageView>>>;
+export type RecordPageViewMutationBody = BodyType<PageView>;
+export type RecordPageViewMutationError = ErrorType<HTTPValidationError>;
+export type RecordPageViewMutationVariables = { data: BodyType<PageView> };
 
 /**
  * @summary Record Page View
  */
-export const useRecordPageViewApiV1PageViewsPost = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
+export const useRecordPageView = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof recordPageViewApiV1PageViewsPost>>,
+      Awaited<ReturnType<typeof recordPageView>>,
       TError,
-      RecordPageViewApiV1PageViewsPostMutationVariables,
+      RecordPageViewMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof recordPageViewApiV1PageViewsPost>>,
+  Awaited<ReturnType<typeof recordPageView>>,
   TError,
-  RecordPageViewApiV1PageViewsPostMutationVariables,
+  RecordPageViewMutationVariables,
   TContext
 > => {
-  return useMutation(getRecordPageViewApiV1PageViewsPostMutationOptions(options), queryClient);
+  return useMutation(getRecordPageViewMutationOptions(options), queryClient);
 };

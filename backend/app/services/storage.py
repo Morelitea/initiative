@@ -10,7 +10,7 @@ the stored filename — a UUID-hex basename). Tenancy is owned by the **resolver
 (:func:`get_guild_storage`), the storage twin of ``set_rls_context``: it hands
 back a backend whose keys are namespaced to the guild (``guild_<id>/`` for S3 —
 the object-store expression of the schema-per-guild boundary; design §6). Callers still pass the flat
-filename and own the ``/uploads/{guild_id}/{filename}`` URL scheme.
+filename and own the ``/uploads/{community_id}/{filename}`` URL scheme.
 
 Phases delivered here:
 - ``LocalFilesystemStorage`` — files under ``UPLOADS_DIR/guild_<id>/`` (same

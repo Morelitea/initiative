@@ -16,12 +16,12 @@ So a subscription is the community's integration configuration rather than the
 personal property of whoever registered it, and it outlives their membership,
 their role and their account.
 
-  POST   /api/v1/c/{guild_id}/webhooks/subscriptions
+  POST   /api/v1/c/{community_id}/webhooks/subscriptions
     body: {target_url, event_types, fields?, initiative_id?}
     → returns subscription + plaintext hmac_secret (one-time)
-  GET    /api/v1/c/{guild_id}/webhooks/subscriptions
-  PATCH  /api/v1/c/{guild_id}/webhooks/subscriptions/{id}
-  DELETE /api/v1/c/{guild_id}/webhooks/subscriptions/{id}
+  GET    /api/v1/c/{community_id}/webhooks/subscriptions
+  PATCH  /api/v1/c/{community_id}/webhooks/subscriptions/{id}
+  DELETE /api/v1/c/{community_id}/webhooks/subscriptions/{id}
 
 Every read includes ``dead_letter_count`` — how many of the poller's ledger
 rows for that subscription (``app.services.tenant.outbox_poller``) gave up

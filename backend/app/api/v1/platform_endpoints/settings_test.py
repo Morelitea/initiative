@@ -1102,7 +1102,7 @@ async def test_a_zero_hour_limit_is_refused(client: AsyncClient, owner):
 _CONFIG_MANAGE = "config.manage"  # owner only
 _GUILDS_MANAGE = "guilds.manage"  # operator and owner
 
-#: (capability, method, path — ``{guild_id}`` is filled in, json body or None)
+#: (capability, method, path — ``{community_id}`` is filled in, json body or None)
 _ROUTES: list[tuple[str, str, str, dict | None]] = [
     (_CONFIG_MANAGE, "get", "/api/v1/settings/storage", None),
     (_CONFIG_MANAGE, "put", "/api/v1/settings/storage", {"backend": "local"}),
@@ -1122,9 +1122,9 @@ _ROUTES: list[tuple[str, str, str, dict | None]] = [
         {"session_max_hours": 12},
     ),
     (_GUILDS_MANAGE, "get", GUILDS, None),
-    (_GUILDS_MANAGE, "patch", GUILDS + "/{guild_id}", {"max_storage_bytes": 1024}),
-    (_GUILDS_MANAGE, "patch", GUILDS + "/{guild_id}", {"status": "suspended"}),
-    (_GUILDS_MANAGE, "post", GUILDS + "/{guild_id}/billing/service-handoff", None),
+    (_GUILDS_MANAGE, "patch", GUILDS + "/{community_id}", {"max_storage_bytes": 1024}),
+    (_GUILDS_MANAGE, "patch", GUILDS + "/{community_id}", {"status": "suspended"}),
+    (_GUILDS_MANAGE, "post", GUILDS + "/{community_id}/billing/service-handoff", None),
 ]
 
 #: The tiers each capability sits above.
@@ -1161,7 +1161,7 @@ async def test_a_tier_below_the_bar_reaches_none_of_its_routes(
         if gate != capability:
             continue
         resp = await getattr(client, method)(
-            path.format(guild_id=a.guild.id),
+            path.format(community_id=a.guild.id),
             headers=a.headers,
             **({"json": body} if body is not None else {}),
         )
@@ -1187,7 +1187,7 @@ async def test_every_route_needs_an_account(
     """Unauthenticated callers are rejected outright (401), never reaching the
     system-engine handlers."""
     resp = await getattr(client, method)(
-        path.format(guild_id=1), **({"json": body} if body is not None else {})
+        path.format(community_id=1), **({"json": body} if body is not None else {})
     )
 
     assert resp.status_code == 401, f"{method.upper()} {path}: {resp.status_code}"

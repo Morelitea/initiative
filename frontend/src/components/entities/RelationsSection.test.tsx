@@ -65,7 +65,7 @@ vi.mock("sigma/rendering", () => ({ drawDiscNodeLabel: () => {} }));
 const uploadDocumentFile = vi.hoisted(() => vi.fn());
 vi.mock("@/api/generated/documents/documents", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/api/generated/documents/documents")>()),
-  uploadDocumentFileApiV1CGuildIdDocumentsUploadPost: uploadDocumentFile,
+  uploadDocumentFile: uploadDocumentFile,
 }));
 
 import { RelationsSection } from "./RelationsSection";

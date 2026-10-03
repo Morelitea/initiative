@@ -4,7 +4,7 @@ import { ExternalLink, Loader2 } from "lucide-react";
 import { type ComponentType, lazy, useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { importSpreadsheetFileApiV1CGuildIdDocumentsDocumentIdSpreadsheetImportPost } from "@/api/generated/documents/documents";
+import { importSpreadsheetFile } from "@/api/generated/documents/documents";
 import type { DocumentRead, DocumentType } from "@/api/generated/initiativeAPI.schemas";
 import { SearchEntityType, Tool } from "@/api/generated/initiativeAPI.schemas";
 import type { SmartLinkContent } from "@/components/documents/SmartLinkDocumentViewer";
@@ -274,12 +274,7 @@ const SpreadsheetBody = ({
   const importSheets = useCallback(
     async (file: File) => {
       if (!activeGuildId) return [];
-      const result =
-        await importSpreadsheetFileApiV1CGuildIdDocumentsDocumentIdSpreadsheetImportPost(
-          activeGuildId,
-          document.id,
-          { file }
-        );
+      const result = await importSpreadsheetFile(activeGuildId, document.id, { file });
       return result.sheets as unknown as SpreadsheetSheetContent[];
     },
     [activeGuildId, document.id]

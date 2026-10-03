@@ -36,27 +36,24 @@ const api = vi.hoisted(() => ({
 }));
 
 vi.mock("@/api/generated/direct-messages/direct-messages", () => ({
-  listDevicesApiV1MeDmDevicesGet: () => api.listDevices(),
-  readDirectoryApiV1UsersUserIdDmDevicesGet: (userId: number) => api.readDirectory(userId),
-  claimSessionKeysApiV1UsersUserIdDmSessionKeysPost: (userId: number, body: unknown) =>
-    api.claimSessionKeys(userId, body),
-  claimOwnSessionKeysApiV1MeDmSessionKeysPost: (body: unknown) => api.claimOwnSessionKeys(body),
-  sendMessagesApiV1MeDmConversationsConversationIdMessagesPost: (id: string, body: DmSendRequest) =>
-    api.sendMessages(id, body),
-  collectQueueApiV1MeDmQueueGet: (params: unknown) => api.collectQueue(params),
-  acknowledgeQueueApiV1MeDmQueueAckPost: (body: unknown) => api.ackQueue(body),
-  listConversationsApiV1MeDmConversationsGet: () => api.listConversations(),
-  registerDeviceApiV1MeDmDevicesPost: (body: unknown) => api.registerDevice(body),
-  removeDeviceApiV1MeDmDevicesDeviceIdDelete: (id: string) => api.removeDevice(id),
-  topUpKeysApiV1MeDmOneTimeKeysPost: (body: unknown) => api.topUpKeys(body),
-  signDeviceApiV1MeDmDevicesDeviceIdSignaturePut: (id: string, body: unknown) =>
-    api.signDevice(id, body),
-  sendVerificationApiV1MeDmVerificationPost: (body: unknown) => api.sendVerification(body),
-  collectVerificationApiV1MeDmVerificationGet: (params: unknown) => api.collectVerification(params),
+  listDevices: () => api.listDevices(),
+  readDirectory: (userId: number) => api.readDirectory(userId),
+  claimSessionKeys: (userId: number, body: unknown) => api.claimSessionKeys(userId, body),
+  claimOwnSessionKeys: (body: unknown) => api.claimOwnSessionKeys(body),
+  sendMessages: (id: string, body: DmSendRequest) => api.sendMessages(id, body),
+  collectQueue: (params: unknown) => api.collectQueue(params),
+  acknowledgeQueue: (body: unknown) => api.ackQueue(body),
+  listConversations: () => api.listConversations(),
+  registerDevice: (body: unknown) => api.registerDevice(body),
+  removeDevice: (id: string) => api.removeDevice(id),
+  topUpKeys: (body: unknown) => api.topUpKeys(body),
+  signDevice: (id: string, body: unknown) => api.signDevice(id, body),
+  sendVerification: (body: unknown) => api.sendVerification(body),
+  collectVerification: (params: unknown) => api.collectVerification(params),
 }));
 
 vi.mock("@/api/generated/users/users", () => ({
-  readMeApiV1MeGet: () => api.readMe(),
+  readMe: () => api.readMe(),
 }));
 
 /**

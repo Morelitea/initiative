@@ -6,11 +6,11 @@ import type {
   VerificationSendResponse,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
-  addMyAddressApiV1MeEmailsPost,
-  getListMyAddressesApiV1MeEmailsGetQueryKey,
-  listMyAddressesApiV1MeEmailsGet,
-  makeMyAddressPrimaryApiV1MeEmailsAddressIdPrimaryPut,
-  removeMyAddressApiV1MeEmailsAddressIdDelete,
+  addMyAddress,
+  getListMyAddressesQueryKey,
+  listMyAddresses,
+  makeMyAddressPrimary,
+  removeMyAddress,
 } from "@/api/generated/users/users";
 import { useApiMutation } from "@/hooks/useApiMutation";
 import { queryClient } from "@/lib/queryClient";
@@ -18,7 +18,7 @@ import type { MutationOpts } from "@/types/mutation";
 
 // ── Query Keys ──────────────────────────────────────────────────────────────
 
-export const ADDRESSES_QUERY_KEY = getListMyAddressesApiV1MeEmailsGetQueryKey();
+export const ADDRESSES_QUERY_KEY = getListMyAddressesQueryKey();
 
 const refresh = () => queryClient.invalidateQueries({ queryKey: ADDRESSES_QUERY_KEY });
 
@@ -28,7 +28,7 @@ const refresh = () => queryClient.invalidateQueries({ queryKey: ADDRESSES_QUERY_
 export const useMyAddresses = () =>
   useQuery<UserEmailListResponse>({
     queryKey: ADDRESSES_QUERY_KEY,
-    queryFn: () => listMyAddressesApiV1MeEmailsGet(),
+    queryFn: () => listMyAddresses(),
   });
 
 // ── Mutations ───────────────────────────────────────────────────────────────
@@ -43,7 +43,7 @@ export const useMyAddresses = () =>
 export const useAddAddress = (options?: MutationOpts<VerificationSendResponse, string>) =>
   useApiMutation<VerificationSendResponse, string>(
     {
-      mutationFn: (email) => addMyAddressApiV1MeEmailsPost({ email }),
+      mutationFn: (email) => addMyAddress({ email }),
       invalidate: refresh,
     },
     options
@@ -52,7 +52,7 @@ export const useAddAddress = (options?: MutationOpts<VerificationSendResponse, s
 export const useRemoveAddress = (options?: MutationOpts<void, number>) =>
   useApiMutation<void, number>(
     {
-      mutationFn: (addressId) => removeMyAddressApiV1MeEmailsAddressIdDelete(addressId),
+      mutationFn: (addressId) => removeMyAddress(addressId),
       invalidate: refresh,
     },
     options
@@ -61,7 +61,7 @@ export const useRemoveAddress = (options?: MutationOpts<void, number>) =>
 export const useMakeAddressPrimary = (options?: MutationOpts<UserEmailRead, number>) =>
   useApiMutation<UserEmailRead, number>(
     {
-      mutationFn: (addressId) => makeMyAddressPrimaryApiV1MeEmailsAddressIdPrimaryPut(addressId),
+      mutationFn: (addressId) => makeMyAddressPrimary(addressId),
       invalidate: refresh,
     },
     options

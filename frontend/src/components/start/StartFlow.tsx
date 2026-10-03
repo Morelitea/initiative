@@ -20,8 +20,8 @@ import { Loader2 } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { useBootstrapStatusApiV1AuthBootstrapGet } from "@/api/generated/auth/auth";
-import { getInviteStatusApiV1CommunitiesInviteCodeGet } from "@/api/generated/communities/communities";
+import { useBootstrapStatus } from "@/api/generated/auth/auth";
+import { getInviteStatus } from "@/api/generated/communities/communities";
 import type { CommunityInviteStatus, CommunityRead } from "@/api/generated/initiativeAPI.schemas";
 import { EmailOtpCard } from "@/components/auth/EmailOtpCard";
 import { SignInFrame } from "@/components/auth/SignInFrame";
@@ -101,7 +101,7 @@ export const StartFlow = (props: StartFlowProps) => {
   const { signedIn = false } = props;
   const { isLoading, communityDirectoryEnabled } = useAppConfig();
   const { canCreateGuilds } = useGuilds();
-  const bootstrap = useBootstrapStatusApiV1AuthBootstrapGet({
+  const bootstrap = useBootstrapStatus({
     query: { enabled: !signedIn, retry: false },
   });
 
@@ -242,7 +242,7 @@ const StartSteps = ({
   const checkInvite = async (code: string): Promise<boolean> => {
     setInvite({ code, status: null, error: null, checking: true });
     try {
-      const status = await getInviteStatusApiV1CommunitiesInviteCodeGet(encodeURIComponent(code));
+      const status = await getInviteStatus(encodeURIComponent(code));
       setInvite({
         code,
         status,

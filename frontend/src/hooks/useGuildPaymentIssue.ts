@@ -1,8 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 
 import {
-  getReadGuildPaymentIssueApiV1CommunitiesGuildIdBillingPaymentIssueGetQueryKey,
-  readGuildPaymentIssueApiV1CommunitiesGuildIdBillingPaymentIssueGet,
+  getReadCommunityPaymentIssueQueryKey,
+  readCommunityPaymentIssue,
 } from "@/api/generated/communities/communities";
 import type { CommunityPaymentIssueRead } from "@/api/generated/initiativeAPI.schemas";
 import type { QueryOpts } from "@/types/query";
@@ -12,9 +12,8 @@ export const useGuildPaymentIssue = (
   options?: QueryOpts<CommunityPaymentIssueRead>
 ) =>
   useQuery<CommunityPaymentIssueRead>({
-    queryKey:
-      getReadGuildPaymentIssueApiV1CommunitiesGuildIdBillingPaymentIssueGetQueryKey(guildId),
-    queryFn: () => readGuildPaymentIssueApiV1CommunitiesGuildIdBillingPaymentIssueGet(guildId),
+    queryKey: getReadCommunityPaymentIssueQueryKey(guildId),
+    queryFn: () => readCommunityPaymentIssue(guildId),
     retry: false,
     staleTime: 60_000,
     ...options,

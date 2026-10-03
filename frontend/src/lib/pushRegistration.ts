@@ -1,6 +1,6 @@
 import {
-  registerPushTokenApiV1PushRegisterPost,
-  unregisterPushTokenApiV1PushUnregisterDelete,
+  registerPushToken as registerPushTokenRequest,
+  unregisterPushToken,
 } from "@/api/generated/push/push";
 
 /** The push tokens this device registered in this run, for sign-out to withdraw. */
@@ -8,7 +8,7 @@ const registered = new Set<string>();
 
 /** Register this device's push token for the signed-in account. */
 export const registerPushToken = async (token: string, platform: string): Promise<void> => {
-  await registerPushTokenApiV1PushRegisterPost({ push_token: token, platform });
+  await registerPushTokenRequest({ push_token: token, platform });
   registered.add(token);
 };
 
@@ -20,7 +20,5 @@ export const registerPushToken = async (token: string, platform: string): Promis
 export const forgetPushOnThisDevice = async (): Promise<void> => {
   const tokens = [...registered];
   registered.clear();
-  await Promise.all(
-    tokens.map((token) => unregisterPushTokenApiV1PushUnregisterDelete({ push_token: token }))
-  );
+  await Promise.all(tokens.map((token) => unregisterPushToken({ push_token: token })));
 };

@@ -19,6 +19,7 @@ from fastapi import (
 )
 
 from app.api.deps import (
+    CommunityIdPath,
     CurrentUser,
     SessionDep,
     establish_guild_access,
@@ -67,7 +68,7 @@ MSG_CONTENT = 6  # Editor's JSON rendering of the document, for the content colu
 @router.websocket("/documents/{document_id}/collaborate")
 async def websocket_collaborate_document(
     websocket: WebSocket,
-    guild_id: int,
+    guild_id: CommunityIdPath,
     document_id: int,
 ):
     """Live editing of a document's body."""
@@ -79,7 +80,7 @@ async def websocket_collaborate_document(
 @router.websocket("/wiki-pages/{page_id}/collaborate")
 async def websocket_collaborate_wiki_page(
     websocket: WebSocket,
-    guild_id: int,
+    guild_id: CommunityIdPath,
     page_id: int,
 ):
     """Live editing of a wiki page's body."""
@@ -154,7 +155,7 @@ async def _collaborate(
     """Live editing of one body over Yjs.
 
     Entry is ``app.api.content_socket.admit``: the first frame is ``MSG_AUTH``
-    with ``{token}``, and the guild comes from the ``/c/{guild_id}`` path. Then:
+    with ``{token}``, and the guild comes from the ``/c/{community_id}`` path. Then:
     the server asks for what the client has (``SYNC_STEP1``) and sends the
     roster; the client answers and sends its own ``SYNC_STEP1``; after that,
     ``UPDATE`` frames are applied and relayed, and binary awareness is relayed
@@ -346,7 +347,7 @@ async def _collaborate(
     "/documents/{document_id}/collaborate", status_code=status.HTTP_204_NO_CONTENT
 )
 async def hand_over_document_edits(
-    guild_id: int,
+    guild_id: CommunityIdPath,
     document_id: int,
     handover: CollaborationHandover,
     session: SessionDep,
@@ -367,7 +368,7 @@ async def hand_over_document_edits(
     "/wiki-pages/{page_id}/collaborate", status_code=status.HTTP_204_NO_CONTENT
 )
 async def hand_over_wiki_page_edits(
-    guild_id: int,
+    guild_id: CommunityIdPath,
     page_id: int,
     handover: CollaborationHandover,
     session: SessionDep,

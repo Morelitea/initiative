@@ -2,29 +2,29 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 import { useTranslation } from "react-i18next";
 
 import {
-  createDocumentApiV1CGuildIdDocumentsPost,
-  deleteDocumentApiV1CGuildIdDocumentsDocumentIdDelete,
-  deleteDocumentVersionApiV1CGuildIdDocumentsDocumentIdVersionsVersionIdDelete,
-  duplicateDocumentApiV1CGuildIdDocumentsDocumentIdDuplicatePost,
-  generateSummaryApiV1CGuildIdDocumentsDocumentIdAiSummaryPost,
-  getListDocumentVersionsApiV1CGuildIdDocumentsDocumentIdVersionsGetQueryKey,
-  getReadDocumentApiV1CGuildIdDocumentsDocumentIdGetQueryKey,
-  listDocumentVersionsApiV1CGuildIdDocumentsDocumentIdVersionsGet,
-  setDocumentGrantsApiV1CGuildIdDocumentsDocumentIdGrantsPut,
-  updateDocumentApiV1CGuildIdDocumentsDocumentIdPatch,
-  uploadDocumentFileApiV1CGuildIdDocumentsUploadPost,
-  uploadDocumentVersionApiV1CGuildIdDocumentsDocumentIdVersionsPost,
+  createDocument,
+  deleteDocument,
+  deleteDocumentVersion,
+  duplicateDocument,
+  generateSummary,
+  getListDocumentVersionsQueryKey,
+  getReadDocumentQueryKey,
+  listDocumentVersions,
+  setDocumentGrants,
+  updateDocument,
+  uploadDocumentFile,
+  uploadDocumentVersion,
 } from "@/api/generated/documents/documents";
 import type {
-  BodyUploadDocumentFileApiV1CGuildIdDocumentsUploadPost,
-  BodyUploadDocumentVersionApiV1CGuildIdDocumentsDocumentIdVersionsPost,
+  BodyUploadDocumentFile,
+  BodyUploadDocumentVersion,
   DocumentCreate,
   DocumentFileVersionRead,
   DocumentListResponse,
   DocumentRead,
   DocumentUpdate,
   GenerateDocumentSummaryResponse,
-  ListDocumentsApiV1CGuildIdDocumentsGetParams,
+  ListDocumentsParams,
   ResourceGrantSchema,
 } from "@/api/generated/initiativeAPI.schemas";
 import { SearchEntityType, Tool } from "@/api/generated/initiativeAPI.schemas";
@@ -57,7 +57,7 @@ export const useSetDocumentGrants = documents.useSetGrants;
 // ── Queries ─────────────────────────────────────────────────────────────────
 
 export const useDocumentsList = (
-  params: ListDocumentsApiV1CGuildIdDocumentsGetParams,
+  params: ListDocumentsParams,
   options?: QueryOpts<DocumentListResponse>
 ) => {
   const guildId = useActiveGuildId();
@@ -78,7 +78,7 @@ export const useSetDocumentCache = () => {
     data: DocumentRead | ((prev: DocumentRead | undefined) => DocumentRead | undefined)
   ) => {
     qc.setQueryData<DocumentRead>(
-      getReadDocumentApiV1CGuildIdDocumentsDocumentIdGetQueryKey(guildId, documentId),
+      getReadDocumentQueryKey(guildId, documentId),
       typeof data === "function" ? data : () => data
     );
   };
@@ -89,7 +89,7 @@ export const useSetDocumentCache = () => {
 export const usePrefetchDocumentsList = () => {
   const qc = useQueryClient();
   const guildId = useActiveGuildId();
-  return (params: ListDocumentsApiV1CGuildIdDocumentsGetParams) => {
+  return (params: ListDocumentsParams) => {
     // The same query the list hook runs, so the row it warms is the row that
     // hook then finds in the cache.
     return qc.prefetchQuery({
@@ -111,7 +111,7 @@ const applyDocumentGrants = async (
 ): Promise<number> => {
   if (grants.length === 0) return 0;
   try {
-    await setDocumentGrantsApiV1CGuildIdDocumentsDocumentIdGrantsPut(guildId, documentId, grants);
+    await setDocumentGrants(guildId, documentId, grants);
     return 0;
   } catch {
     return 1;
@@ -155,14 +155,10 @@ export const useCreateDocument = (options?: MutationOpts<DocumentRead, CreateDoc
 
       if (template_id) {
         // Copy from template
-        newDocument = await duplicateDocumentApiV1CGuildIdDocumentsDocumentIdDuplicatePost(
-          guildId,
-          template_id,
-          {
-            target_initiative_id: initiative_id,
-            name,
-          }
-        );
+        newDocument = await duplicateDocument(guildId, template_id, {
+          target_initiative_id: initiative_id,
+          name,
+        });
         // Template copy can't carry grants in payload — apply separately
         const failures = await applyDocumentGrants(guildId, newDocument.id, grants);
         if (failures > 0) {
@@ -178,7 +174,7 @@ export const useCreateDocument = (options?: MutationOpts<DocumentRead, CreateDoc
           ...(content ? { content } : {}),
           ...(grants.length > 0 ? { grants } : {}),
         };
-        newDocument = await createDocumentApiV1CGuildIdDocumentsPost(guildId, payload);
+        newDocument = await createDocument(guildId, payload);
       }
 
       // Auto-attach to project if specified
@@ -227,15 +223,12 @@ export const useUploadDocument = (options?: MutationOpts<DocumentRead, UploadDoc
     mutationFn: async (data: UploadDocumentInput) => {
       const { file, name, initiative_id, project_id, grants = [] } = data;
 
-      const uploadBody: BodyUploadDocumentFileApiV1CGuildIdDocumentsUploadPost = {
+      const uploadBody: BodyUploadDocumentFile = {
         file,
         name,
         initiative_id,
       };
-      const newDocument = await uploadDocumentFileApiV1CGuildIdDocumentsUploadPost(
-        guildId,
-        uploadBody
-      );
+      const newDocument = await uploadDocumentFile(guildId, uploadBody);
 
       // Upload can't carry grants in payload — apply separately
       const failures = await applyDocumentGrants(guildId, newDocument.id, grants);
@@ -279,12 +272,8 @@ export const useDocumentVersions = (
   const guildId = useActiveGuildId();
   const { enabled: userEnabled = true, ...rest } = options ?? {};
   return useQuery<DocumentFileVersionRead[]>({
-    queryKey: getListDocumentVersionsApiV1CGuildIdDocumentsDocumentIdVersionsGetQueryKey(
-      guildId,
-      documentId!
-    ),
-    queryFn: () =>
-      listDocumentVersionsApiV1CGuildIdDocumentsDocumentIdVersionsGet(guildId, documentId!),
+    queryKey: getListDocumentVersionsQueryKey(guildId, documentId!),
+    queryFn: () => listDocumentVersions(guildId, documentId!),
     enabled: documentId !== null && Number.isFinite(documentId) && userEnabled,
     ...rest,
   });
@@ -300,12 +289,8 @@ export const useUploadDocumentVersion = (
   return useMutation({
     ...rest,
     mutationFn: async ({ documentId, file }: { documentId: number; file: Blob }) => {
-      const body: BodyUploadDocumentVersionApiV1CGuildIdDocumentsDocumentIdVersionsPost = { file };
-      return uploadDocumentVersionApiV1CGuildIdDocumentsDocumentIdVersionsPost(
-        guildId,
-        documentId,
-        body
-      );
+      const body: BodyUploadDocumentVersion = { file };
+      return uploadDocumentVersion(guildId, documentId, body);
     },
     onSuccess: (...args) => {
       const documentId = args[1].documentId;
@@ -333,11 +318,7 @@ export const useDeleteDocumentVersion = (
   return useMutation({
     ...rest,
     mutationFn: async ({ documentId, versionId }: { documentId: number; versionId: number }) => {
-      await deleteDocumentVersionApiV1CGuildIdDocumentsDocumentIdVersionsVersionIdDelete(
-        guildId,
-        documentId,
-        versionId
-      );
+      await deleteDocumentVersion(guildId, documentId, versionId);
     },
     onSuccess: (...args) => {
       const documentId = args[1].documentId;
@@ -367,14 +348,11 @@ export const useUpdateDocument = (
   return useMutation({
     ...rest,
     mutationFn: async (data: DocumentUpdate) => {
-      return updateDocumentApiV1CGuildIdDocumentsDocumentIdPatch(guildId, documentId, data);
+      return updateDocument(guildId, documentId, data);
     },
     onSuccess: (...args) => {
       const [updated] = args;
-      queryClient.setQueryData(
-        getReadDocumentApiV1CGuildIdDocumentsDocumentIdGetQueryKey(guildId, documentId),
-        updated
-      );
+      queryClient.setQueryData(getReadDocumentQueryKey(guildId, documentId), updated);
       // A save rewrites what the body refers to, which is what the other end's
       // "linked from" panel is reading.
       void invalidate(q.allDocuments(), q.relationships());
@@ -404,9 +382,7 @@ export const useDeleteDocuments = (
   return useMutation({
     ...rest,
     mutationFn: async (documentIds: number[]) => {
-      await Promise.all(
-        documentIds.map((id) => deleteDocumentApiV1CGuildIdDocumentsDocumentIdDelete(guildId, id))
-      );
+      await Promise.all(documentIds.map((id) => deleteDocument(guildId, id)));
     },
     onSuccess: (...args) => {
       const documentIds = args[1];
@@ -433,11 +409,7 @@ export const useDuplicateDocuments = (options?: MutationOpts<DocumentRead[], { i
   return useMutation({
     ...rest,
     mutationFn: (documents: { id: number }[]) =>
-      Promise.all(
-        documents.map((doc) =>
-          duplicateDocumentApiV1CGuildIdDocumentsDocumentIdDuplicatePost(guildId, doc.id, {})
-        )
-      ),
+      Promise.all(documents.map((doc) => duplicateDocument(guildId, doc.id, {}))),
     onSuccess: (...args) => {
       toast.success(t("bulk.duplicated", { count: args[0].length }));
       void invalidate(q.allDocuments());
@@ -459,8 +431,7 @@ export const useGenerateDocumentSummary = (
 ) =>
   useGuildMutation<GenerateDocumentSummaryResponse, void>(
     {
-      mutationFn: (guildId) =>
-        generateSummaryApiV1CGuildIdDocumentsDocumentIdAiSummaryPost(guildId, documentId),
+      mutationFn: (guildId) => generateSummary(guildId, documentId),
     },
     options
   );

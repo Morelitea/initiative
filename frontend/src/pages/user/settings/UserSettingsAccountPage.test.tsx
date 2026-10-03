@@ -38,10 +38,10 @@ vi.mock("@/hooks/useUsers", () => ({
 }));
 
 vi.mock("@/api/generated/auth/auth", () => ({
-  getListPasskeysApiV1AuthPasskeysGetQueryKey: () => ["/api/v1/auth/passkeys"],
-  getReadSecondFactorApiV1AuthTotpGetQueryKey: () => ["/api/v1/auth/totp"],
-  useListPasskeysApiV1AuthPasskeysGet: (options?: unknown) => mocks.passkeys(options),
-  useRemovePasswordApiV1AuthPasswordRemovePost: (options?: {
+  getListPasskeysQueryKey: () => ["/api/v1/auth/passkeys"],
+  getReadSecondFactorQueryKey: () => ["/api/v1/auth/totp"],
+  useListPasskeys: (options?: unknown) => mocks.passkeys(options),
+  useRemovePassword: (options?: {
     mutation?: { onSuccess?: (data: unknown) => void | Promise<void> };
   }) => ({
     mutate: (vars: unknown) => {

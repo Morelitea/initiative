@@ -46,7 +46,7 @@ def test_every_archivable_tool_has_somewhere_to_be_found():
     offered = {
         route.path.rsplit("/", 2)[-2]: {p.name for p in route.dependant.query_params}
         for route in app.routes
-        if getattr(route, "path", "").startswith("/api/v1/c/{guild_id}/")
+        if getattr(route, "path", "").startswith("/api/v1/c/{community_id}/")
         and "GET" in getattr(route, "methods", set())
         and getattr(route, "path", "").endswith("/")
     }

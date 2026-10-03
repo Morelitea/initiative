@@ -23,7 +23,7 @@ import type {
 import type {
   HTTPValidationError,
   ModerationTicketCreate,
-  ReadTicketAvailabilityApiV1MeTicketsAvailabilityGetParams,
+  ReadTicketAvailabilityParams,
   SupportTicketCreate,
   TicketAccepted,
   TicketAvailability,
@@ -57,8 +57,8 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
  * files one, so none of them decides it.
  * @summary Read Ticket Availability
  */
-export const readTicketAvailabilityApiV1MeTicketsAvailabilityGet = (
-  params?: ReadTicketAvailabilityApiV1MeTicketsAvailabilityGetParams,
+export const readTicketAvailability = (
+  params?: ReadTicketAvailabilityParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
@@ -68,70 +68,55 @@ export const readTicketAvailabilityApiV1MeTicketsAvailabilityGet = (
   );
 };
 
-export const getReadTicketAvailabilityApiV1MeTicketsAvailabilityGetQueryKey = (
-  params?: ReadTicketAvailabilityApiV1MeTicketsAvailabilityGetParams
-) => {
+export const getReadTicketAvailabilityQueryKey = (params?: ReadTicketAvailabilityParams) => {
   return [`/api/v1/me/tickets/availability`, ...(params ? [params] : [])] as const;
 };
 
-export const getReadTicketAvailabilityApiV1MeTicketsAvailabilityGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof readTicketAvailabilityApiV1MeTicketsAvailabilityGet>>,
+export const getReadTicketAvailabilityQueryOptions = <
+  TData = Awaited<ReturnType<typeof readTicketAvailability>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params?: ReadTicketAvailabilityApiV1MeTicketsAvailabilityGetParams,
+  params?: ReadTicketAvailabilityParams,
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readTicketAvailabilityApiV1MeTicketsAvailabilityGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof readTicketAvailability>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   }
 ) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey =
-    queryOptions?.queryKey ??
-    getReadTicketAvailabilityApiV1MeTicketsAvailabilityGetQueryKey(params);
+  const queryKey = queryOptions?.queryKey ?? getReadTicketAvailabilityQueryKey(params);
 
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof readTicketAvailabilityApiV1MeTicketsAvailabilityGet>>
-  > = ({ signal }) =>
-    readTicketAvailabilityApiV1MeTicketsAvailabilityGet(params, requestOptions, signal);
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof readTicketAvailability>>> = ({ signal }) =>
+    readTicketAvailability(params, requestOptions, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof readTicketAvailabilityApiV1MeTicketsAvailabilityGet>>,
+    Awaited<ReturnType<typeof readTicketAvailability>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ReadTicketAvailabilityApiV1MeTicketsAvailabilityGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof readTicketAvailabilityApiV1MeTicketsAvailabilityGet>>
+export type ReadTicketAvailabilityQueryResult = NonNullable<
+  Awaited<ReturnType<typeof readTicketAvailability>>
 >;
-export type ReadTicketAvailabilityApiV1MeTicketsAvailabilityGetQueryError =
-  ErrorType<HTTPValidationError>;
+export type ReadTicketAvailabilityQueryError = ErrorType<HTTPValidationError>;
 
-export function useReadTicketAvailabilityApiV1MeTicketsAvailabilityGet<
-  TData = Awaited<ReturnType<typeof readTicketAvailabilityApiV1MeTicketsAvailabilityGet>>,
+export function useReadTicketAvailability<
+  TData = Awaited<ReturnType<typeof readTicketAvailability>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params: undefined | ReadTicketAvailabilityApiV1MeTicketsAvailabilityGetParams,
+  params: undefined | ReadTicketAvailabilityParams,
   options: {
     query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readTicketAvailabilityApiV1MeTicketsAvailabilityGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof readTicketAvailability>>, TError, TData>
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readTicketAvailabilityApiV1MeTicketsAvailabilityGet>>,
+          Awaited<ReturnType<typeof readTicketAvailability>>,
           TError,
-          Awaited<ReturnType<typeof readTicketAvailabilityApiV1MeTicketsAvailabilityGet>>
+          Awaited<ReturnType<typeof readTicketAvailability>>
         >,
         "initialData"
       >;
@@ -139,24 +124,20 @@ export function useReadTicketAvailabilityApiV1MeTicketsAvailabilityGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadTicketAvailabilityApiV1MeTicketsAvailabilityGet<
-  TData = Awaited<ReturnType<typeof readTicketAvailabilityApiV1MeTicketsAvailabilityGet>>,
+export function useReadTicketAvailability<
+  TData = Awaited<ReturnType<typeof readTicketAvailability>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params?: ReadTicketAvailabilityApiV1MeTicketsAvailabilityGetParams,
+  params?: ReadTicketAvailabilityParams,
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readTicketAvailabilityApiV1MeTicketsAvailabilityGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof readTicketAvailability>>, TError, TData>
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readTicketAvailabilityApiV1MeTicketsAvailabilityGet>>,
+          Awaited<ReturnType<typeof readTicketAvailability>>,
           TError,
-          Awaited<ReturnType<typeof readTicketAvailabilityApiV1MeTicketsAvailabilityGet>>
+          Awaited<ReturnType<typeof readTicketAvailability>>
         >,
         "initialData"
       >;
@@ -164,18 +145,14 @@ export function useReadTicketAvailabilityApiV1MeTicketsAvailabilityGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadTicketAvailabilityApiV1MeTicketsAvailabilityGet<
-  TData = Awaited<ReturnType<typeof readTicketAvailabilityApiV1MeTicketsAvailabilityGet>>,
+export function useReadTicketAvailability<
+  TData = Awaited<ReturnType<typeof readTicketAvailability>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params?: ReadTicketAvailabilityApiV1MeTicketsAvailabilityGetParams,
+  params?: ReadTicketAvailabilityParams,
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readTicketAvailabilityApiV1MeTicketsAvailabilityGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof readTicketAvailability>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
@@ -185,27 +162,20 @@ export function useReadTicketAvailabilityApiV1MeTicketsAvailabilityGet<
  * @summary Read Ticket Availability
  */
 
-export function useReadTicketAvailabilityApiV1MeTicketsAvailabilityGet<
-  TData = Awaited<ReturnType<typeof readTicketAvailabilityApiV1MeTicketsAvailabilityGet>>,
+export function useReadTicketAvailability<
+  TData = Awaited<ReturnType<typeof readTicketAvailability>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params?: ReadTicketAvailabilityApiV1MeTicketsAvailabilityGetParams,
+  params?: ReadTicketAvailabilityParams,
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readTicketAvailabilityApiV1MeTicketsAvailabilityGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof readTicketAvailability>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getReadTicketAvailabilityApiV1MeTicketsAvailabilityGetQueryOptions(
-    params,
-    options
-  );
+  const queryOptions = getReadTicketAvailabilityQueryOptions(params, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -221,7 +191,7 @@ export function useReadTicketAvailabilityApiV1MeTicketsAvailabilityGet<
  * for a report not whether one already existed.
  * @summary File Ticket
  */
-export const fileTicketApiV1MeTicketsPost = (
+export const fileTicket = (
   supportTicketCreateModerationTicketCreate:
     | BodyType<SupportTicketCreate | ModerationTicketCreate>
     | ModerationTicketCreate,
@@ -240,27 +210,26 @@ export const fileTicketApiV1MeTicketsPost = (
   );
 };
 
-export const getFileTicketApiV1MeTicketsPostMutationKey = () =>
-  ["fileTicketApiV1MeTicketsPost"] as const;
+export const getFileTicketMutationKey = () => ["fileTicket"] as const;
 
-export const getFileTicketApiV1MeTicketsPostMutationOptions = <
+export const getFileTicketMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof fileTicketApiV1MeTicketsPost>>,
+    Awaited<ReturnType<typeof fileTicket>>,
     TError,
-    FileTicketApiV1MeTicketsPostMutationVariables,
+    FileTicketMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof fileTicketApiV1MeTicketsPost>>,
+  Awaited<ReturnType<typeof fileTicket>>,
   TError,
-  FileTicketApiV1MeTicketsPostMutationVariables,
+  FileTicketMutationVariables,
   TContext
 > => {
-  const mutationKey = getFileTicketApiV1MeTicketsPostMutationKey();
+  const mutationKey = getFileTicketMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -268,50 +237,43 @@ export const getFileTicketApiV1MeTicketsPostMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof fileTicketApiV1MeTicketsPost>>,
-    FileTicketApiV1MeTicketsPostMutationVariables
+    Awaited<ReturnType<typeof fileTicket>>,
+    FileTicketMutationVariables
   > = (props) => {
     const { data } = props ?? {};
 
-    return fileTicketApiV1MeTicketsPost(data, requestOptions);
+    return fileTicket(data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type FileTicketApiV1MeTicketsPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof fileTicketApiV1MeTicketsPost>>
->;
-export type FileTicketApiV1MeTicketsPostMutationBody = BodyType<
-  SupportTicketCreate | ModerationTicketCreate
->;
-export type FileTicketApiV1MeTicketsPostMutationError = ErrorType<HTTPValidationError>;
-export type FileTicketApiV1MeTicketsPostMutationVariables = {
+export type FileTicketMutationResult = NonNullable<Awaited<ReturnType<typeof fileTicket>>>;
+export type FileTicketMutationBody = BodyType<SupportTicketCreate | ModerationTicketCreate>;
+export type FileTicketMutationError = ErrorType<HTTPValidationError>;
+export type FileTicketMutationVariables = {
   data: BodyType<SupportTicketCreate | ModerationTicketCreate>;
 };
 
 /**
  * @summary File Ticket
  */
-export const useFileTicketApiV1MeTicketsPost = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
+export const useFileTicket = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof fileTicketApiV1MeTicketsPost>>,
+      Awaited<ReturnType<typeof fileTicket>>,
       TError,
-      FileTicketApiV1MeTicketsPostMutationVariables,
+      FileTicketMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof fileTicketApiV1MeTicketsPost>>,
+  Awaited<ReturnType<typeof fileTicket>>,
   TError,
-  FileTicketApiV1MeTicketsPostMutationVariables,
+  FileTicketMutationVariables,
   TContext
 > => {
-  return useMutation(getFileTicketApiV1MeTicketsPostMutationOptions(options), queryClient);
+  return useMutation(getFileTicketMutationOptions(options), queryClient);
 };

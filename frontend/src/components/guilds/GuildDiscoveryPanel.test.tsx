@@ -31,7 +31,7 @@ vi.mock("@/hooks/useAppConfig", () => ({
 }));
 
 vi.mock("@/api/generated/communities/communities", () => ({
-  updateGuildApiV1CommunitiesGuildIdPatch: (...args: unknown[]) => patchGuild(...args),
+  updateCommunity: (...args: unknown[]) => patchGuild(...args),
 }));
 
 const renderPanel = (guild: CommunityRead) =>

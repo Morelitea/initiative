@@ -16,51 +16,24 @@
 import type { QueryClient } from "@tanstack/react-query";
 
 import {
-  getReadCalendarEventApiV1CGuildIdCalendarEventsEventIdGetQueryKey,
-  readCalendarEventApiV1CGuildIdCalendarEventsEventIdGet,
+  getReadCalendarEventQueryKey,
+  readCalendarEvent,
 } from "@/api/generated/calendar-events/calendar-events";
-import {
-  getReadCalendarApiV1CGuildIdCalendarsCalendarIdGetQueryKey,
-  readCalendarApiV1CGuildIdCalendarsCalendarIdGet,
-} from "@/api/generated/calendars/calendars";
-import {
-  getReadCounterGroupApiV1CGuildIdCounterGroupsGroupIdGetQueryKey,
-  readCounterGroupApiV1CGuildIdCounterGroupsGroupIdGet,
-} from "@/api/generated/counters/counters";
-import {
-  getReadDashboardApiV1CGuildIdDashboardsDashboardIdGetQueryKey,
-  readDashboardApiV1CGuildIdDashboardsDashboardIdGet,
-} from "@/api/generated/dashboards/dashboards";
-import {
-  getReadDocumentApiV1CGuildIdDocumentsDocumentIdGetQueryKey,
-  readDocumentApiV1CGuildIdDocumentsDocumentIdGet,
-} from "@/api/generated/documents/documents";
-import {
-  getReadGalleryApiV1CGuildIdGalleriesGalleryIdGetQueryKey,
-  readGalleryApiV1CGuildIdGalleriesGalleryIdGet,
-} from "@/api/generated/galleries/galleries";
+import { getReadCalendarQueryKey, readCalendar } from "@/api/generated/calendars/calendars";
+import { getReadCounterGroupQueryKey, readCounterGroup } from "@/api/generated/counters/counters";
+import { getReadDashboardQueryKey, readDashboard } from "@/api/generated/dashboards/dashboards";
+import { getReadDocumentQueryKey, readDocument } from "@/api/generated/documents/documents";
+import { getReadGalleryQueryKey, readGallery } from "@/api/generated/galleries/galleries";
 import { SearchEntityType, Tool } from "@/api/generated/initiativeAPI.schemas";
+import { getReadPostQueryKey, readPost } from "@/api/generated/posts/posts";
+import { getReadProjectQueryKey, readProject } from "@/api/generated/projects/projects";
+import { getReadQueueQueryKey, readQueue } from "@/api/generated/queues/queues";
+import { getReadTaskQueryKey, readTask } from "@/api/generated/tasks/tasks";
 import {
-  getReadPostApiV1CGuildIdPostsPostIdGetQueryKey,
-  readPostApiV1CGuildIdPostsPostIdGet,
-} from "@/api/generated/posts/posts";
-import {
-  getReadProjectApiV1CGuildIdProjectsProjectIdGetQueryKey,
-  readProjectApiV1CGuildIdProjectsProjectIdGet,
-} from "@/api/generated/projects/projects";
-import {
-  getReadQueueApiV1CGuildIdQueuesQueueIdGetQueryKey,
-  readQueueApiV1CGuildIdQueuesQueueIdGet,
-} from "@/api/generated/queues/queues";
-import {
-  getReadTaskApiV1CGuildIdTasksTaskIdGetQueryKey,
-  readTaskApiV1CGuildIdTasksTaskIdGet,
-} from "@/api/generated/tasks/tasks";
-import {
-  getReadWikiApiV1CGuildIdWikisWikiIdGetQueryKey,
-  getReadWikiPageApiV1CGuildIdWikiPagesPageIdGetQueryKey,
-  readWikiApiV1CGuildIdWikisWikiIdGet,
-  readWikiPageApiV1CGuildIdWikiPagesPageIdGet,
+  getReadWikiPageQueryKey,
+  getReadWikiQueryKey,
+  readWiki,
+  readWikiPage,
 } from "@/api/generated/wikis/wikis";
 import {
   eventRoute,
@@ -89,40 +62,40 @@ const TOOL_READS: Record<
   }
 > = {
   [Tool.project]: {
-    key: getReadProjectApiV1CGuildIdProjectsProjectIdGetQueryKey,
-    read: readProjectApiV1CGuildIdProjectsProjectIdGet,
+    key: getReadProjectQueryKey,
+    read: readProject,
   },
   [Tool.document]: {
-    key: getReadDocumentApiV1CGuildIdDocumentsDocumentIdGetQueryKey,
-    read: readDocumentApiV1CGuildIdDocumentsDocumentIdGet,
+    key: getReadDocumentQueryKey,
+    read: readDocument,
   },
   [Tool.queue]: {
-    key: getReadQueueApiV1CGuildIdQueuesQueueIdGetQueryKey,
-    read: readQueueApiV1CGuildIdQueuesQueueIdGet,
+    key: getReadQueueQueryKey,
+    read: readQueue,
   },
   [Tool.counter_group]: {
-    key: getReadCounterGroupApiV1CGuildIdCounterGroupsGroupIdGetQueryKey,
-    read: readCounterGroupApiV1CGuildIdCounterGroupsGroupIdGet,
+    key: getReadCounterGroupQueryKey,
+    read: readCounterGroup,
   },
   [Tool.calendar]: {
-    key: getReadCalendarApiV1CGuildIdCalendarsCalendarIdGetQueryKey,
-    read: readCalendarApiV1CGuildIdCalendarsCalendarIdGet,
+    key: getReadCalendarQueryKey,
+    read: readCalendar,
   },
   [Tool.dashboard]: {
-    key: getReadDashboardApiV1CGuildIdDashboardsDashboardIdGetQueryKey,
-    read: readDashboardApiV1CGuildIdDashboardsDashboardIdGet,
+    key: getReadDashboardQueryKey,
+    read: readDashboard,
   },
   [Tool.post]: {
-    key: getReadPostApiV1CGuildIdPostsPostIdGetQueryKey,
-    read: readPostApiV1CGuildIdPostsPostIdGet,
+    key: getReadPostQueryKey,
+    read: readPost,
   },
   [Tool.gallery]: {
-    key: getReadGalleryApiV1CGuildIdGalleriesGalleryIdGetQueryKey,
-    read: readGalleryApiV1CGuildIdGalleriesGalleryIdGet,
+    key: getReadGalleryQueryKey,
+    read: readGallery,
   },
   [Tool.wiki]: {
-    key: getReadWikiApiV1CGuildIdWikisWikiIdGetQueryKey,
-    read: readWikiApiV1CGuildIdWikisWikiIdGet,
+    key: getReadWikiQueryKey,
+    read: readWiki,
   },
 };
 
@@ -149,9 +122,7 @@ type Resolve = (read: Read, guildId: number, id: number) => Promise<string>;
  */
 const CHILD_RESOLVERS: Partial<Record<keyof typeof PARENT_TOOL, Resolve>> = {
   task: async (read, guildId, id) => {
-    const task = await read(getReadTaskApiV1CGuildIdTasksTaskIdGetQueryKey(guildId, id), () =>
-      readTaskApiV1CGuildIdTasksTaskIdGet(guildId, id)
-    );
+    const task = await read(getReadTaskQueryKey(guildId, id), () => readTask(guildId, id));
     // The embedded project summary usually names the initiative; when the
     // task read omits it, the project itself is the authority.
     const initiativeId =
@@ -160,17 +131,13 @@ const CHILD_RESOLVERS: Partial<Record<keyof typeof PARENT_TOOL, Resolve>> = {
     return taskRoute(initiativeId, task.project_id, id);
   },
   calendar_event: async (read, guildId, id) => {
-    const event = await read(
-      getReadCalendarEventApiV1CGuildIdCalendarEventsEventIdGetQueryKey(guildId, id),
-      () => readCalendarEventApiV1CGuildIdCalendarEventsEventIdGet(guildId, id)
+    const event = await read(getReadCalendarEventQueryKey(guildId, id), () =>
+      readCalendarEvent(guildId, id)
     );
     return eventRoute(event.initiative_id, event.calendar_id, id);
   },
   wiki_page: async (read, guildId, id) => {
-    const page = await read(
-      getReadWikiPageApiV1CGuildIdWikiPagesPageIdGetQueryKey(guildId, id),
-      () => readWikiPageApiV1CGuildIdWikiPagesPageIdGet(guildId, id)
-    );
+    const page = await read(getReadWikiPageQueryKey(guildId, id), () => readWikiPage(guildId, id));
     const initiativeId = await toolInitiative(read, guildId, Tool.wiki, page.wiki_id);
     return wikiPageRoute(initiativeId, page.wiki_id, id);
   },

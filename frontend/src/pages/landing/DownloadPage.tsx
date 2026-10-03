@@ -24,7 +24,7 @@ import {
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 
-import { useGetFcmConfigApiV1SettingsFcmConfigGet } from "@/api/generated/settings/settings";
+import { useGetFcmConfig } from "@/api/generated/settings/settings";
 import { Button } from "@/components/ui/button";
 import {
   androidApkUrl,
@@ -209,7 +209,7 @@ export const DownloadPage = () => {
   const { config, passkeyLoginEnabled } = useFrontDoor();
   usePageMeta(t("meta.downloadTitle"), t("meta.downloadDescription"));
   // The Android app only gets push where this server has it switched on.
-  const fcm = useGetFcmConfigApiV1SettingsFcmConfigGet({ query: { staleTime: 300_000 } });
+  const fcm = useGetFcmConfig({ query: { staleTime: 300_000 } });
   const push = fcm.data?.enabled === true;
   const minNativeVersion = config?.min_native_version ?? null;
   const minDesktopVersion = config?.min_desktop_version ?? null;

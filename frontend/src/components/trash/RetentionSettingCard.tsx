@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { updateGuildApiV1CommunitiesGuildIdPatch } from "@/api/generated/communities/communities";
+import { updateCommunity } from "@/api/generated/communities/communities";
 import type { CommunityRead } from "@/api/generated/initiativeAPI.schemas";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -44,11 +44,9 @@ export const RetentionSettingCard = () => {
     setMessage(null);
     setError(null);
     try {
-      const result = await (updateGuildApiV1CommunitiesGuildIdPatch(activeGuild.id, {
+      const result = await (updateCommunity(activeGuild.id, {
         retention_days: neverPurge ? null : retentionDays,
-      } as Parameters<
-        typeof updateGuildApiV1CommunitiesGuildIdPatch
-      >[1]) as unknown as Promise<CommunityRead>);
+      } as Parameters<typeof updateCommunity>[1]) as unknown as Promise<CommunityRead>);
       updateGuildInState(result);
       setMessage(t("settings.retentionUpdatedSuccessfully"));
     } catch (err) {

@@ -9,10 +9,10 @@ import type {
   SmartChipStateList,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
-  getReadReferenceEmbedsApiV1CGuildIdSmartChipsEmbedsGetQueryKey,
-  getReadSmartChipsApiV1CGuildIdSmartChipsGetQueryKey,
-  readReferenceEmbedsApiV1CGuildIdSmartChipsEmbedsGet,
-  readSmartChipsApiV1CGuildIdSmartChipsGet,
+  getReadReferenceEmbedsQueryKey,
+  getReadSmartChipsQueryKey,
+  readReferenceEmbeds,
+  readSmartChips,
 } from "@/api/generated/smart-chips/smart-chips";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { referenceRef } from "@/lib/smartChips";
@@ -64,8 +64,8 @@ export const useSmartChipStates = (refs: string[], enabled = true) => {
   const batches = referenceBatches(refs);
   return useQueries({
     queries: batches.map((ref) => ({
-      queryKey: getReadSmartChipsApiV1CGuildIdSmartChipsGetQueryKey(guildId, { ref }),
-      queryFn: () => readSmartChipsApiV1CGuildIdSmartChipsGet(guildId, { ref }),
+      queryKey: getReadSmartChipsQueryKey(guildId, { ref }),
+      queryFn: () => readSmartChips(guildId, { ref }),
       enabled: enabled && guildId != null,
       staleTime: STALE_MS,
       // A chip goes stale because someone else moved something, so it is asked
@@ -174,8 +174,8 @@ export const useReferenceEmbed = (entityType: SearchEntityType, entityId: number
   const ref = referenceRef(entityType, entityId);
   const params = { ref: [ref] };
   return useQuery({
-    queryKey: getReadReferenceEmbedsApiV1CGuildIdSmartChipsEmbedsGetQueryKey(guildId, params),
-    queryFn: () => readReferenceEmbedsApiV1CGuildIdSmartChipsEmbedsGet(guildId, params),
+    queryKey: getReadReferenceEmbedsQueryKey(guildId, params),
+    queryFn: () => readReferenceEmbeds(guildId, params),
     enabled: guildId != null,
     staleTime: STALE_MS,
     select: (data): ReferenceEmbed | null => data.items.find((item) => item.ref === ref) ?? null,

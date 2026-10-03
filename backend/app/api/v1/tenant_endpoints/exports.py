@@ -4,7 +4,7 @@ The artifact is content, so its download is a gated read: the download route
 loads the ExportJob row under RLS (own-row + guild-admin policies), asks again
 that the caller reaches every initiative the artifact holds, and only then
 streams the file from the guild's storage backend. Artifacts are deliberately
-never registered in ``uploads``, so the guild-wide ``/uploads/{guild_id}/…``
+never registered in ``uploads``, so the guild-wide ``/uploads/{community_id}/…``
 media route cannot serve them: an export is a per-user snapshot and may contain
 initiative-isolated content the rest of the guild must not reach.
 
@@ -431,7 +431,7 @@ async def export_initiative(
 
 
 @router.get("/community", response_model=None)
-async def export_guild(
+async def export_community(
     session: RLSSessionDep,
     current_user: CurrentUserDep,
     guild_context: GuildContextDep,
@@ -494,7 +494,7 @@ async def export_guild(
 
 
 @router.get("/community/status", response_model=CommunityExportStatus)
-async def read_guild_export_status(
+async def read_community_export_status(
     session: RLSSessionDep,
     current_user: CurrentUserDep,
     guild_context: GuildContextDep,

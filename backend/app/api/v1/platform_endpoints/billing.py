@@ -129,7 +129,7 @@ async def _burn_jti(session, claims) -> None:
 
 
 @router.post("/community-tier", response_model=BillingCommunityTierRead)
-async def apply_guild_tier(
+async def apply_community_tier(
     request: Request, session: SessionDep
 ) -> BillingCommunityTierRead:
     claims, payload = await _verify_and_parse(request, BillingCommunityTierApply)
@@ -233,7 +233,9 @@ async def community_notice(
 
 
 @router.post("/community-name", response_model=BillingCommunityNameRead)
-async def guild_name(request: Request, session: SessionDep) -> BillingCommunityNameRead:
+async def community_name(
+    request: Request, session: SessionDep
+) -> BillingCommunityNameRead:
     """Signed read: what one guild calls itself.
 
     For rendering. A reference is unreadable on purpose, so a page about
@@ -259,7 +261,7 @@ async def guild_name(request: Request, session: SessionDep) -> BillingCommunityN
 
 
 @router.post("/community-status", response_model=BillingCommunityStatusRead)
-async def guild_status(
+async def community_status(
     request: Request, session: SessionDep
 ) -> BillingCommunityStatusRead:
     """Signed read: one guild's lifecycle status, ``deleted`` included.
@@ -282,7 +284,7 @@ async def guild_status(
 
 
 @router.post("/usage", response_model=BillingUsageRead)
-async def guild_usage(request: Request, session: SessionDep) -> BillingUsageRead:
+async def community_usage(request: Request, session: SessionDep) -> BillingUsageRead:
     """Signed read: current stored bytes for one guild.
 
     Envelope-verified and jti-burned on the billing session like the other

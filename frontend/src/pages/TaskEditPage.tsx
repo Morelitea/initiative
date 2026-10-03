@@ -19,10 +19,7 @@ import { useTranslation } from "react-i18next";
 
 import type { PropertySummary, TaskRead } from "@/api/generated/initiativeAPI.schemas";
 import { SearchEntityType, Tool } from "@/api/generated/initiativeAPI.schemas";
-import {
-  getReadTaskApiV1CGuildIdTasksTaskIdGetQueryKey,
-  readTaskApiV1CGuildIdTasksTaskIdGet,
-} from "@/api/generated/tasks/tasks";
+import { getReadTaskQueryKey, readTask } from "@/api/generated/tasks/tasks";
 import { invalidate, q } from "@/api/query-keys";
 import { CommentSection } from "@/components/comments/CommentSection";
 import { ToolRelationsPanel } from "@/components/entities/ToolRelationsPanel";
@@ -283,9 +280,7 @@ export const TaskEditPage = () => {
       // here, unless it was the series' last and is gone.
       if (scope === "this") {
         try {
-          form.settle(
-            formValueFromTask(await readTaskApiV1CGuildIdTasksTaskIdGet(guildId, parsedTaskId))
-          );
+          form.settle(formValueFromTask(await readTask(guildId, parsedTaskId)));
           toast.success(t("edit.taskSkipped"));
           return;
         } catch (error) {
@@ -312,10 +307,7 @@ export const TaskEditPage = () => {
 
   const moveTask = useMoveTask({
     onSuccess: (updatedTask) => {
-      queryClient.setQueryData<TaskRead>(
-        getReadTaskApiV1CGuildIdTasksTaskIdGetQueryKey(guildId, parsedTaskId),
-        updatedTask
-      );
+      queryClient.setQueryData<TaskRead>(getReadTaskQueryKey(guildId, parsedTaskId), updatedTask);
       const previousProjectId = moveContext?.previousProjectId;
       if (typeof previousProjectId === "number") {
         void invalidate(q.projectTaskStatuses(previousProjectId), q.project(previousProjectId));

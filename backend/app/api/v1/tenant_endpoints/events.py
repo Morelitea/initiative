@@ -1,3 +1,4 @@
+from app.api.deps import CommunityIdPath
 import logging
 from typing import Optional
 
@@ -48,7 +49,7 @@ def _rooms_for(guild_id: int) -> Authorizer:
 
 
 @router.websocket("/updates")
-async def websocket_updates(websocket: WebSocket, guild_id: int):
+async def websocket_updates(websocket: WebSocket, guild_id: CommunityIdPath):
     """Change envelopes for one guild: ``{changes: [...]}`` frames naming what
     moved, never its content, and a heartbeat when nothing has.
 

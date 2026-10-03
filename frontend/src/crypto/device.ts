@@ -4,15 +4,15 @@
  */
 
 import {
-  listConversationsApiV1MeDmConversationsGet as listConversations,
-  listDevicesApiV1MeDmDevicesGet as listDevices,
-  registerDeviceApiV1MeDmDevicesPost as registerDevice,
-  removeDeviceApiV1MeDmDevicesDeviceIdDelete as removeDevice,
-  signDeviceApiV1MeDmDevicesDeviceIdSignaturePut as signDevice,
-  topUpKeysApiV1MeDmOneTimeKeysPost as topUpKeys,
+  listConversations,
+  listDevices,
+  registerDevice,
+  removeDevice,
+  signDevice,
+  topUpKeys,
 } from "@/api/generated/direct-messages/direct-messages";
 import type { DmConversationRead, DmDeviceRead } from "@/api/generated/initiativeAPI.schemas";
-import { readMeApiV1MeGet as readMe } from "@/api/generated/users/users";
+import { readMe } from "@/api/generated/users/users";
 
 import { ratchet, stopRatchet } from "./client";
 import { withAccount } from "./sessions";

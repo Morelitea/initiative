@@ -28,6 +28,7 @@ from app.services.tenant import attachments as attachments_service
 from app.services.tenant import relationships
 from app.api.actor_route import ActorRoute
 from app.api.deps import (
+    CommunityIdPath,
     ActorContext,
     ActorSessionDep,
     ActorUserDep,
@@ -701,7 +702,9 @@ async def read_after_write(
 
 
 @router.websocket("/{queue_id}/ws")
-async def websocket_queue(websocket: WebSocket, guild_id: int, queue_id: int) -> None:
+async def websocket_queue(
+    websocket: WebSocket, guild_id: CommunityIdPath, queue_id: int
+) -> None:
     """Change signals for one queue: ``{type, id, timestamp}`` frames and a
     heartbeat. The client refetches on each; see ``serve_tool_stream``."""
     await serve_tool_stream(websocket, guild_id, Tool.queue, queue_id)

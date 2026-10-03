@@ -1,18 +1,18 @@
 import { keepPreviousData, useInfiniteQuery, useQuery } from "@tanstack/react-query";
 
 import {
-  bulkDeleteGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesBulkDeletePost,
-  deleteGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdDelete,
-  deleteGalleryImageVersionApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsVersionIdDelete,
-  getGalleryImageTimelineApiV1CGuildIdGalleriesGalleryIdImagesTimelineGet,
-  getGetGalleryImageTimelineApiV1CGuildIdGalleriesGalleryIdImagesTimelineGetQueryKey,
-  getListGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesGetQueryKey,
-  getListGalleryImageVersionsApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsGetQueryKey,
-  listGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesGet,
-  listGalleryImageVersionsApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsGet,
-  updateGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdPatch,
-  uploadGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesPost,
-  uploadGalleryImageVersionApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsPost,
+  bulkDeleteGalleryImages,
+  deleteGalleryImage,
+  deleteGalleryImageVersion,
+  getGalleryImageTimeline,
+  getGetGalleryImageTimelineQueryKey,
+  getListGalleryImagesQueryKey,
+  getListGalleryImageVersionsQueryKey,
+  listGalleryImages,
+  listGalleryImageVersions,
+  updateGalleryImage,
+  uploadGalleryImage,
+  uploadGalleryImageVersion,
 } from "@/api/generated/galleries/galleries";
 import type {
   GalleryImageBulkDelete,
@@ -21,8 +21,8 @@ import type {
   GalleryImageRead,
   GalleryImageUpdate,
   GalleryImageVersionRead,
-  GetGalleryImageTimelineApiV1CGuildIdGalleriesGalleryIdImagesTimelineGetParams,
-  ListGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesGetParams,
+  GetGalleryImageTimelineParams,
+  ListGalleryImagesParams,
   TimelineResponse,
 } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
@@ -47,10 +47,7 @@ export const useSetGalleryGrants = galleries.useSetGrants;
 // ── Pictures ────────────────────────────────────────────────────────────────
 
 /** The filters a gallery's picture list takes, without the page. */
-export type GalleryImagesParams = Omit<
-  ListGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesGetParams,
-  "page"
->;
+export type GalleryImagesParams = Omit<ListGalleryImagesParams, "page">;
 
 /**
  * A gallery's pictures, page by page, as somebody scrolls the wall.
@@ -63,13 +60,9 @@ export type GalleryImagesParams = Omit<
 export const useGalleryImagesFeed = (galleryId: number | null, params?: GalleryImagesParams) => {
   const guildId = useActiveGuildId();
   return useInfiniteQuery({
-    queryKey: getListGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesGetQueryKey(
-      guildId,
-      galleryId!,
-      params
-    ),
+    queryKey: getListGalleryImagesQueryKey(guildId, galleryId!, params),
     queryFn: ({ pageParam }) =>
-      listGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesGet(guildId, galleryId!, {
+      listGalleryImages(guildId, galleryId!, {
         ...params,
         page: pageParam as number,
       }),
@@ -88,23 +81,14 @@ export const useGalleryImagesFeed = (galleryId: number | null, params?: GalleryI
  */
 export const useGalleryImagesTimeline = (
   galleryId: number | null,
-  params?: GetGalleryImageTimelineApiV1CGuildIdGalleriesGalleryIdImagesTimelineGetParams,
+  params?: GetGalleryImageTimelineParams,
   options?: QueryOpts<TimelineResponse>
 ) => {
   const guildId = useActiveGuildId();
   const { enabled: userEnabled = true, ...rest } = options ?? {};
   return useQuery<TimelineResponse>({
-    queryKey: getGetGalleryImageTimelineApiV1CGuildIdGalleriesGalleryIdImagesTimelineGetQueryKey(
-      guildId,
-      galleryId!,
-      params
-    ),
-    queryFn: () =>
-      getGalleryImageTimelineApiV1CGuildIdGalleriesGalleryIdImagesTimelineGet(
-        guildId,
-        galleryId!,
-        params
-      ),
+    queryKey: getGetGalleryImageTimelineQueryKey(guildId, galleryId!, params),
+    queryFn: () => getGalleryImageTimeline(guildId, galleryId!, params),
     enabled: galleryId !== null && Number.isFinite(galleryId) && userEnabled,
     ...rest,
   });
@@ -120,18 +104,8 @@ export const useGalleryImageVersions = (
   const guildId = useActiveGuildId();
   const { enabled: userEnabled = true, ...rest } = options ?? {};
   return useQuery<GalleryImageVersionRead[]>({
-    queryKey:
-      getListGalleryImageVersionsApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsGetQueryKey(
-        guildId,
-        galleryId,
-        imageId!
-      ),
-    queryFn: () =>
-      listGalleryImageVersionsApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsGet(
-        guildId,
-        galleryId,
-        imageId!
-      ),
+    queryKey: getListGalleryImageVersionsQueryKey(guildId, galleryId, imageId!),
+    queryFn: () => listGalleryImageVersions(guildId, galleryId, imageId!),
     enabled: imageId !== null && userEnabled,
     ...rest,
   });
@@ -165,7 +139,7 @@ export const useUploadGalleryImage = (
   useGuildMutation<GalleryImageRead, UploadGalleryImageVariables>(
     {
       mutationFn: (guildId, { file, title, caption }) =>
-        uploadGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesPost(guildId, galleryId, {
+        uploadGalleryImage(guildId, galleryId, {
           file,
           title: title ?? null,
           caption: caption ?? null,
@@ -181,12 +155,7 @@ export const useUpdateGalleryImage = (
   useGuildMutation<GalleryImageRead, { imageId: number; data: GalleryImageUpdate }>(
     {
       mutationFn: (guildId, { imageId, data }) =>
-        updateGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdPatch(
-          guildId,
-          galleryId,
-          imageId,
-          data
-        ),
+        updateGalleryImage(guildId, galleryId, imageId, data),
       invalidate: () => invalidateImages(galleryId),
       errorKey: "galleries:error",
     },
@@ -196,12 +165,7 @@ export const useUpdateGalleryImage = (
 export const useDeleteGalleryImage = (galleryId: number, options?: MutationOpts<void, number>) =>
   useGuildMutation<void, number>(
     {
-      mutationFn: (guildId, imageId) =>
-        deleteGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdDelete(
-          guildId,
-          galleryId,
-          imageId
-        ),
+      mutationFn: (guildId, imageId) => deleteGalleryImage(guildId, galleryId, imageId),
       invalidate: () => invalidateImages(galleryId),
       errorKey: "galleries:error",
     },
@@ -222,11 +186,9 @@ export const useBulkDeleteGalleryImages = (
   useGuildMutation<GalleryImageBulkDeleteResponse, number[]>(
     {
       mutationFn: (guildId, imageIds) =>
-        bulkDeleteGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesBulkDeletePost(
-          guildId,
-          galleryId,
-          { image_ids: imageIds } satisfies GalleryImageBulkDelete
-        ),
+        bulkDeleteGalleryImages(guildId, galleryId, {
+          image_ids: imageIds,
+        } satisfies GalleryImageBulkDelete),
       invalidate: () => invalidateImages(galleryId),
       errorKey: "galleries:error",
     },
@@ -240,12 +202,7 @@ export const useUploadGalleryImageVersion = (
   useGuildMutation<GalleryImageVersionRead, { imageId: number; file: File }>(
     {
       mutationFn: (guildId, { imageId, file }) =>
-        uploadGalleryImageVersionApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsPost(
-          guildId,
-          galleryId,
-          imageId,
-          { file }
-        ),
+        uploadGalleryImageVersion(guildId, galleryId, imageId, { file }),
       invalidate: () => invalidateImages(galleryId),
       errorKey: "galleries:error",
     },
@@ -259,12 +216,7 @@ export const useDeleteGalleryImageVersion = (
   useGuildMutation<void, { imageId: number; versionId: number }>(
     {
       mutationFn: (guildId, { imageId, versionId }) =>
-        deleteGalleryImageVersionApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsVersionIdDelete(
-          guildId,
-          galleryId,
-          imageId,
-          versionId
-        ),
+        deleteGalleryImageVersion(guildId, galleryId, imageId, versionId),
       invalidate: () => invalidateImages(galleryId),
       errorKey: "galleries:error",
     },

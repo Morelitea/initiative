@@ -2,14 +2,14 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { archiveEntityApiV1CGuildIdArchiveEntityTypeEntityIdPost } from "@/api/generated/archive/archive";
+import { archiveEntity } from "@/api/generated/archive/archive";
 import type {
   ArchiveDoneResponse,
   ArchiveResponse,
   ChecklistItem,
   GenerateChecklistResponse,
   GenerateDescriptionResponse,
-  ListTasksApiV1CGuildIdTasksGetParams,
+  ListTasksParams,
   TaskListRead,
   TaskListResponse,
   TaskRead,
@@ -18,27 +18,27 @@ import type {
   TaskStatusRead,
   TaskUpdateScope,
 } from "@/api/generated/initiativeAPI.schemas";
-import { getReadSmartChipsApiV1CGuildIdSmartChipsGetQueryKey } from "@/api/generated/smart-chips/smart-chips";
+import { getReadSmartChipsQueryKey } from "@/api/generated/smart-chips/smart-chips";
 import {
-  getListTaskStatusesApiV1CGuildIdProjectsProjectIdTaskStatusesGetQueryKey,
-  listTaskStatusesApiV1CGuildIdProjectsProjectIdTaskStatusesGet,
+  getListTaskStatusesQueryKey,
+  listTaskStatuses,
 } from "@/api/generated/task-statuses/task-statuses";
 import {
-  archiveDoneTasksApiV1CGuildIdTasksArchiveDonePost,
-  createTaskApiV1CGuildIdTasksPost,
-  deleteTaskApiV1CGuildIdTasksTaskIdDelete,
-  duplicateTaskApiV1CGuildIdTasksTaskIdDuplicatePost,
-  generateTaskChecklistApiV1CGuildIdTasksTaskIdAiChecklistPost,
-  generateTaskDescriptionApiV1CGuildIdTasksTaskIdAiDescriptionPost,
-  getListTasksApiV1CGuildIdTasksGetQueryKey,
-  getReadTaskApiV1CGuildIdTasksTaskIdGetQueryKey,
-  listTasksApiV1CGuildIdTasksGet,
-  moveTaskApiV1CGuildIdTasksTaskIdMovePost,
-  readTaskApiV1CGuildIdTasksTaskIdGet,
-  reorderTasksApiV1CGuildIdTasksReorderPost,
-  skipTaskApiV1CGuildIdTasksTaskIdSkipPost,
-  toggleChecklistItemApiV1CGuildIdTasksTaskIdChecklistItemIdPatch,
-  updateTaskApiV1CGuildIdTasksTaskIdPatch,
+  archiveDoneTasks,
+  createTask,
+  deleteTask,
+  duplicateTask,
+  generateTaskChecklist,
+  generateTaskDescription,
+  getListTasksQueryKey,
+  getReadTaskQueryKey,
+  listTasks,
+  moveTask,
+  readTask,
+  reorderTasks,
+  skipTask,
+  toggleChecklistItem,
+  updateTask,
 } from "@/api/generated/tasks/tasks";
 import { invalidate, q } from "@/api/query-keys";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
@@ -62,24 +62,21 @@ export const useTask = (taskId: number | null, options?: QueryOpts<TaskRead>) =>
   const guildId = useActiveGuildId();
   const { enabled: userEnabled = true, ...rest } = options ?? {};
   return useQuery<TaskRead>({
-    queryKey: getReadTaskApiV1CGuildIdTasksTaskIdGetQueryKey(guildId, taskId!),
-    queryFn: () => readTaskApiV1CGuildIdTasksTaskIdGet(guildId, taskId!),
+    queryKey: getReadTaskQueryKey(guildId, taskId!),
+    queryFn: () => readTask(guildId, taskId!),
     enabled: taskId !== null && Number.isFinite(taskId) && userEnabled,
     ...rest,
   });
 };
 
 /** The complete task list for `params`: the one key and fetch every reader of it shares. */
-export const tasksQuery = (guildId: number, params: ListTasksApiV1CGuildIdTasksGetParams) => ({
-  queryKey: getListTasksApiV1CGuildIdTasksGetQueryKey(guildId, params),
+export const tasksQuery = (guildId: number, params: ListTasksParams) => ({
+  queryKey: getListTasksQueryKey(guildId, params),
   // page_size=0 walks the server's fetch-all windows for the complete set.
-  queryFn: () => fetchAllPages(listTasksApiV1CGuildIdTasksGet, guildId, params),
+  queryFn: () => fetchAllPages(listTasks, guildId, params),
 });
 
-export const useTasks = (
-  params: ListTasksApiV1CGuildIdTasksGetParams,
-  options?: QueryOpts<TaskListResponse>
-) => {
+export const useTasks = (params: ListTasksParams, options?: QueryOpts<TaskListResponse>) => {
   const guildId = useActiveGuildId();
   return useQuery<TaskListResponse>({ ...tasksQuery(guildId, params), ...options });
 };
@@ -87,18 +84,16 @@ export const useTasks = (
 export const usePrefetchTasks = () => {
   const qc = useQueryClient();
   const guildId = useActiveGuildId();
-  return (params: ListTasksApiV1CGuildIdTasksGetParams) =>
+  return (params: ListTasksParams) =>
     qc.prefetchQuery({ ...tasksQuery(guildId, params), staleTime: 30_000 });
 };
 
 // ── Task Mutations ──────────────────────────────────────────────────────────
 
-export const useCreateTask = (
-  options?: MutationOpts<TaskRead, Parameters<typeof createTaskApiV1CGuildIdTasksPost>[1]>
-) =>
-  useGuildMutation<TaskRead, Parameters<typeof createTaskApiV1CGuildIdTasksPost>[1]>(
+export const useCreateTask = (options?: MutationOpts<TaskRead, Parameters<typeof createTask>[1]>) =>
+  useGuildMutation<TaskRead, Parameters<typeof createTask>[1]>(
     {
-      mutationFn: (guildId, data) => createTaskApiV1CGuildIdTasksPost(guildId, data),
+      mutationFn: (guildId, data) => createTask(guildId, data),
       invalidate: () => invalidate(q.allTasks()),
       errorKey: "projects:tasks.createError",
     },
@@ -115,9 +110,7 @@ const findCachedTask = (
   queryClient: ReturnType<typeof useQueryClient>,
   taskId: number
 ): TaskListRead | null => {
-  const direct = queryClient.getQueryData<TaskListRead>(
-    getReadTaskApiV1CGuildIdTasksTaskIdGetQueryKey(guildId, taskId)
-  );
+  const direct = queryClient.getQueryData<TaskListRead>(getReadTaskQueryKey(guildId, taskId));
   if (direct?.task_status) return direct;
 
   const entries = queryClient.getQueriesData<TaskListResponse>({
@@ -147,11 +140,11 @@ export interface OptimisticStatusChange {
 
 export interface UpdateTaskVariables {
   taskId: number;
-  data: Parameters<typeof updateTaskApiV1CGuildIdTasksTaskIdPatch>[2];
+  data: Parameters<typeof updateTask>[2];
   /** Passthrough request options (e.g. AbortSignal). The guild is the
    * active route's guild (path param). For cross-guild updates from
    * personal surfaces use useUpdateTaskInGuild instead. */
-  params?: Parameters<typeof updateTaskApiV1CGuildIdTasksTaskIdPatch>[3];
+  params?: Parameters<typeof updateTask>[3];
   statusChange?: OptimisticStatusChange;
 }
 
@@ -169,7 +162,7 @@ export const useUpdateTask = (
   return useMutation({
     ...rest,
     mutationFn: async ({ taskId, data, params }: UpdateTaskVariables) => {
-      return updateTaskApiV1CGuildIdTasksTaskIdPatch(guildId, taskId, withZone(data), params);
+      return updateTask(guildId, taskId, withZone(data), params);
     },
     onMutate: ({ taskId, statusChange }) => {
       // Snapshot the task's previous status category so onSuccess can detect
@@ -228,7 +221,7 @@ export const useSetTaskDone = () => {
   const { mutateAsync, isPending } = useUpdateTask({
     onSuccess: () =>
       queryClient.invalidateQueries({
-        queryKey: getReadSmartChipsApiV1CGuildIdSmartChipsGetQueryKey(guildId),
+        queryKey: getReadSmartChipsQueryKey(guildId),
       }),
   });
 
@@ -238,13 +231,10 @@ export const useSetTaskDone = () => {
       let targetId: number | null = null;
       try {
         const task = await queryClient.fetchQuery({
-          queryKey: getReadTaskApiV1CGuildIdTasksTaskIdGetQueryKey(guildId, taskId),
-          queryFn: () => readTaskApiV1CGuildIdTasksTaskIdGet(guildId, taskId),
+          queryKey: getReadTaskQueryKey(guildId, taskId),
+          queryFn: () => readTask(guildId, taskId),
         });
-        const statuses = await listTaskStatusesApiV1CGuildIdProjectsProjectIdTaskStatusesGet(
-          guildId,
-          task.project_id
-        );
+        const statuses = await listTaskStatuses(guildId, task.project_id);
         targetId = statusForCategory(statuses, done ? "done" : "in_progress")?.id ?? null;
       } catch (error) {
         toast.error(getErrorMessage(error, "tasks:errors.statusUpdate"));
@@ -277,7 +267,7 @@ export const useUpdateTaskInGuild = (
     {
       guildId: number;
       taskId: number;
-      data: Parameters<typeof updateTaskApiV1CGuildIdTasksTaskIdPatch>[2];
+      data: Parameters<typeof updateTask>[2];
     }
   >
 ) => {
@@ -294,9 +284,9 @@ export const useUpdateTaskInGuild = (
     }: {
       guildId: number;
       taskId: number;
-      data: Parameters<typeof updateTaskApiV1CGuildIdTasksTaskIdPatch>[2];
+      data: Parameters<typeof updateTask>[2];
     }) => {
-      return updateTaskApiV1CGuildIdTasksTaskIdPatch(guildId, taskId, withZone(data));
+      return updateTask(guildId, taskId, withZone(data));
     },
     onMutate: ({ guildId, taskId }) => {
       const cached = findCachedTask(guildId, queryClient, taskId);
@@ -332,7 +322,7 @@ export const useDeleteTask = (options?: MutationOpts<void, DeleteTaskVariables>)
   useGuildMutation<void, DeleteTaskVariables>(
     {
       mutationFn: (guildId, { taskId, scope }) =>
-        deleteTaskApiV1CGuildIdTasksTaskIdDelete(guildId, taskId, scope ? { scope } : undefined),
+        deleteTask(guildId, taskId, scope ? { scope } : undefined),
       invalidate: () => invalidate(q.allTasks()),
       errorKey: "projects:tasks.bulkDeleteError",
     },
@@ -343,7 +333,7 @@ export const useDeleteTask = (options?: MutationOpts<void, DeleteTaskVariables>)
 export const useSkipTask = (options?: MutationOpts<TaskRead, number>) =>
   useGuildMutation<TaskRead, number>(
     {
-      mutationFn: (guildId, taskId) => skipTaskApiV1CGuildIdTasksTaskIdSkipPost(guildId, taskId),
+      mutationFn: (guildId, taskId) => skipTask(guildId, taskId),
       invalidate: (_data, taskId) => invalidate(q.allTasks(), q.task(taskId)),
       errorKey: "tasks:edit.skipError",
     },
@@ -354,9 +344,7 @@ export const useBulkDeleteTasks = (options?: MutationOpts<void, number[]>) =>
   useGuildMutation<void, number[]>(
     {
       mutationFn: async (guildId, taskIds) => {
-        await Promise.all(
-          taskIds.map((id) => deleteTaskApiV1CGuildIdTasksTaskIdDelete(guildId, id))
-        );
+        await Promise.all(taskIds.map((id) => deleteTask(guildId, id)));
       },
       invalidate: () => invalidate(q.allTasks()),
       errorKey: "projects:tasks.bulkDeleteError",
@@ -367,20 +355,13 @@ export const useBulkDeleteTasks = (options?: MutationOpts<void, number[]>) =>
 export const useBulkUpdateTasks = (
   options?: MutationOpts<
     TaskRead[],
-    { taskIds: number[]; changes: Parameters<typeof updateTaskApiV1CGuildIdTasksTaskIdPatch>[2] }
+    { taskIds: number[]; changes: Parameters<typeof updateTask>[2] }
   >
 ) =>
-  useGuildMutation<
-    TaskRead[],
-    { taskIds: number[]; changes: Parameters<typeof updateTaskApiV1CGuildIdTasksTaskIdPatch>[2] }
-  >(
+  useGuildMutation<TaskRead[], { taskIds: number[]; changes: Parameters<typeof updateTask>[2] }>(
     {
       mutationFn: (guildId, { taskIds, changes }) =>
-        Promise.all(
-          taskIds.map((taskId) =>
-            updateTaskApiV1CGuildIdTasksTaskIdPatch(guildId, taskId, withZone(changes))
-          )
-        ),
+        Promise.all(taskIds.map((taskId) => updateTask(guildId, taskId, withZone(changes)))),
       invalidate: () => invalidate(q.allTasks()),
       errorKey: "projects:tasks.bulkUpdateError",
     },
@@ -391,11 +372,7 @@ export const useBulkArchiveTasks = (options?: MutationOpts<ArchiveResponse[], nu
   useGuildMutation<ArchiveResponse[], number[]>(
     {
       mutationFn: (guildId, taskIds) =>
-        Promise.all(
-          taskIds.map((taskId) =>
-            archiveEntityApiV1CGuildIdArchiveEntityTypeEntityIdPost(guildId, "task", taskId)
-          )
-        ),
+        Promise.all(taskIds.map((taskId) => archiveEntity(guildId, "task", taskId))),
       invalidate: () => invalidate(q.allTasks()),
       errorKey: "projects:tasks.archiveError",
     },
@@ -408,7 +385,7 @@ export const useMoveTask = (
   useGuildMutation<TaskRead, { taskId: number; targetProjectId: number }>(
     {
       mutationFn: (guildId, { taskId, targetProjectId }) =>
-        moveTaskApiV1CGuildIdTasksTaskIdMovePost(guildId, taskId, {
+        moveTask(guildId, taskId, {
           target_project_id: targetProjectId,
         }),
       invalidate: () => invalidate(q.allTasks()),
@@ -420,8 +397,7 @@ export const useMoveTask = (
 export const useDuplicateTask = (options?: MutationOpts<TaskRead, number>) =>
   useGuildMutation<TaskRead, number>(
     {
-      mutationFn: (guildId, taskId) =>
-        duplicateTaskApiV1CGuildIdTasksTaskIdDuplicatePost(guildId, taskId),
+      mutationFn: (guildId, taskId) => duplicateTask(guildId, taskId),
       invalidate: () => invalidate(q.allTasks()),
       errorKey: "common:error",
     },
@@ -437,10 +413,7 @@ export const useReorderTasks = (options?: MutationOpts<TaskRead[], TaskReorderRe
   return useMutation({
     ...rest,
     mutationFn: async (payload: TaskReorderRequest) => {
-      return reorderTasksApiV1CGuildIdTasksReorderPost(
-        guildId,
-        payload as Parameters<typeof reorderTasksApiV1CGuildIdTasksReorderPost>[1]
-      );
+      return reorderTasks(guildId, payload as Parameters<typeof reorderTasks>[1]);
     },
     onMutate: (payload) => {
       // Detect non-done -> done transitions in this reorder by inspecting
@@ -462,12 +435,7 @@ export const useReorderTasks = (options?: MutationOpts<TaskRead[], TaskReorderRe
           if (cached.task_status_id === item.task_status_id) continue; // unchanged
           if (cached.task_status?.category === "done") continue; // already done
           const newStatus = queryClient
-            .getQueryData<TaskStatusRead[]>(
-              getListTaskStatusesApiV1CGuildIdProjectsProjectIdTaskStatusesGetQueryKey(
-                guildId,
-                cached.project_id
-              )
-            )
+            .getQueryData<TaskStatusRead[]>(getListTaskStatusesQueryKey(guildId, cached.project_id))
             ?.find((s) => s.id === item.task_status_id);
           if (newStatus?.category !== "done") continue; // not moving into done
           didTransitionToDone = true;
@@ -506,10 +474,10 @@ export const useArchiveDoneTasks = (
   useGuildMutation<ArchiveDoneResponse, { projectId: number; taskStatusId?: number }>(
     {
       mutationFn: (guildId, { projectId, taskStatusId }) =>
-        archiveDoneTasksApiV1CGuildIdTasksArchiveDonePost(guildId, {
+        archiveDoneTasks(guildId, {
           project_id: projectId,
           ...(taskStatusId !== undefined && { task_status_id: taskStatusId }),
-        } as Parameters<typeof archiveDoneTasksApiV1CGuildIdTasksArchiveDonePost>[1]),
+        } as Parameters<typeof archiveDoneTasks>[1]),
       invalidate: () => invalidate(q.allTasks()),
       errorKey: "projects:tasks.archiveError",
     },
@@ -521,8 +489,7 @@ export const useGenerateTaskDescription = (
 ) =>
   useGuildMutation<GenerateDescriptionResponse, number>(
     {
-      mutationFn: (guildId, taskId) =>
-        generateTaskDescriptionApiV1CGuildIdTasksTaskIdAiDescriptionPost(guildId, taskId),
+      mutationFn: (guildId, taskId) => generateTaskDescription(guildId, taskId),
       errorKey: "tasks:edit.generateDescriptionError",
     },
     options
@@ -539,7 +506,7 @@ export const useToggleChecklistItem = (
   useGuildMutation<ChecklistItem[], { taskId: number; itemId: string; done: boolean }>(
     {
       mutationFn: (guildId, { taskId, itemId, done }) =>
-        toggleChecklistItemApiV1CGuildIdTasksTaskIdChecklistItemIdPatch(guildId, taskId, itemId, {
+        toggleChecklistItem(guildId, taskId, itemId, {
           done,
         }),
       invalidate: (_data, { taskId }) => {
@@ -553,8 +520,7 @@ export const useToggleChecklistItem = (
 export const useGenerateChecklist = (options?: MutationOpts<GenerateChecklistResponse, number>) =>
   useGuildMutation<GenerateChecklistResponse, number>(
     {
-      mutationFn: (guildId, taskId) =>
-        generateTaskChecklistApiV1CGuildIdTasksTaskIdAiChecklistPost(guildId, taskId),
+      mutationFn: (guildId, taskId) => generateTaskChecklist(guildId, taskId),
       errorKey: "tasks:checklist.generateError",
     },
     options

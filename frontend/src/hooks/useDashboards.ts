@@ -1,13 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
 
 import {
-  getReadDashboardApiV1CGuildIdDashboardsDashboardIdGetQueryKey,
-  getReadInstalledListingsApiV1CGuildIdDashboardsInstalledListingsGetQueryKey,
-  getReadWidgetCatalogApiV1CGuildIdDashboardsWidgetCatalogGetQueryKey,
-  readInstalledListingsApiV1CGuildIdDashboardsInstalledListingsGet,
-  readWidgetCatalogApiV1CGuildIdDashboardsWidgetCatalogGet,
-  setPublishedViewApiV1CGuildIdDashboardsDashboardIdPublishedPut,
-  upgradeDashboardApiV1CGuildIdDashboardsDashboardIdUpgradePost,
+  getReadDashboardQueryKey,
+  getReadInstalledListingsQueryKey,
+  getReadWidgetCatalogQueryKey,
+  readInstalledListings,
+  readWidgetCatalog,
+  setPublishedView,
+  upgradeDashboard,
 } from "@/api/generated/dashboards/dashboards";
 import type {
   DashboardInstalledListings,
@@ -50,8 +50,8 @@ export const useSetDashboardGrants = dashboards.useSetGrants;
 export const useWidgetCatalog = (options?: QueryOpts<WidgetCatalog>) => {
   const guildId = useActiveGuildId();
   return useQuery<WidgetCatalog>({
-    queryKey: getReadWidgetCatalogApiV1CGuildIdDashboardsWidgetCatalogGetQueryKey(guildId),
-    queryFn: () => readWidgetCatalogApiV1CGuildIdDashboardsWidgetCatalogGet(guildId),
+    queryKey: getReadWidgetCatalogQueryKey(guildId),
+    queryFn: () => readWidgetCatalog(guildId),
     staleTime: Number.POSITIVE_INFINITY,
     ...options,
   });
@@ -67,8 +67,8 @@ export const useWidgetCatalog = (options?: QueryOpts<WidgetCatalog>) => {
 export const useInstalledListings = (options?: QueryOpts<DashboardInstalledListings>) => {
   const guildId = useActiveGuildId();
   return useQuery<DashboardInstalledListings>({
-    queryKey: getReadInstalledListingsApiV1CGuildIdDashboardsInstalledListingsGetQueryKey(guildId),
-    queryFn: () => readInstalledListingsApiV1CGuildIdDashboardsInstalledListingsGet(guildId),
+    queryKey: getReadInstalledListingsQueryKey(guildId),
+    queryFn: () => readInstalledListings(guildId),
     ...options,
   });
 };
@@ -92,13 +92,9 @@ export const useUpgradeDashboard = (
   const guildId = useActiveGuildId();
   return useGuildMutation<DashboardRead, void>(
     {
-      mutationFn: (guildId) =>
-        upgradeDashboardApiV1CGuildIdDashboardsDashboardIdUpgradePost(guildId, dashboardId),
+      mutationFn: (guildId) => upgradeDashboard(guildId, dashboardId),
       invalidate: (updated) => {
-        queryClient.setQueryData(
-          getReadDashboardApiV1CGuildIdDashboardsDashboardIdGetQueryKey(guildId, dashboardId),
-          updated
-        );
+        queryClient.setQueryData(getReadDashboardQueryKey(guildId, dashboardId), updated);
         return invalidateDashboardAndList(dashboardId);
       },
       errorKey: "dashboards:error",
@@ -120,7 +116,7 @@ export const useSetPublishedView = (
   useGuildMutation<DashboardRead, PublishTarget[]>(
     {
       mutationFn: (guildId, resources) =>
-        setPublishedViewApiV1CGuildIdDashboardsDashboardIdPublishedPut(guildId, dashboardId, {
+        setPublishedView(guildId, dashboardId, {
           resources,
         }),
       invalidate: () => invalidateDashboardAndList(dashboardId),

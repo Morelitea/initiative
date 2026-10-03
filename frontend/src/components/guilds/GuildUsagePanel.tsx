@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 
-import { useReadStorageUsageApiV1CGuildIdStorageUsageGet } from "@/api/generated/storage/storage";
+import { useReadStorageUsage } from "@/api/generated/storage/storage";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { useAppConfig } from "@/hooks/useAppConfig";
@@ -29,7 +29,7 @@ export const GuildUsagePanel = () => {
   // Read on the settings surface, by the same rung as the caps beside it, so a
   // settings grant reaches it too. Until it answers — or if it cannot — the
   // figure is not shown at all: an empty bar would read as nothing stored.
-  const { data: usage, isError } = useReadStorageUsageApiV1CGuildIdStorageUsageGet(guildId ?? 0, {
+  const { data: usage, isError } = useReadStorageUsage(guildId ?? 0, {
     query: { enabled: guildId != null },
   });
 
