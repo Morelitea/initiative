@@ -99,8 +99,14 @@
     "primaryFailed": "L'adresse principale n'a pas pu être changée.",
     "removeDialogTitle": "Retirer cette adresse ?",
     "removeDialogDescription": "<strong>{{email}}</strong> ne vous connectera plus et ne recevra plus le courrier de votre compte.",
-    "removeCancel": "Annuler",
-    "removeConfirm": "Retirer"
+    "removeConfirm": "Retirer",
+    "passwordLabel": "Mot de passe actuel",
+    "addDialogTitle": "Ajouter cette adresse ?",
+    "addDialogDescription": "Nous enverrons un lien à <strong>{{email}}</strong> pour la confirmer.",
+    "addConfirm": "Ajouter",
+    "primaryDialogTitle": "Définir cette adresse comme principale ?",
+    "primaryDialogDescription": "Les réinitialisations de mot de passe et les codes de connexion iront d'abord à <strong>{{email}}</strong>.",
+    "primaryConfirm": "Définir comme principale"
   },
   "security": {
     "loadingDevices": "Chargement des appareils…",

@@ -99,8 +99,14 @@
     "primaryFailed": "The primary address could not be changed.",
     "removeDialogTitle": "Remove this address?",
     "removeDialogDescription": "<strong>{{email}}</strong> will stop signing you in and stop receiving your account mail.",
-    "removeCancel": "Cancel",
-    "removeConfirm": "Remove"
+    "removeConfirm": "Remove",
+    "passwordLabel": "Current password",
+    "addDialogTitle": "Add this address?",
+    "addDialogDescription": "We'll send a link to <strong>{{email}}</strong> to confirm it.",
+    "addConfirm": "Add",
+    "primaryDialogTitle": "Make this address primary?",
+    "primaryDialogDescription": "Password resets and sign-in codes will go to <strong>{{email}}</strong> first.",
+    "primaryConfirm": "Make primary"
   },
   "security": {
     "loadingDevices": "Loading devices…",

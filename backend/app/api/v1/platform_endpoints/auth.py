@@ -38,6 +38,7 @@ from app.core import auth_context
 from app.core.rate_limit import MAIL_SENDS, get_inet_client_ip, limiter
 from app.core.encryption import (
     decrypt_field,
+    SALT_EMAIL,
     SALT_OIDC_CLIENT_SECRET,
 )
 from app.core.login_methods import LoginMethod
@@ -1955,10 +1956,15 @@ async def confirm_verification(
         )
     # A token minted for one address proves that address; the older
     # account-level tokens carry none and prove the account.
+    proved_address = None
     if record.user_email_id is not None:
+        proved_at = datetime.now(timezone.utc)
         try:
-            await addresses.verify_for_user(
-                system_session, user_id=user.id, address_id=record.user_email_id
+            row = await addresses.verify_for_user(
+                system_session,
+                user_id=user.id,
+                address_id=record.user_email_id,
+                now=proved_at,
             )
         except addresses.AddressError as exc:
             # Somebody else proved the same address first. The claim is over,
@@ -1973,6 +1979,10 @@ async def confirm_verification(
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST, detail=exc.code
             ) from exc
+        # An address added to an account that already had one is a new way in,
+        # so the account is told once it is proved. A sign-up's own is not news.
+        if row.verified_at == proved_at and row.source == addresses.SOURCE_ADDED:
+            proved_address = decrypt_field(row.email_encrypted, SALT_EMAIL)
 
     record.consumed_at = datetime.now(timezone.utc)
     system_session.add(record)
@@ -1981,6 +1991,10 @@ async def confirm_verification(
             system_session, invite_id=record.invite_id, user=user
         )
     await system_session.commit()
+    if proved_address is not None:
+        await email_service.announce_address_change(
+            system_session, user, change="proved", address=proved_address
+        )
     await cohorts.settle(system_session)
     return VerificationSendResponse(status="verified")
 

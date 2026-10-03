@@ -9033,8 +9033,20 @@ export interface UserCreate {
   birthdate?: string | null;
 }
 
+/**
+ * Removing an address or making one primary asks for the password, where
+ * there is one.
+ */
+export interface UserEmailChange {
+  current_password?: string | null;
+}
+
+/**
+ * Adding an address asks for the password, where there is one.
+ */
 export interface UserEmailCreate {
   email: string;
+  current_password?: string | null;
 }
 
 /**
@@ -9055,6 +9067,7 @@ export interface UserEmailRead {
 
 export interface UserEmailListResponse {
   items: UserEmailRead[];
+  password_required: boolean;
 }
 
 /**

@@ -432,8 +432,8 @@ async def test_create_guild_bound_key_rejects_unknown_guild(
         ("POST", "/api/v1/me/api-keys", {"name": "Wider"}),
         ("DELETE", "/api/v1/me/api-keys/1", None),
         ("POST", "/api/v1/me/emails", {"email": "elsewhere@example.com"}),
-        ("DELETE", "/api/v1/me/emails/1", None),
-        ("PUT", "/api/v1/me/emails/1/primary", None),
+        ("POST", "/api/v1/me/emails/1/remove", {}),
+        ("PUT", "/api/v1/me/emails/1/primary", {}),
     ],
 )
 async def test_a_key_does_not_manage_keys_or_addresses(

@@ -99,8 +99,14 @@
     "primaryFailed": "No se pudo cambiar la dirección principal.",
     "removeDialogTitle": "¿Quitar esta dirección?",
     "removeDialogDescription": "<strong>{{email}}</strong> dejará de servir para entrar y de recibir el correo de tu cuenta.",
-    "removeCancel": "Cancelar",
-    "removeConfirm": "Quitar"
+    "removeConfirm": "Quitar",
+    "passwordLabel": "Contraseña actual",
+    "addDialogTitle": "¿Añadir esta dirección?",
+    "addDialogDescription": "Enviaremos un enlace a <strong>{{email}}</strong> para confirmarla.",
+    "addConfirm": "Añadir",
+    "primaryDialogTitle": "¿Hacer principal esta dirección?",
+    "primaryDialogDescription": "Los restablecimientos de contraseña y los códigos de inicio de sesión irán primero a <strong>{{email}}</strong>.",
+    "primaryConfirm": "Hacer principal"
   },
   "security": {
     "loadingDevices": "Cargando dispositivos…",

@@ -1066,8 +1066,20 @@ async def _queue_account_notice(
     """
     from app.services.platform import email_outbox
 
+    pieces = _account_notice_pieces(user, section=section, key=key, **values)
+    try:
+        await email_outbox.enqueue_account_letter(user, pieces)
+    except Exception:  # pragma: no cover - the letter is best effort
+        logger.exception("could not queue %s for account %s", key, user.id)
+
+
+def _account_notice_pieces(
+    user: User, *, section: str, key: str, **values: str
+) -> EmailPieces:
+    """One letter about a way into the account changing, in its holder's
+    locale."""
     locale = _user_locale(user)
-    pieces = EmailPieces(
+    return EmailPieces(
         subject=email_t(f"{key}.subject", locale=locale, escape=False),
         headline=email_t(f"{key}.title", locale=locale),
         body=(
@@ -1075,10 +1087,6 @@ async def _queue_account_notice(
             f"<p>{email_t(f'{section}.fallbackText', locale=locale)}"
         ),
     )
-    try:
-        await email_outbox.enqueue_account_letter(user, pieces)
-    except Exception:  # pragma: no cover - the letter is best effort
-        logger.exception("could not queue %s for account %s", key, user.id)
 
 
 async def announce_second_factor_change(
@@ -1102,6 +1110,52 @@ async def announce_passkey_change(
         key="passkey.added" if added else "passkey.removed",
         passkey=name,
     )
+
+
+async def announce_address_change(
+    session: AsyncSession,
+    user: User,
+    *,
+    change: Literal["proved", "primary"],
+    address: str,
+) -> None:
+    """Tell the account an address was proved on it, or made its primary."""
+    await _queue_account_notice(
+        user, section="address", key=f"address.{change}", address=address
+    )
+
+
+async def announce_address_removed(
+    session: AsyncSession, user: User, *, address: str
+) -> None:
+    """Tell the account a proved address was removed, and tell that address.
+
+    The queued letter goes to the addresses the account still holds, so the
+    one removed is written to here.
+    """
+    await _queue_account_notice(
+        user, section="address", key="address.removed", address=address
+    )
+    pieces = _account_notice_pieces(
+        user, section="address", key="address.removed", address=address
+    )
+    try:
+        settings_obj, accent = await _email_context(session)
+        html_body, text_body = render_single(
+            pieces, user=user, accent=accent, locale=_user_locale(user)
+        )
+        await send_email(
+            session,
+            recipients=[address],
+            subject=pieces.subject,
+            html_body=html_body,
+            text_body=text_body,
+            settings_obj=settings_obj,
+        )
+    except EmailNotConfiguredError:
+        logger.info("no mail configured; removed address not written to")
+    except Exception:  # pragma: no cover - the letter is best effort
+        logger.exception("could not write to a removed address (user %s)", user.id)
 
 
 async def announce_sign_in_locked(
