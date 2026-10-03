@@ -80,7 +80,7 @@
   "INITIATIVE_JOIN_REQUEST_ALREADY_PENDING": "Du hast bereits eine offene Anfrage für diese Initiative",
   "INITIATIVE_JOIN_REQUEST_NOT_FOUND": "Beitrittsanfrage nicht gefunden",
   "INITIATIVE_JOIN_REQUEST_ALREADY_RESOLVED": "Diese Beitrittsanfrage wurde bereits beantwortet",
-  "INITIATIVE_CONTENT_KEPT_IN": "Diese Initiative behält ihre Inhalte für sich: Nichts darin kann exportiert oder in eine andere Initiative kopiert werden",
+  "INITIATIVE_CONTENT_KEPT_IN": "Diese Initiative behält ihre Inhalte für sich: Nichts darin kann exportiert oder in eine andere Initiative kopiert oder verschoben werden",
   "OIDC_NOT_ENABLED": "OIDC ist nicht aktiviert",
   "OIDC_METADATA_INCOMPLETE": "OIDC-Metadaten unvollständig",
   "AUTH_PROVIDER_NOT_FOUND": "Anmeldeanbieter nicht gefunden",

@@ -78,7 +78,7 @@
   "INITIATIVE_JOIN_REQUEST_ALREADY_PENDING": "Vous avez déjà une demande en attente pour cette initiative",
   "INITIATIVE_JOIN_REQUEST_NOT_FOUND": "Demande d’adhésion introuvable",
   "INITIATIVE_JOIN_REQUEST_ALREADY_RESOLVED": "Cette demande d’adhésion a déjà été traitée",
-  "INITIATIVE_CONTENT_KEPT_IN": "Cette initiative garde son contenu pour elle : rien ne peut en être exporté ni copié vers une autre initiative",
+  "INITIATIVE_CONTENT_KEPT_IN": "Cette initiative garde son contenu pour elle : rien ne peut en être exporté, ni copié ou déplacé vers une autre initiative",
   "OIDC_NOT_ENABLED": "L'OIDC n'est pas activé",
   "OIDC_METADATA_INCOMPLETE": "Métadonnées OIDC incomplètes",
   "AUTH_PROVIDER_NOT_FOUND": "Fournisseur de connexion introuvable",

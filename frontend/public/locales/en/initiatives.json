@@ -144,8 +144,8 @@
     },
     "keepContentIn": {
       "title": "Keep content in this initiative",
-      "label": "Block exports and copies to other initiatives",
-      "help": "While this is on, nobody can export anything from this initiative or copy it to another initiative, managers and community admins included. Copies inside this initiative still work, and so does the initiative export below."
+      "label": "Block exports, and copies and moves to other initiatives",
+      "help": "While this is on, nobody can export anything from this initiative, or copy or move it to another initiative, managers and community admins included. Copies and moves inside this initiative still work, and so does the initiative export below."
     },
     "membersTitle": "Members",
     "membersDescription": "Initiative project managers and community admins can manage membership.",
