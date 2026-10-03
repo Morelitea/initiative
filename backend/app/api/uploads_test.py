@@ -226,6 +226,8 @@ async def test_an_upload_token_ends_with_the_session_that_asked(
     most, not the usual ten."""
     from datetime import timedelta
 
+    import jwt
+
     from app.testing.factories import get_auth_token
 
     user = await create_user(session)
@@ -235,6 +237,11 @@ async def test_an_upload_token_ends_with_the_session_that_asked(
     )
     assert mint.status_code == 200, mint.text
     assert 0 < mint.json()["expires_in"] <= 120
+    minted = jwt.decode(
+        mint.json()["upload_token"], options={"verify_signature": False}
+    )
+    asked_with = jwt.decode(access, options={"verify_signature": False})
+    assert minted["exp"] <= asked_with["exp"]
 
 
 async def test_issue_upload_token_requires_auth(client: AsyncClient) -> None:

@@ -73,7 +73,7 @@ The same switch also ends a session that is **left alone for fifteen minutes**, 
 
 Touching it means the person: a tap, a click, typing or scrolling. The app renews its own session while somebody is using it, so the fifteen minutes only run down once they stop, and an app left open on a screen nobody touches does not keep itself signed in. What they see when they come back is the sign-in page.
 
-It follows the person rather than the room, so it applies to your members everywhere they go, in a browser and in the apps alike. The fifteen minutes take hold the next time the app renews somebody's session, which is within fifteen minutes. The twelve hours take hold at their next sign-in, so nobody is cut off mid-sentence.
+It follows the person rather than the room, so it applies to your members everywhere they go, in a browser and in the apps alike. The fifteen minutes take hold the next time the app renews somebody's session. The twelve hours take hold at their next sign-in, so nobody is cut off mid-sentence.
 
 ### What notifications carry
 
