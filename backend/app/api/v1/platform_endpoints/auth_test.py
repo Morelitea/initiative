@@ -19,6 +19,7 @@ from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.email_i18n import email_t
 from app.core.encryption import (
     decrypt_token,
     hash_email,
@@ -2145,6 +2146,48 @@ async def test_oidc_callback_links_existing_account_when_email_verified(
     again = await _run_oidc_flow(client, idp, id_token_claims=claims)
     assert SESSION_COOKIE_NAME in again.cookies
     assert len(await _federated_identities(session)) == 1
+
+
+async def test_a_provider_proving_an_added_address_tells_the_account(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """An address the person added and had not proved is proved when their
+    provider asserts it, and the account is told as the emailed link would."""
+    user = await create_user(session, email="linked@example.com")
+    user_id = user.id
+    await _enable_platform_oidc(session)
+    idp = FakeIdp()
+    _wire_fake_idp(monkeypatch, idp)
+    first = await _run_oidc_flow(
+        client,
+        idp,
+        id_token_claims={"email": "linked@example.com", "email_verified": True},
+    )
+    assert SESSION_COOKIE_NAME in first.cookies
+    addresses.record_address(
+        session,
+        user_id=user_id,
+        email="work@example.com",
+        source=addresses.SOURCE_ADDED,
+        verified=False,
+        is_primary=False,
+    )
+    await session.commit()
+
+    told: list[str] = []
+
+    async def _capture(user_, pieces):
+        told.append(pieces.subject)
+
+    monkeypatch.setattr(email_outbox, "enqueue_account_letter", _capture)
+
+    again = await _run_oidc_flow(
+        client,
+        idp,
+        id_token_claims={"email": "work@example.com", "email_verified": True},
+    )
+    assert SESSION_COOKIE_NAME in again.cookies
+    assert told == [email_t("address.proved.subject", "en", escape=False)]
 
 
 async def test_oidc_callback_refuses_deactivated_account(

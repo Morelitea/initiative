@@ -34,34 +34,49 @@ export const useMyAddresses = () =>
 // ── Mutations ───────────────────────────────────────────────────────────────
 
 /**
+ * Every change to the list is confirmed with the current password, where the
+ * list says one is asked for; `null` otherwise, and a recent sign-in answers.
+ */
+type Confirmed = { currentPassword: string | null };
+export type AddressAdd = Confirmed & { email: string };
+export type AddressChange = Confirmed & { addressId: number };
+
+/**
  * Start holding another address.
  *
  * The answer is the same whoever holds it already — a claim is recorded and
  * mail goes out, or nothing happens and mail goes to whoever proved it. So
  * there is one success message and it describes the letter, not the outcome.
  */
-export const useAddAddress = (options?: MutationOpts<VerificationSendResponse, string>) =>
-  useApiMutation<VerificationSendResponse, string>(
+export const useAddAddress = (options?: MutationOpts<VerificationSendResponse, AddressAdd>) =>
+  useApiMutation<VerificationSendResponse, AddressAdd>(
     {
-      mutationFn: (email) => addMyAddress({ email }),
+      mutationFn: ({ email, currentPassword }) =>
+        addMyAddress({ email, current_password: currentPassword }),
       invalidate: refresh,
     },
     options
   );
 
-export const useRemoveAddress = (options?: MutationOpts<void, number>) =>
-  useApiMutation<void, number>(
+export const useRemoveAddress = (options?: MutationOpts<void, AddressChange>) =>
+  useApiMutation<void, AddressChange>(
     {
-      mutationFn: (addressId) => removeMyAddress(addressId),
+      mutationFn: ({ addressId, currentPassword }) =>
+        removeMyAddress(addressId, {
+          current_password: currentPassword,
+        }),
       invalidate: refresh,
     },
     options
   );
 
-export const useMakeAddressPrimary = (options?: MutationOpts<UserEmailRead, number>) =>
-  useApiMutation<UserEmailRead, number>(
+export const useMakeAddressPrimary = (options?: MutationOpts<UserEmailRead, AddressChange>) =>
+  useApiMutation<UserEmailRead, AddressChange>(
     {
-      mutationFn: (addressId) => makeMyAddressPrimary(addressId),
+      mutationFn: ({ addressId, currentPassword }) =>
+        makeMyAddressPrimary(addressId, {
+          current_password: currentPassword,
+        }),
       invalidate: refresh,
     },
     options

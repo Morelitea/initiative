@@ -93,8 +93,14 @@
     "primaryFailed": "Die Hauptadresse konnte nicht geändert werden.",
     "removeDialogTitle": "Diese Adresse entfernen?",
     "removeDialogDescription": "Mit <strong>{{email}}</strong> melden Sie sich nicht mehr an, und Ihre Kontopost geht nicht mehr dorthin.",
-    "removeCancel": "Abbrechen",
-    "removeConfirm": "Entfernen"
+    "removeConfirm": "Entfernen",
+    "passwordLabel": "Aktuelles Passwort",
+    "addDialogTitle": "Diese Adresse hinzufügen?",
+    "addDialogDescription": "Wir senden einen Link an <strong>{{email}}</strong>, um sie zu bestätigen.",
+    "addConfirm": "Hinzufügen",
+    "primaryDialogTitle": "Diese Adresse als Hauptadresse festlegen?",
+    "primaryDialogDescription": "Passwort-Zurücksetzungen und Anmeldecodes gehen zuerst an <strong>{{email}}</strong>.",
+    "primaryConfirm": "Als Hauptadresse festlegen"
   },
   "security": {
     "loadingDevices": "Geräte werden geladen…",

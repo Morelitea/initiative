@@ -281,6 +281,24 @@
       "body": "Mit dem Passkey <strong>{{passkey}}</strong> kannst du dich nicht mehr anmelden. Deine übrigen Anmeldewege bleiben unverändert, und du bleibst überall angemeldet, wo du es warst."
     }
   },
+  "address": {
+    "fallbackText": "Wenn du das nicht warst, melde dich sofort an, prüfe die Adressen in deinem Konto und wende dich an die Betreiber dieser Seite.",
+    "proved": {
+      "subject": "Deinem Konto wurde eine Adresse hinzugefügt",
+      "title": "Deinem Konto wurde eine Adresse hinzugefügt",
+      "body": "<strong>{{address}}</strong> ist jetzt in deinem Konto bestätigt und kann zur Anmeldung verwendet werden."
+    },
+    "primary": {
+      "subject": "Deine primäre E-Mail-Adresse wurde geändert",
+      "title": "Deine primäre E-Mail-Adresse wurde geändert",
+      "body": "<strong>{{address}}</strong> ist jetzt die primäre Adresse deines Kontos. Passwort-Zurücksetzungen und Anmeldecodes gehen zuerst dorthin."
+    },
+    "removed": {
+      "subject": "Eine Adresse wurde aus deinem Konto entfernt",
+      "title": "Eine Adresse wurde aus deinem Konto entfernt",
+      "body": "<strong>{{address}}</strong> wurde aus deinem Konto entfernt und kann nicht mehr zur Anmeldung verwendet werden."
+    }
+  },
   "digest": {
     "hourly": {
       "title": "Die letzte Stunde auf Initiative",

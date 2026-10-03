@@ -580,11 +580,24 @@ class UserEmailRead(SanitizedBaseModel):
 
 
 class UserEmailCreate(SanitizedBaseModel):
+    """Adding an address asks for the password, where there is one."""
+
     email: EmailStr
+    current_password: Optional[str] = None
+
+
+class UserEmailChange(SanitizedBaseModel):
+    """Removing an address or making one primary asks for the password, where
+    there is one."""
+
+    current_password: Optional[str] = None
 
 
 class UserEmailListResponse(SanitizedBaseModel):
     items: List[UserEmailRead]
+    #: Whether changing the list asks for the password. Where it does not, a
+    #: recent sign-in answers instead.
+    password_required: bool
 
 
 class CookieConsentRead(SanitizedBaseModel):

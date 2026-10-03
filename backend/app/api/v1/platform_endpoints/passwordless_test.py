@@ -23,8 +23,10 @@ from app.models.platform.auth_session import AuthSession
 from app.models.platform.guild import CommunityRole
 from app.models.platform.mfa_recovery_code import MfaRecoveryCode
 from app.models.platform.user import User, UserStatus
+from app.models.platform.user_email import UserEmail
 from app.models.platform.user_passkey import UserPasskey
 from app.services.platform import email_outbox
+from app.services.auth import addresses
 from app.services.auth import sessions as session_service
 from app.services.auth import sign_in_locks
 from app.services.auth import totp as totp_service
@@ -683,7 +685,7 @@ async def test_recovering_sets_the_password_and_clears_the_sessions(
 # What stands in for the password an account does not hold
 # ---------------------------------------------------------------------------
 #
-# The six routes that re-check the password before changing how an account is
+# The routes that re-check the password before changing how an account is
 # signed into. An account holding one answers with it; one holding none answers
 # with the sign-in itself, which has to be recent.
 
@@ -779,7 +781,56 @@ async def _turn_off_the_factor(
     )
 
 
+async def _spare_address(session: AsyncSession, user: User) -> UserEmail:
+    row = addresses.record_address(
+        session,
+        user_id=user.id,
+        email=f"spare-{user.id}@example.com",
+        source=addresses.SOURCE_ADDED,
+        verified=True,
+        is_primary=False,
+    )
+    await session.commit()
+    return row
+
+
+async def _add_an_address(
+    client: AsyncClient, session: AsyncSession, user: User, headers: dict[str, str]
+) -> Response:
+    settings_row = await app_settings_service.get_app_settings(session)
+    settings_row.smtp_host = "smtp.example.com"
+    settings_row.smtp_from_address = "noreply@example.com"
+    session.add(settings_row)
+    await session.commit()
+    return await client.post(
+        "/api/v1/me/emails",
+        headers=headers,
+        json={"email": f"added-{user.id}@example.com"},
+    )
+
+
+async def _make_an_address_primary(
+    client: AsyncClient, session: AsyncSession, user: User, headers: dict[str, str]
+) -> Response:
+    spare = await _spare_address(session, user)
+    return await client.put(
+        f"/api/v1/me/emails/{spare.id}/primary", headers=headers, json={}
+    )
+
+
+async def _remove_an_address(
+    client: AsyncClient, session: AsyncSession, user: User, headers: dict[str, str]
+) -> Response:
+    spare = await _spare_address(session, user)
+    return await client.post(
+        f"/api/v1/me/emails/{spare.id}/remove", headers=headers, json={}
+    )
+
+
 _GATED = [
+    ("add-an-address", _add_an_address, 202),
+    ("make-an-address-primary", _make_an_address_primary, 200),
+    ("remove-an-address", _remove_an_address, 204),
     ("delete-account", _delete_account, 200),
     ("enrol-a-factor", _enrol_a_factor, 200),
     ("delete-guild", _delete_guild, 204),

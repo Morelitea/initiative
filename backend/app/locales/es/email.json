@@ -281,6 +281,24 @@
       "body": "La clave de acceso <strong>{{passkey}}</strong> ya no sirve para iniciar sesión. Las demás formas de entrar siguen igual y tu sesión continúa abierta allí donde lo estaba."
     }
   },
+  "address": {
+    "fallbackText": "Si no has sido tú, inicia sesión y revisa las direcciones de tu cuenta de inmediato, y ponte en contacto con quien administra este sitio.",
+    "proved": {
+      "subject": "Se añadió una dirección a tu cuenta",
+      "title": "Se añadió una dirección a tu cuenta",
+      "body": "<strong>{{address}}</strong> está ahora confirmada en tu cuenta y se puede usar para iniciar sesión."
+    },
+    "primary": {
+      "subject": "Tu dirección de correo principal ha cambiado",
+      "title": "Tu dirección de correo principal ha cambiado",
+      "body": "<strong>{{address}}</strong> es ahora la dirección principal de tu cuenta. Los restablecimientos de contraseña y los códigos de inicio de sesión llegan primero allí."
+    },
+    "removed": {
+      "subject": "Se eliminó una dirección de tu cuenta",
+      "title": "Se eliminó una dirección de tu cuenta",
+      "body": "<strong>{{address}}</strong> se eliminó de tu cuenta y ya no se puede usar para iniciar sesión."
+    }
+  },
   "digest": {
     "hourly": {
       "title": "La última hora en Initiative",

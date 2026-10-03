@@ -83,6 +83,7 @@ from app.schemas.platform.user import (
     AccountTimeOutRead,
     CookieConsentRead,
     CookieConsentUpdate,
+    UserEmailChange,
     UserEmailCreate,
     UserEmailListResponse,
     UserEmailRead,
@@ -1228,7 +1229,10 @@ async def list_my_addresses(
     because resolving an address happens before anybody is authenticated.
     """
     rows = await addresses.list_for_user(system_session, user_id=current_user.id)
-    return UserEmailListResponse(items=[_address_read(row) for row in rows])
+    return UserEmailListResponse(
+        items=[_address_read(row) for row in rows],
+        password_required=await password_confirms(system_session, current_user),
+    )
 
 
 @me_router.post(
@@ -1247,10 +1251,16 @@ async def add_my_address(
 ) -> VerificationSendResponse:
     """Start holding another address, and write to it to prove it.
 
+    The password is asked for first, where there is one, and a recent sign-in
+    otherwise, as for every change to how the account is signed into.
+
     The answer is the same whoever holds the address already. What differs is
     where the mail goes: a free address gets a link to confirm it, and one that
     is taken gets nothing.
     """
+    await require_password_or_recent_proof(
+        request, system_session, current_user, payload.current_password
+    )
     # Whether this deployment can send at all is settled before the address is
     # looked at, so the refusal is about the server rather than about who holds
     # what. Everything after this point answers identically.
@@ -1295,15 +1305,23 @@ async def add_my_address(
     return VerificationSendResponse(status="sent")
 
 
-@me_router.delete("/emails/{address_id}", status_code=status.HTTP_204_NO_CONTENT)
+@me_router.post("/emails/{address_id}/remove", status_code=status.HTTP_204_NO_CONTENT)
+@limiter.limit("10/15minutes")
 async def remove_my_address(
+    request: Request,
     address_id: int,
+    payload: UserEmailChange,
     system_session: SystemSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     _first_party: Annotated[str, Depends(require_first_party_session)],
 ) -> Response:
+    """Stop holding one address. The password is asked for again, as it is for
+    a password change."""
+    await require_password_or_recent_proof(
+        request, system_session, current_user, payload.current_password
+    )
     try:
-        await addresses.remove_for_user(
+        row = await addresses.remove_for_user(
             system_session, user_id=current_user.id, address_id=address_id
         )
     except addresses.AddressError as exc:
@@ -1315,18 +1333,38 @@ async def remove_my_address(
             ),
             detail=exc.code,
         ) from exc
+    # Read before the commit, which leaves the deleted row behind.
+    removed = decrypt_field(row.email_encrypted, SALT_EMAIL)
+    proved = row.verified_at is not None
     await system_session.commit()
+    # An address nobody proved was never a way in, nor known to be this
+    # account's to write to.
+    if proved:
+        await email_service.announce_address_removed(
+            system_session, current_user, address=removed
+        )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @me_router.put("/emails/{address_id}/primary", response_model=UserEmailRead)
+@limiter.limit("10/15minutes")
 async def make_my_address_primary(
+    request: Request,
     address_id: int,
+    payload: UserEmailChange,
     system_session: SystemSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     _first_party: Annotated[str, Depends(require_first_party_session)],
 ) -> UserEmailRead:
-    """Move where account mail goes."""
+    """Move where account mail goes. The password is asked for again, and every
+    address the account has proved is told, the one that was primary among
+    them."""
+    await require_password_or_recent_proof(
+        request, system_session, current_user, payload.current_password
+    )
+    was_primary = await addresses.primary_address(
+        system_session, user_id=current_user.id
+    )
     try:
         row = await addresses.set_primary_for_user(
             system_session, user_id=current_user.id, address_id=address_id
@@ -1342,6 +1380,11 @@ async def make_my_address_primary(
         ) from exc
     await system_session.commit()
     await system_session.refresh(row)
+    address = decrypt_field(row.email_encrypted, SALT_EMAIL)
+    if address != was_primary:
+        await email_service.announce_address_change(
+            system_session, current_user, change="primary", address=address
+        )
     return _address_read(row)
 
 
