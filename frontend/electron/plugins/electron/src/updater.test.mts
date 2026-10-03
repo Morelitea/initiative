@@ -12,7 +12,7 @@ import { strToU8, zipSync } from "fflate";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const paths = vi.hoisted(() => ({ userData: "" }));
-vi.mock("electron", () => ({
+vi.mock("./app.mjs", () => ({
   app: { getPath: () => paths.userData, getVersion: () => "1.0.0" },
 }));
 
