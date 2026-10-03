@@ -168,15 +168,18 @@ async def test_an_editor_body_is_rendered_by_the_server_not_the_tab(
     client: AsyncClient, session: AsyncSession, acting_user
 ) -> None:
     """A native document's content is what the server reads its Yjs state
-    as; a rendering a tab sends along is not taken."""
+    as, offline edits included; a rendering a tab sends along is not taken."""
     owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
     doc = await create_document(
         session, owner.initiative, owner.user, content=_lexical("on the server")
     )
+    # A paragraph the tab wrote while its socket was gone, as Lexical writes it.
+    offline = Doc()
+    offline.apply_update(await editor_engine.bootstrap(_lexical("written offline")))
 
     response = await client.post(
         _document_url(owner.guild.id, doc.id),
-        json=_handover(_typed("written offline"), content=_lexical("from the tab")),
+        json=_handover(offline, content=_lexical("from the tab")),
         headers=owner.headers,
     )
 
@@ -185,11 +188,12 @@ async def test_an_editor_body_is_rendered_by_the_server_not_the_tab(
         await session.exec(
             select(Document)
             .where(Document.id == doc.id)
-            .options(undefer(Document.content), undefer(Document.yjs_state))
+            .options(undefer(Document.content))
         )
     ).one()
-    assert _words(saved.content) == "on the server"
-    assert _text_of(saved.yjs_state or b"") == "written offline"
+    words = _words(saved.content)
+    assert "on the server" in words and "written offline" in words
+    assert "from the tab" not in words
 
 
 async def test_an_editor_body_with_no_state_has_it_made_once(
