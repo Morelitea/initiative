@@ -9,7 +9,8 @@ document (:func:`build_app_openapi`) is cut from it:
 - every identity field (``x-identity``) is a string, the install's reference;
 - every shape that draws a person (``x-person``) is ``AppPerson``, which is
   what an install receives in its place;
-- every field that mentions people (``x-mentions``) says how it names them;
+- every field that mentions people (``x-mentions``) says how it names them,
+  and that a stored file it shows comes without its path;
 - a field holding a stored file's path (``x-upload``) is left out, as an
   install's response leaves it out;
 - paths start after ``/api/v1/c/{guild_id}``, served from ``/api/v1/c/0``: an
@@ -42,13 +43,15 @@ _MENTIONS = {
     MentionForm.markdown.value: (
         "A person is mentioned as `@[Name](<reference>)`, by your reference for "
         "them. The name is empty without `members:read`. Write "
-        "`@[](<reference>)`: the person's name is filled in."
+        "`@[](<reference>)`: the person's name is filled in. A stored file "
+        "comes without its path: `![alt]()`, `[name]()`."
     ),
     MentionForm.lexical.value: (
         "A Lexical editor state. A person is mentioned by a node whose "
         "`mentionUserId` is your reference for them; its `mentionName` and "
         "`text` are empty without `members:read`, and filled in when you write "
-        "one."
+        "one. A stored file comes without its path: an image's `src` and a "
+        "link's `url` are empty."
     ),
 }
 

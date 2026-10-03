@@ -820,6 +820,13 @@ async def test_a_write_naming_three_people_costs_the_same_two(
 # ---------------------------------------------------------------------------
 
 
+def _with_picture(body: dict[str, Any], src: str) -> dict[str, Any]:
+    """``body`` with an image node after its paragraph."""
+    picture = {"type": "image", "src": src, "altText": "shot", "width": 0}
+    body["root"]["children"].append(picture)
+    return body
+
+
 @pytest.mark.parametrize("reads_names", [True, False])
 async def test_a_mention_names_a_person_by_reference_and_by_name_under_members_read(
     reads_names, client, session, acting_user, role_session
@@ -830,12 +837,16 @@ async def test_a_mention_names_a_person_by_reference_and_by_name_under_members_r
         session, acting_user, role_session, granted=[*reads, "members:read"]
     )
     seat = installed.seat
-    mention = f"Over to @[The Seat]({seat.user.id})"
+    picture = f"/uploads/{installed.guild.id}/pasted-shot.png"
+    mention = f"Over to @[The Seat]({seat.user.id}) ![shot]({picture})"
     post = await create_post(
         session,
         installed.placed,
         seat.user,
-        body=lexical_body("Over to ", mentioning=seat.user.id, name="The Seat"),
+        body=_with_picture(
+            lexical_body("Over to ", mentioning=seat.user.id, name="The Seat"),
+            picture,
+        ),
     )
     project = await _open_project(session, installed, installed.placed, "Open A")
     task = await create_task(
@@ -846,7 +857,10 @@ async def test_a_mention_names_a_person_by_reference_and_by_name_under_members_r
         session,
         installed.placed,
         seat.user,
-        content=lexical_body("Over to ", mentioning=seat.user.id, name="The Seat"),
+        content=_with_picture(
+            lexical_body("Over to ", mentioning=seat.user.id, name="The Seat"),
+            picture,
+        ),
     )
     await share_with_members(session, document, installed.placed.id)
     headers = install_headers(
@@ -868,10 +882,12 @@ async def test_a_mention_names_a_person_by_reference_and_by_name_under_members_r
         assert response.status_code == 200, response.text
         assert_names_nobody(response.text, [seat.user.id, guild_id])
         assert ("The Seat" in response.text) is reads_names
+        assert "/uploads/" not in response.text
     read, comments, opened, posted, listed = (r.json() for r in responses)
     ref = read["assignees"][0]["id"]
     name = "The Seat" if reads_names else ""
-    assert read["description"] == f"Over to @[{name}]({ref})"
+    # A stored picture is there, without its path.
+    assert read["description"] == f"Over to @[{name}]({ref}) ![shot]()"
     assert comments["comments"][0]["content"] == read["description"]
     [_, node] = opened["content"]["root"]["children"][0]["children"]
     assert (node["mentionUserId"], node["mentionName"], node["text"]) == (
@@ -879,6 +895,8 @@ async def test_a_mention_names_a_person_by_reference_and_by_name_under_members_r
         name,
         name,
     )
+    assert opened["content"]["root"]["children"][1]["src"] == ""
+    assert posted["body"]["root"]["children"][1]["src"] == ""
     # What is derived from the text shows the name only as the text does.
     assert posted["excerpt"] == f"Over to {name}".strip()
     assert listed["items"][0]["description_excerpt"] == f"Over to @{name}"
@@ -891,6 +909,11 @@ async def test_a_mention_names_a_person_by_reference_and_by_name_under_members_r
     )
     assert found.status_code == 200, found.text
     assert len(found.json()["items"]) == int(reads_names)
+    # A person reads the same with its paths.
+    for path in (f"/tasks/{task.id}", f"/documents/{document.id}", f"/posts/{post.id}"):
+        as_person = await client.get(guild_url(guild_id, path), headers=seat.headers)
+        assert as_person.status_code == 200, as_person.text
+        assert picture in as_person.text
 
 
 async def test_a_response_mentioning_three_people_costs_one_statement_cold(

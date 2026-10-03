@@ -24,7 +24,11 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core import recurrence
 from app.core.messages import CalendarEventMessages, QueryMessages
-from app.core.identity_boundary import MentionForm, without_mention_names
+from app.core.identity_boundary import (
+    MentionForm,
+    without_mention_names,
+    without_upload_paths,
+)
 from app.core.references import TEXT_REFERENCE, kind_for_trigger
 from app.core.relationships import RelationshipType
 from app.core.search import SearchEntityType
@@ -351,13 +355,14 @@ def _description_excerpt(head: str | None) -> str | None:
     the excerpt is cut even when the text read so far is short. The excerpt is
     the text of each block's inline content: pictures, HTML and code blocks
     drop out, a link or a mention keeps the words it shows. A mention names
-    nobody to an installed app that does not read names.
+    nobody to an installed app that does not read names, and a stored file's
+    path is left out for an installed app.
     """
     if not head:
         return None
     source_cut = len(head) > _DESCRIPTION_SOURCE_CHARS
-    source = without_mention_names(
-        head[:_DESCRIPTION_SOURCE_CHARS], MentionForm.markdown
+    source = without_upload_paths(
+        without_mention_names(head[:_DESCRIPTION_SOURCE_CHARS], MentionForm.markdown)
     )
     if source_cut:
         # A link, picture or mention the cut goes through is left out whole.

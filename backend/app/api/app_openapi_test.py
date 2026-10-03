@@ -233,7 +233,9 @@ def test_no_response_in_the_app_document_holds_a_stored_file_s_path():
     """A column that holds a stored file's path, beside the ones people write
     in (``attachments._upload_columns``), is served to people alone. No shape an
     app receives has a field named for one, and every ``x-upload`` mark sits on
-    a field of its own, which is where it leaves the field out."""
+    a field of its own, which is where it leaves the field out. A column people
+    write in carries its ``Mentions`` mark instead (the test above), which
+    leaves the path of each stored file it shows empty."""
     written = {column for columns in written_columns().values() for column in columns}
     paths = {column for _, column in _upload_columns()} - written
     document = app_openapi()

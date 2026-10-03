@@ -34,7 +34,9 @@ when the install holds ``members:read``.
 
 A field marked :data:`UPLOAD_PATH` holds a stored file's path,
 ``/uploads/{guild_id}/{name}``, which names the community by its row id and is
-served to people. A person gets it; an install's response leaves it out.
+served to people. A person gets it; an install's response leaves it out. Text
+marked :class:`Mentions` can show a stored file too, as an image or a link: in
+an install's response its path is left empty (:data:`UPLOAD_PATH_IN_TEXT`).
 
 The boundary lives in a context variable that ``ActorRoute`` opens per request,
 so it never outlives the request that set it.
@@ -77,12 +79,14 @@ __all__ = [
     "STORED_MENTION",
     "UNKNOWN_REFERENCE_ERROR",
     "UPLOAD_PATH",
+    "UPLOAD_PATH_IN_TEXT",
     "admit_install",
     "boundary_scope",
     "current_install_boundary",
     "names_withheld",
     "responding_to_install",
     "without_mention_names",
+    "without_upload_paths",
     "written_mention_refs",
 ]
 
@@ -335,17 +339,24 @@ def _markdown_out(value: Any, boundary: InstallBoundary) -> Any:
         marker = boundary.mark(IdentityEntity.user, int(match.group(2)))
         return f"@[{label}]({marker})"
 
-    return STORED_MENTION.sub(marked, value)
+    return _without_paths(STORED_MENTION.sub(marked, value))
 
 
-def _rewrite_nodes(value: Any, rewrite: Callable[[dict[str, Any]], Any]) -> Any:
+def _rewrite_nodes(
+    value: Any,
+    rewrite: Callable[[dict[str, Any]], Any],
+    text: Optional[Callable[[str], str]] = None,
+) -> Any:
     """``value`` copied, with every node that names a person in
-    ``mentionUserId`` passed through ``rewrite``."""
+    ``mentionUserId`` passed through ``rewrite``, and every string through
+    ``text`` when one is given."""
     if isinstance(value, list):
-        return [_rewrite_nodes(item, rewrite) for item in value]
+        return [_rewrite_nodes(item, rewrite, text) for item in value]
+    if isinstance(value, str) and text is not None:
+        return text(value)
     if not isinstance(value, dict):
         return value
-    walked = {key: _rewrite_nodes(child, rewrite) for key, child in value.items()}
+    walked = {key: _rewrite_nodes(child, rewrite, text) for key, child in value.items()}
     return walked if walked.get(_MENTION_ID) is None else rewrite(walked)
 
 
@@ -367,7 +378,7 @@ def _lexical_out(value: Any, boundary: InstallBoundary) -> Any:
             node |= {"mentionName": "", "text": ""}
         return node
 
-    return _rewrite_nodes(value, marked)
+    return _rewrite_nodes(value, marked, _without_paths)
 
 
 def without_mention_names(value: Any, form: MentionForm) -> Any:
@@ -390,6 +401,18 @@ def without_mention_names(value: Any, form: MentionForm) -> Any:
     return STORED_MENTION.sub(lambda match: f"@[]({match.group(2)})", value)
 
 
+def without_upload_paths(value: Any) -> Any:
+    """``value``, text or a Lexical editor state, with no stored file's path
+    in it, for an installed app; ``value`` as it is otherwise.
+
+    For content a route derives its response from, such as an excerpt, as
+    :func:`without_mention_names` is.
+    """
+    if current_install_boundary() is None:
+        return value
+    return _rewrite_nodes(value, lambda node: node, _without_paths)
+
+
 _TRANSLATIONS = {
     MentionForm.markdown: (_markdown_in, _markdown_out),
     MentionForm.lexical: (_lexical_in, _lexical_out),
@@ -403,8 +426,9 @@ class Mentions:
     For a person the value passes through as it is. For an install, a mention
     in the request names a reference and is stored with the row id and
     Initiative's own name for the person; a mention in the response names the
-    install's reference, with the name only under ``members:read``. The field's
-    schema carries ``x-mentions``, which the app API's document describes.
+    install's reference, with the name only under ``members:read``, and a
+    stored file the value shows comes without its path. The field's schema
+    carries ``x-mentions``, which the app API's document describes.
     """
 
     form: MentionForm
@@ -450,6 +474,18 @@ LEXICAL_MENTIONS = Mentions(MentionForm.lexical)
 
 
 # --- Stored files ---------------------------------------------------------------
+
+
+#: A stored file's address inside text, ``/uploads/{guild_id}/{name}``,
+#: optionally behind an origin: in a markdown image or link, or a Lexical
+#: node's ``src`` or ``url``.
+UPLOAD_PATH_IN_TEXT = re.compile(r"(?:https?://[^\s()<>]+?)?/uploads/\d+/[\w.-]+")
+
+
+def _without_paths(text: str) -> str:
+    """``text`` with each stored file's address emptied: ``![alt]()``,
+    ``[name]()``, a node's ``"src": ""``."""
+    return UPLOAD_PATH_IN_TEXT.sub("", text)
 
 
 def _upload_path_withheld(_path: Any) -> bool:

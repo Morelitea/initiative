@@ -9,6 +9,7 @@ from app.core.identity_boundary import (
     MentionForm,
     PersonId,
     without_mention_names,
+    without_upload_paths,
 )
 from app.schemas.base import SanitizedBaseModel, TitleStr
 from app.schemas.tenant.document import LexicalState
@@ -337,8 +338,11 @@ def post_body_too_long(body: Any) -> bool:
 def post_excerpt(body: Any, *, limit: int = EXCERPT_CHARS) -> str:
     """The first line or so of a post, for the surfaces that show one in a
     line — recents, search, the guild table. A mention names nobody to an
-    installed app that does not read names."""
-    joined = post_text(without_mention_names(body, MentionForm.lexical))
+    installed app that does not read names, and a stored file's path is left
+    out for an installed app."""
+    joined = post_text(
+        without_upload_paths(without_mention_names(body, MentionForm.lexical))
+    )
     if len(joined) <= limit:
         return joined
     # Cut on a word boundary where there is one nearby, so the excerpt does not

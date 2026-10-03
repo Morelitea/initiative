@@ -25,6 +25,7 @@ from app.core.identity_boundary import (
     admit_install,
     boundary_scope,
     current_install_boundary,
+    without_upload_paths,
 )
 from app.core.messages import AppMessages
 from app.db.guild_standing import named_ref_candidates
@@ -253,11 +254,35 @@ def _mention(person: int | str, name: str) -> dict[str, Any]:
     }
 
 
-def test_a_person_s_mentions_pass_through():
-    body = {
-        "text": "@[Ada](11) on #task[Fix it](3)",
-        "state": {"root": _mention(11, "Ada")},
+_PICTURE = f"/uploads/{_GUILD}/pasted-ab12.png"
+_FILE = f"https://initiative.example/uploads/{_GUILD}/notes.pdf"
+_ELSEWHERE = "https://pictures.example/logo.png"
+
+
+def _image(src: str) -> dict[str, Any]:
+    return {"type": "image", "src": src, "altText": "chart", "width": 640}
+
+
+def _shown(text: str, picture: str, file: str) -> dict[str, Any]:
+    """A body mentioning Ada, showing a stored picture and file, and a picture
+    from elsewhere."""
+    return {
+        "text": f"{text} ![chart]({picture}) [notes.pdf]({file}) ![logo]({_ELSEWHERE})",
+        "state": {
+            "root": {
+                "children": [
+                    _mention(11, "Ada"),
+                    _image(picture),
+                    {"type": "link", "url": file, "children": []},
+                    _image(_ELSEWHERE),
+                ]
+            }
+        },
     }
+
+
+def test_a_person_s_mentions_and_files_pass_through():
+    body = _shown("@[Ada](11) on #task[Fix it](3)", _PICTURE, _FILE)
     assert _Body.model_validate(body).model_dump(mode="json") == body
 
 
@@ -272,6 +297,27 @@ def test_an_install_s_mention_is_stored_with_initiative_s_name():
         )
     assert body.text == "@[Ada](11) on #task[Fix it](3)"
     assert body.state == {"root": _mention(11, "Ada]")}
+
+
+def test_an_install_reads_a_mention_and_no_stored_file_s_path():
+    body = _Body.model_validate(_shown("@[Ada](11)", _PICTURE, _FILE))
+    with boundary_scope():
+        boundary = _boundary(reads_names=True)
+        admit_install(boundary)
+        boundary.phase = BoundaryPhase.response
+        dumped = body.model_dump(mode="json")
+    expected = _shown(f"@[Ada]({boundary.nonce}:u:11)", "", "")
+    expected["state"]["root"]["children"][0]["mentionUserId"] = f"{boundary.nonce}:u:11"
+    assert dumped == expected
+
+
+def test_derived_text_shows_an_install_no_stored_file_s_path():
+    text = f"see {_PICTURE} and {_ELSEWHERE}"
+    assert without_upload_paths(text) == text
+    with boundary_scope():
+        admit_install(_boundary())
+        assert without_upload_paths(text) == f"see  and {_ELSEWHERE}"
+        assert without_upload_paths({"root": _image(_PICTURE)}) == {"root": _image("")}
 
 
 @pytest.mark.parametrize("named", ["11", "uapp_nobody-here", _GUILD_REF, _OTHER_REF])
