@@ -93,8 +93,9 @@ def _rename_keys(bind, table: str, column: str, keys: dict[str, str], cast: str)
         _none_left(bind, table, f"{column} IS NOT NULL AND {column}::jsonb ? '{old}'")
 
 
-def _export_source(bind, table: str, column: str, old: str, new: str, cast: str):
+def _export_source(bind, table: str, column: str, source: tuple[str, str], cast: str):
     """An export notice names the community export by its source."""
+    old, new = source
     types = ", ".join(f"'{t}'" for t in EXPORT_NOTICES)
     doc = f"{column}::jsonb"
     where = f"type IN ({types}) AND {doc} ->> 'source' = '{old}'"
@@ -116,11 +117,11 @@ def _public(bind, types: dict[str, str], keys: dict[str, str], source, mode) -> 
     def write() -> None:
         _set_value(bind, notifications, "type", types)
         _rename_keys(bind, notifications, "data", keys, "::json")
-        _export_source(bind, notifications, "data", *source, "::json")
+        _export_source(bind, notifications, "data", source, "::json")
         _set_value(bind, outbox, "type", types)
         _rename_keys(bind, outbox, "data", keys, "")
         _rename_keys(bind, outbox, "push_data", keys, "")
-        _export_source(bind, outbox, "data", *source, "")
+        _export_source(bind, outbox, "data", source, "")
         _set_value(bind, settings, "ai_config_mode", mode)
 
     _unforced(bind, (notifications, outbox, settings), write)
