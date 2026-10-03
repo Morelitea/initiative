@@ -86,6 +86,12 @@ const parseConditions = (params: URLSearchParams) =>
 
 const isGroup = (c: FilterCondition | FilterGroup): c is FilterGroup => "conditions" in c;
 
+/** Export sits in the toolbar's "More actions" menu. */
+const exportFromMenu = async (user: ReturnType<typeof userEvent.setup>) => {
+  await user.click(await screen.findByRole("button", { name: /more actions/i }));
+  await user.click(await screen.findByRole("menuitem", { name: /^export/i }));
+};
+
 describe("CalendarsView calendar-entries query", () => {
   it("issues a single calendar-entries request windowed to the dates the view renders", async () => {
     const requests = stubEntries({ tasks: [] });
@@ -260,7 +266,7 @@ describe("CalendarsView calendar-entries query", () => {
 
     // The export takes the range itself, not the window on screen.
     await user.keyboard("{Escape}");
-    await user.click(screen.getByRole("button", { name: /^export$/i }));
+    await exportFromMenu(user);
     await waitFor(() => expect(exports).toHaveLength(1));
     const range = dateRangeParams({ from, until });
     expect(exports[0].get("start_after")).toBe(range.start_after);
@@ -498,7 +504,7 @@ describe("CalendarsView on the calendar app's own surface", () => {
     const user = userEvent.setup();
     renderCommunityScope();
 
-    await user.click(await screen.findByRole("button", { name: /^export$/i }));
+    await exportFromMenu(user);
     await waitFor(() => expect(exports).toHaveLength(1));
     expect(exports[0].get("scope")).toBe("community");
     expect(exports[0].getAll("calendar_ids")).toEqual([]);
@@ -507,7 +513,7 @@ describe("CalendarsView on the calendar app's own surface", () => {
     await user.click(screen.getByRole("button", { name: "All calendars" }));
     await user.click(await screen.findByRole("checkbox", { name: "Holidays" }));
     await user.keyboard("{Escape}");
-    await user.click(screen.getByRole("button", { name: /^export$/i }));
+    await exportFromMenu(user);
     await waitFor(() => expect(exports).toHaveLength(2));
     expect(exports[1].get("scope")).toBe("community");
     expect(exports[1].getAll("exclude_calendar_ids")).toEqual(["42"]);
