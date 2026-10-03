@@ -118,3 +118,13 @@ async def test_a_step_up_keeps_how_long_the_person_has_been_signed_in(
 
     assert opened.session.continues_since == signed_in.created_at
     assert not await risky_session(session, opened.session)
+
+    # And across the renewals after it.
+    rotated = await session_service.rotate_session(
+        session, raw_refresh_token=opened.refresh_token
+    )
+    await session.commit()
+    assert rotated.issued is not None
+    renewed = rotated.issued.session
+    assert renewed.continues_since == signed_in.created_at
+    assert not await risky_session(session, renewed)

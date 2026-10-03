@@ -58,12 +58,14 @@ async def change_record(
     }
 
 
-def removal_undo(row: UserEmail) -> dict[str, Any]:
-    """What undoing the removal of ``row`` puts back."""
+def removal_undo(row: UserEmail, *, primary_id: int | None) -> dict[str, Any]:
+    """What undoing the removal of ``row`` puts back, while ``primary_id`` is
+    still the account's primary."""
     return {
         "kind": "removed",
         "email": row.email_encrypted,
         "proved_at": row.verified_at.isoformat() if row.verified_at else None,
+        "primary_id": primary_id,
     }
 
 
@@ -128,6 +130,9 @@ async def apply_undo(
     undo = change.get("undo") or {}
     kind = undo.get("kind")
     if kind == "primary":
+        await _still_primary(
+            session, user_id=user_id, address_id=undo.get("made_primary")
+        )
         await _make_primary(session, user_id=user_id, address_id=undo.get("address_id"))
     elif kind == "proved":
         await _take_back_address(
@@ -143,6 +148,16 @@ async def apply_undo(
             session, user_id=user_id, passkey_id=undo.get("passkey_id")
         )
     else:
+        raise UndoRefused()
+
+
+async def _still_primary(
+    session: AsyncSession, *, user_id: int, address_id: Any
+) -> None:
+    """Refuse unless ``address_id`` is still the account's primary: a later
+    change of primary stands over an earlier notice."""
+    row = await session.get(UserEmail, address_id) if address_id is not None else None
+    if row is None or row.user_id != user_id or not row.is_primary:
         raise UndoRefused()
 
 
@@ -194,9 +209,11 @@ async def _put_back_address(
     session: AsyncSession, *, user_id: int, change: dict[str, Any]
 ) -> None:
     email = removed_address(change)
-    proved_at = (change.get("undo") or {}).get("proved_at")
+    undo = change.get("undo") or {}
+    proved_at = undo.get("proved_at")
     if email is None or proved_at is None:
         raise UndoRefused()
+    await _still_primary(session, user_id=user_id, address_id=undo.get("primary_id"))
     if await addresses.find_user_by_address(session, email) is not None:
         raise UndoRefused()
     digest = hash_email(addresses.normalize(email))
@@ -219,14 +236,16 @@ async def _put_back_address(
     )
     await session.flush()
     await _make_primary(session, user_id=user_id, address_id=restored.id)
-    # The addresses proved after it in the run of changes that removed it go.
-    since = datetime.fromisoformat(change["at"]) - SEQUENCE_WINDOW
+    # The addresses proved after it in the run of changes that removed it go;
+    # one added after the removal is the account's own business and stays.
+    removed_at = datetime.fromisoformat(change["at"])
     await session.exec(
         delete(UserEmail).where(
             UserEmail.user_id == user_id,
             UserEmail.id != restored.id,
             UserEmail.verified_at > proved,
-            UserEmail.verified_at >= since,
+            UserEmail.verified_at >= removed_at - SEQUENCE_WINDOW,
+            UserEmail.verified_at <= removed_at,
         )
     )
     await session.flush()

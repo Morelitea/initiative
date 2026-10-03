@@ -7,7 +7,7 @@ from a copy sent to an address older than the newest one involved.
 """
 
 import re
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Any
 from unittest.mock import AsyncMock
 
@@ -88,7 +88,7 @@ async def _address(
         source=addresses.SOURCE_ADDED,
         verified=True,
         is_primary=False,
-        now=datetime.now(timezone.utc) + timedelta(seconds=1),
+        now=datetime.now(timezone.utc),
     )
     await session.commit()
     if primary:
@@ -288,42 +288,48 @@ async def test_undoing_a_proved_address_takes_it_back_and_the_primary_with_it(
     assert (await session.get(User, user_id)).token_version == version + 1
 
 
-async def test_undoing_a_primary_change_moves_it_back(
+async def test_undoing_a_primary_change_moves_it_back_unless_it_moved_again(
     client: AsyncClient, session: AsyncSession, mailed
 ):
     user = await create_user(session, email="first@example.com")
     user_id = user.id
     previous = (await addresses.list_for_user(session, user_id=user_id))[0]
-    await _address(session, user, "second@example.com", primary=True)
+    second = await _address(session, user, "second@example.com", primary=True)
+    undo = {"kind": "primary", "address_id": previous.id, "made_primary": second.id}
     links = await _send(
-        session,
-        mailed,
-        user,
-        notice="address.primary",
-        risky=True,
-        undo={"kind": "primary", "address_id": previous.id},
+        session, mailed, user, notice="address.primary", risky=True, undo=undo
+    )
+    stale = await _send(
+        session, mailed, user, notice="address.primary", risky=True, undo=undo
     )
 
     response = await client.post(UNDO, json={"token": links["first@example.com"]})
     assert response.status_code == 200, response.text
     assert await _primary(session, user_id) == "first@example.com"
 
+    # The primary has moved since that change, so its other notice stands down.
+    response = await client.post(UNDO, json={"token": stale["first@example.com"]})
+    assert response.status_code == 409, response.text
+    assert response.json()["detail"] == "ACCOUNT_CHANGE_MOVED_ON"
+
 
 async def test_undoing_a_removal_puts_the_address_back_over_the_later_ones(
     client: AsyncClient, session: AsyncSession, mailed
 ):
-    """The removed address's own copy reverses the whole run: it comes back,
-    proved and primary, and the address proved after it goes."""
+    """The removed address's own copy reverses the run: it comes back, proved
+    and primary, and the address proved after it goes. One added after the
+    removal stays."""
     user = await create_user(session, email="original@example.com")
     user_id = user.id
     original = (await addresses.list_for_user(session, user_id=user_id))[0]
-    await _address(session, user, "taker@example.com", primary=True)
-    undo = account_changes.removal_undo(original)
+    taker = await _address(session, user, "taker@example.com", primary=True)
+    undo = account_changes.removal_undo(original, primary_id=taker.id)
     record = await account_changes.change_record(
         session, user_id=user_id, risky=True, undo=undo
     )
     await session.delete(original)
     await session.commit()
+    await _address(session, user, "later@example.com")
 
     mailed.clear()
     await email_outbox.enqueue_account_letter(
@@ -346,7 +352,10 @@ async def test_undoing_a_removal_puts_the_address_back_over_the_later_ones(
 
     response = await client.post(UNDO, json={"token": token})
     assert response.status_code == 200, response.text
-    assert await _held(session, user_id) == {"original@example.com"}
+    assert await _held(session, user_id) == {
+        "original@example.com",
+        "later@example.com",
+    }
     assert await _primary(session, user_id) == "original@example.com"
 
 
@@ -359,7 +368,7 @@ async def test_the_newest_address_removed_gets_no_link(session: AsyncSession, ma
         session,
         user_id=user.id,
         risky=True,
-        undo=account_changes.removal_undo(newest),
+        undo=account_changes.removal_undo(newest, primary_id=None),
     )
     await session.delete(newest)
     await session.commit()

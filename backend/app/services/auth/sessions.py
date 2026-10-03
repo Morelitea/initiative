@@ -378,6 +378,7 @@ async def rotate_session(
         ip=ip if ip is not None else row.ip,
         device_name=device_name if device_name is not None else row.device_name,
         device=row.device,
+        continues_since=row.continues_since,
     )
     session.add(child)
     await session.flush()

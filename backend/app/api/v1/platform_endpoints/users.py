@@ -1332,7 +1332,19 @@ async def remove_my_address(
             system_session,
             user_id=current_user.id,
             risky=await is_risky(request, system_session, current_user),
-            undo=account_changes.removal_undo(target),
+            undo=account_changes.removal_undo(
+                target,
+                primary_id=next(
+                    (
+                        held.id
+                        for held in await addresses.list_for_user(
+                            system_session, user_id=current_user.id
+                        )
+                        if held.is_primary
+                    ),
+                    None,
+                ),
+            ),
         )
         if target is not None
         and target.user_id == current_user.id
@@ -1418,7 +1430,11 @@ async def make_my_address_primary(
                     system_session,
                     user_id=current_user.id,
                     risky=risky,
-                    undo={"kind": "primary", "address_id": previous.id},
+                    undo={
+                        "kind": "primary",
+                        "address_id": previous.id,
+                        "made_primary": row.id,
+                    },
                 )
                 if previous is not None
                 else None
