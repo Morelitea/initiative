@@ -96,4 +96,31 @@ describe("AccountNotMePage", () => {
     expect(await screen.findByText(/^undone/i)).toBeInTheDocument();
     expect(undos).toEqual([{ token: "a-token-from-the-email" }]);
   });
+
+  it("cancels a change that is still waiting", async () => {
+    const user = userEvent.setup();
+    const cancels: unknown[] = [];
+    server.use(
+      http.post("/api/v1/auth/account-change/read", () =>
+        HttpResponse.json({
+          notice: "address.primaryHeld",
+          sign_out: true,
+          undo: "hold",
+          subject: "new@example.com",
+        })
+      ),
+      http.post("/api/v1/auth/account-change/undo", async ({ request }) => {
+        cancels.push(await request.json());
+        return HttpResponse.json({ status: "undone" });
+      })
+    );
+
+    renderPage(AccountNotMePage, PAGE);
+
+    expect(await screen.findByText(/you can cancel it/i)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /cancel it and sign out everywhere/i }));
+
+    expect(await screen.findByText(/^cancelled/i)).toBeInTheDocument();
+    expect(cancels).toEqual([{ token: "a-token-from-the-email" }]);
+  });
 });

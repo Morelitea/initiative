@@ -24,6 +24,7 @@ import {
   useRemoveAddress,
   visibleAddresses,
 } from "@/hooks/useAddresses";
+import { isHeld, useAnnounceHeld } from "@/hooks/useHeldChange";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 
@@ -53,6 +54,7 @@ export const AddressManager = () => {
   const [changeError, setChangeError] = useState<string | null>(null);
 
   const { data, isLoading, isError, refetch } = useMyAddresses();
+  const announceHeld = useAnnounceHeld();
   const addresses = visibleAddresses(data);
   // Asking is the safe guess while the answer is still on its way.
   const passwordRequired = data?.password_required ?? true;
@@ -84,17 +86,19 @@ export const AddressManager = () => {
   });
 
   const removeAddress = useRemoveAddress({
-    onSuccess: () => {
+    onSuccess: (result) => {
       closeChange();
-      toast.success(t("settings:addresses.removed"));
+      if (isHeld(result)) announceHeld(result);
+      else toast.success(t("settings:addresses.removed"));
     },
     onError: (error) => refuse(error, "settings:addresses.removeFailed"),
   });
 
   const makePrimary = useMakeAddressPrimary({
-    onSuccess: () => {
+    onSuccess: (result) => {
       closeChange();
-      toast.success(t("settings:addresses.primaryChanged"));
+      if (isHeld(result)) announceHeld(result);
+      else toast.success(t("settings:addresses.primaryChanged"));
     },
     onError: (error) => refuse(error, "settings:addresses.primaryFailed"),
   });

@@ -102,6 +102,21 @@
     "primaryDialogDescription": "Password resets and sign-in codes will go to <strong>{{email}}</strong> first.",
     "primaryConfirm": "Make primary"
   },
+  "heldChange": {
+    "title": "A change is waiting",
+    "primary": "{{subject}} becomes your primary address on {{date}}.",
+    "removeAddress": "{{subject}} will be removed from your account on {{date}}.",
+    "secondFactorOff": "Two-factor authentication will be turned off on {{date}}.",
+    "lastPasskey": "Your last passkey, {{subject}}, will be removed on {{date}}.",
+    "description": "It waits two days, and every address on your account has been emailed about it. Until then nothing changes.",
+    "cancel": "Cancel the change",
+    "applyNow": "Make it now with a passkey",
+    "cancelled": "The change is cancelled.",
+    "applied": "The change is made.",
+    "cancelFailed": "The change couldn't be cancelled. Try again.",
+    "applyFailed": "The change couldn't be made now. Try again.",
+    "waits": "This change waits until {{date}}. Every address on your account has been emailed about it."
+  },
   "security": {
     "loadingDevices": "Loading devices…",
     "devicesError": "Unable to load devices.",

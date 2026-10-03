@@ -33,6 +33,7 @@ import type {
   EmailOtpVerify,
   FinishPasskeySignUpParams,
   HTTPValidationError,
+  HeldChangeRead,
   LoginProvidersResponse,
   NativeSignInRedeem,
   PasskeyAuthenticationOptions,
@@ -2433,7 +2434,9 @@ export const useConfirmSecondFactor = <TError = ErrorType<HTTPValidationError>, 
  *
  * Asks for the password — or, where the password is not asked for, a
  * recent sign-in — and for the factor itself: a live code, or one of the
- * recovery codes. Every other session goes with it; this one stays.
+ * recovery codes. Every other session goes with it; this one stays. Asked
+ * for from somewhere the account does not yet know, it waits two days
+ * (``202``).
  * @summary Disable Second Factor
  */
 export const disableSecondFactor = (
@@ -2441,7 +2444,7 @@ export const disableSecondFactor = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<void>(
+  return apiMutator<HeldChangeRead | void>(
     {
       url: `/api/v1/auth/totp/disable`,
       method: "POST",
@@ -3098,7 +3101,9 @@ export const useRenamePasskey = <TError = ErrorType<HTTPValidationError>, TConte
 };
 /**
  * Forget the credential. The password is asked for again, as it is for a
- * password change, because a way in is being taken away.
+ * password change, because a way in is being taken away. The account's last
+ * passkey, removed from somewhere the account does not yet know, waits two
+ * days (``202``).
  * @summary Remove Passkey
  */
 export const removePasskey = (
@@ -3107,7 +3112,7 @@ export const removePasskey = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<void>(
+  return apiMutator<HeldChangeRead | void>(
     {
       url: `/api/v1/auth/passkeys/${passkeyId}/remove`,
       method: "POST",

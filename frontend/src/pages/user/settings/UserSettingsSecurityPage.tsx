@@ -3,6 +3,7 @@ import { type FormEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { ApiKeyMetadata } from "@/api/generated/initiativeAPI.schemas";
+import { HeldChangeNotice } from "@/components/settings/HeldChangeNotice";
 import { PasskeysSection } from "@/components/settings/PasskeysSection";
 import { SettingsSection } from "@/components/settings/SettingsSection";
 import { SignedInSection } from "@/components/settings/SignedInSection";
@@ -223,6 +224,7 @@ export const UserSettingsSecurityPage = () => {
 
   return (
     <div className="space-y-6">
+      <HeldChangeNotice />
       <SettingsSection title={t("passkeys.title")} description={t("passkeys.description")}>
         <PasskeysSection />
       </SettingsSection>
