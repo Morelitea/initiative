@@ -9,7 +9,7 @@
  */
 
 import { LifeBuoy } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { ContactDialog } from "@/components/tickets/ContactDialog";
@@ -62,19 +62,23 @@ export const AskForHelpButton = () => {
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
-      {open && canAsk ? (
-        // Keyed on the community as well, so nothing typed can outlive the one
-        // it was typed in even if the close above were ever missed.
-        <FileTicketDialog
-          key={communityId}
-          open={open}
-          onOpenChange={setOpen}
-          ticket={{ stream: "support" }}
-          communityId={communityId}
-        />
-      ) : open && contact ? (
-        <ContactDialog open={open} onOpenChange={setOpen} contact={contact} />
-      ) : null}
+      {/* Its own boundary: the first opening loads the dialog's translations,
+          and waiting on them should hide nothing but the dialog. */}
+      <Suspense fallback={null}>
+        {open && canAsk ? (
+          // Keyed on the community as well, so nothing typed can outlive the one
+          // it was typed in even if the close above were ever missed.
+          <FileTicketDialog
+            key={communityId}
+            open={open}
+            onOpenChange={setOpen}
+            ticket={{ stream: "support" }}
+            communityId={communityId}
+          />
+        ) : open && contact ? (
+          <ContactDialog open={open} onOpenChange={setOpen} contact={contact} />
+        ) : null}
+      </Suspense>
     </>
   );
 };

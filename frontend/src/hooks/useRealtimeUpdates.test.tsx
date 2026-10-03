@@ -230,6 +230,39 @@ describe("realtime comment frames", () => {
   });
 });
 
+describe("realtime frames for a case's conversation", () => {
+  beforeEach(() => {
+    queryClient.clear();
+    setInvalidationCommunity(COMMUNITY);
+  });
+
+  afterEach(() => {
+    queryClient.clear();
+    setInvalidationCommunity(null);
+  });
+
+  it("keeps what is said with the requester out of the task's thread and reads the case again", async () => {
+    const onTask = { task_id: ENTITY_ID };
+    const thread = seedThread("task_id", ENTITY_ID);
+    const caseRead = seed([`/api/v1/c/${COMMUNITY}/tasks/${ENTITY_ID}/case`]);
+    serveComments({
+      1: buildComment({ id: 1, audience: "filer", ...onTask }),
+      2: buildComment({ id: 2, ...onTask }),
+    });
+
+    applyChanges(
+      [
+        comment(1, [{ type: "tasks", id: ENTITY_ID }]),
+        comment(2, [{ type: "tasks", id: ENTITY_ID }]),
+      ],
+      COMMUNITY
+    );
+
+    await vi.waitFor(() => expect(thread.ids()).toEqual([2]));
+    expect(caseRead()).toBe(true);
+  });
+});
+
 describe("realtime resource frames", () => {
   beforeEach(() => {
     queryClient.clear();

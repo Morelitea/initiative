@@ -318,6 +318,11 @@
     "communityTrialEndedInApp": "Die Testphase von {{community}} ist beendet, die Community ist jetzt schreibgeschützt.",
     "communityWelcome": "{{community}} ist bereit. Richte den Tarif ein, um loszulegen.",
     "communityWelcomeInApp": "{{community}} ist bereit.",
+    "ticketReplied": "Das Team hat auf dein Ticket „{{subject}}“ geantwortet",
+    "ticketWaiting": "Dein Ticket „{{subject}}“ wartet auf dich",
+    "ticketClosed": "Dein Ticket „{{subject}}“ wurde geschlossen",
+    "ticketMoving": "Dein Ticket „{{subject}}“ ist in Bearbeitung",
+    "ticketUnnamed": "dein Ticket",
     "defaultNotification": "Du hast eine neue Benachrichtigung.",
     "push": {
       "enableTitle": "Push-Benachrichtigungen aktivieren",

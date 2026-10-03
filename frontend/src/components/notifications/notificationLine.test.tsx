@@ -229,3 +229,40 @@ describe("an app version waiting for the seat", () => {
     expect(notificationLink(waiting)).toBe("/c/4/settings/integrations");
   });
 });
+
+describe("notificationText — a ticket the reader filed", () => {
+  const ticket = (data: Record<string, unknown>) =>
+    notice("ticket_updated", {
+      task_id: 7,
+      subject: "Lost my phone",
+      target_path: "/my-tickets/7",
+      ...data,
+    });
+
+  it("leads with a reply where there is one", () => {
+    const line = notificationText(ticket({ state: "waiting_on_you", replied: true }), t);
+    expect(line).toContain("notifications.ticketReplied");
+    expect(line).toContain("Lost my phone");
+  });
+
+  it("otherwise says where it stands", () => {
+    expect(notificationText(ticket({ state: "waiting_on_you", replied: false }), t)).toContain(
+      "notifications.ticketWaiting"
+    );
+    expect(notificationText(ticket({ state: "closed", replied: false }), t)).toContain(
+      "notifications.ticketClosed"
+    );
+    expect(notificationText(ticket({ state: "in_progress", replied: false }), t)).toContain(
+      "notifications.ticketMoving"
+    );
+  });
+
+  it("names an untitled ticket as theirs", () => {
+    const line = notificationText(ticket({ subject: null, state: "closed" }), t);
+    expect(line).toContain("notifications.ticketUnnamed");
+  });
+
+  it("goes to the reader's own view of it, outside any community", () => {
+    expect(notificationLink(ticket({ state: "closed" }))).toBe("/my-tickets/7");
+  });
+});

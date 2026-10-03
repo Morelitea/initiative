@@ -39,6 +39,8 @@ import { Route as ServerRequiredOidcCallbackRouteImport } from './routes/_server
 import { Route as ServerRequiredWhatsNewIndexRouteImport } from './routes/_serverRequired/whats-new.index'
 import { Route as ServerRequiredWhatsNewVersionRouteImport } from './routes/_serverRequired/whats-new.$version'
 import { Route as ServerRequiredAuthenticatedCCommunityIdRouteImport } from './routes/_serverRequired/_authenticated/c/$communityId'
+import { Route as ServerRequiredAuthenticatedMyTicketsIndexRouteImport } from './routes/_serverRequired/_authenticated/my-tickets.index'
+import { Route as ServerRequiredAuthenticatedMyTicketsTaskIdRouteImport } from './routes/_serverRequired/_authenticated/my-tickets.$taskId'
 import { Route as ServerRequiredAuthenticatedProfileIndexRouteImport } from './routes/_serverRequired/_authenticated/profile/index'
 import { Route as ServerRequiredAuthenticatedProfileAccountRouteImport } from './routes/_serverRequired/_authenticated/profile/account'
 import { Route as ServerRequiredAuthenticatedProfileAiRouteImport } from './routes/_serverRequired/_authenticated/profile/ai'
@@ -340,6 +342,18 @@ const ServerRequiredAuthenticatedCCommunityIdRoute =
   ServerRequiredAuthenticatedCCommunityIdRouteImport.update({
     id: '/c/$communityId',
     path: '/c/$communityId',
+    getParentRoute: () => ServerRequiredAuthenticatedRoute,
+  } as any)
+const ServerRequiredAuthenticatedMyTicketsIndexRoute =
+  ServerRequiredAuthenticatedMyTicketsIndexRouteImport.update({
+    id: '/my-tickets/',
+    path: '/my-tickets/',
+    getParentRoute: () => ServerRequiredAuthenticatedRoute,
+  } as any)
+const ServerRequiredAuthenticatedMyTicketsTaskIdRoute =
+  ServerRequiredAuthenticatedMyTicketsTaskIdRouteImport.update({
+    id: '/my-tickets/$taskId',
+    path: '/my-tickets/$taskId',
     getParentRoute: () => ServerRequiredAuthenticatedRoute,
   } as any)
 const ServerRequiredAuthenticatedProfileIndexRoute =
@@ -1412,6 +1426,7 @@ export interface FileRoutesByFullPath {
   '/whats-new/$version': typeof ServerRequiredWhatsNewVersionRoute
   '/whats-new/': typeof ServerRequiredWhatsNewIndexRoute
   '/c/$communityId': typeof ServerRequiredAuthenticatedCCommunityIdRouteWithChildren
+  '/my-tickets/$taskId': typeof ServerRequiredAuthenticatedMyTicketsTaskIdRoute
   '/profile/account': typeof ServerRequiredAuthenticatedProfileAccountRoute
   '/profile/ai': typeof ServerRequiredAuthenticatedProfileAiRoute
   '/profile/danger': typeof ServerRequiredAuthenticatedProfileDangerRoute
@@ -1424,6 +1439,7 @@ export interface FileRoutesByFullPath {
   '/settings/platform': typeof ServerRequiredAuthenticatedSettingsPlatformRouteWithChildren
   '/u/$handle': typeof ServerRequiredAuthenticatedUHandleRoute
   '/community/$communityId/login': typeof ServerRequiredCommunityCommunityIdLoginRoute
+  '/my-tickets/': typeof ServerRequiredAuthenticatedMyTicketsIndexRoute
   '/profile/': typeof ServerRequiredAuthenticatedProfileIndexRoute
   '/c/$communityId/marketplace': typeof ServerRequiredAuthenticatedCCommunityIdMarketplaceRoute
   '/c/$communityId/members': typeof ServerRequiredAuthenticatedCCommunityIdMembersRoute
@@ -1573,6 +1589,7 @@ export interface FileRoutesByTo {
   '/oidc/callback': typeof ServerRequiredOidcCallbackRoute
   '/whats-new/$version': typeof ServerRequiredWhatsNewVersionRoute
   '/whats-new': typeof ServerRequiredWhatsNewIndexRoute
+  '/my-tickets/$taskId': typeof ServerRequiredAuthenticatedMyTicketsTaskIdRoute
   '/profile/account': typeof ServerRequiredAuthenticatedProfileAccountRoute
   '/profile/ai': typeof ServerRequiredAuthenticatedProfileAiRoute
   '/profile/danger': typeof ServerRequiredAuthenticatedProfileDangerRoute
@@ -1583,6 +1600,7 @@ export interface FileRoutesByTo {
   '/profile/trash': typeof ServerRequiredAuthenticatedProfileTrashRoute
   '/u/$handle': typeof ServerRequiredAuthenticatedUHandleRoute
   '/community/$communityId/login': typeof ServerRequiredCommunityCommunityIdLoginRoute
+  '/my-tickets': typeof ServerRequiredAuthenticatedMyTicketsIndexRoute
   '/profile': typeof ServerRequiredAuthenticatedProfileIndexRoute
   '/c/$communityId/marketplace': typeof ServerRequiredAuthenticatedCCommunityIdMarketplaceRoute
   '/c/$communityId/members': typeof ServerRequiredAuthenticatedCCommunityIdMembersRoute
@@ -1724,6 +1742,7 @@ export interface FileRoutesById {
   '/_serverRequired/_authenticated/': typeof ServerRequiredAuthenticatedIndexRoute
   '/_serverRequired/whats-new/': typeof ServerRequiredWhatsNewIndexRoute
   '/_serverRequired/_authenticated/c/$communityId': typeof ServerRequiredAuthenticatedCCommunityIdRouteWithChildren
+  '/_serverRequired/_authenticated/my-tickets/$taskId': typeof ServerRequiredAuthenticatedMyTicketsTaskIdRoute
   '/_serverRequired/_authenticated/profile/account': typeof ServerRequiredAuthenticatedProfileAccountRoute
   '/_serverRequired/_authenticated/profile/ai': typeof ServerRequiredAuthenticatedProfileAiRoute
   '/_serverRequired/_authenticated/profile/danger': typeof ServerRequiredAuthenticatedProfileDangerRoute
@@ -1736,6 +1755,7 @@ export interface FileRoutesById {
   '/_serverRequired/_authenticated/settings/platform': typeof ServerRequiredAuthenticatedSettingsPlatformRouteWithChildren
   '/_serverRequired/_authenticated/u/$handle': typeof ServerRequiredAuthenticatedUHandleRoute
   '/_serverRequired/community/$communityId/login': typeof ServerRequiredCommunityCommunityIdLoginRoute
+  '/_serverRequired/_authenticated/my-tickets/': typeof ServerRequiredAuthenticatedMyTicketsIndexRoute
   '/_serverRequired/_authenticated/profile/': typeof ServerRequiredAuthenticatedProfileIndexRoute
   '/_serverRequired/_authenticated/c/$communityId/marketplace': typeof ServerRequiredAuthenticatedCCommunityIdMarketplaceRoute
   '/_serverRequired/_authenticated/c/$communityId/members': typeof ServerRequiredAuthenticatedCCommunityIdMembersRoute
@@ -1889,6 +1909,7 @@ export interface FileRouteTypes {
     | '/whats-new/$version'
     | '/whats-new/'
     | '/c/$communityId'
+    | '/my-tickets/$taskId'
     | '/profile/account'
     | '/profile/ai'
     | '/profile/danger'
@@ -1901,6 +1922,7 @@ export interface FileRouteTypes {
     | '/settings/platform'
     | '/u/$handle'
     | '/community/$communityId/login'
+    | '/my-tickets/'
     | '/profile/'
     | '/c/$communityId/marketplace'
     | '/c/$communityId/members'
@@ -2050,6 +2072,7 @@ export interface FileRouteTypes {
     | '/oidc/callback'
     | '/whats-new/$version'
     | '/whats-new'
+    | '/my-tickets/$taskId'
     | '/profile/account'
     | '/profile/ai'
     | '/profile/danger'
@@ -2060,6 +2083,7 @@ export interface FileRouteTypes {
     | '/profile/trash'
     | '/u/$handle'
     | '/community/$communityId/login'
+    | '/my-tickets'
     | '/profile'
     | '/c/$communityId/marketplace'
     | '/c/$communityId/members'
@@ -2200,6 +2224,7 @@ export interface FileRouteTypes {
     | '/_serverRequired/_authenticated/'
     | '/_serverRequired/whats-new/'
     | '/_serverRequired/_authenticated/c/$communityId'
+    | '/_serverRequired/_authenticated/my-tickets/$taskId'
     | '/_serverRequired/_authenticated/profile/account'
     | '/_serverRequired/_authenticated/profile/ai'
     | '/_serverRequired/_authenticated/profile/danger'
@@ -2212,6 +2237,7 @@ export interface FileRouteTypes {
     | '/_serverRequired/_authenticated/settings/platform'
     | '/_serverRequired/_authenticated/u/$handle'
     | '/_serverRequired/community/$communityId/login'
+    | '/_serverRequired/_authenticated/my-tickets/'
     | '/_serverRequired/_authenticated/profile/'
     | '/_serverRequired/_authenticated/c/$communityId/marketplace'
     | '/_serverRequired/_authenticated/c/$communityId/members'
@@ -2550,6 +2576,20 @@ declare module '@tanstack/react-router' {
       path: '/c/$communityId'
       fullPath: '/c/$communityId'
       preLoaderRoute: typeof ServerRequiredAuthenticatedCCommunityIdRouteImport
+      parentRoute: typeof ServerRequiredAuthenticatedRoute
+    }
+    '/_serverRequired/_authenticated/my-tickets/': {
+      id: '/_serverRequired/_authenticated/my-tickets/'
+      path: '/my-tickets'
+      fullPath: '/my-tickets/'
+      preLoaderRoute: typeof ServerRequiredAuthenticatedMyTicketsIndexRouteImport
+      parentRoute: typeof ServerRequiredAuthenticatedRoute
+    }
+    '/_serverRequired/_authenticated/my-tickets/$taskId': {
+      id: '/_serverRequired/_authenticated/my-tickets/$taskId'
+      path: '/my-tickets/$taskId'
+      fullPath: '/my-tickets/$taskId'
+      preLoaderRoute: typeof ServerRequiredAuthenticatedMyTicketsTaskIdRouteImport
       parentRoute: typeof ServerRequiredAuthenticatedRoute
     }
     '/_serverRequired/_authenticated/profile/': {
@@ -4087,9 +4127,11 @@ interface ServerRequiredAuthenticatedRouteChildren {
   ServerRequiredAuthenticatedUserStatsRoute: typeof ServerRequiredAuthenticatedUserStatsRoute
   ServerRequiredAuthenticatedIndexRoute: typeof ServerRequiredAuthenticatedIndexRoute
   ServerRequiredAuthenticatedCCommunityIdRoute: typeof ServerRequiredAuthenticatedCCommunityIdRouteWithChildren
+  ServerRequiredAuthenticatedMyTicketsTaskIdRoute: typeof ServerRequiredAuthenticatedMyTicketsTaskIdRoute
   ServerRequiredAuthenticatedSettingsOperatorRoute: typeof ServerRequiredAuthenticatedSettingsOperatorRouteWithChildren
   ServerRequiredAuthenticatedSettingsPlatformRoute: typeof ServerRequiredAuthenticatedSettingsPlatformRouteWithChildren
   ServerRequiredAuthenticatedUHandleRoute: typeof ServerRequiredAuthenticatedUHandleRoute
+  ServerRequiredAuthenticatedMyTicketsIndexRoute: typeof ServerRequiredAuthenticatedMyTicketsIndexRoute
   ServerRequiredAuthenticatedCCommunityIdBillingRoute: typeof ServerRequiredAuthenticatedCCommunityIdBillingRoute
 }
 
@@ -4119,12 +4161,16 @@ const ServerRequiredAuthenticatedRouteChildren: ServerRequiredAuthenticatedRoute
       ServerRequiredAuthenticatedIndexRoute,
     ServerRequiredAuthenticatedCCommunityIdRoute:
       ServerRequiredAuthenticatedCCommunityIdRouteWithChildren,
+    ServerRequiredAuthenticatedMyTicketsTaskIdRoute:
+      ServerRequiredAuthenticatedMyTicketsTaskIdRoute,
     ServerRequiredAuthenticatedSettingsOperatorRoute:
       ServerRequiredAuthenticatedSettingsOperatorRouteWithChildren,
     ServerRequiredAuthenticatedSettingsPlatformRoute:
       ServerRequiredAuthenticatedSettingsPlatformRouteWithChildren,
     ServerRequiredAuthenticatedUHandleRoute:
       ServerRequiredAuthenticatedUHandleRoute,
+    ServerRequiredAuthenticatedMyTicketsIndexRoute:
+      ServerRequiredAuthenticatedMyTicketsIndexRoute,
     ServerRequiredAuthenticatedCCommunityIdBillingRoute:
       ServerRequiredAuthenticatedCCommunityIdBillingRoute,
   }

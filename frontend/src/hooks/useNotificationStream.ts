@@ -4,6 +4,7 @@ import { getAuthToken } from "@/api/client";
 import { invalidate, q } from "@/api/query-keys";
 import { useAuth } from "@/hooks/useAuth";
 import { refreshNotifications } from "@/hooks/useNotifications";
+import { refreshFiledTickets } from "@/hooks/useTickets";
 import { type AlertFrame, receiveAlert } from "@/lib/desktopAlerts";
 import { openLiveSocket } from "@/lib/liveSocket";
 import { buildApiWsUrl } from "@/lib/wsUrl";
@@ -141,6 +142,7 @@ export const useNotificationStream = () => {
     refreshAccount();
     refreshContacts();
     void invalidate(q.directMessages());
+    void refreshFiledTickets();
   }, [refreshAccount, refreshContacts]);
 
   useEffect(
@@ -194,6 +196,10 @@ export const useNotificationStream = () => {
           refreshAccount();
         } else if (frame.resource === "contacts") {
           refreshContacts();
+        } else if (frame.resource === "tickets") {
+          // One of the tickets this person filed moved: the team answered, or
+          // its state changed. The open ticket page reads it again.
+          void refreshFiledTickets();
         } else if (frame.resource === "dm") {
           // A direct-message frame says only that there is something to
           // collect. The page that owns the mailbox does the reading.

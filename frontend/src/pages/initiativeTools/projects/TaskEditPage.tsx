@@ -39,6 +39,7 @@ import {
   type TaskFormValue,
   taskFormPropertyValues,
 } from "@/components/tasks/TaskForm";
+import { CasePanel } from "@/components/tickets/CasePanel";
 import { ToolBreadcrumb } from "@/components/tools/ToolBreadcrumb";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -847,6 +848,7 @@ export const TaskEditPage = () => {
       {commentsQuery.isError ? (
         <p className="text-destructive text-sm">{t("edit.commentsError")}</p>
       ) : null}
+      <CasePanel taskId={parsedTaskId} canEdit={!isReadOnly} />
       <CommentSection
         entityType="task"
         entityId={parsedTaskId}

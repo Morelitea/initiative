@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Keep an initiative's content in**: a switch under **Initiative settings › Export** that stops exporting, sharing or moving content out of it.
 - **Moderators can revoke someone's API keys** from **Operator dashboard › Users**.
 - **Prometheus metrics** for pages opened, tools created and active accounts, and **opt-in browser analytics** through Grafana Faro (`FARO_COLLECTOR_URL`). See **Running a server › Configuration**.
+- **Follow the help requests you've filed** from **My Tickets** in the sidebar: where each stands, what the team said, and your answers, updated as they come. The team replies from a panel on the case, kept apart from its comments. **Server operators:** on the **Intake** page, pick the statuses that wait on the requester and that their answer moves a case to (**Set this up for me** creates both); security and moderation each need an initiative of their own.
 
 ### Changed
 

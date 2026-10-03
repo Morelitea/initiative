@@ -318,6 +318,11 @@
     "communityTrialEndedInApp": "La prueba de {{community}} ha terminado y ahora es de solo lectura.",
     "communityWelcome": "{{community}} está lista. Configura su plan para empezar.",
     "communityWelcomeInApp": "{{community}} está lista.",
+    "ticketReplied": "El equipo respondió a tu ticket «{{subject}}»",
+    "ticketWaiting": "Tu ticket «{{subject}}» espera tu respuesta",
+    "ticketClosed": "Tu ticket «{{subject}}» se cerró",
+    "ticketMoving": "Tu ticket «{{subject}}» está en curso",
+    "ticketUnnamed": "tu ticket",
     "defaultNotification": "Tienes una nueva notificación.",
     "push": {
       "enableTitle": "Activar notificaciones push",

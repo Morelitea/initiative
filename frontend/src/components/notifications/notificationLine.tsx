@@ -499,6 +499,19 @@ export const notificationText = (
           : "notifications.communityTrialEnded",
         { community: typeof data.community === "string" ? data.community : "" }
       );
+    case "ticket_updated": {
+      const subject = typeof data.subject === "string" && data.subject ? data.subject : null;
+      const state = typeof data.state === "string" ? data.state : "";
+      // A reply is the news where there is one; the state says the rest.
+      const key = data.replied
+        ? "notifications.ticketReplied"
+        : state === "waiting_on_you"
+          ? "notifications.ticketWaiting"
+          : state === "closed"
+            ? "notifications.ticketClosed"
+            : "notifications.ticketMoving";
+      return t(key, { subject: subject ?? t("notifications.ticketUnnamed") });
+    }
     case "community_welcome":
       return t(
         Capacitor.isNativePlatform()

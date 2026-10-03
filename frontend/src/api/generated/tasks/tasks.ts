@@ -32,6 +32,7 @@ import type {
   ListMyTasksParams,
   ListTasksParams,
   ReadTaskParams,
+  TaskCaseRead,
   TaskCreate,
   TaskListResponse,
   TaskMoveRequest,
@@ -591,6 +592,136 @@ export const useDeleteTask = <TError = ErrorType<HTTPValidationError>, TContext 
 > => {
   return useMutation(getDeleteTaskMutationOptions(options), queryClient);
 };
+/**
+ * How an operations case was filed: its stream, who filed it, and what
+ * the stream allows with them. 404 for a task no stream opened.
+ * @summary Read Task Case
+ */
+export const readTaskCase = (
+  communityId: number,
+  taskId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<TaskCaseRead>(
+    { url: `/api/v1/c/${communityId}/tasks/${taskId}/case`, method: "GET", signal },
+    options
+  );
+};
+
+export const getReadTaskCaseQueryKey = (communityId: number, taskId: number) => {
+  return [`/api/v1/c/${communityId}/tasks/${taskId}/case`] as const;
+};
+
+export const getReadTaskCaseQueryOptions = <
+  TData = Awaited<ReturnType<typeof readTaskCase>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  communityId: number,
+  taskId: number,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readTaskCase>>, TError, TData>>;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getReadTaskCaseQueryKey(communityId, taskId);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof readTaskCase>>> = ({ signal }) =>
+    readTaskCase(communityId, taskId, requestOptions, signal);
+
+  return {
+    queryKey,
+    queryFn,
+    enabled:
+      communityId !== null && communityId !== undefined && taskId !== null && taskId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<Awaited<ReturnType<typeof readTaskCase>>, TError, TData> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+};
+
+export type ReadTaskCaseQueryResult = NonNullable<Awaited<ReturnType<typeof readTaskCase>>>;
+export type ReadTaskCaseQueryError = ErrorType<HTTPValidationError>;
+
+export function useReadTaskCase<
+  TData = Awaited<ReturnType<typeof readTaskCase>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  communityId: number,
+  taskId: number,
+  options: {
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof readTaskCase>>, TError, TData>> &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof readTaskCase>>,
+          TError,
+          Awaited<ReturnType<typeof readTaskCase>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadTaskCase<
+  TData = Awaited<ReturnType<typeof readTaskCase>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  communityId: number,
+  taskId: number,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readTaskCase>>, TError, TData>> &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof readTaskCase>>,
+          TError,
+          Awaited<ReturnType<typeof readTaskCase>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadTaskCase<
+  TData = Awaited<ReturnType<typeof readTaskCase>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  communityId: number,
+  taskId: number,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readTaskCase>>, TError, TData>>;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Read Task Case
+ */
+
+export function useReadTaskCase<
+  TData = Awaited<ReturnType<typeof readTaskCase>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  communityId: number,
+  taskId: number,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readTaskCase>>, TError, TData>>;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getReadTaskCaseQueryOptions(communityId, taskId, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
 /**
  * @summary Move Task
  */
