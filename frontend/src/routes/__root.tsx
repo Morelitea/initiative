@@ -10,6 +10,7 @@ import { useAnalytics } from "@/hooks/useAnalytics";
 import { useColorTheme } from "@/hooks/useColorTheme";
 import { useConsentSync } from "@/hooks/useConsentSync";
 import { useDeepLinks } from "@/hooks/useDeepLinks";
+import { useDesktopTray } from "@/hooks/useDesktopApp";
 import { useInterfaceColors } from "@/hooks/useInterfaceColors";
 import { useSafeArea } from "@/hooks/useSafeArea";
 import { useTimeFormatSync } from "@/hooks/useTimeFormat";
@@ -35,6 +36,7 @@ const RootComponent = () => {
   useAnalytics();
   useSafeArea();
   useDeepLinks();
+  useDesktopTray();
   useTimeFormatSync();
 
   return (

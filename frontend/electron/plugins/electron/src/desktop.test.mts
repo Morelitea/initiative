@@ -112,7 +112,7 @@ describe("closing the window", () => {
     // Before the page has named the tray's menu there is no tray to wait in.
     expect(close(window)).toBe(false);
 
-    await desktop.setBadge({ count: 0, labels: { open: "Open", quit: "Quit", tooltip: "I" } });
+    await desktop.setTray({ open: "Open", quit: "Quit" });
     expect(close(window)).toBe(true);
     expect(window.hide).toHaveBeenCalled();
 
@@ -166,21 +166,21 @@ describe("a notification", () => {
 });
 
 describe("the badge", () => {
-  const labels = { open: "Open", quit: "Quit", tooltip: "Initiative: 3 unread" };
+  const tooltip = "Initiative: 3 unread";
 
   it("is the count on the dock and launcher, and an overlay on Windows", async () => {
     onPlatform("win32");
     const { desktop, window } = started();
 
-    await desktop.setBadge({ count: 3, overlay: "data:image/png;base64,AA", labels });
+    await desktop.setBadge({ count: 3, overlay: "data:image/png;base64,AA", tooltip });
     expect(electron.app.setBadgeCount).toHaveBeenCalledWith(3);
     expect(window.setOverlayIcon).toHaveBeenCalledWith(
       { url: "data:image/png;base64,AA" },
-      labels.tooltip
+      tooltip
     );
 
-    await desktop.setBadge({ count: 0, labels });
-    expect(window.setOverlayIcon).toHaveBeenLastCalledWith(null, labels.tooltip);
+    await desktop.setBadge({ count: 0, tooltip });
+    expect(window.setOverlayIcon).toHaveBeenLastCalledWith(null, tooltip);
   });
 });
 

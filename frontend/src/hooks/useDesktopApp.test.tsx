@@ -7,11 +7,12 @@ import { server } from "@/__tests__/helpers/msw-server";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 import { receiveAlert } from "@/lib/desktopAlerts";
 
-import { useDesktopApp } from "./useDesktopApp";
+import { useDesktopApp, useDesktopTray } from "./useDesktopApp";
 
 const desktop = vi.hoisted(() => ({
   notify: vi.fn(async () => {}),
   setBadge: vi.fn(async () => {}),
+  setTray: vi.fn(async () => {}),
   clicked: null as ((event: { tag: string }) => void) | null,
   navigate: vi.fn(),
 }));
@@ -24,6 +25,7 @@ vi.mock("@/plugins/desktop", () => ({
   default: {
     notify: desktop.notify,
     setBadge: desktop.setBadge,
+    setTray: desktop.setTray,
     addListener: async (_event: string, listener: (event: { tag: string }) => void) => {
       desktop.clicked = listener;
       return { remove: async () => {} };
@@ -132,6 +134,23 @@ describe("useDesktopApp", () => {
     );
     // Signing out leaves the signed-in pages, and takes the count with it.
     unmount();
-    expect(desktop.setBadge).toHaveBeenLastCalledWith({ count: 0 });
+    expect(desktop.setBadge).toHaveBeenLastCalledWith({ count: 0, tooltip: "Initiative" });
+  });
+});
+
+describe("useDesktopTray", () => {
+  it("names the tray's menu whether or not anyone is signed in", async () => {
+    const Tray = () => {
+      useDesktopTray();
+      return null;
+    };
+    renderWithProviders(<Tray />, { auth: { user: null } });
+
+    await waitFor(() =>
+      expect(desktop.setTray).toHaveBeenCalledWith({
+        open: "Open Initiative",
+        quit: "Quit Initiative",
+      })
+    );
   });
 });

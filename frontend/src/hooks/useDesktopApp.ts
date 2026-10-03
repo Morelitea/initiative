@@ -45,14 +45,10 @@ export const useDesktopApp = () => {
     void Desktop.setBadge({
       count: unread,
       overlay: drawBadge(unread),
-      labels: {
-        open: t("notifications.desktop.open"),
-        quit: t("notifications.desktop.quit"),
-        tooltip:
-          unread > 0
-            ? t("notifications.desktop.unread", { count: unread })
-            : t("notifications.desktop.app"),
-      },
+      tooltip:
+        unread > 0
+          ? t("notifications.desktop.unread", { count: unread })
+          : t("notifications.desktop.app"),
     }).catch(() => {});
   }, [desktop, unread, t]);
 
@@ -62,9 +58,9 @@ export const useDesktopApp = () => {
       return;
     }
     return () => {
-      void Desktop.setBadge({ count: 0 }).catch(() => {});
+      void Desktop.setBadge({ count: 0, tooltip: t("notifications.desktop.app") }).catch(() => {});
     };
-  }, [desktop]);
+  }, [desktop, t]);
 
   useEffect(() => {
     if (!desktop) {
@@ -128,4 +124,22 @@ export const useDesktopApp = () => {
       void listener.then((handle) => handle.remove());
     };
   }, [desktop, t, router, markRead.mutate]);
+};
+
+/**
+ * The tray's menu, named as soon as the app loads, signed in or not: an app
+ * opened at sign-in waits in the tray, and the tray is its only way back.
+ */
+export const useDesktopTray = () => {
+  const { t } = useTranslation("guilds");
+
+  useEffect(() => {
+    if (Capacitor.getPlatform() !== "electron") {
+      return;
+    }
+    void Desktop.setTray({
+      open: t("notifications.desktop.open"),
+      quit: t("notifications.desktop.quit"),
+    }).catch(() => {});
+  }, [t]);
 };

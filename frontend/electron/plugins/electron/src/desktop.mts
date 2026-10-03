@@ -15,11 +15,10 @@ const APP_ID = "com.morelitea.initiative";
 /** Passed when the computer opens the app at sign-in, to start in the tray. */
 const HIDDEN = "--hidden";
 
-/** The words the tray shows, in the person's language; the page sends them. */
-interface Labels {
+/** The tray menu's words, in the person's language; the page sends them. */
+interface TrayMenu {
   open: string;
   quit: string;
-  tooltip: string;
 }
 
 /**
@@ -31,14 +30,15 @@ interface Labels {
 export class Desktop {
   static __capacitorElectronPlugin = {
     name: "Desktop",
-    methods: ["notify", "setBadge", "getSettings", "setKeepRunning", "setOpenAtLogin"],
+    methods: ["notify", "setBadge", "setTray", "getSettings", "setKeepRunning", "setOpenAtLogin"],
   };
 
   private tray: InstanceType<typeof Tray> | null = null;
   private quitting = false;
   private keepRunning = true;
-  /** Sent by the signed-in page; the tray waits for them. */
-  private labels: Labels | null = null;
+  /** Sent by the page as soon as it loads, signed in or not; the tray waits for it. */
+  private menu: TrayMenu | null = null;
+  private tooltip = "Initiative";
   /** Shown notifications, held until they are clicked or dismissed. */
   private readonly shown = new Set<InstanceType<typeof Notification>>();
 
@@ -84,16 +84,30 @@ export class Desktop {
    * The unread count on the dock, the launcher and the tray. Windows shows it
    * as an overlay on the taskbar button, drawn by the page as `overlay`.
    */
-  async setBadge({ count, overlay, labels }: { count: number; overlay?: string; labels?: Labels }) {
-    this.labels = labels ?? this.labels;
+  async setBadge({
+    count,
+    overlay,
+    tooltip,
+  }: {
+    count: number;
+    overlay?: string;
+    tooltip: string;
+  }) {
+    this.tooltip = tooltip;
     app.setBadgeCount(count);
     const window = mainWindow();
     if (process.platform === "win32" && window) {
       window.setOverlayIcon(
         count > 0 && overlay ? nativeImage.createFromDataURL(overlay) : null,
-        this.labels?.tooltip ?? ""
+        tooltip
       );
     }
+    this.refreshTray();
+  }
+
+  /** Name the tray menu's items, which puts the tray up where there is one. */
+  async setTray(menu: TrayMenu) {
+    this.menu = menu;
     this.refreshTray();
   }
 
@@ -142,8 +156,8 @@ export class Desktop {
   }
 
   private refreshTray() {
-    const labels = this.labels;
-    if (!(hasTray() && this.keepRunning && labels)) {
+    const menu = this.menu;
+    if (!(hasTray() && this.keepRunning && menu)) {
       this.tray?.destroy();
       this.tray = null;
       return;
@@ -156,12 +170,12 @@ export class Desktop {
       this.tray = new Tray(icon);
       this.tray.on("click", () => this.show());
     }
-    this.tray.setToolTip(labels.tooltip);
+    this.tray.setToolTip(this.tooltip);
     this.tray.setContextMenu(
       Menu.buildFromTemplate([
-        { label: labels.open, click: () => this.show() },
+        { label: menu.open, click: () => this.show() },
         { type: "separator" },
-        { label: labels.quit, click: () => app.quit() },
+        { label: menu.quit, click: () => app.quit() },
       ])
     );
   }
