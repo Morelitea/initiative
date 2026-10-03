@@ -12,8 +12,8 @@ The enum value is added alone: nothing in this revision uses it, so it needs
 no transaction of its own. The downgrade leaves it, since Postgres cannot drop
 an enum value, and drops the tokens that carry it.
 
-Revision ID: 20261003_0446
-Revises: 20261003_0445
+Revision ID: 20261003_0447
+Revises: 20261003_0446
 Create Date: 2026-10-03
 """
 
@@ -21,8 +21,8 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
-revision = "20261003_0446"
-down_revision = "20261003_0445"
+revision = "20261003_0447"
+down_revision = "20261003_0446"
 branch_labels = None
 depends_on = None
 
