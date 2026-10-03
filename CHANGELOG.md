@@ -50,8 +50,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Wiki connections open from the bottom of a phone screen**, and open the first time you tap **Connections**.
 - **Connections look the same everywhere.** Every tool, and every wiki page, shows one **Connections** section: a row of cards to scroll through by default, or a plain list of links like a wiki's, with the view you pick remembered. It lists what a thing links to as well as what links to it. Wiki pages open on the list.
 - **A queue's controls sit in its header strip**, beside its status and tags, instead of in two rows of their own.
-- **An initiative's page is quieter.** Its colour runs down the side of its name and under the open tab, as it does in the sidebar. The members show as faces: point at one to see who they are, or open the count for everyone in it, searchable. Tool lists have one main button to create something, and cards inside an initiative no longer each carry its colour.
+- **An initiative's page is quieter.** Its colour runs down the side of its name and under the open tab, as it does in the sidebar. Whoever is online shows as faces in their profile frames: point at one to see who they are, or open the member count for everyone in it, searchable. Tool lists have one main button to create something, and cards inside an initiative no longer each carry its colour.
 - **A calendar's export is in its More actions menu**, beside import.
+- **Every tool list can be shown as cards, a list or by tag.** Projects, documents, queues, counters, dashboards, galleries and wikis each remember the view you pick. The tag view browses with the tag tree, as documents already did.
 
 ### Fixed
 
