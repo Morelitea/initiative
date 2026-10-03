@@ -18,6 +18,7 @@ from dataclasses import dataclass
 from typing import AsyncIterator, Optional
 
 from fastapi import HTTPException, status as http_status
+from sqlalchemy import text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -25,7 +26,7 @@ from app.core.intake import Conversation, IntakeStream, meta
 from app.core.tools import Tool
 from app.core.messages import GuildMessages, InitiativeMessages, IntakeMessages
 from app.db import cohorts, filer_access
-from app.db.session import set_rls_context
+from app.db.session import routed_guild_id, set_rls_context
 from app.models.platform.app_setting import AppSetting
 from app.models.platform.guild import Guild, CommunityStatus
 from app.models.platform.user import User
@@ -278,7 +279,17 @@ async def _ensure_isolation(
     session: AsyncSession, *, stream: IntakeStream, initiative_id: int
 ) -> None:
     """Refuse a binding that would put a stream that keeps its initiative to
-    itself beside another stream."""
+    itself beside another stream.
+
+    Bindings are written one at a time: the check holds a transaction lock
+    every binding write in this community takes, so two streams bound into
+    one initiative at once see each other rather than both passing.
+    """
+    await session.exec(
+        text(
+            "SELECT pg_advisory_xact_lock(:guild, hashtext('intake_bindings'))"
+        ).bindparams(guild=routed_guild_id(session))
+    )
     if await _isolation_conflicts(session, stream=stream, initiative_id=initiative_id):
         raise HTTPException(
             status_code=http_status.HTTP_409_CONFLICT,

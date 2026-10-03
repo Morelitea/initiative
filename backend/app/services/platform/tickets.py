@@ -28,6 +28,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.intake import Conversation, IntakeStream, meta
 from app.core.rate_limit import take_allowance
 from app.db import cohorts
+from app.db.session import routed_guild_id
 from app.models.platform.app_setting import AppSetting
 from app.models.platform.user import User
 from app.models.tenant.comment import Comment
@@ -208,6 +209,9 @@ class TicketMessage:
 
 @dataclass(frozen=True)
 class FiledTicketDetail:
+    #: The operations community the case was read in, which is where an
+    #: answer to it is written.
+    guild_id: int
     ticket: FiledTicket
     conversation: Conversation
     can_reply: bool
@@ -341,6 +345,9 @@ async def read_filed(user: User, task_id: int) -> FiledTicketDetail:
                 .order_by(Comment.created_at, Comment.id)
             )
         ).all()
+        guild_id = routed_guild_id(session)
+    if guild_id is None:
+        raise TicketNotFound
     ticket = _ticket_from(row)
     messages = [
         TicketMessage(
@@ -353,6 +360,7 @@ async def read_filed(user: User, task_id: int) -> FiledTicketDetail:
     ]
     conversation = meta(ticket.stream).conversation
     return FiledTicketDetail(
+        guild_id=guild_id,
         ticket=ticket,
         conversation=conversation,
         can_reply=_can_reply(conversation, ticket.state, messages),
@@ -372,10 +380,12 @@ async def reply(user: User, detail: FiledTicketDetail, words: str) -> None:
     """
     if not detail.can_reply:
         raise ReplyRefused
-    await intake_service.add_filer_reply(
+    taken = await intake_service.add_filer_reply(
+        guild_id=detail.guild_id,
         task_id=detail.ticket.task_id,
         filer=user,
         words=words,
         stream=detail.ticket.stream,
-        waiting=detail.ticket.state is FilerState.waiting_on_you,
     )
+    if not taken:
+        raise ReplyRefused

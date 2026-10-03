@@ -563,3 +563,86 @@ async def test_an_open_ticket_hears_when_the_case_moves(
     await notify_filers()
     await settle()
     assert len(_ticket_frames(tab)) == 1
+
+
+async def test_a_move_before_the_first_sweep_is_still_news(session, acting_user, desk):
+    """A filed case records where it starts, so a move made before the sweep
+    first sees it is told like any other."""
+    filer = await acting_user("member")
+    task_id = await _file(filer.user)
+    await _move(session, desk, task_id, desk["awaiting"])
+
+    await notify_filers()
+    (told,) = await _notices(session, filer.user.id)
+    assert told["state"] == "waiting_on_you"
+
+
+async def test_an_answer_to_a_case_closed_since_it_was_read_is_refused(
+    session, acting_user, desk
+):
+    """The page said it took an answer; the case closed before it was sent.
+    The answer is refused and the case stays closed."""
+    from app.services.platform import tickets as tickets_service
+
+    filer = await acting_user("member")
+    task_id = await _file(filer.user)
+    await _move(session, desk, task_id, desk["awaiting"])
+    detail = await tickets_service.read_filed(filer.user, task_id)
+    assert detail.can_reply
+    await _move(session, desk, task_id, desk["done"])
+
+    with pytest.raises(tickets_service.ReplyRefused):
+        await tickets_service.reply(filer.user, detail, "Still there?")
+
+    await set_rls_context(session, SystemGuild(desk["guild_id"]))
+    task = (await session.exec(select(Task).where(Task.id == task_id))).one()
+    assert task.task_status_id == desk["done"]
+    said = (
+        await session.exec(select(Comment.content).where(Comment.task_id == task_id))
+    ).all()
+    assert "Still there?" not in said
+
+
+async def test_an_answer_lands_only_on_the_filers_own_case(session, acting_user, desk):
+    """The writer reads the case again rather than trusting the id it was
+    handed: a task that is not this person's case takes nothing."""
+    from app.services.platform.intake import add_filer_reply
+
+    filer = await acting_user("member")
+    other = await acting_user("member")
+    theirs = await _file(other.user, subject="Not yours")
+
+    taken = await add_filer_reply(
+        guild_id=desk["guild_id"],
+        task_id=theirs,
+        filer=filer.user,
+        words="Hello",
+        stream=IntakeStream.support,
+    )
+    assert taken is False
+    await set_rls_context(session, SystemGuild(desk["guild_id"]))
+    said = (
+        await session.exec(select(Comment.content).where(Comment.task_id == theirs))
+    ).all()
+    assert "Hello" not in said
+
+
+async def test_a_reply_keeps_the_audience_of_what_it_answers(client, acting_user, desk):
+    """A note among the team cannot hang under something said to the
+    requester, where neither the thread nor the conversation would show it."""
+    filer = await acting_user("member")
+    task_id = await _file(filer.user)
+    said = await _say(client, desk, task_id, "Try a recovery code.")
+    staff = desk["staff"]
+
+    response = await client.post(
+        staff.g("/comments/"),
+        json={
+            "content": "Internal aside.",
+            "task_id": task_id,
+            "parent_comment_id": said.json()["id"],
+        },
+        headers=staff.headers,
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == CommentMessages.AUDIENCE_MISMATCH

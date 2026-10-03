@@ -175,6 +175,7 @@
   "COMMENT_NOT_LINKED": "Der Kommentar ist mit keinem Element verknüpft",
   "COMMENTS_DISABLED": "Kommentare sind für dieses Element deaktiviert",
   "COMMENT_NOT_SAID_TO_A_FILER": "Nur ein von jemandem eingereichtes Ticket kann eine Antwort an diese Person aufnehmen",
+  "COMMENT_AUDIENCE_MISMATCH": "Eine Antwort geht an dieselben Personen wie der Kommentar, auf den sie antwortet",
   "SETTINGS_PROVIDE_TEST_EMAIL": "Gib eine Test-E-Mail-Adresse an",
   "SETTINGS_SMTP_INCOMPLETE": "SMTP-Einstellungen sind unvollständig",
   "SETTINGS_INVALID_COMMUNITY_ROLE": "Die Community-Rolle muss 'admin' oder 'member' sein",

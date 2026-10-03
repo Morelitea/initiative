@@ -765,6 +765,8 @@ async def create_comment(
     )
     if parent_comment and getattr(parent_comment, column) != ctx.entity_id:
         raise CommentValidationError(CommentMessages.PARENT_MISMATCH)
+    if parent_comment and parent_comment.audience != audience:
+        raise CommentValidationError(CommentMessages.AUDIENCE_MISMATCH)
     if audience is CommentAudience.filer:
         await _ensure_said_to_a_filer(
             session, person=person, column=column, entity_id=ctx.entity_id

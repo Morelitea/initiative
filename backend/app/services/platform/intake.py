@@ -225,6 +225,28 @@ async def _open_cases_filed_by(
     return int(count)
 
 
+async def _starting_state(
+    session: AsyncSession,
+    stream: IntakeStream,
+    binding: IntakeBinding,
+    status_id: Optional[int],
+) -> str:
+    """The state a case landing in ``status_id`` shows whoever filed it."""
+    from app.services.platform.tickets import derive_state
+
+    category = (
+        await session.exec(
+            select(TaskStatus.category).where(TaskStatus.id == status_id)
+        )
+    ).one_or_none()
+    return derive_state(
+        category=category or TaskStatusCategory.todo,
+        status_id=status_id,
+        awaiting_status_id=binding.awaiting_filer_status_id,
+        stream=stream,
+    ).value
+
+
 async def _hold_key(
     session: AsyncSession, *, guild_id: int, stream: IntakeStream, dedupe_key: str
 ) -> None:
@@ -524,6 +546,13 @@ async def open_case(
                 occurrences=1,
                 filer_user_id=filer.user_id if filer is not None else None,
                 filer_subject=filer.subject if filer is not None else None,
+                # Where its filer starts, so the first move after it is news
+                # to them however soon it comes.
+                filer_notified_state=(
+                    await _starting_state(session, stream, binding, task.task_status_id)
+                    if filer is not None
+                    else None
+                ),
             )
         )
         if filer is not None:
@@ -544,29 +573,59 @@ async def open_case(
 
 async def add_filer_reply(
     *,
+    guild_id: int,
     task_id: int,
     filer: User,
     words: str,
     stream: IntakeStream,
-    waiting: bool,
-) -> None:
+) -> bool:
     """Write a filer's answer on their case, said to them like the rest of the
-    conversation, and move a case that was waiting on them.
+    conversation, and move a case that is waiting on them. Returns whether it
+    was taken.
 
-    The caller has already read, through the filer's own access, that the case
-    is theirs and takes an answer now. Written on the writer's session, routed
-    by ``guild_id`` alone; the author is named explicitly, since the routing
-    carries no user. The task's assignees hear of it as they would of any
-    comment on the task.
+    ``guild_id`` is the operations community the caller read the case in,
+    through the filer's own access. The case is read again here, locked, so
+    the answer lands only on a case that is still theirs and still open, and
+    the "waiting on you" it moves on is the case's state now rather than when
+    the page was read. Written on the writer's session, routed by ``guild_id``
+    alone; the author is named explicitly, since the routing carries no user.
+    The task's assignees hear of it as they would of any comment on the task.
     """
     from app.services.platform import ticket_stream
+    from app.services.platform.tickets import FilerState, derive_state
     from app.services.tenant.comments import notify_task_assignees
 
-    guild_id = await configured_operations_guild_id()
-    if guild_id is None:
-        return
     async with cohorts.system_session(guild_id) as session:
         await set_rls_context(session, SystemGuild(guild_id))
+        task = (
+            await session.exec(
+                select(Task)
+                .join(IntakeCase, IntakeCase.task_id == Task.id)
+                .where(Task.id == task_id)
+                .where(IntakeCase.filer_user_id == filer.id)
+                .with_for_update(of=Task)
+                .execution_options(populate_existing=True)
+            )
+        ).one_or_none()
+        if task is None:
+            return False
+        category = (
+            await session.exec(
+                select(TaskStatus.category).where(TaskStatus.id == task.task_status_id)
+            )
+        ).one_or_none()
+        binding = await _binding_for(session, stream)
+        state = derive_state(
+            category=category or TaskStatusCategory.todo,
+            status_id=task.task_status_id,
+            awaiting_status_id=(
+                binding.awaiting_filer_status_id if binding is not None else None
+            ),
+            stream=stream,
+            trashed=task.deleted_at is not None,
+        )
+        if state is FilerState.closed:
+            return False
         comment = Comment(
             task_id=task_id,
             content=words,
@@ -575,33 +634,22 @@ async def add_filer_reply(
         )
         session.add(comment)
         await session.flush()
-        task = (
-            await session.exec(
-                select(Task)
-                .where(Task.id == task_id)
-                .execution_options(populate_existing=True)
-            )
-        ).one_or_none()
-        if task is not None:
-            await notify_task_assignees(
-                session, comment=comment, author=filer, task=task
-            )
+        await notify_task_assignees(session, comment=comment, author=filer, task=task)
         # Their other tabs follow the same conversation.
         ticket_stream.queue_ticket_signal(session, filer.id)
-        if waiting:
-            binding = await _binding_for(session, stream)
-            active = binding.active_status_id if binding is not None else None
-            if task is not None and active is not None:
-                # Checked against the task's own project: a case moved
-                # elsewhere keeps its status rather than borrowing one.
-                belongs = (
-                    await session.exec(
-                        select(TaskStatus.id)
-                        .where(TaskStatus.id == active)
-                        .where(TaskStatus.project_id == task.project_id)
-                    )
-                ).first()
-                if belongs is not None:
-                    task.task_status_id = active
-                    session.add(task)
+        active = binding.active_status_id if binding is not None else None
+        if state is FilerState.waiting_on_you and active is not None:
+            # Checked against the task's own project: a case moved elsewhere
+            # keeps its status rather than borrowing one.
+            belongs = (
+                await session.exec(
+                    select(TaskStatus.id)
+                    .where(TaskStatus.id == active)
+                    .where(TaskStatus.project_id == task.project_id)
+                )
+            ).first()
+            if belongs is not None:
+                task.task_status_id = active
+                session.add(task)
         await session.commit()
+    return True

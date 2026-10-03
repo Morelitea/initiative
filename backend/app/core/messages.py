@@ -499,6 +499,8 @@ class CommentMessages:
     #: Only an operations case with somebody to answer takes a comment said to
     #: whoever filed it.
     NOT_SAID_TO_A_FILER = "COMMENT_NOT_SAID_TO_A_FILER"
+    #: A reply is said to whoever its parent was said to.
+    AUDIENCE_MISMATCH = "COMMENT_AUDIENCE_MISMATCH"
 
 
 class SharingMessages:
