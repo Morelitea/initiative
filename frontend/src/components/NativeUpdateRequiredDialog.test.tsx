@@ -69,4 +69,28 @@ describe("NativeUpdateRequiredDialog", () => {
     );
     expect(updater.install).not.toHaveBeenCalled();
   });
+
+  it("offers to update again when a later release asks", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(Capacitor, "getPlatform").mockReturnValue("electron");
+    updater.supported.mockResolvedValue({ supported: true });
+    updater.download.mockRejectedValueOnce(new Error("offline"));
+    const { rerender } = renderDialog();
+    await user.click(await screen.findByRole("button", { name: /update now/i }));
+    await screen.findByText(/didn't finish/i);
+
+    const later = (open: boolean) => (
+      <NativeUpdateRequiredDialog
+        open={open}
+        version="0.82.0"
+        minNativeVersion="0.82.0"
+        onClose={vi.fn()}
+      />
+    );
+    rerender(later(false));
+    rerender(later(true));
+
+    expect(await screen.findByRole("button", { name: /update now/i })).toBeEnabled();
+    expect(screen.queryByText(/didn't finish/i)).not.toBeInTheDocument();
+  });
 });

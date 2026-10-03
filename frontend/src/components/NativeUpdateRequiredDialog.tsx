@@ -54,8 +54,12 @@ export const NativeUpdateRequiredDialog = ({
   const [updating, setUpdating] = useState(false);
   const [failed, setFailed] = useState(false);
 
+  // Each prompt starts afresh: a failure belongs to the release it was for.
   useEffect(() => {
-    if (open && minNativeVersion) void desktopCanUpdate().then(setCanUpdate);
+    if (!open) return;
+    setFailed(false);
+    setUpdating(false);
+    if (minNativeVersion) void desktopCanUpdate().then(setCanUpdate);
   }, [open, minNativeVersion]);
 
   const updateNow = async () => {

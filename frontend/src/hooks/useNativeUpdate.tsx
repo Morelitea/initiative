@@ -209,7 +209,9 @@ export const useNativeUpdate = () => {
         if (autoUpdateConsented() && (await desktopCanUpdate())) {
           try {
             await DesktopUpdater.download({ version: minNativeVersion });
+            // Stays until answered: this release does not prompt again this session.
             toast.info(t("nativeUpdate.desktopReady"), {
+              duration: Number.POSITIVE_INFINITY,
               action: {
                 label: t("nativeUpdate.restart"),
                 onClick: () => void DesktopUpdater.install(),
