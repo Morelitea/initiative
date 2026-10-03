@@ -20,7 +20,17 @@ import { useQuery } from "@tanstack/react-query";
 export interface CatalogTierPrice {
   base_monthly: number | null;
   display: string;
+  /** The price before the early rate, shown struck through beside `display`.
+   *  Absent or null on a plan that is not on it. */
+  regular_display?: string | null;
   sub_display: string | null;
+}
+
+/** The launch discount behind every `regular_display` in the price book. */
+export interface CatalogEarlyRate {
+  percent_off: number;
+  label: string;
+  note: string;
 }
 
 export interface CatalogTierLimits {
@@ -56,6 +66,7 @@ export interface BillingCatalog {
   headline: string;
   subhead: string;
   tiers: CatalogTier[];
+  early_rate?: CatalogEarlyRate | null;
   footnotes: Record<string, string>;
 }
 

@@ -369,7 +369,7 @@ async def test_guild_bound_key_is_pinned_to_its_guild(
         headers=headers,
         json={"name": "GuildA", "community_id": guild_a.id},
     )
-    assert create.json()["api_key"]["guild_id"] == guild_a.id
+    assert create.json()["api_key"]["community_id"] == guild_a.id
     key_headers = {"Authorization": f"Bearer {create.json()['secret']}"}
 
     # Reaches its own guild.

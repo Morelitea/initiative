@@ -162,7 +162,7 @@ async def test_what_it_creates_is_its_own_and_names_nobody(
     assert created.status_code == 201, created.text
     body = created.json()
     assert body["created_by"] is None
-    assert isinstance(body["guild_id"], str)
+    assert isinstance(body["community_id"], str)
     assert body["can"]["delete"] is True
     assert_names_nobody(created.text, [installed.seat.user.id, installed.guild.id])
 
@@ -220,7 +220,7 @@ async def test_a_document_a_person_made_names_them_by_reference(
     )
     assert person.status_code == 200, person.text
     assert person.json()["created_by"] == installed.seat.user.id
-    assert person.json()["guild_id"] == installed.guild.id
+    assert person.json()["community_id"] == installed.guild.id
 
 
 # ---------------------------------------------------------------------------

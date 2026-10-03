@@ -44,7 +44,7 @@ def _path(tool: Tool) -> str:
 def _keyed(response) -> set[tuple[int, int]]:
     """Items keyed by (guild, id): per-schema ids collide across communities,
     which is what callers of a merged list must key by too."""
-    return {(item["guild_id"], item["id"]) for item in response.json()["items"]}
+    return {(item["community_id"], item["id"]) for item in response.json()["items"]}
 
 
 async def _enable_tools(client, actor):
@@ -129,11 +129,11 @@ async def test_each_list_is_its_tools_live_view_in_every_guild(
         )
         assert response.status_code == 200, response.text
         for item in response.json()["items"]:
-            in_guilds[(item["guild_id"], item["id"])] = item
+            in_guilds[(item["community_id"], item["id"])] = item
 
     mine = await client.get(_path(tool), headers=a.headers, params={"page_size": 50})
     assert mine.status_code == 200, mine.text
-    assert {(i["guild_id"], i["id"]): i for i in mine.json()["items"]} == in_guilds
+    assert {(i["community_id"], i["id"]): i for i in mine.json()["items"]} == in_guilds
     assert mine.json()["total_count"] == len(in_guilds) == 2
 
     counts = await client.get("/api/v1/me/tools/counts", headers=a.headers)
@@ -216,7 +216,7 @@ async def test_guild_ids_narrows_the_merge(
     assert (a2.guild.id, row2["id"]) in _keyed(both)
 
     narrowed = await client.get(
-        f"{_path(tool)}?guild_ids={a1.guild.id}", headers=a1.headers
+        f"{_path(tool)}?community_ids={a1.guild.id}", headers=a1.headers
     )
     assert narrowed.status_code == 200
     assert (a1.guild.id, row1["id"]) in _keyed(narrowed)
@@ -276,7 +276,7 @@ async def test_pagination_walks_the_merged_list(
         "Delta",
         "Echo",
     ]
-    assert [item["guild_id"] for item in walked] == [
+    assert [item["community_id"] for item in walked] == [
         a1.guild.id,
         a2.guild.id,
         a2.guild.id,

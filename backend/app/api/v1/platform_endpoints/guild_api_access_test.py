@@ -102,7 +102,7 @@ async def test_a_key_minted_before_the_switch_stops_reaching_the_guild(
         session, user=admin, guild=guild, role=CommunityRole.superadmin
     )
     headers = get_auth_headers(admin)
-    key_headers = await _key_headers(client, headers, guild_id=guild.id)
+    key_headers = await _key_headers(client, headers, community_id=guild.id)
 
     before = await client.get(f"/api/v1/c/{guild.id}/initiatives/", headers=key_headers)
     assert before.status_code == 200
@@ -253,7 +253,7 @@ async def test_a_key_limited_to_one_guild_reads_only_that_guild_across_guilds(
     pinned_id = pinned.id
 
     headers = get_auth_headers(user)
-    key_headers = await _key_headers(client, headers, guild_id=pinned_id)
+    key_headers = await _key_headers(client, headers, community_id=pinned_id)
 
     by_key = await client.get("/api/v1/me/projects", headers=key_headers)
     assert by_key.status_code == 200, by_key.text

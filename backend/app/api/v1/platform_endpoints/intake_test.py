@@ -58,7 +58,7 @@ async def test_every_stream_is_listed_before_anything_is_configured(client, owne
     )
     assert response.status_code == 200
     body = response.json()
-    assert body["operations_guild_id"] is None
+    assert body["operations_community_id"] is None
     assert {b["stream"] for b in body["bindings"]} == {s.value for s in IntakeStream}
     assert all(b["enabled"] is False for b in body["bindings"])
 

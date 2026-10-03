@@ -113,7 +113,7 @@ async def test_a_communitys_page_offers_the_deployments_sign_in(
     body = response.json()
     assert [row["slug"] for row in body["providers"]] == ["corp"]
     assert body["providers"][0]["login_url"] == "/api/v1/auth/corp/login"
-    assert body["guild_name"] == guild.name
+    assert body["community_name"] == guild.name
 
 
 async def test_a_provider_it_does_not_connect_to_is_not_listed(

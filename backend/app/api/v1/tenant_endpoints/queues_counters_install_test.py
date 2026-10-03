@@ -99,7 +99,7 @@ async def test_reads_the_queues_open_to_its_initiative(
     assert read.status_code == 200, read.text
     body = read.json()
     assert body["can"]["edit"] is False
-    assert isinstance(body["guild_id"], str)
+    assert isinstance(body["community_id"], str)
     assert isinstance(body["created_by"], str)
     [served] = body["items"]
     # The person the item names is the same reference as the queue's author.
@@ -334,14 +334,14 @@ async def test_reads_the_counter_groups_open_to_its_initiative(
     assert body["can"]["edit"] is False
     assert isinstance(body["created_by"], str)
     assert [c["name"] for c in body["counters"]] == ["Hit points"]
-    assert isinstance(body["counters"][0]["guild_id"], str)
+    assert isinstance(body["counters"][0]["community_id"], str)
     assert_names_nobody(read.text, [seat.user.id, guild_id])
 
     one = await client.get(
         guild_url(guild_id, f"/counters/{counter.id}"), headers=headers
     )
     assert one.status_code == 200, one.text
-    assert one.json()["guild_id"] == body["guild_id"]
+    assert one.json()["community_id"] == body["community_id"]
     assert_names_nobody(one.text, [seat.user.id, guild_id])
 
     other = await client.get(

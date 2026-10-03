@@ -38,14 +38,14 @@ async def test_storage_usage_sums_guild_bytes(
 
     response = await client.get(a.g("/storage/usage"), headers=a.headers)
     assert response.status_code == 200, response.text
-    assert response.json() == {"guild_id": a.guild.id, "usage_bytes": 3000}
+    assert response.json() == {"community_id": a.guild.id, "usage_bytes": 3000}
 
 
 async def test_storage_usage_zero_for_empty_guild(client: AsyncClient, acting_user):
     a = await acting_user(guild_role=CommunityRole.admin)
     response = await client.get(a.g("/storage/usage"), headers=a.headers)
     assert response.status_code == 200, response.text
-    assert response.json() == {"guild_id": a.guild.id, "usage_bytes": 0}
+    assert response.json() == {"community_id": a.guild.id, "usage_bytes": 0}
 
 
 async def test_storage_usage_requires_guild_admin(
@@ -101,7 +101,7 @@ async def test_a_settings_grantee_reads_the_usage_the_tab_shows_them(
         f"/api/v1/c/{admin.guild.id}/storage/usage", headers=get_auth_headers(support)
     )
     assert response.status_code == 200, response.text
-    assert response.json() == {"guild_id": admin.guild.id, "usage_bytes": 1234}
+    assert response.json() == {"community_id": admin.guild.id, "usage_bytes": 1234}
 
 
 async def test_a_content_grant_alone_does_not_read_usage(

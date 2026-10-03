@@ -272,7 +272,7 @@ async def test_creates_a_task_assigned_by_reference_and_names_nobody(
     assert listed.status_code == 200, listed.text
     row = next(t for t in listed.json()["items"] if t["id"] == body["id"])
     assert [a["id"] for a in row["assignees"]] == [seat_ref]
-    assert isinstance(row["guild_id"], str)
+    assert isinstance(row["community_id"], str)
     assert_names_nobody(listed.text, [installed.seat.user.id, gid])
 
     await route_session_to_guild(session, gid)

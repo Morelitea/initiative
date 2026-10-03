@@ -912,7 +912,7 @@ async def test_a_guild_admin_reads_their_own_entitlements(
     )
 
     assert response.status_code == 200
-    assert response.json() == {"guild_id": a.guild.id, "banner_image_enabled": True}
+    assert response.json() == {"community_id": a.guild.id, "banner_image_enabled": True}
 
 
 async def test_entitlements_follow_the_operator(
