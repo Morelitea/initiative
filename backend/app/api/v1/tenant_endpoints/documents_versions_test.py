@@ -87,7 +87,8 @@ async def test_an_app_copies_a_file_document_under_its_uploader(
 ) -> None:
     """An app with the document scopes copies the file a document shows, and
     the copy's version 1 names the file's uploader: an app is never an
-    author. Neither file's stored path reaches the app; a person reads it."""
+    author. The app reads each stored file as an empty string and a cover from
+    elsewhere as it is; a person reads the paths."""
     scopes = ["documents:read", "documents:write"]
     installed = await install_app(session, acting_user, role_session, granted=scopes)
     # Uploaded documents are shared with the initiative the install is placed
@@ -115,19 +116,40 @@ async def test_an_app_copies_a_file_document_under_its_uploader(
 
     assert response.status_code == 201, response.text
     copy = response.json()
-    assert "file_url" not in copy and "featured_image_url" not in copy
+    assert (copy["file_url"], copy["featured_image_url"]) == ("", "")
     assert "/uploads/" not in response.text
-    for path in ("/documents/", f"/documents/{doc['id']}"):
-        read = await client.get(
-            installed.seat.g(path), headers=install_headers(installed, scopes)
-        )
-        assert read.status_code == 200, read.text
-        assert "/uploads/" not in read.text
     person = await client.get(
         installed.seat.g(f"/documents/{copy['id']}"), headers=installed.seat.headers
     )
     assert person.json()["file_url"].startswith(f"/uploads/{installed.guild.id}/")
     assert person.json()["file_url"] != doc["file_url"]
+
+    # A cover from elsewhere reaches the app as it is; a PDF shows none.
+    cover = "https://pictures.example/cover.png"
+    updated = await client.patch(
+        installed.seat.g(f"/documents/{copy['id']}"),
+        headers=installed.seat.headers,
+        json={"featured_image_url": cover},
+    )
+    assert updated.status_code == 200, updated.text
+    pdf = await _upload_initial_file_doc(
+        client, installed.seat, initiative=installed.placed, name="Notes"
+    )
+    listed = await client.get(
+        installed.seat.g("/documents/"), headers=install_headers(installed, scopes)
+    )
+    assert listed.status_code == 200, listed.text
+    assert "/uploads/" not in listed.text
+    assert {
+        item["id"]: (item["file_url"], item["featured_image_url"])
+        for item in listed.json()["items"]
+    } == {doc["id"]: ("", ""), copy["id"]: ("", cover), pdf["id"]: ("", None)}
+    read = await client.get(
+        installed.seat.g(f"/documents/{doc['id']}"),
+        headers=install_headers(installed, scopes),
+    )
+    assert read.status_code == 200, read.text
+    assert (read.json()["file_url"], read.json()["featured_image_url"]) == ("", "")
     version = (
         await session.exec(
             select(DocumentFileVersion).where(

@@ -229,25 +229,28 @@ def _received(document: dict[str, Any]) -> set[str]:
 
 
 @pytest.mark.always
-def test_no_response_in_the_app_document_holds_a_stored_file_s_path():
+def test_every_field_in_the_app_document_holding_a_stored_file_s_path_says_so():
     """A column that holds a stored file's path, beside the ones people write
-    in (``attachments._upload_columns``), is served to people alone. No shape an
-    app receives has a field named for one, and every ``x-upload`` mark sits on
-    a field of its own, which is where it leaves the field out. A column people
-    write in carries its ``Mentions`` mark instead (the test above), which
-    leaves the path of each stored file it shows empty."""
+    in (``attachments._upload_columns``), comes to an app as an empty string
+    in place of the path. Each field of a shape an app receives named for one
+    carries ``x-upload``, which is where the path is emptied, and says so; every
+    ``x-upload`` mark sits on a field of its own. A column people write in
+    carries its ``Mentions`` mark instead (the test above), which leaves the
+    path of each stored file it shows empty."""
     written = {column for columns in written_columns().values() for column in columns}
     paths = {column for _, column in _upload_columns()} - written
     document = app_openapi()
     schemas = document["components"]["schemas"]
-    held = {
-        (name, field)
+    held = [
+        schemas[name]["properties"][field]
         for name in _received(document)
         for field in schemas[name].get("properties", {})
         if field in paths
-    }
+    ]
     assert paths
-    assert not held
+    assert held
+    assert all(field.get("x-upload") for field in held)
+    assert all("empty string" in field["description"] for field in held)
     main = app.openapi()["components"]["schemas"]
     marks = [node for node in _nodes(main) if "x-upload" in node]
     fields = [

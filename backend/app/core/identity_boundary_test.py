@@ -20,6 +20,7 @@ from app.core.identity_boundary import (
     BoundaryPhase,
     LEXICAL_MENTIONS,
     MARKDOWN_MENTIONS,
+    UPLOAD_PATH,
     GuildId,
     InstallBoundary,
     PersonId,
@@ -326,6 +327,25 @@ def test_derived_text_shows_an_install_no_stored_file_s_path(own_origin):
         admit_install(_boundary())
         assert without_upload_paths(text) == f"see  and {_ELSEWHERE}"
         assert without_upload_paths({"root": _image(_PICTURE)}) == {"root": _image("")}
+
+
+class _Files(BaseModel):
+    picture: Annotated[str, UPLOAD_PATH]
+    file: Annotated[Optional[str], UPLOAD_PATH] = None
+    cover: Annotated[Optional[str], UPLOAD_PATH] = None
+    missing: Annotated[Optional[str], UPLOAD_PATH] = None
+
+
+def test_an_install_reads_a_stored_file_as_an_empty_string(own_origin):
+    files = _Files(picture=_PICTURE, file=_FILE, cover=_ELSEWHERE)
+    shown = {"picture": _PICTURE, "file": _FILE, "cover": _ELSEWHERE, "missing": None}
+    assert files.model_dump(mode="json") == shown
+    with boundary_scope():
+        boundary = _boundary()
+        admit_install(boundary)
+        boundary.phase = BoundaryPhase.response
+        dumped = files.model_dump(mode="json")
+    assert dumped == shown | {"picture": "", "file": ""}
 
 
 @pytest.mark.parametrize("named", ["11", "uapp_nobody-here", _GUILD_REF, _OTHER_REF])

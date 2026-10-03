@@ -34,7 +34,8 @@ when the install holds ``members:read``.
 
 A field marked :data:`UPLOAD_PATH` holds a stored file's path,
 ``/uploads/{guild_id}/{name}``, which names the community by its row id and is
-served to people. A person gets it; an install's response leaves it out. Text
+served to people. A person gets it; in an install's response it is ``""``, and
+an outside URL the field holds instead is as it is. Text
 marked :class:`Mentions` can show a stored file too, as an image or a link: in
 an install's response the address of each one this deployment serves is left
 empty (:data:`UPLOAD_PATH_SHAPE`).
@@ -57,7 +58,6 @@ from typing import Annotated, Any, Optional
 from urllib.parse import urlsplit
 
 from pydantic import (
-    Field,
     GetCoreSchemaHandler,
     GetJsonSchemaHandler,
     PlainSerializer,
@@ -506,15 +506,44 @@ def _without_paths(text: str) -> str:
     return _stored_file_address(settings.APP_URL).sub("", text)
 
 
-def _upload_path_withheld(_path: Any) -> bool:
-    return responding_to_install()
+@dataclass(frozen=True)
+class UploadPath:
+    """Marks a field holding a stored file's path, or an outside URL.
+
+    For a person the value passes through as it is. In an install's response a
+    stored file's path, the whole value, is ``""``; an outside URL is as it is,
+    and ``None`` stays ``None``. The field's schema carries ``x-upload``, which
+    the app API's document describes.
+    """
+
+    def __get_pydantic_core_schema__(
+        self, source: Any, handler: GetCoreSchemaHandler
+    ) -> core_schema.CoreSchema:
+        schema = handler(source).copy()
+        schema["serialization"] = core_schema.wrap_serializer_function_ser_schema(
+            self._serialize
+        )
+        return schema
+
+    def __get_pydantic_json_schema__(
+        self, schema: core_schema.CoreSchema, handler: GetJsonSchemaHandler
+    ) -> JsonSchemaValue:
+        json_schema = handler(schema)
+        json_schema["x-upload"] = True
+        return json_schema
+
+    def _serialize(
+        self, value: Any, handler: core_schema.SerializerFunctionWrapHandler
+    ) -> Any:
+        if (
+            isinstance(value, str)
+            and responding_to_install()
+            and _stored_file_address(settings.APP_URL).fullmatch(value)
+        ):
+            value = ""
+        return handler(value)
 
 
-#: Marks a field holding a stored file's path: ``Annotated[str, UPLOAD_PATH]``,
-#: or ``Annotated[Optional[str], UPLOAD_PATH]``. It marks the field itself, so
-#: it goes on the whole annotation, never inside an ``Optional``. A person gets
-#: the path; an install's response leaves the field out. Its schema carries
-#: ``x-upload``, and the app API's document leaves the field out too.
-UPLOAD_PATH = Field(
-    exclude_if=_upload_path_withheld, json_schema_extra={"x-upload": True}
-)
+#: The mark on a field holding a file's path: ``Annotated[str, UPLOAD_PATH]``,
+#: or ``Annotated[Optional[str], UPLOAD_PATH]``.
+UPLOAD_PATH = UploadPath()
