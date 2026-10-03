@@ -14,7 +14,7 @@ from typing import (
 
 from pydantic import ConfigDict, Field
 
-from app.core.identity_boundary import LEXICAL_MENTIONS
+from app.core.identity_boundary import LEXICAL_MENTIONS, UPLOAD_PATH
 from app.core.relationships import Related
 from app.schemas.base import SanitizedBaseModel
 from app.schemas.tenant.property import PropertiesOnCreate
@@ -94,11 +94,13 @@ class DocumentSummary(DocumentBase, ToolSummaryBase):
     owner_app: Optional[OwnerAppSummary] = Field(
         default=None, validation_alias="owner_app_source"
     )
+    #: ``DocumentBase``'s, marked here: a request takes it as it is.
+    featured_image_url: Annotated[Optional[str], UPLOAD_PATH] = None
     projects: List[DocumentProjectLink] = Field(default_factory=list)
     comment_count: int = 0
     # File document fields
     document_type: DocumentType = DocumentType.native
-    file_url: Optional[str] = None
+    file_url: Annotated[Optional[str], UPLOAD_PATH] = None
     file_content_type: Optional[str] = None
     file_size: Optional[int] = None
     original_filename: Optional[str] = None

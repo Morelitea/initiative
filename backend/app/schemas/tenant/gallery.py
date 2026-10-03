@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, List, Optional, TYPE_CHECKING
+from typing import Annotated, Any, List, Optional, TYPE_CHECKING
 
 from pydantic import ConfigDict, Field
 
-from app.core.identity_boundary import GuildId, PersonId
+from app.core.identity_boundary import UPLOAD_PATH, GuildId, PersonId
 from app.schemas.base import MentionStr, SanitizedBaseModel, TitleStr
 from app.schemas.query import PageMeta
 from app.schemas.tenant.comment import CommentAuthor
@@ -54,8 +54,8 @@ class GalleryCover(SanitizedBaseModel):
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     image_id: int
-    file_url: str
-    thumbnail_url: Optional[str] = None
+    file_url: Annotated[str, UPLOAD_PATH]
+    thumbnail_url: Annotated[Optional[str], UPLOAD_PATH] = None
     width: Optional[int] = None
     height: Optional[int] = None
 
@@ -122,10 +122,10 @@ class GalleryImageRead(SanitizedBaseModel):
     title: Optional[str] = None
     caption: Optional[MentionStr] = None
     #: The current version's file, served at ``/uploads/{guild}/{name}``.
-    file_url: str
+    file_url: Annotated[str, UPLOAD_PATH]
     #: A smaller rendition for grids, or ``null`` where none was made — the
     #: grid then shows the picture itself.
-    thumbnail_url: Optional[str] = None
+    thumbnail_url: Annotated[Optional[str], UPLOAD_PATH] = None
     file_content_type: Optional[str] = None
     file_size: Optional[int] = None
     original_filename: Optional[str] = None

@@ -10,6 +10,8 @@ document (:func:`build_app_openapi`) is cut from it:
 - every shape that draws a person (``x-person``) is ``AppPerson``, which is
   what an install receives in its place;
 - every field that mentions people (``x-mentions``) says how it names them;
+- a field holding a stored file's path (``x-upload``) is left out, as an
+  install's response leaves it out;
 - paths start after ``/api/v1/c/{guild_id}``, served from ``/api/v1/c/0``: an
   install's community comes from its token;
 - each operation is named after its route;
@@ -129,6 +131,21 @@ def _as_references(node: Any) -> Any:
     return node
 
 
+def _without_upload_paths(schema: dict[str, Any]) -> dict[str, Any]:
+    """``schema`` without the fields that hold a stored file's path."""
+    properties = schema.get("properties", {})
+    withheld = {name for name, field in properties.items() if field.get("x-upload")}
+    if not withheld:
+        return schema
+    kept = {**schema}
+    kept["properties"] = {
+        name: field for name, field in properties.items() if name not in withheld
+    }
+    if "required" in schema:
+        kept["required"] = [name for name in schema["required"] if name not in withheld]
+    return kept
+
+
 def build_app_openapi(
     openapi_schema: dict[str, Any], routes: Iterable[Any]
 ) -> dict[str, Any]:
@@ -173,7 +190,7 @@ def build_app_openapi(
     while pending:
         name = pending.pop()
         if name not in reached:
-            reached[name] = _as_app_people(schemas[name], people)
+            reached[name] = _without_upload_paths(_as_app_people(schemas[name], people))
             pending.extend(_schema_refs(reached[name]))
 
     info = openapi_schema["info"]
