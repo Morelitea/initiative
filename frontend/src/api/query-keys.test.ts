@@ -164,7 +164,7 @@ describe("query-keys guild scoping", () => {
         ["/api/v1/communities/"],
         ["/api/v1/communities/directory", { q: "chess" }],
         ["/api/v1/access-grants/queue", { status: "pending" }],
-        ["/api/v1/users/me"],
+        ["/api/v1/me"],
         ["/api/v1/me/tasks", { page: 1 }],
         // The recents bar spans every community, so a switch must not blank it.
         ["/api/v1/recents/"],

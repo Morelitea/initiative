@@ -10,7 +10,7 @@ import { http } from "msw";
  *
  *   guildHttp.get("/tasks/", resolver)  ->  GET /api/v1/c/:guildId/tasks/
  *
- * Non-guild endpoints (/api/v1/me/*, /api/v1/users/me, /api/v1/auth/*, etc.)
+ * Non-guild endpoints (/api/v1/me/*, /api/v1/me, /api/v1/auth/*, etc.)
  * keep using `http` directly.
  */
 const GUILD_BASE = "/api/v1/c/:guildId";

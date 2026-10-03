@@ -1841,7 +1841,7 @@ export function useCheckUserDeletionEligibilityApiV1OperatorUsersUserIdDeletionE
  * anonymized owner row can't act on them.
  *
  * Restrictions:
- * - Cannot delete yourself (use /users/me/delete-account)
+ * - Cannot delete yourself (use /me/delete-account)
  * - Cannot delete the last owner
  * @summary Delete User
  */

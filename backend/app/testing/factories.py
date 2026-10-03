@@ -467,7 +467,7 @@ def get_auth_token(
 
     Example:
         headers = {"Authorization": f"Bearer {get_auth_token(test_user)}"}
-        response = await client.get("/api/v1/users/me", headers=headers)
+        response = await client.get("/api/v1/me", headers=headers)
     """
     subject = getattr(user, AUTH_SUBJECT_ATTR, None)
     if subject is None:
@@ -507,7 +507,7 @@ def get_auth_headers(user: User) -> dict[str, str]:
 
     Example:
         headers = get_auth_headers(test_user)
-        response = await client.get("/api/v1/users/me", headers=headers)
+        response = await client.get("/api/v1/me", headers=headers)
     """
     token = get_auth_token(user)
     return {"Authorization": f"Bearer {token}"}

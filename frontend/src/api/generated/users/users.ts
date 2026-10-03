@@ -28,7 +28,7 @@ import type {
   ApiKeyCreateRequest,
   ApiKeyCreateResponse,
   ApiKeyListResponse,
-  BodyUploadMyAvatarApiV1UsersMeAvatarPut,
+  BodyUploadMyAvatarApiV1MeAvatarPut,
   CommunityGuildRead,
   CookieConsentRead,
   CookieConsentUpdate,
@@ -79,855 +79,6 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   return result;
 };
 
-/**
- * What a suspended account is told on its time-out screen: why, where a
- * reason was given, and whom to contact.
- *
- * Answers for an active account too — nobody to contact, since there is
- * nothing to lift — so the screen can ask without first knowing the status.
- * @summary Read My Time Out
- */
-export const readMyTimeOutApiV1UsersMeTimeOutGet = (
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<AccountTimeOutRead>(
-    { url: `/api/v1/users/me/time-out`, method: "GET", signal },
-    options
-  );
-};
-
-export const getReadMyTimeOutApiV1UsersMeTimeOutGetQueryKey = () => {
-  return [`/api/v1/users/me/time-out`] as const;
-};
-
-export const getReadMyTimeOutApiV1UsersMeTimeOutGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof readMyTimeOutApiV1UsersMeTimeOutGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(options?: {
-  query?: Partial<
-    UseQueryOptions<Awaited<ReturnType<typeof readMyTimeOutApiV1UsersMeTimeOutGet>>, TError, TData>
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}) => {
-  const { query: queryOptions, request: requestOptions } = options ?? {};
-
-  const queryKey = queryOptions?.queryKey ?? getReadMyTimeOutApiV1UsersMeTimeOutGetQueryKey();
-
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof readMyTimeOutApiV1UsersMeTimeOutGet>>> = ({
-    signal,
-  }) => readMyTimeOutApiV1UsersMeTimeOutGet(requestOptions, signal);
-
-  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof readMyTimeOutApiV1UsersMeTimeOutGet>>,
-    TError,
-    TData
-  > & { queryKey: DataTag<QueryKey, TData, TError> };
-};
-
-export type ReadMyTimeOutApiV1UsersMeTimeOutGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof readMyTimeOutApiV1UsersMeTimeOutGet>>
->;
-export type ReadMyTimeOutApiV1UsersMeTimeOutGetQueryError = ErrorType<HTTPValidationError>;
-
-export function useReadMyTimeOutApiV1UsersMeTimeOutGet<
-  TData = Awaited<ReturnType<typeof readMyTimeOutApiV1UsersMeTimeOutGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  options: {
-    query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readMyTimeOutApiV1UsersMeTimeOutGet>>,
-        TError,
-        TData
-      >
-    > &
-      Pick<
-        DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readMyTimeOutApiV1UsersMeTimeOutGet>>,
-          TError,
-          Awaited<ReturnType<typeof readMyTimeOutApiV1UsersMeTimeOutGet>>
-        >,
-        "initialData"
-      >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadMyTimeOutApiV1UsersMeTimeOutGet<
-  TData = Awaited<ReturnType<typeof readMyTimeOutApiV1UsersMeTimeOutGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readMyTimeOutApiV1UsersMeTimeOutGet>>,
-        TError,
-        TData
-      >
-    > &
-      Pick<
-        UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readMyTimeOutApiV1UsersMeTimeOutGet>>,
-          TError,
-          Awaited<ReturnType<typeof readMyTimeOutApiV1UsersMeTimeOutGet>>
-        >,
-        "initialData"
-      >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadMyTimeOutApiV1UsersMeTimeOutGet<
-  TData = Awaited<ReturnType<typeof readMyTimeOutApiV1UsersMeTimeOutGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readMyTimeOutApiV1UsersMeTimeOutGet>>,
-        TError,
-        TData
-      >
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-/**
- * @summary Read My Time Out
- */
-
-export function useReadMyTimeOutApiV1UsersMeTimeOutGet<
-  TData = Awaited<ReturnType<typeof readMyTimeOutApiV1UsersMeTimeOutGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readMyTimeOutApiV1UsersMeTimeOutGet>>,
-        TError,
-        TData
-      >
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getReadMyTimeOutApiV1UsersMeTimeOutGetQueryOptions(options);
-
-  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
-    queryKey: DataTag<QueryKey, TData, TError>;
-  };
-
-  return withQueryKey(query, queryOptions.queryKey);
-}
-
-/**
- * Who you are. Reachable while the deployment's second-factor rule is
- * unmet, because every screen that could answer it is drawn from this.
- * @summary Read Users Me
- */
-export const readUsersMeApiV1UsersMeGet = (
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<UserRead>({ url: `/api/v1/users/me`, method: "GET", signal }, options);
-};
-
-export const getReadUsersMeApiV1UsersMeGetQueryKey = () => {
-  return [`/api/v1/users/me`] as const;
-};
-
-export const getReadUsersMeApiV1UsersMeGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof readUsersMeApiV1UsersMeGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(options?: {
-  query?: Partial<
-    UseQueryOptions<Awaited<ReturnType<typeof readUsersMeApiV1UsersMeGet>>, TError, TData>
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}) => {
-  const { query: queryOptions, request: requestOptions } = options ?? {};
-
-  const queryKey = queryOptions?.queryKey ?? getReadUsersMeApiV1UsersMeGetQueryKey();
-
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof readUsersMeApiV1UsersMeGet>>> = ({
-    signal,
-  }) => readUsersMeApiV1UsersMeGet(requestOptions, signal);
-
-  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof readUsersMeApiV1UsersMeGet>>,
-    TError,
-    TData
-  > & { queryKey: DataTag<QueryKey, TData, TError> };
-};
-
-export type ReadUsersMeApiV1UsersMeGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof readUsersMeApiV1UsersMeGet>>
->;
-export type ReadUsersMeApiV1UsersMeGetQueryError = ErrorType<HTTPValidationError>;
-
-export function useReadUsersMeApiV1UsersMeGet<
-  TData = Awaited<ReturnType<typeof readUsersMeApiV1UsersMeGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  options: {
-    query: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof readUsersMeApiV1UsersMeGet>>, TError, TData>
-    > &
-      Pick<
-        DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readUsersMeApiV1UsersMeGet>>,
-          TError,
-          Awaited<ReturnType<typeof readUsersMeApiV1UsersMeGet>>
-        >,
-        "initialData"
-      >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadUsersMeApiV1UsersMeGet<
-  TData = Awaited<ReturnType<typeof readUsersMeApiV1UsersMeGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  options?: {
-    query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof readUsersMeApiV1UsersMeGet>>, TError, TData>
-    > &
-      Pick<
-        UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readUsersMeApiV1UsersMeGet>>,
-          TError,
-          Awaited<ReturnType<typeof readUsersMeApiV1UsersMeGet>>
-        >,
-        "initialData"
-      >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadUsersMeApiV1UsersMeGet<
-  TData = Awaited<ReturnType<typeof readUsersMeApiV1UsersMeGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  options?: {
-    query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof readUsersMeApiV1UsersMeGet>>, TError, TData>
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-/**
- * @summary Read Users Me
- */
-
-export function useReadUsersMeApiV1UsersMeGet<
-  TData = Awaited<ReturnType<typeof readUsersMeApiV1UsersMeGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  options?: {
-    query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof readUsersMeApiV1UsersMeGet>>, TError, TData>
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getReadUsersMeApiV1UsersMeGetQueryOptions(options);
-
-  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
-    queryKey: DataTag<QueryKey, TData, TError>;
-  };
-
-  return withQueryKey(query, queryOptions.queryKey);
-}
-
-/**
- * @summary Update Users Me
- */
-export const updateUsersMeApiV1UsersMePatch = (
-  userSelfUpdate: BodyType<UserSelfUpdate>,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<UserRead>(
-    {
-      url: `/api/v1/users/me`,
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      data: userSelfUpdate,
-      signal,
-    },
-    options
-  );
-};
-
-export const getUpdateUsersMeApiV1UsersMePatchMutationKey = () =>
-  ["updateUsersMeApiV1UsersMePatch"] as const;
-
-export const getUpdateUsersMeApiV1UsersMePatchMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof updateUsersMeApiV1UsersMePatch>>,
-    TError,
-    UpdateUsersMeApiV1UsersMePatchMutationVariables,
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof updateUsersMeApiV1UsersMePatch>>,
-  TError,
-  UpdateUsersMeApiV1UsersMePatchMutationVariables,
-  TContext
-> => {
-  const mutationKey = getUpdateUsersMeApiV1UsersMePatchMutationKey();
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof updateUsersMeApiV1UsersMePatch>>,
-    UpdateUsersMeApiV1UsersMePatchMutationVariables
-  > = (props) => {
-    const { data } = props ?? {};
-
-    return updateUsersMeApiV1UsersMePatch(data, requestOptions);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type UpdateUsersMeApiV1UsersMePatchMutationResult = NonNullable<
-  Awaited<ReturnType<typeof updateUsersMeApiV1UsersMePatch>>
->;
-export type UpdateUsersMeApiV1UsersMePatchMutationBody = BodyType<UserSelfUpdate>;
-export type UpdateUsersMeApiV1UsersMePatchMutationError = ErrorType<HTTPValidationError>;
-export type UpdateUsersMeApiV1UsersMePatchMutationVariables = { data: BodyType<UserSelfUpdate> };
-
-/**
- * @summary Update Users Me
- */
-export const useUpdateUsersMeApiV1UsersMePatch = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof updateUsersMeApiV1UsersMePatch>>,
-      TError,
-      UpdateUsersMeApiV1UsersMePatchMutationVariables,
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof updateUsersMeApiV1UsersMePatch>>,
-  TError,
-  UpdateUsersMeApiV1UsersMePatchMutationVariables,
-  TContext
-> => {
-  return useMutation(getUpdateUsersMeApiV1UsersMePatchMutationOptions(options), queryClient);
-};
-/**
- * Everything the caller may dress their profile in.
- *
- * What ships with the app plus what this account acquired, which is what the
- * pickers on Settings > Profile offer and exactly what the write path
- * accepts. Own-row: ``public.user_decorations`` is readable only by the
- * account whose library it is.
- * @summary List My Decorations
- */
-export const listMyDecorationsApiV1UsersMeDecorationsGet = (
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<OwnedDecorationsResponse>(
-    { url: `/api/v1/users/me/decorations`, method: "GET", signal },
-    options
-  );
-};
-
-export const getListMyDecorationsApiV1UsersMeDecorationsGetQueryKey = () => {
-  return [`/api/v1/users/me/decorations`] as const;
-};
-
-export const getListMyDecorationsApiV1UsersMeDecorationsGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof listMyDecorationsApiV1UsersMeDecorationsGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(options?: {
-  query?: Partial<
-    UseQueryOptions<
-      Awaited<ReturnType<typeof listMyDecorationsApiV1UsersMeDecorationsGet>>,
-      TError,
-      TData
-    >
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}) => {
-  const { query: queryOptions, request: requestOptions } = options ?? {};
-
-  const queryKey =
-    queryOptions?.queryKey ?? getListMyDecorationsApiV1UsersMeDecorationsGetQueryKey();
-
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof listMyDecorationsApiV1UsersMeDecorationsGet>>
-  > = ({ signal }) => listMyDecorationsApiV1UsersMeDecorationsGet(requestOptions, signal);
-
-  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof listMyDecorationsApiV1UsersMeDecorationsGet>>,
-    TError,
-    TData
-  > & { queryKey: DataTag<QueryKey, TData, TError> };
-};
-
-export type ListMyDecorationsApiV1UsersMeDecorationsGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof listMyDecorationsApiV1UsersMeDecorationsGet>>
->;
-export type ListMyDecorationsApiV1UsersMeDecorationsGetQueryError = ErrorType<HTTPValidationError>;
-
-export function useListMyDecorationsApiV1UsersMeDecorationsGet<
-  TData = Awaited<ReturnType<typeof listMyDecorationsApiV1UsersMeDecorationsGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  options: {
-    query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listMyDecorationsApiV1UsersMeDecorationsGet>>,
-        TError,
-        TData
-      >
-    > &
-      Pick<
-        DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listMyDecorationsApiV1UsersMeDecorationsGet>>,
-          TError,
-          Awaited<ReturnType<typeof listMyDecorationsApiV1UsersMeDecorationsGet>>
-        >,
-        "initialData"
-      >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListMyDecorationsApiV1UsersMeDecorationsGet<
-  TData = Awaited<ReturnType<typeof listMyDecorationsApiV1UsersMeDecorationsGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listMyDecorationsApiV1UsersMeDecorationsGet>>,
-        TError,
-        TData
-      >
-    > &
-      Pick<
-        UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listMyDecorationsApiV1UsersMeDecorationsGet>>,
-          TError,
-          Awaited<ReturnType<typeof listMyDecorationsApiV1UsersMeDecorationsGet>>
-        >,
-        "initialData"
-      >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListMyDecorationsApiV1UsersMeDecorationsGet<
-  TData = Awaited<ReturnType<typeof listMyDecorationsApiV1UsersMeDecorationsGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listMyDecorationsApiV1UsersMeDecorationsGet>>,
-        TError,
-        TData
-      >
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-/**
- * @summary List My Decorations
- */
-
-export function useListMyDecorationsApiV1UsersMeDecorationsGet<
-  TData = Awaited<ReturnType<typeof listMyDecorationsApiV1UsersMeDecorationsGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listMyDecorationsApiV1UsersMeDecorationsGet>>,
-        TError,
-        TData
-      >
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListMyDecorationsApiV1UsersMeDecorationsGetQueryOptions(options);
-
-  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
-    queryKey: DataTag<QueryKey, TData, TError>;
-  };
-
-  return withQueryKey(query, queryOptions.queryKey);
-}
-
-/**
- * The store: every profile pack this deployment offers, and which you have.
- *
- * The shelf is the marketplace catalog, so a pack that ships with the build
- * and one published to it read the same here.
- * @summary List Decoration Packs
- */
-export const listDecorationPacksApiV1UsersMeDecorationPacksGet = (
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<DecorationPackListResponse>(
-    { url: `/api/v1/users/me/decoration-packs`, method: "GET", signal },
-    options
-  );
-};
-
-export const getListDecorationPacksApiV1UsersMeDecorationPacksGetQueryKey = () => {
-  return [`/api/v1/users/me/decoration-packs`] as const;
-};
-
-export const getListDecorationPacksApiV1UsersMeDecorationPacksGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof listDecorationPacksApiV1UsersMeDecorationPacksGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(options?: {
-  query?: Partial<
-    UseQueryOptions<
-      Awaited<ReturnType<typeof listDecorationPacksApiV1UsersMeDecorationPacksGet>>,
-      TError,
-      TData
-    >
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}) => {
-  const { query: queryOptions, request: requestOptions } = options ?? {};
-
-  const queryKey =
-    queryOptions?.queryKey ?? getListDecorationPacksApiV1UsersMeDecorationPacksGetQueryKey();
-
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof listDecorationPacksApiV1UsersMeDecorationPacksGet>>
-  > = ({ signal }) => listDecorationPacksApiV1UsersMeDecorationPacksGet(requestOptions, signal);
-
-  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof listDecorationPacksApiV1UsersMeDecorationPacksGet>>,
-    TError,
-    TData
-  > & { queryKey: DataTag<QueryKey, TData, TError> };
-};
-
-export type ListDecorationPacksApiV1UsersMeDecorationPacksGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof listDecorationPacksApiV1UsersMeDecorationPacksGet>>
->;
-export type ListDecorationPacksApiV1UsersMeDecorationPacksGetQueryError =
-  ErrorType<HTTPValidationError>;
-
-export function useListDecorationPacksApiV1UsersMeDecorationPacksGet<
-  TData = Awaited<ReturnType<typeof listDecorationPacksApiV1UsersMeDecorationPacksGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  options: {
-    query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listDecorationPacksApiV1UsersMeDecorationPacksGet>>,
-        TError,
-        TData
-      >
-    > &
-      Pick<
-        DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listDecorationPacksApiV1UsersMeDecorationPacksGet>>,
-          TError,
-          Awaited<ReturnType<typeof listDecorationPacksApiV1UsersMeDecorationPacksGet>>
-        >,
-        "initialData"
-      >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListDecorationPacksApiV1UsersMeDecorationPacksGet<
-  TData = Awaited<ReturnType<typeof listDecorationPacksApiV1UsersMeDecorationPacksGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listDecorationPacksApiV1UsersMeDecorationPacksGet>>,
-        TError,
-        TData
-      >
-    > &
-      Pick<
-        UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listDecorationPacksApiV1UsersMeDecorationPacksGet>>,
-          TError,
-          Awaited<ReturnType<typeof listDecorationPacksApiV1UsersMeDecorationPacksGet>>
-        >,
-        "initialData"
-      >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListDecorationPacksApiV1UsersMeDecorationPacksGet<
-  TData = Awaited<ReturnType<typeof listDecorationPacksApiV1UsersMeDecorationPacksGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listDecorationPacksApiV1UsersMeDecorationPacksGet>>,
-        TError,
-        TData
-      >
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-/**
- * @summary List Decoration Packs
- */
-
-export function useListDecorationPacksApiV1UsersMeDecorationPacksGet<
-  TData = Awaited<ReturnType<typeof listDecorationPacksApiV1UsersMeDecorationPacksGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listDecorationPacksApiV1UsersMeDecorationPacksGet>>,
-        TError,
-        TData
-      >
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListDecorationPacksApiV1UsersMeDecorationPacksGetQueryOptions(options);
-
-  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
-    queryKey: DataTag<QueryKey, TData, TError>;
-  };
-
-  return withQueryKey(query, queryOptions.queryKey);
-}
-
-/**
- * Take a pack, putting its decorations in your library.
- *
- * The catalog is read on the request path; the grant is written on the system
- * engine, because a grant is issued rather than self-served — the request path
- * holds no write verb on ``public.user_decorations``. What makes it the
- * caller's own is that the only account it ever names is theirs.
- * @summary Install Decoration Pack
- */
-export const installDecorationPackApiV1UsersMeDecorationPacksUidPost = (
-  uid: string,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<DecorationPack>(
-    { url: `/api/v1/users/me/decoration-packs/${uid}`, method: "POST", signal },
-    options
-  );
-};
-
-export const getInstallDecorationPackApiV1UsersMeDecorationPacksUidPostMutationKey = () =>
-  ["installDecorationPackApiV1UsersMeDecorationPacksUidPost"] as const;
-
-export const getInstallDecorationPackApiV1UsersMeDecorationPacksUidPostMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof installDecorationPackApiV1UsersMeDecorationPacksUidPost>>,
-    TError,
-    InstallDecorationPackApiV1UsersMeDecorationPacksUidPostMutationVariables,
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof installDecorationPackApiV1UsersMeDecorationPacksUidPost>>,
-  TError,
-  InstallDecorationPackApiV1UsersMeDecorationPacksUidPostMutationVariables,
-  TContext
-> => {
-  const mutationKey = getInstallDecorationPackApiV1UsersMeDecorationPacksUidPostMutationKey();
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof installDecorationPackApiV1UsersMeDecorationPacksUidPost>>,
-    InstallDecorationPackApiV1UsersMeDecorationPacksUidPostMutationVariables
-  > = (props) => {
-    const { uid } = props ?? {};
-
-    return installDecorationPackApiV1UsersMeDecorationPacksUidPost(uid, requestOptions);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type InstallDecorationPackApiV1UsersMeDecorationPacksUidPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof installDecorationPackApiV1UsersMeDecorationPacksUidPost>>
->;
-
-export type InstallDecorationPackApiV1UsersMeDecorationPacksUidPostMutationError =
-  ErrorType<HTTPValidationError>;
-export type InstallDecorationPackApiV1UsersMeDecorationPacksUidPostMutationVariables = {
-  uid: string;
-};
-
-/**
- * @summary Install Decoration Pack
- */
-export const useInstallDecorationPackApiV1UsersMeDecorationPacksUidPost = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof installDecorationPackApiV1UsersMeDecorationPacksUidPost>>,
-      TError,
-      InstallDecorationPackApiV1UsersMeDecorationPacksUidPostMutationVariables,
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof installDecorationPackApiV1UsersMeDecorationPacksUidPost>>,
-  TError,
-  InstallDecorationPackApiV1UsersMeDecorationPacksUidPostMutationVariables,
-  TContext
-> => {
-  return useMutation(
-    getInstallDecorationPackApiV1UsersMeDecorationPacksUidPostMutationOptions(options),
-    queryClient
-  );
-};
-/**
- * Give a pack back, taking its decorations out of your library.
- *
- * Anything from it that was being worn comes off in the same transaction —
- * a profile must not be left wearing what the account no longer has, and
- * two commits would leave a window where it was.
- * @summary Remove Decoration Pack
- */
-export const removeDecorationPackApiV1UsersMeDecorationPacksUidDelete = (
-  uid: string,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<DecorationPack>(
-    { url: `/api/v1/users/me/decoration-packs/${uid}`, method: "DELETE", signal },
-    options
-  );
-};
-
-export const getRemoveDecorationPackApiV1UsersMeDecorationPacksUidDeleteMutationKey = () =>
-  ["removeDecorationPackApiV1UsersMeDecorationPacksUidDelete"] as const;
-
-export const getRemoveDecorationPackApiV1UsersMeDecorationPacksUidDeleteMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof removeDecorationPackApiV1UsersMeDecorationPacksUidDelete>>,
-    TError,
-    RemoveDecorationPackApiV1UsersMeDecorationPacksUidDeleteMutationVariables,
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof removeDecorationPackApiV1UsersMeDecorationPacksUidDelete>>,
-  TError,
-  RemoveDecorationPackApiV1UsersMeDecorationPacksUidDeleteMutationVariables,
-  TContext
-> => {
-  const mutationKey = getRemoveDecorationPackApiV1UsersMeDecorationPacksUidDeleteMutationKey();
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof removeDecorationPackApiV1UsersMeDecorationPacksUidDelete>>,
-    RemoveDecorationPackApiV1UsersMeDecorationPacksUidDeleteMutationVariables
-  > = (props) => {
-    const { uid } = props ?? {};
-
-    return removeDecorationPackApiV1UsersMeDecorationPacksUidDelete(uid, requestOptions);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type RemoveDecorationPackApiV1UsersMeDecorationPacksUidDeleteMutationResult = NonNullable<
-  Awaited<ReturnType<typeof removeDecorationPackApiV1UsersMeDecorationPacksUidDelete>>
->;
-
-export type RemoveDecorationPackApiV1UsersMeDecorationPacksUidDeleteMutationError =
-  ErrorType<HTTPValidationError>;
-export type RemoveDecorationPackApiV1UsersMeDecorationPacksUidDeleteMutationVariables = {
-  uid: string;
-};
-
-/**
- * @summary Remove Decoration Pack
- */
-export const useRemoveDecorationPackApiV1UsersMeDecorationPacksUidDelete = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof removeDecorationPackApiV1UsersMeDecorationPacksUidDelete>>,
-      TError,
-      RemoveDecorationPackApiV1UsersMeDecorationPacksUidDeleteMutationVariables,
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof removeDecorationPackApiV1UsersMeDecorationPacksUidDelete>>,
-  TError,
-  RemoveDecorationPackApiV1UsersMeDecorationPacksUidDeleteMutationVariables,
-  TContext
-> => {
-  return useMutation(
-    getRemoveDecorationPackApiV1UsersMeDecorationPacksUidDeleteMutationOptions(options),
-    queryClient
-  );
-};
 /**
  * One person's profile, addressed by their handle.
  *
@@ -1273,1625 +424,6 @@ export function useReadUserCommunitiesApiV1UsersHandleCommunitiesGet<
   return withQueryKey(query, queryOptions.queryKey);
 }
 
-/**
- * Pick the handle for an account that was assigned one.
- *
- * Every account created without a form — provisioned from SSO claims, or
- * carried over from before handles existed — starts with one it did not
- * choose, and picks its own here. Once picked, a handle changes only through
- * a moderator.
- * @summary Claim My Username
- */
-export const claimMyUsernameApiV1UsersMeUsernamePatch = (
-  usernameClaim: BodyType<UsernameClaim>,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<UserRead>(
-    {
-      url: `/api/v1/users/me/username`,
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      data: usernameClaim,
-      signal,
-    },
-    options
-  );
-};
-
-export const getClaimMyUsernameApiV1UsersMeUsernamePatchMutationKey = () =>
-  ["claimMyUsernameApiV1UsersMeUsernamePatch"] as const;
-
-export const getClaimMyUsernameApiV1UsersMeUsernamePatchMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof claimMyUsernameApiV1UsersMeUsernamePatch>>,
-    TError,
-    ClaimMyUsernameApiV1UsersMeUsernamePatchMutationVariables,
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof claimMyUsernameApiV1UsersMeUsernamePatch>>,
-  TError,
-  ClaimMyUsernameApiV1UsersMeUsernamePatchMutationVariables,
-  TContext
-> => {
-  const mutationKey = getClaimMyUsernameApiV1UsersMeUsernamePatchMutationKey();
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof claimMyUsernameApiV1UsersMeUsernamePatch>>,
-    ClaimMyUsernameApiV1UsersMeUsernamePatchMutationVariables
-  > = (props) => {
-    const { data } = props ?? {};
-
-    return claimMyUsernameApiV1UsersMeUsernamePatch(data, requestOptions);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type ClaimMyUsernameApiV1UsersMeUsernamePatchMutationResult = NonNullable<
-  Awaited<ReturnType<typeof claimMyUsernameApiV1UsersMeUsernamePatch>>
->;
-export type ClaimMyUsernameApiV1UsersMeUsernamePatchMutationBody = BodyType<UsernameClaim>;
-export type ClaimMyUsernameApiV1UsersMeUsernamePatchMutationError = ErrorType<HTTPValidationError>;
-export type ClaimMyUsernameApiV1UsersMeUsernamePatchMutationVariables = {
-  data: BodyType<UsernameClaim>;
-};
-
-/**
- * @summary Claim My Username
- */
-export const useClaimMyUsernameApiV1UsersMeUsernamePatch = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof claimMyUsernameApiV1UsersMeUsernamePatch>>,
-      TError,
-      ClaimMyUsernameApiV1UsersMeUsernamePatchMutationVariables,
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof claimMyUsernameApiV1UsersMeUsernamePatch>>,
-  TError,
-  ClaimMyUsernameApiV1UsersMeUsernamePatchMutationVariables,
-  TContext
-> => {
-  return useMutation(
-    getClaimMyUsernameApiV1UsersMeUsernamePatchMutationOptions(options),
-    queryClient
-  );
-};
-/**
- * Answer, once, whether this account is old enough for the open parts.
- *
- * Asked where somebody is about to join a community anyone on the deployment
- * can find, and nowhere else. The answer lives on the account rather than per
- * community: it is a fact about the person, and the second listed community
- * they join asks nothing.
- *
- * **It gates the directory, not the deployment.** A community somebody was
- * invited to is theirs and whoever runs it to answer for, so nothing here
- * stands between them and it — an account that has never answered, or
- * answered under age, keeps every private community it belongs to and
- * everything in them.
- *
- * **The date is not kept.** It is read here, compared against the minimum, and
- * goes out of scope with the request — there is no column for it, nothing logs
- * it, and no audit record carries it. What is written is a timestamp saying
- * the question was answered, which is what shows the deployment asked.
- *
- * The comparison is the server's because it is the one that decides. A client
- * could work out the same answer, and a client's answer is not evidence.
- *
- * Saying it again is not an error and does not move the timestamp — the record
- * is when they first answered.
- *
- * **An answer of "under age" also stands.** It is recorded — the fact, not the
- * date — and the question is not asked again, because a question you can
- * re-answer until it comes out right is not one. Putting it right takes
- * somebody with ``users.age_unblock``, which is a support ticket rather than
- * an appeal to the same form.
- * @summary Confirm My Age
- */
-export const confirmMyAgeApiV1UsersMeAgeConfirmationPost = (
-  ageConfirmation: BodyType<AgeConfirmation>,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<UserRead>(
-    {
-      url: `/api/v1/users/me/age-confirmation`,
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      data: ageConfirmation,
-      signal,
-    },
-    options
-  );
-};
-
-export const getConfirmMyAgeApiV1UsersMeAgeConfirmationPostMutationKey = () =>
-  ["confirmMyAgeApiV1UsersMeAgeConfirmationPost"] as const;
-
-export const getConfirmMyAgeApiV1UsersMeAgeConfirmationPostMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof confirmMyAgeApiV1UsersMeAgeConfirmationPost>>,
-    TError,
-    ConfirmMyAgeApiV1UsersMeAgeConfirmationPostMutationVariables,
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof confirmMyAgeApiV1UsersMeAgeConfirmationPost>>,
-  TError,
-  ConfirmMyAgeApiV1UsersMeAgeConfirmationPostMutationVariables,
-  TContext
-> => {
-  const mutationKey = getConfirmMyAgeApiV1UsersMeAgeConfirmationPostMutationKey();
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof confirmMyAgeApiV1UsersMeAgeConfirmationPost>>,
-    ConfirmMyAgeApiV1UsersMeAgeConfirmationPostMutationVariables
-  > = (props) => {
-    const { data } = props ?? {};
-
-    return confirmMyAgeApiV1UsersMeAgeConfirmationPost(data, requestOptions);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type ConfirmMyAgeApiV1UsersMeAgeConfirmationPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof confirmMyAgeApiV1UsersMeAgeConfirmationPost>>
->;
-export type ConfirmMyAgeApiV1UsersMeAgeConfirmationPostMutationBody = BodyType<AgeConfirmation>;
-export type ConfirmMyAgeApiV1UsersMeAgeConfirmationPostMutationError =
-  ErrorType<HTTPValidationError>;
-export type ConfirmMyAgeApiV1UsersMeAgeConfirmationPostMutationVariables = {
-  data: BodyType<AgeConfirmation>;
-};
-
-/**
- * @summary Confirm My Age
- */
-export const useConfirmMyAgeApiV1UsersMeAgeConfirmationPost = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof confirmMyAgeApiV1UsersMeAgeConfirmationPost>>,
-      TError,
-      ConfirmMyAgeApiV1UsersMeAgeConfirmationPostMutationVariables,
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof confirmMyAgeApiV1UsersMeAgeConfirmationPost>>,
-  TError,
-  ConfirmMyAgeApiV1UsersMeAgeConfirmationPostMutationVariables,
-  TContext
-> => {
-  return useMutation(
-    getConfirmMyAgeApiV1UsersMeAgeConfirmationPostMutationOptions(options),
-    queryClient
-  );
-};
-/**
- * Record what this account allows to be kept in a browser.
- *
- * The browser it was answered in keeps its own copy — a visitor who has not
- * signed in has no account to attach one to, and the answer is about that
- * browser either way. This is what carries it to a browser that has never
- * been asked, and carries a change of mind back to one that has.
- *
- * Replaces rather than appends: the question is what applies now. Sending it
- * again with the same answer is a no-op apart from the stamp, which is what
- * two browsers compare to tell whose answer is the later one.
- * @summary Set Cookie Consent
- */
-export const setCookieConsentApiV1UsersMeCookieConsentPut = (
-  cookieConsentUpdate: BodyType<CookieConsentUpdate>,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<CookieConsentRead>(
-    {
-      url: `/api/v1/users/me/cookie-consent`,
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      data: cookieConsentUpdate,
-      signal,
-    },
-    options
-  );
-};
-
-export const getSetCookieConsentApiV1UsersMeCookieConsentPutMutationKey = () =>
-  ["setCookieConsentApiV1UsersMeCookieConsentPut"] as const;
-
-export const getSetCookieConsentApiV1UsersMeCookieConsentPutMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof setCookieConsentApiV1UsersMeCookieConsentPut>>,
-    TError,
-    SetCookieConsentApiV1UsersMeCookieConsentPutMutationVariables,
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof setCookieConsentApiV1UsersMeCookieConsentPut>>,
-  TError,
-  SetCookieConsentApiV1UsersMeCookieConsentPutMutationVariables,
-  TContext
-> => {
-  const mutationKey = getSetCookieConsentApiV1UsersMeCookieConsentPutMutationKey();
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof setCookieConsentApiV1UsersMeCookieConsentPut>>,
-    SetCookieConsentApiV1UsersMeCookieConsentPutMutationVariables
-  > = (props) => {
-    const { data } = props ?? {};
-
-    return setCookieConsentApiV1UsersMeCookieConsentPut(data, requestOptions);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type SetCookieConsentApiV1UsersMeCookieConsentPutMutationResult = NonNullable<
-  Awaited<ReturnType<typeof setCookieConsentApiV1UsersMeCookieConsentPut>>
->;
-export type SetCookieConsentApiV1UsersMeCookieConsentPutMutationBody =
-  BodyType<CookieConsentUpdate>;
-export type SetCookieConsentApiV1UsersMeCookieConsentPutMutationError =
-  ErrorType<HTTPValidationError>;
-export type SetCookieConsentApiV1UsersMeCookieConsentPutMutationVariables = {
-  data: BodyType<CookieConsentUpdate>;
-};
-
-/**
- * @summary Set Cookie Consent
- */
-export const useSetCookieConsentApiV1UsersMeCookieConsentPut = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof setCookieConsentApiV1UsersMeCookieConsentPut>>,
-      TError,
-      SetCookieConsentApiV1UsersMeCookieConsentPutMutationVariables,
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof setCookieConsentApiV1UsersMeCookieConsentPut>>,
-  TError,
-  SetCookieConsentApiV1UsersMeCookieConsentPutMutationVariables,
-  TContext
-> => {
-  return useMutation(
-    getSetCookieConsentApiV1UsersMeCookieConsentPutMutationOptions(options),
-    queryClient
-  );
-};
-/**
- * Agree to this deployment's terms and privacy policy.
- *
- * For an account that never met the signup form — one an identity provider
- * provisioned on first sign-in. The form's own notice is the agreement for
- * everybody else, recorded as the account is created.
- *
- * Saying it again appends: the table records acceptances, not a state, and
- * agreeing to a newer revision is a real event rather than a correction to
- * an old one. The screen only appears while something is outstanding, so in
- * practice this is written once.
- *
- * A deployment with no terms of its own has nothing to accept, so this
- * answers 404 rather than writing an empty record.
- * @summary Accept Legal Documents
- */
-export const acceptLegalDocumentsApiV1UsersMeLegalAcceptancePost = (
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<UserRead>(
-    { url: `/api/v1/users/me/legal-acceptance`, method: "POST", signal },
-    options
-  );
-};
-
-export const getAcceptLegalDocumentsApiV1UsersMeLegalAcceptancePostMutationKey = () =>
-  ["acceptLegalDocumentsApiV1UsersMeLegalAcceptancePost"] as const;
-
-export const getAcceptLegalDocumentsApiV1UsersMeLegalAcceptancePostMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof acceptLegalDocumentsApiV1UsersMeLegalAcceptancePost>>,
-    TError,
-    void,
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof acceptLegalDocumentsApiV1UsersMeLegalAcceptancePost>>,
-  TError,
-  void,
-  TContext
-> => {
-  const mutationKey = getAcceptLegalDocumentsApiV1UsersMeLegalAcceptancePostMutationKey();
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof acceptLegalDocumentsApiV1UsersMeLegalAcceptancePost>>,
-    void
-  > = () => {
-    return acceptLegalDocumentsApiV1UsersMeLegalAcceptancePost(requestOptions);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type AcceptLegalDocumentsApiV1UsersMeLegalAcceptancePostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof acceptLegalDocumentsApiV1UsersMeLegalAcceptancePost>>
->;
-
-export type AcceptLegalDocumentsApiV1UsersMeLegalAcceptancePostMutationError =
-  ErrorType<HTTPValidationError>;
-
-/**
- * @summary Accept Legal Documents
- */
-export const useAcceptLegalDocumentsApiV1UsersMeLegalAcceptancePost = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof acceptLegalDocumentsApiV1UsersMeLegalAcceptancePost>>,
-      TError,
-      void,
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof acceptLegalDocumentsApiV1UsersMeLegalAcceptancePost>>,
-  TError,
-  void,
-  TContext
-> => {
-  return useMutation(
-    getAcceptLegalDocumentsApiV1UsersMeLegalAcceptancePostMutationOptions(options),
-    queryClient
-  );
-};
-/**
- * Every address this account holds.
- *
- * On the system engine: ``user_emails`` carries no request-path grants,
- * because resolving an address happens before anybody is authenticated.
- * @summary List My Addresses
- */
-export const listMyAddressesApiV1UsersMeEmailsGet = (
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<UserEmailListResponse>(
-    { url: `/api/v1/users/me/emails`, method: "GET", signal },
-    options
-  );
-};
-
-export const getListMyAddressesApiV1UsersMeEmailsGetQueryKey = () => {
-  return [`/api/v1/users/me/emails`] as const;
-};
-
-export const getListMyAddressesApiV1UsersMeEmailsGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof listMyAddressesApiV1UsersMeEmailsGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(options?: {
-  query?: Partial<
-    UseQueryOptions<Awaited<ReturnType<typeof listMyAddressesApiV1UsersMeEmailsGet>>, TError, TData>
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}) => {
-  const { query: queryOptions, request: requestOptions } = options ?? {};
-
-  const queryKey = queryOptions?.queryKey ?? getListMyAddressesApiV1UsersMeEmailsGetQueryKey();
-
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof listMyAddressesApiV1UsersMeEmailsGet>>
-  > = ({ signal }) => listMyAddressesApiV1UsersMeEmailsGet(requestOptions, signal);
-
-  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof listMyAddressesApiV1UsersMeEmailsGet>>,
-    TError,
-    TData
-  > & { queryKey: DataTag<QueryKey, TData, TError> };
-};
-
-export type ListMyAddressesApiV1UsersMeEmailsGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof listMyAddressesApiV1UsersMeEmailsGet>>
->;
-export type ListMyAddressesApiV1UsersMeEmailsGetQueryError = ErrorType<HTTPValidationError>;
-
-export function useListMyAddressesApiV1UsersMeEmailsGet<
-  TData = Awaited<ReturnType<typeof listMyAddressesApiV1UsersMeEmailsGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  options: {
-    query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listMyAddressesApiV1UsersMeEmailsGet>>,
-        TError,
-        TData
-      >
-    > &
-      Pick<
-        DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listMyAddressesApiV1UsersMeEmailsGet>>,
-          TError,
-          Awaited<ReturnType<typeof listMyAddressesApiV1UsersMeEmailsGet>>
-        >,
-        "initialData"
-      >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListMyAddressesApiV1UsersMeEmailsGet<
-  TData = Awaited<ReturnType<typeof listMyAddressesApiV1UsersMeEmailsGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listMyAddressesApiV1UsersMeEmailsGet>>,
-        TError,
-        TData
-      >
-    > &
-      Pick<
-        UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listMyAddressesApiV1UsersMeEmailsGet>>,
-          TError,
-          Awaited<ReturnType<typeof listMyAddressesApiV1UsersMeEmailsGet>>
-        >,
-        "initialData"
-      >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListMyAddressesApiV1UsersMeEmailsGet<
-  TData = Awaited<ReturnType<typeof listMyAddressesApiV1UsersMeEmailsGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listMyAddressesApiV1UsersMeEmailsGet>>,
-        TError,
-        TData
-      >
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-/**
- * @summary List My Addresses
- */
-
-export function useListMyAddressesApiV1UsersMeEmailsGet<
-  TData = Awaited<ReturnType<typeof listMyAddressesApiV1UsersMeEmailsGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listMyAddressesApiV1UsersMeEmailsGet>>,
-        TError,
-        TData
-      >
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListMyAddressesApiV1UsersMeEmailsGetQueryOptions(options);
-
-  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
-    queryKey: DataTag<QueryKey, TData, TError>;
-  };
-
-  return withQueryKey(query, queryOptions.queryKey);
-}
-
-/**
- * Start holding another address, and write to it to prove it.
- *
- * The answer is the same whoever holds the address already. What differs is
- * where the mail goes: a free address gets a link to confirm it, and one that
- * is taken gets nothing.
- * @summary Add My Address
- */
-export const addMyAddressApiV1UsersMeEmailsPost = (
-  userEmailCreate: BodyType<UserEmailCreate>,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<VerificationSendResponse>(
-    {
-      url: `/api/v1/users/me/emails`,
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      data: userEmailCreate,
-      signal,
-    },
-    options
-  );
-};
-
-export const getAddMyAddressApiV1UsersMeEmailsPostMutationKey = () =>
-  ["addMyAddressApiV1UsersMeEmailsPost"] as const;
-
-export const getAddMyAddressApiV1UsersMeEmailsPostMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof addMyAddressApiV1UsersMeEmailsPost>>,
-    TError,
-    AddMyAddressApiV1UsersMeEmailsPostMutationVariables,
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof addMyAddressApiV1UsersMeEmailsPost>>,
-  TError,
-  AddMyAddressApiV1UsersMeEmailsPostMutationVariables,
-  TContext
-> => {
-  const mutationKey = getAddMyAddressApiV1UsersMeEmailsPostMutationKey();
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof addMyAddressApiV1UsersMeEmailsPost>>,
-    AddMyAddressApiV1UsersMeEmailsPostMutationVariables
-  > = (props) => {
-    const { data } = props ?? {};
-
-    return addMyAddressApiV1UsersMeEmailsPost(data, requestOptions);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type AddMyAddressApiV1UsersMeEmailsPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof addMyAddressApiV1UsersMeEmailsPost>>
->;
-export type AddMyAddressApiV1UsersMeEmailsPostMutationBody = BodyType<UserEmailCreate>;
-export type AddMyAddressApiV1UsersMeEmailsPostMutationError = ErrorType<HTTPValidationError>;
-export type AddMyAddressApiV1UsersMeEmailsPostMutationVariables = {
-  data: BodyType<UserEmailCreate>;
-};
-
-/**
- * @summary Add My Address
- */
-export const useAddMyAddressApiV1UsersMeEmailsPost = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof addMyAddressApiV1UsersMeEmailsPost>>,
-      TError,
-      AddMyAddressApiV1UsersMeEmailsPostMutationVariables,
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof addMyAddressApiV1UsersMeEmailsPost>>,
-  TError,
-  AddMyAddressApiV1UsersMeEmailsPostMutationVariables,
-  TContext
-> => {
-  return useMutation(getAddMyAddressApiV1UsersMeEmailsPostMutationOptions(options), queryClient);
-};
-/**
- * @summary Remove My Address
- */
-export const removeMyAddressApiV1UsersMeEmailsAddressIdDelete = (
-  addressId: number,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<void>(
-    { url: `/api/v1/users/me/emails/${addressId}`, method: "DELETE", signal },
-    options
-  );
-};
-
-export const getRemoveMyAddressApiV1UsersMeEmailsAddressIdDeleteMutationKey = () =>
-  ["removeMyAddressApiV1UsersMeEmailsAddressIdDelete"] as const;
-
-export const getRemoveMyAddressApiV1UsersMeEmailsAddressIdDeleteMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof removeMyAddressApiV1UsersMeEmailsAddressIdDelete>>,
-    TError,
-    RemoveMyAddressApiV1UsersMeEmailsAddressIdDeleteMutationVariables,
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof removeMyAddressApiV1UsersMeEmailsAddressIdDelete>>,
-  TError,
-  RemoveMyAddressApiV1UsersMeEmailsAddressIdDeleteMutationVariables,
-  TContext
-> => {
-  const mutationKey = getRemoveMyAddressApiV1UsersMeEmailsAddressIdDeleteMutationKey();
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof removeMyAddressApiV1UsersMeEmailsAddressIdDelete>>,
-    RemoveMyAddressApiV1UsersMeEmailsAddressIdDeleteMutationVariables
-  > = (props) => {
-    const { addressId } = props ?? {};
-
-    return removeMyAddressApiV1UsersMeEmailsAddressIdDelete(addressId, requestOptions);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type RemoveMyAddressApiV1UsersMeEmailsAddressIdDeleteMutationResult = NonNullable<
-  Awaited<ReturnType<typeof removeMyAddressApiV1UsersMeEmailsAddressIdDelete>>
->;
-
-export type RemoveMyAddressApiV1UsersMeEmailsAddressIdDeleteMutationError =
-  ErrorType<HTTPValidationError>;
-export type RemoveMyAddressApiV1UsersMeEmailsAddressIdDeleteMutationVariables = {
-  addressId: number;
-};
-
-/**
- * @summary Remove My Address
- */
-export const useRemoveMyAddressApiV1UsersMeEmailsAddressIdDelete = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof removeMyAddressApiV1UsersMeEmailsAddressIdDelete>>,
-      TError,
-      RemoveMyAddressApiV1UsersMeEmailsAddressIdDeleteMutationVariables,
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof removeMyAddressApiV1UsersMeEmailsAddressIdDelete>>,
-  TError,
-  RemoveMyAddressApiV1UsersMeEmailsAddressIdDeleteMutationVariables,
-  TContext
-> => {
-  return useMutation(
-    getRemoveMyAddressApiV1UsersMeEmailsAddressIdDeleteMutationOptions(options),
-    queryClient
-  );
-};
-/**
- * Move where account mail goes.
- * @summary Make My Address Primary
- */
-export const makeMyAddressPrimaryApiV1UsersMeEmailsAddressIdPrimaryPut = (
-  addressId: number,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<UserEmailRead>(
-    { url: `/api/v1/users/me/emails/${addressId}/primary`, method: "PUT", signal },
-    options
-  );
-};
-
-export const getMakeMyAddressPrimaryApiV1UsersMeEmailsAddressIdPrimaryPutMutationKey = () =>
-  ["makeMyAddressPrimaryApiV1UsersMeEmailsAddressIdPrimaryPut"] as const;
-
-export const getMakeMyAddressPrimaryApiV1UsersMeEmailsAddressIdPrimaryPutMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof makeMyAddressPrimaryApiV1UsersMeEmailsAddressIdPrimaryPut>>,
-    TError,
-    MakeMyAddressPrimaryApiV1UsersMeEmailsAddressIdPrimaryPutMutationVariables,
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof makeMyAddressPrimaryApiV1UsersMeEmailsAddressIdPrimaryPut>>,
-  TError,
-  MakeMyAddressPrimaryApiV1UsersMeEmailsAddressIdPrimaryPutMutationVariables,
-  TContext
-> => {
-  const mutationKey = getMakeMyAddressPrimaryApiV1UsersMeEmailsAddressIdPrimaryPutMutationKey();
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof makeMyAddressPrimaryApiV1UsersMeEmailsAddressIdPrimaryPut>>,
-    MakeMyAddressPrimaryApiV1UsersMeEmailsAddressIdPrimaryPutMutationVariables
-  > = (props) => {
-    const { addressId } = props ?? {};
-
-    return makeMyAddressPrimaryApiV1UsersMeEmailsAddressIdPrimaryPut(addressId, requestOptions);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type MakeMyAddressPrimaryApiV1UsersMeEmailsAddressIdPrimaryPutMutationResult = NonNullable<
-  Awaited<ReturnType<typeof makeMyAddressPrimaryApiV1UsersMeEmailsAddressIdPrimaryPut>>
->;
-
-export type MakeMyAddressPrimaryApiV1UsersMeEmailsAddressIdPrimaryPutMutationError =
-  ErrorType<HTTPValidationError>;
-export type MakeMyAddressPrimaryApiV1UsersMeEmailsAddressIdPrimaryPutMutationVariables = {
-  addressId: number;
-};
-
-/**
- * @summary Make My Address Primary
- */
-export const useMakeMyAddressPrimaryApiV1UsersMeEmailsAddressIdPrimaryPut = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof makeMyAddressPrimaryApiV1UsersMeEmailsAddressIdPrimaryPut>>,
-      TError,
-      MakeMyAddressPrimaryApiV1UsersMeEmailsAddressIdPrimaryPutMutationVariables,
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof makeMyAddressPrimaryApiV1UsersMeEmailsAddressIdPrimaryPut>>,
-  TError,
-  MakeMyAddressPrimaryApiV1UsersMeEmailsAddressIdPrimaryPutMutationVariables,
-  TContext
-> => {
-  return useMutation(
-    getMakeMyAddressPrimaryApiV1UsersMeEmailsAddressIdPrimaryPutMutationOptions(options),
-    queryClient
-  );
-};
-/**
- * Check if the current user can be deleted and what blockers exist.
- * @summary Check Deletion Eligibility
- */
-export const checkDeletionEligibilityApiV1UsersMeDeletionEligibilityGet = (
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<DeletionEligibilityResponse>(
-    { url: `/api/v1/users/me/deletion-eligibility`, method: "GET", signal },
-    options
-  );
-};
-
-export const getCheckDeletionEligibilityApiV1UsersMeDeletionEligibilityGetQueryKey = () => {
-  return [`/api/v1/users/me/deletion-eligibility`] as const;
-};
-
-export const getCheckDeletionEligibilityApiV1UsersMeDeletionEligibilityGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof checkDeletionEligibilityApiV1UsersMeDeletionEligibilityGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(options?: {
-  query?: Partial<
-    UseQueryOptions<
-      Awaited<ReturnType<typeof checkDeletionEligibilityApiV1UsersMeDeletionEligibilityGet>>,
-      TError,
-      TData
-    >
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}) => {
-  const { query: queryOptions, request: requestOptions } = options ?? {};
-
-  const queryKey =
-    queryOptions?.queryKey ??
-    getCheckDeletionEligibilityApiV1UsersMeDeletionEligibilityGetQueryKey();
-
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof checkDeletionEligibilityApiV1UsersMeDeletionEligibilityGet>>
-  > = ({ signal }) =>
-    checkDeletionEligibilityApiV1UsersMeDeletionEligibilityGet(requestOptions, signal);
-
-  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof checkDeletionEligibilityApiV1UsersMeDeletionEligibilityGet>>,
-    TError,
-    TData
-  > & { queryKey: DataTag<QueryKey, TData, TError> };
-};
-
-export type CheckDeletionEligibilityApiV1UsersMeDeletionEligibilityGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof checkDeletionEligibilityApiV1UsersMeDeletionEligibilityGet>>
->;
-export type CheckDeletionEligibilityApiV1UsersMeDeletionEligibilityGetQueryError =
-  ErrorType<HTTPValidationError>;
-
-export function useCheckDeletionEligibilityApiV1UsersMeDeletionEligibilityGet<
-  TData = Awaited<ReturnType<typeof checkDeletionEligibilityApiV1UsersMeDeletionEligibilityGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  options: {
-    query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof checkDeletionEligibilityApiV1UsersMeDeletionEligibilityGet>>,
-        TError,
-        TData
-      >
-    > &
-      Pick<
-        DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof checkDeletionEligibilityApiV1UsersMeDeletionEligibilityGet>>,
-          TError,
-          Awaited<ReturnType<typeof checkDeletionEligibilityApiV1UsersMeDeletionEligibilityGet>>
-        >,
-        "initialData"
-      >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useCheckDeletionEligibilityApiV1UsersMeDeletionEligibilityGet<
-  TData = Awaited<ReturnType<typeof checkDeletionEligibilityApiV1UsersMeDeletionEligibilityGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof checkDeletionEligibilityApiV1UsersMeDeletionEligibilityGet>>,
-        TError,
-        TData
-      >
-    > &
-      Pick<
-        UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof checkDeletionEligibilityApiV1UsersMeDeletionEligibilityGet>>,
-          TError,
-          Awaited<ReturnType<typeof checkDeletionEligibilityApiV1UsersMeDeletionEligibilityGet>>
-        >,
-        "initialData"
-      >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useCheckDeletionEligibilityApiV1UsersMeDeletionEligibilityGet<
-  TData = Awaited<ReturnType<typeof checkDeletionEligibilityApiV1UsersMeDeletionEligibilityGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof checkDeletionEligibilityApiV1UsersMeDeletionEligibilityGet>>,
-        TError,
-        TData
-      >
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-/**
- * @summary Check Deletion Eligibility
- */
-
-export function useCheckDeletionEligibilityApiV1UsersMeDeletionEligibilityGet<
-  TData = Awaited<ReturnType<typeof checkDeletionEligibilityApiV1UsersMeDeletionEligibilityGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof checkDeletionEligibilityApiV1UsersMeDeletionEligibilityGet>>,
-        TError,
-        TData
-      >
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions =
-    getCheckDeletionEligibilityApiV1UsersMeDeletionEligibilityGetQueryOptions(options);
-
-  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
-    queryKey: DataTag<QueryKey, TData, TError>;
-  };
-
-  return withQueryKey(query, queryOptions.queryKey);
-}
-
-/**
- * Delete or deactivate the current user's account.
- * @summary Delete Own Account
- */
-export const deleteOwnAccountApiV1UsersMeDeleteAccountPost = (
-  accountDeletionRequest: BodyType<AccountDeletionRequest>,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<AccountDeletionResponse>(
-    {
-      url: `/api/v1/users/me/delete-account`,
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      data: accountDeletionRequest,
-      signal,
-    },
-    options
-  );
-};
-
-export const getDeleteOwnAccountApiV1UsersMeDeleteAccountPostMutationKey = () =>
-  ["deleteOwnAccountApiV1UsersMeDeleteAccountPost"] as const;
-
-export const getDeleteOwnAccountApiV1UsersMeDeleteAccountPostMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof deleteOwnAccountApiV1UsersMeDeleteAccountPost>>,
-    TError,
-    DeleteOwnAccountApiV1UsersMeDeleteAccountPostMutationVariables,
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof deleteOwnAccountApiV1UsersMeDeleteAccountPost>>,
-  TError,
-  DeleteOwnAccountApiV1UsersMeDeleteAccountPostMutationVariables,
-  TContext
-> => {
-  const mutationKey = getDeleteOwnAccountApiV1UsersMeDeleteAccountPostMutationKey();
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof deleteOwnAccountApiV1UsersMeDeleteAccountPost>>,
-    DeleteOwnAccountApiV1UsersMeDeleteAccountPostMutationVariables
-  > = (props) => {
-    const { data } = props ?? {};
-
-    return deleteOwnAccountApiV1UsersMeDeleteAccountPost(data, requestOptions);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type DeleteOwnAccountApiV1UsersMeDeleteAccountPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof deleteOwnAccountApiV1UsersMeDeleteAccountPost>>
->;
-export type DeleteOwnAccountApiV1UsersMeDeleteAccountPostMutationBody =
-  BodyType<AccountDeletionRequest>;
-export type DeleteOwnAccountApiV1UsersMeDeleteAccountPostMutationError =
-  ErrorType<HTTPValidationError>;
-export type DeleteOwnAccountApiV1UsersMeDeleteAccountPostMutationVariables = {
-  data: BodyType<AccountDeletionRequest>;
-};
-
-/**
- * @summary Delete Own Account
- */
-export const useDeleteOwnAccountApiV1UsersMeDeleteAccountPost = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof deleteOwnAccountApiV1UsersMeDeleteAccountPost>>,
-      TError,
-      DeleteOwnAccountApiV1UsersMeDeleteAccountPostMutationVariables,
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof deleteOwnAccountApiV1UsersMeDeleteAccountPost>>,
-  TError,
-  DeleteOwnAccountApiV1UsersMeDeleteAccountPostMutationVariables,
-  TContext
-> => {
-  return useMutation(
-    getDeleteOwnAccountApiV1UsersMeDeleteAccountPostMutationOptions(options),
-    queryClient
-  );
-};
-/**
- * List all API keys for the current user.
- * @summary List My Api Keys
- */
-export const listMyApiKeysApiV1UsersMeApiKeysGet = (
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<ApiKeyListResponse>(
-    { url: `/api/v1/users/me/api-keys`, method: "GET", signal },
-    options
-  );
-};
-
-export const getListMyApiKeysApiV1UsersMeApiKeysGetQueryKey = () => {
-  return [`/api/v1/users/me/api-keys`] as const;
-};
-
-export const getListMyApiKeysApiV1UsersMeApiKeysGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof listMyApiKeysApiV1UsersMeApiKeysGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(options?: {
-  query?: Partial<
-    UseQueryOptions<Awaited<ReturnType<typeof listMyApiKeysApiV1UsersMeApiKeysGet>>, TError, TData>
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}) => {
-  const { query: queryOptions, request: requestOptions } = options ?? {};
-
-  const queryKey = queryOptions?.queryKey ?? getListMyApiKeysApiV1UsersMeApiKeysGetQueryKey();
-
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof listMyApiKeysApiV1UsersMeApiKeysGet>>> = ({
-    signal,
-  }) => listMyApiKeysApiV1UsersMeApiKeysGet(requestOptions, signal);
-
-  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof listMyApiKeysApiV1UsersMeApiKeysGet>>,
-    TError,
-    TData
-  > & { queryKey: DataTag<QueryKey, TData, TError> };
-};
-
-export type ListMyApiKeysApiV1UsersMeApiKeysGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof listMyApiKeysApiV1UsersMeApiKeysGet>>
->;
-export type ListMyApiKeysApiV1UsersMeApiKeysGetQueryError = ErrorType<HTTPValidationError>;
-
-export function useListMyApiKeysApiV1UsersMeApiKeysGet<
-  TData = Awaited<ReturnType<typeof listMyApiKeysApiV1UsersMeApiKeysGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  options: {
-    query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listMyApiKeysApiV1UsersMeApiKeysGet>>,
-        TError,
-        TData
-      >
-    > &
-      Pick<
-        DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listMyApiKeysApiV1UsersMeApiKeysGet>>,
-          TError,
-          Awaited<ReturnType<typeof listMyApiKeysApiV1UsersMeApiKeysGet>>
-        >,
-        "initialData"
-      >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListMyApiKeysApiV1UsersMeApiKeysGet<
-  TData = Awaited<ReturnType<typeof listMyApiKeysApiV1UsersMeApiKeysGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listMyApiKeysApiV1UsersMeApiKeysGet>>,
-        TError,
-        TData
-      >
-    > &
-      Pick<
-        UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listMyApiKeysApiV1UsersMeApiKeysGet>>,
-          TError,
-          Awaited<ReturnType<typeof listMyApiKeysApiV1UsersMeApiKeysGet>>
-        >,
-        "initialData"
-      >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListMyApiKeysApiV1UsersMeApiKeysGet<
-  TData = Awaited<ReturnType<typeof listMyApiKeysApiV1UsersMeApiKeysGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listMyApiKeysApiV1UsersMeApiKeysGet>>,
-        TError,
-        TData
-      >
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-/**
- * @summary List My Api Keys
- */
-
-export function useListMyApiKeysApiV1UsersMeApiKeysGet<
-  TData = Awaited<ReturnType<typeof listMyApiKeysApiV1UsersMeApiKeysGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listMyApiKeysApiV1UsersMeApiKeysGet>>,
-        TError,
-        TData
-      >
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListMyApiKeysApiV1UsersMeApiKeysGetQueryOptions(options);
-
-  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
-    queryKey: DataTag<QueryKey, TData, TError>;
-  };
-
-  return withQueryKey(query, queryOptions.queryKey);
-}
-
-/**
- * Create a new API key for the current user.
- * @summary Create My Api Key
- */
-export const createMyApiKeyApiV1UsersMeApiKeysPost = (
-  apiKeyCreateRequest: BodyType<ApiKeyCreateRequest>,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<ApiKeyCreateResponse>(
-    {
-      url: `/api/v1/users/me/api-keys`,
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      data: apiKeyCreateRequest,
-      signal,
-    },
-    options
-  );
-};
-
-export const getCreateMyApiKeyApiV1UsersMeApiKeysPostMutationKey = () =>
-  ["createMyApiKeyApiV1UsersMeApiKeysPost"] as const;
-
-export const getCreateMyApiKeyApiV1UsersMeApiKeysPostMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof createMyApiKeyApiV1UsersMeApiKeysPost>>,
-    TError,
-    CreateMyApiKeyApiV1UsersMeApiKeysPostMutationVariables,
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof createMyApiKeyApiV1UsersMeApiKeysPost>>,
-  TError,
-  CreateMyApiKeyApiV1UsersMeApiKeysPostMutationVariables,
-  TContext
-> => {
-  const mutationKey = getCreateMyApiKeyApiV1UsersMeApiKeysPostMutationKey();
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof createMyApiKeyApiV1UsersMeApiKeysPost>>,
-    CreateMyApiKeyApiV1UsersMeApiKeysPostMutationVariables
-  > = (props) => {
-    const { data } = props ?? {};
-
-    return createMyApiKeyApiV1UsersMeApiKeysPost(data, requestOptions);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type CreateMyApiKeyApiV1UsersMeApiKeysPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof createMyApiKeyApiV1UsersMeApiKeysPost>>
->;
-export type CreateMyApiKeyApiV1UsersMeApiKeysPostMutationBody = BodyType<ApiKeyCreateRequest>;
-export type CreateMyApiKeyApiV1UsersMeApiKeysPostMutationError = ErrorType<HTTPValidationError>;
-export type CreateMyApiKeyApiV1UsersMeApiKeysPostMutationVariables = {
-  data: BodyType<ApiKeyCreateRequest>;
-};
-
-/**
- * @summary Create My Api Key
- */
-export const useCreateMyApiKeyApiV1UsersMeApiKeysPost = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof createMyApiKeyApiV1UsersMeApiKeysPost>>,
-      TError,
-      CreateMyApiKeyApiV1UsersMeApiKeysPostMutationVariables,
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof createMyApiKeyApiV1UsersMeApiKeysPost>>,
-  TError,
-  CreateMyApiKeyApiV1UsersMeApiKeysPostMutationVariables,
-  TContext
-> => {
-  return useMutation(getCreateMyApiKeyApiV1UsersMeApiKeysPostMutationOptions(options), queryClient);
-};
-/**
- * Delete an API key for the current user.
- * @summary Delete My Api Key
- */
-export const deleteMyApiKeyApiV1UsersMeApiKeysApiKeyIdDelete = (
-  apiKeyId: number,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<void>(
-    { url: `/api/v1/users/me/api-keys/${apiKeyId}`, method: "DELETE", signal },
-    options
-  );
-};
-
-export const getDeleteMyApiKeyApiV1UsersMeApiKeysApiKeyIdDeleteMutationKey = () =>
-  ["deleteMyApiKeyApiV1UsersMeApiKeysApiKeyIdDelete"] as const;
-
-export const getDeleteMyApiKeyApiV1UsersMeApiKeysApiKeyIdDeleteMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof deleteMyApiKeyApiV1UsersMeApiKeysApiKeyIdDelete>>,
-    TError,
-    DeleteMyApiKeyApiV1UsersMeApiKeysApiKeyIdDeleteMutationVariables,
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof deleteMyApiKeyApiV1UsersMeApiKeysApiKeyIdDelete>>,
-  TError,
-  DeleteMyApiKeyApiV1UsersMeApiKeysApiKeyIdDeleteMutationVariables,
-  TContext
-> => {
-  const mutationKey = getDeleteMyApiKeyApiV1UsersMeApiKeysApiKeyIdDeleteMutationKey();
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof deleteMyApiKeyApiV1UsersMeApiKeysApiKeyIdDelete>>,
-    DeleteMyApiKeyApiV1UsersMeApiKeysApiKeyIdDeleteMutationVariables
-  > = (props) => {
-    const { apiKeyId } = props ?? {};
-
-    return deleteMyApiKeyApiV1UsersMeApiKeysApiKeyIdDelete(apiKeyId, requestOptions);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type DeleteMyApiKeyApiV1UsersMeApiKeysApiKeyIdDeleteMutationResult = NonNullable<
-  Awaited<ReturnType<typeof deleteMyApiKeyApiV1UsersMeApiKeysApiKeyIdDelete>>
->;
-
-export type DeleteMyApiKeyApiV1UsersMeApiKeysApiKeyIdDeleteMutationError =
-  ErrorType<HTTPValidationError>;
-export type DeleteMyApiKeyApiV1UsersMeApiKeysApiKeyIdDeleteMutationVariables = { apiKeyId: number };
-
-/**
- * @summary Delete My Api Key
- */
-export const useDeleteMyApiKeyApiV1UsersMeApiKeysApiKeyIdDelete = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof deleteMyApiKeyApiV1UsersMeApiKeysApiKeyIdDelete>>,
-      TError,
-      DeleteMyApiKeyApiV1UsersMeApiKeysApiKeyIdDeleteMutationVariables,
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof deleteMyApiKeyApiV1UsersMeApiKeysApiKeyIdDelete>>,
-  TError,
-  DeleteMyApiKeyApiV1UsersMeApiKeysApiKeyIdDeleteMutationVariables,
-  TContext
-> => {
-  return useMutation(
-    getDeleteMyApiKeyApiV1UsersMeApiKeysApiKeyIdDeleteMutationOptions(options),
-    queryClient
-  );
-};
-/**
- * Replace the caller's profile picture.
- *
- * Multipart rather than a base64 field on ``PATCH /users/me``: sending the
- * image inside JSON is the thing this endpoint exists to stop. The body is
- * read under the cap so an oversized upload is refused rather than buffered
- * whole, and the format and dimensions are read from the header — nothing
- * here decodes the image.
- *
- * Runs on the request-path session, where the row policies allow the caller
- * to write their own avatar and no other.
- * @summary Upload My Avatar
- */
-export const uploadMyAvatarApiV1UsersMeAvatarPut = (
-  bodyUploadMyAvatarApiV1UsersMeAvatarPut: BodyType<BodyUploadMyAvatarApiV1UsersMeAvatarPut>,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  const formData = new FormData();
-  formData.append(`file`, bodyUploadMyAvatarApiV1UsersMeAvatarPut.file);
-
-  return apiMutator<UserRead>(
-    {
-      url: `/api/v1/users/me/avatar`,
-      method: "PUT",
-      headers: { "Content-Type": "multipart/form-data" },
-      data: formData,
-      signal,
-    },
-    options
-  );
-};
-
-export const getUploadMyAvatarApiV1UsersMeAvatarPutMutationKey = () =>
-  ["uploadMyAvatarApiV1UsersMeAvatarPut"] as const;
-
-export const getUploadMyAvatarApiV1UsersMeAvatarPutMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof uploadMyAvatarApiV1UsersMeAvatarPut>>,
-    TError,
-    UploadMyAvatarApiV1UsersMeAvatarPutMutationVariables,
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof uploadMyAvatarApiV1UsersMeAvatarPut>>,
-  TError,
-  UploadMyAvatarApiV1UsersMeAvatarPutMutationVariables,
-  TContext
-> => {
-  const mutationKey = getUploadMyAvatarApiV1UsersMeAvatarPutMutationKey();
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof uploadMyAvatarApiV1UsersMeAvatarPut>>,
-    UploadMyAvatarApiV1UsersMeAvatarPutMutationVariables
-  > = (props) => {
-    const { data } = props ?? {};
-
-    return uploadMyAvatarApiV1UsersMeAvatarPut(data, requestOptions);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type UploadMyAvatarApiV1UsersMeAvatarPutMutationResult = NonNullable<
-  Awaited<ReturnType<typeof uploadMyAvatarApiV1UsersMeAvatarPut>>
->;
-export type UploadMyAvatarApiV1UsersMeAvatarPutMutationBody =
-  BodyType<BodyUploadMyAvatarApiV1UsersMeAvatarPut>;
-export type UploadMyAvatarApiV1UsersMeAvatarPutMutationError = ErrorType<HTTPValidationError>;
-export type UploadMyAvatarApiV1UsersMeAvatarPutMutationVariables = {
-  data: BodyType<BodyUploadMyAvatarApiV1UsersMeAvatarPut>;
-};
-
-/**
- * @summary Upload My Avatar
- */
-export const useUploadMyAvatarApiV1UsersMeAvatarPut = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof uploadMyAvatarApiV1UsersMeAvatarPut>>,
-      TError,
-      UploadMyAvatarApiV1UsersMeAvatarPutMutationVariables,
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof uploadMyAvatarApiV1UsersMeAvatarPut>>,
-  TError,
-  UploadMyAvatarApiV1UsersMeAvatarPutMutationVariables,
-  TContext
-> => {
-  return useMutation(getUploadMyAvatarApiV1UsersMeAvatarPutMutationOptions(options), queryClient);
-};
-/**
- * Remove the caller's profile picture.
- * @summary Delete My Avatar
- */
-export const deleteMyAvatarApiV1UsersMeAvatarDelete = (
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<void>({ url: `/api/v1/users/me/avatar`, method: "DELETE", signal }, options);
-};
-
-export const getDeleteMyAvatarApiV1UsersMeAvatarDeleteMutationKey = () =>
-  ["deleteMyAvatarApiV1UsersMeAvatarDelete"] as const;
-
-export const getDeleteMyAvatarApiV1UsersMeAvatarDeleteMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof deleteMyAvatarApiV1UsersMeAvatarDelete>>,
-    TError,
-    void,
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof deleteMyAvatarApiV1UsersMeAvatarDelete>>,
-  TError,
-  void,
-  TContext
-> => {
-  const mutationKey = getDeleteMyAvatarApiV1UsersMeAvatarDeleteMutationKey();
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof deleteMyAvatarApiV1UsersMeAvatarDelete>>,
-    void
-  > = () => {
-    return deleteMyAvatarApiV1UsersMeAvatarDelete(requestOptions);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type DeleteMyAvatarApiV1UsersMeAvatarDeleteMutationResult = NonNullable<
-  Awaited<ReturnType<typeof deleteMyAvatarApiV1UsersMeAvatarDelete>>
->;
-
-export type DeleteMyAvatarApiV1UsersMeAvatarDeleteMutationError = ErrorType<HTTPValidationError>;
-
-/**
- * @summary Delete My Avatar
- */
-export const useDeleteMyAvatarApiV1UsersMeAvatarDelete = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof deleteMyAvatarApiV1UsersMeAvatarDelete>>,
-      TError,
-      void,
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof deleteMyAvatarApiV1UsersMeAvatarDelete>>,
-  TError,
-  void,
-  TContext
-> => {
-  return useMutation(
-    getDeleteMyAvatarApiV1UsersMeAvatarDeleteMutationOptions(options),
-    queryClient
-  );
-};
 /**
  * The community's roster, a page at a time.
  *
@@ -4462,6 +1994,333 @@ export function useReadMemberAvatarApiV1CGuildIdMembersPersonAvatarDigestGet<
 }
 
 /**
+ * What a suspended account is told on its time-out screen: why, where a
+ * reason was given, and whom to contact.
+ *
+ * Answers for an active account too — nobody to contact, since there is
+ * nothing to lift — so the screen can ask without first knowing the status.
+ * @summary Read My Time Out
+ */
+export const readMyTimeOutApiV1MeTimeOutGet = (
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<AccountTimeOutRead>(
+    { url: `/api/v1/me/time-out`, method: "GET", signal },
+    options
+  );
+};
+
+export const getReadMyTimeOutApiV1MeTimeOutGetQueryKey = () => {
+  return [`/api/v1/me/time-out`] as const;
+};
+
+export const getReadMyTimeOutApiV1MeTimeOutGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof readMyTimeOutApiV1MeTimeOutGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<Awaited<ReturnType<typeof readMyTimeOutApiV1MeTimeOutGet>>, TError, TData>
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getReadMyTimeOutApiV1MeTimeOutGetQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof readMyTimeOutApiV1MeTimeOutGet>>> = ({
+    signal,
+  }) => readMyTimeOutApiV1MeTimeOutGet(requestOptions, signal);
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof readMyTimeOutApiV1MeTimeOutGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ReadMyTimeOutApiV1MeTimeOutGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof readMyTimeOutApiV1MeTimeOutGet>>
+>;
+export type ReadMyTimeOutApiV1MeTimeOutGetQueryError = ErrorType<HTTPValidationError>;
+
+export function useReadMyTimeOutApiV1MeTimeOutGet<
+  TData = Awaited<ReturnType<typeof readMyTimeOutApiV1MeTimeOutGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof readMyTimeOutApiV1MeTimeOutGet>>, TError, TData>
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof readMyTimeOutApiV1MeTimeOutGet>>,
+          TError,
+          Awaited<ReturnType<typeof readMyTimeOutApiV1MeTimeOutGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadMyTimeOutApiV1MeTimeOutGet<
+  TData = Awaited<ReturnType<typeof readMyTimeOutApiV1MeTimeOutGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof readMyTimeOutApiV1MeTimeOutGet>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof readMyTimeOutApiV1MeTimeOutGet>>,
+          TError,
+          Awaited<ReturnType<typeof readMyTimeOutApiV1MeTimeOutGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadMyTimeOutApiV1MeTimeOutGet<
+  TData = Awaited<ReturnType<typeof readMyTimeOutApiV1MeTimeOutGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof readMyTimeOutApiV1MeTimeOutGet>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Read My Time Out
+ */
+
+export function useReadMyTimeOutApiV1MeTimeOutGet<
+  TData = Awaited<ReturnType<typeof readMyTimeOutApiV1MeTimeOutGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof readMyTimeOutApiV1MeTimeOutGet>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getReadMyTimeOutApiV1MeTimeOutGetQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * Who you are. Reachable while the deployment's second-factor rule is
+ * unmet, because every screen that could answer it is drawn from this.
+ * @summary Read Me
+ */
+export const readMeApiV1MeGet = (
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<UserRead>({ url: `/api/v1/me`, method: "GET", signal }, options);
+};
+
+export const getReadMeApiV1MeGetQueryKey = () => {
+  return [`/api/v1/me`] as const;
+};
+
+export const getReadMeApiV1MeGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof readMeApiV1MeGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(options?: {
+  query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readMeApiV1MeGet>>, TError, TData>>;
+  request?: SecondParameter<typeof apiMutator>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getReadMeApiV1MeGetQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof readMeApiV1MeGet>>> = ({ signal }) =>
+    readMeApiV1MeGet(requestOptions, signal);
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof readMeApiV1MeGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ReadMeApiV1MeGetQueryResult = NonNullable<Awaited<ReturnType<typeof readMeApiV1MeGet>>>;
+export type ReadMeApiV1MeGetQueryError = ErrorType<HTTPValidationError>;
+
+export function useReadMeApiV1MeGet<
+  TData = Awaited<ReturnType<typeof readMeApiV1MeGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options: {
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof readMeApiV1MeGet>>, TError, TData>> &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof readMeApiV1MeGet>>,
+          TError,
+          Awaited<ReturnType<typeof readMeApiV1MeGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadMeApiV1MeGet<
+  TData = Awaited<ReturnType<typeof readMeApiV1MeGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readMeApiV1MeGet>>, TError, TData>> &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof readMeApiV1MeGet>>,
+          TError,
+          Awaited<ReturnType<typeof readMeApiV1MeGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadMeApiV1MeGet<
+  TData = Awaited<ReturnType<typeof readMeApiV1MeGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readMeApiV1MeGet>>, TError, TData>>;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Read Me
+ */
+
+export function useReadMeApiV1MeGet<
+  TData = Awaited<ReturnType<typeof readMeApiV1MeGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readMeApiV1MeGet>>, TError, TData>>;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getReadMeApiV1MeGetQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * @summary Update Me
+ */
+export const updateMeApiV1MePatch = (
+  userSelfUpdate: BodyType<UserSelfUpdate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<UserRead>(
+    {
+      url: `/api/v1/me`,
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      data: userSelfUpdate,
+      signal,
+    },
+    options
+  );
+};
+
+export const getUpdateMeApiV1MePatchMutationKey = () => ["updateMeApiV1MePatch"] as const;
+
+export const getUpdateMeApiV1MePatchMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateMeApiV1MePatch>>,
+    TError,
+    UpdateMeApiV1MePatchMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateMeApiV1MePatch>>,
+  TError,
+  UpdateMeApiV1MePatchMutationVariables,
+  TContext
+> => {
+  const mutationKey = getUpdateMeApiV1MePatchMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateMeApiV1MePatch>>,
+    UpdateMeApiV1MePatchMutationVariables
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return updateMeApiV1MePatch(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateMeApiV1MePatchMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateMeApiV1MePatch>>
+>;
+export type UpdateMeApiV1MePatchMutationBody = BodyType<UserSelfUpdate>;
+export type UpdateMeApiV1MePatchMutationError = ErrorType<HTTPValidationError>;
+export type UpdateMeApiV1MePatchMutationVariables = { data: BodyType<UserSelfUpdate> };
+
+/**
+ * @summary Update Me
+ */
+export const useUpdateMeApiV1MePatch = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof updateMeApiV1MePatch>>,
+      TError,
+      UpdateMeApiV1MePatchMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof updateMeApiV1MePatch>>,
+  TError,
+  UpdateMeApiV1MePatchMutationVariables,
+  TContext
+> => {
+  return useMutation(getUpdateMeApiV1MePatchMutationOptions(options), queryClient);
+};
+/**
  * Get comprehensive statistics for the current user.
  * @summary Get User Stats
  */
@@ -4594,3 +2453,2060 @@ export function useGetUserStatsApiV1MeStatsGet<
 
   return withQueryKey(query, queryOptions.queryKey);
 }
+
+/**
+ * Everything the caller may dress their profile in.
+ *
+ * What ships with the app plus what this account acquired, which is what the
+ * pickers on Settings > Profile offer and exactly what the write path
+ * accepts. Own-row: ``public.user_decorations`` is readable only by the
+ * account whose library it is.
+ * @summary List My Decorations
+ */
+export const listMyDecorationsApiV1MeDecorationsGet = (
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<OwnedDecorationsResponse>(
+    { url: `/api/v1/me/decorations`, method: "GET", signal },
+    options
+  );
+};
+
+export const getListMyDecorationsApiV1MeDecorationsGetQueryKey = () => {
+  return [`/api/v1/me/decorations`] as const;
+};
+
+export const getListMyDecorationsApiV1MeDecorationsGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listMyDecorationsApiV1MeDecorationsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<
+      Awaited<ReturnType<typeof listMyDecorationsApiV1MeDecorationsGet>>,
+      TError,
+      TData
+    >
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListMyDecorationsApiV1MeDecorationsGetQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listMyDecorationsApiV1MeDecorationsGet>>
+  > = ({ signal }) => listMyDecorationsApiV1MeDecorationsGet(requestOptions, signal);
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listMyDecorationsApiV1MeDecorationsGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ListMyDecorationsApiV1MeDecorationsGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listMyDecorationsApiV1MeDecorationsGet>>
+>;
+export type ListMyDecorationsApiV1MeDecorationsGetQueryError = ErrorType<HTTPValidationError>;
+
+export function useListMyDecorationsApiV1MeDecorationsGet<
+  TData = Awaited<ReturnType<typeof listMyDecorationsApiV1MeDecorationsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listMyDecorationsApiV1MeDecorationsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listMyDecorationsApiV1MeDecorationsGet>>,
+          TError,
+          Awaited<ReturnType<typeof listMyDecorationsApiV1MeDecorationsGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListMyDecorationsApiV1MeDecorationsGet<
+  TData = Awaited<ReturnType<typeof listMyDecorationsApiV1MeDecorationsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listMyDecorationsApiV1MeDecorationsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listMyDecorationsApiV1MeDecorationsGet>>,
+          TError,
+          Awaited<ReturnType<typeof listMyDecorationsApiV1MeDecorationsGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListMyDecorationsApiV1MeDecorationsGet<
+  TData = Awaited<ReturnType<typeof listMyDecorationsApiV1MeDecorationsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listMyDecorationsApiV1MeDecorationsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary List My Decorations
+ */
+
+export function useListMyDecorationsApiV1MeDecorationsGet<
+  TData = Awaited<ReturnType<typeof listMyDecorationsApiV1MeDecorationsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listMyDecorationsApiV1MeDecorationsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getListMyDecorationsApiV1MeDecorationsGetQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * The store: every profile pack this deployment offers, and which you have.
+ *
+ * The shelf is the marketplace catalog, so a pack that ships with the build
+ * and one published to it read the same here.
+ * @summary List Decoration Packs
+ */
+export const listDecorationPacksApiV1MeDecorationPacksGet = (
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<DecorationPackListResponse>(
+    { url: `/api/v1/me/decoration-packs`, method: "GET", signal },
+    options
+  );
+};
+
+export const getListDecorationPacksApiV1MeDecorationPacksGetQueryKey = () => {
+  return [`/api/v1/me/decoration-packs`] as const;
+};
+
+export const getListDecorationPacksApiV1MeDecorationPacksGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listDecorationPacksApiV1MeDecorationPacksGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<
+      Awaited<ReturnType<typeof listDecorationPacksApiV1MeDecorationPacksGet>>,
+      TError,
+      TData
+    >
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListDecorationPacksApiV1MeDecorationPacksGetQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listDecorationPacksApiV1MeDecorationPacksGet>>
+  > = ({ signal }) => listDecorationPacksApiV1MeDecorationPacksGet(requestOptions, signal);
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listDecorationPacksApiV1MeDecorationPacksGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ListDecorationPacksApiV1MeDecorationPacksGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listDecorationPacksApiV1MeDecorationPacksGet>>
+>;
+export type ListDecorationPacksApiV1MeDecorationPacksGetQueryError = ErrorType<HTTPValidationError>;
+
+export function useListDecorationPacksApiV1MeDecorationPacksGet<
+  TData = Awaited<ReturnType<typeof listDecorationPacksApiV1MeDecorationPacksGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listDecorationPacksApiV1MeDecorationPacksGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listDecorationPacksApiV1MeDecorationPacksGet>>,
+          TError,
+          Awaited<ReturnType<typeof listDecorationPacksApiV1MeDecorationPacksGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListDecorationPacksApiV1MeDecorationPacksGet<
+  TData = Awaited<ReturnType<typeof listDecorationPacksApiV1MeDecorationPacksGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listDecorationPacksApiV1MeDecorationPacksGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listDecorationPacksApiV1MeDecorationPacksGet>>,
+          TError,
+          Awaited<ReturnType<typeof listDecorationPacksApiV1MeDecorationPacksGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListDecorationPacksApiV1MeDecorationPacksGet<
+  TData = Awaited<ReturnType<typeof listDecorationPacksApiV1MeDecorationPacksGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listDecorationPacksApiV1MeDecorationPacksGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary List Decoration Packs
+ */
+
+export function useListDecorationPacksApiV1MeDecorationPacksGet<
+  TData = Awaited<ReturnType<typeof listDecorationPacksApiV1MeDecorationPacksGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listDecorationPacksApiV1MeDecorationPacksGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getListDecorationPacksApiV1MeDecorationPacksGetQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * Take a pack, putting its decorations in your library.
+ *
+ * The catalog is read on the request path; the grant is written on the system
+ * engine, because a grant is issued rather than self-served — the request path
+ * holds no write verb on ``public.user_decorations``. What makes it the
+ * caller's own is that the only account it ever names is theirs.
+ * @summary Install Decoration Pack
+ */
+export const installDecorationPackApiV1MeDecorationPacksUidPost = (
+  uid: string,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<DecorationPack>(
+    { url: `/api/v1/me/decoration-packs/${uid}`, method: "POST", signal },
+    options
+  );
+};
+
+export const getInstallDecorationPackApiV1MeDecorationPacksUidPostMutationKey = () =>
+  ["installDecorationPackApiV1MeDecorationPacksUidPost"] as const;
+
+export const getInstallDecorationPackApiV1MeDecorationPacksUidPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof installDecorationPackApiV1MeDecorationPacksUidPost>>,
+    TError,
+    InstallDecorationPackApiV1MeDecorationPacksUidPostMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof installDecorationPackApiV1MeDecorationPacksUidPost>>,
+  TError,
+  InstallDecorationPackApiV1MeDecorationPacksUidPostMutationVariables,
+  TContext
+> => {
+  const mutationKey = getInstallDecorationPackApiV1MeDecorationPacksUidPostMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof installDecorationPackApiV1MeDecorationPacksUidPost>>,
+    InstallDecorationPackApiV1MeDecorationPacksUidPostMutationVariables
+  > = (props) => {
+    const { uid } = props ?? {};
+
+    return installDecorationPackApiV1MeDecorationPacksUidPost(uid, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type InstallDecorationPackApiV1MeDecorationPacksUidPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof installDecorationPackApiV1MeDecorationPacksUidPost>>
+>;
+
+export type InstallDecorationPackApiV1MeDecorationPacksUidPostMutationError =
+  ErrorType<HTTPValidationError>;
+export type InstallDecorationPackApiV1MeDecorationPacksUidPostMutationVariables = { uid: string };
+
+/**
+ * @summary Install Decoration Pack
+ */
+export const useInstallDecorationPackApiV1MeDecorationPacksUidPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof installDecorationPackApiV1MeDecorationPacksUidPost>>,
+      TError,
+      InstallDecorationPackApiV1MeDecorationPacksUidPostMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof installDecorationPackApiV1MeDecorationPacksUidPost>>,
+  TError,
+  InstallDecorationPackApiV1MeDecorationPacksUidPostMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getInstallDecorationPackApiV1MeDecorationPacksUidPostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Give a pack back, taking its decorations out of your library.
+ *
+ * Anything from it that was being worn comes off in the same transaction —
+ * a profile must not be left wearing what the account no longer has, and
+ * two commits would leave a window where it was.
+ * @summary Remove Decoration Pack
+ */
+export const removeDecorationPackApiV1MeDecorationPacksUidDelete = (
+  uid: string,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<DecorationPack>(
+    { url: `/api/v1/me/decoration-packs/${uid}`, method: "DELETE", signal },
+    options
+  );
+};
+
+export const getRemoveDecorationPackApiV1MeDecorationPacksUidDeleteMutationKey = () =>
+  ["removeDecorationPackApiV1MeDecorationPacksUidDelete"] as const;
+
+export const getRemoveDecorationPackApiV1MeDecorationPacksUidDeleteMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof removeDecorationPackApiV1MeDecorationPacksUidDelete>>,
+    TError,
+    RemoveDecorationPackApiV1MeDecorationPacksUidDeleteMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof removeDecorationPackApiV1MeDecorationPacksUidDelete>>,
+  TError,
+  RemoveDecorationPackApiV1MeDecorationPacksUidDeleteMutationVariables,
+  TContext
+> => {
+  const mutationKey = getRemoveDecorationPackApiV1MeDecorationPacksUidDeleteMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof removeDecorationPackApiV1MeDecorationPacksUidDelete>>,
+    RemoveDecorationPackApiV1MeDecorationPacksUidDeleteMutationVariables
+  > = (props) => {
+    const { uid } = props ?? {};
+
+    return removeDecorationPackApiV1MeDecorationPacksUidDelete(uid, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RemoveDecorationPackApiV1MeDecorationPacksUidDeleteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof removeDecorationPackApiV1MeDecorationPacksUidDelete>>
+>;
+
+export type RemoveDecorationPackApiV1MeDecorationPacksUidDeleteMutationError =
+  ErrorType<HTTPValidationError>;
+export type RemoveDecorationPackApiV1MeDecorationPacksUidDeleteMutationVariables = { uid: string };
+
+/**
+ * @summary Remove Decoration Pack
+ */
+export const useRemoveDecorationPackApiV1MeDecorationPacksUidDelete = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof removeDecorationPackApiV1MeDecorationPacksUidDelete>>,
+      TError,
+      RemoveDecorationPackApiV1MeDecorationPacksUidDeleteMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof removeDecorationPackApiV1MeDecorationPacksUidDelete>>,
+  TError,
+  RemoveDecorationPackApiV1MeDecorationPacksUidDeleteMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getRemoveDecorationPackApiV1MeDecorationPacksUidDeleteMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Pick the handle for an account that was assigned one.
+ *
+ * Every account created without a form — provisioned from SSO claims, or
+ * carried over from before handles existed — starts with one it did not
+ * choose, and picks its own here. Once picked, a handle changes only through
+ * a moderator.
+ * @summary Claim My Username
+ */
+export const claimMyUsernameApiV1MeUsernamePatch = (
+  usernameClaim: BodyType<UsernameClaim>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<UserRead>(
+    {
+      url: `/api/v1/me/username`,
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      data: usernameClaim,
+      signal,
+    },
+    options
+  );
+};
+
+export const getClaimMyUsernameApiV1MeUsernamePatchMutationKey = () =>
+  ["claimMyUsernameApiV1MeUsernamePatch"] as const;
+
+export const getClaimMyUsernameApiV1MeUsernamePatchMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof claimMyUsernameApiV1MeUsernamePatch>>,
+    TError,
+    ClaimMyUsernameApiV1MeUsernamePatchMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof claimMyUsernameApiV1MeUsernamePatch>>,
+  TError,
+  ClaimMyUsernameApiV1MeUsernamePatchMutationVariables,
+  TContext
+> => {
+  const mutationKey = getClaimMyUsernameApiV1MeUsernamePatchMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof claimMyUsernameApiV1MeUsernamePatch>>,
+    ClaimMyUsernameApiV1MeUsernamePatchMutationVariables
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return claimMyUsernameApiV1MeUsernamePatch(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ClaimMyUsernameApiV1MeUsernamePatchMutationResult = NonNullable<
+  Awaited<ReturnType<typeof claimMyUsernameApiV1MeUsernamePatch>>
+>;
+export type ClaimMyUsernameApiV1MeUsernamePatchMutationBody = BodyType<UsernameClaim>;
+export type ClaimMyUsernameApiV1MeUsernamePatchMutationError = ErrorType<HTTPValidationError>;
+export type ClaimMyUsernameApiV1MeUsernamePatchMutationVariables = {
+  data: BodyType<UsernameClaim>;
+};
+
+/**
+ * @summary Claim My Username
+ */
+export const useClaimMyUsernameApiV1MeUsernamePatch = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof claimMyUsernameApiV1MeUsernamePatch>>,
+      TError,
+      ClaimMyUsernameApiV1MeUsernamePatchMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof claimMyUsernameApiV1MeUsernamePatch>>,
+  TError,
+  ClaimMyUsernameApiV1MeUsernamePatchMutationVariables,
+  TContext
+> => {
+  return useMutation(getClaimMyUsernameApiV1MeUsernamePatchMutationOptions(options), queryClient);
+};
+/**
+ * Answer, once, whether this account is old enough for the open parts.
+ *
+ * Asked where somebody is about to join a community anyone on the deployment
+ * can find, and nowhere else. The answer lives on the account rather than per
+ * community: it is a fact about the person, and the second listed community
+ * they join asks nothing.
+ *
+ * **It gates the directory, not the deployment.** A community somebody was
+ * invited to is theirs and whoever runs it to answer for, so nothing here
+ * stands between them and it — an account that has never answered, or
+ * answered under age, keeps every private community it belongs to and
+ * everything in them.
+ *
+ * **The date is not kept.** It is read here, compared against the minimum, and
+ * goes out of scope with the request — there is no column for it, nothing logs
+ * it, and no audit record carries it. What is written is a timestamp saying
+ * the question was answered, which is what shows the deployment asked.
+ *
+ * The comparison is the server's because it is the one that decides. A client
+ * could work out the same answer, and a client's answer is not evidence.
+ *
+ * Saying it again is not an error and does not move the timestamp — the record
+ * is when they first answered.
+ *
+ * **An answer of "under age" also stands.** It is recorded — the fact, not the
+ * date — and the question is not asked again, because a question you can
+ * re-answer until it comes out right is not one. Putting it right takes
+ * somebody with ``users.age_unblock``, which is a support ticket rather than
+ * an appeal to the same form.
+ * @summary Confirm My Age
+ */
+export const confirmMyAgeApiV1MeAgeConfirmationPost = (
+  ageConfirmation: BodyType<AgeConfirmation>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<UserRead>(
+    {
+      url: `/api/v1/me/age-confirmation`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: ageConfirmation,
+      signal,
+    },
+    options
+  );
+};
+
+export const getConfirmMyAgeApiV1MeAgeConfirmationPostMutationKey = () =>
+  ["confirmMyAgeApiV1MeAgeConfirmationPost"] as const;
+
+export const getConfirmMyAgeApiV1MeAgeConfirmationPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof confirmMyAgeApiV1MeAgeConfirmationPost>>,
+    TError,
+    ConfirmMyAgeApiV1MeAgeConfirmationPostMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof confirmMyAgeApiV1MeAgeConfirmationPost>>,
+  TError,
+  ConfirmMyAgeApiV1MeAgeConfirmationPostMutationVariables,
+  TContext
+> => {
+  const mutationKey = getConfirmMyAgeApiV1MeAgeConfirmationPostMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof confirmMyAgeApiV1MeAgeConfirmationPost>>,
+    ConfirmMyAgeApiV1MeAgeConfirmationPostMutationVariables
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return confirmMyAgeApiV1MeAgeConfirmationPost(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ConfirmMyAgeApiV1MeAgeConfirmationPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof confirmMyAgeApiV1MeAgeConfirmationPost>>
+>;
+export type ConfirmMyAgeApiV1MeAgeConfirmationPostMutationBody = BodyType<AgeConfirmation>;
+export type ConfirmMyAgeApiV1MeAgeConfirmationPostMutationError = ErrorType<HTTPValidationError>;
+export type ConfirmMyAgeApiV1MeAgeConfirmationPostMutationVariables = {
+  data: BodyType<AgeConfirmation>;
+};
+
+/**
+ * @summary Confirm My Age
+ */
+export const useConfirmMyAgeApiV1MeAgeConfirmationPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof confirmMyAgeApiV1MeAgeConfirmationPost>>,
+      TError,
+      ConfirmMyAgeApiV1MeAgeConfirmationPostMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof confirmMyAgeApiV1MeAgeConfirmationPost>>,
+  TError,
+  ConfirmMyAgeApiV1MeAgeConfirmationPostMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getConfirmMyAgeApiV1MeAgeConfirmationPostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Record what this account allows to be kept in a browser.
+ *
+ * The browser it was answered in keeps its own copy — a visitor who has not
+ * signed in has no account to attach one to, and the answer is about that
+ * browser either way. This is what carries it to a browser that has never
+ * been asked, and carries a change of mind back to one that has.
+ *
+ * Replaces rather than appends: the question is what applies now. Sending it
+ * again with the same answer is a no-op apart from the stamp, which is what
+ * two browsers compare to tell whose answer is the later one.
+ * @summary Set Cookie Consent
+ */
+export const setCookieConsentApiV1MeCookieConsentPut = (
+  cookieConsentUpdate: BodyType<CookieConsentUpdate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<CookieConsentRead>(
+    {
+      url: `/api/v1/me/cookie-consent`,
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      data: cookieConsentUpdate,
+      signal,
+    },
+    options
+  );
+};
+
+export const getSetCookieConsentApiV1MeCookieConsentPutMutationKey = () =>
+  ["setCookieConsentApiV1MeCookieConsentPut"] as const;
+
+export const getSetCookieConsentApiV1MeCookieConsentPutMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setCookieConsentApiV1MeCookieConsentPut>>,
+    TError,
+    SetCookieConsentApiV1MeCookieConsentPutMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof setCookieConsentApiV1MeCookieConsentPut>>,
+  TError,
+  SetCookieConsentApiV1MeCookieConsentPutMutationVariables,
+  TContext
+> => {
+  const mutationKey = getSetCookieConsentApiV1MeCookieConsentPutMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof setCookieConsentApiV1MeCookieConsentPut>>,
+    SetCookieConsentApiV1MeCookieConsentPutMutationVariables
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return setCookieConsentApiV1MeCookieConsentPut(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SetCookieConsentApiV1MeCookieConsentPutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof setCookieConsentApiV1MeCookieConsentPut>>
+>;
+export type SetCookieConsentApiV1MeCookieConsentPutMutationBody = BodyType<CookieConsentUpdate>;
+export type SetCookieConsentApiV1MeCookieConsentPutMutationError = ErrorType<HTTPValidationError>;
+export type SetCookieConsentApiV1MeCookieConsentPutMutationVariables = {
+  data: BodyType<CookieConsentUpdate>;
+};
+
+/**
+ * @summary Set Cookie Consent
+ */
+export const useSetCookieConsentApiV1MeCookieConsentPut = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof setCookieConsentApiV1MeCookieConsentPut>>,
+      TError,
+      SetCookieConsentApiV1MeCookieConsentPutMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof setCookieConsentApiV1MeCookieConsentPut>>,
+  TError,
+  SetCookieConsentApiV1MeCookieConsentPutMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getSetCookieConsentApiV1MeCookieConsentPutMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Agree to this deployment's terms and privacy policy.
+ *
+ * For an account that never met the signup form — one an identity provider
+ * provisioned on first sign-in. The form's own notice is the agreement for
+ * everybody else, recorded as the account is created.
+ *
+ * Saying it again appends: the table records acceptances, not a state, and
+ * agreeing to a newer revision is a real event rather than a correction to
+ * an old one. The screen only appears while something is outstanding, so in
+ * practice this is written once.
+ *
+ * A deployment with no terms of its own has nothing to accept, so this
+ * answers 404 rather than writing an empty record.
+ * @summary Accept Legal Documents
+ */
+export const acceptLegalDocumentsApiV1MeLegalAcceptancePost = (
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<UserRead>(
+    { url: `/api/v1/me/legal-acceptance`, method: "POST", signal },
+    options
+  );
+};
+
+export const getAcceptLegalDocumentsApiV1MeLegalAcceptancePostMutationKey = () =>
+  ["acceptLegalDocumentsApiV1MeLegalAcceptancePost"] as const;
+
+export const getAcceptLegalDocumentsApiV1MeLegalAcceptancePostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof acceptLegalDocumentsApiV1MeLegalAcceptancePost>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof acceptLegalDocumentsApiV1MeLegalAcceptancePost>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = getAcceptLegalDocumentsApiV1MeLegalAcceptancePostMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof acceptLegalDocumentsApiV1MeLegalAcceptancePost>>,
+    void
+  > = () => {
+    return acceptLegalDocumentsApiV1MeLegalAcceptancePost(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AcceptLegalDocumentsApiV1MeLegalAcceptancePostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof acceptLegalDocumentsApiV1MeLegalAcceptancePost>>
+>;
+
+export type AcceptLegalDocumentsApiV1MeLegalAcceptancePostMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Accept Legal Documents
+ */
+export const useAcceptLegalDocumentsApiV1MeLegalAcceptancePost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof acceptLegalDocumentsApiV1MeLegalAcceptancePost>>,
+      TError,
+      void,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof acceptLegalDocumentsApiV1MeLegalAcceptancePost>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(
+    getAcceptLegalDocumentsApiV1MeLegalAcceptancePostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Every address this account holds.
+ *
+ * On the system engine: ``user_emails`` carries no request-path grants,
+ * because resolving an address happens before anybody is authenticated.
+ * @summary List My Addresses
+ */
+export const listMyAddressesApiV1MeEmailsGet = (
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<UserEmailListResponse>(
+    { url: `/api/v1/me/emails`, method: "GET", signal },
+    options
+  );
+};
+
+export const getListMyAddressesApiV1MeEmailsGetQueryKey = () => {
+  return [`/api/v1/me/emails`] as const;
+};
+
+export const getListMyAddressesApiV1MeEmailsGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listMyAddressesApiV1MeEmailsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<Awaited<ReturnType<typeof listMyAddressesApiV1MeEmailsGet>>, TError, TData>
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListMyAddressesApiV1MeEmailsGetQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listMyAddressesApiV1MeEmailsGet>>> = ({
+    signal,
+  }) => listMyAddressesApiV1MeEmailsGet(requestOptions, signal);
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listMyAddressesApiV1MeEmailsGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ListMyAddressesApiV1MeEmailsGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listMyAddressesApiV1MeEmailsGet>>
+>;
+export type ListMyAddressesApiV1MeEmailsGetQueryError = ErrorType<HTTPValidationError>;
+
+export function useListMyAddressesApiV1MeEmailsGet<
+  TData = Awaited<ReturnType<typeof listMyAddressesApiV1MeEmailsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listMyAddressesApiV1MeEmailsGet>>, TError, TData>
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listMyAddressesApiV1MeEmailsGet>>,
+          TError,
+          Awaited<ReturnType<typeof listMyAddressesApiV1MeEmailsGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListMyAddressesApiV1MeEmailsGet<
+  TData = Awaited<ReturnType<typeof listMyAddressesApiV1MeEmailsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listMyAddressesApiV1MeEmailsGet>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listMyAddressesApiV1MeEmailsGet>>,
+          TError,
+          Awaited<ReturnType<typeof listMyAddressesApiV1MeEmailsGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListMyAddressesApiV1MeEmailsGet<
+  TData = Awaited<ReturnType<typeof listMyAddressesApiV1MeEmailsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listMyAddressesApiV1MeEmailsGet>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary List My Addresses
+ */
+
+export function useListMyAddressesApiV1MeEmailsGet<
+  TData = Awaited<ReturnType<typeof listMyAddressesApiV1MeEmailsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listMyAddressesApiV1MeEmailsGet>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getListMyAddressesApiV1MeEmailsGetQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * Start holding another address, and write to it to prove it.
+ *
+ * The answer is the same whoever holds the address already. What differs is
+ * where the mail goes: a free address gets a link to confirm it, and one that
+ * is taken gets nothing.
+ * @summary Add My Address
+ */
+export const addMyAddressApiV1MeEmailsPost = (
+  userEmailCreate: BodyType<UserEmailCreate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<VerificationSendResponse>(
+    {
+      url: `/api/v1/me/emails`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: userEmailCreate,
+      signal,
+    },
+    options
+  );
+};
+
+export const getAddMyAddressApiV1MeEmailsPostMutationKey = () =>
+  ["addMyAddressApiV1MeEmailsPost"] as const;
+
+export const getAddMyAddressApiV1MeEmailsPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof addMyAddressApiV1MeEmailsPost>>,
+    TError,
+    AddMyAddressApiV1MeEmailsPostMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof addMyAddressApiV1MeEmailsPost>>,
+  TError,
+  AddMyAddressApiV1MeEmailsPostMutationVariables,
+  TContext
+> => {
+  const mutationKey = getAddMyAddressApiV1MeEmailsPostMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof addMyAddressApiV1MeEmailsPost>>,
+    AddMyAddressApiV1MeEmailsPostMutationVariables
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return addMyAddressApiV1MeEmailsPost(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AddMyAddressApiV1MeEmailsPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof addMyAddressApiV1MeEmailsPost>>
+>;
+export type AddMyAddressApiV1MeEmailsPostMutationBody = BodyType<UserEmailCreate>;
+export type AddMyAddressApiV1MeEmailsPostMutationError = ErrorType<HTTPValidationError>;
+export type AddMyAddressApiV1MeEmailsPostMutationVariables = { data: BodyType<UserEmailCreate> };
+
+/**
+ * @summary Add My Address
+ */
+export const useAddMyAddressApiV1MeEmailsPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof addMyAddressApiV1MeEmailsPost>>,
+      TError,
+      AddMyAddressApiV1MeEmailsPostMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof addMyAddressApiV1MeEmailsPost>>,
+  TError,
+  AddMyAddressApiV1MeEmailsPostMutationVariables,
+  TContext
+> => {
+  return useMutation(getAddMyAddressApiV1MeEmailsPostMutationOptions(options), queryClient);
+};
+/**
+ * @summary Remove My Address
+ */
+export const removeMyAddressApiV1MeEmailsAddressIdDelete = (
+  addressId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<void>(
+    { url: `/api/v1/me/emails/${addressId}`, method: "DELETE", signal },
+    options
+  );
+};
+
+export const getRemoveMyAddressApiV1MeEmailsAddressIdDeleteMutationKey = () =>
+  ["removeMyAddressApiV1MeEmailsAddressIdDelete"] as const;
+
+export const getRemoveMyAddressApiV1MeEmailsAddressIdDeleteMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof removeMyAddressApiV1MeEmailsAddressIdDelete>>,
+    TError,
+    RemoveMyAddressApiV1MeEmailsAddressIdDeleteMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof removeMyAddressApiV1MeEmailsAddressIdDelete>>,
+  TError,
+  RemoveMyAddressApiV1MeEmailsAddressIdDeleteMutationVariables,
+  TContext
+> => {
+  const mutationKey = getRemoveMyAddressApiV1MeEmailsAddressIdDeleteMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof removeMyAddressApiV1MeEmailsAddressIdDelete>>,
+    RemoveMyAddressApiV1MeEmailsAddressIdDeleteMutationVariables
+  > = (props) => {
+    const { addressId } = props ?? {};
+
+    return removeMyAddressApiV1MeEmailsAddressIdDelete(addressId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RemoveMyAddressApiV1MeEmailsAddressIdDeleteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof removeMyAddressApiV1MeEmailsAddressIdDelete>>
+>;
+
+export type RemoveMyAddressApiV1MeEmailsAddressIdDeleteMutationError =
+  ErrorType<HTTPValidationError>;
+export type RemoveMyAddressApiV1MeEmailsAddressIdDeleteMutationVariables = { addressId: number };
+
+/**
+ * @summary Remove My Address
+ */
+export const useRemoveMyAddressApiV1MeEmailsAddressIdDelete = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof removeMyAddressApiV1MeEmailsAddressIdDelete>>,
+      TError,
+      RemoveMyAddressApiV1MeEmailsAddressIdDeleteMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof removeMyAddressApiV1MeEmailsAddressIdDelete>>,
+  TError,
+  RemoveMyAddressApiV1MeEmailsAddressIdDeleteMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getRemoveMyAddressApiV1MeEmailsAddressIdDeleteMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Move where account mail goes.
+ * @summary Make My Address Primary
+ */
+export const makeMyAddressPrimaryApiV1MeEmailsAddressIdPrimaryPut = (
+  addressId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<UserEmailRead>(
+    { url: `/api/v1/me/emails/${addressId}/primary`, method: "PUT", signal },
+    options
+  );
+};
+
+export const getMakeMyAddressPrimaryApiV1MeEmailsAddressIdPrimaryPutMutationKey = () =>
+  ["makeMyAddressPrimaryApiV1MeEmailsAddressIdPrimaryPut"] as const;
+
+export const getMakeMyAddressPrimaryApiV1MeEmailsAddressIdPrimaryPutMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof makeMyAddressPrimaryApiV1MeEmailsAddressIdPrimaryPut>>,
+    TError,
+    MakeMyAddressPrimaryApiV1MeEmailsAddressIdPrimaryPutMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof makeMyAddressPrimaryApiV1MeEmailsAddressIdPrimaryPut>>,
+  TError,
+  MakeMyAddressPrimaryApiV1MeEmailsAddressIdPrimaryPutMutationVariables,
+  TContext
+> => {
+  const mutationKey = getMakeMyAddressPrimaryApiV1MeEmailsAddressIdPrimaryPutMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof makeMyAddressPrimaryApiV1MeEmailsAddressIdPrimaryPut>>,
+    MakeMyAddressPrimaryApiV1MeEmailsAddressIdPrimaryPutMutationVariables
+  > = (props) => {
+    const { addressId } = props ?? {};
+
+    return makeMyAddressPrimaryApiV1MeEmailsAddressIdPrimaryPut(addressId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type MakeMyAddressPrimaryApiV1MeEmailsAddressIdPrimaryPutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof makeMyAddressPrimaryApiV1MeEmailsAddressIdPrimaryPut>>
+>;
+
+export type MakeMyAddressPrimaryApiV1MeEmailsAddressIdPrimaryPutMutationError =
+  ErrorType<HTTPValidationError>;
+export type MakeMyAddressPrimaryApiV1MeEmailsAddressIdPrimaryPutMutationVariables = {
+  addressId: number;
+};
+
+/**
+ * @summary Make My Address Primary
+ */
+export const useMakeMyAddressPrimaryApiV1MeEmailsAddressIdPrimaryPut = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof makeMyAddressPrimaryApiV1MeEmailsAddressIdPrimaryPut>>,
+      TError,
+      MakeMyAddressPrimaryApiV1MeEmailsAddressIdPrimaryPutMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof makeMyAddressPrimaryApiV1MeEmailsAddressIdPrimaryPut>>,
+  TError,
+  MakeMyAddressPrimaryApiV1MeEmailsAddressIdPrimaryPutMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getMakeMyAddressPrimaryApiV1MeEmailsAddressIdPrimaryPutMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Check if the current user can be deleted and what blockers exist.
+ * @summary Check Deletion Eligibility
+ */
+export const checkDeletionEligibilityApiV1MeDeletionEligibilityGet = (
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<DeletionEligibilityResponse>(
+    { url: `/api/v1/me/deletion-eligibility`, method: "GET", signal },
+    options
+  );
+};
+
+export const getCheckDeletionEligibilityApiV1MeDeletionEligibilityGetQueryKey = () => {
+  return [`/api/v1/me/deletion-eligibility`] as const;
+};
+
+export const getCheckDeletionEligibilityApiV1MeDeletionEligibilityGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof checkDeletionEligibilityApiV1MeDeletionEligibilityGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<
+      Awaited<ReturnType<typeof checkDeletionEligibilityApiV1MeDeletionEligibilityGet>>,
+      TError,
+      TData
+    >
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getCheckDeletionEligibilityApiV1MeDeletionEligibilityGetQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof checkDeletionEligibilityApiV1MeDeletionEligibilityGet>>
+  > = ({ signal }) => checkDeletionEligibilityApiV1MeDeletionEligibilityGet(requestOptions, signal);
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof checkDeletionEligibilityApiV1MeDeletionEligibilityGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type CheckDeletionEligibilityApiV1MeDeletionEligibilityGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof checkDeletionEligibilityApiV1MeDeletionEligibilityGet>>
+>;
+export type CheckDeletionEligibilityApiV1MeDeletionEligibilityGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useCheckDeletionEligibilityApiV1MeDeletionEligibilityGet<
+  TData = Awaited<ReturnType<typeof checkDeletionEligibilityApiV1MeDeletionEligibilityGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof checkDeletionEligibilityApiV1MeDeletionEligibilityGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof checkDeletionEligibilityApiV1MeDeletionEligibilityGet>>,
+          TError,
+          Awaited<ReturnType<typeof checkDeletionEligibilityApiV1MeDeletionEligibilityGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useCheckDeletionEligibilityApiV1MeDeletionEligibilityGet<
+  TData = Awaited<ReturnType<typeof checkDeletionEligibilityApiV1MeDeletionEligibilityGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof checkDeletionEligibilityApiV1MeDeletionEligibilityGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof checkDeletionEligibilityApiV1MeDeletionEligibilityGet>>,
+          TError,
+          Awaited<ReturnType<typeof checkDeletionEligibilityApiV1MeDeletionEligibilityGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useCheckDeletionEligibilityApiV1MeDeletionEligibilityGet<
+  TData = Awaited<ReturnType<typeof checkDeletionEligibilityApiV1MeDeletionEligibilityGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof checkDeletionEligibilityApiV1MeDeletionEligibilityGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Check Deletion Eligibility
+ */
+
+export function useCheckDeletionEligibilityApiV1MeDeletionEligibilityGet<
+  TData = Awaited<ReturnType<typeof checkDeletionEligibilityApiV1MeDeletionEligibilityGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof checkDeletionEligibilityApiV1MeDeletionEligibilityGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions =
+    getCheckDeletionEligibilityApiV1MeDeletionEligibilityGetQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * Delete or deactivate the current user's account.
+ * @summary Delete Own Account
+ */
+export const deleteOwnAccountApiV1MeDeleteAccountPost = (
+  accountDeletionRequest: BodyType<AccountDeletionRequest>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<AccountDeletionResponse>(
+    {
+      url: `/api/v1/me/delete-account`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: accountDeletionRequest,
+      signal,
+    },
+    options
+  );
+};
+
+export const getDeleteOwnAccountApiV1MeDeleteAccountPostMutationKey = () =>
+  ["deleteOwnAccountApiV1MeDeleteAccountPost"] as const;
+
+export const getDeleteOwnAccountApiV1MeDeleteAccountPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteOwnAccountApiV1MeDeleteAccountPost>>,
+    TError,
+    DeleteOwnAccountApiV1MeDeleteAccountPostMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteOwnAccountApiV1MeDeleteAccountPost>>,
+  TError,
+  DeleteOwnAccountApiV1MeDeleteAccountPostMutationVariables,
+  TContext
+> => {
+  const mutationKey = getDeleteOwnAccountApiV1MeDeleteAccountPostMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteOwnAccountApiV1MeDeleteAccountPost>>,
+    DeleteOwnAccountApiV1MeDeleteAccountPostMutationVariables
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return deleteOwnAccountApiV1MeDeleteAccountPost(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteOwnAccountApiV1MeDeleteAccountPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteOwnAccountApiV1MeDeleteAccountPost>>
+>;
+export type DeleteOwnAccountApiV1MeDeleteAccountPostMutationBody = BodyType<AccountDeletionRequest>;
+export type DeleteOwnAccountApiV1MeDeleteAccountPostMutationError = ErrorType<HTTPValidationError>;
+export type DeleteOwnAccountApiV1MeDeleteAccountPostMutationVariables = {
+  data: BodyType<AccountDeletionRequest>;
+};
+
+/**
+ * @summary Delete Own Account
+ */
+export const useDeleteOwnAccountApiV1MeDeleteAccountPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof deleteOwnAccountApiV1MeDeleteAccountPost>>,
+      TError,
+      DeleteOwnAccountApiV1MeDeleteAccountPostMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof deleteOwnAccountApiV1MeDeleteAccountPost>>,
+  TError,
+  DeleteOwnAccountApiV1MeDeleteAccountPostMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getDeleteOwnAccountApiV1MeDeleteAccountPostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * List all API keys for the current user.
+ * @summary List My Api Keys
+ */
+export const listMyApiKeysApiV1MeApiKeysGet = (
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<ApiKeyListResponse>(
+    { url: `/api/v1/me/api-keys`, method: "GET", signal },
+    options
+  );
+};
+
+export const getListMyApiKeysApiV1MeApiKeysGetQueryKey = () => {
+  return [`/api/v1/me/api-keys`] as const;
+};
+
+export const getListMyApiKeysApiV1MeApiKeysGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listMyApiKeysApiV1MeApiKeysGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<Awaited<ReturnType<typeof listMyApiKeysApiV1MeApiKeysGet>>, TError, TData>
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListMyApiKeysApiV1MeApiKeysGetQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listMyApiKeysApiV1MeApiKeysGet>>> = ({
+    signal,
+  }) => listMyApiKeysApiV1MeApiKeysGet(requestOptions, signal);
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listMyApiKeysApiV1MeApiKeysGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ListMyApiKeysApiV1MeApiKeysGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listMyApiKeysApiV1MeApiKeysGet>>
+>;
+export type ListMyApiKeysApiV1MeApiKeysGetQueryError = ErrorType<HTTPValidationError>;
+
+export function useListMyApiKeysApiV1MeApiKeysGet<
+  TData = Awaited<ReturnType<typeof listMyApiKeysApiV1MeApiKeysGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listMyApiKeysApiV1MeApiKeysGet>>, TError, TData>
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listMyApiKeysApiV1MeApiKeysGet>>,
+          TError,
+          Awaited<ReturnType<typeof listMyApiKeysApiV1MeApiKeysGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListMyApiKeysApiV1MeApiKeysGet<
+  TData = Awaited<ReturnType<typeof listMyApiKeysApiV1MeApiKeysGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listMyApiKeysApiV1MeApiKeysGet>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listMyApiKeysApiV1MeApiKeysGet>>,
+          TError,
+          Awaited<ReturnType<typeof listMyApiKeysApiV1MeApiKeysGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListMyApiKeysApiV1MeApiKeysGet<
+  TData = Awaited<ReturnType<typeof listMyApiKeysApiV1MeApiKeysGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listMyApiKeysApiV1MeApiKeysGet>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary List My Api Keys
+ */
+
+export function useListMyApiKeysApiV1MeApiKeysGet<
+  TData = Awaited<ReturnType<typeof listMyApiKeysApiV1MeApiKeysGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listMyApiKeysApiV1MeApiKeysGet>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getListMyApiKeysApiV1MeApiKeysGetQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * Create a new API key for the current user.
+ * @summary Create My Api Key
+ */
+export const createMyApiKeyApiV1MeApiKeysPost = (
+  apiKeyCreateRequest: BodyType<ApiKeyCreateRequest>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<ApiKeyCreateResponse>(
+    {
+      url: `/api/v1/me/api-keys`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: apiKeyCreateRequest,
+      signal,
+    },
+    options
+  );
+};
+
+export const getCreateMyApiKeyApiV1MeApiKeysPostMutationKey = () =>
+  ["createMyApiKeyApiV1MeApiKeysPost"] as const;
+
+export const getCreateMyApiKeyApiV1MeApiKeysPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createMyApiKeyApiV1MeApiKeysPost>>,
+    TError,
+    CreateMyApiKeyApiV1MeApiKeysPostMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createMyApiKeyApiV1MeApiKeysPost>>,
+  TError,
+  CreateMyApiKeyApiV1MeApiKeysPostMutationVariables,
+  TContext
+> => {
+  const mutationKey = getCreateMyApiKeyApiV1MeApiKeysPostMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createMyApiKeyApiV1MeApiKeysPost>>,
+    CreateMyApiKeyApiV1MeApiKeysPostMutationVariables
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createMyApiKeyApiV1MeApiKeysPost(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateMyApiKeyApiV1MeApiKeysPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createMyApiKeyApiV1MeApiKeysPost>>
+>;
+export type CreateMyApiKeyApiV1MeApiKeysPostMutationBody = BodyType<ApiKeyCreateRequest>;
+export type CreateMyApiKeyApiV1MeApiKeysPostMutationError = ErrorType<HTTPValidationError>;
+export type CreateMyApiKeyApiV1MeApiKeysPostMutationVariables = {
+  data: BodyType<ApiKeyCreateRequest>;
+};
+
+/**
+ * @summary Create My Api Key
+ */
+export const useCreateMyApiKeyApiV1MeApiKeysPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof createMyApiKeyApiV1MeApiKeysPost>>,
+      TError,
+      CreateMyApiKeyApiV1MeApiKeysPostMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof createMyApiKeyApiV1MeApiKeysPost>>,
+  TError,
+  CreateMyApiKeyApiV1MeApiKeysPostMutationVariables,
+  TContext
+> => {
+  return useMutation(getCreateMyApiKeyApiV1MeApiKeysPostMutationOptions(options), queryClient);
+};
+/**
+ * Delete an API key for the current user.
+ * @summary Delete My Api Key
+ */
+export const deleteMyApiKeyApiV1MeApiKeysApiKeyIdDelete = (
+  apiKeyId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<void>(
+    { url: `/api/v1/me/api-keys/${apiKeyId}`, method: "DELETE", signal },
+    options
+  );
+};
+
+export const getDeleteMyApiKeyApiV1MeApiKeysApiKeyIdDeleteMutationKey = () =>
+  ["deleteMyApiKeyApiV1MeApiKeysApiKeyIdDelete"] as const;
+
+export const getDeleteMyApiKeyApiV1MeApiKeysApiKeyIdDeleteMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteMyApiKeyApiV1MeApiKeysApiKeyIdDelete>>,
+    TError,
+    DeleteMyApiKeyApiV1MeApiKeysApiKeyIdDeleteMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteMyApiKeyApiV1MeApiKeysApiKeyIdDelete>>,
+  TError,
+  DeleteMyApiKeyApiV1MeApiKeysApiKeyIdDeleteMutationVariables,
+  TContext
+> => {
+  const mutationKey = getDeleteMyApiKeyApiV1MeApiKeysApiKeyIdDeleteMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteMyApiKeyApiV1MeApiKeysApiKeyIdDelete>>,
+    DeleteMyApiKeyApiV1MeApiKeysApiKeyIdDeleteMutationVariables
+  > = (props) => {
+    const { apiKeyId } = props ?? {};
+
+    return deleteMyApiKeyApiV1MeApiKeysApiKeyIdDelete(apiKeyId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteMyApiKeyApiV1MeApiKeysApiKeyIdDeleteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteMyApiKeyApiV1MeApiKeysApiKeyIdDelete>>
+>;
+
+export type DeleteMyApiKeyApiV1MeApiKeysApiKeyIdDeleteMutationError =
+  ErrorType<HTTPValidationError>;
+export type DeleteMyApiKeyApiV1MeApiKeysApiKeyIdDeleteMutationVariables = { apiKeyId: number };
+
+/**
+ * @summary Delete My Api Key
+ */
+export const useDeleteMyApiKeyApiV1MeApiKeysApiKeyIdDelete = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof deleteMyApiKeyApiV1MeApiKeysApiKeyIdDelete>>,
+      TError,
+      DeleteMyApiKeyApiV1MeApiKeysApiKeyIdDeleteMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof deleteMyApiKeyApiV1MeApiKeysApiKeyIdDelete>>,
+  TError,
+  DeleteMyApiKeyApiV1MeApiKeysApiKeyIdDeleteMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getDeleteMyApiKeyApiV1MeApiKeysApiKeyIdDeleteMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Replace the caller's profile picture.
+ *
+ * Multipart rather than a base64 field on ``PATCH /me``: sending the
+ * image inside JSON is the thing this endpoint exists to stop. The body is
+ * read under the cap so an oversized upload is refused rather than buffered
+ * whole, and the format and dimensions are read from the header — nothing
+ * here decodes the image.
+ *
+ * Runs on the request-path session, where the row policies allow the caller
+ * to write their own avatar and no other.
+ * @summary Upload My Avatar
+ */
+export const uploadMyAvatarApiV1MeAvatarPut = (
+  bodyUploadMyAvatarApiV1MeAvatarPut: BodyType<BodyUploadMyAvatarApiV1MeAvatarPut>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  const formData = new FormData();
+  formData.append(`file`, bodyUploadMyAvatarApiV1MeAvatarPut.file);
+
+  return apiMutator<UserRead>(
+    {
+      url: `/api/v1/me/avatar`,
+      method: "PUT",
+      headers: { "Content-Type": "multipart/form-data" },
+      data: formData,
+      signal,
+    },
+    options
+  );
+};
+
+export const getUploadMyAvatarApiV1MeAvatarPutMutationKey = () =>
+  ["uploadMyAvatarApiV1MeAvatarPut"] as const;
+
+export const getUploadMyAvatarApiV1MeAvatarPutMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof uploadMyAvatarApiV1MeAvatarPut>>,
+    TError,
+    UploadMyAvatarApiV1MeAvatarPutMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof uploadMyAvatarApiV1MeAvatarPut>>,
+  TError,
+  UploadMyAvatarApiV1MeAvatarPutMutationVariables,
+  TContext
+> => {
+  const mutationKey = getUploadMyAvatarApiV1MeAvatarPutMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof uploadMyAvatarApiV1MeAvatarPut>>,
+    UploadMyAvatarApiV1MeAvatarPutMutationVariables
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return uploadMyAvatarApiV1MeAvatarPut(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UploadMyAvatarApiV1MeAvatarPutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof uploadMyAvatarApiV1MeAvatarPut>>
+>;
+export type UploadMyAvatarApiV1MeAvatarPutMutationBody =
+  BodyType<BodyUploadMyAvatarApiV1MeAvatarPut>;
+export type UploadMyAvatarApiV1MeAvatarPutMutationError = ErrorType<HTTPValidationError>;
+export type UploadMyAvatarApiV1MeAvatarPutMutationVariables = {
+  data: BodyType<BodyUploadMyAvatarApiV1MeAvatarPut>;
+};
+
+/**
+ * @summary Upload My Avatar
+ */
+export const useUploadMyAvatarApiV1MeAvatarPut = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof uploadMyAvatarApiV1MeAvatarPut>>,
+      TError,
+      UploadMyAvatarApiV1MeAvatarPutMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof uploadMyAvatarApiV1MeAvatarPut>>,
+  TError,
+  UploadMyAvatarApiV1MeAvatarPutMutationVariables,
+  TContext
+> => {
+  return useMutation(getUploadMyAvatarApiV1MeAvatarPutMutationOptions(options), queryClient);
+};
+/**
+ * Remove the caller's profile picture.
+ * @summary Delete My Avatar
+ */
+export const deleteMyAvatarApiV1MeAvatarDelete = (
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<void>({ url: `/api/v1/me/avatar`, method: "DELETE", signal }, options);
+};
+
+export const getDeleteMyAvatarApiV1MeAvatarDeleteMutationKey = () =>
+  ["deleteMyAvatarApiV1MeAvatarDelete"] as const;
+
+export const getDeleteMyAvatarApiV1MeAvatarDeleteMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteMyAvatarApiV1MeAvatarDelete>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteMyAvatarApiV1MeAvatarDelete>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = getDeleteMyAvatarApiV1MeAvatarDeleteMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteMyAvatarApiV1MeAvatarDelete>>,
+    void
+  > = () => {
+    return deleteMyAvatarApiV1MeAvatarDelete(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteMyAvatarApiV1MeAvatarDeleteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteMyAvatarApiV1MeAvatarDelete>>
+>;
+
+export type DeleteMyAvatarApiV1MeAvatarDeleteMutationError = ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Delete My Avatar
+ */
+export const useDeleteMyAvatarApiV1MeAvatarDelete = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof deleteMyAvatarApiV1MeAvatarDelete>>,
+      TError,
+      void,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof deleteMyAvatarApiV1MeAvatarDelete>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(getDeleteMyAvatarApiV1MeAvatarDeleteMutationOptions(options), queryClient);
+};

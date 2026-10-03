@@ -121,7 +121,7 @@ async def test_an_account_that_met_no_form_is_asked(
     nobody at a keyboard to show a notice to."""
     actor = await acting_user()
 
-    me = await client.get("/api/v1/users/me", headers=actor.headers)
+    me = await client.get("/api/v1/me", headers=actor.headers)
 
     assert me.status_code == 200
     assert me.json()["legal_acceptance_required"] is True
@@ -133,7 +133,7 @@ async def test_nobody_is_asked_on_a_deployment_with_no_terms(
     monkeypatch.setattr(settings, "BILLING_URL", None)
     actor = await acting_user()
 
-    me = await client.get("/api/v1/users/me", headers=actor.headers)
+    me = await client.get("/api/v1/me", headers=actor.headers)
 
     assert me.json()["legal_acceptance_required"] is False
 
@@ -143,9 +143,7 @@ async def test_accepting_settles_it(
 ):
     actor = await acting_user()
 
-    accepted = await client.post(
-        "/api/v1/users/me/legal-acceptance", headers=actor.headers
-    )
+    accepted = await client.post("/api/v1/me/legal-acceptance", headers=actor.headers)
 
     assert accepted.status_code == 200
     assert accepted.json()["legal_acceptance_required"] is False
@@ -155,7 +153,7 @@ async def test_accepting_settles_it(
         ("privacy", "1.4", "b" * 64),
     ]
 
-    me = await client.get("/api/v1/users/me", headers=actor.headers)
+    me = await client.get("/api/v1/me", headers=actor.headers)
     assert me.json()["legal_acceptance_required"] is False
 
 
@@ -166,8 +164,8 @@ async def test_accepting_twice_does_not_write_it_twice(
     is a double-submit rather than consent to a new revision."""
     actor = await acting_user()
 
-    await client.post("/api/v1/users/me/legal-acceptance", headers=actor.headers)
-    await client.post("/api/v1/users/me/legal-acceptance", headers=actor.headers)
+    await client.post("/api/v1/me/legal-acceptance", headers=actor.headers)
+    await client.post("/api/v1/me/legal-acceptance", headers=actor.headers)
 
     rows = await _rows(session, actor.user.id)
     assert [r.document for r in rows] == ["terms", "privacy"]
@@ -179,9 +177,7 @@ async def test_there_is_nothing_to_accept_on_a_self_hosted_deployment(
     monkeypatch.setattr(settings, "BILLING_URL", None)
     actor = await acting_user()
 
-    response = await client.post(
-        "/api/v1/users/me/legal-acceptance", headers=actor.headers
-    )
+    response = await client.post("/api/v1/me/legal-acceptance", headers=actor.headers)
 
     assert response.status_code == 404
     assert response.json()["detail"] == LegalMessages.NOT_CONFIGURED
@@ -201,8 +197,8 @@ async def test_a_consent_record_is_one_account_s_own(
 
     mine = await acting_user()
     theirs = await acting_user()
-    await client.post("/api/v1/users/me/legal-acceptance", headers=mine.headers)
-    await client.post("/api/v1/users/me/legal-acceptance", headers=theirs.headers)
+    await client.post("/api/v1/me/legal-acceptance", headers=mine.headers)
+    await client.post("/api/v1/me/legal-acceptance", headers=theirs.headers)
 
     scoped = await role_session("app_user")
     await set_rls_context(

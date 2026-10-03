@@ -56,7 +56,7 @@ beforeEach(() => {
 describe("splitting the cache by community", () => {
   it("writes one blob per community plus one for everything else", async () => {
     const p = build(store, () => ["platform"]);
-    await p.persistClient(client(["/api/v1/c/3/tasks", "/api/v1/c/5/tasks", "/api/v1/users/me"]));
+    await p.persistClient(client(["/api/v1/c/3/tasks", "/api/v1/c/5/tasks", "/api/v1/me"]));
 
     expect([...store.data.keys()].sort()).toEqual([
       "react-query:g3",
@@ -68,15 +68,13 @@ describe("splitting the cache by community", () => {
 
   it("restores only the shards this launch asked for", async () => {
     const writer = build(store, () => ["platform"]);
-    await writer.persistClient(
-      client(["/api/v1/c/3/tasks", "/api/v1/c/5/tasks", "/api/v1/users/me"])
-    );
+    await writer.persistClient(client(["/api/v1/c/3/tasks", "/api/v1/c/5/tasks", "/api/v1/me"]));
 
     const reader = build(store, () => ["platform", "g3"]);
     const restored = await reader.restoreClient();
 
     const keys = restored?.clientState.queries.map((q) => q.queryKey[0]).sort();
-    expect(keys).toEqual(["/api/v1/c/3/tasks", "/api/v1/users/me"]);
+    expect(keys).toEqual(["/api/v1/c/3/tasks", "/api/v1/me"]);
     // g5 is untouched on disk — not wanted is not the same as not kept.
     expect(store.data.has("react-query:g5")).toBe(true);
   });
@@ -106,25 +104,25 @@ describe("splitting the cache by community", () => {
 describe("cleaning up after itself", () => {
   it("deletes a shard that was restored and is now empty", async () => {
     const writer = build(store, () => ["platform"]);
-    await writer.persistClient(client(["/api/v1/c/3/tasks", "/api/v1/users/me"]));
+    await writer.persistClient(client(["/api/v1/c/3/tasks", "/api/v1/me"]));
 
     const p = build(store, () => ["platform", "g3"]);
     await p.restoreClient();
     // The user left g3, so its queries are gone from the client.
-    await p.persistClient(client(["/api/v1/users/me"]));
+    await p.persistClient(client(["/api/v1/me"]));
 
     expect(store.data.has("react-query:g3")).toBe(false);
   });
 
   it("leaves a shard alone when this session never restored it", async () => {
     const writer = build(store, () => ["platform"]);
-    await writer.persistClient(client(["/api/v1/c/3/tasks", "/api/v1/users/me"]));
+    await writer.persistClient(client(["/api/v1/c/3/tasks", "/api/v1/me"]));
 
     // A launch that only wants the platform shard must not read g3's absence
     // from the client as "g3 was emptied".
     const p = build(store, () => ["platform"]);
     await p.restoreClient();
-    await p.persistClient(client(["/api/v1/users/me"]));
+    await p.persistClient(client(["/api/v1/me"]));
 
     expect(store.data.has("react-query:g3")).toBe(true);
   });
@@ -132,7 +130,7 @@ describe("cleaning up after itself", () => {
   it("sweeps a shard past the window even though nothing opened it", async () => {
     vi.useFakeTimers();
     const writer = build(store, () => ["platform"]);
-    await writer.persistClient(client(["/api/v1/c/3/tasks", "/api/v1/users/me"]));
+    await writer.persistClient(client(["/api/v1/c/3/tasks", "/api/v1/me"]));
 
     vi.advanceTimersByTime(MAX_AGE + 1000);
 
@@ -171,7 +169,7 @@ describe("cleaning up after itself", () => {
 
   it("removes every shard and the index when the cache is purged", async () => {
     const p = build(store, () => ["platform"]);
-    await p.persistClient(client(["/api/v1/c/3/tasks", "/api/v1/c/5/tasks", "/api/v1/users/me"]));
+    await p.persistClient(client(["/api/v1/c/3/tasks", "/api/v1/c/5/tasks", "/api/v1/me"]));
 
     await p.removeClient();
 
@@ -192,7 +190,7 @@ describe("cleaning up after itself", () => {
 
   it("prunes communities the membership list no longer names", async () => {
     const p = build(store, () => ["platform"]);
-    await p.persistClient(client(["/api/v1/c/3/tasks", "/api/v1/c/5/tasks", "/api/v1/users/me"]));
+    await p.persistClient(client(["/api/v1/c/3/tasks", "/api/v1/c/5/tasks", "/api/v1/me"]));
 
     // The server says the user is only in g3 now.
     await p.retainShards((shard) => shard === "platform" || shard === "g3");

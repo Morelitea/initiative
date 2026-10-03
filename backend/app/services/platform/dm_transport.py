@@ -20,13 +20,13 @@ from __future__ import annotations
 import base64
 import binascii
 import uuid
-from collections.abc import Iterable
+from collections.abc import Collection, Iterable
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import delete, func, insert, text, update
 from sqlalchemy.exc import IntegrityError
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
@@ -398,6 +398,24 @@ async def remove_device(
     await session.flush()
 
 
+async def withdraw_signed_in(
+    session: AsyncSession, *, user_id: int, session_ids: Collection[uuid.UUID]
+) -> None:
+    """Drop the key stores these sign-ins name, and everything queued for them.
+
+    What ending a sign-in from the account's own list does: nothing more is
+    encrypted to a device somebody has cut off, or to a browser whose keys go
+    with its session. Scoped to the account's own rows.
+    """
+    if not session_ids:
+        return
+    await session.exec(
+        delete(DmDevice).where(
+            DmDevice.user_id == user_id, col(DmDevice.session_id).in_(list(session_ids))
+        )
+    )
+
+
 def _session_key(
     device: DmDevice, one_time_key: DmOneTimeKeyUpload | None
 ) -> DmSessionKey:
@@ -410,13 +428,14 @@ def _session_key(
     )
 
 
-async def _devices_of(
+async def devices_of(
     session: AsyncSession,
     user_id: int,
     *,
     except_device: uuid.UUID | None = None,
     only: list[uuid.UUID] | None = None,
 ) -> list[DmDevice]:
+    """The account's key stores, oldest first (all of them, or ``only`` those)."""
     query = select(DmDevice).where(DmDevice.user_id == user_id)
     if except_device is not None:
         query = query.where(DmDevice.id != except_device)
@@ -442,7 +461,7 @@ async def claim_session_keys(
     # than the same one.
     claimed = [
         _session_key(device, await _claim_for(session, device.id))
-        for device in await _devices_of(session, target_id, only=only)
+        for device in await devices_of(session, target_id, only=only)
     ]
     await session.flush()
     return claimed
@@ -481,7 +500,7 @@ async def directory(session: AsyncSession, *, target_id: int) -> list[DmSessionK
     if await _permission(session, target_id) != "open":
         raise DmTransportError(Messages.NOT_REACHABLE)
     return [
-        _session_key(device, None) for device in await _devices_of(session, target_id)
+        _session_key(device, None) for device in await devices_of(session, target_id)
     ]
 
 
@@ -502,7 +521,7 @@ async def own_session_keys(
     """
     return [
         _session_key(device, await _claim_for(session, device.id))
-        for device in await _devices_of(
+        for device in await devices_of(
             session, user_id, except_device=except_device, only=only
         )
     ]

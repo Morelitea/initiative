@@ -171,15 +171,13 @@ async def test_the_seat_deletes_the_community_and_then_itself(
     await session.commit()
     headers = get_auth_headers(seat)
 
-    eligibility = await client.get(
-        "/api/v1/users/me/deletion-eligibility", headers=headers
-    )
+    eligibility = await client.get("/api/v1/me/deletion-eligibility", headers=headers)
     assert eligibility.status_code == 200, eligibility.text
     assert eligibility.json()["can_delete"] is False
     assert eligibility.json()["sole_superadmin_guilds"] == ["Winding Down"]
 
     refused = await client.post(
-        "/api/v1/users/me/delete-account",
+        "/api/v1/me/delete-account",
         headers=headers,
         json={
             "action": "deactivate",
@@ -202,5 +200,5 @@ async def test_the_seat_deletes_the_community_and_then_itself(
     assert deleted.status_code == 204, deleted.text
 
     # And now nothing is in the way.
-    after = await client.get("/api/v1/users/me/deletion-eligibility", headers=headers)
+    after = await client.get("/api/v1/me/deletion-eligibility", headers=headers)
     assert after.json()["can_delete"] is True

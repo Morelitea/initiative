@@ -104,7 +104,7 @@ async def test_recent_tabs_limit_caps_list_and_prune(
 
     # Lower the user's recents cap to 2 via self-update.
     r = await client.patch(
-        "/api/v1/users/me", json={"recent_tabs_limit": 2}, headers=a.headers
+        "/api/v1/me", json={"recent_tabs_limit": 2}, headers=a.headers
     )
     assert r.status_code == 200, r.text
     assert r.json()["recent_tabs_limit"] == 2
@@ -133,11 +133,11 @@ async def test_recent_tabs_limit_rejects_out_of_range(
     a = await acting_user(guild_role=GuildRole.member, initiative=True)
 
     r = await client.patch(
-        "/api/v1/users/me", json={"recent_tabs_limit": 0}, headers=a.headers
+        "/api/v1/me", json={"recent_tabs_limit": 0}, headers=a.headers
     )
     assert r.status_code == 422
     r = await client.patch(
-        "/api/v1/users/me", json={"recent_tabs_limit": 101}, headers=a.headers
+        "/api/v1/me", json={"recent_tabs_limit": 101}, headers=a.headers
     )
     assert r.status_code == 422
 

@@ -4775,11 +4775,14 @@ export const useVerifyStepUpCodeApiV1AuthStepUpEmailOtpVerifyPost = <
   );
 };
 /**
- * Every browser session this account can still use, newest activity first.
+ * Every session this account can still use, newest activity first, each
+ * beside the message device that collects under it, then the message devices
+ * no live session names.
  *
  * Each row is one sign-in rather than one renewal — the service walks each
  * live session back to the sign-in it descends from, so a browser left open
- * for a month says so.
+ * for a month says so. A key store names the live row its sign-in has
+ * reached, which is the one listed here.
  * @summary List My Sessions
  */
 export const listMySessionsApiV1AuthSessionsGet = (
@@ -4903,9 +4906,13 @@ export function useListMySessionsApiV1AuthSessionsGet<
 }
 
 /**
- * End one of the account's sessions.
+ * End one of the account's sessions, and withdraw the message device that
+ * collects under it.
  *
  * The whole rotation chain, so the session cannot renew its way out of it.
+ * Nothing more is encrypted to the device: a phone somebody cuts off from
+ * here is one they no longer trust, and a browser's keys go with its
+ * session.
  * A session belonging to somebody else answers the same as one that does not
  * exist, because the id is the only thing the caller supplied and it should
  * not learn which of the two it got wrong.
@@ -5002,8 +5009,10 @@ export const useRevokeMySessionApiV1AuthSessionsSessionIdDelete = <
 /**
  * End every session the account holds except the one asking.
  *
- * ``auth_sessions`` is the system engine's, so the revocation and the record
- * commit together.
+ * The browsers' message devices go with them; a phone or desktop app keeps
+ * its keys and picks up where it left off at its next sign-in, as after any
+ * lapse. Both tables are the system engine's, so the revocation, the
+ * withdrawal and the record commit together.
  * @summary Revoke My Other Sessions
  */
 export const revokeMyOtherSessionsApiV1AuthSessionsRevokeOthersPost = (

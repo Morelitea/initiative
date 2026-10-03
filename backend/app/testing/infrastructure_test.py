@@ -61,7 +61,7 @@ async def test_authenticated_request(client: AsyncClient, session: AsyncSession)
     headers = get_auth_headers(user)
 
     # Make authenticated request
-    response = await client.get("/api/v1/users/me", headers=headers)
+    response = await client.get("/api/v1/me", headers=headers)
     assert response.status_code == 200
 
     data = response.json()

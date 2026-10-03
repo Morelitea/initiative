@@ -531,7 +531,7 @@ async def read_guild_export_status(
     )
 
 
-@router.get("/", response_model=list[ExportJobRead])
+@router.get("/jobs", response_model=list[ExportJobRead])
 async def list_export_jobs(
     session: RLSSessionDep,
     current_user: CurrentUserDep,
@@ -545,7 +545,7 @@ async def list_export_jobs(
     return [serialize_export_job(job, guild_id=guild_context.guild_id) for job in jobs]
 
 
-@router.get("/{job_id:int}", response_model=ExportJobRead)
+@router.get("/jobs/{job_id}", response_model=ExportJobRead)
 async def get_export_job(
     job_id: int,
     session: RLSSessionDep,
@@ -587,7 +587,7 @@ async def _require_reach(
         )
 
 
-@router.get("/{job_id:int}/download")
+@router.get("/jobs/{job_id}/download")
 async def download_export_artifact(
     job_id: int,
     session: RLSSessionDep,
@@ -710,8 +710,6 @@ _ALL_FORMATS = tuple(sorted({f for formats in _TOOL_FORMATS.values() for f in fo
 ToolExportFormat: Any = Literal[_ALL_FORMATS]  # ty: ignore[invalid-type-form]
 
 
-# Registered after the job routes, which match only a numeric id, so a tool's
-# name never reaches them and a job id never reaches this.
 @router.get("/{tool}", response_model=None)
 async def export_tool(
     tool: Tool,

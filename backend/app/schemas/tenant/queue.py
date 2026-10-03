@@ -12,6 +12,7 @@ from app.schemas.base import (
     RichMentionStr,
     SanitizedBaseModel,
     TitleStr,
+    reject_null,
 )
 from app.schemas.query import PageMeta
 
@@ -82,6 +83,8 @@ class QueueItemUpdate(PropertiesOnUpdate):
     is_visible: Optional[bool] = None
     #: Replaces every tag on the item; omitted leaves them as they are.
     tag_ids: Optional[List[int]] = Field(default=None, max_length=100)
+
+    _required = reject_null("label", "position", "is_visible")
 
 
 class QueueItemRead(QueueItemBase):

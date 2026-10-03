@@ -2,7 +2,7 @@ import { Download, FileText, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { useListExportJobsApiV1CGuildIdExportsGet } from "@/api/generated/exports/exports";
+import { useListExportJobsApiV1CGuildIdExportsJobsGet } from "@/api/generated/exports/exports";
 import {
   getListImportJobsApiV1CGuildIdImportsJobsGetQueryKey,
   useCancelImportJobApiV1CGuildIdImportsJobsJobIdDelete,
@@ -71,7 +71,7 @@ export function DataJobsTable() {
   const guildId = useActiveGuildId();
   const [reportJob, setReportJob] = useState<ImportJobRead | null>(null);
 
-  const exportsQuery = useListExportJobsApiV1CGuildIdExportsGet(guildId, {
+  const exportsQuery = useListExportJobsApiV1CGuildIdExportsJobsGet(guildId, {
     query: {
       refetchInterval: (query) =>
         (query.state.data ?? []).some((job) => ACTIVE.has(job.status)) ? POLL_MS : false,

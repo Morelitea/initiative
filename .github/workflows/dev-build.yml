@@ -31,7 +31,6 @@ jobs:
     permissions:
       contents: read
       id-token: write  # the image's signature
-      packages: read  # the uv image on ghcr.io
     uses: ./.github/workflows/docker-image.yml
     with:
       name: dev

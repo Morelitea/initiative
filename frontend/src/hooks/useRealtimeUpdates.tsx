@@ -278,7 +278,7 @@ export const useRealtimeUpdates = () => {
         // for itself. It matters for a tab left open: nothing else here would
         // ask, and it would go on showing what it last drew.
         console.warn("Realtime socket was not admitted; reading the account");
-        void apiClient.get("/users/me").catch(() => {
+        void apiClient.get("/me").catch(() => {
           // Whatever it was, the answer has already been acted on.
         });
       },

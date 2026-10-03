@@ -1,5 +1,6 @@
 """The account's own "where you're signed in" list, and ending one from it."""
 
+import uuid
 from types import SimpleNamespace
 from typing import Optional
 
@@ -23,6 +24,8 @@ from app.services.content_sockets import (
     Wire,
     resource_room,
 )
+from app.api.v1.platform_endpoints.dm_transport_test import _registration
+from app.models.platform.dm_device import DmDevice
 from app.testing import create_user, get_auth_headers
 
 CHROME_MAC = (
@@ -59,6 +62,17 @@ async def _sign_in(
         data={"username": email, "password": PASSWORD},
         headers=headers,
     )
+
+
+async def _keep_messages(client: AsyncClient, signed_in, seed: int) -> str:
+    """Register a message key store under the session ``signed_in`` opened."""
+    registered = await client.post(
+        "/api/v1/me/dm/devices",
+        json=_registration(seed),
+        headers={"Authorization": f"Bearer {signed_in.json()['access_token']}"},
+    )
+    assert registered.status_code == 201, registered.text
+    return registered.json()["device_id"]
 
 
 async def test_the_list_names_each_browser_and_marks_the_one_asking(
@@ -106,6 +120,8 @@ async def test_the_list_carries_no_refresh_token(
     assert listed.status_code == 200
     assert set(listed.json()[0]) == {
         "id",
+        "message_device_id",
+        "device",
         "label",
         "kind",
         "ip",
@@ -144,15 +160,27 @@ async def test_a_session_is_dated_from_its_sign_in_not_its_last_renewal(
 async def test_ending_a_session_stops_it_renewing(
     client: AsyncClient, session: AsyncSession
 ):
+    """And withdraws the message device collecting under it."""
     await _signed_in_user(session, "end-one@example.com")
     doomed = await _sign_in(client, "end-one@example.com", user_agent=FIREFOX_WINDOWS)
     doomed_refresh = doomed.cookies.get("refresh_token")
+    keys = await _keep_messages(client, doomed, seed=1)
     client.cookies.clear()
     asking = await _sign_in(client, "end-one@example.com", user_agent=CHROME_MAC)
     headers = {"Authorization": f"Bearer {asking.json()['access_token']}"}
 
     rows = (await client.get("/api/v1/auth/sessions", headers=headers)).json()
     target = next(row for row in rows if row["label"] == "Firefox on Windows")
+    assert target["message_device_id"] == keys
+
+    # It renews after the list was read, which moves its key store to the
+    # chain's new row; ending the row listed still takes it.
+    client.cookies.clear()
+    client.cookies.set("refresh_token", doomed_refresh, path="/api/v1/auth")
+    renewed = await client.post("/api/v1/auth/refresh")
+    assert renewed.status_code == 200
+    doomed_refresh = renewed.cookies.get("refresh_token")
+    client.cookies.clear()
 
     ended = await client.delete(
         f"/api/v1/auth/sessions/{target['id']}", headers=headers
@@ -165,6 +193,7 @@ async def test_ending_a_session_stops_it_renewing(
 
     remaining = (await client.get("/api/v1/auth/sessions", headers=headers)).json()
     assert [row["label"] for row in remaining] == ["Chrome on macOS"]
+    assert await session.get(DmDevice, uuid.UUID(keys)) is None
 
 
 async def test_somebody_elses_session_answers_as_missing(
@@ -217,17 +246,32 @@ async def test_signing_out_everywhere_else_spares_the_one_asking(
 async def test_signing_out_everywhere_else_takes_the_phones_too(
     client: AsyncClient, session: AsyncSession
 ):
-    """The app's sign-in is a session like any other, so the sweep ends it."""
+    """The app's sign-in is a session like any other, so the sweep ends it. The
+    phone keeps its messages for its next sign-in, and the list shows it as a
+    device that is not signed in; another browser's go with its session."""
     await _signed_in_user(session, "sweep-phones@example.com")
     phone = await _sign_in(
         client, "sweep-phones@example.com", user_agent=FIREFOX_WINDOWS, device=True
     )
+    phone_keys = await _keep_messages(client, phone, seed=1)
+    client.cookies.clear()
+    browser = await _sign_in(client, "sweep-phones@example.com", user_agent=CHROME_MAC)
+    browser_keys = await _keep_messages(client, browser, seed=5)
     client.cookies.clear()
     asking = await _sign_in(client, "sweep-phones@example.com", user_agent=CHROME_MAC)
     headers = {"Authorization": f"Bearer {asking.json()['access_token']}"}
+    listed = (await client.get("/api/v1/auth/sessions", headers=headers)).json()
+    assert [
+        row["device"] for row in listed if row["message_device_id"] == phone_keys
+    ] == [True]
 
     swept = await client.post("/api/v1/auth/sessions/revoke-others", headers=headers)
     assert swept.status_code == 204
+
+    rows = (await client.get("/api/v1/auth/sessions", headers=headers)).json()
+    kept = [row for row in rows if row["id"] is None]
+    assert [row["message_device_id"] for row in kept] == [phone_keys]
+    assert await session.get(DmDevice, uuid.UUID(browser_keys)) is None
 
     client.cookies.clear()
     spent = await client.post(
@@ -426,7 +470,7 @@ async def test_a_password_change_closes_the_connections_opened_before_it(
     on_asking = await _open_stream(streams, asking_token, session)
 
     changed = await client.patch(
-        "/api/v1/users/me",
+        "/api/v1/me",
         json={"password": "newpassword456", "current_password": PASSWORD},
         headers={"Authorization": f"Bearer {asking_token}"},
     )

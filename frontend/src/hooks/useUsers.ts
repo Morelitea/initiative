@@ -23,19 +23,19 @@ import type {
 } from "@/api/generated/initiativeAPI.schemas";
 import { useSearchInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembersSearchGet } from "@/api/generated/initiatives/initiatives";
 import {
-  deleteOwnAccountApiV1UsersMeDeleteAccountPost,
+  deleteOwnAccountApiV1MeDeleteAccountPost,
   exportUsersCsvApiV1CGuildIdUsersExportCsvGet,
-  getListDecorationPacksApiV1UsersMeDecorationPacksGetQueryKey,
-  getListMyDecorationsApiV1UsersMeDecorationsGetQueryKey,
+  getListDecorationPacksApiV1MeDecorationPacksGetQueryKey,
+  getListMyDecorationsApiV1MeDecorationsGetQueryKey,
   getListRosterApiV1CGuildIdUsersRosterGetQueryKey,
   getListUsersApiV1CGuildIdUsersGetQueryKey,
-  installDecorationPackApiV1UsersMeDecorationPacksUidPost,
+  installDecorationPackApiV1MeDecorationPacksUidPost,
   listRosterApiV1CGuildIdUsersRosterGet,
   listUsersApiV1CGuildIdUsersGet,
-  removeDecorationPackApiV1UsersMeDecorationPacksUidDelete,
-  updateUsersMeApiV1UsersMePatch,
-  useListDecorationPacksApiV1UsersMeDecorationPacksGet,
-  useListMyDecorationsApiV1UsersMeDecorationsGet,
+  removeDecorationPackApiV1MeDecorationPacksUidDelete,
+  updateMeApiV1MePatch,
+  useListDecorationPacksApiV1MeDecorationPacksGet,
+  useListMyDecorationsApiV1MeDecorationsGet,
   useReadUserCommunitiesApiV1UsersHandleCommunitiesGet,
   useReadUserProfileApiV1UsersHandleProfileGet,
   useSearchUsersApiV1CGuildIdUsersSearchGet,
@@ -173,7 +173,7 @@ export const useUserProfile = (handle: string | null | undefined) =>
  * give back a pack, so it is held until a mutation says otherwise.
  */
 export const useDecorationPacks = () =>
-  useListDecorationPacksApiV1UsersMeDecorationPacksGet({
+  useListDecorationPacksApiV1MeDecorationPacksGet({
     query: { staleTime: 5 * 60_000 },
   });
 
@@ -189,10 +189,10 @@ const useDecorationPackMutation = (
       mutationFn: run,
       invalidate: () => {
         void queryClient.invalidateQueries({
-          queryKey: getListDecorationPacksApiV1UsersMeDecorationPacksGetQueryKey(),
+          queryKey: getListDecorationPacksApiV1MeDecorationPacksGetQueryKey(),
         });
         void queryClient.invalidateQueries({
-          queryKey: getListMyDecorationsApiV1UsersMeDecorationsGetQueryKey(),
+          queryKey: getListMyDecorationsApiV1MeDecorationsGetQueryKey(),
         });
         // Giving a pack back can take pieces off the profile server-side, so
         // the account the form reads from has changed too.
@@ -205,13 +205,13 @@ const useDecorationPackMutation = (
 
 export const useInstallDecorationPack = (options?: MutationOpts<unknown, string>) =>
   useDecorationPackMutation(
-    (packId) => installDecorationPackApiV1UsersMeDecorationPacksUidPost(packId),
+    (packId) => installDecorationPackApiV1MeDecorationPacksUidPost(packId),
     options
   );
 
 export const useRemoveDecorationPack = (options?: MutationOpts<unknown, string>) =>
   useDecorationPackMutation(
-    (packId) => removeDecorationPackApiV1UsersMeDecorationPacksUidDelete(packId),
+    (packId) => removeDecorationPackApiV1MeDecorationPacksUidDelete(packId),
     options
   );
 
@@ -221,7 +221,7 @@ export const useRemoveDecorationPack = (options?: MutationOpts<unknown, string>)
  * a library changes only when a pack is installed, so it is held a good while.
  */
 export const useMyDecorations = () =>
-  useListMyDecorationsApiV1UsersMeDecorationsGet({
+  useListMyDecorationsApiV1MeDecorationsGet({
     query: { staleTime: 5 * 60_000 },
   });
 
@@ -345,12 +345,12 @@ export type { UserSummary };
 
 // ── Mutations ───────────────────────────────────────────────────────────────
 
-type UpdateCurrentUserVars = Parameters<typeof updateUsersMeApiV1UsersMePatch>[0];
+type UpdateCurrentUserVars = Parameters<typeof updateMeApiV1MePatch>[0];
 
 export const useUpdateCurrentUser = (options?: MutationOpts<UserRead, UpdateCurrentUserVars>) =>
   useApiMutation<UserRead, UpdateCurrentUserVars>(
     {
-      mutationFn: (data) => updateUsersMeApiV1UsersMePatch(data),
+      mutationFn: (data) => updateMeApiV1MePatch(data),
       invalidate: () => invalidate(q.currentUser()),
     },
     options
@@ -361,7 +361,7 @@ export const useDeleteOwnAccount = (
 ) =>
   useApiMutation<AccountDeletionResponse, AccountDeletionRequest>(
     {
-      mutationFn: (data) => deleteOwnAccountApiV1UsersMeDeleteAccountPost(data),
+      mutationFn: (data) => deleteOwnAccountApiV1MeDeleteAccountPost(data),
     },
     options
   );
@@ -433,9 +433,7 @@ export const useUpdateNotificationPreferences = (
   useApiMutation<void, Record<string, boolean | string | number | null>>(
     {
       mutationFn: async (data) => {
-        await updateUsersMeApiV1UsersMePatch(
-          data as Parameters<typeof updateUsersMeApiV1UsersMePatch>[0]
-        );
+        await updateMeApiV1MePatch(data as Parameters<typeof updateMeApiV1MePatch>[0]);
       },
       invalidate: () => invalidate(q.currentUser()),
     },

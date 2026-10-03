@@ -964,7 +964,7 @@ async def delete_user(
     anonymized owner row can't act on them.
 
     Restrictions:
-    - Cannot delete yourself (use /users/me/delete-account)
+    - Cannot delete yourself (use /me/delete-account)
     - Cannot delete the last owner
     """
     if user_id == current_user.id:

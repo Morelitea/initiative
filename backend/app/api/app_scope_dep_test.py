@@ -235,7 +235,7 @@ async def test_a_person_route_refuses_an_installation_token(
     )
 
     response = await client.get(
-        "/api/v1/users/me",
+        "/api/v1/me",
         headers=_bearer(_install_token(installed, ["documents:read"])),
     )
 

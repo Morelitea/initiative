@@ -725,27 +725,28 @@ def _inject_query_schemas(openapi_schema: dict) -> None:
             },
         )
 
-    # Override query parameters to expose their real types instead of the raw
-    # ``string`` that FastAPI infers from the endpoint signature.  The Axios
-    # paramsSerializer on the frontend JSON-encodes arrays of objects automatically.
+    # The ``conditions`` and ``sorting`` query parameters each carry one
+    # JSON-encoded value. Publishing them under ``content: application/json``
+    # gives the decoded type, and tells a client to send the whole list as a
+    # single JSON string rather than as repeated keys.
     fc_ref = {"$ref": "#/components/schemas/FilterCondition"}
     fg_ref = {"$ref": "#/components/schemas/FilterGroup"}
     sf_ref = {"$ref": "#/components/schemas/SortField"}
+    json_params = {
+        # An item is either a leaf comparison or an AND/OR group.
+        "conditions": {"type": "array", "items": {"anyOf": [fc_ref, fg_ref]}},
+        "sorting": {"type": "array", "items": sf_ref},
+    }
     for path_item in openapi_schema.get("paths", {}).values():
         for operation in path_item.values():
             if not isinstance(operation, dict):
                 continue
             for param in operation.get("parameters", []):
-                if param.get("name") == "conditions" and param.get("in") == "query":
-                    # An item is either a leaf comparison or an AND/OR group.
-                    param["schema"] = {
-                        "type": "array",
-                        "items": {"anyOf": [fc_ref, fg_ref]},
-                    }
-                    param.pop("anyOf", None)
-                if param.get("name") == "sorting" and param.get("in") == "query":
-                    param["schema"] = {"type": "array", "items": sf_ref}
-                    param.pop("anyOf", None)
+                schema = json_params.get(param.get("name"))
+                if schema is None or param.get("in") != "query":
+                    continue
+                param.pop("schema", None)
+                param["content"] = {"application/json": {"schema": schema}}
 
 
 def custom_openapi() -> dict:

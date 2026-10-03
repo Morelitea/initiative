@@ -33,8 +33,8 @@ import {
   updatePlatformRoleApiV1OperatorUsersUserIdPlatformRolePatch,
 } from "@/api/generated/operator/operator";
 import {
-  checkDeletionEligibilityApiV1UsersMeDeletionEligibilityGet,
-  getCheckDeletionEligibilityApiV1UsersMeDeletionEligibilityGetQueryKey,
+  checkDeletionEligibilityApiV1MeDeletionEligibilityGet,
+  getCheckDeletionEligibilityApiV1MeDeletionEligibilityGetQueryKey,
 } from "@/api/generated/users/users";
 import { invalidate, q } from "@/api/query-keys";
 import { useApiMutation } from "@/hooks/useApiMutation";
@@ -82,8 +82,8 @@ export const useUserDeletionEligibility = (userId: number) => {
  */
 export const useMyDeletionEligibility = () => {
   return useQuery<DeletionEligibilityResponse>({
-    queryKey: getCheckDeletionEligibilityApiV1UsersMeDeletionEligibilityGetQueryKey(),
-    queryFn: () => checkDeletionEligibilityApiV1UsersMeDeletionEligibilityGet(),
+    queryKey: getCheckDeletionEligibilityApiV1MeDeletionEligibilityGetQueryKey(),
+    queryFn: () => checkDeletionEligibilityApiV1MeDeletionEligibilityGet(),
     enabled: false,
   });
 };
