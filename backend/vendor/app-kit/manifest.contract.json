@@ -1430,7 +1430,7 @@
       "properties": {
         "name": {
           "ref": "identifier",
-          "description": "Unique within the endpoint. Later steps and the map read this step's answer as 'steps.<name>'."
+          "description": "Unique among its steps. Later steps, the map and the predicates beside it read this step's answer as 'steps.<name>'."
         },
         "request": {
           "ref": "vendorRequest"
@@ -1606,28 +1606,49 @@
     },
     "afterConnect": {
       "type": "object",
-      "description": "A declarative app's after_connect: one request made with the access token just obtained, and the answer mapped to what the hook would answer. 'params' holds the flow's own parameters, such as the installation_id an install page returned.",
+      "description": "A declarative app's after_connect: a request, or up to {steps} steps, made with the access token just obtained, and the answers mapped to what the hook would answer. 'params' holds the flow's own parameters, such as the installation_id an install page returned.",
       "required": [
-        "request",
         "map"
       ],
       "properties": {
         "request": {
-          "ref": "vendorRequest"
+          "ref": "vendorRequest",
+          "description": "The one call. Not beside 'steps'."
+        },
+        "steps": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": "steps",
+          "items": {
+            "ref": "requestStep"
+          },
+          "description": "Up to {steps} calls made in order, each able to read the answers of the ones before it. Not beside 'request'."
         },
         "map": {
           "ref": "expression",
-          "description": "The connection's managed values and its account label: {\"values\": {\u2026}, \"account_label\": \"\u2026\"}."
+          "description": "The connection's managed values and its account label, from 'response' (the last call's answer) and 'steps': {\"values\": {\u2026}, \"account_label\": \"\u2026\"}."
         },
         "refuse_when": {
           "ref": "expression",
-          "description": "Refuses the connection when it holds. It reads the map's answer as 'result'."
+          "description": "Refuses the connection when it holds. It reads the map's answer as 'result', beside 'response' and 'steps'."
         },
         "code": {
           "ref": "identifier",
           "description": "What a refusal answers. Given exactly when 'refuse_when' is."
         }
       },
+      "oneOf": [
+        {
+          "required": [
+            "request"
+          ]
+        },
+        {
+          "required": [
+            "steps"
+          ]
+        }
+      ],
       "additionalProperties": false
     },
     "connectionHealth": {
