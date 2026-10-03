@@ -109,7 +109,7 @@ async def test_reads_what_is_open_to_its_initiative(
     # The seat is named by this install's reference, and the community by its
     # own.
     assert isinstance(body["created_by"], str)
-    assert isinstance(body["guild_id"], str)
+    assert isinstance(body["community_id"], str)
     assert listed.json()["items"][0]["created_by"] == body["created_by"]
     assert_names_nobody(read.text, [seat.user.id, guild_id])
 
@@ -124,7 +124,7 @@ async def test_reads_what_is_open_to_its_initiative(
     )
     assert person.status_code == 200, person.text
     assert person.json()["created_by"] == seat.user.id
-    assert person.json()["guild_id"] == guild_id
+    assert person.json()["community_id"] == guild_id
 
 
 async def test_a_post_it_reads_carries_no_one_s_own_state(
@@ -261,7 +261,7 @@ async def test_lists_a_gallery_s_pictures_with_the_read_scope(
     (image,) = listed.json()["items"]
     assert image["title"] == "Harbour"
     assert isinstance(image["created_by"], str)
-    assert isinstance(image["guild_id"], str)
+    assert isinstance(image["community_id"], str)
     assert isinstance(image["uploader"]["id"], str)
     # A picture's stored file is an empty string, and nothing names anybody.
     assert (image["file_url"], image["thumbnail_url"]) == ("", "")
@@ -363,7 +363,7 @@ async def test_what_it_creates_is_its_own(
     assert created.status_code == 201, created.text
     body = created.json()
     assert body["created_by"] is None
-    assert isinstance(body["guild_id"], str)
+    assert isinstance(body["community_id"], str)
     assert body["can"]["delete"] is True
     assert_names_nobody(created.text, [seat.user.id, guild_id])
 
