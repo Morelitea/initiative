@@ -1702,7 +1702,7 @@ async def _complete_provider_login(
                 provider_id=provider_row.id,
                 now=proved_at,
             )
-            if addresses.proved_a_new_way_in(row, at=proved_at):
+            if await addresses.proved_a_new_way_in(system_session, row, at=proved_at):
                 proved_address = email
         identity = await link_identity(
             system_session,
@@ -1728,7 +1728,7 @@ async def _complete_provider_login(
             provider_id=provider_row.id,
             now=proved_at,
         )
-        if addresses.proved_a_new_way_in(row, at=proved_at):
+        if await addresses.proved_a_new_way_in(system_session, row, at=proved_at):
             proved_address = email
 
     # Profile refresh from the verified claims.
@@ -1992,7 +1992,7 @@ async def confirm_verification(
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST, detail=exc.code
             ) from exc
-        if addresses.proved_a_new_way_in(row, at=proved_at):
+        if await addresses.proved_a_new_way_in(system_session, row, at=proved_at):
             proved_address = decrypt_field(row.email_encrypted, SALT_EMAIL)
 
     record.consumed_at = datetime.now(timezone.utc)
