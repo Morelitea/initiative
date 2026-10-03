@@ -455,9 +455,9 @@ async def read_after_write(
 @router.get("/{gallery_id}/images", response_model=GalleryImageListResponse)
 async def list_gallery_images(
     gallery_id: int,
-    session: RLSSessionDep,
-    current_user: CurrentUserDep,
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: GalleriesRead,
     tag_ids: Optional[List[int]] = Query(
         default=None, description="Only pictures carrying ANY of these tags."
     ),

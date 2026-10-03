@@ -376,9 +376,9 @@ async def _forward_authorization(request: httpx.Request) -> None:
 
 
 # The list endpoints take ``conditions``/``sorting`` as a JSON *string* query
-# param, but ``main._inject_query_schemas`` retypes them to arrays-of-objects in
-# the OpenAPI so the frontend's axios serializer JSON-encodes them. The MCP
-# request builder doesn't do that JSON-encoding: handed an array argument it
+# param, which ``main._inject_query_schemas`` publishes as its decoded array
+# type under ``content: application/json``. The MCP request builder reads that
+# type but doesn't JSON-encode the value: handed an array argument it
 # serializes each item with Python ``str()`` (single-quoted, e.g.
 # ``{'field': 'due_date'}``), which the backend's ``json.loads`` rejects — every
 # filtered/sorted list call 400s. Presenting the param to the model as a plain

@@ -5,6 +5,7 @@ from typing import Any, List, Optional, TYPE_CHECKING
 
 from pydantic import ConfigDict, Field
 
+from app.core.identity_boundary import GuildId, PersonId
 from app.schemas.base import MentionStr, SanitizedBaseModel, TitleStr
 from app.schemas.query import PageMeta
 from app.schemas.tenant.comment import CommentAuthor
@@ -19,7 +20,7 @@ from app.schemas.tenant.tag import TagSummary, annotated_tags
 from app.schemas.tenant.tool import ToolSummaryBase
 
 if TYPE_CHECKING:  # pragma: no cover
-    from app.db.guild_standing import ActorContext, GuildContext
+    from app.db.guild_standing import ActorContext
     from app.models.tenant.gallery import GalleryImage, GalleryImageVersion
 
 
@@ -115,11 +116,11 @@ class GalleryImageRead(SanitizedBaseModel):
 
     id: int
     gallery_id: int
-    guild_id: int
+    guild_id: GuildId
     #: What somebody called it, if they did. Surfaces fall back to
     #: ``original_filename``, which is at least what the uploader called it.
     title: Optional[str] = None
-    caption: Optional[str] = None
+    caption: Optional[MentionStr] = None
     #: The current version's file, served at ``/uploads/{guild}/{name}``.
     file_url: str
     #: A smaller rendition for grids, or ``null`` where none was made — the
@@ -132,7 +133,7 @@ class GalleryImageRead(SanitizedBaseModel):
     #: reserve the right space for a picture before its bytes arrive.
     width: Optional[int] = None
     height: Optional[int] = None
-    created_by: int
+    created_by: PersonId
     uploader: Optional[CommentAuthor] = None
     created_at: datetime
     updated_at: datetime
@@ -181,7 +182,7 @@ def gallery_cover(image: "GalleryImage | None") -> GalleryCover | None:
 
 
 def serialize_gallery_image(
-    image: "GalleryImage", *, context: GuildContext
+    image: "GalleryImage", *, context: ActorContext
 ) -> GalleryImageRead:
     return GalleryImageRead(
         id=image.id,
