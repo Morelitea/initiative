@@ -29,6 +29,7 @@ vi.mock("@/api/client", () => ({
   getAuthToken: () => null,
   clearUploadToken: vi.fn(),
   watchForActivity: () => () => undefined,
+  startSessionActivity: vi.fn(),
   forgetSessionActivity: vi.fn(),
 }));
 

@@ -101,6 +101,16 @@ async def test_the_session_renews_without_a_cookie(
         )
     assert idle.status_code == 401
 
+    # An idle time no window could hold is refused as a bad request, not a fault.
+    async with AsyncClient(
+        transport=client._transport, base_url=str(client.base_url)
+    ) as bare:
+        absurd = await bare.post(
+            "/api/v1/auth/refresh",
+            json={"refresh_token": payload["refresh_token"], "idle_seconds": 10**12},
+        )
+    assert absurd.status_code == 422
+
 
 async def test_a_device_token_buys_a_session_and_survives_it(
     client: AsyncClient, session: AsyncSession

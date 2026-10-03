@@ -277,6 +277,12 @@ export const watchForActivity = (): (() => void) => {
   };
 };
 
+/** Somebody has just signed in, which is them being here. */
+export const startSessionActivity = (): void => {
+  lastInputHere = Date.now();
+  setItem(LAST_INPUT_KEY, String(lastInputHere));
+};
+
 /** Forget both times, for a session that has ended on this device. */
 export const forgetSessionActivity = (): void => {
   clearTimeout(renewTimer);

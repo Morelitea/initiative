@@ -310,12 +310,12 @@ async def rotate_session(
     # presented, so the window it may stand for is worked out now rather than
     # by a caller that could not have known.
     ttl = await _narrowed_ttl(session, user_id=row.user_id, requested=refresh_ttl)
-    active_at = issued - idle
-    if active_at + ttl <= issued:
+    if idle >= ttl:
         # Nobody has been here for the whole window. Ended rather than left to
         # expire, so a later renewal cannot take it up again.
         await revoke_session(session, session_id=row.id, now=issued)
         return RotationResult(RefreshOutcome.EXPIRED, user_id=row.user_id)
+    active_at = issued - idle
 
     # Atomic single-use claim: only one caller can flip revoked_at NULL→now, so
     # two concurrent refreshes with the same token can't both mint a child.
