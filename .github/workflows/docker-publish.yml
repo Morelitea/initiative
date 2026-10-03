@@ -21,7 +21,8 @@ jobs:
     permissions:
       contents: read
     outputs:
-      build_native: ${{ steps.decide.outputs.build_native }}
+      build_android: ${{ steps.decide.outputs.build_android }}
+      build_desktop: ${{ steps.decide.outputs.build_desktop }}
       version: ${{ steps.version.outputs.version }}
     steps:
       - name: Checkout repository
@@ -54,7 +55,7 @@ jobs:
       - name: Decide whether to build the native apps
         id: decide
         run: |
-          # The Android and desktop apps only need rebuilding when the native shell changed — which
+          # The Android app only needs rebuilding when the native shell changed — which
           # promote.sh records by moving MIN_NATIVE_VERSION forward. Compare this ref's value
           # against the previous release tag; web-only releases reuse the existing APK and
           # update over the air. The committed file is the single source of truth, so both the
@@ -67,16 +68,31 @@ jobs:
             old=""
           fi
           if [ -z "$old" ] || [ "$old" != "$cur" ]; then
-            echo "build_native=true" >> "$GITHUB_OUTPUT"
+            echo "build_android=true" >> "$GITHUB_OUTPUT"
             echo "Native min-version changed ('$old' -> '$cur') or no prior value — building the app."
           else
-            echo "build_native=false" >> "$GITHUB_OUTPUT"
+            echo "build_android=false" >> "$GITHUB_OUTPUT"
             echo "Native min-version unchanged ('$cur') — web-only release, skipping the app build."
+          fi
+          # The desktop app has a floor of its own, MIN_DESKTOP_VERSION, decided the same way,
+          # so a desktop change builds no APK and a phone change no installers.
+          cur=$(cat MIN_DESKTOP_VERSION 2>/dev/null || echo "")
+          if [ -n "$prev" ]; then
+            old=$(git show "$prev:MIN_DESKTOP_VERSION" 2>/dev/null || echo "")
+          else
+            old=""
+          fi
+          if [ -z "$old" ] || [ "$old" != "$cur" ]; then
+            echo "build_desktop=true" >> "$GITHUB_OUTPUT"
+            echo "Desktop min-version changed ('$old' -> '$cur') or no prior value — building the installers."
+          else
+            echo "build_desktop=false" >> "$GITHUB_OUTPUT"
+            echo "Desktop min-version unchanged ('$cur') — skipping the installer build."
           fi
 
   build-android:
     needs: decide
-    if: ${{ needs.decide.outputs.build_native == 'true' }}
+    if: ${{ needs.decide.outputs.build_android == 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     environment: android-release
@@ -218,7 +234,7 @@ jobs:
 
   build-desktop:
     needs: decide
-    if: ${{ needs.decide.outputs.build_native == 'true' }}
+    if: ${{ needs.decide.outputs.build_desktop == 'true' }}
     uses: ./.github/workflows/desktop-app.yml
     permissions:
       contents: read

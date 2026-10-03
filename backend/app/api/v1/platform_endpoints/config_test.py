@@ -14,7 +14,7 @@ from httpx import AsyncClient
 from app.core.config import settings
 from app.services import captcha_config
 from app.services.captcha_config import ResolvedCaptchaConfig
-from app.core.version import get_min_native_version
+from app.core.version import get_min_desktop_version, get_min_native_version
 from app.services.tenant.attachments import MAX_DOCUMENT_FILE_SIZE
 
 
@@ -28,12 +28,13 @@ async def test_config_exposes_upload_cap(client: AsyncClient):
 
 
 async def test_config_exposes_native_version_floor(client: AsyncClient):
-    """The landing page builds its Android download link from the release the
-    APK was last rebuilt for, which is the floor this server already ships."""
+    """The landing page builds its Android and desktop download links from the
+    releases those apps were last rebuilt for, the floors this server ships."""
     response = await client.get("/api/v1/config")
 
     assert response.status_code == 200
     assert response.json()["min_native_version"] == get_min_native_version()
+    assert response.json()["min_desktop_version"] == get_min_desktop_version()
 
 
 async def test_config_omits_billing_when_url_unset(client: AsyncClient, monkeypatch):

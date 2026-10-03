@@ -1,7 +1,12 @@
 import type { BundleInfo } from "@capgo/capacitor-updater";
 import { describe, expect, it } from "vitest";
 
-import { buildBundleDownloadUrl, decideNativeUpdate, findReadyBundle } from "./useNativeUpdate";
+import {
+  buildBundleDownloadUrl,
+  decideNativeUpdate,
+  findReadyBundle,
+  floorFor,
+} from "./useNativeUpdate";
 
 const bundle = (over: Partial<BundleInfo>): BundleInfo => ({
   id: "1",
@@ -34,6 +39,22 @@ describe("buildBundleDownloadUrl", () => {
   it("does not double up the /api/v1 segment", () => {
     const url = buildBundleDownloadUrl("https://host/api/v1", "/api/v1/native/bundle/download");
     expect(url.match(/\/api\/v1/g)).toHaveLength(1);
+  });
+});
+
+describe("floorFor", () => {
+  const statement = { v: 1, version: "0.75.0", sha256: "", minNativeVersion: "0.73.0" } as const;
+
+  it("holds the phone app to the phone floor", () => {
+    expect(floorFor({ ...statement, minDesktopVersion: "0.75.0" }, "android")).toBe("0.73.0");
+  });
+
+  it("holds the desktop app to its own floor", () => {
+    expect(floorFor({ ...statement, minDesktopVersion: "0.75.0" }, "electron")).toBe("0.75.0");
+  });
+
+  it("falls back to the phone floor for a statement made before the desktop had one", () => {
+    expect(floorFor(statement, "electron")).toBe("0.73.0");
   });
 });
 

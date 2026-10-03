@@ -16,6 +16,7 @@ import { WhatsNewPage, WhatsNewPostPage } from "./WhatsNewPage";
 
 const PORTAL = "https://billing.example.com";
 const NATIVE_FLOOR = "0.69.0";
+const DESKTOP_FLOOR = "0.74.0";
 
 const tier = (overrides: Record<string, unknown>) => ({
   tagline: "A tagline",
@@ -84,6 +85,7 @@ const stubConfig = (billing: { url: string } | null, extra: Record<string, unkno
       community_age_gate_enabled: true,
       login_methods: ["password"],
       min_native_version: NATIVE_FLOOR,
+      min_desktop_version: DESKTOP_FLOOR,
       ...extra,
     })
   );
@@ -299,12 +301,12 @@ describe("DownloadPage", () => {
     expect(await screen.findByText(landing.download.descriptionPush)).toBeInTheDocument();
   });
 
-  it("offers this computer's installer from the same release", async () => {
+  it("offers this computer's installer from the release its own floor names", async () => {
     renderDownload();
 
     // jsdom says Linux.
     const [installer] = await screen.findAllByTestId("desktop-installer");
-    expect(installer).toHaveAttribute("href", desktopInstallerUrl(NATIVE_FLOOR, "linux"));
+    expect(installer).toHaveAttribute("href", desktopInstallerUrl(DESKTOP_FLOOR, "linux"));
     expect(installer).toHaveAttribute("download");
   });
 

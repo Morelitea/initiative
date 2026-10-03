@@ -3,10 +3,10 @@
  *
  * Android gets a real file: the APK attached to the release the server's
  * native floor names, which is the newest one that runs this server's web
- * bundle. A computer gets its installer from the same release, or installs
- * from the browser: in one click where the browser offers its own install
- * prompt and by the guide where it doesn't. An iPhone adds it to the home
- * screen from Safari.
+ * bundle. A computer gets its installer from the release its own floor names,
+ * or installs from the browser: in one click where the browser offers its own
+ * install prompt and by the guide where it doesn't. An iPhone adds it to the
+ * home screen from Safari.
  */
 
 import { Link } from "@tanstack/react-router";
@@ -127,24 +127,24 @@ const ApkButton = ({
   </Button>
 );
 
-/** The installer for this computer, from the release the server's native
+/** The installer for this computer, from the release the server's desktop
  *  floor names; every release when either is unknown. */
 const DesktopButton = ({
   os,
-  minNativeVersion,
+  minDesktopVersion,
   className,
   variant,
   children,
 }: {
   os: DesktopOs | null;
-  minNativeVersion: string | null;
+  minDesktopVersion: string | null;
   className?: string;
   variant?: "default" | "outline";
   children: ReactNode;
 }) => (
   <Button size="lg" variant={variant} className={className} asChild>
-    {os && minNativeVersion ? (
-      <a href={desktopInstallerUrl(minNativeVersion, os)} download data-testid="desktop-installer">
+    {os && minDesktopVersion ? (
+      <a href={desktopInstallerUrl(minDesktopVersion, os)} download data-testid="desktop-installer">
         {children}
       </a>
     ) : (
@@ -212,6 +212,7 @@ export const DownloadPage = () => {
   const fcm = useGetFcmConfigApiV1SettingsFcmConfigGet({ query: { staleTime: 300_000 } });
   const push = fcm.data?.enabled === true;
   const minNativeVersion = config?.min_native_version ?? null;
+  const minDesktopVersion = config?.min_desktop_version ?? null;
   const platform = useMemo(() => detectPlatform(), []);
   const desktopOs = useMemo<DesktopOs | null>(() => detectDesktopOs(), []);
   const prompt = useInstallPrompt();
@@ -283,7 +284,7 @@ export const DownloadPage = () => {
               <>
                 <DesktopButton
                   os={desktopOs}
-                  minNativeVersion={minNativeVersion}
+                  minDesktopVersion={minDesktopVersion}
                   className="h-14 text-base"
                 >
                   <Download className="h-5 w-5" aria-hidden="true" />
@@ -293,8 +294,8 @@ export const DownloadPage = () => {
                   {t("download.browserInstall")}
                 </InstallButton>
                 <p className="text-center text-muted-foreground text-sm">
-                  {minNativeVersion
-                    ? t("download.version", { version: minNativeVersion })
+                  {minDesktopVersion
+                    ? t("download.version", { version: minDesktopVersion })
                     : t("download.desktopMeta")}
                 </p>
               </>
@@ -360,12 +361,12 @@ export const DownloadPage = () => {
             <DesktopButton
               // A phone's browser also says Linux; only a computer is offered a file.
               os={platform === "desktop" ? desktopOs : null}
-              minNativeVersion={minNativeVersion}
+              minDesktopVersion={minDesktopVersion}
               variant="outline"
               className="w-full"
             >
               <Download className="h-4 w-4" aria-hidden="true" />
-              {platform === "desktop" && desktopOs && minNativeVersion
+              {platform === "desktop" && desktopOs && minDesktopVersion
                 ? desktopLabel
                 : t("download.releases")}
             </DesktopButton>

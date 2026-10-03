@@ -1,4 +1,5 @@
 import { App } from "@capacitor/app";
+import { Capacitor } from "@capacitor/core";
 import { SplashScreen } from "@capacitor/splash-screen";
 import { type BundleInfo, CapacitorUpdater } from "@capgo/capacitor-updater";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -7,7 +8,7 @@ import { useTranslation } from "react-i18next";
 import { compareVersions } from "@/hooks/useDockerHubVersion";
 import { useServer } from "@/hooks/useServer";
 import { toast } from "@/lib/chesterToast";
-import { verifiedStatement } from "@/lib/otaTrust";
+import { type UpdateStatement, verifiedStatement } from "@/lib/otaTrust";
 
 const CURRENT_VERSION = __APP_VERSION__;
 
@@ -37,6 +38,16 @@ const HIDDEN: PromptState = { show: false, version: "" };
  */
 export const buildBundleDownloadUrl = (serverUrl: string, manifestUrl: string): string =>
   new URL(manifestUrl, new URL(serverUrl).origin).toString();
+
+/**
+ * The oldest app this device's kind of app may be to run the bundle. The
+ * desktop app has a floor of its own; a statement from before it names only
+ * the phone app's.
+ */
+export const floorFor = (statement: UpdateStatement, platform: string): string =>
+  platform === "electron"
+    ? (statement.minDesktopVersion ?? statement.minNativeVersion)
+    : statement.minNativeVersion;
 
 /**
  * Decide what to do with a served bundle, given the running web bundle version, the installed
@@ -177,11 +188,12 @@ export const useNativeUpdate = () => {
       }
 
       const { native } = await CapacitorUpdater.current();
+      const minNativeVersion = floorFor(statement, Capacitor.getPlatform());
       const decision = decideNativeUpdate({
         manifestVersion: statement.version,
         currentVersion: CURRENT_VERSION,
         nativeVersion: native,
-        minNativeVersion: statement.minNativeVersion,
+        minNativeVersion,
       });
       if (decision === "up-to-date") {
         return;
@@ -193,7 +205,7 @@ export const useNativeUpdate = () => {
         setNativeUpdateRequired({
           show: true,
           version: statement.version,
-          minNativeVersion: statement.minNativeVersion,
+          minNativeVersion,
         });
         return;
       }
