@@ -258,32 +258,15 @@ async def replace_relationship_slice(
     remembered: a replace is the surface restating a set, not a person taking
     one link back.
     """
-    relationships_service.refuse_derived(relationship_type)
     ref = _parse_ref(entity)
     other_type = _endpoint_kind(other_type)
     anchor = Endpoint(ref.type, ref.id)
-    anchor_row = await relationships_service.resolve(session, anchor, current_user.id)
-    relationships_service.refuse_archived(anchor_row)
-
-    wanted = list(dict.fromkeys(ids))
-    resolved = await reference_targets.resolve_many(
-        session, other_type, wanted, user_id=current_user.id
-    )
-    for entity_id in wanted:
-        found = resolved.get(entity_id)
-        if found is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=RelationshipMessages.ENDPOINT_NOT_FOUND,
-            )
-        relationships_service.refuse_across_initiatives(anchor_row, found)
-        relationships_service.refuse_archived(found)
 
     # A replace is a bulk removal, so everything it drops answers the same
     # question a single removal does. One edge the caller may not remove fails
     # the whole request rather than being quietly kept, so the surface never
     # shows a set it did not ask for.
-    keeping = set(wanted)
+    keeping = set(ids)
     for row in await relationships_service.list_for_entity(
         session, anchor, relationship_type=relationship_type, other_kind=other_type
     ):
@@ -301,8 +284,8 @@ async def replace_relationship_slice(
         anchor,
         relationship_type=relationship_type,
         other_kind=other_type,
-        ids=wanted,
-        created_by=current_user.id,
+        ids=ids,
+        user_id=current_user.id,
     )
     await session.commit()
 

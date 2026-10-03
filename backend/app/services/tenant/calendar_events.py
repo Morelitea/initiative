@@ -6,22 +6,16 @@ loaders here eager-load the parent calendar with what the permission engine
 needs.
 """
 
-from fastapi import HTTPException, status
 from sqlalchemy import delete as sa_delete
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
-from app.core.messages import CalendarEventMessages
 from app.models.tenant.calendar import Calendar
 from app.models.tenant.calendar_event import (
     CalendarEvent,
     CalendarEventAttendee,
 )
-from app.core.relationships import RelationshipType
-from app.core.search import SearchEntityType
-from app.models.tenant.document import Document
-from app.services.tenant import relationships
 from app.models.tenant.resource_grant import ResourceGrant
 from app.core.tools import Tool
 from app.services.tenant import named_people
@@ -112,51 +106,4 @@ async def set_event_attendees(
         CalendarEventAttendee(calendar_event_id=event.id, user_id=user_id)
         for user_id in wanted
         if user_id not in present
-    )
-
-
-# ---------------------------------------------------------------------------
-# Tag / document attachment helpers
-# ---------------------------------------------------------------------------
-
-
-async def set_event_documents(
-    session: AsyncSession,
-    event: CalendarEvent,
-    document_ids: list[int],
-    guild_id: int,
-    user_id: int | None,
-) -> None:
-    """Replace all document links on a calendar event.
-
-    Documents are initiative content, and a guild calendar holds none of that —
-    an event there cannot link one. Clearing links is always fine.
-    Requires ``event.calendar`` to be eager-loaded.
-    """
-    if document_ids and event.calendar.initiative_id is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=CalendarEventMessages.GUILD_CALENDAR_NO_DOCUMENTS,
-        )
-    if document_ids:
-        docs_stmt = select(Document.id).where(
-            Document.id.in_(document_ids),
-        )
-        docs_result = await session.exec(docs_stmt)
-        valid_ids = set(docs_result.all())
-
-        missing = set(document_ids) - valid_ids
-        if missing:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=CalendarEventMessages.NOT_FOUND,
-            )
-
-    await relationships.set_related(
-        session,
-        relationships.Endpoint(SearchEntityType.calendar_event, event.id),
-        relationship_type=RelationshipType.attached,
-        other_kind=SearchEntityType.document,
-        ids=document_ids,
-        created_by=user_id,
     )
