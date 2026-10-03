@@ -10,6 +10,7 @@ from prometheus_client import REGISTRY
 
 from app.api.v1.platform_endpoints import health
 from app.core.config import settings
+from app.core.rate_limit import build_limiter
 from app.testing import create_user
 
 
@@ -92,6 +93,16 @@ async def test_readyz_stays_in_rotation_when_only_a_reported_check_fails(
     resp = await client.get("/api/v1/readyz")
     assert resp.status_code == 200, resp.text
     assert resp.json()["status"] == "degraded"
+
+
+async def test_an_unreachable_rate_limit_store_is_reported_while_counting_in_memory(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    counting_in_memory = build_limiter("redis://127.0.0.1:1/0")
+    counting_in_memory._storage_dead = True
+    monkeypatch.setattr(health, "limiter", counting_in_memory)
+    with pytest.raises(RuntimeError):
+        await health._rate_limit_store()
 
 
 async def test_readyz_reports_a_hung_dependency_rather_than_hanging(

@@ -185,10 +185,12 @@ class TestDefaultLimitThrottlesUndecoratedRoute:
         """With the shared storage down, the limits are counted in memory
         rather than every request failing."""
         monkeypatch.setattr(settings, "RATE_LIMIT_DEFAULT", "3/minute")
-        burst_app = self._build_app("", build_limiter("redis://127.0.0.1:1/0"))
+        unreachable = build_limiter("redis://127.0.0.1:1/0")
+        burst_app = self._build_app("", unreachable)
         transport = ASGITransport(app=burst_app)
         async with AsyncClient(transport=transport, base_url="http://test") as c:
             statuses = [(await c.get("/undecorated")).status_code for _ in range(5)]
+        assert unreachable._storage_dead
         assert statuses == [200, 200, 200, 429, 429]
 
     async def test_empty_default_does_not_throttle(self):
