@@ -1,5 +1,5 @@
 /**
- * A guild's banner, as the client renders it.
+ * A community's banner, as the client renders it.
  *
  * The banner is one value — the picture, the fill under it, the colour the
  * copy is written in, where that copy sits, and how the banner ends — so it
@@ -13,8 +13,8 @@ import { resolveHeaderlessApiUrl } from "@/lib/uploadUrl";
 
 /**
  * A banner ready to render: its picture resolved to a URL this client can
- * fetch, and every question answered for a header that has no guild banner to
- * show — one whose guild has not arrived yet, or one that is all fixed
+ * fetch, and every question answered for a header that has no community banner to
+ * show — one whose community has not arrived yet, or one that is all fixed
  * artwork. An empty fill is such a header's: it paints nothing rather than
  * guessing at a colour.
  */

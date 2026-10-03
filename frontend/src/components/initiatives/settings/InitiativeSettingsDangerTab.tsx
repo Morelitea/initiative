@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/
 
 interface InitiativeSettingsDangerTabProps {
   isArchived: boolean;
-  // Archiving (hide from the sidebar) is a guild-admin-only action.
+  // Archiving (hide from the sidebar) is a community-admin-only action.
   canArchiveInitiative: boolean;
   isArchiving: boolean;
   onToggleArchive: () => void;

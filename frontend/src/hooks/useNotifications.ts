@@ -27,7 +27,7 @@ import {
   unreadNotificationPlaces,
 } from "@/api/generated/notifications/notifications";
 import { describes, invalidate, q } from "@/api/query-keys";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { useApiMutation } from "@/hooks/useApiMutation";
 import { queryClient } from "@/lib/queryClient";
 import type { MutationOpts } from "@/types/mutation";
@@ -44,21 +44,21 @@ export const useNotifications = (options?: {
   enabled?: boolean;
   refetchInterval?: number | false;
   unreadOnly?: boolean;
-  guildId?: number;
+  communityId?: number;
   personalOnly?: boolean;
 }) => {
   return useQuery<NotificationListResponse>({
     queryKey: getListNotificationsQueryKey({
       limit: NOTIFICATION_PAGE_SIZE,
       unread_only: options?.unreadOnly,
-      community_id: options?.guildId,
+      community_id: options?.communityId,
       personal_only: options?.personalOnly,
     }),
     queryFn: () =>
       listNotifications({
         limit: NOTIFICATION_PAGE_SIZE,
         unread_only: options?.unreadOnly,
-        community_id: options?.guildId,
+        community_id: options?.communityId,
         personal_only: options?.personalOnly,
       }),
     enabled: options?.enabled,
@@ -75,14 +75,14 @@ export const useNotifications = (options?: {
 export const useNotificationHistory = (options?: {
   enabled?: boolean;
   unreadOnly?: boolean;
-  guildId?: number;
+  communityId?: number;
   personalOnly?: boolean;
   refetchInterval?: number | false;
 }) => {
   const params = {
     limit: NOTIFICATION_PAGE_SIZE,
     unread_only: options?.unreadOnly,
-    community_id: options?.guildId,
+    community_id: options?.communityId,
     personal_only: options?.personalOnly,
   };
   return useInfiniteQuery({
@@ -250,19 +250,19 @@ export const isAnsweredVisitRead = (query: Query) =>
  * so the next visit reads again.
  */
 export const useReadOnOpen = (kind: string, id: number | undefined) => {
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   const { data } = useQuery<SubjectReadResponse>({
-    queryKey: [...OPENED_KEY, guildId, kind, id],
+    queryKey: [...OPENED_KEY, communityId, kind, id],
     queryFn: async () => {
       const read = await readNotificationSubject({
-        community_id: guildId,
+        community_id: communityId,
         subject_type: kind,
         subject_id: id as number,
       });
       void invalidate(q.notifications());
       return read;
     },
-    enabled: guildId > 0 && Number.isFinite(id),
+    enabled: communityId > 0 && Number.isFinite(id),
     staleTime: Number.POSITIVE_INFINITY,
     gcTime: 0,
     refetchOnWindowFocus: false,

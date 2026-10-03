@@ -16,16 +16,16 @@ import { RelativeTime } from "@/components/ui/relative-time";
 import { usePersistedColumnVisibility } from "@/hooks/usePersistedColumnVisibility";
 import { useProperties } from "@/hooks/useProperties";
 import { useUnreadTree } from "@/hooks/useUnreadTree";
+import { communityPath, useCommunityPath } from "@/lib/communityUrl";
 import { getFileTypeLabel } from "@/lib/fileUtils";
-import { guildPath, useGuildPath } from "@/lib/guildUrl";
 import { dateSortingFn } from "@/lib/sorting";
 import type { AppColumnDef } from "@/lib/table";
 import { toolDetailRoute } from "@/lib/tools";
 import { getUserDisplayName } from "@/lib/userDisplay";
 
-// Cell component that uses guild-scoped URLs
+// Cell component that uses community-scoped URLs
 const DocumentNameCell = ({ document }: { document: DocumentSummary }) => {
-  const gp = useGuildPath();
+  const gp = useCommunityPath();
   const unread = useUnreadTree();
   return (
     <div className="flex min-w-[220px] items-center gap-2 sm:min-w-0">
@@ -146,7 +146,7 @@ export const DocumentsListView = ({
           ) : (
             <TagBadgeList
               tags={row.original.tags}
-              tagHref={(tag) => guildPath(row.original.community_id, `/tags/${tag.id}`)}
+              tagHref={(tag) => communityPath(row.original.community_id, `/tags/${tag.id}`)}
             />
           ),
         size: 150,

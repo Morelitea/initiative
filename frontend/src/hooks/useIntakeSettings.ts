@@ -58,7 +58,7 @@ export const useIntakeOptions = (options?: QueryOpts<IntakeOptionsRead>) =>
 const refreshIntake = () =>
   invalidate(q.intakeSettings(), q.intakeOptions(), q.ticketAvailability());
 
-export const useUpdateOperationsGuild = (
+export const useUpdateOperationsCommunity = (
   options?: MutationOpts<IntakeSettingsRead, OperationsCommunityUpdate>
 ) =>
   useApiMutation<IntakeSettingsRead, OperationsCommunityUpdate>(

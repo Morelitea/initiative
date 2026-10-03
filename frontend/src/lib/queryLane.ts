@@ -3,7 +3,7 @@ import { getErrorCode, getHttpStatus } from "@/lib/errorMessage";
 /**
  * How a canvas of tiles asks the database more than it is allowed to at once.
  *
- * A guild may have only so many reader-written statements running at a time
+ * A community may have only so many reader-written statements running at a time
  * (`QUERY_MAX_CONCURRENT_PER_GUILD`), and the server refuses the rest outright
  * rather than queueing them — a slot is an advisory lock taken without waiting,
  * so nothing holds a connection idle. That is the right answer to a request it
@@ -14,15 +14,15 @@ import { getErrorCode, getHttpStatus } from "@/lib/errorMessage";
  * So the queueing the server declines to do happens here, where the tiles are.
  * The lane lets a few reads run and holds the rest until one finishes, in the
  * order they were asked. A refusal that still gets through — another tab, or
- * somebody else in the same guild — is retried rather than shown, because
+ * somebody else in the same community — is retried rather than shown, because
  * "everyone's slots are full" is a statement about this moment and not about
  * the query.
  */
 
 /**
- * How many statement reads one guild keeps in flight.
+ * How many statement reads one community keeps in flight.
  *
- * Matched to the server's per-guild cap so the common case — one reader, one
+ * Matched to the server's per-community cap so the common case — one reader, one
  * canvas — never asks for a slot that is not there; a request that still finds
  * none falls back to the retry below.
  */
@@ -52,20 +52,20 @@ interface Lane {
 }
 
 /**
- * One lane per guild, because the limit being modelled is per guild.
+ * One lane per community, because the limit being modelled is per community.
  *
- * A shared lane would make one guild's slow canvas hold up another's, which the
- * server would have admitted — a tab that switches guild while the previous
+ * A shared lane would make one community's slow canvas hold up another's, which the
+ * server would have admitted — a tab that switches community while the previous
  * dashboard's reads are still settling would queue the new one behind work it
  * has nothing to do with.
  */
 const lanes = new Map<number, Lane>();
 
-const laneFor = (guildId: number): Lane => {
-  const existing = lanes.get(guildId);
+const laneFor = (communityId: number): Lane => {
+  const existing = lanes.get(communityId);
   if (existing) return existing;
   const lane: Lane = { running: 0, waiting: [], timer: null };
-  lanes.set(guildId, lane);
+  lanes.set(communityId, lane);
   return lane;
 };
 
@@ -115,7 +115,7 @@ const enter = (lane: Lane): Promise<void> => {
  * callers resuming in the same tick cannot both read it as having room. The
  * ceiling restarts with the queue's new head, whose wait has only now begun.
  */
-const leave = (lane: Lane, guildId: number): void => {
+const leave = (lane: Lane, communityId: number): void => {
   const next = lane.waiting.shift();
   if (next) {
     disarm(lane);
@@ -125,21 +125,21 @@ const leave = (lane: Lane, guildId: number): void => {
   }
   lane.running -= 1;
   disarm(lane);
-  // Nothing running and nothing waiting: this guild is not being read right
+  // Nothing running and nothing waiting: this community is not being read right
   // now, and the lane is only a record of that. Safe to drop — a read still
   // holding a slot keeps `running` above zero, so the entry a caller is using
   // is never the one removed.
-  if (lane.running <= 0) lanes.delete(guildId);
+  if (lane.running <= 0) lanes.delete(communityId);
 };
 
-/** Run one statement read when that guild's lane has room for it. */
-export const inQueryLane = async <T>(guildId: number, read: () => Promise<T>): Promise<T> => {
-  const lane = laneFor(guildId);
+/** Run one statement read when that community's lane has room for it. */
+export const inQueryLane = async <T>(communityId: number, read: () => Promise<T>): Promise<T> => {
+  const lane = laneFor(communityId);
   await enter(lane);
   try {
     return await read();
   } finally {
-    leave(lane, guildId);
+    leave(lane, communityId);
   }
 };
 
@@ -152,7 +152,7 @@ export const isQueryInterrupted = (error: unknown): boolean =>
   getHttpStatus(error) === 503 && getErrorCode(error) === "QUERY_INTERRUPTED";
 
 /**
- * Retry a busy guild or an interrupted read, and nothing else.
+ * Retry a busy community or an interrupted read, and nothing else.
  *
  * A statement either resolves against the registry or it does not, and a
  * refused one is refused the same way every time — so every other failure is

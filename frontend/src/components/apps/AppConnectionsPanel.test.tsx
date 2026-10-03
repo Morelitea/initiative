@@ -1,8 +1,8 @@
 /**
- * How a guild's own credential is drawn, now that not all of them are typed.
+ * How a community's own credential is drawn, now that not all of them are typed.
  *
  * The panel has always split connections by who supplies them. The newer split
- * is inside the guild half: some are a form an admin fills in, and some are
+ * is inside the community half: some are a form an admin fills in, and some are
  * granted at the vendor — an organization-wide install on the vendor's own
  * page, which no text box can express. A connection that runs a flow gets
  * a button instead of inputs, and what came back is shown rather than reduced
@@ -21,8 +21,8 @@ const connect = vi.fn();
 const save = vi.fn();
 const disconnect = vi.fn();
 
-vi.mock("@/hooks/useGuildAppDetail", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/hooks/useGuildAppDetail")>()),
+vi.mock("@/hooks/useCommunityAppDetail", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/hooks/useCommunityAppDetail")>()),
   useConnectApp: () => ({ mutate: connect, isPending: false }),
   useUpdateAppConfig: () => ({ mutate: save, isPending: false }),
   useDisconnectApp: () => ({ mutate: disconnect, isPending: false }),

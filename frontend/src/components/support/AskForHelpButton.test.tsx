@@ -15,7 +15,7 @@ type Offer = { mode: "form" | "email" | "none"; contact: string | null };
 
 const offered = vi.hoisted(() => ({ current: undefined as Offer | undefined }));
 
-vi.mock("@/hooks/useActiveGuildId", () => ({ useActiveGuildId: () => 3 }));
+vi.mock("@/hooks/useActiveCommunityId", () => ({ useActiveCommunityId: () => 3 }));
 vi.mock("@/hooks/useTickets", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/hooks/useTickets")>();
   return {

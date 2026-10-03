@@ -14,7 +14,7 @@
     "loginRequired": "Vous devez être connecté pour gérer votre profil.",
     "goToLogin": "Aller à la connexion"
   },
-  "guildLayout": {
+  "communityLayout": {
     "title": "Paramètres de la communauté",
     "permissionDenied": "Vous avez besoin de permissions supplémentaires pour voir cette page.",
     "viewOnly": "Vous consultez ces paramètres grâce à une autorisation d'accès. Pour les modifier, une autorisation en lecture-écriture est également requise.",
@@ -24,7 +24,7 @@
       }
     },
     "tabs": {
-      "guild": "Communauté",
+      "community": "Communauté",
       "users": "Utilisateurs",
       "initiatives": "Initiatives",
       "trash": "Corbeille",
@@ -121,9 +121,9 @@
     "neverExpires": "N'expire jamais",
     "readOnlyLabel": "Lecture seule",
     "readOnlyHelp": "La clé peut lire des données mais ne peut jamais créer, modifier ni supprimer quoi que ce soit. Recommandé pour les automatisations et les intégrations.",
-    "guildLabel": "Accès à la communauté",
-    "guildAllGuilds": "Tous mes communautés",
-    "guildHelp": "Limitez la clé à une seule communauté. Elle ne pourra accéder aux données d'aucun autre communauté.",
+    "communityLabel": "Accès à la communauté",
+    "communityAllCommunities": "Tous mes communautés",
+    "communityHelp": "Limitez la clé à une seule communauté. Elle ne pourra accéder aux données d'aucun autre communauté.",
     "generateButton": "Générer une clé API",
     "generating": "Génération en cours…",
     "nameRequired": "Le nom est requis",
@@ -135,7 +135,7 @@
     "statusExpired": "Expirée",
     "statusDisabled": "Désactivée",
     "scopeReadOnly": "Lecture seule",
-    "scopeGuild": "Communauté : {{guild}}",
+    "scopeCommunity": "Communauté : {{community}}",
     "scopeFull": "Accès complet",
     "deleteButton": "Supprimer",
     "deleting": "Suppression en cours…",
@@ -190,7 +190,7 @@
     "testError": "Impossible de tester la connexion",
     "httpWarning": "Un point de terminaison HTTP non chiffré est utilisé. Configurez TLS/HTTPS pour les déploiements en production."
   },
-  "guildAI": {
+  "communityAI": {
     "title": "IA de la communauté",
     "adminOnly": "Seuls les administrateurs de la communauté peuvent gérer les connexions d'IA. Pour définir votre propre clé, ouvrez « IA » dans les paramètres de votre profil.",
     "connectionsTitle": "Connexions de la communauté",
@@ -405,7 +405,7 @@
     "communities": {
       "title": "Par communauté",
       "description": "Un réglage par communauté. Faites-en parler une moins sans rien changer ailleurs.",
-      "levelLabel": "Ce que dit {{guild}}",
+      "levelLabel": "Ce que dit {{community}}",
       "mutedHelp": "Cette communauté ne dit rien du tout — même si quelqu'un vous nomme directement.",
       "levels": {
         "everything": "Tout",
@@ -704,8 +704,8 @@
       "confirmAction": "Retirer",
       "saved": "Moyens d'accès mis à jour.",
       "saveError": "Impossible de modifier les moyens d'accès.",
-      "guildsRequire_one": "{{count}} communauté exige une connexion via un fournisseur qui lui est propre.",
-      "guildsRequire_other": "{{count}} communautés exigent une connexion via un fournisseur qui leur est propre.",
+      "communitiesRequire_one": "{{count}} communauté exige une connexion via un fournisseur qui lui est propre.",
+      "communitiesRequire_other": "{{count}} communautés exigent une connexion via un fournisseur qui leur est propre.",
       "totp": {
         "label": "Activer l'authentification à deux facteurs",
         "help": "Permettez aux gens de protéger leur compte avec un code issu d'une application d'authentification. Chacun l'active pour soi ; ici, il s'agit de savoir si le serveur la propose."
@@ -880,8 +880,8 @@
     "hardDeleteDescription": "L'utilisateur sera définitivement supprimé. Ses projets doivent être transférés. Les commentaires afficheront « [Utilisateur supprimé] ».",
     "blockersTitle": "Blocages",
     "blockersDescription": "Les problèmes suivants doivent être résolus avant de pouvoir supprimer cet utilisateur :",
-    "guildBlockerTitle": "Seul superadministrateur de la communauté : {{guildName}}",
-    "guildBlockerDescription": "Le titulaire du compte peut nommer un autre membre superadministrateur, ou vous pouvez prendre un accès d'urgence à la communauté et, depuis ses paramètres, en nommer un ou supprimer la communauté.",
+    "communityBlockerTitle": "Seul superadministrateur de la communauté : {{communityName}}",
+    "communityBlockerDescription": "Le titulaire du compte peut nommer un autre membre superadministrateur, ou vous pouvez prendre un accès d'urgence à la communauté et, depuis ses paramètres, en nommer un ou supprimer la communauté.",
     "checkAgain": "Vérifier à nouveau",
     "confirmTitle": "Confirmer la suppression",
     "confirmDescription": "Cette action est irréversible.",
@@ -921,8 +921,8 @@
     },
     "queueTitle": "Approbations",
     "queueDescription": "Accordez, refusez ou révoquez les demandes d'accès temporaire.",
-    "guildIdLabel": "ID de la communauté",
-    "guildIdPlaceholder": "ex. 42",
+    "communityIdLabel": "ID de la communauté",
+    "communityIdPlaceholder": "ex. 42",
     "levelNone": "Aucun",
     "nothingAsked": "Choisissez l'accès au contenu, aux réglages, ou les deux.",
     "levelRead": "Lecture seule",
@@ -1098,7 +1098,7 @@
     "tabs": {
       "users": "Utilisateurs",
       "access": "Accès",
-      "guilds": "Communautés",
+      "communities": "Communautés",
       "placement": "Affectation à la connexion",
       "announcements": "Annonces"
     }
@@ -1171,7 +1171,7 @@
       "agreed": "Accepté pour {{community}}"
     }
   },
-  "guilds": {
+  "communities": {
     "title": "Limites par communauté",
     "description": "Définissez des limites par communauté pour le stockage et le nombre d'utilisateurs. Abaisser une limite en dessous de l'utilisation actuelle bloque les nouveaux téléversements ou membres, mais ne supprime jamais les fichiers ni les membres existants.",
     "platformOnly": "Vous devez avoir le rôle d'opérateur ou de propriétaire pour gérer les limites des communautés.",
@@ -1205,7 +1205,7 @@
     },
     "columns": {
       "id": "ID",
-      "guild": "Communauté",
+      "community": "Communauté",
       "users": "Utilisateurs",
       "storageLimit": "Limite de stockage",
       "status": "Statut",
@@ -1332,7 +1332,7 @@
       "failed": "Échoué"
     }
   },
-  "guildAuth": {
+  "communityAuth": {
     "shareUrl": {
       "title": "Lien de connexion des membres",
       "description": "Partagez ce lien avec les membres — il propose les fournisseurs de connexion de cette communauté et les amène directement dans la communauté.",
@@ -1616,7 +1616,7 @@
     "newTitle": "Nouvelle connexion",
     "editTitle": "Modifier la connexion",
     "platformDialogDescription": "Toutes les communautés peuvent utiliser cette connexion.",
-    "guildDialogDescription": "Les membres de cette communauté peuvent utiliser cette connexion.",
+    "communityDialogDescription": "Les membres de cette communauté peuvent utiliser cette connexion.",
     "labelLabel": "Libellé",
     "labelPlaceholder": "p. ex. OpenAI de l'équipe",
     "apiKeyPlaceholderExisting": "••••••••",
@@ -1641,7 +1641,7 @@
   "memberAI": {
     "description": "Consultez toutes les connexions d'IA à votre disposition dans vos communautés. Ajoutez votre propre clé d'API là où c'est autorisé et choisissez celle que vous utilisez.",
     "noneAvailable": "Aucune connexion d'IA n'est encore à votre disposition.",
-    "sharedKeyGuild": "Utilise une clé partagée définie par l'administration de votre communauté.",
+    "sharedKeyCommunity": "Utilise une clé partagée définie par l'administration de votre communauté.",
     "sharedKeyPlatform": "Utilise une clé partagée définie par la personne qui gère ce serveur.",
     "selected": "Utilisée",
     "requiresKey": "Nécessite votre clé",
@@ -1926,7 +1926,7 @@
       "offHelp": "Une notification qui quitte l'application indique de quoi il s'agit : qui a agi, et sur quoi."
     }
   },
-  "guildNotifications": {
+  "communityNotifications": {
     "title": "Notifications qui quittent l'application",
     "description": "Ce que les notifications de cette communauté emportent en partant. Le serveur répond aux trois mêmes questions pour tout le monde, et la réponse la plus stricte s'applique.",
     "saved": "Paramètres de notification enregistrés",

@@ -110,22 +110,22 @@ vi.mock(import("@/hooks/useAccessGrants"), async (importOriginal) => ({
   useRevokeAccessGrant: () => idle(),
 }));
 
-vi.mock(import("@/hooks/useGuilds"), async (importOriginal) => ({
+vi.mock(import("@/hooks/useCommunities"), async (importOriginal) => ({
   ...(await importOriginal()),
-  useGuilds: () => ({
-    guilds: [],
-    activeGuild: null,
-    activeGuildId: null,
-    activeGuildReadOnly: false,
+  useCommunities: () => ({
+    communities: [],
+    activeCommunity: null,
+    activeCommunityId: null,
+    activeCommunityReadOnly: false,
     loading: false,
     error: null,
-    refreshGuilds: vi.fn(),
-    switchGuild: vi.fn(),
-    syncGuildFromUrl: vi.fn(),
-    createGuild: vi.fn(),
-    updateGuildInState: vi.fn(),
-    reorderGuilds: vi.fn(),
-    canCreateGuilds: false,
+    refreshCommunities: vi.fn(),
+    switchCommunity: vi.fn(),
+    syncCommunityFromUrl: vi.fn(),
+    createCommunity: vi.fn(),
+    updateCommunityInState: vi.fn(),
+    reorderCommunities: vi.fn(),
+    canCreateCommunities: false,
   }),
 }));
 

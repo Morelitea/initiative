@@ -577,7 +577,7 @@ def _build_smart_link(*, target_path: str, guild_id: int | None) -> str | None:
     normalized = _normalize_target_path(target_path)
     encoded = quote(normalized, safe="")
     base = app_config.APP_URL.rstrip("/") or "http://localhost:5173"
-    return f"{base}/navigate?guild_id={guild_id}&target={encoded}"
+    return f"{base}/navigate?community_id={guild_id}&target={encoded}"
 
 
 # A tool entity's URL names its initiative (/i/{initiative}/projects/{id}), and

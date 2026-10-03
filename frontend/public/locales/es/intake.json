@@ -11,7 +11,7 @@
     "saved": "Contactos guardados.",
     "saveError": "No se pudieron guardar los contactos."
   },
-  "guild": {
+  "community": {
     "title": "Comunidad de operaciones",
     "description": "La comunidad que recibe el trabajo de seguridad, moderación, soporte y comentarios de esta instalación.",
     "label": "Comunidad",
@@ -24,7 +24,7 @@
     "clearConfirm": "Dejar de dirigir"
   },
   "streams": {
-    "chooseGuildFirst": "Elige una comunidad arriba y luego indica dónde llega cada canal.",
+    "chooseCommunityFirst": "Elige una comunidad arriba y luego indica dónde llega cada canal.",
     "security": {
       "title": "Seguridad",
       "description": "Casos abiertos por reglas que vigilan esta instalación."

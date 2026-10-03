@@ -4,7 +4,7 @@ import { HttpResponse } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildInitiative } from "@/__tests__/factories";
-import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
@@ -52,7 +52,7 @@ describe("EnvelopeImportDialog", () => {
   it("imports a matching envelope into the chosen initiative", async () => {
     let sent: Record<string, unknown> | null = null;
     server.use(
-      guildHttp.post("/imports/envelope", async ({ request }) => {
+      communityHttp.post("/imports/envelope", async ({ request }) => {
         sent = (await request.json()) as Record<string, unknown>;
         return HttpResponse.json(
           { result: { entity_title: "Restored Queue", created: {}, unmatched_handles: [] } },
@@ -81,7 +81,7 @@ describe("EnvelopeImportDialog", () => {
 
   it("refreshes the tool's list once the import lands", async () => {
     server.use(
-      guildHttp.post("/imports/envelope", () =>
+      communityHttp.post("/imports/envelope", () =>
         HttpResponse.json(
           { result: { entity_title: "Restored Queue", created: {}, unmatched_handles: [] } },
           { status: 201 }
@@ -104,7 +104,7 @@ describe("EnvelopeImportDialog", () => {
   it("sends a zipped export as it is, saying which tool it is for", async () => {
     let sent: string | null = null;
     server.use(
-      guildHttp.post("/imports/envelope/archive", async ({ request }) => {
+      communityHttp.post("/imports/envelope/archive", async ({ request }) => {
         sent = await request.text();
         return HttpResponse.json(
           { result: { entity_title: "Barovia maps", created: {}, unmatched_handles: [] } },
@@ -163,8 +163,8 @@ describe("EnvelopeImportDialog", () => {
     };
     let confirmed: Record<string, unknown> | null = null;
     server.use(
-      guildHttp.post("/imports/envelope", () => HttpResponse.json(stagedJob, { status: 202 })),
-      guildHttp.post("/imports/jobs/42/confirm", async ({ request }) => {
+      communityHttp.post("/imports/envelope", () => HttpResponse.json(stagedJob, { status: 202 })),
+      communityHttp.post("/imports/jobs/42/confirm", async ({ request }) => {
         confirmed = (await request.json()) as Record<string, unknown>;
         return HttpResponse.json({ ...stagedJob, status: "queued" });
       })

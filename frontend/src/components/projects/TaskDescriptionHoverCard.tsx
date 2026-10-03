@@ -6,7 +6,7 @@ import { useReadTask } from "@/api/generated/tasks/tasks";
 import { TaskDescription } from "@/components/tasks/TaskDescription";
 import { Button } from "@/components/ui/button";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { cn } from "@/lib/utils";
 
 interface TaskDescriptionHoverCardProps {
@@ -24,8 +24,8 @@ interface TaskDescriptionHoverCardProps {
  */
 export const TaskDescriptionHoverCard = ({ task, className }: TaskDescriptionHoverCardProps) => {
   const [open, setOpen] = useState(false);
-  const activeGuildId = useActiveGuildId();
-  const { data } = useReadTask(task.community_id ?? activeGuildId, task.id, undefined, {
+  const activeCommunityId = useActiveCommunityId();
+  const { data } = useReadTask(task.community_id ?? activeCommunityId, task.id, undefined, {
     query: { enabled: open },
   });
 
@@ -41,7 +41,7 @@ export const TaskDescriptionHoverCard = ({ task, className }: TaskDescriptionHov
       <HoverCardContent className="max-h-120 w-screen max-w-120 overflow-y-auto">
         <TaskDescription
           content={data?.description || task.description_excerpt || ""}
-          guildId={task.community_id ?? undefined}
+          communityId={task.community_id ?? undefined}
         />
       </HoverCardContent>
     </HoverCard>

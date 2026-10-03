@@ -14,10 +14,10 @@ import type {
   CommunityRole,
   UserCommunityMember,
 } from "@/api/generated/initiativeAPI.schemas";
-import { MemberDisplayNameDialog } from "@/components/guilds/MemberDisplayNameDialog";
-import { RemoveGuildMemberDialog } from "@/components/guilds/RemoveGuildMemberDialog";
-import { TransferContentOwnershipDialog } from "@/components/guilds/TransferContentOwnershipDialog";
-import { UnownedContentCard } from "@/components/guilds/UnownedContentCard";
+import { MemberDisplayNameDialog } from "@/components/communities/MemberDisplayNameDialog";
+import { RemoveCommunityMemberDialog } from "@/components/communities/RemoveCommunityMemberDialog";
+import { TransferContentOwnershipDialog } from "@/components/communities/TransferContentOwnershipDialog";
+import { UnownedContentCard } from "@/components/communities/UnownedContentCard";
 import {
   FormSkeleton,
   ListSkeleton,
@@ -41,10 +41,14 @@ import {
 } from "@/components/ui/select";
 import { useAuth } from "@/hooks/useAuth";
 import { useBillingPortal } from "@/hooks/useBillingPortal";
+import { useCommunities } from "@/hooks/useCommunities";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import { useGuilds } from "@/hooks/useGuilds";
 import { useRelativeTime } from "@/hooks/useRelativeTime";
-import { useExportGuildUsersCsv, useUpdateGuildMembership, useUsers } from "@/hooks/useUsers";
+import {
+  useExportCommunityUsersCsv,
+  useUpdateCommunityMembership,
+  useUsers,
+} from "@/hooks/useUsers";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import type { AppColumnDef } from "@/lib/table";
@@ -53,7 +57,7 @@ import { getUrlHandle, getUserDisplayName, getUserHandle } from "@/lib/userDispl
 //: What this community's roles are, in the order the picker offers them. The
 //: seat is only on the list for somebody who already holds it — an admin can
 //: neither appoint nor demote one, and the server says so too.
-const GUILD_ROLE_OPTIONS: CommunityRole[] = ["admin", "member"];
+const COMMUNITY_ROLE_OPTIONS: CommunityRole[] = ["admin", "member"];
 const SEAT_ROLE_OPTIONS: CommunityRole[] = ["superadmin", "admin", "member"];
 const inviteLinkForCode = (code: string) => {
   const base = import.meta.env.VITE_APP_URL?.trim() || window.location.origin;
@@ -74,7 +78,7 @@ const InviteUsesLine = ({
   maxUses: number | null;
   expiresAt: string | null;
 }) => {
-  const { t } = useTranslation("guilds");
+  const { t } = useTranslation("communities");
   const relativeExpiry = useRelativeTime(expiresAt);
   const expires = expiresAt != null ? relativeExpiry : t("users.neverExpires");
   return (
@@ -86,30 +90,30 @@ const InviteUsesLine = ({
 
 export const SettingsUsersPage = () => {
   const { user } = useAuth();
-  const { t } = useTranslation("guilds");
+  const { t } = useTranslation("communities");
 
-  const { activeGuild } = useGuilds();
+  const { activeCommunity } = useCommunities();
   const { canSell, openPortal } = useBillingPortal();
   // Running the community, not reaching its work: the roster and its
-  // invites answer to the guild's own ladder, and to a settings grant
+  // invites answer to the community's own ladder, and to a settings grant
   // standing in on it. Platform role has nothing to do with it.
-  const isGuildAdmin = Boolean(activeGuild?.can.administer);
+  const isCommunityAdmin = Boolean(activeCommunity?.can.administer);
   // Invites are handed out by whoever may change the roster, so a rung that
   // only reads it does not list them.
-  const managesInvites = Boolean(activeGuild?.can.configure);
-  const roleOptions = activeGuild?.can.seat ? SEAT_ROLE_OPTIONS : GUILD_ROLE_OPTIONS;
+  const managesInvites = Boolean(activeCommunity?.can.configure);
+  const roleOptions = activeCommunity?.can.seat ? SEAT_ROLE_OPTIONS : COMMUNITY_ROLE_OPTIONS;
 
-  const activeGuildId = activeGuild?.id ?? null;
+  const activeCommunityId = activeCommunity?.id ?? null;
 
-  // Seat cap, admin-only on the payload and null when uncapped. A full guild
+  // Seat cap, admin-only on the payload and null when uncapped. A full community
   // mints no invite (the server refuses), so the form says so up front instead
   // of failing on submit. Where a billing portal exists the cap travels with
   // the plan — raising it is an upgrade, not a request to an operator — so the
   // message and its action differ from the self-hosted one.
-  const maxUsers = activeGuild?.max_users ?? null;
-  const usedSeats = activeGuild?.member_count ?? 0;
+  const maxUsers = activeCommunity?.max_users ?? null;
+  const usedSeats = activeCommunity?.member_count ?? 0;
   const atUserLimit = maxUsers !== null && usedSeats >= maxUsers;
-  const planName = activeGuild?.tier_name ?? null;
+  const planName = activeCommunity?.tier_name ?? null;
 
   const [invites, setInvites] = useState<CommunityInviteRead[]>([]);
   const [invitesLoading, setInvitesLoading] = useState(false);
@@ -128,14 +132,14 @@ export const SettingsUsersPage = () => {
   } | null>(null);
 
   const loadInvites = useCallback(async () => {
-    if (!activeGuildId) {
+    if (!activeCommunityId) {
       setInvites([]);
       return;
     }
     setInvitesLoading(true);
     setInvitesError(null);
     try {
-      const data = await (listCommunityInvites(activeGuildId) as unknown as Promise<
+      const data = await (listCommunityInvites(activeCommunityId) as unknown as Promise<
         CommunityInviteRead[]
       >);
       setInvites(data);
@@ -145,7 +149,7 @@ export const SettingsUsersPage = () => {
     } finally {
       setInvitesLoading(false);
     }
-  }, [activeGuildId, t]);
+  }, [activeCommunityId, t]);
 
   useEffect(() => {
     if (managesInvites) {
@@ -163,21 +167,21 @@ export const SettingsUsersPage = () => {
   const [pageSize, setPageSize] = useState(20);
   const usersQuery = useUsers(
     { search: search.trim() || undefined, page, page_size: pageSize },
-    { enabled: isGuildAdmin }
+    { enabled: isCommunityAdmin }
   );
   const rows = usersQuery.data?.items ?? [];
   const totalCount = usersQuery.data?.total_count ?? 0;
 
-  const updateGuildMembership = useUpdateGuildMembership({
+  const updateCommunityMembership = useUpdateCommunityMembership({
     onError: (error: unknown) => {
-      const message = getErrorMessage(error, "guilds:users.failedToUpdateRole");
+      const message = getErrorMessage(error, "communities:users.failedToUpdateRole");
       toast.error(message);
     },
   });
 
   const handleRoleChange = (userId: number, role: CommunityRole) => {
-    // Update guild membership role
-    updateGuildMembership.mutate({ guildId: activeGuildId!, userId, role });
+    // Update community membership role
+    updateCommunityMembership.mutate({ communityId: activeCommunityId!, userId, role });
   };
 
   const handleDeleteUser = (userId: number, email: string) => {
@@ -185,30 +189,33 @@ export const SettingsUsersPage = () => {
     setDeleteUserConfirm({ userId, email });
   };
 
-  const exportGuildUsers = useExportGuildUsersCsv({
+  const exportCommunityUsers = useExportCommunityUsersCsv({
     onError: (err) => {
-      toast.error(getErrorMessage(err, "guilds:users.exportError"));
+      toast.error(getErrorMessage(err, "communities:users.exportError"));
     },
   });
 
-  const exportUserCsv = (guildMember: UserCommunityMember) => {
-    const safeHandle = guildMember.username.replace(/[^a-zA-Z0-9._-]+/g, "_");
-    exportGuildUsers.mutate({
-      params: { user_id: [guildMember.id] },
-      filename: `user-${guildMember.id}-${safeHandle}.csv`,
+  const exportUserCsv = (communityMember: UserCommunityMember) => {
+    const safeHandle = communityMember.username.replace(/[^a-zA-Z0-9._-]+/g, "_");
+    exportCommunityUsers.mutate({
+      params: { user_id: [communityMember.id] },
+      filename: `user-${communityMember.id}-${safeHandle}.csv`,
     });
   };
 
   const exportAllUsersCsv = () => {
-    const safeGuildName = (activeGuild?.name ?? "guild").replace(/[^a-zA-Z0-9._-]+/g, "_");
+    const safeCommunityName = (activeCommunity?.name ?? "community").replace(
+      /[^a-zA-Z0-9._-]+/g,
+      "_"
+    );
     const datestamp = new Date().toISOString().slice(0, 10);
-    exportGuildUsers.mutate({
+    exportCommunityUsers.mutate({
       params: {},
-      filename: `${safeGuildName}-users-${datestamp}.csv`,
+      filename: `${safeCommunityName}-users-${datestamp}.csv`,
     });
   };
 
-  if (!isGuildAdmin) {
+  if (!isCommunityAdmin) {
     return <p className="text-muted-foreground text-sm">{t("users.adminRequired")}</p>;
   }
 
@@ -268,17 +275,19 @@ export const SettingsUsersPage = () => {
       : []),
     {
       accessorKey: "community_role",
-      header: t("users.guildRoleColumn"),
+      header: t("users.communityRoleColumn"),
       cell: ({ row }) => {
-        const guildMember = row.original;
-        const isSelf = guildMember.id === user?.id;
-        const currentGuildRole = guildMember.community_role ?? "member";
+        const communityMember = row.original;
+        const isSelf = communityMember.id === user?.id;
+        const currentCommunityRole = communityMember.community_role ?? "member";
         return (
           <div className="flex flex-col gap-1">
             <Select
-              value={currentGuildRole}
-              onValueChange={(value) => handleRoleChange(guildMember.id, value as CommunityRole)}
-              disabled={isSelf || updateGuildMembership.isPending}
+              value={currentCommunityRole}
+              onValueChange={(value) =>
+                handleRoleChange(communityMember.id, value as CommunityRole)
+              }
+              disabled={isSelf || updateCommunityMembership.isPending}
             >
               <SelectTrigger disabled={isSelf} className="min-w-40">
                 <SelectValue />
@@ -286,7 +295,7 @@ export const SettingsUsersPage = () => {
               <SelectContent>
                 {roleOptions.map((roleOption) => (
                   <SelectItem key={roleOption} value={roleOption}>
-                    {t(`users.guildRole.${roleOption}` as never)}
+                    {t(`users.communityRole.${roleOption}` as never)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -312,32 +321,34 @@ export const SettingsUsersPage = () => {
       id: "actions",
       header: t("users.actionsColumn"),
       cell: ({ row }) => {
-        const guildMember = row.original;
-        const isSelf = guildMember.id === user?.id;
+        const communityMember = row.original;
+        const isSelf = communityMember.id === user?.id;
         return (
-          <RowActionsMenu subject={getUserDisplayName(guildMember)}>
-            <DropdownMenuItem onSelect={() => exportUserCsv(guildMember)}>
+          <RowActionsMenu subject={getUserDisplayName(communityMember)}>
+            <DropdownMenuItem onSelect={() => exportUserCsv(communityMember)}>
               <Download className="h-4 w-4" />
               {t("users.exportUser")}
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => setNamingMember(guildMember)}>
+            <DropdownMenuItem onSelect={() => setNamingMember(communityMember)}>
               <IdCard className="h-4 w-4" />
               {t("displayName.adminAction")}
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => setTransferTarget({ member: guildMember })}>
+            <DropdownMenuItem onSelect={() => setTransferTarget({ member: communityMember })}>
               <HandCoins className="h-4 w-4" />
               {t("transferOwnership.action")}
             </DropdownMenuItem>
-            {/* Removing somebody from the guild is the destructive one, and
+            {/* Removing somebody from the community is the destructive one, and
                 the only one you cannot aim at yourself. */}
             <DropdownMenuSeparator />
             <DropdownMenuItem
               className="text-destructive"
-              onSelect={() => handleDeleteUser(guildMember.id, getUserDisplayName(guildMember))}
+              onSelect={() =>
+                handleDeleteUser(communityMember.id, getUserDisplayName(communityMember))
+              }
               disabled={isSelf}
             >
               <UserMinus className="h-4 w-4" />
-              {t("users.removeFromGuild")}
+              {t("users.removeFromCommunity")}
             </DropdownMenuItem>
           </RowActionsMenu>
         );
@@ -347,7 +358,7 @@ export const SettingsUsersPage = () => {
 
   const createInvite = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!activeGuildId || atUserLimit) {
+    if (!activeCommunityId || atUserLimit) {
       return;
     }
     setInviteSubmitting(true);
@@ -362,24 +373,24 @@ export const SettingsUsersPage = () => {
         expires_at: expiresAt,
       };
       await createCommunityInvite(
-        activeGuildId,
+        activeCommunityId,
         payload as Parameters<typeof createCommunityInvite>[1]
       );
       await loadInvites();
     } catch (error) {
       console.error(error);
-      setInvitesError(getErrorMessage(error, "guilds:users.unableToCreateInvite"));
+      setInvitesError(getErrorMessage(error, "communities:users.unableToCreateInvite"));
     } finally {
       setInviteSubmitting(false);
     }
   };
 
   const deleteInvite = async (inviteId: number) => {
-    if (!activeGuildId) {
+    if (!activeCommunityId) {
       return;
     }
     try {
-      await deleteCommunityInvite(activeGuildId, inviteId);
+      await deleteCommunityInvite(activeCommunityId, inviteId);
       await loadInvites();
     } catch (error) {
       console.error(error);
@@ -438,14 +449,14 @@ export const SettingsUsersPage = () => {
                 </Button>
               </div>
             </form>
-            {atUserLimit && canSell && activeGuildId && activeGuild?.can.seat ? (
+            {atUserLimit && canSell && activeCommunityId && activeCommunity?.can.seat ? (
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <p className="text-muted-foreground text-sm">
                   {planName
                     ? t("users.inviteSeatsFullPlan", { plan: planName, count: maxUsers ?? 0 })
                     : t("users.inviteSeatsFullUpgrade", { count: maxUsers ?? 0 })}
                 </p>
-                <Button size="sm" onClick={() => void openPortal(activeGuildId, "upgrade")}>
+                <Button size="sm" onClick={() => void openPortal(activeCommunityId, "upgrade")}>
                   {t("usagePanel.upgrade")}
                 </Button>
               </div>
@@ -513,9 +524,9 @@ export const SettingsUsersPage = () => {
               {roleOptions.map((roleOption) => (
                 <div key={roleOption} className="flex gap-1.5">
                   <dt className="font-medium text-foreground">
-                    {t(`users.guildRole.${roleOption}` as never)}
+                    {t(`users.communityRole.${roleOption}` as never)}
                   </dt>
-                  <dd>{t(`users.guildRoleHelp.${roleOption}` as never)}</dd>
+                  <dd>{t(`users.communityRoleHelp.${roleOption}` as never)}</dd>
                 </div>
               ))}
             </dl>
@@ -562,18 +573,18 @@ export const SettingsUsersPage = () => {
 
       <UnownedContentCard onClaim={() => setTransferTarget({ member: null })} />
 
-      <RemoveGuildMemberDialog
+      <RemoveCommunityMemberDialog
         open={deleteUserConfirm !== null}
         onOpenChange={(open) => !open && setDeleteUserConfirm(null)}
         userId={deleteUserConfirm?.userId ?? null}
         email={deleteUserConfirm?.email ?? ""}
       />
 
-      {activeGuildId ? (
+      {activeCommunityId ? (
         <MemberDisplayNameDialog
           open={namingMember !== null}
           onOpenChange={(open) => !open && setNamingMember(null)}
-          guildId={activeGuildId}
+          communityId={activeCommunityId}
           member={
             namingMember ? { id: namingMember.id, name: getUserHandle(namingMember) } : undefined
           }

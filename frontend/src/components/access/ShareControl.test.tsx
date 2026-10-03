@@ -46,7 +46,7 @@ vi.mock("@/hooks/useInitiativeRoles", () => ({
 }));
 
 // People are searched on the server — the initiative's members, or the
-// guild's — and the ones already named are looked up by id.
+// community's — and the ones already named are looked up by id.
 const memberSearch = vi.hoisted(() => vi.fn());
 vi.mock("@/hooks/useUsers", () => ({
   USER_ID_LOOKUP_MAX: 100,
@@ -63,8 +63,8 @@ vi.mock("@/hooks/useUsers", () => ({
 }));
 
 // The community's installed apps, which name an app grantee.
-vi.mock("@/hooks/useGuildApps", () => ({
-  useGuildApps: () => ({
+vi.mock("@/hooks/useCommunityApps", () => ({
+  useCommunityApps: () => ({
     data: {
       items: [
         { id: 301, name: "Automations", avatar_url: null },
@@ -128,7 +128,7 @@ describe("ShareControl", () => {
     expect(onChange).toHaveBeenCalledTimes(1);
     const next = onChange.mock.calls[0][0] as ResourceGrantSchema[];
     expect(next).toContainEqual({ user_id: 101, level: "read" });
-    // The picker searched the initiative's members, not the guild's.
+    // The picker searched the initiative's members, not the community's.
     expect(memberSearch).toHaveBeenCalledWith(
       { type: "initiative", initiativeId: 1 },
       expect.objectContaining({ enabled: true })
@@ -166,14 +166,14 @@ describe("ShareControl", () => {
 });
 
 /**
- * The guild view of the same control.
+ * The community view of the same control.
  *
- * A guild-level resource is shared with the guild's members, and a guild has no
+ * A community-level resource is shared with the community's members, and a community has no
  * roles — the roles this control grants to belong to an initiative. So the
- * guild view is a narrower control, not the same one relabelled.
+ * community view is a narrower control, not the same one relabelled.
  */
 describe("ShareControl in its community view", () => {
-  const guildProps = { initiativeId: null, onChange: vi.fn() };
+  const communityProps = { initiativeId: null, onChange: vi.fn() };
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -182,7 +182,7 @@ describe("ShareControl in its community view", () => {
   it("names the community rather than an initiative", () => {
     const grants: ResourceGrantSchema[] = [{ all_initiative_members: true, level: "read" }];
 
-    renderWithProviders(<ShareControl {...guildProps} grants={grants} />);
+    renderWithProviders(<ShareControl {...communityProps} grants={grants} />);
 
     expect(screen.getByText("Everyone in the community")).toBeInTheDocument();
     expect(screen.queryByText("All initiative members")).toBeNull();
@@ -190,7 +190,7 @@ describe("ShareControl in its community view", () => {
 
   it("offers no roles to add", () => {
     // Restricted mode is where the initiative view shows its Roles section.
-    renderWithProviders(<ShareControl {...guildProps} grants={[]} />);
+    renderWithProviders(<ShareControl {...communityProps} grants={[]} />);
 
     expect(screen.getByText("People")).toBeInTheDocument();
     expect(screen.queryByText("Roles")).toBeNull();
@@ -212,7 +212,7 @@ describe("ShareControl in its community view", () => {
   });
 
   it("drops a role grant rather than carrying it through an edit", async () => {
-    // The server cannot resolve one on a guild-level resource, so a stray
+    // The server cannot resolve one on a community-level resource, so a stray
     // stored grant must not survive a save made from this view.
     const onChange = vi.fn();
     const grants: ResourceGrantSchema[] = [

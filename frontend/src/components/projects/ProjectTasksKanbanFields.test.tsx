@@ -17,7 +17,7 @@ import {
   buildTaskListResponse,
   buildUserSummary,
 } from "@/__tests__/factories";
-import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
 import { ProjectTasksSection } from "@/components/projects/ProjectTasksSection";
@@ -34,7 +34,7 @@ const seedTask = (overrides: Record<string, unknown> = {}) => {
     task_status_id: STATUSES[0].id,
     ...overrides,
   });
-  server.use(guildHttp.get("/tasks/", () => HttpResponse.json(buildTaskListResponse([task]))));
+  server.use(communityHttp.get("/tasks/", () => HttpResponse.json(buildTaskListResponse([task]))));
 };
 
 const board = () =>
@@ -143,7 +143,7 @@ describe("a card's excerpt", () => {
   it("names the people it mentions as they are called now", async () => {
     seedTask({ description_excerpt: "Start from the coast with @[](12)", has_description: true });
     server.use(
-      guildHttp.get("/users/search", () =>
+      communityHttp.get("/users/search", () =>
         HttpResponse.json({
           items: [buildUserSummary({ id: 12, display_name: "Ada King" })],
           total: 1,

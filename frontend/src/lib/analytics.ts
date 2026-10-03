@@ -7,7 +7,7 @@
  * `analytics` category. The SDK is imported then and not before, so a browser
  * that never agreed never downloads it.
  *
- * A page is named by its route template (`/c/$guildId/projects/$projectId`),
+ * A page is named by its route template (`/c/$communityId/projects/$projectId`),
  * never by its address, and no person is attached to anything sent.
  */
 

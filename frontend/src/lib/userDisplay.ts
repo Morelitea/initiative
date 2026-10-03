@@ -6,7 +6,7 @@ import { resolveUploadUrl } from "@/lib/uploadUrl";
 /**
  * The minimum shape of a user object needed to render a display name.
  *
- * Anything that comes back from the API and represents a person — guild
+ * Anything that comes back from the API and represents a person — community
  * member, comment author, task assignee, mention candidate, etc. — should fit
  * this shape. ``status`` is optional because some lightweight endpoints don't
  * include it; absent ``status`` is treated as a live user.

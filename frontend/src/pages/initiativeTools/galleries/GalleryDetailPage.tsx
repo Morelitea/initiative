@@ -54,9 +54,9 @@ import { useReadOnOpen } from "@/hooks/useNotifications";
 import { useRecordRecentView } from "@/hooks/useRecents";
 import { useViewPreference } from "@/hooks/useViewPreference";
 import { toast } from "@/lib/chesterToast";
+import { useCommunityPath } from "@/lib/communityUrl";
 import { formatPeriod } from "@/lib/formatDate";
 import { imageLabel, imageSrc } from "@/lib/galleries";
-import { useGuildPath } from "@/lib/guildUrl";
 import { toolListRoute, toolSettingsRoute } from "@/lib/tools";
 
 type ViewMode = "masonry" | "grid" | "timeline";
@@ -83,18 +83,18 @@ const isViewMode = (value: unknown): value is ViewMode =>
  */
 export function GalleryDetailPage() {
   const { t } = useTranslation(["galleries", "common"]);
-  const { guildId, galleryId } = useParams({ strict: false }) as {
-    guildId: string;
+  const { communityId, galleryId } = useParams({ strict: false }) as {
+    communityId: string;
     galleryId: string;
   };
   const parsedId = Number(galleryId);
-  const gp = useGuildPath();
+  const gp = useCommunityPath();
 
   const galleryQuery = useGallery(Number.isFinite(parsedId) ? parsedId : null);
   const gallery = galleryQuery.data;
   const initiativeId = useCanonicalInitiativeId(gallery?.initiative_id);
 
-  const recordViewMutation = useRecordRecentView("gallery", Number(guildId));
+  const recordViewMutation = useRecordRecentView("gallery", Number(communityId));
   const viewedId = gallery?.id;
   useReadOnOpen(Tool.gallery, viewedId);
   useEffect(() => {

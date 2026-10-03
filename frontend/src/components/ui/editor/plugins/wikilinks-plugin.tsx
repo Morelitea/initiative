@@ -23,7 +23,7 @@ import {
   $placeEmbed,
 } from "@/components/ui/editor/nodes/reference-embed-node";
 import { useInitiative } from "@/hooks/useInitiatives";
-import { useGuildPickerSuggestions } from "@/hooks/useSearch";
+import { useCommunityPickerSuggestions } from "@/hooks/useSearch";
 import { MENTIONABLE_TYPES } from "@/lib/mentions";
 import { linkableToolTypes } from "@/lib/references";
 
@@ -134,18 +134,21 @@ function useWikilinkSearch(
   const linkable = useMemo(() => linkableToolTypes(initiative), [initiative]);
   // A bare `[[ ]]` names nothing yet, so the menu opens on this initiative's
   // most recent linkable things rather than waiting for a first letter.
-  const { items: results, isFetching: isLoading } = useGuildPickerSuggestions(queryString ?? "", {
-    // An embed shows a thing in full, and a task is what most want shown, so
-    // `![[` reaches everything `#` does rather than only the tools.
-    types: embed ? MENTIONABLE_TYPES : linkable,
-    initiative_id: initiativeId ?? undefined,
-    is_template: false,
-    // A page does not link to itself: the page the link opens is the one the
-    // words are on.
-    subject,
-    limit: SUGGESTION_LIST_LENGTH_LIMIT,
-    enabled: queryString !== null && initiativeId !== null,
-  });
+  const { items: results, isFetching: isLoading } = useCommunityPickerSuggestions(
+    queryString ?? "",
+    {
+      // An embed shows a thing in full, and a task is what most want shown, so
+      // `![[` reaches everything `#` does rather than only the tools.
+      types: embed ? MENTIONABLE_TYPES : linkable,
+      initiative_id: initiativeId ?? undefined,
+      is_template: false,
+      // A page does not link to itself: the page the link opens is the one the
+      // words are on.
+      subject,
+      limit: SUGGESTION_LIST_LENGTH_LIMIT,
+      enabled: queryString !== null && initiativeId !== null,
+    }
+  );
 
   const options = useMemo(() => {
     const docOptions = results.map(

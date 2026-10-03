@@ -19,18 +19,18 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 import { useListedInitiative } from "@/hooks/useInitiatives";
-import { useGuildPath } from "@/lib/guildUrl";
+import { useCommunityPath } from "@/lib/communityUrl";
 import { initiativeRoute, toolListRoute, toolNavLabelKey } from "@/lib/tools";
 
 export interface ToolBreadcrumbSegment {
   label: ReactNode;
-  /** Guild-relative path (e.g. from `toolDetailRoute`). */
+  /** Community-relative path (e.g. from `toolDetailRoute`). */
   to: string;
 }
 
 export interface ToolBreadcrumbProps {
   tool: Tool;
-  /** The initiative this entity lives in. Omit (or null) for a guild-level
+  /** The initiative this entity lives in. Omit (or null) for a community-level
    *  entity (e.g. a calendar with no initiative) — that crumb is dropped. */
   initiativeId?: number | null;
   /** Ancestors after the tool-list crumb, in order: a task's project, the
@@ -40,9 +40,9 @@ export interface ToolBreadcrumbProps {
 
 export const ToolBreadcrumb = ({ tool, initiativeId, trail = [] }: ToolBreadcrumbProps) => {
   const { t } = useTranslation("nav");
-  const gp = useGuildPath();
+  const gp = useCommunityPath();
   const initiativeName = useListedInitiative(initiativeId)?.name;
-  // A guild-level entity (only calendars have any) belongs to no initiative, so
+  // A community-level entity (only calendars have any) belongs to no initiative, so
   // there is no tool tab to go back to — its crumb reads as plain text.
   const hasInitiative = initiativeId != null;
 

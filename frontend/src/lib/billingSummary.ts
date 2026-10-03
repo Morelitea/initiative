@@ -2,7 +2,7 @@ import type {
   CommunityBillingSummaryRead,
   CommunityRead,
 } from "@/api/generated/initiativeAPI.schemas";
-import type { GuildEntry } from "@/hooks/useGuilds";
+import type { CommunityEntry } from "@/hooks/useCommunities";
 import { parseDateValue } from "@/lib/formatDate";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -30,5 +30,6 @@ export const trialDaysLeft = (summary: CommunityBillingSummaryRead | undefined):
  * billing portal, under its own controls. A seat whose session only reads is
  * refused by the server, so it is not offered a panel that would only fail.
  */
-export const holdsBillingSeat = (guild: GuildEntry | CommunityRead | null | undefined): boolean =>
-  Boolean(guild?.can.seat && guild.can.configure);
+export const holdsBillingSeat = (
+  community: CommunityEntry | CommunityRead | null | undefined
+): boolean => Boolean(community?.can.seat && community.can.configure);

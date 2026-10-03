@@ -4,7 +4,7 @@
  * Both halves come from the server's own registry — the datasets and functions
  * from the validator's allow-lists, the fields from the field registry — so a
  * name offered while somebody types is one the validator accepts. Neither
- * describes anybody's rows: the answer is the same for every guild and never
+ * describes anybody's rows: the answer is the same for every community and never
  * changes within a deployment, so both are cached for the session and every
  * consumer shares one request.
  */

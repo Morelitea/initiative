@@ -115,27 +115,27 @@ export const useAuthProviders = (options?: QueryOpts<AuthProviderOwnerRead[]>) =
 };
 
 /** What a community says its own arrivals look like, for the operator. */
-export const useGuildNarrowings = (
-  guildId: number,
+export const useCommunityNarrowings = (
+  communityId: number,
   options?: QueryOpts<CommunityNarrowingPending[]>
 ) => {
   return useQuery<CommunityNarrowingPending[]>({
-    queryKey: getReadCommunityNarrowingsQueryKey(guildId),
-    queryFn: () => readCommunityNarrowings(guildId),
+    queryKey: getReadCommunityNarrowingsQueryKey(communityId),
+    queryFn: () => readCommunityNarrowings(communityId),
     ...options,
   });
 };
 
 /** Agree that a community's claim values are its own, or withdraw that. */
-export const useAgreeGuildNarrowing = (
-  guildId: number,
+export const useAgreeCommunityNarrowing = (
+  communityId: number,
   options?: MutationOpts<CommunityNarrowingPending, { connectionId: number; agreed: boolean }>
 ) =>
   useApiMutation<CommunityNarrowingPending, { connectionId: number; agreed: boolean }>(
     {
       mutationFn: ({ connectionId, agreed }) =>
-        agreeCommunityNarrowing(guildId, connectionId, { agreed }),
-      invalidate: () => invalidate(q.guildNarrowings(guildId)),
+        agreeCommunityNarrowing(communityId, connectionId, { agreed }),
+      invalidate: () => invalidate(q.communityNarrowings(communityId)),
     },
     options
   );
@@ -196,11 +196,11 @@ export const useFcmConfig = () => {
 };
 
 /**
- * One page of guilds with their storage caps, for the platform settings →
- * Guilds tab, searched and sorted on the server. Operator and above
+ * One page of communities with their storage caps, for the platform settings →
+ * Communities tab, searched and sorted on the server. Operator and above
  * (`communities.manage`); pass `{ enabled }` to skip the request for anyone else.
  */
-export const usePlatformGuilds = (
+export const usePlatformCommunities = (
   params: ListPlatformCommunityStorageParams,
   options?: QueryOpts<PlatformCommunityStorageListResponse>
 ) => {
@@ -458,38 +458,41 @@ export const useStartStorageBackfill = (
     options
   );
 
-export const useRestoreGuild = (
+export const useRestoreCommunity = (
   options?: MutationOpts<
     PlatformCommunityStorageRead,
-    { guildId: number; data: PlatformCommunityRestore }
-  >
-) =>
-  useApiMutation<PlatformCommunityStorageRead, { guildId: number; data: PlatformCommunityRestore }>(
-    {
-      mutationFn: ({ guildId, data }) => restorePlatformCommunity(guildId, data),
-      invalidate: () => invalidate(q.platformGuilds()),
-    },
-    options
-  );
-
-export const useUpdateGuildStorage = (
-  options?: MutationOpts<
-    PlatformCommunityStorageRead,
-    { guildId: number; data: PlatformCommunityStorageUpdate }
+    { communityId: number; data: PlatformCommunityRestore }
   >
 ) =>
   useApiMutation<
     PlatformCommunityStorageRead,
-    { guildId: number; data: PlatformCommunityStorageUpdate }
+    { communityId: number; data: PlatformCommunityRestore }
   >(
     {
-      mutationFn: ({ guildId, data }) =>
+      mutationFn: ({ communityId, data }) => restorePlatformCommunity(communityId, data),
+      invalidate: () => invalidate(q.platformCommunities()),
+    },
+    options
+  );
+
+export const useUpdateCommunityStorage = (
+  options?: MutationOpts<
+    PlatformCommunityStorageRead,
+    { communityId: number; data: PlatformCommunityStorageUpdate }
+  >
+) =>
+  useApiMutation<
+    PlatformCommunityStorageRead,
+    { communityId: number; data: PlatformCommunityStorageUpdate }
+  >(
+    {
+      mutationFn: ({ communityId, data }) =>
         updatePlatformCommunityStorage(
-          guildId,
+          communityId,
           data as Parameters<typeof updatePlatformCommunityStorage>[1]
         ),
       // The help-request switch decides what "Ask for help" offers.
-      invalidate: () => invalidate(q.platformGuilds(), q.ticketAvailability()),
+      invalidate: () => invalidate(q.platformCommunities(), q.ticketAvailability()),
     },
     options
   );

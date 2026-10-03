@@ -70,7 +70,7 @@
     "tags": "Tags",
     "owner": "Eigentümer",
     "type": "Typ",
-    "guild": "Community",
+    "community": "Community",
     "initiative": "Initiative"
   },
   "create": {
@@ -123,7 +123,7 @@
   },
   "createWizard": {
     "title": "Dokument hinzufügen",
-    "selectGuild": "Wähle eine Community",
+    "selectCommunity": "Wähle eine Community",
     "selectInitiative": "Wähle eine Initiative",
     "lastUsed": "Zuletzt verwendet",
     "back": "Zurück",

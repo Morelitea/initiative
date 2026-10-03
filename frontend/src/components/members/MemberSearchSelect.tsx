@@ -120,7 +120,7 @@ export type MemberToken = {
 };
 
 interface MemberMultiSelectProps {
-  /** Which RLS-scoped roster to search (guild / initiative / project). */
+  /** Which RLS-scoped roster to search (community / initiative / project). */
   scope: MemberSearchScope;
   /** Ties the trigger to a `<Label htmlFor>`. A `combobox` takes no accessible
    *  name from its own contents, so without this the control is unnamed. */

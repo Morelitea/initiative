@@ -6,7 +6,7 @@ import { HttpResponse } from "msw";
 import { useMemo } from "react";
 import { describe, expect, it } from "vitest";
 
-import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
 import { documentExtension } from "@/components/documents/editor/document-extension";
@@ -17,7 +17,7 @@ import { SmartChipScope } from "@/hooks/useSmartChips";
 /**
  * `#` and the smart-chip picker, in a real document.
  *
- * Both are scoped to the document's own initiative, so a guild full of matching
+ * Both are scoped to the document's own initiative, so a community full of matching
  * work can still answer nothing — and when it did, neither surface rendered
  * anything at all. A reader saw an unchanged caret and an empty box and
  * reasonably concluded the feature was broken. What is asserted here is that an
@@ -72,7 +72,7 @@ function type(text: string) {
 
 describe("probe: # in a document", () => {
   it("opens the picker on a match", async () => {
-    server.use(guildHttp.get("/search/suggest", () => HttpResponse.json([suggestion])));
+    server.use(communityHttp.get("/search/suggest", () => HttpResponse.json([suggestion])));
 
     renderPage(Harness);
     await waitFor(() => expect(editor).toBeTruthy());
@@ -84,13 +84,13 @@ describe("probe: # in a document", () => {
   });
 
   it("says so when nothing in the initiative matches", async () => {
-    server.use(guildHttp.get("/search/suggest", () => HttpResponse.json([])));
+    server.use(communityHttp.get("/search/suggest", () => HttpResponse.json([])));
 
     renderPage(Harness);
     await waitFor(() => expect(editor).toBeTruthy());
     type("#zzz");
 
-    // The answer, and why the answer might be empty when the guild is not.
+    // The answer, and why the answer might be empty when the community is not.
     await waitFor(
       () => expect(screen.getByText(/Nothing in this initiative/)).toBeInTheDocument(),
       {
@@ -108,7 +108,7 @@ describe("a page does not point at itself", () => {
   it("names what is being written in, so it is not offered", async () => {
     const asked: (string | null)[] = [];
     server.use(
-      guildHttp.get("/search/suggest", ({ request }) => {
+      communityHttp.get("/search/suggest", ({ request }) => {
         asked.push(new URL(request.url).searchParams.get("subject"));
         return HttpResponse.json([]);
       })
@@ -124,7 +124,7 @@ describe("a page does not point at itself", () => {
   it("asks for everything when there is nothing to be written in yet", async () => {
     const asked: (string | null)[] = [];
     server.use(
-      guildHttp.get("/search/suggest", ({ request }) => {
+      communityHttp.get("/search/suggest", ({ request }) => {
         asked.push(new URL(request.url).searchParams.get("subject"));
         return HttpResponse.json([suggestion]);
       })

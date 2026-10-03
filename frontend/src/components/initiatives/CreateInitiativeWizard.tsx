@@ -25,7 +25,7 @@
  *
  * The caller owns the open state — a header button, the `?create=true` deep
  * link, and the redirect after a community is created all drive it — and owns
- * the permission gate. Creating is guild-admin only, which the backend enforces
+ * the permission gate. Creating is community-admin only, which the backend enforces
  * regardless.
  */
 

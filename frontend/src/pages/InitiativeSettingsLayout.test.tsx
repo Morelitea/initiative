@@ -2,8 +2,8 @@ import { screen } from "@testing-library/react";
 import { HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
 
-import { buildGuild, buildInitiative, initiativeCan } from "@/__tests__/factories";
-import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { buildCommunity, buildInitiative, initiativeCan } from "@/__tests__/factories";
+import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
 import type { UserRead } from "@/api/generated/initiativeAPI.schemas";
@@ -19,7 +19,7 @@ const INITIATIVE_ID = 7;
 /** The initiative, saying whether this reader may run it. */
 function stubInitiative(manage: boolean) {
   server.use(
-    guildHttp.get("/initiatives/:id", () =>
+    communityHttp.get("/initiatives/:id", () =>
       HttpResponse.json(
         buildInitiative({ id: INITIATIVE_ID, name: "Apollo", can: initiativeCan({ manage }) })
       )
@@ -36,9 +36,9 @@ const renderLayout = ({
   user?: UserRead;
 } = {}) =>
   renderPage(InitiativeSettingsLayout, {
-    guilds: { activeGuildId: 1, activeGuild: buildGuild({ id: 1, role }) },
-    initialRoute: "/c/$guildId/i/$initiativeId/settings",
-    routeParams: { guildId: "1", initiativeId: String(INITIATIVE_ID) },
+    communities: { activeCommunityId: 1, activeCommunity: buildCommunity({ id: 1, role }) },
+    initialRoute: "/c/$communityId/i/$initiativeId/settings",
+    routeParams: { communityId: "1", initiativeId: String(INITIATIVE_ID) },
     ...(user ? { auth: { user } } : {}),
   });
 
@@ -51,7 +51,7 @@ const renderLayout = ({
  */
 describe("InitiativeSettingsLayout", () => {
   it("keeps the export tab out of the bar for someone who may not export", async () => {
-    // A plain guild member who manages nothing here: the layout still refuses
+    // A plain community member who manages nothing here: the layout still refuses
     // the whole surface, so no section is offered at all.
     stubInitiative(false);
 
@@ -61,7 +61,7 @@ describe("InitiativeSettingsLayout", () => {
     expect(screen.queryByRole("tab", { name: "Export" })).not.toBeInTheDocument();
   });
 
-  it("lets an initiative manager who is no guild admin in", async () => {
+  it("lets an initiative manager who is no community admin in", async () => {
     stubInitiative(true);
 
     renderLayout({ role: "member" });
@@ -70,7 +70,9 @@ describe("InitiativeSettingsLayout", () => {
   });
 
   it("says so when the initiative isn't one this reader can see", async () => {
-    server.use(guildHttp.get("/initiatives/:id", () => new HttpResponse(null, { status: 404 })));
+    server.use(
+      communityHttp.get("/initiatives/:id", () => new HttpResponse(null, { status: 404 }))
+    );
 
     renderLayout();
 

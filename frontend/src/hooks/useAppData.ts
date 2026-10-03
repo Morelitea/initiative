@@ -3,7 +3,7 @@
  *
  * Two queries with deliberately different shapes.
  *
- * The **catalog** is per guild and shared by every widget on the canvas: one
+ * The **catalog** is per community and shared by every widget on the canvas: one
  * request tells the page which apps contribute widgets, which module draws each
  * one, and what each source declares. It changes only when an app is installed,
  * upgraded, or turned off, so it is cached generously.
@@ -30,17 +30,18 @@ import {
   getAppParamOptions,
   getAppWidgetCatalog,
 } from "@/api/appData";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 
 /** The client's own ceiling on how long an app's rows are reused, in seconds.
  *  Mirrors the proxy's `MAX_CACHE_TTL_SECONDS`; both exist because a listing
  *  must not be the thing that decides. */
 export const MAX_APP_STALE_SECONDS = 300;
 
-export const appWidgetCatalogKey = (guildId: number) => ["app-widget-catalog", guildId] as const;
+export const appWidgetCatalogKey = (communityId: number) =>
+  ["app-widget-catalog", communityId] as const;
 
 export const appDataKey = (
-  guildId: number,
+  communityId: number,
   appId: number,
   endpointId: string,
   dashboardId: number,
@@ -49,7 +50,7 @@ export const appDataKey = (
 ) =>
   [
     "app-data",
-    guildId,
+    communityId,
     appId,
     endpointId,
     dashboardId,
@@ -63,14 +64,14 @@ export const appDataKey = (
     JSON.stringify(Object.entries(params ?? {}).sort(([a], [b]) => (a < b ? -1 : 1))),
   ] as const;
 
-/** Which widgets this guild's installed apps contribute. Enabled installs only —
+/** Which widgets this community's installed apps contribute. Enabled installs only —
  *  a disabled app's widgets have nothing to draw. */
 export const useAppWidgetCatalog = (enabled = true) => {
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   return useQuery<AppWidgetCatalogResponse>({
-    queryKey: appWidgetCatalogKey(guildId),
-    queryFn: () => getAppWidgetCatalog(guildId),
-    enabled: enabled && Number.isFinite(guildId) && guildId > 0,
+    queryKey: appWidgetCatalogKey(communityId),
+    queryFn: () => getAppWidgetCatalog(communityId),
+    enabled: enabled && Number.isFinite(communityId) && communityId > 0,
     // Installing or upgrading an app invalidates this explicitly; between those
     // it is effectively static for the page's lifetime.
     staleTime: 5 * 60_000,
@@ -100,14 +101,14 @@ export const useAppData = ({
   cacheTtlSeconds,
   enabled = true,
 }: AppDataQuery) => {
-  const guildId = useActiveGuildId();
-  // Fail closed: without a guild, an install, a source *and* the dashboard the
+  const communityId = useActiveCommunityId();
+  // Fail closed: without a community, an install, a source *and* the dashboard the
   // widget sits on, there is nothing to ask for. A preview has none of them,
   // which is how it issues no request at all.
   const ready =
     enabled &&
-    Number.isFinite(guildId) &&
-    guildId > 0 &&
+    Number.isFinite(communityId) &&
+    communityId > 0 &&
     typeof appId === "number" &&
     typeof dashboardId === "number" &&
     typeof endpointId === "string" &&
@@ -116,10 +117,17 @@ export const useAppData = ({
   const staleSeconds = Math.max(0, Math.min(cacheTtlSeconds ?? 0, MAX_APP_STALE_SECONDS));
 
   return useQuery<AppDataResponse>({
-    queryKey: appDataKey(guildId, appId ?? 0, endpointId ?? "", dashboardId ?? 0, params, widgetId),
+    queryKey: appDataKey(
+      communityId,
+      appId ?? 0,
+      endpointId ?? "",
+      dashboardId ?? 0,
+      params,
+      widgetId
+    ),
     queryFn: () =>
       getAppData({
-        guildId,
+        communityId,
         appId: appId as number,
         endpointId: endpointId as string,
         dashboardId: dashboardId as number,
@@ -138,7 +146,7 @@ export const useAppData = ({
 /** One parameter's menu, keyed by the answers it was resolved against — a
  *  sibling changing is a different question, so it is a different entry. */
 export const appParamOptionsKey = (
-  guildId: number,
+  communityId: number,
   appId: number,
   endpointId: string,
   param: string,
@@ -146,7 +154,7 @@ export const appParamOptionsKey = (
 ) =>
   [
     "app-param-options",
-    guildId,
+    communityId,
     appId,
     endpointId,
     param,
@@ -181,20 +189,20 @@ export const useAppParamOptions = ({
   params,
   enabled = true,
 }: AppParamOptionsQuery) => {
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   const ready =
     enabled &&
-    Number.isFinite(guildId) &&
-    guildId > 0 &&
+    Number.isFinite(communityId) &&
+    communityId > 0 &&
     typeof appId === "number" &&
     typeof endpointId === "string" &&
     endpointId.length > 0;
 
   return useQuery<AppParamOptionsResponse>({
-    queryKey: appParamOptionsKey(guildId, appId ?? 0, endpointId ?? "", param, params),
+    queryKey: appParamOptionsKey(communityId, appId ?? 0, endpointId ?? "", param, params),
     queryFn: () =>
       getAppParamOptions({
-        guildId,
+        communityId,
         appId: appId as number,
         endpointId: endpointId as string,
         param,

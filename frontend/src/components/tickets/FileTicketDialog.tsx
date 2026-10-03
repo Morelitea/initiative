@@ -83,14 +83,14 @@ export interface FileTicketDialogProps {
   ticket: TicketKind;
   /** The community the reader is standing in, when they are in one. Asking
    *  for help is always from one; a report may come from nowhere. */
-  guildId: number | null;
+  communityId: number | null;
 }
 
 export const FileTicketDialog = ({
   open,
   onOpenChange,
   ticket,
-  guildId,
+  communityId,
 }: FileTicketDialogProps) => {
   const { t } = useTranslation(["intake", "moderation", "common"]);
   const [subject, setSubject] = useState("");
@@ -101,7 +101,7 @@ export const FileTicketDialog = ({
   // be on its way: the dialog turns into the address whenever it arrives, and
   // says why it could not send only where there is no address at all.
   const [nowhere, setNowhere] = useState<string | null>(null);
-  const availability = useTicketAvailability(guildId, { enabled: open });
+  const availability = useTicketAvailability(communityId, { enabled: open });
   const contact = availability.data?.[ticket.stream].contact ?? null;
 
   const isReport = ticket.stream === "moderation";
@@ -155,11 +155,16 @@ export const FileTicketDialog = ({
         target_id: ticket.targetId,
         reason,
         detail: body.trim() || null,
-        community_id: guildId,
+        community_id: communityId,
       };
     }
-    if (guildId == null || !subject.trim() || !body.trim()) return null;
-    return { stream: "support", community_id: guildId, subject: subject.trim(), body: body.trim() };
+    if (communityId == null || !subject.trim() || !body.trim()) return null;
+    return {
+      stream: "support",
+      community_id: communityId,
+      subject: subject.trim(),
+      body: body.trim(),
+    };
   };
   const ready = payload();
 

@@ -43,13 +43,13 @@ export type Direction = "inbound" | "outbound" | "both";
  * are seven filters over one answer rather than seven requests.
  */
 export const listRelated = (
-  guildId: number,
+  communityId: number,
   entity: EndpointRef,
   otherType: SearchEntityType | null = null,
   relationshipType: RelationshipType | null = null,
   direction: Direction = "both"
 ): Promise<RelationshipRead[]> =>
-  listRelationships(guildId, {
+  listRelationships(communityId, {
     entity: ref(entity),
     relationship_type: relationshipType,
     other_type: otherType,
@@ -58,12 +58,12 @@ export const listRelated = (
 
 /** Link two things. */
 export const relate = async (
-  guildId: number,
+  communityId: number,
   source: EndpointRef,
   target: EndpointRef,
   relationshipType: RelationshipType = RelationshipType.attached
 ): Promise<RelationshipRead> =>
-  createRelationshipRequest(guildId, {
+  createRelationshipRequest(communityId, {
     source,
     relationship_type: relationshipType,
     target,
@@ -77,24 +77,24 @@ export const relate = async (
  * assuming, as {@link relate} does, that the anchor describes the pair.
  */
 export const createRelationship = (
-  guildId: number,
+  communityId: number,
   body: RelationshipCreate
-): Promise<RelationshipRead> => createRelationshipRequest(guildId, body);
+): Promise<RelationshipRead> => createRelationshipRequest(communityId, body);
 
 /** Replace everything of one kind linked to a thing. */
 export const setRelated = (
-  guildId: number,
+  communityId: number,
   entity: EndpointRef,
   otherType: SearchEntityType,
   otherIds: number[],
   relationshipType: RelationshipType = RelationshipType.attached
 ): Promise<RelationshipRead[]> =>
-  replaceRelationshipSlice(guildId, otherIds, {
+  replaceRelationshipSlice(communityId, otherIds, {
     entity: ref(entity),
     relationship_type: relationshipType,
     other_type: otherType,
   });
 
 /** Remove a link by its own id. */
-export const removeRelationship = (guildId: number, relationshipId: number): Promise<void> =>
-  removeRelationshipRequest(guildId, relationshipId);
+export const removeRelationship = (communityId: number, relationshipId: number): Promise<void> =>
+  removeRelationshipRequest(communityId, relationshipId);

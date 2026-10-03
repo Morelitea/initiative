@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { useAuth } from "@/hooks/useAuth";
 import { useCreateComment, useDeleteComment, useUpdateComment } from "@/hooks/useComments";
-import { useGuilds } from "@/hooks/useGuilds";
+import { useCommunities } from "@/hooks/useCommunities";
 import { useReadOnOpen } from "@/hooks/useNotifications";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { referenceTypeFor } from "@/lib/references";
@@ -91,7 +91,7 @@ export const CommentSection = ({
   initiativeId,
 }: CommentSectionProps) => {
   const { t } = useTranslation("comments");
-  const { activeGuildReadOnly } = useGuilds();
+  const { activeCommunityReadOnly } = useCommunities();
   const [content, setContent] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -263,7 +263,7 @@ export const CommentSection = ({
         </CardHeader>
 
         <CardContent>
-          {activeGuildReadOnly ? (
+          {activeCommunityReadOnly ? (
             <p className="text-muted-foreground text-sm">{t("readOnlyNote")}</p>
           ) : (
             <CommentInput
@@ -298,7 +298,7 @@ export const CommentSection = ({
                   isSubmitting={
                     createComment.isPending || deleteComment.isPending || updateComment.isPending
                   }
-                  canReact={!activeGuildReadOnly}
+                  canReact={!activeCommunityReadOnly}
                   deleteError={deleteComment.variables === comment.id ? deleteError : null}
                   userDisplayNames={userDisplayNames}
                   unreadIds={unreadIds}

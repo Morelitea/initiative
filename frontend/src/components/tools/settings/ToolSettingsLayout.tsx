@@ -36,7 +36,7 @@ import {
   ToolSettingsProvider,
 } from "@/components/tools/settings/ToolSettingsContext";
 import { ToolPageHeader } from "@/components/tools/ToolPageHeader";
-import { extractSubPath, isGuildScopedPath, useGuildPath } from "@/lib/guildUrl";
+import { extractSubPath, isCommunityScopedPath, useCommunityPath } from "@/lib/communityUrl";
 import { matchActiveTab } from "@/lib/tabs";
 import {
   TOOL_SETTINGS_DEFAULT_SECTION,
@@ -94,7 +94,7 @@ export const ToolSettingsLayout = ({
 }: ToolSettingsLayoutProps) => {
   const { t } = useTranslation(["common", "nav", "access"]);
   const router = useRouter();
-  const gp = useGuildPath();
+  const gp = useCommunityPath();
   const location = useLocation();
 
   if (isLoading) {
@@ -149,10 +149,10 @@ export const ToolSettingsLayout = ({
       : []),
   ];
 
-  // The tab paths are guild-prefixed; matching happens on the sub-path, so a
-  // guild id in the address never decides which tab is lit.
+  // The tab paths are community-prefixed; matching happens on the sub-path, so a
+  // community id in the address never decides which tab is lit.
   const currentPath = location.pathname;
-  const normalizedPath = isGuildScopedPath(currentPath)
+  const normalizedPath = isCommunityScopedPath(currentPath)
     ? extractSubPath(currentPath).replace(/\/+$/, "") || "/"
     : currentPath.replace(/\/+$/, "") || "/";
   const activeTab = matchActiveTab(

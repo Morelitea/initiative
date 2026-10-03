@@ -21,7 +21,7 @@ import { cn } from "@/lib/utils";
 
 interface PinnedBannerProps {
   post: PostRead;
-  /** Whether this reader may pin — guild admin or an initiative manager. */
+  /** Whether this reader may pin — community admin or an initiative manager. */
   canPin?: boolean;
   className?: string;
 }

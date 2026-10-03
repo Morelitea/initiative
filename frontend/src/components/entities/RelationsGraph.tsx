@@ -15,8 +15,8 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { type GraphEdge, type GraphNode, MAX_HOPS } from "@/hooks/useRelationships";
 import { useTheme } from "@/hooks/useTheme";
+import { useCommunityPath } from "@/lib/communityUrl";
 import { themeColor, withAlpha } from "@/lib/cssColor";
-import { useGuildPath } from "@/lib/guildUrl";
 import { iconDataUri } from "@/lib/iconSvg";
 import { groupOf, type RelationGroup, relatedTarget } from "@/lib/relationships";
 import { hitIcon, searchHitPath } from "@/lib/searchResults";
@@ -301,7 +301,7 @@ export const RelationsGraph = ({
 }: RelationsGraphProps) => {
   const { t } = useTranslation(["relations", "search"]);
   const navigate = useNavigate();
-  const gp = useGuildPath();
+  const gp = useCommunityPath();
   const { resolvedTheme } = useTheme();
   const centreKey = `${entity.type}:${entity.id}`;
 

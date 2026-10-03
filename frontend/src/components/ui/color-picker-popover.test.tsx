@@ -8,7 +8,7 @@ import { ColorPickerPopover } from "./color-picker-popover";
 /**
  * A caller that previews as you pick — it moves its own state from `onChange`,
  * so the picker's `value` catches up with the draft while the popover is still
- * open, and only writes the colour down when the popover closes. The guild
+ * open, and only writes the colour down when the popover closes. The community
  * banner's fill is one of these.
  */
 const LivePreview = () => {

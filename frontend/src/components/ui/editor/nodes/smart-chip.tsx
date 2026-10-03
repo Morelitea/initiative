@@ -5,10 +5,10 @@ import { useTranslation } from "react-i18next";
 import { SmartChipAspect, type SmartChipKind } from "@/api/generated/initiativeAPI.schemas";
 import { ChecklistChip } from "@/components/ui/editor/nodes/checklist-chip";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { useChipState } from "@/hooks/useSmartChips";
+import { communityPath } from "@/lib/communityUrl";
 import { entityRefTypeFor } from "@/lib/entityResolver";
-import { guildPath } from "@/lib/guildUrl";
 import { hitIcon } from "@/lib/searchResults";
 import { chipAspect, chipDisplay, chipEntityType, chipRef } from "@/lib/smartChips";
 import { entityRefRoute } from "@/lib/tools";
@@ -44,7 +44,7 @@ export function SmartChip(props: SmartChipProps) {
 function ReadingChip({ chipKind, entityId, fallback }: SmartChipProps) {
   const { t, i18n } = useTranslation(["documents", "search"]);
   const navigate = useNavigate();
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   const state = useChipState(chipRef(chipKind, entityId));
 
   const entityType = chipEntityType(chipKind);
@@ -66,7 +66,7 @@ function ReadingChip({ chipKind, entityId, fallback }: SmartChipProps) {
   const reachable = refType !== null && display.live;
   const open = () => {
     if (!refType || !reachable) return;
-    void navigate({ to: guildPath(guildId, entityRefRoute(refType, entityId)) });
+    void navigate({ to: communityPath(communityId, entityRefRoute(refType, entityId)) });
   };
 
   const Icon = hitIcon({

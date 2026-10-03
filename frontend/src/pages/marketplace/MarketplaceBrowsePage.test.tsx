@@ -2,8 +2,8 @@
  * Browsing the catalog.
  *
  * The load-bearing detail is where "already installed" comes from. The catalog
- * is platform-level and holds nothing about this guild, so the badge has to be
- * derived from the guild's own dashboards — matched on the listing uid an
+ * is platform-level and holds nothing about this community, so the badge has to be
+ * derived from the community's own dashboards — matched on the listing uid an
  * install pins, not on the name or the public id.
  */
 import { screen, waitFor } from "@testing-library/react";
@@ -32,8 +32,8 @@ vi.mock("@/hooks/useDashboards", () => ({
   }),
 }));
 
-vi.mock("@/hooks/useGuildApps", () => ({
-  useGuildApps: () => ({
+vi.mock("@/hooks/useCommunityApps", () => ({
+  useCommunityApps: () => ({
     data: installedFailed ? undefined : { items: installedApps },
     isError: installedFailed,
   }),
@@ -109,10 +109,10 @@ describe("MarketplaceBrowsePage", () => {
     expect(screen.queryByText("Installed")).toBeNull();
   });
 
-  it("marks a listing this guild already installed", async () => {
+  it("marks a listing this community already installed", async () => {
     // Counted server-side over every dashboard. Deriving this from the
     // paginated dashboard list would mark some installs and miss the rest once
-    // a guild has more dashboards than fit on a page.
+    // a community has more dashboards than fit on a page.
     installed = { SPRNT000000001: 1 };
     renderPage(MarketplaceBrowsePage);
     expect(await screen.findByText("Installed")).toBeInTheDocument();

@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 
 import { WikiPageKind } from "@/api/generated/initiativeAPI.schemas";
 import { useWikiPages } from "@/hooks/useWikis";
-import { useGuildPath } from "@/lib/guildUrl";
+import { useCommunityPath } from "@/lib/communityUrl";
 import { wikiDocumentRoute, wikiPageRoute } from "@/lib/tools";
 import { cn } from "@/lib/utils";
 
@@ -37,7 +37,7 @@ export const WikiPageNav = ({
   className,
 }: WikiPageNavProps) => {
   const { t } = useTranslation("wikis");
-  const gp = useGuildPath();
+  const gp = useCommunityPath();
   const { data } = useWikiPages(Number.isFinite(wikiId) ? wikiId : null);
 
   const items = data?.items ?? [];

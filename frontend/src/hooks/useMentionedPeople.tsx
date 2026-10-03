@@ -24,18 +24,18 @@ import {
 
 import type { UserSummary } from "@/api/generated/initiativeAPI.schemas";
 import { getSearchUsersQueryKey, searchUsers } from "@/api/generated/users/users";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { USER_ID_LOOKUP_MAX } from "@/hooks/useUsers";
 import { collectCommentReferences } from "@/lib/commentReferences";
 
 /** A person is read in the community the mention was written in: that is who
  *  they are there, and whether they are still there at all. */
-const personKey = (guildId: number, userId: number) => `${guildId}:${userId}`;
+const personKey = (communityId: number, userId: number) => `${communityId}:${userId}`;
 
 interface MentionedPeopleValue {
   /** Who a mentioned id is in a community — the scope's own unless one is
    *  named — for the ones that came back. */
-  find: (userId: number, guildId?: number) => UserSummary | undefined;
+  find: (userId: number, communityId?: number) => UserSummary | undefined;
   /** Whether every answer has arrived. Until it has, a mention cannot tell
    *  somebody who has left from somebody not yet looked up. */
   ready: boolean;
@@ -43,7 +43,7 @@ interface MentionedPeopleValue {
   failed: boolean;
   /** How a page says who it mentions in a community, the scope's own unless
    *  one is named. Each community's set replaces the one reported before it. */
-  report: (ids: number[], guildId?: number) => void;
+  report: (ids: number[], communityId?: number) => void;
 }
 
 const MentionedPeopleContext = createContext<MentionedPeopleValue>({
@@ -60,23 +60,23 @@ const MentionedPeopleContext = createContext<MentionedPeopleValue>({
  * Lexical decorators, which the composer renders as portals of its own, so a
  * provider inside the composer is not an ancestor of any of them.
  *
- * `guildId` is the community the mentions below were written in, where that is
+ * `communityId` is the community the mentions below were written in, where that is
  * not the one the page is in. A list that spans communities reports each one's
  * people under its own id instead.
  */
 export function MentionedPeopleScope({
-  guildId: ownGuildId,
+  communityId: ownCommunityId,
   children,
 }: {
-  guildId?: number;
+  communityId?: number;
   children: ReactNode;
 }) {
-  const activeGuildId = useActiveGuildId();
-  const guildId = ownGuildId ?? activeGuildId;
+  const activeCommunityId = useActiveCommunityId();
+  const communityId = ownCommunityId ?? activeCommunityId;
   const [asked, setAsked] = useState<Record<number, number[]>>({});
 
   const report = useCallback(
-    (ids: number[], community = guildId) => {
+    (ids: number[], community = communityId) => {
       setAsked((current) => {
         // Compared as a string so an edit that moves a mention without changing
         // the set does not start a new request.
@@ -85,17 +85,17 @@ export function MentionedPeopleScope({
         return ids.length > 0 ? { ...rest, [community]: ids } : rest;
       });
     },
-    [guildId]
+    [communityId]
   );
 
   // As many requests as the search's page ceiling takes, all in flight
   // together and answered as one: a page that mentions more people than one
   // request can name still names every one of them.
   const lookups = Object.entries(asked).flatMap(([community, ids]) => {
-    const pages: { guildId: number; userIds: number[] }[] = [];
+    const pages: { communityId: number; userIds: number[] }[] = [];
     for (let index = 0; index < ids.length; index += USER_ID_LOOKUP_MAX) {
       pages.push({
-        guildId: Number(community),
+        communityId: Number(community),
         userIds: ids.slice(index, index + USER_ID_LOOKUP_MAX),
       });
     }
@@ -105,10 +105,10 @@ export function MentionedPeopleScope({
   const query = useQuery({
     // Under the member search's own address, so whatever refreshes the members
     // refreshes the names they are mentioned by.
-    queryKey: [...getSearchUsersQueryKey(guildId), { mentioned: asked }],
+    queryKey: [...getSearchUsersQueryKey(communityId), { mentioned: asked }],
     queryFn: async ({ signal }) => {
       const answers = await Promise.all(
-        lookups.map(({ guildId: community, userIds }) =>
+        lookups.map(({ communityId: community, userIds }) =>
           searchUsers(
             community,
             { user_id: userIds, page_size: USER_ID_LOOKUP_MAX },
@@ -138,12 +138,12 @@ export function MentionedPeopleScope({
   const value = useMemo<MentionedPeopleValue>(() => {
     const people = new Map(entries);
     return {
-      find: (userId, community = guildId) => people.get(personKey(community, userId)),
+      find: (userId, community = communityId) => people.get(personKey(community, userId)),
       ready,
       failed: query.isError,
       report,
     };
-  }, [entries, guildId, ready, query.isError, report]);
+  }, [entries, communityId, ready, query.isError, report]);
 
   return (
     <MentionedPeopleContext.Provider value={value}>{children}</MentionedPeopleContext.Provider>
@@ -163,11 +163,11 @@ export const useMentionedPeople = () => useContext(MentionedPeopleContext);
  */
 export function ReportMentionedPeople({
   texts,
-  guildId,
+  communityId,
 }: {
   texts: string[];
   /** The community the texts were written in, where a list spans several. */
-  guildId?: number;
+  communityId?: number;
 }): null {
   const { report } = useMentionedPeople();
   // Keyed on the values so a fresh array naming the same people does not
@@ -175,10 +175,10 @@ export function ReportMentionedPeople({
   const key = collectCommentReferences(texts).userIds.join();
 
   useEffect(() => {
-    report(key ? key.split(",").map(Number) : [], guildId);
+    report(key ? key.split(",").map(Number) : [], communityId);
     // Gone from the page, it stops asking about anyone.
-    return () => report([], guildId);
-  }, [key, guildId, report]);
+    return () => report([], communityId);
+  }, [key, communityId, report]);
 
   return null;
 }
@@ -187,8 +187,8 @@ export function ReportMentionedPeople({
  *  for good once `ready` says it is not coming. */
 export const useMentionedPerson = (
   userId: number | null | undefined,
-  guildId?: number
+  communityId?: number
 ): { person: UserSummary | undefined; ready: boolean; failed: boolean } => {
   const { find, ready, failed } = useMentionedPeople();
-  return { person: userId == null ? undefined : find(userId, guildId), ready, failed };
+  return { person: userId == null ? undefined : find(userId, communityId), ready, failed };
 };

@@ -26,7 +26,7 @@ const SUMMARY = "summary";
  */
 export const useDesktopApp = () => {
   const desktop = Capacitor.getPlatform() === "electron";
-  const { t } = useTranslation("guilds");
+  const { t } = useTranslation("communities");
   const router = useRouter();
   const markRead = useMarkNotificationRead();
   const streamConnected = useNotificationStreamConnected();
@@ -130,7 +130,7 @@ export const useDesktopApp = () => {
  * opened at sign-in waits in the tray, and the tray is its only way back.
  */
 export const useDesktopTray = () => {
-  const { t } = useTranslation("guilds");
+  const { t } = useTranslation("communities");
 
   useEffect(() => {
     if (Capacitor.getPlatform() !== "electron") {

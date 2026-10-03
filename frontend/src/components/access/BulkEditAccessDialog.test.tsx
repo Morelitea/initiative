@@ -7,7 +7,7 @@ import { buildPage, buildUserSummary, ownerCan } from "@/__tests__/factories";
 import { buildDocumentSummary } from "@/__tests__/factories/document.factory";
 import { buildInitiative } from "@/__tests__/factories/initiative.factory";
 import { buildUser } from "@/__tests__/factories/user.factory";
-import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 import type {
@@ -92,14 +92,14 @@ function captureGrantPuts() {
   const captured: ResourceGrantSchema[][] = [];
   memberSearches.length = 0;
   server.use(
-    guildHttp.get("/initiatives/", () => HttpResponse.json([initiative])),
-    guildHttp.get("/initiatives/:initiativeId/roles", () => HttpResponse.json(roles)),
+    communityHttp.get("/initiatives/", () => HttpResponse.json([initiative])),
+    communityHttp.get("/initiatives/:initiativeId/roles", () => HttpResponse.json(roles)),
     // The initiative's member search: what was typed, or the ids asked for.
-    guildHttp.get("/initiatives/:initiativeId/members/search", ({ request }) => {
+    communityHttp.get("/initiatives/:initiativeId/members/search", ({ request }) => {
       memberSearches.push(new URL(request.url).searchParams);
       return HttpResponse.json(buildPage([bob]));
     }),
-    guildHttp.put("/resource-grants/bulk", async ({ request }) => {
+    communityHttp.put("/resource-grants/bulk", async ({ request }) => {
       const body = (await request.json()) as {
         items: { resource_type: string; resource_id: number; grants: ResourceGrantSchema[] }[];
       };

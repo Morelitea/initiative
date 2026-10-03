@@ -31,17 +31,17 @@ export const FAQ_URL = docsUrl("faq/");
 export type TicketCreate = SupportTicketCreate | ModerationTicketCreate;
 
 /**
- * What every kind of ticket offers the reader, standing in `guildId`.
+ * What every kind of ticket offers the reader, standing in `communityId`.
  *
  * Asked once per community and left alone: what a deployment has set up does
  * not change while somebody is looking at a sidebar, and a wrong answer costs
  * a refusal the form already handles.
  */
 export const useTicketAvailability = (
-  guildId: number | null,
+  communityId: number | null,
   options?: QueryOpts<TicketAvailability>
 ) => {
-  const params = guildId == null ? undefined : { community_id: guildId };
+  const params = communityId == null ? undefined : { community_id: communityId };
   return useQuery<TicketAvailability>({
     queryKey: getReadTicketAvailabilityQueryKey(params),
     queryFn: () => readTicketAvailability(params),

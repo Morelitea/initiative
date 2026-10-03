@@ -2,43 +2,46 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { buildGuild, buildInitiative, buildUser } from "@/__tests__/factories";
+import { buildCommunity, buildInitiative, buildUser } from "@/__tests__/factories";
 import { renderWithProviders } from "@/__tests__/helpers/render";
-import type { useGuilds } from "@/hooks/useGuilds";
+import type { useCommunities } from "@/hooks/useCommunities";
 
 // Two communities, so the first step is one somebody actually walks — with a
 // single one the wizard walks past it on its own.
-const guilds = [buildGuild({ name: "Anvil Club" }), buildGuild({ name: "Bellwether" })];
+const communities = [
+  buildCommunity({ name: "Anvil Club" }),
+  buildCommunity({ name: "Bellwether" }),
+];
 // Two initiatives, so the second step does not auto-advance either.
 const initiativesResult = {
   initiatives: [buildInitiative({ name: "Spring Play" }), buildInitiative({ name: "Summer Play" })],
   isLoading: false,
 };
 
-const guildsValue: ReturnType<typeof useGuilds> = {
-  guilds: guilds,
-  activeGuildId: null,
-  activeGuild: null,
-  activeGuildReadOnly: false,
+const communitiesValue: ReturnType<typeof useCommunities> = {
+  communities: communities,
+  activeCommunityId: null,
+  activeCommunity: null,
+  activeCommunityReadOnly: false,
   loading: false,
   error: null,
-  refreshGuilds: vi.fn(),
-  switchGuild: vi.fn(),
-  syncGuildFromUrl: vi.fn(),
-  createGuild: vi.fn(),
-  updateGuildInState: vi.fn(),
-  reorderGuilds: vi.fn(),
-  canCreateGuilds: true,
+  refreshCommunities: vi.fn(),
+  switchCommunity: vi.fn(),
+  syncCommunityFromUrl: vi.fn(),
+  createCommunity: vi.fn(),
+  updateCommunityInState: vi.fn(),
+  reorderCommunities: vi.fn(),
+  canCreateCommunities: true,
 };
 
-// Partial: the render helper reaches for ``GuildContext`` from this module.
-vi.mock(import("@/hooks/useGuilds"), async (importOriginal) => ({
+// Partial: the render helper reaches for ``CommunityContext`` from this module.
+vi.mock(import("@/hooks/useCommunities"), async (importOriginal) => ({
   ...(await importOriginal()),
-  useGuilds: () => guildsValue,
+  useCommunities: () => communitiesValue,
 }));
 
 vi.mock("@/hooks/useInitiativeAccess", () => ({
-  guildMayAuthorTools: () => true,
+  communityMayAuthorTools: () => true,
   useCreatableInitiatives: () => initiativesResult,
 }));
 
@@ -98,7 +101,7 @@ describe("CreateDocumentWizard", () => {
 
   it("stays on a step it walked past when Back returns to it", async () => {
     const user = userEvent.setup();
-    guildsValue.guilds = guilds.slice(0, 1);
+    communitiesValue.communities = communities.slice(0, 1);
     try {
       await openWizard();
       // The only community is walked past on the way in.
@@ -109,7 +112,7 @@ describe("CreateDocumentWizard", () => {
       expect(await screen.findByText("Select a community")).toBeInTheDocument();
       expect(screen.getByText("Anvil Club")).toBeInTheDocument();
     } finally {
-      guildsValue.guilds = guilds;
+      communitiesValue.communities = communities;
     }
   });
 });

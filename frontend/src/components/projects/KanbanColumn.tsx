@@ -33,8 +33,8 @@ import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon-picker";
 import { MentionText } from "@/components/user/MentionText";
 import { useUnreadTree } from "@/hooks/useUnreadTree";
+import { useCommunityPath } from "@/lib/communityUrl";
 import { formatDateTime } from "@/lib/formatDate";
-import { useGuildPath } from "@/lib/guildUrl";
 import { summarizeStored } from "@/lib/recurrence";
 import { truncateText } from "@/lib/text";
 import { cn } from "@/lib/utils";
@@ -302,7 +302,7 @@ const KanbanCardContent = memo(
   }: KanbanCardContentProps) {
     const { t } = useTranslation(["projects", "dates"]);
     const { t: tRelations } = useTranslation("relations");
-    const gp = useGuildPath();
+    const gp = useCommunityPath();
     const unreadDot = useUnreadTree().hasSubject(task.community_id, "task", task.id) ? (
       <UnreadDot className="ml-2 inline-block align-middle" />
     ) : null;

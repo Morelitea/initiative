@@ -12,7 +12,7 @@
  * every palette-enabled tool has one.
  *
  * These groups are what the palette shows while BROWSING. Once there is
- * something to search for, the guild index answers instead, across every kind
+ * something to search for, the community index answers instead, across every kind
  * of thing at once.
  */
 
@@ -34,7 +34,7 @@ export interface PaletteItem {
   keywords: string[];
   /** Item icon; null falls back to the tool's registry icon. */
   icon: ReactNode | null;
-  /** Guild-relative target path. */
+  /** Community-relative target path. */
   path: string;
 }
 

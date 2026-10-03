@@ -28,7 +28,7 @@ const renderResolvedContent = (content: string, disableLinks = false) =>
 
 const answerWithPeople = (...people: ReturnType<typeof buildUserSummary>[]) =>
   server.use(
-    http.get("*/api/v1/c/:guildId/users/search", () =>
+    http.get("*/api/v1/c/:communityId/users/search", () =>
       HttpResponse.json({ items: people, total: people.length, page: 1, page_size: 100 })
     )
   );
@@ -132,7 +132,7 @@ describe("CommentContent", () => {
 
   it("holds a nameless mention's place until the answer arrives, without guessing", async () => {
     server.use(
-      http.get("*/api/v1/c/:guildId/users/search", async () => {
+      http.get("*/api/v1/c/:communityId/users/search", async () => {
         await delay("infinite");
         return HttpResponse.json({});
       })
@@ -148,7 +148,7 @@ describe("CommentContent", () => {
 
   it("stops waiting once the lookup gives up, without guessing", async () => {
     server.use(
-      http.get("*/api/v1/c/:guildId/users/search", () => HttpResponse.json({}, { status: 500 }))
+      http.get("*/api/v1/c/:communityId/users/search", () => HttpResponse.json({}, { status: 500 }))
     );
 
     renderResolvedContent("thanks @[](12)!");

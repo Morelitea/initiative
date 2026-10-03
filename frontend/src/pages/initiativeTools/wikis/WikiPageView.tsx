@@ -29,7 +29,7 @@ import { useReadOnOpen } from "@/hooks/useNotifications";
 import { useRecordRecentView } from "@/hooks/useRecents";
 import { useCreateWikiPage, useUpdateWikiPage, useWiki, useWikiPage } from "@/hooks/useWikis";
 import { toast } from "@/lib/chesterToast";
-import { useGuildPath } from "@/lib/guildUrl";
+import { useCommunityPath } from "@/lib/communityUrl";
 import { wikiPageRoute } from "@/lib/tools";
 import { cn } from "@/lib/utils";
 
@@ -47,14 +47,14 @@ import { cn } from "@/lib/utils";
  */
 export const WikiPageView = () => {
   const { t } = useTranslation(["wikis", "common", "properties"]);
-  const gp = useGuildPath();
+  const gp = useCommunityPath();
   const {
-    guildId,
+    communityId,
     wikiId: wikiIdParam,
     pageId: pageIdParam,
     initiativeId: initiativeIdParam,
   } = useParams({ strict: false }) as {
-    guildId?: string;
+    communityId?: string;
     wikiId?: string;
     pageId?: string;
     initiativeId?: string;
@@ -117,7 +117,7 @@ export const WikiPageView = () => {
   useReadOnOpen("wiki_page", loadedPageId);
   // Track recently viewed wikis for the layout header tabs bar. A wiki is read
   // through its pages, so each page that opens opens the wiki.
-  const { mutate: recordView } = useRecordRecentView("wiki", Number(guildId));
+  const { mutate: recordView } = useRecordRecentView("wiki", Number(communityId));
   const loadedWikiId = pageQuery.data?.wiki_id;
   useEffect(() => {
     if (!loadedPageId || !loadedWikiId) return;
@@ -348,7 +348,7 @@ export const WikiPageView = () => {
   const isComfortable = wiki.reading_width === WikiReadingWidth.comfortable;
   // Asked for, allowed by the wiki, and there is a page to have connections.
   const railOpen = showConnections && wiki.show_connections && Boolean(page);
-  // Definitions belong to an initiative, so a guild-level wiki's pages have
+  // Definitions belong to an initiative, so a community-level wiki's pages have
   // none; and a reader has nothing to open on a page that carries none.
   const propertiesInitiativeId = wiki.initiative_id;
   const offersProperties =

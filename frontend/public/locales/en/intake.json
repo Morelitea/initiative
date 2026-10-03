@@ -11,7 +11,7 @@
     "saved": "Contacts saved.",
     "saveError": "Could not save the contacts."
   },
-  "guild": {
+  "community": {
     "title": "Operations community",
     "description": "The community that receives this deployment's security, moderation, support and feedback work.",
     "label": "Community",
@@ -24,7 +24,7 @@
     "clearConfirm": "Stop routing"
   },
   "streams": {
-    "chooseGuildFirst": "Choose a community above, then say where each stream lands.",
+    "chooseCommunityFirst": "Choose a community above, then say where each stream lands.",
     "security": {
       "title": "Security",
       "description": "Cases raised by rules watching this deployment."

@@ -34,16 +34,16 @@ export const OperatorDashboardLayout = () => {
         capabilities: [Capability.usersRead],
       },
       {
-        value: "guilds",
-        label: t("operatorDashboard.tabs.guilds"),
+        value: "communities",
+        label: t("operatorDashboard.tabs.communities"),
         path: "/settings/operator/communities",
-        capabilities: [Capability.guildsManage],
+        capabilities: [Capability.communitiesManage],
       },
       {
         value: "placement",
         label: t("operatorDashboard.tabs.placement"),
         path: "/settings/operator/placement",
-        capabilities: [Capability.guildsManage],
+        capabilities: [Capability.communitiesManage],
       },
       {
         value: "announcements",

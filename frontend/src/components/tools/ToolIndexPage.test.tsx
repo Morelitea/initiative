@@ -14,7 +14,7 @@ import { HttpResponse, http } from "msw";
 import { describe, expect, it } from "vitest";
 
 import { buildNotificationPlace, ownerCan } from "@/__tests__/factories";
-import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import i18n from "@/__tests__/helpers/i18n-test";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
@@ -80,7 +80,7 @@ const row = (tool: Tool, fields: { id: number; name: string; archived_at?: strin
 const stubList = (tool: Tool, rows: ReturnType<typeof row>[]) => {
   const requests: URLSearchParams[] = [];
   server.use(
-    guildHttp.get(`/${toolRouteSegment(tool)}/`, ({ request }) => {
+    communityHttp.get(`/${toolRouteSegment(tool)}/`, ({ request }) => {
       const params = new URL(request.url).searchParams;
       requests.push(params);
       const wantArchived = params.get("archived") === "true";
@@ -125,7 +125,7 @@ describe("the tool index page", () => {
       row(tool, { id: 2, name: "Put away", archived_at: "2026-02-01T00:00:00Z" }),
     ]);
     server.use(
-      guildHttp.get(`/tools/${tool}/counts`, ({ request }) => {
+      communityHttp.get(`/tools/${tool}/counts`, ({ request }) => {
         expect(new URL(request.url).searchParams.get("initiative_id")).toBe(`${INITIATIVE_ID}`);
         return HttpResponse.json({
           views: { active: 1, archived: 1 },
@@ -189,7 +189,7 @@ describe("the tool index page", () => {
     stubList(tool, []);
     let sent: unknown;
     server.use(
-      guildHttp.post(`/${toolRouteSegment(tool)}/`, async ({ request }) => {
+      communityHttp.post(`/${toolRouteSegment(tool)}/`, async ({ request }) => {
         sent = await request.json();
         return HttpResponse.json(row(tool, { id: 9, name: "Fresh" }));
       })
@@ -259,8 +259,10 @@ describe("the tool index page", () => {
     renderIndex(tool);
 
     await screen.findByText("Quiet");
-    const dot = await screen.findByRole("img", { name: translate("guilds:unreadHere") });
-    expect(screen.getAllByRole("img", { name: translate("guilds:unreadHere") })).toHaveLength(1);
+    const dot = await screen.findByRole("img", { name: translate("communities:unreadHere") });
+    expect(screen.getAllByRole("img", { name: translate("communities:unreadHere") })).toHaveLength(
+      1
+    );
     expect(dot.parentElement).toHaveTextContent("Talked about");
   });
 });
@@ -270,7 +272,7 @@ describe("the tool index page's property filter", () => {
     stubList(Tool.queue, [row(Tool.queue, { id: 1, name: "Running" })]);
     const asked: URLSearchParams[] = [];
     server.use(
-      guildHttp.get("/property-definitions/", ({ request }) => {
+      communityHttp.get("/property-definitions/", ({ request }) => {
         asked.push(new URL(request.url).searchParams);
         return HttpResponse.json([]);
       })

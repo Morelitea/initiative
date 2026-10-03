@@ -19,8 +19,10 @@ const provider = {
 };
 
 vi.mock("./useAuth", () => ({ useAuth: () => ({ token: "t", user: { id: 1 } }) }));
-vi.mock("./useGuilds", () => ({ useGuilds: () => ({ activeGuildId: 1 }) }));
-vi.mock("@/lib/wsUrl", () => ({ buildGuildWsUrl: (_g: number, path: string) => `ws://x/${path}` }));
+vi.mock("./useCommunities", () => ({ useCommunities: () => ({ activeCommunityId: 1 }) }));
+vi.mock("@/lib/wsUrl", () => ({
+  buildCommunityWsUrl: (_g: number, path: string) => `ws://x/${path}`,
+}));
 vi.mock("@/lib/yjs/CollaborationProvider", () => ({
   getLiveProvider: () => null,
   getOrCreateProvider: () => provider,

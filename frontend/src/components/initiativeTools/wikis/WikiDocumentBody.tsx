@@ -72,7 +72,7 @@ export const WikiDocumentBody = ({ document, initiativeId }: WikiDocumentBodyPro
         document.file_url ? (
           <FileDocumentViewer
             documentId={document.id}
-            guildId={document.community_id}
+            communityId={document.community_id}
             fileUrl={document.file_url}
             contentType={document.file_content_type}
             originalFilename={document.original_filename}

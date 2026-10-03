@@ -17,7 +17,7 @@ import { useTranslation } from "react-i18next";
 import { FileTicketDialog } from "@/components/tickets/FileTicketDialog";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { useAuth } from "@/hooks/useAuth";
 
 export interface ReportButtonProps {
@@ -28,7 +28,7 @@ export interface ReportButtonProps {
   authorId?: number | null;
   /** Override the community sent with the report. Defaults to the active one,
    *  which is right for anything reported from inside a community. */
-  guildId?: number | null;
+  communityId?: number | null;
   className?: string;
   size?: "sm" | "icon";
 }
@@ -37,13 +37,13 @@ export const ReportButton = ({
   targetType,
   targetId,
   authorId,
-  guildId,
+  communityId,
   className,
   size = "icon",
 }: ReportButtonProps) => {
   const { t } = useTranslation("moderation");
   const { user } = useAuth();
-  const activeGuildId = useActiveGuildId();
+  const activeCommunityId = useActiveCommunityId();
   const [open, setOpen] = useState(false);
 
   // Signed in, and not the author. A signed-out reader has nothing to report
@@ -76,7 +76,7 @@ export const ReportButton = ({
           open={open}
           onOpenChange={setOpen}
           ticket={{ stream: "moderation", targetType, targetId }}
-          guildId={(guildId === undefined ? activeGuildId : guildId) ?? null}
+          communityId={(communityId === undefined ? activeCommunityId : communityId) ?? null}
         />
       )}
     </>

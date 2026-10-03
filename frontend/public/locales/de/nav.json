@@ -1,6 +1,6 @@
 {
-  "selectGuild": "Community auswählen",
-  "guildSettings": "Community-Einstellungen",
+  "selectCommunity": "Community auswählen",
+  "communitySettings": "Community-Einstellungen",
   "initiatives": "Initiativen",
   "tags": "Tags",
   "people": "Personen",
@@ -76,7 +76,7 @@
   "navigate": {
     "signInRequired": "Bitte melde dich erneut an, um diesem Link zu folgen.",
     "missingDestination": "Diesem Link fehlen Zielangaben.",
-    "invalidGuildId": "Ungültige Community-ID im Link.",
+    "invalidCommunityId": "Ungültige Community-ID im Link.",
     "noAccess": "Du hast keinen Zugriff auf diese Community.",
     "switchError": "Community für diesen Link konnte nicht gewechselt werden.",
     "redirecting": "Du wirst zur richtigen Community weitergeleitet…",

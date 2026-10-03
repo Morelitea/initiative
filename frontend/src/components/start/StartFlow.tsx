@@ -45,8 +45,8 @@ import { useAppConfig } from "@/hooks/useAppConfig";
 import { useAuth } from "@/hooks/useAuth";
 import { useBillingCatalog } from "@/hooks/useBillingCatalog";
 import { useBillingPortal } from "@/hooks/useBillingPortal";
+import { useCommunities } from "@/hooks/useCommunities";
 import { useLandOnStarter, useOpenDirectory, useSeedStarter } from "@/hooks/useFinishPendingStart";
-import { useGuilds } from "@/hooks/useGuilds";
 import { useServer } from "@/hooks/useServer";
 import { useWizard } from "@/hooks/useWizard";
 import { toast } from "@/lib/chesterToast";
@@ -101,7 +101,7 @@ export interface StartFlowProps {
 export const StartFlow = (props: StartFlowProps) => {
   const { signedIn = false } = props;
   const { isLoading, communityDirectoryEnabled } = useAppConfig();
-  const { canCreateGuilds } = useGuilds();
+  const { canCreateCommunities } = useCommunities();
   const bootstrap = useBootstrapStatus({
     query: { enabled: !signedIn, retry: false },
   });
@@ -122,7 +122,7 @@ export const StartFlow = (props: StartFlowProps) => {
     if (path === "invite") return true;
     if (!registrationOpen) return false;
     if (path === "join") return communityDirectoryEnabled;
-    return !signedIn || canCreateGuilds;
+    return !signedIn || canCreateCommunities;
   });
   return <StartSteps {...props} signedIn={signedIn} paths={paths} />;
 };
@@ -134,10 +134,10 @@ const StartSteps = ({
   footer,
   paths,
 }: StartFlowProps & { signedIn: boolean; paths: StartPath[] }) => {
-  const { t } = useTranslation(["auth", "common", "guilds"]);
+  const { t } = useTranslation(["auth", "common", "communities"]);
   const navigate = useNavigate();
   const { user, register, login, applyPasskeySignIn } = useAuth();
-  const { guilds, loading: guildsLoading, createGuild } = useGuilds();
+  const { communities, loading: communitiesLoading, createCommunity } = useCommunities();
   const { captcha, communityAgeGateEnabled } = useAppConfig();
   const { getServerOrigin } = useServer();
   const { billing, canSell, openPortal, reserveTab } = useBillingPortal();
@@ -298,7 +298,7 @@ const StartSteps = ({
   };
 
   /** Signed in: the last question answered, so make what it asked for. */
-  const madeGuild = useRef<CommunityRead | null>(null);
+  const madeCommunity = useRef<CommunityRead | null>(null);
   const finishSignedIn = async () => {
     if (answers.path === "join") {
       if (asksAge) await age.confirm();
@@ -310,7 +310,7 @@ const StartSteps = ({
     reservePlanTab();
     onBusy?.(true);
     try {
-      madeGuild.current = await createGuild({
+      madeCommunity.current = await createCommunity({
         name: final.communityName.trim(),
         description: final.description.trim() || undefined,
         plan: pickedPlan,
@@ -323,8 +323,8 @@ const StartSteps = ({
       // phone app may not do; there it only says why.
       setError(
         !canSell && getErrorCode(err) === "FREE_COMMUNITY_ALREADY_HELD"
-          ? t("guilds:freeCommunityHeldInApp")
-          : getErrorMessage(err, "guilds:unableToCreateGuild")
+          ? t("communities:freeCommunityHeldInApp")
+          : getErrorMessage(err, "communities:unableToCreateCommunity")
       );
     } finally {
       setBusy(false);
@@ -342,7 +342,7 @@ const StartSteps = ({
     onBusy?.(false);
   };
   useEffect(() => {
-    if (step !== "finishing" || finishing.current || !user || guildsLoading) return;
+    if (step !== "finishing" || finishing.current || !user || communitiesLoading) return;
     finishing.current = true;
     const final = withDefaults(answers);
     void (async () => {
@@ -353,33 +353,33 @@ const StartSteps = ({
         return;
       }
       if (final.path === "invite") {
-        const guildId = invite.status?.community_id;
+        const communityId = invite.status?.community_id;
         await leave(() =>
-          guildId
-            ? navigate({ to: "/c/$guildId", params: { guildId: String(guildId) } })
+          communityId
+            ? navigate({ to: "/c/$communityId", params: { communityId: String(communityId) } })
             : navigate({ to: "/" })
         );
         return;
       }
-      const guild = madeGuild.current ?? findStartedCommunity(guilds, final);
-      if (!guild) {
+      const community = madeCommunity.current ?? findStartedCommunity(communities, final);
+      if (!community) {
         dropPlanTab();
         await leave(() => navigate({ to: "/" }));
         return;
       }
-      const starter = await seed(guild.id, final);
+      const starter = await seed(community.id, final);
       if (final.path === "personal") {
-        await leave(() => landOn(guild.id, starter));
+        await leave(() => landOn(community.id, starter));
         return;
       }
       if (planTab.current) {
-        toast.info(t("guilds:billingSetup.opening", { guild: guild.name }));
-        void openPortal(guild.id, "upgrade", planTab.current);
+        toast.info(t("communities:billingSetup.opening", { community: community.name }));
+        void openPortal(community.id, "upgrade", planTab.current);
         planTab.current = null;
       } else if (wantsPlan) {
         setPlanByButton(true);
       }
-      setMade({ id: guild.id, name: guild.name });
+      setMade({ id: community.id, name: community.name });
       commit("people");
     })();
   });
@@ -490,8 +490,8 @@ const StartSteps = ({
     ? t("register.checkingInvite")
     : invite.status?.is_valid
       ? invite.status.community_name
-        ? t("register.joiningGuild", { guildName: invite.status.community_name })
-        : t("register.joiningGuildDefault")
+        ? t("register.joiningCommunity", { communityName: invite.status.community_name })
+        : t("register.joiningCommunityDefault")
       : null;
 
   let title: string;
@@ -558,7 +558,7 @@ const StartSteps = ({
         // Signed in, this step is only ever the age question for joining.
         title = t("confirmAge.title");
         pose = "thinking";
-        line = t("guilds:community.ageGateBody");
+        line = t("communities:community.ageGateBody");
       } else {
         title = t("start.you.title");
         pose = "talking";
@@ -694,7 +694,7 @@ const StartSteps = ({
       body = made ? (
         <>
           <PeopleStep
-            guildId={made.id}
+            communityId={made.id}
             origin={getServerOrigin() ?? window.location.origin}
             planButton={planByButton ? () => void openPortal(made.id, "upgrade") : undefined}
             onDone={() => void leave(() => landOn(made.id, null))}

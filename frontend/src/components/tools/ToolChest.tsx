@@ -37,7 +37,7 @@ import {
 import { useArchiveEntity, useUnarchiveEntity } from "@/hooks/useArchive";
 import { useSetToolTags } from "@/hooks/useToolTags";
 import { toast } from "@/lib/chesterToast";
-import { useGuildPath } from "@/lib/guildUrl";
+import { useCommunityPath } from "@/lib/communityUrl";
 import { cn } from "@/lib/utils";
 
 export interface ToolChestEntity {
@@ -83,12 +83,12 @@ export const ToolChestSegment = ({
 
 export const ToolChest = ({ tool, entity, template, children }: ToolChestProps) => {
   const { t } = useTranslation(["common", "properties"]);
-  const gp = useGuildPath();
+  const gp = useCommunityPath();
   const [propertiesOpen, setPropertiesOpen] = useState(false);
   const [tags, setTags] = useState(entity.tags);
   const setToolTags = useSetToolTags(tool);
   const canEdit = entity.can.edit;
-  // Definitions belong to an initiative, so a guild-level tool has none.
+  // Definitions belong to an initiative, so a community-level tool has none.
   const hasProperties = entity.initiative_id !== null;
   const propertyCount = entity.properties?.length ?? 0;
 

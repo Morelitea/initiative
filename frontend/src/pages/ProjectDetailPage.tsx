@@ -17,18 +17,18 @@ import { useToolCreateAccess } from "@/hooks/useInitiativeAccess";
 import { useReadOnOpen } from "@/hooks/useNotifications";
 import { useProject, useProjectTaskStatuses } from "@/hooks/useProjects";
 import { useRecordRecentView } from "@/hooks/useRecents";
+import { useCommunityPath } from "@/lib/communityUrl";
 import { getHttpStatus } from "@/lib/errorMessage";
-import { useGuildPath } from "@/lib/guildUrl";
 import { taskRoute, toolListRoute } from "@/lib/tools";
 
 export const ProjectDetailPage = () => {
   const { t } = useTranslation("projects");
-  const { guildId, projectId } = useParams({ strict: false }) as {
-    guildId: string;
+  const { communityId, projectId } = useParams({ strict: false }) as {
+    communityId: string;
     projectId: string;
   };
   const router = useRouter();
-  const gp = useGuildPath();
+  const gp = useCommunityPath();
   const searchParams = useSearch({ strict: false }) as { create?: string };
   const parsedProjectId = Number(projectId);
 
@@ -62,7 +62,7 @@ export const ProjectDetailPage = () => {
     Number.isFinite(parsedProjectId) ? parsedProjectId : null
   );
 
-  const recordViewMutation = useRecordRecentView("project", Number(guildId));
+  const recordViewMutation = useRecordRecentView("project", Number(communityId));
   const viewedProjectId = projectQuery.data?.id;
   useReadOnOpen(Tool.project, viewedProjectId);
   useEffect(() => {

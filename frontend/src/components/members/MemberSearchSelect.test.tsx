@@ -3,7 +3,7 @@ import { HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
 
 import { buildUserSummary } from "@/__tests__/factories";
-import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
@@ -19,7 +19,7 @@ const MISSING_ID = 999;
 /** The member typeahead, honouring the `user_id` lookup filter the pickers
  *  use to resolve a selection they were handed as bare ids. */
 const memberSearchHandler = (onRequest?: (ids: string[]) => void) =>
-  guildHttp.get("/users/search", ({ request }) => {
+  communityHttp.get("/users/search", ({ request }) => {
     const ids = new URL(request.url).searchParams.getAll("user_id");
     onRequest?.(ids);
     const items = ids.length ? ROSTER.filter((user) => ids.includes(String(user.id))) : ROSTER;

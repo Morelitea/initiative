@@ -9,9 +9,9 @@ import type {
 } from "@/api/generated/initiativeAPI.schemas";
 
 /**
- * The mutations a connection manager drives. Platform and guild scopes share
- * this shape — only the underlying endpoints (and their guild binding) differ,
- * so both `SettingsAIPage` and `SettingsGuildAIPage` build one of these from
+ * The mutations a connection manager drives. Platform and community scopes share
+ * this shape — only the underlying endpoints (and their community binding) differ,
+ * so both `SettingsAIPage` and `SettingsCommunityAIPage` build one of these from
  * their scope-specific hooks and hand it to the shared UI.
  */
 export interface ConnectionMutations {

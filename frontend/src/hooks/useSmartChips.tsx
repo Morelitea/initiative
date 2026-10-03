@@ -14,7 +14,7 @@ import {
   readReferenceEmbeds,
   readSmartChips,
 } from "@/api/generated/smart-chips/smart-chips";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { referenceRef } from "@/lib/smartChips";
 
 /** How long a chip may be behind the thing it is about. */
@@ -58,18 +58,22 @@ const combineBatches = (results: { data?: SmartChipStateList; isFetched: boolean
  *
  * A document with thirty chips makes one call, not thirty: the scope collects
  * the references out of the editor and asks for them together.
- * `guildIdOverride` reads them in a community other than the page's, for a
+ * `communityIdOverride` reads them in a community other than the page's, for a
  * surface that spans communities.
  */
-export const useSmartChipStates = (refs: string[], enabled = true, guildIdOverride?: number) => {
-  const activeGuildId = useActiveGuildId();
-  const guildId = guildIdOverride ?? activeGuildId;
+export const useSmartChipStates = (
+  refs: string[],
+  enabled = true,
+  communityIdOverride?: number
+) => {
+  const activeCommunityId = useActiveCommunityId();
+  const communityId = communityIdOverride ?? activeCommunityId;
   const batches = referenceBatches(refs);
   return useQueries({
     queries: batches.map((ref) => ({
-      queryKey: getReadSmartChipsQueryKey(guildId, { ref }),
-      queryFn: () => readSmartChips(guildId, { ref }),
-      enabled: enabled && guildId != null,
+      queryKey: getReadSmartChipsQueryKey(communityId, { ref }),
+      queryFn: () => readSmartChips(communityId, { ref }),
+      enabled: enabled && communityId != null,
       staleTime: STALE_MS,
       // A chip goes stale because someone else moved something, so it is asked
       // again on a timer rather than waiting for this reader to do anything.
@@ -173,13 +177,13 @@ export const useReferenceTitle = (
  * when the reader comes back to the page rather than every minute.
  */
 export const useReferenceEmbed = (entityType: SearchEntityType, entityId: number) => {
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   const ref = referenceRef(entityType, entityId);
   const params = { ref: [ref] };
   return useQuery({
-    queryKey: getReadReferenceEmbedsQueryKey(guildId, params),
-    queryFn: () => readReferenceEmbeds(guildId, params),
-    enabled: guildId != null,
+    queryKey: getReadReferenceEmbedsQueryKey(communityId, params),
+    queryFn: () => readReferenceEmbeds(communityId, params),
+    enabled: communityId != null,
     staleTime: STALE_MS,
     select: (data): ReferenceEmbed | null => data.items.find((item) => item.ref === ref) ?? null,
   });

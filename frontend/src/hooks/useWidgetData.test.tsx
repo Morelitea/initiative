@@ -3,7 +3,7 @@
  *
  * The load-bearing case is scope. A dashboard reads the initiative it lives on,
  * and without one nothing is fetched at all — a widget on no initiative must
- * fail closed rather than fan out guild-wide. That difference is invisible on a
+ * fail closed rather than fan out community-wide. That difference is invisible on a
  * canvas (a chart with plausible-looking numbers), so it is pinned here on the
  * request itself rather than on what gets drawn.
  */
@@ -29,7 +29,7 @@ vi.mock("@/hooks/useDocuments", () => ({
   useDocument: (...args: unknown[]) => useDocument(...args),
 }));
 // Mocked like every other sibling: this file is about how a binding becomes a
-// request, and the app hooks reach for guild context a bare renderHook has no
+// request, and the app hooks reach for community context a bare renderHook has no
 // provider for.
 vi.mock("@/hooks/useAppData", () => ({
   useAppData: () => idle,
@@ -67,7 +67,7 @@ describe("a query binding", () => {
 
   it("asks for nothing without an initiative", () => {
     // Fail closed: a widget with no initiative behind it is unbound, not
-    // guild-wide.
+    // community-wide.
     run({ source: "query", sql: "SELECT title FROM tasks" }, undefined);
     expect(enabled()).toBe(false);
   });

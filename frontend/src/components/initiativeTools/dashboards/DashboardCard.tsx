@@ -3,7 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { type DashboardSummary, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { TagBadgeList } from "@/components/tags/TagBadge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useGuildPath } from "@/lib/guildUrl";
+import { useCommunityPath } from "@/lib/communityUrl";
 import { toolDetailRoute } from "@/lib/tools";
 import { cn } from "@/lib/utils";
 
@@ -13,7 +13,7 @@ interface DashboardCardProps {
 }
 
 export const DashboardCard = ({ dashboard, className }: DashboardCardProps) => {
-  const gp = useGuildPath();
+  const gp = useCommunityPath();
 
   return (
     <Link

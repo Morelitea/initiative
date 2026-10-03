@@ -25,7 +25,7 @@ export function buildNotification(overrides: Partial<NotificationRead> = {}): No
   };
 }
 
-/** One place `GET /notifications/unread` reports, in the default test guild. */
+/** One place `GET /notifications/unread` reports, in the default test community. */
 export function buildNotificationPlace(
   overrides: Partial<NotificationPlace> = {}
 ): NotificationPlace {

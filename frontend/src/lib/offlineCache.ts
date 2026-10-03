@@ -18,7 +18,7 @@
 import { Capacitor } from "@capacitor/core";
 import { hydrate, type Query } from "@tanstack/react-query";
 
-import { readStoredGuildId } from "@/lib/activeGuildStorage";
+import { readStoredCommunityId } from "@/lib/activeCommunityStorage";
 import { createIdbStore } from "@/lib/idbStore";
 import {
   createShardedPersister,
@@ -58,18 +58,18 @@ const IDB_STORE = "query-cache";
 /** The shard holding everything that is not one community's content. */
 const PLATFORM_SHARD = "platform";
 
-const guildShard = (guildId: number) => `g${guildId}`;
+const communityShard = (communityId: number) => `g${communityId}`;
 
 /**
  * Read-only content surfaces worth having on a train. Matched as prefixes
  * against the query key's first element, which for every generated hook is the
  * request path (`/api/v1/c/3/tasks/12`) — see `src/api/generated/*`.
  *
- * `{g}` stands in for the `/c/{guildId}` segment so one entry covers every
- * guild without the prefix list having to know any guild ids.
+ * `{g}` stands in for the `/c/{communityId}` segment so one entry covers every
+ * community without the prefix list having to know any community ids.
  */
 const PERSIST_ALLOWLIST = [
-  // Guild content — the things somebody actually opened.
+  // Community content — the things somebody actually opened.
   "/api/v1/c/{g}/initiatives",
   "/api/v1/c/{g}/projects",
   "/api/v1/c/{g}/tasks",
@@ -89,7 +89,7 @@ const PERSIST_ALLOWLIST = [
   "/api/v1/c/{g}/property-definitions",
   "/api/v1/c/{g}/fields",
   "/api/v1/c/{g}/tools",
-  // Cross-guild "my" reads that the home screens are built from.
+  // Cross-community "my" reads that the home screens are built from.
   "/api/v1/me/tasks",
   "/api/v1/me/projects",
   "/api/v1/me/tools",
@@ -139,47 +139,47 @@ const PERSIST_DENYLIST = [
   "/dm/",
 ] as const;
 
-const GUILD_SEGMENT = /^\/api\/v1\/c\/(\d+)(?=\/|$)/;
+const COMMUNITY_SEGMENT = /^\/api\/v1\/c\/(\d+)(?=\/|$)/;
 
 /**
- * Guilds the user reaches only through a live, time-bound grant rather than
+ * Communities the user reaches only through a live, time-bound grant rather than
  * membership. Their content is not written to disk, since the grant can end
- * while the device is away. `useGuilds` marks these `accessType: "grant"` and
+ * while the device is away. `useCommunities` marks these `accessType: "grant"` and
  * keeps this set current; the dehydrate filter reads it.
  */
-let grantOnlyGuildIds: ReadonlySet<number> = new Set();
+let grantOnlyCommunityIds: ReadonlySet<number> = new Set();
 
 /**
  * Replace the set. Only for a reading that actually came back — a narrower set
- * than the truth would let a grant guild's content through.
+ * than the truth would let a grant community's content through.
  */
-export const setGrantOnlyGuildIds = (ids: Iterable<number>): void => {
-  grantOnlyGuildIds = new Set(ids);
+export const setGrantOnlyCommunityIds = (ids: Iterable<number>): void => {
+  grantOnlyCommunityIds = new Set(ids);
 };
 
 /**
  * Widen the set without narrowing it, for when the grant list could not be
- * read. The cost of keeping a guild in here that has since become an ordinary
+ * read. The cost of keeping a community in here that has since become an ordinary
  * membership is only that its content is not cached until the next good read.
  */
-export const addGrantOnlyGuildIds = (ids: Iterable<number>): void => {
-  grantOnlyGuildIds = new Set([...grantOnlyGuildIds, ...ids]);
+export const addGrantOnlyCommunityIds = (ids: Iterable<number>): void => {
+  grantOnlyCommunityIds = new Set([...grantOnlyCommunityIds, ...ids]);
 };
 
 /** Test seam. */
-export const resetGrantOnlyGuildIds = (): void => {
-  grantOnlyGuildIds = new Set();
+export const resetGrantOnlyCommunityIds = (): void => {
+  grantOnlyCommunityIds = new Set();
 };
 
-/** The guild a request path addresses, or null for a platform-level path. */
-export const guildIdOfPath = (path: string): number | null => {
-  const match = GUILD_SEGMENT.exec(path);
+/** The community a request path addresses, or null for a platform-level path. */
+export const communityIdOfPath = (path: string): number | null => {
+  const match = COMMUNITY_SEGMENT.exec(path);
   return match ? Number(match[1]) : null;
 };
 
 /** A list entry with its `{g}` filled in from the path it is matched against. */
 const resolveEntry = (entry: string, path: string): string =>
-  entry.replace("/c/{g}", `/c/${guildIdOfPath(path) ?? ""}`);
+  entry.replace("/c/{g}", `/c/${communityIdOfPath(path) ?? ""}`);
 
 const matchesAllowlist = (path: string): boolean =>
   PERSIST_ALLOWLIST.some((entry) => {
@@ -193,15 +193,15 @@ const matchesDenylist = (path: string): boolean =>
 /**
  * Whether one request path may be written to disk. Default deny: a path has to
  * be named by the allowlist, must not be named by the denylist, and must not
- * belong to a guild reached only by a grant.
+ * belong to a community reached only by a grant.
  */
 export const isPersistablePath = (path: string): boolean => {
   if (!path.startsWith("/api/v1/")) return false;
   if (matchesDenylist(path)) return false;
   if (!matchesAllowlist(path)) return false;
 
-  const guildId = guildIdOfPath(path);
-  if (guildId !== null && grantOnlyGuildIds.has(guildId)) return false;
+  const communityId = communityIdOfPath(path);
+  if (communityId !== null && grantOnlyCommunityIds.has(communityId)) return false;
 
   return true;
 };
@@ -276,8 +276,8 @@ export const setOfflineWritesAllowed = (allowed: boolean): void => {
 export const shardOfQueryKey = (queryKey: readonly unknown[]): string => {
   const [first] = queryKey;
   if (typeof first !== "string") return PLATFORM_SHARD;
-  const guildId = guildIdOfPath(first);
-  return guildId === null ? PLATFORM_SHARD : guildShard(guildId);
+  const communityId = communityIdOfPath(first);
+  return communityId === null ? PLATFORM_SHARD : communityShard(communityId);
 };
 
 /**
@@ -286,8 +286,8 @@ export const shardOfQueryKey = (queryKey: readonly unknown[]): string => {
  * a launch from parsing every community's content before the first frame.
  */
 const bootShards = (): string[] => {
-  const stored = readStoredGuildId();
-  return stored === null ? [PLATFORM_SHARD] : [PLATFORM_SHARD, guildShard(stored)];
+  const stored = readStoredCommunityId();
+  return stored === null ? [PLATFORM_SHARD] : [PLATFORM_SHARD, communityShard(stored)];
 };
 
 let persister: ShardedPersister | null = null;
@@ -323,10 +323,10 @@ export const createOfflineCachePersister = () => {
  * queries then simply have no cached data, which is the same position they were
  * in before any of this existed.
  */
-export const hydrateGuildShard = async (guildId: number): Promise<void> => {
+export const hydrateCommunityShard = async (communityId: number): Promise<void> => {
   if (!isOfflineCacheEnabled()) return;
   try {
-    const queries = await getPersister().readShard(guildShard(guildId));
+    const queries = await getPersister().readShard(communityShard(communityId));
     if (!queries || queries.length === 0) return;
     hydrate(queryClient, { mutations: [], queries });
   } catch {
@@ -359,7 +359,7 @@ export const hydrateGuildShard = async (guildId: number): Promise<void> => {
  * whose grants could not be read — pruning against either would throw away
  * content that is still perfectly reachable.
  */
-export const retainOnlyGuilds = async (
+export const retainOnlyCommunities = async (
   reachable: Iterable<number>,
   cacheable: Iterable<number>
 ): Promise<void> => {
@@ -370,12 +370,12 @@ export const retainOnlyGuilds = async (
     predicate: (query) => {
       const [first] = query.queryKey;
       if (typeof first !== "string") return false;
-      const guildId = guildIdOfPath(first);
-      return guildId !== null && !stillReachable.has(guildId);
+      const communityId = communityIdOfPath(first);
+      return communityId !== null && !stillReachable.has(communityId);
     },
   });
 
-  const keep = new Set([...cacheable].map(guildShard));
+  const keep = new Set([...cacheable].map(communityShard));
   try {
     await getPersister().retainShards((shard) => shard === PLATFORM_SHARD || keep.has(shard));
   } catch {

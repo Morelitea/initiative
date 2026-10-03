@@ -11,13 +11,13 @@ import { MentionedPeopleScope, ReportMentionedPeople } from "@/hooks/useMentione
 /** Answers every id it is asked about, named after the community asked, and
  *  keeps each request's ids. */
 const answerEveryone = () => {
-  const asked: { guildId: string; ids: string[] }[] = [];
+  const asked: { communityId: string; ids: string[] }[] = [];
   server.use(
-    http.get("*/api/v1/c/:guildId/users/search", ({ params, request }) => {
+    http.get("*/api/v1/c/:communityId/users/search", ({ params, request }) => {
       const ids = new URL(request.url).searchParams.getAll("user_id");
-      asked.push({ guildId: String(params.guildId), ids });
+      asked.push({ communityId: String(params.communityId), ids });
       const items = ids.map((id) =>
-        buildUserSummary({ id: Number(id), display_name: `Person ${id} of ${params.guildId}` })
+        buildUserSummary({ id: Number(id), display_name: `Person ${id} of ${params.communityId}` })
       );
       return HttpResponse.json({ items, total: items.length, page: 1, page_size: 100 });
     })
@@ -49,15 +49,15 @@ describe("everyone a page mentions", () => {
 
     renderWithProviders(
       <MentionedPeopleScope>
-        <ReportMentionedPeople guildId={1} texts={["@[](7)"]} />
-        <ReportMentionedPeople guildId={2} texts={["@[](7)"]} />
-        <MentionText text="@[](7)" guildId={1} disableLink /> /{" "}
-        <MentionText text="@[](7)" guildId={2} disableLink />
+        <ReportMentionedPeople communityId={1} texts={["@[](7)"]} />
+        <ReportMentionedPeople communityId={2} texts={["@[](7)"]} />
+        <MentionText text="@[](7)" communityId={1} disableLink /> /{" "}
+        <MentionText text="@[](7)" communityId={2} disableLink />
       </MentionedPeopleScope>
     );
 
     expect(await screen.findByText("@Person 7 of 1")).toBeInTheDocument();
     expect(screen.getByText("@Person 7 of 2")).toBeInTheDocument();
-    expect(asked.map(({ guildId }) => guildId).sort()).toEqual(["1", "2"]);
+    expect(asked.map(({ communityId }) => communityId).sort()).toEqual(["1", "2"]);
   });
 });

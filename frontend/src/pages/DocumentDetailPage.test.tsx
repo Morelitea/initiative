@@ -4,7 +4,7 @@ import { HttpResponse } from "msw";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildDocumentSummary } from "@/__tests__/factories";
-import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
 
@@ -48,16 +48,16 @@ beforeEach(() => {
   stored = { ...seed };
   collaborating.value = false;
   server.use(
-    guildHttp.get("/documents/:documentId", () => HttpResponse.json(stored)),
-    guildHttp.patch("/documents/:documentId", async ({ request }) => {
+    communityHttp.get("/documents/:documentId", () => HttpResponse.json(stored)),
+    communityHttp.patch("/documents/:documentId", async ({ request }) => {
       const body = (await request.json()) as Record<string, unknown>;
       patches.push(body);
       stored = { ...stored, ...body };
       return HttpResponse.json(stored);
     }),
-    guildHttp.post("/recents/", () => HttpResponse.json({})),
-    guildHttp.get("/relationships/", () => HttpResponse.json([])),
-    guildHttp.get("/properties/definitions", () => HttpResponse.json([]))
+    communityHttp.post("/recents/", () => HttpResponse.json({})),
+    communityHttp.get("/relationships/", () => HttpResponse.json([])),
+    communityHttp.get("/properties/definitions", () => HttpResponse.json([]))
   );
 });
 
@@ -71,8 +71,8 @@ afterEach(() => {
 
 const renderDoc = () =>
   renderPage(DocumentDetailPage, {
-    initialRoute: "/g/$guildId/i/$initiativeId/documents/$documentId",
-    routeParams: { guildId: "1", initiativeId: "1", documentId: "7" },
+    initialRoute: "/g/$communityId/i/$initiativeId/documents/$documentId",
+    routeParams: { communityId: "1", initiativeId: "1", documentId: "7" },
   });
 
 describe("renaming a document", () => {

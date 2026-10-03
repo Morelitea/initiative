@@ -25,7 +25,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { useSetAppPlacementRoles, useUpdateGuildApp } from "@/hooks/useGuildApps";
+import { useSetAppPlacementRoles, useUpdateCommunityApp } from "@/hooks/useCommunityApps";
 import { useInitiativeRoles } from "@/hooks/useInitiativeRoles";
 import { useInitiatives } from "@/hooks/useInitiatives";
 import { declaredEmbeds } from "@/lib/appSurfaces";
@@ -43,7 +43,7 @@ const placedIds = (app: CommunityAppDetail): number[] =>
 export function AppPlacementPanel({ app }: AppPlacementPanelProps) {
   const { t } = useTranslation(["apps", "common"]);
   const initiatives = useInitiatives();
-  const update = useUpdateGuildApp(app.id);
+  const update = useUpdateCommunityApp(app.id);
   // What the admin is choosing right now. Seeded from the app and kept locally
   // so ticking several initiatives is one decision, saved per change.
   const [chosen, setChosen] = useState<number[]>(() => placedIds(app));

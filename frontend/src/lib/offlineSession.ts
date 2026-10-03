@@ -20,7 +20,8 @@ import { OFFLINE_CACHE_MAX_AGE_MS } from "@/lib/offlineCache";
 import { getStoredServerUrl } from "@/lib/serverStorage";
 import { CREDENTIAL_KEYS, getItem, removeItem, setItem } from "@/lib/storage";
 
-const GUILDS_SNAPSHOT_KEY = "initiative-offline-guilds";
+// The key keeps its old name, so a device keeps its saved list.
+const COMMUNITIES_SNAPSHOT_KEY = "initiative-offline-guilds";
 
 interface SessionSnapshot {
   user: UserRead;
@@ -62,7 +63,7 @@ export const saveOfflineSession = (user: UserRead, serverUrl: string): void => {
 
 export const clearOfflineSession = (): void => {
   removeItem(CREDENTIAL_KEYS.offlineSession);
-  removeItem(GUILDS_SNAPSHOT_KEY);
+  removeItem(COMMUNITIES_SNAPSHOT_KEY);
 };
 
 /**
@@ -145,7 +146,7 @@ export const isNoAnswerError = (error: unknown): boolean => {
 /**
  * The communities the app lists in its switcher.
  *
- * `GuildProvider` fetches these directly rather than through React Query, so
+ * `CommunityProvider` fetches these directly rather than through React Query, so
  * they are not part of the persisted query cache — and without them a launch
  * with no signal has an empty switcher and cannot open any of the pages it
  * still holds. Kept under the same envelope as the session above: same window,
@@ -154,23 +155,27 @@ export const isNoAnswerError = (error: unknown): boolean => {
  * Communities reached only by a time-bound grant are not recorded here, since
  * none of their content is cached — a way in would lead somewhere empty.
  */
-export const saveOfflineGuilds = (guilds: unknown[], serverUrl: string): void => {
+export const saveOfflineCommunities = (communities: unknown[], serverUrl: string): void => {
   try {
-    setItem(GUILDS_SNAPSHOT_KEY, JSON.stringify({ guilds, savedAt: Date.now(), serverUrl }));
+    // The stored field keeps its old name, so a device keeps its saved list.
+    setItem(
+      COMMUNITIES_SNAPSHOT_KEY,
+      JSON.stringify({ guilds: communities, savedAt: Date.now(), serverUrl })
+    );
   } catch {
     // A convenience, never a reason to fail a load that otherwise worked.
   }
 };
 
-export const readOfflineGuilds = <T>(serverUrl: string): T[] | null => {
-  const raw = getItem(GUILDS_SNAPSHOT_KEY);
+export const readOfflineCommunities = <T>(serverUrl: string): T[] | null => {
+  const raw = getItem(COMMUNITIES_SNAPSHOT_KEY);
   if (!raw) return null;
 
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
   } catch {
-    removeItem(GUILDS_SNAPSHOT_KEY);
+    removeItem(COMMUNITIES_SNAPSHOT_KEY);
     return null;
   }
 
@@ -182,7 +187,7 @@ export const readOfflineGuilds = <T>(serverUrl: string): T[] | null => {
     Date.now() - candidate.savedAt <= OFFLINE_CACHE_MAX_AGE_MS;
 
   if (!fresh) {
-    removeItem(GUILDS_SNAPSHOT_KEY);
+    removeItem(COMMUNITIES_SNAPSHOT_KEY);
     return null;
   }
   return candidate.guilds as T[];

@@ -106,13 +106,13 @@ describe("searchHitPath", () => {
     ).toBe("/i/5/projects/7");
   });
 
-  it("gives a tag the guild address it has — tags belong to no initiative", () => {
+  it("gives a tag the community address it has — tags belong to no initiative", () => {
     expect(searchHitPath(target({ entity_type: TAG_ENTITY_TYPE, entity_id: 12 }))).toBe("/tags/12");
   });
 
-  it("keeps a guild-level entity on its guild route", () => {
+  it("keeps a community-level entity on its community route", () => {
     // An app-installed calendar has no initiative; `null` means "address me at
-    // the guild route", not "initiative unknown".
+    // the community route", not "initiative unknown".
     expect(
       searchHitPath(
         target({
@@ -135,7 +135,7 @@ describe("searchHitPath", () => {
 });
 
 describe("categories", () => {
-  it("puts everything but comments and the guild's vocabulary under tools", () => {
+  it("puts everything but comments and the community's vocabulary under tools", () => {
     for (const entityType of TOOL_ENTITY_TYPES) {
       expect(hitCategory(target({ entity_type: entityType }))).toBe("tool");
     }
@@ -207,7 +207,7 @@ describe("hitIcon", () => {
     );
   });
 
-  it("leaves the guild's vocabulary as a label", () => {
+  it("leaves the community's vocabulary as a label", () => {
     expect(hitIcon(target({ entity_type: SearchEntityType.tag }))).toBe(Tag);
   });
 });

@@ -1,7 +1,7 @@
 /**
  * The seat-cap notice on Settings › Users.
  *
- * A full guild mints no invite, and what the admin can do about it depends on
+ * A full community mints no invite, and what the admin can do about it depends on
  * the deployment: self-hosted, the cap is the operator's to lift, so the copy
  * says to ask one. Where a billing portal exists the cap comes with the plan —
  * no operator is reachable to raise it — so the notice names the plan and
@@ -11,7 +11,7 @@ import { cleanup, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { buildGuild } from "@/__tests__/factories";
+import { buildCommunity } from "@/__tests__/factories";
 import { renderPage } from "@/__tests__/helpers/render";
 import type { CommunityRead } from "@/api/generated/initiativeAPI.schemas";
 
@@ -35,21 +35,29 @@ vi.mock("@/hooks/useUsers", () => ({
     isError: false,
   }),
   useUserSearch: () => ({ data: undefined, isFetching: false }),
-  useUpdateGuildMembership: () => ({ mutate: vi.fn() }),
+  useUpdateCommunityMembership: () => ({ mutate: vi.fn() }),
   useSetMemberDisplayName: () => ({ mutate: vi.fn(), isPending: false }),
-  useExportGuildUsersCsv: () => ({ mutate: vi.fn() }),
+  useExportCommunityUsersCsv: () => ({ mutate: vi.fn() }),
 }));
 
-vi.mock("@/components/guilds/UnownedContentCard", () => ({ UnownedContentCard: () => null }));
+vi.mock("@/components/communities/UnownedContentCard", () => ({ UnownedContentCard: () => null }));
 
 import { SettingsUsersPage } from "./SettingsUsersPage";
 
 const setup = (overrides: Partial<CommunityRead>) => {
-  const guild = buildGuild({ role: "superadmin", name: "Alpha", ...overrides }) as CommunityRead;
+  const community = buildCommunity({
+    role: "superadmin",
+    name: "Alpha",
+    ...overrides,
+  }) as CommunityRead;
   renderPage(() => <SettingsUsersPage />, {
-    guilds: { guilds: [guild], activeGuildId: guild.id, activeGuild: guild },
+    communities: {
+      communities: [community],
+      activeCommunityId: community.id,
+      activeCommunity: community,
+    },
   });
-  return guild;
+  return community;
 };
 
 describe("SettingsUsersPage seat cap", () => {
@@ -72,7 +80,7 @@ describe("SettingsUsersPage seat cap", () => {
     mintHandoff.mockResolvedValue({ handoff_token: "TOK", expires_in_seconds: 60 });
     const tab = { location: { href: "" }, opener: {} as unknown };
     const openSpy = vi.spyOn(window, "open").mockReturnValue(tab as unknown as Window);
-    const guild = setup({ id: 42, max_users: 1, member_count: 1, tier_name: "starter" });
+    const community = setup({ id: 42, max_users: 1, member_count: 1, tier_name: "starter" });
 
     expect(
       await screen.findByText(/The starter plan includes a single seat, and it's taken/i)
@@ -81,7 +89,7 @@ describe("SettingsUsersPage seat cap", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Upgrade" }));
 
-    await waitFor(() => expect(mintHandoff).toHaveBeenCalledWith(guild.id));
+    await waitFor(() => expect(mintHandoff).toHaveBeenCalledWith(community.id));
     await waitFor(() =>
       expect(tab.location.href).toBe(
         "https://billing.example.com/upgrade?community=42&lang=en#handoff=TOK"
@@ -90,7 +98,7 @@ describe("SettingsUsersPage seat cap", () => {
     openSpy.mockRestore();
   });
 
-  it("falls back to plan-free wording when the guild carries no plan name", async () => {
+  it("falls back to plan-free wording when the community carries no plan name", async () => {
     state.billing = { url: "https://billing.example.com" };
     setup({ max_users: 5, member_count: 5, tier_name: null });
 
@@ -132,8 +140,8 @@ describe("SettingsUsersPage roles", () => {
 
 describe("SettingsUsersPage invites", () => {
   it("leaves invites out for a rung that reads the roster", async () => {
-    const guild = buildGuild({ role: "admin" }) as CommunityRead;
-    setup({ role: "admin", can: { ...guild.can, configure: false } });
+    const community = buildCommunity({ role: "admin" }) as CommunityRead;
+    setup({ role: "admin", can: { ...community.can, configure: false } });
 
     expect(await screen.findByText("Admin")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Generate invite" })).not.toBeInTheDocument();

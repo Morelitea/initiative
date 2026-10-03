@@ -18,8 +18,8 @@ import type {
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { invalidate, q } from "@/api/query-keys";
 import { TOOL_HOOKS } from "@/hooks/toolHooks";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
-import { useGuildMutation } from "@/hooks/useApiMutation";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
+import { useCommunityMutation } from "@/hooks/useApiMutation";
 import { queryClient } from "@/lib/queryClient";
 import type { MutationOpts } from "@/types/mutation";
 import type { QueryOpts } from "@/types/query";
@@ -48,27 +48,27 @@ export const useSetDashboardGrants = dashboards.useSetGrants;
  * life of a deployment, hence the long stale time.
  */
 export const useWidgetCatalog = (options?: QueryOpts<WidgetCatalog>) => {
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   return useQuery<WidgetCatalog>({
-    queryKey: getReadWidgetCatalogQueryKey(guildId),
-    queryFn: () => readWidgetCatalog(guildId),
+    queryKey: getReadWidgetCatalogQueryKey(communityId),
+    queryFn: () => readWidgetCatalog(communityId),
     staleTime: Number.POSITIVE_INFINITY,
     ...options,
   });
 };
 
 /**
- * Which marketplace listings this guild has installed, and how many of each.
+ * Which marketplace listings this community has installed, and how many of each.
  *
  * Keyed by the listing uid an install pins. Separate from the dashboards list on
  * purpose: that list is paginated, and deriving "already installed" from one
  * page would mark some installs and miss the rest.
  */
 export const useInstalledListings = (options?: QueryOpts<DashboardInstalledListings>) => {
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   return useQuery<DashboardInstalledListings>({
-    queryKey: getReadInstalledListingsQueryKey(guildId),
-    queryFn: () => readInstalledListings(guildId),
+    queryKey: getReadInstalledListingsQueryKey(communityId),
+    queryFn: () => readInstalledListings(communityId),
     ...options,
   });
 };
@@ -89,12 +89,12 @@ export const useUpgradeDashboard = (
   dashboardId: number,
   options?: MutationOpts<DashboardRead, void>
 ) => {
-  const guildId = useActiveGuildId();
-  return useGuildMutation<DashboardRead, void>(
+  const communityId = useActiveCommunityId();
+  return useCommunityMutation<DashboardRead, void>(
     {
-      mutationFn: (guildId) => upgradeDashboard(guildId, dashboardId),
+      mutationFn: (communityId) => upgradeDashboard(communityId, dashboardId),
       invalidate: (updated) => {
-        queryClient.setQueryData(getReadDashboardQueryKey(guildId, dashboardId), updated);
+        queryClient.setQueryData(getReadDashboardQueryKey(communityId, dashboardId), updated);
         return invalidateDashboardAndList(dashboardId);
       },
       errorKey: "dashboards:error",
@@ -113,10 +113,10 @@ export const useSetPublishedView = (
   dashboardId: number,
   options?: MutationOpts<DashboardRead, PublishTarget[]>
 ) =>
-  useGuildMutation<DashboardRead, PublishTarget[]>(
+  useCommunityMutation<DashboardRead, PublishTarget[]>(
     {
-      mutationFn: (guildId, resources) =>
-        setPublishedView(guildId, dashboardId, {
+      mutationFn: (communityId, resources) =>
+        setPublishedView(communityId, dashboardId, {
           resources,
         }),
       invalidate: () => invalidateDashboardAndList(dashboardId),

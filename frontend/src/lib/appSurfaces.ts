@@ -99,7 +99,7 @@ export const declaredEmbeds = (
  *
  * `initiativeId` is where: absent is the community level. A surface may declare
  * either scope or both, so this is a filter rather than a partition — an app's
- * guild-wide page and its per-initiative one are often the same surface reached
+ * community-wide page and its per-initiative one are often the same surface reached
  * from two places. What the server did not say may be opened is not offered.
  */
 export const appEmbeds = (
@@ -122,7 +122,7 @@ export const appHasConnections = (definition?: Record<string, unknown> | null): 
   Array.isArray(definition?.connections) && definition.connections.length > 0;
 
 /**
- * Where an app's guild-wide entry leads.
+ * Where an app's community-wide entry leads.
  *
  * A tool-instance app mounts an existing tool, so it links at the tool's own
  * route — the calendars an app holds are just calendars. It links at the list
@@ -131,10 +131,10 @@ export const appHasConnections = (definition?: Record<string, unknown> | null): 
  * service app with surfaces this reader can open gets a page. Anything else has
  * no route, and the caller decides what to do with the row.
  */
-export const guildAppPath = (app: AppSurfaceSource & { id: number }): string | null => {
+export const communityAppPath = (app: AppSurfaceSource & { id: number }): string | null => {
   if (app.tool === "calendar") {
-    // No `/i/` prefix on purpose: an app is installed per guild, and the
-    // calendars it holds belong to no initiative — the guild route is their
+    // No `/i/` prefix on purpose: an app is installed per community, and the
+    // calendars it holds belong to no initiative — the community route is their
     // real address, not a leftover.
     return "/calendars";
   }
@@ -144,7 +144,7 @@ export const guildAppPath = (app: AppSurfaceSource & { id: number }): string | n
 /**
  * Where an app's entry inside one initiative leads.
  *
- * The same install — there is one of it per guild, not one per initiative —
+ * The same install — there is one of it per community, not one per initiative —
  * opened somewhere narrower. A tool-instance app has none: the tool it mounted
  * already lives in an initiative of its own.
  */

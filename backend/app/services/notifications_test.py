@@ -399,7 +399,7 @@ async def test_a_community_notice_carries_its_guild(
     data = notifs[0].data
     assert data["community_id"] == guild.id
     assert data["target_path"] == f"/i/{initiative.id}"
-    assert f"guild_id={guild.id}" in data["smart_link"]
+    assert f"community_id={guild.id}" in data["smart_link"]
 
 
 async def _overdue_task_in_new_guild(

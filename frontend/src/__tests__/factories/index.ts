@@ -6,6 +6,13 @@ export {
   resetCounter as resetCommentCounter,
 } from "./comment.factory";
 export {
+  buildBanner,
+  buildCommunity,
+  buildCommunityInviteStatus,
+  communityCan,
+  resetCounter as resetCommunityCounter,
+} from "./community.factory";
+export {
   buildContactGrant,
   buildIgnoredAccount,
   resetCounter as resetDmCounter,
@@ -17,13 +24,6 @@ export {
   resetCounter as resetFilterPresetCounter,
 } from "./filterPreset.factory";
 export { buildGallery, buildGalleryImage } from "./gallery.factory";
-export {
-  buildBanner,
-  buildGuild,
-  buildGuildInviteStatus,
-  guildCan,
-  resetCounter as resetGuildCounter,
-} from "./guild.factory";
 export {
   buildInitiative,
   buildInitiativeDirectoryEntry,
@@ -89,8 +89,8 @@ export {
 export {
   buildOwnedDecoration,
   buildUser,
+  buildUserCommunityMember,
   buildUserEmail,
-  buildUserGuildMember,
   buildUserProfile,
   buildUserPublic,
   buildUserSummary,
@@ -99,11 +99,11 @@ export {
 export { buildWiki, buildWikiPage } from "./wiki.factory";
 
 import { resetCounter as resetCommentCounter } from "./comment.factory";
+import { resetCounter as resetCommunityCounter } from "./community.factory";
 import { resetCounter as resetDmCounter } from "./dm.factory";
 import { resetCounter as resetDocumentCounter } from "./document.factory";
 import { resetCounter as resetFilterPresetCounter } from "./filterPreset.factory";
 import { resetCounter as resetGalleryCounter } from "./gallery.factory";
-import { resetCounter as resetGuildCounter } from "./guild.factory";
 import { resetCounter as resetInitiativeCounter } from "./initiative.factory";
 import { resetCounter as resetMarketplaceCounter } from "./marketplace.factory";
 import { resetCounter as resetNotificationCounter } from "./notification.factory";
@@ -124,7 +124,7 @@ import { resetCounter as resetWikiCounter } from "./wiki.factory";
  */
 export function resetFactories(): void {
   resetUserCounter();
-  resetGuildCounter();
+  resetCommunityCounter();
   resetInitiativeCounter();
   resetProjectCounter();
   resetTaskCounter();

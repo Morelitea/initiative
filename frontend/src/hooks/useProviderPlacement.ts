@@ -56,13 +56,13 @@ export const usePlacementCommunities = (
  *  people in. */
 export const usePlacementTargets = (
   providerId: number,
-  guildId: number | null,
+  communityId: number | null,
   options?: QueryOpts<PlacementInitiativeRead[]>
 ) => {
   return useQuery<PlacementInitiativeRead[]>({
-    queryKey: getListPlacementTargetsQueryKey(providerId, guildId ?? 0),
-    queryFn: () => listPlacementTargets(providerId, guildId ?? 0),
-    enabled: guildId !== null,
+    queryKey: getListPlacementTargetsQueryKey(providerId, communityId ?? 0),
+    queryFn: () => listPlacementTargets(providerId, communityId ?? 0),
+    enabled: communityId !== null,
     // A community this provider's rules do not reach answers 404; asking
     // again would not change that.
     retry: false,
@@ -126,14 +126,14 @@ export const usePlacementRequests = (options?: QueryOpts<CommunityNarrowingPendi
 export const useAgreePlacementRequest = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ guildId, connectionId }: { guildId: number; connectionId: number }) =>
-      agreeCommunityNarrowing(guildId, connectionId, { agreed: true }),
-    onSuccess: (_data, { guildId }) => {
+    mutationFn: ({ communityId, connectionId }: { communityId: number; connectionId: number }) =>
+      agreeCommunityNarrowing(communityId, connectionId, { agreed: true }),
+    onSuccess: (_data, { communityId }) => {
       void queryClient.invalidateQueries({
         queryKey: getListPlacementRequestsQueryKey(),
       });
       void queryClient.invalidateQueries({
-        queryKey: getReadCommunityNarrowingsQueryKey(guildId),
+        queryKey: getReadCommunityNarrowingsQueryKey(communityId),
       });
     },
   });

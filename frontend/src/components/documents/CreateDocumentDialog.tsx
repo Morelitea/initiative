@@ -46,7 +46,7 @@ import { Tabs, TabsBar, TabsContent, TabsTrigger } from "@/components/ui/tabs";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useCreateDocument, useUploadDocument } from "@/hooks/useDocuments";
 import { useInitiative } from "@/hooks/useInitiatives";
-import { useGuildPickerSuggestions } from "@/hooks/useSearch";
+import { useCommunityPickerSuggestions } from "@/hooks/useSearch";
 import { toast } from "@/lib/chesterToast";
 import {
   DOCUMENT_UPLOAD_ACCEPT,
@@ -123,7 +123,7 @@ export const CreateDocumentDialog = ({
   // Template picker — the shared lookup, asked for blueprints, only while the
   // dialog is open. It opens on the templates most recently worked on, which is
   // the only way it can say that this community has any.
-  const templates = useGuildPickerSuggestions(templateSearch, {
+  const templates = useCommunityPickerSuggestions(templateSearch, {
     types: [SearchEntityType.document],
     is_template: true,
     enabled: open && !isTemplateDocument,

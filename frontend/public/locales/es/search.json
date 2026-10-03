@@ -1,7 +1,7 @@
 {
   "title": "Buscar",
-  "titleInGuild": "Buscar en {{guildName}}",
-  "placeholder": "Buscar en {{guildName}}",
+  "titleInCommunity": "Buscar en {{communityName}}",
+  "placeholder": "Buscar en {{communityName}}",
   "prompt": {
     "title": "Buscar en esta comunidad",
     "description": "Encuentra cualquier cosa por su nombre o por lo que contiene."

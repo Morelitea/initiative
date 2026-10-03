@@ -28,7 +28,7 @@ interface BulkEditTagsDialogProps<T extends TaggableItem> extends DialogWithSucc
   items: T[];
   /** Entity type for the server-side bulk endpoint. */
   targetType: TagTarget;
-  guildId: number;
+  communityId: number;
   /** Called after the bulk call succeeds to invalidate relevant caches. */
   onInvalidate: () => void;
   /** i18n labels — each dialog can provide its own strings. */
@@ -55,7 +55,7 @@ export function BulkEditTagsDialog<T extends TaggableItem>({
   onOpenChange,
   items,
   targetType,
-  guildId,
+  communityId,
   onInvalidate,
   onSuccess,
   labels,
@@ -102,7 +102,7 @@ export function BulkEditTagsDialog<T extends TaggableItem>({
       // One atomic server-side call: adds/removals are computed against
       // current DB state, so a stale client cache can't corrupt the merge,
       // and a mid-batch failure can't leave items half-edited.
-      await bulkEditTags(guildId, {
+      await bulkEditTags(communityId, {
         target_type: targetType,
         target_ids: items.map((item) => item.id),
         add_tag_ids: mode === "add" ? tagsToAdd.map((t) => t.id) : [],
@@ -130,7 +130,7 @@ export function BulkEditTagsDialog<T extends TaggableItem>({
     tagsToRemove,
     items,
     targetType,
-    guildId,
+    communityId,
     onInvalidate,
     resetState,
     onOpenChange,

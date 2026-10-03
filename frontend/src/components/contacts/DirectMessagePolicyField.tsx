@@ -11,7 +11,7 @@ interface DirectMessagePolicyFieldProps {
   /** Locked until the account has answered the age question. */
   disabled?: boolean;
   onPolicyChange: (policy: DmPolicy) => void;
-  onCommunityChange: (guildId: number, enabled: boolean) => void;
+  onCommunityChange: (communityId: number, enabled: boolean) => void;
 }
 
 /**

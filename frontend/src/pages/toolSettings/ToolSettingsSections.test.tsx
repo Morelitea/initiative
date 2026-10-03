@@ -13,7 +13,7 @@ import {
   resetFactories,
   writerCan,
 } from "@/__tests__/factories";
-import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
@@ -84,7 +84,9 @@ const renderSection = (
 describe("ToolSettingsDetailsPage tags", () => {
   it("keeps the new selection when the write succeeds", async () => {
     resetFactories();
-    server.use(guildHttp.put("/tools/:tool/:toolId/tags", () => HttpResponse.json([ADDED_TAG])));
+    server.use(
+      communityHttp.put("/tools/:tool/:toolId/tags", () => HttpResponse.json([ADDED_TAG]))
+    );
     renderSection(ToolSettingsDetailsPage, buildEntity());
 
     await userEvent.click(await screen.findByRole("button", { name: "pick tag" }));
@@ -96,7 +98,7 @@ describe("ToolSettingsDetailsPage tags", () => {
     resetFactories();
     const existing = buildTagSummary({ id: 1, name: "Existing tag" });
     server.use(
-      guildHttp.put("/tools/:tool/:toolId/tags", () =>
+      communityHttp.put("/tools/:tool/:toolId/tags", () =>
         HttpResponse.json({ detail: "NOPE" }, { status: 500 })
       )
     );
@@ -127,7 +129,7 @@ describe("ToolSettingsDetailsPage properties", () => {
     expect(screen.getByText("Properties")).toBeInTheDocument();
   });
 
-  it("offers none on a guild-level tool, which has no definitions to add", async () => {
+  it("offers none on a community-level tool, which has no definitions to add", async () => {
     resetFactories();
     renderSection(ToolSettingsDetailsPage, buildEntity({ initiative_id: null }));
 
@@ -140,7 +142,7 @@ describe("ToolSettingsDetailsPage comments switch", () => {
   it("turns comments off and keeps the new state", async () => {
     resetFactories();
     server.use(
-      guildHttp.put("/tools/:tool/:toolId/comments", () =>
+      communityHttp.put("/tools/:tool/:toolId/comments", () =>
         HttpResponse.json({ comments_enabled: false })
       )
     );
@@ -158,7 +160,7 @@ describe("ToolSettingsDetailsPage comments switch", () => {
   it("puts the switch back when the write fails", async () => {
     resetFactories();
     server.use(
-      guildHttp.put("/tools/:tool/:toolId/comments", () =>
+      communityHttp.put("/tools/:tool/:toolId/comments", () =>
         HttpResponse.json({ detail: "NOPE" }, { status: 500 })
       )
     );
@@ -228,7 +230,7 @@ describe("ToolSettingsAdvancedPage", () => {
     resetFactories();
     let sent: { format: string | null; ids: string | null } | null = null;
     server.use(
-      guildHttp.get("/exports/queue", ({ request }) => {
+      communityHttp.get("/exports/queue", ({ request }) => {
         const url = new URL(request.url);
         sent = {
           format: url.searchParams.get("format"),
@@ -252,13 +254,13 @@ describe("ToolSettingsAdvancedPage", () => {
     const can = initiativeCan({ create: [Tool.counter_group] });
     let sent: unknown = null;
     server.use(
-      guildHttp.get("/initiatives/", () =>
+      communityHttp.get("/initiatives/", () =>
         HttpResponse.json([
           buildInitiative({ id: 3, name: "Here", can }),
           buildInitiative({ id: 4, name: "There", can }),
         ])
       ),
-      guildHttp.post("/counter-groups/:groupId/duplicate", async ({ request }) => {
+      communityHttp.post("/counter-groups/:groupId/duplicate", async ({ request }) => {
         sent = await request.json();
         return HttpResponse.json({ id: 8, initiative_id: 4 }, { status: 201 });
       })
@@ -281,10 +283,10 @@ describe("ToolSettingsAdvancedPage", () => {
     const can = initiativeCan({ create: [Tool.counter_group] });
     const here = buildInitiative({ id: 3, name: "Here", can, keep_content_in: true });
     server.use(
-      guildHttp.get("/initiatives/", () =>
+      communityHttp.get("/initiatives/", () =>
         HttpResponse.json([here, buildInitiative({ id: 4, name: "There", can })])
       ),
-      guildHttp.get("/initiatives/:id", () => HttpResponse.json(here))
+      communityHttp.get("/initiatives/:id", () => HttpResponse.json(here))
     );
     renderSection(ToolSettingsAdvancedPage, buildEntity(), Tool.counter_group);
 

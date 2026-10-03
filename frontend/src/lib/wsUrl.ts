@@ -19,8 +19,8 @@ export const buildApiWsUrl = (subpath: string): string => {
 };
 
 /**
- * Build the ws/wss URL for a guild-scoped WebSocket endpoint. `subpath` is
- * relative to the guild root, e.g. `queues/5/ws`.
+ * Build the ws/wss URL for a community-scoped WebSocket endpoint. `subpath` is
+ * relative to the community root, e.g. `queues/5/ws`.
  */
-export const buildGuildWsUrl = (guildId: number, subpath: string): string =>
-  buildApiWsUrl(`c/${guildId}/${subpath}`);
+export const buildCommunityWsUrl = (communityId: number, subpath: string): string =>
+  buildApiWsUrl(`c/${communityId}/${subpath}`);

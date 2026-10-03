@@ -66,7 +66,7 @@ export function buildReactionGroup(overrides: Partial<ReactionGroup> = {}): Reac
   };
 }
 
-/** An entry of the guild-wide activity feed (`GET /comments/recent`). */
+/** An entry of the community-wide activity feed (`GET /comments/recent`). */
 export function buildRecentActivityEntry(
   overrides: Partial<RecentActivityEntry> = {}
 ): RecentActivityEntry {

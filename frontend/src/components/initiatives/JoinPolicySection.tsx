@@ -1,16 +1,16 @@
 /**
- * How guild members may enter this initiative.
+ * How community members may enter this initiative.
  *
  * The policy governs only how a membership row comes to exist — never what a
  * member may then see, which stays with initiative membership and per-resource
- * sharing. Three ways in: closed, open to any guild member, or open to anyone
+ * sharing. Three ways in: closed, open to any community member, or open to anyone
  * who asks and a manager lets in.
  *
- * Auto-join — enrolling every future guild member on arrival — is a fourth way
+ * Auto-join — enrolling every future community member on arrival — is a fourth way
  * in, and it lives here because it is not independent of the policy: it is only
  * valid alongside "anyone can join", and the server refuses the other pairs. It
- * is also a guild admin's decision rather than a manager's, since it shapes what
- * the whole guild's onboarding does, so it is offered only when the caller
+ * is also a community admin's decision rather than a manager's, since it shapes what
+ * the whole community's onboarding does, so it is offered only when the caller
  * passes a handler for it.
  */
 
@@ -50,10 +50,10 @@ export interface JoinPolicySectionProps {
   layout?: "card" | "plain";
   /** Keeps radio ids unique when more than one instance is mounted. */
   idPrefix?: string;
-  /** Whether every new guild member is enrolled in this initiative on arrival. */
+  /** Whether every new community member is enrolled in this initiative on arrival. */
   autoJoin?: boolean;
   /**
-   * Change auto-join. Guild admins only — omit it for anyone else, who may
+   * Change auto-join. Community admins only — omit it for anyone else, who may
    * still set the policy but never this.
    */
   onChangeAutoJoin?: (next: boolean) => void;

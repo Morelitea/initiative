@@ -2,18 +2,18 @@ import { HttpResponse } from "msw";
 
 import { buildProject } from "@/__tests__/factories";
 
-import { guildHttp } from "../guildHttp";
+import { communityHttp } from "../communityHttp";
 
 export const projectHandlers = [
-  guildHttp.get("/projects/", () => {
+  communityHttp.get("/projects/", () => {
     return HttpResponse.json([buildProject()]);
   }),
 
-  guildHttp.post("/projects/", () => {
+  communityHttp.post("/projects/", () => {
     return HttpResponse.json(buildProject());
   }),
 
-  guildHttp.post("/projects/reorder", () => {
+  communityHttp.post("/projects/reorder", () => {
     return HttpResponse.json({ ok: true });
   }),
 ];

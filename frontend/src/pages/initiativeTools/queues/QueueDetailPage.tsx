@@ -43,17 +43,17 @@ import { useQueueView } from "@/hooks/useQueueView";
 import { useRecordRecentView } from "@/hooks/useRecents";
 import { useQueueRealtime } from "@/hooks/useResourceRealtime";
 import { toast } from "@/lib/chesterToast";
-import { useGuildPath } from "@/lib/guildUrl";
+import { useCommunityPath } from "@/lib/communityUrl";
 import { toolListRoute, toolSettingsRoute } from "@/lib/tools";
 
 export function QueueDetailPage() {
   const { t } = useTranslation(["queues", "common"]);
-  const { guildId, queueId } = useParams({ strict: false }) as {
-    guildId: string;
+  const { communityId, queueId } = useParams({ strict: false }) as {
+    communityId: string;
     queueId: string;
   };
   const parsedId = Number(queueId);
-  const gp = useGuildPath();
+  const gp = useCommunityPath();
 
   const queueQuery = useQueue(Number.isFinite(parsedId) ? parsedId : null);
   const queue = queueQuery.data;
@@ -63,7 +63,7 @@ export function QueueDetailPage() {
   const initiativeId = useCanonicalInitiativeId(queue?.initiative_id);
 
   // Track recently viewed queues for the layout header tabs bar.
-  const recordViewMutation = useRecordRecentView("queue", Number(guildId));
+  const recordViewMutation = useRecordRecentView("queue", Number(communityId));
   const viewedQueueId = queue?.id;
   useReadOnOpen(Tool.queue, viewedQueueId);
   useEffect(() => {

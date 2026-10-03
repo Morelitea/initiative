@@ -13,7 +13,7 @@ const SHOW_DELAY_MS = 3000;
 export const PushPermissionPrompt = () => {
   const { permissionStatus, requestPermission, isSupported } = usePushNotifications();
   const { user } = useAuth();
-  const { t } = useTranslation("guilds");
+  const { t } = useTranslation("communities");
   const [show, setShow] = useState(false);
 
   useEffect(() => {

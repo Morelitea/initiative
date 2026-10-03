@@ -108,7 +108,7 @@ async def test_join_request_email_renders_and_escapes_the_note(session, monkeypa
     )
     # The notice it rides on fills in the link, as ``notifications.notify`` does.
     pieces = replace(
-        pieces, link="https://app.example/navigate?guild_id=1&target=%2Fi%2F2"
+        pieces, link="https://app.example/navigate?community_id=1&target=%2Fi%2F2"
     )
     html_body, text_body = email_service.render_single(
         pieces, user=manager, accent="#000000", locale="en"
@@ -164,7 +164,9 @@ async def test_join_request_outcome_emails_render(
         event=event,
         initiative_name="Parser Guild",
     )
-    pieces = replace(pieces, link="https://app.example/navigate?guild_id=1&target=%2Fi")
+    pieces = replace(
+        pieces, link="https://app.example/navigate?community_id=1&target=%2Fi"
+    )
     html_body, text_body = email_service.render_single(
         pieces, user=requester, accent="#000000", locale="en"
     )

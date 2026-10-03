@@ -52,7 +52,7 @@ describe("useNotificationStream", () => {
     setAuthToken(null);
   });
 
-  it("connects to the user-scoped stream, with no guild in the address", () => {
+  it("connects to the user-scoped stream, with no community in the address", () => {
     renderWithProviders(<Probe />);
 
     expect(latestSocket().url).toContain("/api/v1/notifications/stream");

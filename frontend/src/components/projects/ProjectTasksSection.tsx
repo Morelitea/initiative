@@ -76,7 +76,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Dialog } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { useAuth } from "@/hooks/useAuth";
 import {
   useCreateFilterPreset,
@@ -241,7 +241,7 @@ export const ProjectTasksSection = ({
   const { t } = useTranslation("projects");
   // Nothing is exported from an initiative that keeps its content in.
   const keepsContentIn = Boolean(useInitiative(initiativeId).data?.keep_content_in);
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   const sortedTaskStatuses = useMemo(() => {
     return [...taskStatuses].sort((a, b) => {
       if (a.position === b.position) {
@@ -272,7 +272,7 @@ export const ProjectTasksSection = ({
   );
 
   // The project's shared presets. `can_manage` is computed server-side — a
-  // project manager, the project owner, or a guild admin — and is what gates
+  // project manager, the project owner, or a community admin — and is what gates
   // every curation affordance below.
   const navigate = useNavigate();
   const search = useSearch({ strict: false }) as { preset?: string; view?: ViewMode };
@@ -312,7 +312,7 @@ export const ProjectTasksSection = ({
     [search, presets, stored, filtersLoaded, projectDefaultViewMode]
   );
 
-  // Fetch guild tags for filtering
+  // Fetch community tags for filtering
   const { data: tags = [], isSuccess: tagsLoaded, isError: tagsFailed } = useTags();
 
   /**
@@ -582,7 +582,10 @@ export const ProjectTasksSection = ({
     onSuccess: (newTask) => {
       setComposerValue(emptyTaskFormValue({ statusId: defaultStatusId }));
       setIsComposerOpen(false);
-      setLocalOverride((prev) => [...(prev ?? projectTasks), taskReadToListRow(newTask, guildId)]);
+      setLocalOverride((prev) => [
+        ...(prev ?? projectTasks),
+        taskReadToListRow(newTask, communityId),
+      ]);
       toast.success(t("tasks.taskCreated"));
     },
   });
@@ -653,13 +656,13 @@ export const ProjectTasksSection = ({
         if (!base.length) return prev;
         if (stillMatchesFilters(updatedTask)) {
           return base.map((task) =>
-            task.id === updatedTask.id ? taskReadToListRow(updatedTask, guildId, task) : task
+            task.id === updatedTask.id ? taskReadToListRow(updatedTask, communityId, task) : task
           );
         }
         return base.filter((task) => task.id !== updatedTask.id);
       });
     },
-    [projectTasks, stillMatchesFilters, guildId]
+    [projectTasks, stillMatchesFilters, communityId]
   );
 
   // Status changes shown before the server confirms them, keyed by task. Each

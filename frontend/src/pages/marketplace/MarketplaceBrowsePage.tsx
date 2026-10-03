@@ -4,10 +4,10 @@
  * A searchable card grid rather than a menu: listings are products with artwork,
  * an author, and a description, and picking one is a decision worth a page.
  *
- * The shelf is guild-addressed: a dashboard an app ships with itself appears
- * only where the app is installed, so the catalog is asked on this guild's
+ * The shelf is community-addressed: a dashboard an app ships with itself appears
+ * only where the app is installed, so the catalog is asked on this community's
  * behalf. What is already installed here is a second question, answered by the
- * guild's own dashboards and apps lists and matched up client-side.
+ * community's own dashboards and apps lists and matched up client-side.
  */
 
 import { useSearch } from "@tanstack/react-router";
@@ -20,9 +20,9 @@ import { MarketplaceCard } from "@/components/marketplace/MarketplaceCard";
 import { StatusMessage } from "@/components/StatusMessage";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useCommunityApps } from "@/hooks/useCommunityApps";
 import { useInstalledListings } from "@/hooks/useDashboards";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import { useGuildApps } from "@/hooks/useGuildApps";
 import { useMarketplaceListings } from "@/hooks/useMarketplace";
 import { type CommunityShelf, parseCommunityShelf } from "@/lib/marketplace";
 
@@ -41,7 +41,7 @@ const SKELETON_KEYS = ["a", "b", "c", "d", "e", "f"];
 
 export function MarketplaceBrowsePage() {
   const { t } = useTranslation("marketplace");
-  // Which shelf: dashboards, or the apps a guild admin adds.
+  // Which shelf: dashboards, or the apps a community admin adds.
   //
   // Normalized here through the same parser the route validates with, not left
   // to the route. `useSearch({ strict: false })` reads the params as they are —
@@ -61,7 +61,7 @@ export function MarketplaceBrowsePage() {
     page_size: PAGE_SIZE,
   });
 
-  // Which of these this guild already has. Each shelf has to ask its own tool:
+  // Which of these this community already has. Each shelf has to ask its own tool:
   // the dashboards aggregate knows nothing about apps, so using it on the apps
   // shelf would report every app as not installed.
   //
@@ -69,13 +69,13 @@ export function MarketplaceBrowsePage() {
   // map: "we do not know" and "you have none of these" look identical on a card,
   // and only one of them is true. The notice below says which.
   const dashboardInstalls = useInstalledListings({ enabled: kind === ListingKind.dashboard });
-  const appInstalls = useGuildApps({ enabled: kind === ListingKind.app });
+  const appInstalls = useCommunityApps({ enabled: kind === ListingKind.app });
   const installedQuery = kind === ListingKind.app ? appInstalls : dashboardInstalls;
 
   const installedByUid = useMemo(() => {
     if (installedQuery.isError) return undefined;
     if (kind === ListingKind.app) {
-      // One install per listing per guild, so this is a presence map that
+      // One install per listing per community, so this is a presence map that
       // happens to be shaped like the dashboards' counts.
       const counts: Record<string, number> = {};
       for (const app of appInstalls.data?.items ?? []) counts[app.listing_uid] = 1;

@@ -5,12 +5,12 @@ import type { TaskListRead, TaskRead } from "@/api/generated/initiativeAPI.schem
  * list row, deriving the list-only fields from the nested project summary.
  * Task mutation endpoints respond with ``TaskRead``, so surfaces that hold
  * list rows use this to apply a response without dropping the denormalized
- * fields. ``guildId`` is the guild the page is in, which is what the guild's
+ * fields. ``communityId`` is the community the page is in, which is what the community's
  * own list rows carry; ``previous`` is the row being replaced, if any.
  */
 export const taskReadToListRow = (
   task: TaskRead,
-  guildId: number,
+  communityId: number,
   previous?: TaskListRead
 ): TaskListRead => {
   const { creator: _creator, project, description, ...rest } = task;
@@ -20,7 +20,7 @@ export const taskReadToListRow = (
     // replaces until the list is read again.
     description_excerpt: description ? (previous?.description_excerpt ?? null) : null,
     has_description: Boolean(description),
-    community_id: guildId,
+    community_id: communityId,
     community_name: null,
     project_name: project?.name ?? null,
     initiative_id: project?.initiative_id ?? null,

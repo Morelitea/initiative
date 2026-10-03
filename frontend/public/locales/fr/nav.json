@@ -1,6 +1,6 @@
 {
-  "selectGuild": "Sélectionner une communauté",
-  "guildSettings": "Paramètres de la communauté",
+  "selectCommunity": "Sélectionner une communauté",
+  "communitySettings": "Paramètres de la communauté",
   "initiatives": "Initiatives",
   "tags": "Étiquettes",
   "people": "Personnes",
@@ -72,7 +72,7 @@
   "navigate": {
     "signInRequired": "Veuillez vous reconnecter pour suivre ce lien.",
     "missingDestination": "Ce lien manque de détails de destination.",
-    "invalidGuildId": "Identifiant de communauté invalide dans le lien.",
+    "invalidCommunityId": "Identifiant de communauté invalide dans le lien.",
     "noAccess": "Vous n'avez pas accès à cette communauté.",
     "switchError": "Impossible de changer de communauté pour ce lien.",
     "redirecting": "Redirection vers la bonne communauté…",

@@ -47,8 +47,8 @@ import { usePersistedTableState } from "@/hooks/usePersistedTableState";
 import { useTags } from "@/hooks/useTags";
 import { useToolCounts } from "@/hooks/useToolCounts";
 import { useViewPreference } from "@/hooks/useViewPreference";
+import { useCommunityPath } from "@/lib/communityUrl";
 import { DOCUMENT_UPLOAD_ACCEPT } from "@/lib/fileUtils";
-import { useGuildPath } from "@/lib/guildUrl";
 import { everyCan } from "@/lib/permissions";
 import { resolveCardClick } from "@/lib/selectionRange";
 import { buildTagTree, collectDescendantTagIds, findNodeByPath } from "@/lib/tagTree";
@@ -77,9 +77,9 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
   const { t } = useTranslation(["documents", "common", "access"]);
   const router = useRouter();
   const prefetchDocuments = usePrefetchDocumentsList();
-  // Shared access helper — honors guild-admin / PAM / membership so this page
+  // Shared access helper — honors community-admin / PAM / membership so this page
   // never re-derives access from raw membership flags.
-  const gp = useGuildPath();
+  const gp = useCommunityPath();
   const searchParams = useSearch({ strict: false }) as {
     create?: string;
     page?: number;

@@ -44,7 +44,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsBar, TabsContent, TabsTrigger } from "@/components/ui/tabs";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { useAuth } from "@/hooks/useAuth";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useInitiatives } from "@/hooks/useInitiatives";
@@ -115,7 +115,7 @@ export function BulkEditAccessDialog({
   onSuccess,
 }: BulkEditAccessDialogProps) {
   const { t } = useTranslation(["access", "common"]);
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   const { user: currentUser } = useAuth();
   // The tool noun, pluralized for `count`, so descriptions/toasts read "2 queues"
   // rather than a hardcoded "documents".
@@ -165,8 +165,8 @@ export function BulkEditAccessDialog({
   // One query per initiative and params: the people matching what was typed
   // (grant), or the people already granted, named by id (revoke).
   const memberQuery = (initiativeId: number, params: MemberSearchParams, enabled: boolean) => ({
-    queryKey: getSearchInitiativeMembersQueryKey(guildId, initiativeId, params),
-    queryFn: () => searchInitiativeMembers(guildId, initiativeId, params),
+    queryKey: getSearchInitiativeMembersQueryKey(communityId, initiativeId, params),
+    queryFn: () => searchInitiativeMembers(communityId, initiativeId, params),
     enabled,
   });
 
@@ -227,8 +227,9 @@ export function BulkEditAccessDialog({
   // Fetch roles for each relevant initiative (reuses same query key as useInitiativeRoles)
   const roleQueries = useQueries({
     queries: initiativeIds.map((id) => ({
-      queryKey: getListInitiativeRolesQueryKey(guildId, id),
-      queryFn: () => listInitiativeRoles(guildId, id) as unknown as Promise<InitiativeRoleRead[]>,
+      queryKey: getListInitiativeRolesQueryKey(communityId, id),
+      queryFn: () =>
+        listInitiativeRoles(communityId, id) as unknown as Promise<InitiativeRoleRead[]>,
       enabled: open,
     })),
   });
@@ -402,12 +403,12 @@ export function BulkEditAccessDialog({
           resource_id: e.resourceId,
           grants: e.grants,
         }));
-        await bulkSetResourceGrants(guildId, {
+        await bulkSetResourceGrants(communityId, {
           items: bulkItems,
         });
       }
     },
-    [guildId, resourceType]
+    [communityId, resourceType]
   );
 
   const finish = useCallback(() => {

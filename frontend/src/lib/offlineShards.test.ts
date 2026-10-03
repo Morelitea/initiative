@@ -35,7 +35,7 @@ const client = (keys: string[], buster = "v1"): PersistedClientLike =>
     clientState: { mutations: [], queries: keys.map(query) },
   }) as unknown as PersistedClientLike;
 
-/** Shard = the guild in the path, else the platform shard. */
+/** Shard = the community in the path, else the platform shard. */
 const shardOf = (queryKey: readonly unknown[]) => {
   const first = queryKey[0];
   if (typeof first !== "string") return "platform";

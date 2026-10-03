@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import type { SearchHit } from "@/api/generated/initiativeAPI.schemas";
 import { MentionText } from "@/components/user/MentionText";
 import { MentionedPeopleScope, ReportMentionedPeople } from "@/hooks/useMentionedPeople";
-import { useGuildPath } from "@/lib/guildUrl";
+import { useCommunityPath } from "@/lib/communityUrl";
 import { hitIcon, searchHitPath } from "@/lib/searchResults";
 
 /**
@@ -41,7 +41,7 @@ export function splitSnippet(snippet: string): Array<{ text: string; match: bool
  */
 function SearchResultRow({ hit }: { hit: SearchHit }) {
   const { t } = useTranslation("search");
-  const getGuildPath = useGuildPath();
+  const getCommunityPath = useCommunityPath();
   const Icon = hitIcon(hit);
   const path = searchHitPath(hit);
   const kind = t(`types.${hit.entity_type}` as never, { defaultValue: hit.entity_type });
@@ -81,7 +81,7 @@ function SearchResultRow({ hit }: { hit: SearchHit }) {
     return <div className="flex gap-3 rounded-md px-3 py-2">{body}</div>;
   }
   return (
-    <Link to={getGuildPath(path)} className="flex gap-3 rounded-md px-3 py-2 hover:bg-accent">
+    <Link to={getCommunityPath(path)} className="flex gap-3 rounded-md px-3 py-2 hover:bg-accent">
       {body}
     </Link>
   );

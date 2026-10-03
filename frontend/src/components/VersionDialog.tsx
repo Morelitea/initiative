@@ -40,7 +40,7 @@ export const VersionDialog = ({
   hasUpdate = false,
   isLoadingVersion = false,
 }: VersionDialogProps) => {
-  const { t } = useTranslation("guilds");
+  const { t } = useTranslation("communities");
 
   const { data, isLoading } = useChangelog({ limit: 20 });
 

@@ -15,9 +15,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Tabs, TabsBar, TabsContent, TabsTrigger } from "@/components/ui/tabs";
-import { useGuilds } from "@/hooks/useGuilds";
+import { useCommunities } from "@/hooks/useCommunities";
 import { useInitiative } from "@/hooks/useInitiatives";
-import { useGuildPath } from "@/lib/guildUrl";
+import { useCommunityPath } from "@/lib/communityUrl";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
 import { initiativeRoute, TOOLS, toolCamelPlural, toolListRoute } from "@/lib/tools";
 
@@ -36,7 +36,7 @@ type ToolViewProps = { fixedInitiativeId: number; canCreate?: boolean };
 // Each tool's list view. A new tool adds one line here (the drift test
 // asserts every tool has an entry); the tab ORDER is not restated — it is the
 // registry's canonical order, so these tabs read in the same sequence as the
-// guild home's tool rail.
+// community home's tool rail.
 const TOOL_VIEWS: Record<Tool, ComponentType<ToolViewProps>> = {
   [Tool.project]: ProjectsView,
   [Tool.document]: DocumentsView,
@@ -68,20 +68,20 @@ export const InitiativeDetailPage = ({ tool }: InitiativeDetailPageProps = {}) =
   }) as {
     initiativeId: string;
   };
-  const gp = useGuildPath();
+  const gp = useCommunityPath();
   const parsedInitiativeId = Number(initiativeIdParam);
   const hasValidInitiativeId = Number.isFinite(parsedInitiativeId);
   const initiativeId = hasValidInitiativeId ? parsedInitiativeId : 0;
   const { t } = useTranslation(["initiatives", "common"]);
-  const { activeGuild } = useGuilds();
-  const guildAdminLabel = t("settings.guildAdminRole");
+  const { activeCommunity } = useCommunities();
+  const communityAdminLabel = t("settings.communityAdminRole");
 
-  // Addressed by id, not picked out of the caller's own list: a guild admin
-  // reaches every initiative in their guild whether or not they have joined it,
+  // Addressed by id, not picked out of the caller's own list: a community admin
+  // reaches every initiative in their community whether or not they have joined it,
   // and the endpoint answers 404 to anyone the row is not visible to.
   const initiativeQuery = useInitiative(hasValidInitiativeId ? initiativeId : null);
   const initiative = initiativeQuery.data ?? null;
-  const isGuildAdmin = Boolean(activeGuild?.can.administer_content);
+  const isCommunityAdmin = Boolean(activeCommunity?.can.administer_content);
   const canManageInitiative = Boolean(initiative?.can.manage);
 
   // A tool's tab renders when its permission allows viewing it (the backend
@@ -98,13 +98,14 @@ export const InitiativeDetailPage = ({ tool }: InitiativeDetailPageProps = {}) =
   // The path names the tab, so it is shareable and survives a reload. A tool
   // this member can't view falls back to the first one they can, rather than
   // dead-ending a bookmark the moment a permission changes — the same rule the
-  // guild home applies to its `?tool=` param.
+  // community home applies to its `?tool=` param.
   const activeTab =
     tool && availableTabs.includes(tool) ? tool : (availableTabs[0] ?? Tool.project);
 
   const memberCount = initiative?.member_count ?? 0;
 
-  const roleBadgeLabel = initiative?.role_display_name ?? (isGuildAdmin ? guildAdminLabel : null);
+  const roleBadgeLabel =
+    initiative?.role_display_name ?? (isCommunityAdmin ? communityAdminLabel : null);
 
   if (!hasValidInitiativeId) {
     return <Navigate to={gp("/")} replace />;

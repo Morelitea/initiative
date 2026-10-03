@@ -21,7 +21,7 @@ import { ToolBreadcrumb, type ToolBreadcrumbSegment } from "@/components/tools/T
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useListedInitiative } from "@/hooks/useInitiatives";
-import { useGuildPath } from "@/lib/guildUrl";
+import { useCommunityPath } from "@/lib/communityUrl";
 import { hexToRgba, resolveInitiativeColor } from "@/lib/initiativeColors";
 import { cn } from "@/lib/utils";
 
@@ -29,11 +29,11 @@ const TITLE_CLASS = "font-semibold text-3xl tracking-tight";
 
 export interface ToolPageHeaderProps {
   tool: Tool;
-  /** The initiative the page belongs to; null for a guild-level calendar. */
+  /** The initiative the page belongs to; null for a community-level calendar. */
   initiativeId?: number | null;
   /** Ancestors after the tool-list crumb: a task's project, a setting's entity. */
   trail?: ToolBreadcrumbSegment[];
-  /** The page's settings (guild-relative), for someone who may change them:
+  /** The page's settings (community-relative), for someone who may change them:
    *  the one thing across from the breadcrumb. */
   settingsTo?: string;
   /** Search params the settings link carries (an event's occurrence). */
@@ -67,7 +67,7 @@ export const ToolPageHeader = ({
   chest,
 }: ToolPageHeaderProps) => {
   const { t } = useTranslation("common");
-  const gp = useGuildPath();
+  const gp = useCommunityPath();
   const box = useFullBleed<HTMLElement>();
   const color = resolveInitiativeColor(useListedInitiative(initiativeId)?.color);
 

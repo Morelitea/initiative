@@ -8,7 +8,7 @@
  * second list being edited.
  *
  * The answer describes a dataset's shape rather than anybody's rows: it is the
- * same for every guild and never changes within a deployment, so it is cached
+ * same for every community and never changes within a deployment, so it is cached
  * indefinitely and every consumer of a dataset shares one request.
  */
 

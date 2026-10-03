@@ -262,7 +262,7 @@ Point `targets` at the app's own port, or at your proxy with `scheme: https` add
 | `initiative_sessions_active` | Sign-ins that haven't expired or been signed out. |
 | `initiative_active_users` | Accounts that did something in the last day, week and month, by `window`: `1d`, `7d`, `30d`. |
 | `initiative_tools_created_total` | Tools created, by `tool` (`project`, `document`, `wiki`, …). Imports and copies count too. |
-| `initiative_page_views_total` | Pages opened in the app, by `route`, the page's pattern (`/c/$guildId/i/$initiativeId/projects/$projectId/`). Counted only while `METRICS_TOKEN` is set. Nothing is kept in the browser and nothing says whose visit it was. |
+| `initiative_page_views_total` | Pages opened in the app, by `route`, the page's pattern (`/c/$communityId/i/$initiativeId/projects/$projectId/`). Counted only while `METRICS_TOKEN` is set. Nothing is kept in the browser and nothing says whose visit it was. |
 | `initiative_build_info` | The version running, in its `version` label. |
 | `process_*`, `python_*` | Memory, CPU and garbage collection for the app's process. |
 
@@ -285,7 +285,7 @@ Prometheus sees the server. To see what happens in people's browsers (which page
 
 **Nobody is measured without saying yes.** Setting it adds an **Analytics** switch to the cookie chooser, and only a browser with that switch on sends anything. Every switch starts off, and the chooser itself appears only once a platform owner turns it on under **Settings › Platform › Branding**. With the chooser off, nothing is sent.
 
-**What gets sent.** Page views, uncaught errors and Web Vitals, grouped by a random session id the browser keeps. A page is named by its pattern (`/c/$guildId/projects/$projectId`), never by its address, and nothing names the person.
+**What gets sent.** Page views, uncaught errors and Web Vitals, grouped by a random session id the browser keeps. A page is named by its pattern (`/c/$communityId/projects/$projectId`), never by its address, and nothing names the person.
 
 ??? techspec "Collectors on another address"
     A full address on another origin is added to the page's `connect-src` automatically. A path is already covered, since it is the app's own origin.

@@ -5,7 +5,7 @@ import { discardPastedImage, uploadPastedImage } from "@/lib/attachmentUtils";
 
 import { usePastedImages } from "./usePastedImages";
 
-vi.mock("@/hooks/useActiveGuildId", () => ({ useActiveGuildId: () => 9 }));
+vi.mock("@/hooks/useActiveCommunityId", () => ({ useActiveCommunityId: () => 9 }));
 vi.mock("@/lib/attachmentUtils", () => ({
   uploadPastedImage: vi.fn(),
   discardPastedImage: vi.fn(() => Promise.resolve()),

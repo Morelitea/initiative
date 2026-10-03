@@ -11,9 +11,9 @@ import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useRelativeTime } from "@/hooks/useRelativeTime";
 import { useUnreadTree } from "@/hooks/useUnreadTree";
+import { useCommunityPath } from "@/lib/communityUrl";
 import { documentIcon } from "@/lib/documentIcon";
 import { getFileTypeLabel } from "@/lib/fileUtils";
-import { useGuildPath } from "@/lib/guildUrl";
 import { matchSmartLinkProvider } from "@/lib/smartLinkProviders";
 import { toolDetailRoute } from "@/lib/tools";
 import { resolveUploadUrl } from "@/lib/uploadUrl";
@@ -27,7 +27,7 @@ interface DocumentCardProps {
 export const DocumentCard = ({ document, className }: DocumentCardProps) => {
   const { t } = useTranslation("documents");
   const relativeUpdatedAt = useRelativeTime(document.updated_at);
-  const gp = useGuildPath();
+  const gp = useCommunityPath();
   const unread = useUnreadTree();
   // A document with comments off shows no thread anywhere, so it shows no count.
   const commentCount = document.comments_enabled ? (document.comment_count ?? 0) : null;

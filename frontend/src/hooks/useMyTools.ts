@@ -2,11 +2,11 @@
  * The My Tools page's data: one tool at a time, across every community the
  * reader belongs to.
  *
- * One `/me/*` list per tool, and one counts call. The lists are the guild-wide
- * ones with the guild boundary taken off — same rows, same filters, merged
+ * One `/me/*` list per tool, and one counts call. The lists are the community-wide
+ * ones with the community boundary taken off — same rows, same filters, merged
  * server-side — so the rows they produce go through the same `lib/toolRows`
  * builder the community front page uses, and the query that lists each tool
- * comes from the same `TOOL_HOOKS` table its guild-wide twin reads.
+ * comes from the same `TOOL_HOOKS` table its community-wide twin reads.
  */
 
 import { keepPreviousData, useQueries, useQuery } from "@tanstack/react-query";
@@ -44,29 +44,31 @@ export const useMyToolCounts = (
 /** How the My Tools table is narrowed and ordered. */
 export interface MyToolQuery {
   /** Communities to keep, or none for all of them. */
-  guildIds?: number[];
+  communityIds?: number[];
   /** Case-insensitive match on the name, searched across the whole set. */
   search?: string;
   /** The page's other view: only what the reader wrote. */
   createdByMe?: boolean;
-  /** One of `name`, `updated_at` — there is no cross-guild initiative order. */
+  /** One of `name`, `updated_at` — there is no cross-community initiative order. */
   sortBy?: string;
   sortDir?: "asc" | "desc";
 }
 
 /**
- * One cross-guild page of whatever tool My Tools is showing.
+ * One cross-community page of whatever tool My Tools is showing.
  *
- * Twin of `useGuildToolRows`: all nine lists are asked so the fan-out never
+ * Twin of `useCommunityToolRows`: all nine lists are asked so the fan-out never
  * changes shape, and every one but the selected tool is gated off.
  */
 export function useMyToolRows(tool: Tool, page: number, pageSize: number, view: MyToolQuery = {}) {
-  const { t } = useTranslation("guildHome");
+  const { t } = useTranslation("communityHome");
 
   const params: MyToolListParams = {
     page,
     page_size: pageSize,
-    ...(view.guildIds && view.guildIds.length > 0 ? { community_ids: view.guildIds } : {}),
+    ...(view.communityIds && view.communityIds.length > 0
+      ? { community_ids: view.communityIds }
+      : {}),
     ...(view.search ? { search: view.search } : {}),
     ...(view.createdByMe ? { created_by_me: true } : {}),
     ...(view.sortBy ? { sort_by: view.sortBy, sort_dir: view.sortDir ?? "asc" } : {}),
@@ -82,7 +84,7 @@ export function useMyToolRows(tool: Tool, page: number, pageSize: number, view: 
   const query = results[TOOLS.indexOf(tool)];
 
   const rows = useMemo<ToolRow[]>(
-    // Every row across communities carries its own guild id, so there is no
+    // Every row across communities carries its own community id, so there is no
     // community for a fallback to stand in for.
     () => buildToolRows(tool, oneToolResponse(tool, query.data), t, 0),
     [tool, query.data, t]

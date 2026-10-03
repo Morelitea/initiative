@@ -68,9 +68,9 @@ export type CreateToolDialogProps = DialogProps & {
   initiativeId?: number;
   /** If provided, pre-selects this initiative (but the user can change it). */
   defaultInitiativeId?: number;
-  /** Create one belonging to the guild rather than to any initiative, the way
+  /** Create one belonging to the community rather than to any initiative, the way
    * the calendar app's own calendars do. There is no initiative to pick. */
-  guildScope?: boolean;
+  communityScope?: boolean;
   /** Fields only this tool asks for, shown under the description, and what
    * they add to what is sent. */
   extra?: { field: ReactNode; payload: Record<string, unknown> };
@@ -92,7 +92,7 @@ export const CreateToolDialog = ({
   text,
   initiativeId,
   defaultInitiativeId,
-  guildScope = false,
+  communityScope = false,
   extra,
   onSuccess,
 }: CreateToolDialogProps) => {
@@ -114,10 +114,10 @@ export const CreateToolDialog = ({
 
   // The picker only offers initiatives the user may actually create this tool
   // in (server-computed create flags; folds in the tool's master switch). A
-  // guild-level one goes into none of them, so the question is not asked.
-  const { creatableInitiatives } = useToolCreateAccess(tool, { enabled: open && !guildScope });
+  // community-level one goes into none of them, so the question is not asked.
+  const { creatableInitiatives } = useToolCreateAccess(tool, { enabled: open && !communityScope });
 
-  const effectiveInitiativeId = guildScope
+  const effectiveInitiativeId = communityScope
     ? null
     : (initiativeId ?? (selectedInitiativeId ? Number(selectedInitiativeId) : null));
 
@@ -128,7 +128,7 @@ export const CreateToolDialog = ({
   // Reset form when dialog closes, set default initiative when dialog opens
   useEffect(() => {
     if (open) {
-      if (guildScope) return;
+      if (communityScope) return;
       if (defaultInitiativeId) {
         setSelectedInitiativeId(String(defaultInitiativeId));
       } else if (creatableInitiatives.length === 1) {
@@ -140,7 +140,7 @@ export const CreateToolDialog = ({
       setSelectedInitiativeId(defaultInitiativeId ? String(defaultInitiativeId) : "");
       setGrants([...DEFAULT_GRANTS]);
     }
-  }, [open, guildScope, defaultInitiativeId, creatableInitiatives]);
+  }, [open, communityScope, defaultInitiativeId, creatableInitiatives]);
 
   // Every tool but a document has a create hook in the table; each is typed
   // with its own schemas, which this payload satisfies.
@@ -153,7 +153,7 @@ export const CreateToolDialog = ({
   });
 
   const isCreating = createTool.isPending;
-  const hasTarget = guildScope || !!effectiveInitiativeId;
+  const hasTarget = communityScope || !!effectiveInitiativeId;
   const canSubmit = !!name.trim() && hasTarget && !isCreating;
 
   const handleSubmit = () => {
@@ -163,7 +163,7 @@ export const CreateToolDialog = ({
       ...extra?.payload,
       name: trimmedName,
       description: description.trim() || undefined,
-      // Omitted for a guild-level one: no initiative is what makes it one.
+      // Omitted for a community-level one: no initiative is what makes it one.
       ...(effectiveInitiativeId ? { initiative_id: effectiveInitiativeId } : {}),
       grants,
     });
@@ -210,7 +210,7 @@ export const CreateToolDialog = ({
 
           {extra?.field}
 
-          {guildScope ? null : (
+          {communityScope ? null : (
             <div className="space-y-2">
               <Label htmlFor={`${idPrefix}-initiative`}>{t("initiative")}</Label>
               {initiativeId ? (
