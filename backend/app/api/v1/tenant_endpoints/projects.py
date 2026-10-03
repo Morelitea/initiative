@@ -348,7 +348,7 @@ def _slim_project_reads(
                 is_template=project.is_template,
                 archived_at=project.archived_at,
                 pinned_at=project.pinned_at,
-                guild_id=context.guild_id,
+                community_id=context.guild_id,
                 can=_project_can(project, user_id, context=context),
             ).model_copy(
                 # Set after construction: the field's alias keeps

@@ -125,7 +125,7 @@ describe("MyTasksPage status changes", () => {
       buildTask({
         id: 101,
         title: "Write the thing",
-        guild_id: 3,
+        community_id: 3,
         project_id: 5,
         task_status_id: todo.id,
         task_status: todo,
@@ -133,7 +133,7 @@ describe("MyTasksPage status changes", () => {
       buildTask({
         id: 102,
         title: "Read the thing",
-        guild_id: 3,
+        community_id: 3,
         project_id: 5,
         task_status_id: todo.id,
         task_status: todo,
@@ -218,7 +218,7 @@ describe("MyTasksPage status changes", () => {
 describe("MyTasksPage priority", () => {
   it("saves a priority change to the task's own community", async () => {
     const user = userEvent.setup();
-    const task = buildTask({ id: 101, title: "Write the thing", guild_id: 3, priority: "low" });
+    const task = buildTask({ id: 101, title: "Write the thing", community_id: 3, priority: "low" });
     const patched: string[] = [];
     server.use(
       http.get("/api/v1/me/tasks", ({ request }) => {

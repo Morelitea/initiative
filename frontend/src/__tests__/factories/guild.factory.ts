@@ -83,8 +83,8 @@ export function buildGuildInviteStatus(
   counter++;
   return {
     code: `invite-code-${counter}`,
-    guild_id: counter,
-    guild_name: `Guild ${counter}`,
+    community_id: counter,
+    community_name: `Guild ${counter}`,
     is_valid: true,
     reason: null,
     expires_at: null,

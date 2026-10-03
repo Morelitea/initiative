@@ -1,3 +1,4 @@
+import { Link } from "@tanstack/react-router";
 import { Bell, type LucideIcon, Mail, Monitor, Smartphone } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -9,13 +10,12 @@ import type {
   NotificationLevel,
   UserRead,
 } from "@/api/generated/initiativeAPI.schemas";
-import { SettingsSection } from "@/components/settings/SettingsSection";
+import { SettingsRow, SettingsSection } from "@/components/settings/SettingsSection";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { SearchableCombobox } from "@/components/ui/searchable-combobox";
 import {
   Select,
   SelectContent,
@@ -32,7 +32,6 @@ import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { useFcmConfig } from "@/hooks/useSettings";
 import { useUpdateNotificationPreferences } from "@/hooks/useUsers";
 import { toast } from "@/lib/chesterToast";
-import { TIMEZONE_OPTIONS } from "@/lib/timezones";
 
 // Lead-time presets (minutes) for the event reminder. 0 = "at the time of the
 // event"; reminders are turned off with the channel switches, not here.
@@ -101,7 +100,6 @@ export const UserSettingsNotificationsPage = ({
   const { data: preferences, isLoading } = useNotificationPreferences();
   const writePreferences = useWritePreferences();
 
-  const [timezone, setTimezone] = useState(user.timezone ?? "UTC");
   const [reminderMinutes, setReminderMinutes] = useState<number>(
     user.event_reminder_minutes_before ?? DEFAULT_REMINDER_MINUTES
   );
@@ -111,7 +109,6 @@ export const UserSettingsNotificationsPage = ({
   const [quietEnd, setQuietEnd] = useState("07:00");
 
   useEffect(() => {
-    setTimezone(user.timezone ?? "UTC");
     setReminderMinutes(user.event_reminder_minutes_before ?? DEFAULT_REMINDER_MINUTES);
   }, [user]);
 
@@ -219,7 +216,7 @@ export const UserSettingsNotificationsPage = ({
 
   const isOn = (row: NotificationCategoryRead, channel: Channel, guildId?: number) => {
     const scoped = guildId
-      ? preferences?.guilds?.find((entry) => entry.guild_id === guildId)?.categories
+      ? preferences?.communities?.find((entry) => entry.community_id === guildId)?.categories
       : preferences?.settings;
     const stored = scoped?.[row.category]?.[channel];
     if (typeof stored === "boolean") return stored;
@@ -234,7 +231,9 @@ export const UserSettingsNotificationsPage = ({
   ) => {
     writePreferences.mutate(
       {
-        channels: [{ category: row.category, channel, enabled: next, guild_id: guildId ?? null }],
+        channels: [
+          { category: row.category, channel, enabled: next, community_id: guildId ?? null },
+        ],
       },
       { onError: () => toast.error(t("notifications.toggleError")) }
     );
@@ -242,7 +241,7 @@ export const UserSettingsNotificationsPage = ({
 
   const setLevel = (guildId: number, level: NotificationLevel) => {
     writePreferences.mutate(
-      { levels: [{ guild_id: guildId, level }] },
+      { levels: [{ community_id: guildId, level }] },
       { onError: () => toast.error(t("notifications.toggleError")) }
     );
   };
@@ -279,23 +278,6 @@ export const UserSettingsNotificationsPage = ({
     );
   };
 
-  const handleTimezoneSave = (next: string) => {
-    setTimezone(next);
-    updateSchedule.mutate(
-      { timezone: next },
-      {
-        onSuccess: async () => {
-          await refreshUser();
-          toast.success(t("notifications.timing.saved"));
-        },
-        onError: () => {
-          toast.error(t("notifications.timing.saveError"));
-          setTimezone(user.timezone ?? "UTC");
-        },
-      }
-    );
-  };
-
   const gridColumns = { gridTemplateColumns: `1fr repeat(${visibleChannels.length}, auto)` };
 
   const renderGrid = (guildId?: number) => (
@@ -321,7 +303,7 @@ export const UserSettingsNotificationsPage = ({
       </div>
 
       {grouped.map((section) => {
-        const rows = section.rows.filter((row) => !guildId || row.guild_scoped);
+        const rows = section.rows.filter((row) => !guildId || row.community_scoped);
         if (rows.length === 0) return null;
         return (
           <div key={section.group}>
@@ -389,245 +371,24 @@ export const UserSettingsNotificationsPage = ({
       {isSupported && (
         <SettingsSection
           title={t("notifications.pushNotifications")}
-          description={t("notifications.pushDescription")}
-          action={
-            <>
-              {permissionStatus === "granted" && (
-                <Badge variant="default" className="bg-green-600 hover:bg-green-600">
-                  {t("notifications.pushEnabled")}
-                </Badge>
-              )}
-              {permissionStatus === "denied" && (
-                <Badge variant="destructive">{t("notifications.pushBlocked")}</Badge>
-              )}
-              {permissionStatus === "prompt" && (
-                <Badge variant="secondary">{t("notifications.pushNotEnabled")}</Badge>
-              )}
-            </>
+          description={
+            permissionStatus === "denied"
+              ? t("notifications.pushBlockedDescription")
+              : t("notifications.pushDescription")
           }
-        >
-          {permissionStatus === "prompt" && (
-            <Button onClick={requestPermission} size="sm">
-              {t("notifications.enablePush")}
-            </Button>
-          )}
-          {permissionStatus === "denied" && (
-            <div className="rounded bg-muted p-3 text-muted-foreground text-sm">
-              <p className="mb-1 font-medium">{t("notifications.pushBlockedTitle")}</p>
-              <p>{t("notifications.pushBlockedDescription")}</p>
-            </div>
-          )}
-        </SettingsSection>
-      )}
-
-      <SettingsSection
-        title={t("notifications.timing.title")}
-        description={t("notifications.timing.description")}
-      >
-        <div className="space-y-6">
-          {booked ? (
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded border bg-muted p-3">
-              <div>
-                <p className="font-medium">
-                  {running
-                    ? t("notifications.timing.pause.active", {
-                        until: asDay(booked.until),
-                      })
-                    : t("notifications.timing.pause.scheduled", {
-                        from: asDay(booked.since),
-                        until: asDay(booked.until),
-                      })}
-                </p>
-                <p className="text-muted-foreground text-sm">
-                  {t("notifications.timing.pause.note")}
-                </p>
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={writePreferences.isPending}
-                onClick={resume}
-              >
-                {running
-                  ? t("notifications.timing.pause.resume")
-                  : t("notifications.timing.pause.cancel")}
+          action={
+            permissionStatus === "prompt" ? (
+              <Button onClick={requestPermission} size="sm">
+                {t("notifications.enablePush")}
               </Button>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              <p className="font-medium">{t("notifications.timing.pause.title")}</p>
-              <div className="flex flex-wrap items-end gap-3">
-                <div className="space-y-1">
-                  <Label htmlFor="pause-from">{t("notifications.timing.pause.from")}</Label>
-                  <DateTimePicker
-                    id="pause-from"
-                    value={pauseFromDay}
-                    onChange={setPauseFromDay}
-                    disabled={writePreferences.isPending}
-                    placeholder={t("notifications.timing.pause.fromPlaceholder")}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor="pause-until">{t("notifications.timing.pause.until")}</Label>
-                  <DateTimePicker
-                    id="pause-until"
-                    value={pauseUntilDay}
-                    onChange={setPauseUntilDay}
-                    disabled={writePreferences.isPending}
-                    placeholder={t("notifications.timing.pause.untilPlaceholder")}
-                  />
-                </div>
-                <Button
-                  type="button"
-                  disabled={!pauseUntilDay || writePreferences.isPending}
-                  onClick={pause}
-                >
-                  {t("notifications.timing.pause.confirm")}
-                </Button>
-              </div>
-              <p className="text-muted-foreground text-xs">
-                {t("notifications.timing.pause.description")} {t("notifications.timing.pause.help")}
-              </p>
-            </div>
-          )}
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label>{t("notifications.timezone")}</Label>
-              <SearchableCombobox
-                items={TIMEZONE_OPTIONS.map((tz) => ({ value: tz, label: tz }))}
-                value={timezone}
-                onValueChange={handleTimezoneSave}
-                placeholder={t("notifications.timezonePlaceholder")}
-                emptyMessage={t("notifications.timezoneEmpty")}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="email-cadence">{t("notifications.timing.cadence.label")}</Label>
-              <Select
-                value={schedule?.cadence ?? "instant"}
-                onValueChange={(value) => setCadence(value as EmailCadence)}
-              >
-                <SelectTrigger id="email-cadence">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {CADENCES.map((cadence) => (
-                    <SelectItem key={cadence} value={cadence}>
-                      {t(`notifications.timing.cadence.${cadence}`)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-muted-foreground text-xs">
-                {t("notifications.timing.cadence.help")}
-              </p>
-            </div>
-            {schedule?.cadence === "weekly" && (
-              <div className="space-y-2">
-                <Label htmlFor="email-weekday">{t("notifications.timing.day")}</Label>
-                <Select
-                  value={String(schedule?.weekday ?? 1)}
-                  onValueChange={(value) => setWeekday(Number(value))}
-                >
-                  <SelectTrigger id="email-weekday">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {WEEKDAYS.map((day) => (
-                      <SelectItem key={day} value={String(day)}>
-                        {t(`notifications.weekdays.${day}`)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-            <div className="space-y-2">
-              <Label htmlFor="email-time">{t("notifications.timing.time")}</Label>
-              <Input
-                id="email-time"
-                type="time"
-                defaultValue={schedule?.at ?? "21:00"}
-                onBlur={(event) => {
-                  if (event.target.value && event.target.value !== schedule?.at) {
-                    setClock(event.target.value);
-                  }
-                }}
-              />
-              <p className="text-muted-foreground text-xs">{t("notifications.timing.timeHelp")}</p>
-            </div>
-          </div>
-
-          {schedule && schedule.cadence !== "instant" && (
-            <div className="flex items-start justify-between gap-4 border-t pt-4">
-              <div>
-                <p className="font-medium">{t("notifications.timing.personalInstant")}</p>
-                <p className="text-muted-foreground text-sm">
-                  {t("notifications.timing.personalInstantHelp")}
-                </p>
-              </div>
-              <Switch
-                checked={schedule.personal_instant}
-                aria-label={t("notifications.timing.personalInstant")}
-                onCheckedChange={setLane}
-              />
-            </div>
-          )}
-
-          <div className="flex items-start justify-between gap-4 border-t pt-4">
-            <div>
-              <p className="font-medium">{t("notifications.timing.respectPresence")}</p>
-              <p className="text-muted-foreground text-sm">
-                {t("notifications.timing.respectPresenceHelp")}
-              </p>
-            </div>
-            <Switch
-              checked={preferences?.respect_presence ?? true}
-              aria-label={t("notifications.timing.respectPresence")}
-              onCheckedChange={(checked) => writeTiming({ respect_presence: checked })}
-            />
-          </div>
-        </div>
-      </SettingsSection>
-
-      <SettingsSection
-        title={t("notifications.quietHours.title")}
-        description={t("notifications.quietHours.description")}
-        action={
-          <Switch
-            checked={Boolean(preferences?.quiet_hours)}
-            aria-label={t("notifications.quietHours.title")}
-            onCheckedChange={saveQuietHours}
-          />
-        }
-      >
-        {preferences?.quiet_hours && (
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="quiet-start">{t("notifications.quietHours.from")}</Label>
-              <Input
-                id="quiet-start"
-                type="time"
-                value={quietStart}
-                onChange={(event) => setQuietStart(event.target.value)}
-                onBlur={() => saveQuietHours(true)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="quiet-end">{t("notifications.quietHours.to")}</Label>
-              <Input
-                id="quiet-end"
-                type="time"
-                value={quietEnd}
-                onChange={(event) => setQuietEnd(event.target.value)}
-                onBlur={() => saveQuietHours(true)}
-              />
-            </div>
-          </div>
-        )}
-      </SettingsSection>
+            ) : permissionStatus === "granted" ? (
+              <Badge variant="secondary">{t("notifications.pushEnabled")}</Badge>
+            ) : permissionStatus === "denied" ? (
+              <Badge variant="destructive">{t("notifications.pushBlocked")}</Badge>
+            ) : null
+          }
+        />
+      )}
 
       <SettingsSection
         title={t("notifications.channelsTitle")}
@@ -640,24 +401,223 @@ export const UserSettingsNotificationsPage = ({
         )}
       </SettingsSection>
 
-      {(preferences?.guilds?.length ?? 0) > 0 && (
+      <SettingsSection
+        title={t("notifications.timing.title")}
+        description={t("notifications.timing.description")}
+      >
+        <div className="grid gap-4 sm:grid-cols-3">
+          <div className="space-y-2">
+            <Label htmlFor="email-cadence">{t("notifications.timing.cadence.label")}</Label>
+            <Select
+              value={schedule?.cadence ?? "instant"}
+              onValueChange={(value) => setCadence(value as EmailCadence)}
+            >
+              <SelectTrigger id="email-cadence">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {CADENCES.map((cadence) => (
+                  <SelectItem key={cadence} value={cadence}>
+                    {t(`notifications.timing.cadence.${cadence}`)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          {schedule?.cadence === "weekly" && (
+            <div className="space-y-2">
+              <Label htmlFor="email-weekday">{t("notifications.timing.day")}</Label>
+              <Select
+                value={String(schedule?.weekday ?? 1)}
+                onValueChange={(value) => setWeekday(Number(value))}
+              >
+                <SelectTrigger id="email-weekday">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {WEEKDAYS.map((day) => (
+                    <SelectItem key={day} value={String(day)}>
+                      {t(`notifications.weekdays.${day}`)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          <div className="space-y-2">
+            <Label htmlFor="email-time">{t("notifications.timing.time")}</Label>
+            <Input
+              id="email-time"
+              type="time"
+              defaultValue={schedule?.at ?? "21:00"}
+              onBlur={(event) => {
+                if (event.target.value && event.target.value !== schedule?.at) {
+                  setClock(event.target.value);
+                }
+              }}
+            />
+          </div>
+        </div>
+        <p className="text-muted-foreground text-xs">
+          {t("notifications.timing.cadence.help")} {t("notifications.timing.timeHelp")}{" "}
+          {t("notifications.timing.zone", { timezone: user.timezone ?? "UTC" })}{" "}
+          <Link to="/profile/interface" className="underline underline-offset-2">
+            {t("notifications.timing.changeZone")}
+          </Link>
+        </p>
+
+        {schedule && schedule.cadence !== "instant" && (
+          <SettingsRow
+            label={t("notifications.timing.personalInstant")}
+            description={t("notifications.timing.personalInstantHelp")}
+          >
+            <Switch
+              checked={schedule.personal_instant}
+              aria-label={t("notifications.timing.personalInstant")}
+              onCheckedChange={setLane}
+            />
+          </SettingsRow>
+        )}
+      </SettingsSection>
+
+      <SettingsSection title={t("notifications.quietTitle")}>
+        <SettingsRow
+          label={t("notifications.timing.respectPresence")}
+          description={t("notifications.timing.respectPresenceHelp")}
+        >
+          <Switch
+            checked={preferences?.respect_presence ?? true}
+            aria-label={t("notifications.timing.respectPresence")}
+            onCheckedChange={(checked) => writeTiming({ respect_presence: checked })}
+          />
+        </SettingsRow>
+
+        <SettingsRow
+          label={t("notifications.quietHours.title")}
+          description={t("notifications.quietHours.description")}
+          below={
+            preferences?.quiet_hours ? (
+              <div className="grid gap-4 sm:max-w-md sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="quiet-start">{t("notifications.quietHours.from")}</Label>
+                  <Input
+                    id="quiet-start"
+                    type="time"
+                    value={quietStart}
+                    onChange={(event) => setQuietStart(event.target.value)}
+                    onBlur={() => saveQuietHours(true)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="quiet-end">{t("notifications.quietHours.to")}</Label>
+                  <Input
+                    id="quiet-end"
+                    type="time"
+                    value={quietEnd}
+                    onChange={(event) => setQuietEnd(event.target.value)}
+                    onBlur={() => saveQuietHours(true)}
+                  />
+                </div>
+              </div>
+            ) : null
+          }
+        >
+          <Switch
+            checked={Boolean(preferences?.quiet_hours)}
+            aria-label={t("notifications.quietHours.title")}
+            onCheckedChange={saveQuietHours}
+          />
+        </SettingsRow>
+
+        {booked ? (
+          <SettingsRow
+            label={
+              running
+                ? t("notifications.timing.pause.active", { until: asDay(booked.until) })
+                : t("notifications.timing.pause.scheduled", {
+                    from: asDay(booked.since),
+                    until: asDay(booked.until),
+                  })
+            }
+            description={t("notifications.timing.pause.note")}
+          >
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={writePreferences.isPending}
+              onClick={resume}
+            >
+              {running
+                ? t("notifications.timing.pause.resume")
+                : t("notifications.timing.pause.cancel")}
+            </Button>
+          </SettingsRow>
+        ) : (
+          <SettingsRow
+            label={t("notifications.timing.pause.title")}
+            description={t("notifications.timing.pause.description")}
+            below={
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-end gap-3">
+                  <div className="space-y-1">
+                    <Label htmlFor="pause-from">{t("notifications.timing.pause.from")}</Label>
+                    <DateTimePicker
+                      id="pause-from"
+                      value={pauseFromDay}
+                      onChange={setPauseFromDay}
+                      disabled={writePreferences.isPending}
+                      placeholder={t("notifications.timing.pause.fromPlaceholder")}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="pause-until">{t("notifications.timing.pause.until")}</Label>
+                    <DateTimePicker
+                      id="pause-until"
+                      value={pauseUntilDay}
+                      onChange={setPauseUntilDay}
+                      disabled={writePreferences.isPending}
+                      placeholder={t("notifications.timing.pause.untilPlaceholder")}
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={!pauseUntilDay || writePreferences.isPending}
+                    onClick={pause}
+                  >
+                    {t("notifications.timing.pause.confirm")}
+                  </Button>
+                </div>
+                <p className="text-muted-foreground text-xs">
+                  {t("notifications.timing.pause.help")}
+                </p>
+              </div>
+            }
+          />
+        )}
+      </SettingsSection>
+
+      {(preferences?.communities?.length ?? 0) > 0 && (
         <SettingsSection
           title={t("notifications.communities.title")}
           description={t("notifications.communities.description")}
         >
           <div className="space-y-3">
-            {preferences?.guilds?.map((guild) => (
-              <details key={guild.guild_id} className="rounded border">
+            {preferences?.communities?.map((guild) => (
+              <details key={guild.community_id} className="rounded-md border">
                 <summary className="flex cursor-pointer items-center justify-between gap-4 p-3">
-                  <span className="font-medium">{guild.guild_name}</span>
+                  <span className="font-medium">{guild.community_name}</span>
                   <Select
                     value={guild.level}
-                    onValueChange={(value) => setLevel(guild.guild_id, value as NotificationLevel)}
+                    onValueChange={(value) =>
+                      setLevel(guild.community_id, value as NotificationLevel)
+                    }
                   >
                     <SelectTrigger
                       className="w-56"
                       aria-label={t("notifications.communities.levelLabel", {
-                        guild: guild.guild_name,
+                        guild: guild.community_name,
                       })}
                       onClick={(event) => event.preventDefault()}
                     >
@@ -678,7 +638,7 @@ export const UserSettingsNotificationsPage = ({
                       {t("notifications.communities.mutedHelp")}
                     </p>
                   ) : (
-                    renderGrid(guild.guild_id)
+                    renderGrid(guild.community_id)
                   )}
                 </div>
               </details>

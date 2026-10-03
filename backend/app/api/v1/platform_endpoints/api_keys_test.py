@@ -367,7 +367,7 @@ async def test_guild_bound_key_is_pinned_to_its_guild(
     create = await client.post(
         "/api/v1/me/api-keys",
         headers=headers,
-        json={"name": "GuildA", "guild_id": guild_a.id},
+        json={"name": "GuildA", "community_id": guild_a.id},
     )
     assert create.json()["api_key"]["guild_id"] == guild_a.id
     key_headers = {"Authorization": f"Bearer {create.json()['secret']}"}
@@ -404,7 +404,7 @@ async def test_create_guild_bound_key_rejects_non_member(
     response = await client.post(
         "/api/v1/me/api-keys",
         headers=headers,
-        json={"name": "Sneaky", "guild_id": guild.id},
+        json={"name": "Sneaky", "community_id": guild.id},
     )
     assert response.status_code == 403
     assert response.json()["detail"] == "USER_API_KEY_GUILD_FORBIDDEN"
@@ -420,7 +420,7 @@ async def test_create_guild_bound_key_rejects_unknown_guild(
     response = await client.post(
         "/api/v1/me/api-keys",
         headers=headers,
-        json={"name": "Ghost", "guild_id": 999999},
+        json={"name": "Ghost", "community_id": 999999},
     )
     assert response.status_code == 403
     assert response.json()["detail"] == "USER_API_KEY_GUILD_FORBIDDEN"
@@ -450,7 +450,7 @@ async def test_a_key_does_not_manage_keys_or_addresses(
     create = await client.post(
         "/api/v1/me/api-keys",
         headers=get_auth_headers(user),
-        json={"name": "Pinned", "guild_id": guild.id},
+        json={"name": "Pinned", "community_id": guild.id},
     )
     assert create.status_code == 201, create.text
     key_headers = {"Authorization": f"Bearer {create.json()['secret']}"}

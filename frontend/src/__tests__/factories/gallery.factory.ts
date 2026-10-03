@@ -17,7 +17,7 @@ export function buildGallery(overrides: Partial<GalleryRead> = {}): GalleryRead 
     name: `Gallery ${counter}`,
     description: null,
     initiative_id: 1,
-    guild_id: 1,
+    community_id: 1,
     created_by: 1,
     created_at: "2026-01-15T00:00:00.000Z",
     updated_at: "2026-01-15T00:00:00.000Z",
@@ -45,7 +45,7 @@ export function buildGalleryImage(overrides: Partial<GalleryImageRead> = {}): Ga
   return {
     id: imageCounter,
     gallery_id: 1,
-    guild_id: 1,
+    community_id: 1,
     title: `Picture ${imageCounter}`,
     caption: null,
     file_url: `/uploads/1/picture-${imageCounter}.png`,

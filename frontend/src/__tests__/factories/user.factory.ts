@@ -89,7 +89,7 @@ export function buildUserSummary(overrides: Partial<UserSummary> = {}): UserSumm
     avatar_url: null,
     status: "active",
     profile_decorations: null,
-    guild_role: null,
+    community_role: null,
     ...overrides,
   };
 }
@@ -135,7 +135,7 @@ export function buildUser(overrides: Partial<UserRead> = {}): UserRead {
     avatar_url: null,
     role: "member",
     capabilities: capabilitiesForRole(role),
-    can_create_guilds: true,
+    can_create_communities: true,
     status: "active",
     presence: "offline",
     cookie_consent: null,
@@ -178,14 +178,14 @@ export function buildUserGuildMember(
   overrides: Partial<UserCommunityMember> = {}
 ): UserCommunityMember {
   counter++;
-  const guildRole = overrides.guild_role ?? "member";
+  const guildRole = overrides.community_role ?? "member";
   return {
     id: counter,
     username: `user-${counter}`,
     discriminator: 1000 + counter,
     display_name: `User ${counter}`,
     avatar_url: null,
-    guild_role: guildRole,
+    community_role: guildRole,
     oidc_managed: false,
     status: "active",
     created_at: "2026-01-15T00:00:00.000Z",

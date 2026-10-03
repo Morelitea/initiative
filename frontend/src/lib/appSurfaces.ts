@@ -49,7 +49,7 @@ export type SurfaceScope = "guild" | "initiative";
 /** Where the viewer may open one surface, as the server computed it. */
 export interface SurfaceAccess {
   surface_id: string;
-  openable_guild_wide: boolean;
+  openable_community_wide: boolean;
   openable_initiatives: number[];
 }
 
@@ -112,7 +112,7 @@ export const appEmbeds = (
     const answer = access.get(embed.id);
     if (!answer) return false;
     return initiativeId === undefined
-      ? answer.openable_guild_wide
+      ? answer.openable_community_wide
       : answer.openable_initiatives.includes(initiativeId);
   });
 };

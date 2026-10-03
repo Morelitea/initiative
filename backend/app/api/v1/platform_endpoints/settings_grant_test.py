@@ -29,7 +29,7 @@ async def _request_and_approve(client, *, requester, approver, guild, rung):
         "/api/v1/access-grants/",
         headers=get_auth_headers(requester),
         json={
-            "guild_id": guild.id,
+            "community_id": guild.id,
             "settings_level": rung,
             "reason": "billing question from the community",
         },
@@ -61,7 +61,7 @@ async def _request_pair_and_approve(
         "/api/v1/access-grants/",
         headers=get_auth_headers(requester),
         json={
-            "guild_id": guild.id,
+            "community_id": guild.id,
             "access_level": access,
             "settings_level": rung,
             "reason": "the community cannot sign in",
@@ -298,7 +298,7 @@ async def test_a_bare_request_is_a_content_read(
     response = await client.post(
         "/api/v1/access-grants/",
         headers=get_auth_headers(support),
-        json={"guild_id": guild.id, "reason": "having a look"},
+        json={"community_id": guild.id, "reason": "having a look"},
     )
     assert response.status_code == 201, response.text
     assert response.json()["purpose"] == "content"
@@ -321,7 +321,7 @@ async def test_a_lesser_grant_does_not_stand_in_the_way_of_breaking_glass(
     broken = await client.post(
         "/api/v1/access-grants/break-glass",
         headers=get_auth_headers(operator),
-        json={"guild_id": guild.id, "reason": "incident, and I already had one"},
+        json={"community_id": guild.id, "reason": "incident, and I already had one"},
     )
     assert broken.status_code == 201, broken.text
 
@@ -349,7 +349,7 @@ async def test_one_request_can_ask_for_both(client: AsyncClient, session: AsyncS
         "/api/v1/access-grants/",
         headers=headers,
         json={
-            "guild_id": guild.id,
+            "community_id": guild.id,
             "access_level": "read_write",
             "settings_level": "admin",
             "reason": "clearing up after the incident",
@@ -408,7 +408,7 @@ async def test_a_combined_conflict_sends_no_external_notification(
         "/api/v1/access-grants/",
         headers=headers,
         json={
-            "guild_id": guild.id,
+            "community_id": guild.id,
             "settings_level": "admin",
             "reason": "already pending",
         },
@@ -421,7 +421,7 @@ async def test_a_combined_conflict_sends_no_external_notification(
         "/api/v1/access-grants/",
         headers=headers,
         json={
-            "guild_id": guild.id,
+            "community_id": guild.id,
             "access_level": "read",
             "settings_level": "superadmin",
             "reason": "combined request",

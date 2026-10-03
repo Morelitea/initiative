@@ -182,8 +182,8 @@ export const NotificationsInboxPage = () => {
                         )}
                       </p>
                       <p className="mt-1 flex items-center gap-2 text-muted-foreground text-xs">
-                        {guildName(notification.guild_id) && (
-                          <span>{guildName(notification.guild_id)}</span>
+                        {guildName(notification.community_id) && (
+                          <span>{guildName(notification.community_id)}</span>
                         )}
                         <RelativeTime date={notification.created_at} />
                       </p>

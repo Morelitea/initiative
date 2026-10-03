@@ -62,7 +62,7 @@ export const useInitiatives = (options?: QueryOpts<InitiativeRead[]>) => {
   });
 };
 
-const GUILD_SCOPE = { scope: InitiativeListScope.guild } as const;
+const GUILD_SCOPE = { scope: InitiativeListScope.community } as const;
 
 /**
  * Every initiative in the guild, for the guild-settings management table.

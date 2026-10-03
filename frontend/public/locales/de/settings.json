@@ -4,13 +4,11 @@
     "tabs": {
       "profile": "Profil",
       "account": "Konto",
-      "interface": "Oberfläche",
+      "interface": "Präferenzen",
       "notifications": "Benachrichtigungen",
       "ai": "KI",
-      "import": "Importieren",
       "security": "Sicherheit",
       "trash": "Papierkorb",
-      "danger": "Gefahrenzone",
       "privacy": "Privatsphäre"
     },
     "loginRequired": "Du musst angemeldet sein, um dein Profil zu verwalten.",
@@ -46,11 +44,9 @@
   },
   "profile": {
     "currentPasswordLabel": "Aktuelles Passwort",
-    "currentPasswordPlaceholder": "Aktuelles Passwort eingeben",
     "currentPasswordRequired": "Gib dein aktuelles Passwort ein, um ein neues festzulegen.",
     "newPasswordLabel": "Neues Passwort",
     "confirmPasswordLabel": "Passwort bestätigen",
-    "passwordPlaceholder": "••••••••",
     "avatarLabel": "Avatar",
     "avatarUploadTab": "Hochladen",
     "avatarUrlTab": "URL",
@@ -59,8 +55,6 @@
     "passwordsMismatch": "Passwörter stimmen nicht überein",
     "saveChanges": "Änderungen speichern",
     "saving": "Speichern…",
-    "reset": "Zurücksetzen",
-    "updateSuccess": "Profil aktualisiert",
     "updateError": "Profil konnte nicht aktualisiert werden",
     "avatarUploadHelp": "Beliebiges Bild. Es wird für dich quadratisch zugeschnitten und verkleinert.",
     "avatar": {
@@ -125,7 +119,6 @@
     "keyNamePlaceholder": "z. B. reporting-script",
     "expirationLabel": "Ablauf (optional)",
     "neverExpires": "Läuft nie ab",
-    "expirationHelp": "Lass das Feld leer für einen Schlüssel, der nie abläuft.",
     "readOnlyLabel": "Nur Lesen",
     "readOnlyHelp": "Der Schlüssel kann Daten lesen, aber niemals etwas erstellen, ändern oder löschen. Empfohlen für Automatisierungen und Integrationen.",
     "guildLabel": "Community-Zugriff",
@@ -136,25 +129,14 @@
     "nameRequired": "Name ist erforderlich",
     "createSuccess": "API-Schlüssel erstellt",
     "createError": "API-Schlüssel konnte nicht erstellt werden",
-    "existingTitle": "Vorhandene Schlüssel",
-    "existingDescription": "Es werden nur die letzten Zeichen angezeigt. Rotiere Schlüssel regelmäßig.",
     "loadingKeys": "API-Schlüssel werden geladen…",
     "keysError": "API-Schlüssel konnten nicht geladen werden.",
     "noKeys": "Noch keine API-Schlüssel.",
-    "columnName": "Name",
-    "columnPrefix": "Präfix",
-    "columnStatus": "Status",
-    "columnScope": "Geltungsbereich",
-    "columnLastUsed": "Zuletzt verwendet",
-    "columnExpires": "Läuft ab",
-    "columnActions": "Aktionen",
-    "statusActive": "Aktiv",
     "statusExpired": "Abgelaufen",
     "statusDisabled": "Deaktiviert",
     "scopeReadOnly": "Nur Lesen",
     "scopeGuild": "Community: {{guild}}",
     "scopeFull": "Voller Zugriff",
-    "never": "Nie",
     "deleteButton": "Löschen",
     "deleting": "Wird entfernt…",
     "deleteSuccess": "API-Schlüssel gelöscht",
@@ -181,7 +163,16 @@
     "signOutOthersDialogDescription_one": "Damit endet {{count}} weitere Sitzung. Hier bleibst du angemeldet.",
     "signOutOthersDialogDescription_other": "Damit enden alle {{count}} weiteren Sitzungen. Hier bleibst du angemeldet.",
     "signOutOthersConfirm": "Überall sonst abmelden",
-    "signedOutOthers": "Überall sonst abgemeldet"
+    "signedOutOthers": "Überall sonst abgemeldet",
+    "apiKeysTitle": "API-Schlüssel",
+    "apiKeysDescription": "Für Skripte und Integrationen. Das Geheimnis eines Schlüssels wird nur einmal angezeigt, wenn du ihn erstellst.",
+    "newKeyButton": "Neuer API-Schlüssel",
+    "keyCreated": "Erstellt {{date}}",
+    "keyLastUsed": "Zuletzt verwendet {{date}}",
+    "keyNeverUsed": "Nie verwendet",
+    "keyExpires": "Läuft ab {{date}}",
+    "deleteDialogTitle": "Diesen API-Schlüssel löschen?",
+    "deleteDialogDescription": "Alles, was {{name}} verwendet, funktioniert sofort nicht mehr."
   },
   "ai": {
     "loading": "KI-Einstellungen werden geladen…",
@@ -279,7 +270,6 @@
     "languageDescription": "Wähle deine bevorzugte Sprache für die Oberfläche.",
     "updateSuccess": "Oberflächeneinstellungen aktualisiert",
     "updateError": "Oberflächeneinstellungen konnten nicht aktualisiert werden",
-    "themePreview": "Designvorschau",
     "themeDescriptions": {
       "kobold": "Das klassische Initiative-Design in tiefen Indigotönen.",
       "displacer": "Beruhigendes Pastelldesign nach dem Vorbild von Catppuccin (Latte/Macchiato).",
@@ -289,8 +279,6 @@
       "orc": "Erdiges Grün mit leuchtend orkhautgrünen Akzenten. ORK ORK ORK!",
       "aboleth": "Dunkler Unterschlupf nach dem Vorbild von Monokai, mit leuchtenden biolumineszenten Akzenten."
     },
-    "lightMode": "Hell",
-    "darkMode": "Dunkel",
     "taskCompletionVisualFeedback": {
       "label": "Effekt beim Abschließen einer Aufgabe",
       "description": "Ein bisschen Spaß, wenn du eine dir zugewiesene Aufgabe abschließt.",
@@ -316,23 +304,27 @@
     },
     "keepScreenAwake": {
       "label": "Bildschirm aktiv halten",
-      "description": "Verhindert, dass sich der Bildschirm dieses Geräts verdunkelt oder sperrt, solange die App geöffnet ist. Diese Einstellung wird nur auf diesem Gerät gespeichert.",
+      "description": "Verhindert, dass sich der Bildschirm dieses Geräts verdunkelt oder sperrt, solange die App geöffnet ist.",
       "unsupported": "Dein Browser unterstützt das Aktivhalten des Bildschirms nicht."
     },
     "desktopKeepRunning": {
       "label": "Weiterlaufen, wenn das Fenster geschlossen wird",
-      "description": "Bleibt im Infobereich, damit Benachrichtigungen weiter ankommen. Beenden über das Symbol im Infobereich. Nur auf diesem Computer gespeichert."
+      "description": "Bleibt im Infobereich, damit Benachrichtigungen weiter ankommen. Beenden über das Symbol im Infobereich."
     },
     "desktopOpenAtLogin": {
       "label": "Beim Start des Computers öffnen",
-      "description": "Startet Initiative, wenn du dich an diesem Computer anmeldest. Nur auf diesem Computer gespeichert."
+      "description": "Startet Initiative, wenn du dich an diesem Computer anmeldest."
     },
     "desktopAutoUpdate": {
       "label": "App automatisch aktualisieren",
-      "description": "Wenn dein Server eine neuere Desktop-App braucht, wird sie heruntergeladen und beim Neustart installiert. Nur auf diesem Computer gespeichert."
+      "description": "Wenn dein Server eine neuere Desktop-App braucht, wird sie heruntergeladen und beim Neustart installiert."
     },
     "completionTitle": "Wenn du eine Aufgabe abschließt",
-    "completionDescription": "Was die App tut, sobald eine Aufgabe abgehakt ist. Probier jede Variante aus, bevor du sie behältst."
+    "completionDescription": "Was die App tut, sobald eine Aufgabe abgehakt ist. Probier jede Variante aus, bevor du sie behältst.",
+    "appearanceTitle": "Darstellung",
+    "regionTitle": "Sprache und Zeit",
+    "deviceTitle": "Dieses Gerät",
+    "deviceDescription": "Nur auf diesem Gerät gespeichert, nicht in deinem Konto."
   },
   "notifications": {
     "title": "Benachrichtigungseinstellungen",
@@ -342,11 +334,7 @@
     "pushBlocked": "Blockiert",
     "pushNotEnabled": "Nicht aktiviert",
     "enablePush": "Push-Benachrichtigungen aktivieren",
-    "pushBlockedTitle": "Push-Benachrichtigungen sind blockiert",
     "pushBlockedDescription": "Um Push-Benachrichtigungen zu aktivieren, öffne deine Geräteeinstellungen, suche diese App und aktiviere die Benachrichtigungen.",
-    "timezone": "Zeitzone",
-    "timezonePlaceholder": "Zeitzone auswählen",
-    "timezoneEmpty": "Keine Zeitzone gefunden.",
     "toggleError": "Benachrichtigungseinstellungen konnten nicht aktualisiert werden",
     "categoryHeader": "Kategorie",
     "categories": {
@@ -460,7 +448,9 @@
         "note": "Passwort-Zurücksetzungen und Anmelde-E-Mails kommen weiterhin an. Das sind keine Benachrichtigungen."
       },
       "saved": "Gespeichert",
-      "saveError": "Einstellung konnte nicht gespeichert werden"
+      "saveError": "Einstellung konnte nicht gespeichert werden",
+      "zone": "Zeiten gelten für {{timezone}}.",
+      "changeZone": "Zeitzone ändern"
     },
     "weekdays": {
       "1": "Montag",
@@ -470,7 +460,8 @@
       "5": "Freitag",
       "6": "Samstag",
       "7": "Sonntag"
-    }
+    },
+    "quietTitle": "Nicht stören"
   },
   "dangerZone": {
     "serverConnection": "Serververbindung",
@@ -483,7 +474,8 @@
     "permanentDeleteDescriptionText": "Ihr Konto verschwindet sofort für alle anderen. Endgültig gelöscht wird zunächst nichts — melden Sie sich vorher wieder an, und die Löschung ist abgesagt, mit Ihren Communitys und Ihrer Arbeit genau so, wie Sie sie verlassen haben. Danach gehen Projekte an andere über, und Kommentare und Dokumente bleiben, zeigen aber „[Gelöschter Nutzer]“.",
     "cannotBeUndone": "Eine Anmeldung stoppt die Löschung.",
     "deactivateButton": "Konto deaktivieren",
-    "deleteButton": "Konto löschen"
+    "deleteButton": "Konto löschen",
+    "title": "Konto schließen"
   },
   "deleteAccount": {
     "title": "Konto löschen",
@@ -1731,8 +1723,6 @@
     }
   },
   "account": {
-    "identityTitle": "Deine Anmeldung",
-    "identityDescription": "Dein Handle und die Uhr, nach der du lebst.",
     "passwordTitle": "Passwort",
     "passwordDescription": "Hier änderst du es. Auf diesem Gerät bleibst du angemeldet.",
     "passwordsOffDescription": "Die Anmeldung per Passwort ist auf diesem Server ausgeschaltet, daher kannst du hier kein Passwort festlegen oder ändern.",
@@ -1744,7 +1734,9 @@
     "removePasswordBody": "Ab jetzt meldet dich dein Passkey an, und auf allen anderen Geräten wirst du abgemeldet. Sollte dein Passkey je verloren gehen, legst du mit einem Wiederherstellungscode ein neues Passwort fest. Wenn du weniger als drei Codes hast, bekommst du einen neuen Satz angezeigt – bewahre ihn auf.",
     "removePasswordCodes": "Bewahre diese Codes sicher auf. Sollte dein Passkey je verloren gehen, legst du mit einem Wiederherstellungscode ein neues Passwort fest. Jeder Code funktioniert einmal, und du siehst sie nicht noch einmal. Alle Codes, die du vorher hattest, funktionieren nicht mehr.",
     "passwordRemoved": "Dein Passwort wurde entfernt.",
-    "removePasswordError": "Dein Passwort konnte nicht entfernt werden."
+    "removePasswordError": "Dein Passwort konnte nicht entfernt werden.",
+    "passwordSaved": "Passwort gespeichert",
+    "changePassword": "Passwort ändern"
   },
   "privacy": {
     "dm": {
@@ -1764,7 +1756,6 @@
       "platformDisabled": "Diese Installation bietet keine Direktnachrichten, daher gibt es hier nichts einzustellen. Wird die Funktion wieder aktiviert, sind die bisherige Regel und die Listen wieder da."
     },
     "receipts": {
-      "title": "Lesebestätigungen",
       "label": "Anderen zeigen, wenn ihre Nachrichten dich erreichen",
       "help": "Sie sehen, wann eine Nachricht auf einem deiner Geräte angekommen ist und wann du sie gelesen hast. Wenn du das ausschaltest, sehen sie beides nicht – genau wie bei jemandem, der die App nicht geöffnet hat. Ihre siehst du weiterhin."
     },

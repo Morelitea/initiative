@@ -136,7 +136,7 @@ export const MyTasksPage = () => {
       for (const entry of buildTaskCalendarEntries(task, getProjectColor(task.project_id), false)) {
         entries.push({
           ...entry,
-          meta: { ...(entry.meta as Record<string, unknown>), guildId: task.guild_id },
+          meta: { ...(entry.meta as Record<string, unknown>), guildId: task.community_id },
         });
       }
     });

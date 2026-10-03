@@ -31,9 +31,9 @@ const embed = (id: string, scopes?: string[], adminOnly?: boolean) => ({
 
 const access = (
   surface_id: string,
-  openable_guild_wide: boolean,
+  openable_community_wide: boolean,
   openable_initiatives: number[] = []
-): SurfaceAccess => ({ surface_id, openable_guild_wide, openable_initiatives });
+): SurfaceAccess => ({ surface_id, openable_community_wide, openable_initiatives });
 
 describe("embedAllow", () => {
   it("grants a surface exactly what it asked for", () => {

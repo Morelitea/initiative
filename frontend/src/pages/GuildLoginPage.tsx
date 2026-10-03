@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import type { LoginProviderEntry } from "@/api/generated/initiativeAPI.schemas";
 import { ProviderMark } from "@/components/auth/ProviderMark";
+import { ServerChip } from "@/components/auth/ServerChoice";
 import { SignInFrame } from "@/components/auth/SignInFrame";
 import { Button } from "@/components/ui/button";
 import {
@@ -38,7 +39,7 @@ export const GuildLoginPage = () => {
     enabled: guildId > 0 && !isNativePlatform,
   });
   const providers = providersQuery.data?.providers ?? [];
-  const guildName = providersQuery.data?.guild_name ?? null;
+  const guildName = providersQuery.data?.community_name ?? null;
 
   const signIn = (entry: LoginProviderEntry) => {
     const next = `/c/${guildId}`;
@@ -82,6 +83,9 @@ export const GuildLoginPage = () => {
           <Link className="text-primary text-sm underline-offset-4 hover:underline" to="/login">
             {t("guildLogin.otherSignIn")}
           </Link>
+        </CardFooter>
+        <CardFooter>
+          <ServerChip />
         </CardFooter>
       </Card>
     </SignInFrame>

@@ -79,7 +79,7 @@ describe("FileTicketDialog", () => {
         target_id: 42,
         reason: "harassment",
         detail: null,
-        guild_id: 3,
+        community_id: 3,
       });
     });
 
@@ -107,7 +107,7 @@ describe("FileTicketDialog", () => {
       await user.click(screen.getByRole("button", { name: "Send report" }));
 
       expect(fileMutate).toHaveBeenCalledWith(
-        expect.objectContaining({ target_type: "user_profile", guild_id: null })
+        expect.objectContaining({ target_type: "user_profile", community_id: null })
       );
     });
 
@@ -190,7 +190,7 @@ describe("FileTicketDialog", () => {
 
       expect(fileMutate).toHaveBeenCalledWith({
         stream: "support",
-        guild_id: 3,
+        community_id: 3,
         subject: "Lost my phone",
         body: "I can't sign in.",
       });

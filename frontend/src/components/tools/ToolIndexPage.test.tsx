@@ -58,7 +58,7 @@ const CARD_FIELDS: Partial<Record<Tool, Record<string, unknown>>> = {
 const row = (tool: Tool, fields: { id: number; name: string; archived_at?: string | null }) => ({
   description: null,
   initiative_id: INITIATIVE_ID,
-  guild_id: 1,
+  community_id: 1,
   created_by: 1,
   created_at: "2026-01-01T00:00:00Z",
   updated_at: "2026-01-01T00:00:00Z",

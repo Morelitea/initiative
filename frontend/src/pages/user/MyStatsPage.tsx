@@ -148,7 +148,7 @@ export function MyStatsPage() {
           {/* Charts Row */}
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             <VelocityChart data={stats.velocity_data} />
-            <GuildBreakdownChart data={stats.guild_breakdown} />
+            <GuildBreakdownChart data={stats.community_breakdown} />
           </div>
 
           {/* Heatmap Full Width */}

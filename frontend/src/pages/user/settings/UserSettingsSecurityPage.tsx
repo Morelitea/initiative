@@ -1,4 +1,5 @@
-import { type FormEvent, useMemo, useState } from "react";
+import { KeyRound, Plus } from "lucide-react";
+import { type FormEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { ApiKeyMetadata } from "@/api/generated/initiativeAPI.schemas";
@@ -9,7 +10,16 @@ import { TwoFactorSection } from "@/components/settings/TwoFactorSection";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -31,51 +41,39 @@ const computeStatus = (key: ApiKeyMetadata) => {
   if (key.expires_at && new Date(key.expires_at).getTime() <= Date.now()) {
     return { labelKey: "security.statusExpired" as const, variant: "secondary" as const };
   }
-  return { labelKey: "security.statusActive" as const, variant: "default" as const };
+  return null;
 };
 
-export const UserSettingsSecurityPage = () => {
-  const { t } = useTranslation("settings");
+/**
+ * Making an API key: the form, then the secret, which is shown once.
+ */
+const NewApiKeyDialog = ({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) => {
+  const { t } = useTranslation(["settings", "common"]);
+  const { guilds } = useGuilds();
   const [name, setName] = useState("");
   const [expiresAtInput, setExpiresAtInput] = useState("");
-  const [generatedSecret, setGeneratedSecret] = useState<string | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
   const [readOnly, setReadOnly] = useState(false);
   const [guildId, setGuildId] = useState<string>("all");
+  const [secret, setSecret] = useState<string | null>(null);
 
-  const { guilds } = useGuilds();
-  const guildName = (id: number) => guilds.find((guild) => guild.id === id)?.name ?? String(id);
-
-  // API Keys queries and mutations
-  const apiKeysQuery = useMyApiKeys();
+  const close = () => {
+    onOpenChange(false);
+    setName("");
+    setExpiresAtInput("");
+    setReadOnly(false);
+    setGuildId("all");
+    setSecret(null);
+  };
 
   const createKey = useCreateApiKey({
-    onSuccess: (data) => {
-      toast.success(t("security.createSuccess"));
-      setGeneratedSecret(data.secret);
-      setName("");
-      setExpiresAtInput("");
-      setReadOnly(false);
-      setGuildId("all");
-    },
-    onError: () => {
-      toast.error(t("security.createError"));
-    },
-  });
-
-  const deleteKey = useDeleteApiKey({
-    onMutate: (keyId: number) => {
-      setDeleteTarget(keyId);
-    },
-    onSuccess: () => {
-      toast.success(t("security.deleteSuccess"));
-    },
-    onError: () => {
-      toast.error(t("security.deleteError"));
-    },
-    onSettled: () => {
-      setDeleteTarget(null);
-    },
+    onSuccess: (data) => setSecret(data.secret),
+    onError: () => toast.error(t("security.createError")),
   });
 
   const handleCreate = (event: FormEvent<HTMLFormElement>) => {
@@ -89,7 +87,7 @@ export const UserSettingsSecurityPage = () => {
       name: string;
       expires_at?: string | null;
       read_only?: boolean;
-      guild_id?: number | null;
+      community_id?: number | null;
     } = { name: trimmedName, read_only: readOnly };
     if (expiresAtInput) {
       const parsed = new Date(expiresAtInput);
@@ -98,123 +96,151 @@ export const UserSettingsSecurityPage = () => {
       }
     }
     if (guildId !== "all") {
-      payload.guild_id = Number(guildId);
+      payload.community_id = Number(guildId);
     }
     createKey.mutate(payload);
   };
 
-  const apiKeys = useMemo(() => apiKeysQuery.data?.keys ?? [], [apiKeysQuery.data?.keys]);
-
   const copySecret = () => {
-    if (!generatedSecret || !navigator?.clipboard) {
+    if (!secret || !navigator?.clipboard) {
       return;
     }
-    void navigator.clipboard.writeText(generatedSecret).then(() => {
+    void navigator.clipboard.writeText(secret).then(() => {
       toast.success(t("security.keyCopied"));
     });
   };
 
   return (
-    <div className="space-y-6">
-      {/* First on the page: it is the one thing here that changes how the
-          account is signed into, rather than what a credential may reach. */}
-      <SettingsSection title={t("twoFactor.title")} description={t("twoFactor.description")}>
-        <TwoFactorSection />
-      </SettingsSection>
+    <Dialog open={open} onOpenChange={(next) => (next ? onOpenChange(true) : close())}>
+      <DialogContent>
+        {secret ? (
+          <>
+            <DialogHeader>
+              <DialogTitle>{t("security.newKeyTitle")}</DialogTitle>
+              <DialogDescription>{t("security.newKeyDescription")}</DialogDescription>
+            </DialogHeader>
+            <code className="block break-all rounded-md border bg-muted px-3 py-2 font-mono text-sm">
+              {secret}
+            </code>
+            <DialogFooter className="gap-2">
+              <Button type="button" variant="outline" onClick={copySecret}>
+                {t("security.copy")}
+              </Button>
+              <Button type="button" onClick={close}>
+                {t("common:done")}
+              </Button>
+            </DialogFooter>
+          </>
+        ) : (
+          <form onSubmit={handleCreate} className="space-y-4">
+            <DialogHeader>
+              <DialogTitle>{t("security.generateTitle")}</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-2">
+              <Label htmlFor="api-key-name">{t("security.keyNameLabel")}</Label>
+              <Input
+                id="api-key-name"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                placeholder={t("security.keyNamePlaceholder")}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="api-key-guild">{t("security.guildLabel")}</Label>
+              <Select value={guildId} onValueChange={setGuildId}>
+                <SelectTrigger id="api-key-guild">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{t("security.guildAllGuilds")}</SelectItem>
+                  {guilds.map((guild) => (
+                    <SelectItem key={guild.id} value={String(guild.id)}>
+                      {guild.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-muted-foreground text-xs">{t("security.guildHelp")}</p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="api-key-expiration">{t("security.expirationLabel")}</Label>
+              <DateTimePicker
+                id="api-key-expiration"
+                value={expiresAtInput}
+                onChange={setExpiresAtInput}
+                placeholder={t("security.neverExpires")}
+                calendarProps={{
+                  hidden: {
+                    before: new Date(),
+                  },
+                }}
+              />
+            </div>
+            <div className="flex items-start gap-2">
+              <Checkbox
+                id="api-key-read-only"
+                checked={readOnly}
+                onCheckedChange={(checked) => setReadOnly(checked === true)}
+                className="mt-0.5"
+              />
+              <div className="space-y-1">
+                <Label htmlFor="api-key-read-only">{t("security.readOnlyLabel")}</Label>
+                <p className="text-muted-foreground text-xs">{t("security.readOnlyHelp")}</p>
+              </div>
+            </div>
+            <DialogFooter className="gap-2">
+              <Button type="button" variant="outline" onClick={close}>
+                {t("common:cancel")}
+              </Button>
+              <Button type="submit" disabled={createKey.isPending}>
+                {createKey.isPending ? t("security.generating") : t("security.generateButton")}
+              </Button>
+            </DialogFooter>
+          </form>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+};
 
-      {/* Beside it, for the same reason: the other way this account is signed
-          into, rather than what a credential may reach. */}
+export const UserSettingsSecurityPage = () => {
+  const { t } = useTranslation(["settings", "common"]);
+  const [creating, setCreating] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<ApiKeyMetadata | null>(null);
+
+  const { guilds } = useGuilds();
+  const guildName = (id: number) => guilds.find((guild) => guild.id === id)?.name ?? String(id);
+
+  const apiKeysQuery = useMyApiKeys();
+  const apiKeys = apiKeysQuery.data?.keys ?? [];
+
+  const deleteKey = useDeleteApiKey({
+    onSuccess: () => toast.success(t("security.deleteSuccess")),
+    onError: () => toast.error(t("security.deleteError")),
+    onSettled: () => setDeleteTarget(null),
+  });
+
+  return (
+    <div className="space-y-6">
       <SettingsSection title={t("passkeys.title")} description={t("passkeys.description")}>
         <PasskeysSection />
       </SettingsSection>
 
+      <SettingsSection title={t("twoFactor.title")} description={t("twoFactor.description")}>
+        <TwoFactorSection />
+      </SettingsSection>
+
       <SignedInSection />
 
-      {generatedSecret ? (
-        <SettingsSection
-          className="border-primary/50"
-          title={t("security.newKeyTitle")}
-          description={t("security.newKeyDescription")}
-          contentClassName="flex flex-wrap items-start gap-4"
-        >
-          <code className="flex-1 break-all rounded-md border bg-muted px-3 py-2 font-mono text-sm">
-            {generatedSecret}
-          </code>
-          <Button type="button" variant="secondary" onClick={copySecret}>
-            {t("security.copy")}
-          </Button>
-        </SettingsSection>
-      ) : null}
-
-      <form onSubmit={handleCreate}>
-        <SettingsSection
-          title={t("security.generateTitle")}
-          description={t("security.generateDescription")}
-          footer={
-            <Button type="submit" disabled={createKey.isPending}>
-              {createKey.isPending ? t("security.generating") : t("security.generateButton")}
-            </Button>
-          }
-        >
-          <div className="space-y-2">
-            <Label htmlFor="api-key-name">{t("security.keyNameLabel")}</Label>
-            <Input
-              id="api-key-name"
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              placeholder={t("security.keyNamePlaceholder")}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="api-key-expiration">{t("security.expirationLabel")}</Label>
-            <DateTimePicker
-              id="api-key-expiration"
-              value={expiresAtInput}
-              onChange={setExpiresAtInput}
-              placeholder={t("security.neverExpires")}
-              calendarProps={{
-                hidden: {
-                  before: new Date(),
-                },
-              }}
-            />
-            <p className="text-muted-foreground text-xs">{t("security.expirationHelp")}</p>
-          </div>
-          <div className="flex items-start gap-2">
-            <Checkbox
-              id="api-key-read-only"
-              checked={readOnly}
-              onCheckedChange={(checked) => setReadOnly(checked === true)}
-              className="mt-0.5"
-            />
-            <div className="space-y-1">
-              <Label htmlFor="api-key-read-only">{t("security.readOnlyLabel")}</Label>
-              <p className="text-muted-foreground text-xs">{t("security.readOnlyHelp")}</p>
-            </div>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="api-key-guild">{t("security.guildLabel")}</Label>
-            <Select value={guildId} onValueChange={setGuildId}>
-              <SelectTrigger id="api-key-guild">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">{t("security.guildAllGuilds")}</SelectItem>
-                {guilds.map((guild) => (
-                  <SelectItem key={guild.id} value={String(guild.id)}>
-                    {guild.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-muted-foreground text-xs">{t("security.guildHelp")}</p>
-          </div>
-        </SettingsSection>
-      </form>
-
       <SettingsSection
-        title={t("security.existingTitle")}
-        description={t("security.existingDescription")}
+        title={t("security.apiKeysTitle")}
+        description={t("security.apiKeysDescription")}
+        action={
+          <Button size="sm" onClick={() => setCreating(true)}>
+            <Plus className="h-4 w-4" />
+            {t("security.newKeyButton")}
+          </Button>
+        }
       >
         {apiKeysQuery.isLoading ? (
           <p className="text-muted-foreground text-sm">{t("security.loadingKeys")}</p>
@@ -223,78 +249,84 @@ export const UserSettingsSecurityPage = () => {
         ) : apiKeys.length === 0 ? (
           <p className="text-muted-foreground text-sm">{t("security.noKeys")}</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="text-left text-muted-foreground">
-                <tr>
-                  <th className="py-2 pr-4 font-medium">{t("security.columnName")}</th>
-                  <th className="py-2 pr-4 font-medium">{t("security.columnPrefix")}</th>
-                  <th className="py-2 pr-4 font-medium">{t("security.columnStatus")}</th>
-                  <th className="py-2 pr-4 font-medium">{t("security.columnScope")}</th>
-                  <th className="py-2 pr-4 font-medium">{t("security.columnLastUsed")}</th>
-                  <th className="py-2 pr-4 font-medium">{t("security.columnExpires")}</th>
-                  <th className="py-2 text-right font-medium">{t("security.columnActions")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {apiKeys.map((key) => {
-                  const status = computeStatus(key);
-                  return (
-                    <tr key={key.id} className="border-t">
-                      <td className="py-3 pr-4">
-                        <div className="font-medium">{key.name}</div>
-                        <div className="text-muted-foreground text-xs">
-                          {formatDateTime(key.created_at)}
-                        </div>
-                      </td>
-                      <td className="py-3 pr-4 font-mono">{key.token_prefix}...</td>
-                      <td className="py-3 pr-4">
-                        <Badge variant={status.variant}>{t(status.labelKey)}</Badge>
-                      </td>
-                      <td className="py-3 pr-4">
-                        <div className="flex flex-wrap gap-1">
-                          {key.read_only ? (
-                            <Badge variant="secondary">{t("security.scopeReadOnly")}</Badge>
-                          ) : null}
-                          {key.guild_id != null ? (
-                            <Badge variant="outline">
-                              {t("security.scopeGuild", {
-                                guild: guildName(key.guild_id),
-                              })}
-                            </Badge>
-                          ) : null}
-                          {!key.read_only && key.guild_id == null ? (
-                            <span className="text-muted-foreground text-xs">
-                              {t("security.scopeFull")}
-                            </span>
-                          ) : null}
-                        </div>
-                      </td>
-                      <td className="py-3 pr-4">
-                        {key.last_used_at ? formatDateTime(key.last_used_at) : t("security.never")}
-                      </td>
-                      <td className="py-3 pr-4">{formatDateTime(key.expires_at) || "—"}</td>
-                      <td className="py-3 text-right">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => deleteKey.mutate(key.id)}
-                          disabled={deleteTarget === key.id && deleteKey.isPending}
-                        >
-                          {deleteTarget === key.id && deleteKey.isPending
-                            ? t("security.deleting")
-                            : t("security.deleteButton")}
-                        </Button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          <ul className="space-y-3">
+            {apiKeys.map((key) => {
+              const status = computeStatus(key);
+              const detail = [
+                `${key.token_prefix}…`,
+                t("security.keyCreated", { date: formatDateTime(key.created_at) }),
+                key.last_used_at
+                  ? t("security.keyLastUsed", { date: formatDateTime(key.last_used_at) })
+                  : t("security.keyNeverUsed"),
+                key.expires_at
+                  ? t("security.keyExpires", { date: formatDateTime(key.expires_at) })
+                  : null,
+              ]
+                .filter(Boolean)
+                .join(" · ");
+              return (
+                <li
+                  key={key.id}
+                  className="flex items-center justify-between gap-4 rounded-lg border p-4"
+                >
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted">
+                      <KeyRound className="h-5 w-5" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="flex flex-wrap items-center gap-2 font-medium">
+                        {key.name}
+                        {status ? (
+                          <Badge variant={status.variant}>{t(status.labelKey)}</Badge>
+                        ) : null}
+                        {key.read_only ? (
+                          <Badge variant="secondary">{t("security.scopeReadOnly")}</Badge>
+                        ) : null}
+                        {key.community_id != null ? (
+                          <Badge variant="outline">
+                            {t("security.scopeGuild", { guild: guildName(key.community_id) })}
+                          </Badge>
+                        ) : null}
+                        {!key.read_only && key.community_id == null ? (
+                          <Badge variant="outline">{t("security.scopeFull")}</Badge>
+                        ) : null}
+                      </p>
+                      <p className="text-muted-foreground text-sm">{detail}</p>
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setDeleteTarget(key)}
+                  >
+                    {t("security.deleteButton")}
+                  </Button>
+                </li>
+              );
+            })}
+          </ul>
         )}
       </SettingsSection>
+
+      <NewApiKeyDialog open={creating} onOpenChange={setCreating} />
+
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null);
+        }}
+        title={t("security.deleteDialogTitle")}
+        description={t("security.deleteDialogDescription", { name: deleteTarget?.name ?? "" })}
+        confirmLabel={t("security.deleteButton")}
+        cancelLabel={t("common:cancel")}
+        loadingLabel={t("security.deleting")}
+        isLoading={deleteKey.isPending}
+        destructive
+        onConfirm={() => {
+          if (deleteTarget) deleteKey.mutate(deleteTarget.id);
+        }}
+      />
     </div>
   );
 };

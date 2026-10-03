@@ -203,7 +203,7 @@ async def test_read_all_can_clear_one_community(
     await client.post(
         "/api/v1/notifications/read-all",
         headers=headers,
-        params={"guild_id": cleared.id},
+        params={"community_id": cleared.id},
     )
 
     places = (await client.get("/api/v1/notifications/unread", headers=headers)).json()[

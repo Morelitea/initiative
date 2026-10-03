@@ -53,7 +53,7 @@ async def _request_access(client: AsyncClient, actor: Actor, guild, **body) -> o
     """Ask for access to ``guild`` through the request->approve flow."""
     return await client.post(
         GRANTS,
-        json={"guild_id": guild.id, "reason": "debugging a ticket", **body},
+        json={"community_id": guild.id, "reason": "debugging a ticket", **body},
         headers=actor.headers,
     )
 

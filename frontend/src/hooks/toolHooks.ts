@@ -196,7 +196,7 @@ export interface ToolListParams {
  * "only what I wrote" view.
  */
 export interface ToolMyListParams {
-  guild_ids?: number[] | null;
+  community_ids?: number[] | null;
   search?: string | null;
   created_by_me?: boolean;
   sort_by?: string | null;

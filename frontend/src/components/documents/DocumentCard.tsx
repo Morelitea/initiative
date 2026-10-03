@@ -110,7 +110,7 @@ export const DocumentCard = ({ document, className }: DocumentCardProps) => {
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
-            {unread.hasResource(document.guild_id, Tool.document, document.id) ? (
+            {unread.hasResource(document.community_id, Tool.document, document.id) ? (
               <UnreadDot className="mt-2" />
             ) : null}
           </div>

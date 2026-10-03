@@ -17,7 +17,7 @@ export function buildTrashItem(overrides: Partial<TrashItem> = {}): TrashItem {
   return {
     entity_type: "task" as EntityType,
     entity_id: counter,
-    guild_id: 1,
+    community_id: 1,
     name: `Item ${counter}`,
     deleted_at: new Date(2026, 3, 20, 10, 0, 0).toISOString(),
     deleted_by_id: 1,

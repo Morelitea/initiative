@@ -27,7 +27,8 @@
     "test:journeys": "playwright test",
     "generate:api": "./scripts/generate-api.sh",
     "build:crypto": "./scripts/build-crypto.sh",
-    "prepare": "cd .. && husky ./frontend/.husky"
+    "prepare": "cd .. && husky ./frontend/.husky",
+    "build:editor-server": "node scripts/build-editor-server.mjs"
   },
   "dependencies": {
     "@capacitor-community/keep-awake": "^8.0.1",
@@ -164,6 +165,7 @@
     "baseline-browser-mapping": "^2.11.26",
     "cross-env": "^10.1.0",
     "emojibase-data": "^17.0.0",
+    "esbuild": "0.28.2",
     "fake-indexeddb": "^6.2.5",
     "fflate": "^0.8.3",
     "husky": "^9.1.7",

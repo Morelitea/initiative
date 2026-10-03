@@ -28,7 +28,7 @@ import { cn } from "@/lib/utils";
 /** The slim user shape these pickers render (the search endpoints' `UserSummary`). */
 export type MemberSummary = Pick<
   UserSummary,
-  "id" | "username" | "discriminator" | "display_name" | "avatar_url" | "status" | "guild_role"
+  "id" | "username" | "discriminator" | "display_name" | "avatar_url" | "status" | "community_role"
 >;
 
 /** A member we can render from partial info — a full {@link MemberSummary} from

@@ -12,7 +12,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 
-from pydantic import Field, field_validator
+from pydantic import AliasChoices, Field, field_validator
 
 from app.models.platform.announcement import (
     AnnouncementAudienceAccounts,
@@ -132,7 +132,10 @@ class AnnouncementOperatorRead(AnnouncementRead):
 
     id: Optional[int] = None
     min_platform_role: UserRole = UserRole.member
-    guild_admins_only: bool = False
+    community_admins_only: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("community_admins_only", "guild_admins_only"),
+    )
     audience_accounts: AnnouncementAudienceAccounts = (
         AnnouncementAudienceAccounts.everyone
     )
@@ -152,7 +155,7 @@ class AnnouncementWrite(SanitizedBaseModel):
     category: AnnouncementCategory = AnnouncementCategory.info
     sections: list[AnnouncementSection] = Field(default_factory=list)
     min_platform_role: UserRole = UserRole.member
-    guild_admins_only: bool = False
+    community_admins_only: bool = False
     audience_accounts: AnnouncementAudienceAccounts = (
         AnnouncementAudienceAccounts.everyone
     )
@@ -188,7 +191,7 @@ class AnnouncementUpdate(SanitizedBaseModel):
     category: Optional[AnnouncementCategory] = None
     sections: Optional[list[AnnouncementSection]] = None
     min_platform_role: Optional[UserRole] = None
-    guild_admins_only: Optional[bool] = None
+    community_admins_only: Optional[bool] = None
     audience_accounts: Optional[AnnouncementAudienceAccounts] = None
     published_at: Optional[datetime] = None
     expires_at: Optional[datetime] = None

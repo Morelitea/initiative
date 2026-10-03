@@ -188,7 +188,7 @@ async def trash_page(
         TrashItem(
             entity_type=row.entity_type,
             entity_id=row.entity_id,
-            guild_id=guild_id,
+            community_id=guild_id,
             name=_truncate(row.name or ""),
             deleted_at=row.deleted_at,
             deleted_by_id=row.deleted_by,

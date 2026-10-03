@@ -5,9 +5,17 @@ import { useTranslation } from "react-i18next";
 
 import { apiClient } from "@/api/client";
 import type { CommunityInviteStatus } from "@/api/generated/initiativeAPI.schemas";
+import { ServerChip } from "@/components/auth/ServerChoice";
 import { SignInFrame } from "@/components/auth/SignInFrame";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { useAuth } from "@/hooks/useAuth";
 import { useGuilds } from "@/hooks/useGuilds";
 import { getErrorMessage } from "@/lib/errorMessage";
@@ -87,7 +95,7 @@ export const GuildInvitePage = () => {
 
   const inviteValid = Boolean(status?.is_valid);
   const inviteTitle = inviteValid
-    ? t("invite.title", { guildName: status?.guild_name ?? "this guild" })
+    ? t("invite.title", { guildName: status?.community_name ?? "this guild" })
     : t("invite.titleDefault");
 
   return (
@@ -117,7 +125,7 @@ export const GuildInvitePage = () => {
                 </p>
                 <p>
                   <span className="font-medium">{t("invite.guildLabel")}</span>{" "}
-                  {status?.guild_name ?? t("invite.unknown")}
+                  {status?.community_name ?? t("invite.unknown")}
                 </p>
                 {status?.expires_at ? (
                   <p>
@@ -178,6 +186,9 @@ export const GuildInvitePage = () => {
             </>
           )}
         </CardContent>
+        <CardFooter>
+          <ServerChip />
+        </CardFooter>
       </Card>
     </SignInFrame>
   );

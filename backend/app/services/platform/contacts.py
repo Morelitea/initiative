@@ -184,8 +184,8 @@ async def guild_sections(
 
         name, icon = named[guild_id]
         sections[guild_id] = ContactCommunitySection(
-            guild_id=guild_id,
-            guild_name=name,
+            community_id=guild_id,
+            community_name=name,
             icon_url=icon,
             total_count=total,
             items=_reads(rows),

@@ -140,7 +140,7 @@ describe("EnvelopeImportDialog", () => {
     // imported yet: the server hands back a staged job and the question.
     const stagedJob = {
       id: 42,
-      guild_id: 1,
+      community_id: 1,
       created_by: 1,
       source: "initiative-project",
       params: {},

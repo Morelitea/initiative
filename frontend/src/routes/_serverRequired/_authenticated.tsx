@@ -213,7 +213,7 @@ function AppLayout() {
   const toClearTarget = (item: RecentItemRead): ClearRecentTarget => ({
     entityType: item.entity_type,
     entityId: item.entity_id,
-    guildId: item.guild_id,
+    guildId: item.community_id,
   });
 
   const handleClearRecent = (item: RecentItemRead) => {
@@ -224,7 +224,7 @@ function AppLayout() {
     const others = (recentQuery.data ?? []).filter(
       (item) =>
         !(
-          item.guild_id === keep.guild_id &&
+          item.community_id === keep.community_id &&
           item.entity_type === keep.entity_type &&
           item.entity_id === keep.entity_id
         )

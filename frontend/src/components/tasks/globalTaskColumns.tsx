@@ -139,10 +139,10 @@ export function globalTaskColumns({
   propertyColumns,
 }: GlobalTaskColumnsOptions): AppColumnDef<TaskListRead>[] {
   const guildDefaultLabel = t("myTasks.noGuild");
-  const getGuildGroupLabel = (task: TaskListRead) => task.guild_name ?? guildDefaultLabel;
+  const getGuildGroupLabel = (task: TaskListRead) => task.community_name ?? guildDefaultLabel;
 
   const taskGuildPath = (task: TaskListRead, path: string) => {
-    const guildId = task.guild_id ?? activeGuildId;
+    const guildId = task.community_id ?? activeGuildId;
     return guildId ? guildPath(guildId, path) : path;
   };
   const shared = sharedTaskColumns<TaskListRead>({
@@ -272,7 +272,7 @@ export function globalTaskColumns({
         const task = row.original;
         const projectLabel = task.project_name ?? t("projectFallback", { id: task.project_id });
         const projectIdentifier = task.project_id;
-        const guildName = task.guild_name;
+        const guildName = task.community_name;
         const initiativeId = task.initiative_id;
         const initiativeName = task.initiative_name;
         const initiativeColor = task.initiative_color;

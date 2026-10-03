@@ -24,6 +24,7 @@ import { useBootstrapStatus } from "@/api/generated/auth/auth";
 import { getInviteStatus } from "@/api/generated/communities/communities";
 import type { CommunityInviteStatus, CommunityRead } from "@/api/generated/initiativeAPI.schemas";
 import { EmailOtpCard } from "@/components/auth/EmailOtpCard";
+import { ServerChip, ServerPicker } from "@/components/auth/ServerChoice";
 import { SignInFrame } from "@/components/auth/SignInFrame";
 import { useAgeConfirmation } from "@/components/auth/useAgeConfirmation";
 import { RecoveryCodesPanel } from "@/components/settings/RecoveryCodesPanel";
@@ -352,7 +353,7 @@ const StartSteps = ({
         return;
       }
       if (final.path === "invite") {
-        const guildId = invite.status?.guild_id;
+        const guildId = invite.status?.community_id;
         await leave(() =>
           guildId
             ? navigate({ to: "/c/$guildId", params: { guildId: String(guildId) } })
@@ -488,8 +489,8 @@ const StartSteps = ({
   const inviteLine = invite.checking
     ? t("register.checkingInvite")
     : invite.status?.is_valid
-      ? invite.status.guild_name
-        ? t("register.joiningGuild", { guildName: invite.status.guild_name })
+      ? invite.status.community_name
+        ? t("register.joiningGuild", { guildName: invite.status.community_name })
         : t("register.joiningGuildDefault")
       : null;
 
@@ -705,7 +706,7 @@ const StartSteps = ({
   }
 
   return (
-    <SignInFrame fillPhone pickServer={!signedIn}>
+    <SignInFrame fillPhone>
       <Card className="grid w-full max-w-lg gap-4 p-6 shadow-lg max-sm:min-h-dvh max-sm:max-w-none max-sm:content-start max-sm:rounded-none max-sm:border-0 max-sm:pt-[max(1.5rem,env(safe-area-inset-top))] max-sm:pb-[max(1.5rem,env(safe-area-inset-bottom))]">
         <ChesterSays key={step} pose={pose} line={line} />
         <WizardFrame
@@ -726,6 +727,7 @@ const StartSteps = ({
           ) : null}
           {footer}
         </WizardFrame>
+        {signedIn ? <ServerChip /> : <ServerPicker />}
       </Card>
     </SignInFrame>
   );

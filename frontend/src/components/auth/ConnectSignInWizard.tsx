@@ -181,7 +181,7 @@ export const ConnectSignInWizard = ({
         await createRule.mutateAsync({
           provider_id: providerId,
           claim_value: group,
-          guild_role: ruleRole,
+          community_role: ruleRole,
         });
       }
       if (insist) {

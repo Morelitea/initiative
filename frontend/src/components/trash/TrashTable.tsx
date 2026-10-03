@@ -105,7 +105,7 @@ export const TrashTable = ({ variant, showPurgeAction }: TrashTableProps) => {
 
   const handleRestoreClick = (item: TrashItem) => {
     restoreMutation.mutate({
-      guildId: item.guild_id,
+      guildId: item.community_id,
       entityType: item.entity_type,
       entityId: item.entity_id,
     });
@@ -169,7 +169,7 @@ export const TrashTable = ({ variant, showPurgeAction }: TrashTableProps) => {
                         onClick={() =>
                           setPurgeConfirm({
                             open: true,
-                            guildId: item.guild_id,
+                            guildId: item.community_id,
                             entityType: item.entity_type,
                             entityId: item.entity_id,
                             name: item.name || `#${item.entity_id}`,

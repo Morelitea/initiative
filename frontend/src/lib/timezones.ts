@@ -26,7 +26,9 @@ const resolveTimezones = (): string[] => {
   const intl = Intl as typeof Intl & { supportedValuesOf?: (key: string) => string[] };
   if (typeof intl.supportedValuesOf === "function") {
     try {
-      return intl.supportedValuesOf("timeZone");
+      // Chromium's list leaves out "UTC", which is the account default.
+      const zones = intl.supportedValuesOf("timeZone");
+      return zones.includes("UTC") ? zones : ["UTC", ...zones];
     } catch {
       return FALLBACK_TIMEZONES;
     }

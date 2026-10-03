@@ -14,11 +14,13 @@ import pytest
 from pydantic import BaseModel, ValidationError
 from pydantic_core import PydanticSerializationError
 
+from app.core.config import settings
 from app.core.identity_boundary import (
     UNKNOWN_REFERENCE_ERROR,
     BoundaryPhase,
     LEXICAL_MENTIONS,
     MARKDOWN_MENTIONS,
+    UPLOAD_PATH,
     GuildId,
     InstallBoundary,
     PersonId,
@@ -269,6 +271,45 @@ def test_a_person_s_mention_is_stored_by_id_with_no_name():
     }
 
 
+_PICTURE = f"/uploads/{_GUILD}/pasted-ab12.png?size=small"
+_FILE = f"https://initiative.example/uploads/{_GUILD}/notes.pdf#page=2"
+_ELSEWHERE = f"https://pictures.example/uploads/{_GUILD}/logo.png?v=2"
+
+
+@pytest.fixture
+def own_origin(monkeypatch):
+    """This deployment is served at ``initiative.example``."""
+    monkeypatch.setattr(settings, "APP_URL", "https://initiative.example")
+
+
+def _image(src: str) -> dict[str, Any]:
+    return {"type": "image", "src": src, "altText": "chart", "width": 640}
+
+
+def _shown(text: str, picture: str, file: str) -> dict[str, Any]:
+    """A body mentioning somebody, showing a stored picture and file, and a
+    linked picture from another site."""
+    elsewhere = f"[![logo]({_ELSEWHERE})]({_ELSEWHERE})"
+    return {
+        "text": f"{text} ![chart]({picture}) [notes.pdf]({file}) {elsewhere}",
+        "state": {
+            "root": {
+                "children": [
+                    _mention(11, ""),
+                    _image(picture),
+                    {"type": "link", "url": file, "children": []},
+                    _image(_ELSEWHERE),
+                ]
+            }
+        },
+    }
+
+
+def test_a_person_s_stored_files_pass_through():
+    body = _shown("@[](11) on #task[Fix it](3)", _PICTURE, _FILE)
+    assert _Body.model_validate(body).model_dump(mode="json") == body
+
+
 def test_an_install_s_mention_is_stored_by_row_id():
     with boundary_scope():
         admit_install(_boundary(members=frozenset({11})))
@@ -280,6 +321,37 @@ def test_an_install_s_mention_is_stored_by_row_id():
         )
     assert body.text == "@[](11) on #task[Fix it](3)"
     assert body.state == {"root": _mention(11, "")}
+
+
+def test_an_install_reads_a_mention_and_no_stored_file_s_path(own_origin):
+    body = _Body.model_validate(_shown("@[](11)", _PICTURE, _FILE))
+    with boundary_scope():
+        boundary = _boundary()
+        admit_install(boundary)
+        boundary.phase = BoundaryPhase.response
+        dumped = body.model_dump(mode="json")
+    expected = _shown(f"@[]({boundary.nonce}:u:11)", "", "")
+    expected["state"]["root"]["children"][0]["mentionUserId"] = f"{boundary.nonce}:u:11"
+    assert dumped == expected
+
+
+class _Files(BaseModel):
+    picture: Annotated[str, UPLOAD_PATH]
+    file: Annotated[Optional[str], UPLOAD_PATH] = None
+    cover: Annotated[Optional[str], UPLOAD_PATH] = None
+    missing: Annotated[Optional[str], UPLOAD_PATH] = None
+
+
+def test_an_install_reads_a_stored_file_as_an_empty_string(own_origin):
+    files = _Files(picture=_PICTURE, file=_FILE, cover=_ELSEWHERE)
+    shown = {"picture": _PICTURE, "file": _FILE, "cover": _ELSEWHERE, "missing": None}
+    assert files.model_dump(mode="json") == shown
+    with boundary_scope():
+        boundary = _boundary()
+        admit_install(boundary)
+        boundary.phase = BoundaryPhase.response
+        dumped = files.model_dump(mode="json")
+    assert dumped == shown | {"picture": "", "file": ""}
 
 
 @pytest.mark.parametrize("named", ["11", "uapp_nobody-here", _GUILD_REF, _OTHER_REF])

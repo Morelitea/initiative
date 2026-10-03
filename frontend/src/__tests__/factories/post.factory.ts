@@ -54,7 +54,7 @@ export function buildPost(overrides: Partial<PostRead> = {}): PostRead {
     body: buildLexicalBody(`Notice body ${counter}`),
     excerpt: `Notice body ${counter}`,
     initiative_id: 1,
-    guild_id: 1,
+    community_id: 1,
     created_by: 1,
     // Every real row is signed, so a test post is too.
     author: {

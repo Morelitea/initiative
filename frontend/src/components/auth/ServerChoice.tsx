@@ -1,9 +1,9 @@
 import { type FormEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -15,55 +15,33 @@ import { useAuth } from "@/hooks/useAuth";
 import { normalizeServerUrl, useServer } from "@/hooks/useServer";
 import { getSelfHostedAddress, setSelfHostedAddress } from "@/lib/serverStorage";
 import { clearStart } from "@/lib/startFlow";
+import { cn } from "@/lib/utils";
 
-/** The server dropdown. Initiative Cloud is listed but not open yet. */
-const ServerSelect = ({
-  value,
-  onValueChange,
-  disabled,
-}: {
-  value: string;
-  onValueChange?: (value: string) => void;
-  disabled?: boolean;
-}) => {
+/**
+ * The kind of server a sign-in goes to, where it cannot be changed: in a
+ * browser, which is on its server already, and on the app's pages that a
+ * link opened for one server.
+ */
+export const ServerChip = () => {
   const { t } = useTranslation("auth");
   return (
-    <>
-      <Label htmlFor="server">{t("server.label")}</Label>
-      <Select value={value} onValueChange={onValueChange} disabled={disabled}>
-        <SelectTrigger id="server">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="cloud" disabled>
-            {t("server.cloud")} · {t("server.cloudSoon")}
-          </SelectItem>
-          <SelectItem value="selfHosted">{t("server.selfHosted")}</SelectItem>
-        </SelectContent>
-      </Select>
-    </>
+    <Badge variant="secondary" aria-label={`${t("server.label")}: ${t("server.selfHosted")}`}>
+      {t("server.selfHosted")}
+    </Badge>
   );
 };
 
 /**
- * Where the sign-in goes. A browser is on its server already, so it only
- * shows which kind, as do the pages a link opens for one server. Signing in
- * and up in the app pick one, with a self-hosted server's address under the
- * dropdown.
+ * Where signing in or up goes, inside its card. In the app a self-hosted
+ * server takes an address, which the app keeps for next time. A browser is
+ * on its server already, so there it is the chip.
  */
-export const ServerChoice = ({ pick = false }: { pick?: boolean }) => {
+export const ServerPicker = ({ className }: { className?: string }) => {
   const { isNativePlatform } = useServer();
-  if (!isNativePlatform || !pick) {
-    return (
-      <div className="w-full space-y-2">
-        <ServerSelect value="selfHosted" disabled />
-      </div>
-    );
-  }
-  return <ServerPicker />;
+  return isNativePlatform ? <AppServerPicker className={className} /> : <ServerChip />;
 };
 
-const ServerPicker = () => {
+const AppServerPicker = ({ className }: { className?: string }) => {
   const { t } = useTranslation("auth");
   const { serverUrl, setServerUrl, testServerConnection, getServerOrigin } = useServer();
   const { user, logout } = useAuth();
@@ -102,8 +80,18 @@ const ServerPicker = () => {
   };
 
   return (
-    <form className="w-full space-y-2" onSubmit={handleConnect}>
-      <ServerSelect value={where} onValueChange={setWhere} />
+    <form className={cn("space-y-2", className)} onSubmit={handleConnect}>
+      <Select value={where} onValueChange={setWhere}>
+        <SelectTrigger aria-label={t("server.label")} className="h-8 w-auto gap-2">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="cloud" disabled>
+            {t("server.cloud")} · {t("server.cloudSoon")}
+          </SelectItem>
+          <SelectItem value="selfHosted">{t("server.selfHosted")}</SelectItem>
+        </SelectContent>
+      </Select>
       {where === "selfHosted" ? (
         <div className="flex gap-2">
           <Input

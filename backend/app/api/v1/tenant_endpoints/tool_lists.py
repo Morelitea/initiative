@@ -602,7 +602,7 @@ async def _serialize_documents(
 
 async def _calendar_conditions(spec: ToolListSpec, req: ListRequest) -> list:
     conditions = await _default_conditions(spec, req)
-    if req.values.get("scope") == "guild":
+    if req.values.get("scope") == "community":
         # The opposite of the unfiltered list, which is everything in scope, so
         # it is asked for by name rather than inferred from an absent
         # ``initiative_id``.
@@ -919,7 +919,7 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
         guild_level_rows=True,
         params=(
             _initiative_id(),
-            ListParam("scope", Optional[Literal["guild"]], Query(default=None)),
+            ListParam("scope", Optional[Literal["community"]], Query(default=None)),
             search_param(),
             sort_by_param(),
             sort_dir_param(),
@@ -933,7 +933,7 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
             "List calendars visible to the current user (guild admins see "
             "all).\n"
             "\n"
-            "``scope=guild`` narrows to the guild's own calendars — the ones the "
+            "``scope=community`` narrows to the guild's own calendars — the ones the "
             "calendar\n"
             "app holds, belonging to no initiative. That is the opposite of the\n"
             "unfiltered list, which is everything in scope, so it is asked for by "

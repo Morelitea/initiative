@@ -125,7 +125,7 @@ export const SettingsIntakePage = () => {
     );
   }
 
-  const boundGuildId = settings?.operations_guild_id ?? null;
+  const boundGuildId = settings?.operations_community_id ?? null;
 
   return (
     <div className="space-y-6">
@@ -143,7 +143,9 @@ export const SettingsIntakePage = () => {
             aria-label={t("guild.label")}
             value={boundGuildId === null ? NONE : String(boundGuildId)}
             selectedLabel={
-              boundGuildId === null ? t("guild.none") : (settings?.operations_guild_name ?? null)
+              boundGuildId === null
+                ? t("guild.none")
+                : (settings?.operations_community_name ?? null)
             }
             items={[
               { value: NONE, label: t("guild.none") },
@@ -164,7 +166,7 @@ export const SettingsIntakePage = () => {
                 setClearing(true);
                 return;
               }
-              updateGuild.mutate({ guild_id: Number(value) });
+              updateGuild.mutate({ community_id: Number(value) });
             }}
           />
           <p className="text-muted-foreground text-sm">{t("guild.helpText")}</p>
@@ -192,7 +194,7 @@ export const SettingsIntakePage = () => {
         title={t("guild.clearTitle")}
         description={t("guild.clearBody")}
         confirmLabel={t("guild.clearConfirm")}
-        onConfirm={() => updateGuild.mutate({ guild_id: null })}
+        onConfirm={() => updateGuild.mutate({ community_id: null })}
       />
     </div>
   );

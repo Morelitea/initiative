@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import List, Literal, Optional
 
-from pydantic import field_validator, ConfigDict, EmailStr, Field
+from pydantic import AliasChoices, ConfigDict, EmailStr, Field, field_validator
 
 from app.core.guild_auth_options import CommunityAuthOption
 from app.core.login_methods import LoginMethod
@@ -260,7 +260,7 @@ class CommunityInviteRead(SanitizedBaseModel):
 
     id: int
     code: str
-    guild_id: int
+    community_id: int = Field(validation_alias=AliasChoices("community_id", "guild_id"))
     created_by: Optional[int]
     expires_at: Optional[datetime]
     max_uses: Optional[int]
@@ -285,8 +285,12 @@ class CommunityInviteStatus(SanitizedBaseModel):
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     code: str
-    guild_id: Optional[int] = None
-    guild_name: Optional[str] = None
+    community_id: Optional[int] = Field(
+        default=None, validation_alias=AliasChoices("community_id", "guild_id")
+    )
+    community_name: Optional[str] = Field(
+        default=None, validation_alias=AliasChoices("community_name", "guild_name")
+    )
     is_valid: bool
     reason: Optional[str] = None
     expires_at: Optional[datetime] = None
@@ -561,8 +565,7 @@ class CommunityDeletionRequest(SanitizedBaseModel):
 
 
 class CommunityOrderUpdate(SanitizedBaseModel):
-    model_config = ConfigDict(populate_by_name=True)
-    guild_ids: list[int] = Field(min_length=1, alias="guildIds")
+    community_ids: list[int] = Field(min_length=1)
 
 
 class CommunityEntitlementsRead(SanitizedBaseModel):
@@ -576,7 +579,7 @@ class CommunityEntitlementsRead(SanitizedBaseModel):
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
-    guild_id: int
+    community_id: int = Field(validation_alias=AliasChoices("community_id", "guild_id"))
     # Whether this guild may upload banner artwork. Off means the settings page
     # offers the banner colour alone; a banner already uploaded keeps showing.
     banner_image_enabled: bool = True

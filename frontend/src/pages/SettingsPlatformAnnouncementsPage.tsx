@@ -119,7 +119,9 @@ export const SettingsPlatformAnnouncementsPage = () => {
                       {t("operator.audience", {
                         role: t(`operator.roles.${announcement.min_platform_role ?? "member"}`),
                       })}
-                      {announcement.guild_admins_only ? ` · ${t("operator.guildAdminsOnly")}` : ""}
+                      {announcement.community_admins_only
+                        ? ` · ${t("operator.guildAdminsOnly")}`
+                        : ""}
                       {announcement.audience_accounts &&
                       announcement.audience_accounts !== "everyone"
                         ? ` · ${t(`operator.accounts.${announcement.audience_accounts}`)}`

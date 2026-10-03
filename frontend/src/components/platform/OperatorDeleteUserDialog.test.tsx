@@ -24,7 +24,7 @@ const eligibilityWithGuildBlocker = {
   blockers: ["Only superadmin of community Lone Community"],
   warnings: [],
   owned_projects: [],
-  guild_blockers: [{ guild_id: 77, guild_name: "Lone Community" }],
+  community_blockers: [{ community_id: 77, community_name: "Lone Community" }],
   initiative_blockers: [],
 };
 
@@ -33,7 +33,7 @@ const eligibilityClear = {
   blockers: [],
   warnings: [],
   owned_projects: [],
-  guild_blockers: [],
+  community_blockers: [],
   initiative_blockers: [],
 };
 

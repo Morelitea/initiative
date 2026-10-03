@@ -113,10 +113,10 @@ export const CalendarPicker = ({
             </li>
             {calendars.map((calendar) => {
               const settingsPath = calendar.can.edit ? (settingsPathFor?.(calendar) ?? null) : null;
-              const id = `${idPrefix}-${calendar.guild_id}-${calendar.id}`;
+              const id = `${idPrefix}-${calendar.community_id}-${calendar.id}`;
               return (
                 <li
-                  key={`${calendar.guild_id}-${calendar.id}`}
+                  key={`${calendar.community_id}-${calendar.id}`}
                   className="group flex items-center gap-2 rounded px-2 py-1.5 hover:bg-accent"
                 >
                   <Checkbox
@@ -135,7 +135,7 @@ export const CalendarPicker = ({
                   >
                     {calendar.name}
                   </Label>
-                  {unread.hasResource(calendar.guild_id, Tool.calendar, calendar.id) ? (
+                  {unread.hasResource(calendar.community_id, Tool.calendar, calendar.id) ? (
                     <UnreadDot />
                   ) : null}
                   {settingsPath ? (
@@ -239,11 +239,11 @@ export const CalendarListPanel = ({
               const settingsPath = calendar.can.edit ? (settingsPathFor?.(calendar) ?? null) : null;
               return (
                 <li
-                  key={`${calendar.guild_id}-${calendar.id}`}
+                  key={`${calendar.community_id}-${calendar.id}`}
                   className="group flex items-center gap-2 rounded px-1 py-0.5"
                 >
                   <Checkbox
-                    id={`calendar-toggle-${calendar.guild_id}-${calendar.id}`}
+                    id={`calendar-toggle-${calendar.community_id}-${calendar.id}`}
                     checked={!isCalendarHidden(calendar)}
                     onCheckedChange={() => onToggleCalendar(calendar)}
                   />
@@ -252,12 +252,12 @@ export const CalendarListPanel = ({
                     style={{ backgroundColor: calendar.color }}
                   />
                   <Label
-                    htmlFor={`calendar-toggle-${calendar.guild_id}-${calendar.id}`}
+                    htmlFor={`calendar-toggle-${calendar.community_id}-${calendar.id}`}
                     className="min-w-0 flex-1 cursor-pointer truncate font-normal text-sm"
                   >
                     {calendarLabel?.(calendar) ?? calendar.name}
                   </Label>
-                  {unread.hasResource(calendar.guild_id, Tool.calendar, calendar.id) ? (
+                  {unread.hasResource(calendar.community_id, Tool.calendar, calendar.id) ? (
                     <UnreadDot />
                   ) : null}
                   {settingsPath && (

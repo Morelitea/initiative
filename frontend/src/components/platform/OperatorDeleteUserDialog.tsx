@@ -157,7 +157,7 @@ export function OperatorDeleteUserDialog({
       if (result.data) {
         setEligibility(result.data);
 
-        if (!result.data.can_delete && result.data.guild_blockers.length > 0) {
+        if (!result.data.can_delete && result.data.community_blockers.length > 0) {
           go("resolve-blockers");
         } else if (result.data.can_delete) {
           go("confirm");
@@ -183,7 +183,7 @@ export function OperatorDeleteUserDialog({
   // Holding the only superadmin seat of a guild is the only blocker. Owning content is not
   // one — ownership is released as the memberships go, and what they owned is
   // left for a guild admin to claim.
-  const hasBlockers = (eligibility?.guild_blockers.length ?? 0) > 0;
+  const hasBlockers = (eligibility?.community_blockers.length ?? 0) > 0;
 
   // Validation
   const canProceedFromChooseType = action !== null;
@@ -308,13 +308,13 @@ export function OperatorDeleteUserDialog({
                 <AlertDescription>{t("operatorDeleteUser.blockersDescription")}</AlertDescription>
               </Alert>
 
-              {eligibility.guild_blockers.map((guildBlocker) => (
-                <div key={guildBlocker.guild_id} className="space-y-3 rounded-lg border p-4">
+              {eligibility.community_blockers.map((guildBlocker) => (
+                <div key={guildBlocker.community_id} className="space-y-3 rounded-lg border p-4">
                   <div className="flex items-center justify-between">
                     <div>
                       <h4 className="font-medium">
                         {t("operatorDeleteUser.guildBlockerTitle", {
-                          guildName: guildBlocker.guild_name,
+                          guildName: guildBlocker.community_name,
                         })}
                       </h4>
                       <p className="text-muted-foreground text-sm">

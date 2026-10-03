@@ -7,7 +7,7 @@ states)."""
 from datetime import datetime
 from typing import Any, Optional
 
-from pydantic import ConfigDict
+from pydantic import AliasChoices, ConfigDict, Field
 
 from app.models.tenant.import_job import ImportJob, ImportJobStatus
 from app.schemas.base import RawTextStr, SanitizedBaseModel
@@ -20,7 +20,7 @@ class ImportJobRead(SanitizedBaseModel):
     )
 
     id: int
-    guild_id: int
+    community_id: int = Field(validation_alias=AliasChoices("community_id", "guild_id"))
     created_by: int
     source: str
     params: dict[str, Any]
@@ -44,7 +44,7 @@ def serialize_import_job(job: ImportJob, *, guild_id: int) -> ImportJobRead:
         for name in ImportJobRead.model_fields
         if name != "guild_id"
     }
-    return ImportJobRead(guild_id=guild_id, **fields)
+    return ImportJobRead(community_id=guild_id, **fields)
 
 
 class EnvelopeImportRequest(SanitizedBaseModel):

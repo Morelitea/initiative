@@ -8,6 +8,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 
 export interface SettingsSectionProps {
@@ -26,7 +27,8 @@ export interface SettingsSectionProps {
   className?: string;
   /** Applied to the body, whose default is a comfortable vertical rhythm. */
   contentClassName?: string;
-  children: ReactNode;
+  /** Left out for a section whose header says everything, such as a status. */
+  children?: ReactNode;
 }
 
 /**
@@ -64,10 +66,46 @@ export const SettingsSection = ({
           {action ? <div className="shrink-0">{action}</div> : null}
         </CardHeader>
       ) : null}
-      <CardContent className={cn("space-y-4", !hasHeader && "pt-6", contentClassName)}>
-        {children}
-      </CardContent>
+      {children ? (
+        <CardContent className={cn("space-y-4", !hasHeader && "pt-6", contentClassName)}>
+          {children}
+        </CardContent>
+      ) : null}
       {footer ? <CardFooter className="gap-3 border-t pt-6">{footer}</CardFooter> : null}
     </Card>
   );
 };
+
+export interface SettingsRowProps {
+  label: ReactNode;
+  description?: ReactNode;
+  /** Ties the label to the control it names. */
+  htmlFor?: string;
+  /** The control, at the end of the row. */
+  children?: ReactNode;
+  /** Shown under the row, for what the control opens up when it is on. */
+  below?: ReactNode;
+}
+
+/**
+ * One setting inside a section: its name, what it does, and its control.
+ *
+ * Rows stack with a rule between them, so a section of several settings reads
+ * as a list. On a phone the control drops under the text.
+ */
+export const SettingsRow = ({ label, description, htmlFor, children, below }: SettingsRowProps) => (
+  <div className="space-y-3 border-b pb-4 last:border-b-0 last:pb-0">
+    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+      <div className="min-w-0 space-y-0.5">
+        {htmlFor ? (
+          <Label htmlFor={htmlFor}>{label}</Label>
+        ) : (
+          <p className="font-medium text-sm">{label}</p>
+        )}
+        {description ? <p className="text-muted-foreground text-sm">{description}</p> : null}
+      </div>
+      {children ? <div className="flex shrink-0 items-center gap-2">{children}</div> : null}
+    </div>
+    {below}
+  </div>
+);

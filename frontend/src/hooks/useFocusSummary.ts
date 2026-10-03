@@ -311,16 +311,16 @@ export function useFocusSummary() {
   });
 
   const isPinned = useCallback(
-    (task: Pick<TaskListRead, "id" | "guild_id">) =>
+    (task: Pick<TaskListRead, "id" | "community_id">) =>
       prefs.pins.some(
-        (pin) => pinKey(pin.guild_id, pin.task_id) === pinKey(task.guild_id, task.id)
+        (pin) => pinKey(pin.guild_id, pin.task_id) === pinKey(task.community_id, task.id)
       ),
     [prefs.pins]
   );
 
   const togglePin = useCallback(
-    (task: Pick<TaskListRead, "id" | "guild_id">) => {
-      const key = pinKey(task.guild_id, task.id);
+    (task: Pick<TaskListRead, "id" | "community_id">) => {
+      const key = pinKey(task.community_id, task.id);
       setPrefs((prev) => {
         const current = normalizePreferences(prev);
         const without = current.pins.filter((pin) => pinKey(pin.guild_id, pin.task_id) !== key);
@@ -328,7 +328,7 @@ export function useFocusSummary() {
           ...current,
           pins:
             without.length === current.pins.length
-              ? [...current.pins, { guild_id: task.guild_id ?? null, task_id: task.id }]
+              ? [...current.pins, { guild_id: task.community_id ?? null, task_id: task.id }]
               : without,
         };
       });
@@ -371,7 +371,7 @@ export function useFocusSummary() {
     const seen = new Set<string>();
     const pinned: TaskListRead[] = [];
     for (const task of pinItems) {
-      const key = pinKey(task.guild_id, task.id);
+      const key = pinKey(task.community_id, task.id);
       if (seen.has(key)) continue;
       seen.add(key);
       pinned.push(task);
@@ -380,7 +380,7 @@ export function useFocusSummary() {
     const openMatches: TaskListRead[] = [];
     const completedToday: TaskListRead[] = [];
     for (const task of ruleItems) {
-      const key = pinKey(task.guild_id, task.id);
+      const key = pinKey(task.community_id, task.id);
       if (task.task_status.category === "done") {
         if (seen.has(key)) continue;
         seen.add(key);
@@ -421,7 +421,9 @@ export function useFocusSummary() {
   // doesn't accumulate them and the pin query stays small. Only pins we
   // positively resolved are removed — an absent one may just be out of reach
   // for now, and forgetting it would silently lose the user's choice.
-  const staleIds = derived.finishedEarlier.map((task) => pinKey(task.guild_id, task.id)).join("|");
+  const staleIds = derived.finishedEarlier
+    .map((task) => pinKey(task.community_id, task.id))
+    .join("|");
   useEffect(() => {
     if (!staleIds) return;
     const stale = new Set(staleIds.split("|"));

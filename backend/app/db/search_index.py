@@ -211,16 +211,24 @@ def _task_text(row: str) -> str:
     return f"coalesce({row}.description, '') || ' ' || {lines}"
 
 
+#: What a cut preview can end inside: a mention or reference, a markdown
+#: picture or link, or a stored file's address.
+_UNFINISHED_TAIL = r"(?:(?:[@!]|#\w+)?\[[^\]\n]*(?:\](?:\([^)\n]*)?)?|\S*/uploads/\S*)$"
+
+
 def _comment_preview(row: str) -> str:
     """The opening of a comment, as the line a result is shown by.
 
     A comment has no title. Storing the whole of one would put an essay where a
     name goes; the full text is still indexed as the body, so what matched is
-    findable either way. A mention the cut goes through is left out whole.
+    findable either way. A mention, reference, picture or link, or a stored
+    file's address, that the cut goes through is left out whole.
     """
+    content = f"{row}.content"
     return (
-        f"regexp_replace(left({row}.content, {COMMENT_PREVIEW_CHARS}),"
-        r" '@\[[^\]]*(\](\([0-9]*)?)?$', '')"
+        f"CASE WHEN length({content}) > {COMMENT_PREVIEW_CHARS} THEN"
+        f" regexp_replace(left({content}, {COMMENT_PREVIEW_CHARS}), '{_UNFINISHED_TAIL}', '')"
+        f" ELSE {content} END"
     )
 
 

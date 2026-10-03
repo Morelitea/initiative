@@ -50,8 +50,8 @@ async def test_an_operator_writes_a_rule_for_a_community_that_accepts(
         json={
             "provider_id": provider.id,
             "claim_value": " eng ",
-            "guild_id": guild.id,
-            "guild_role": "admin",
+            "community_id": guild.id,
+            "community_role": "admin",
         },
     )
 
@@ -146,7 +146,7 @@ async def test_a_rule_matches_a_group_a_directory_or_both(
     response = await client.post(
         f"{BASE}/rules",
         headers=headers,
-        json={"provider_id": provider.id, "guild_id": guild.id, **match},
+        json={"provider_id": provider.id, "community_id": guild.id, **match},
     )
 
     assert response.status_code == 422
@@ -164,7 +164,7 @@ async def test_a_directory_rule_needs_no_group(
         headers=headers,
         json={
             "provider_id": provider.id,
-            "guild_id": guild.id,
+            "community_id": guild.id,
             "scope_claim": "idp",
             "scope_value": "acme-adfs",
         },
@@ -205,7 +205,7 @@ async def test_the_initiative_picker_reads_a_placeable_community_only(
         json={
             "provider_id": provider.id,
             "claim_value": "leads",
-            "guild_id": guild.id,
+            "community_id": guild.id,
             "initiative_id": initiative.id,
             "initiative_role_id": pm_role.id,
         },
@@ -254,7 +254,11 @@ async def test_each_surface_edits_only_its_own_rules(
     created = await client.post(
         f"{BASE}/rules",
         headers=operator,
-        json={"provider_id": provider.id, "claim_value": "eng", "guild_id": guild.id},
+        json={
+            "provider_id": provider.id,
+            "claim_value": "eng",
+            "community_id": guild.id,
+        },
     )
     assert created.status_code == 201, created.text
     rule_id = created.json()["id"]

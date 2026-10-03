@@ -142,7 +142,7 @@ export const SettingsLevel = {
  * meant.
  */
 export interface AccessGrantCreate {
-  guild_id: number;
+  community_id: number;
   access_level?: AccessLevel | null;
   settings_level?: SettingsLevel | null;
   requested_duration_minutes?: number | null;
@@ -232,7 +232,7 @@ export const CommunityStatus = {
 export interface AccessGrantRead {
   id: number;
   user_id: number;
-  guild_id: number;
+  community_id: number;
   purpose: string;
   access_level: string;
   status: AccessGrantStatus;
@@ -246,8 +246,8 @@ export interface AccessGrantRead {
   expires_at: string | null;
   revoked_at: string | null;
   user_email: string | null;
-  guild_name: string | null;
-  guild_status: CommunityStatus | null;
+  community_name: string | null;
+  community_status: CommunityStatus | null;
   approved_by_email: string | null;
   /** Whether this grant currently confers access (approved, unexpired). */
   readonly is_live: boolean;
@@ -431,7 +431,7 @@ export interface AnnouncementOperatorRead {
   trigger_route?: string | null;
   id?: number | null;
   min_platform_role?: UserRole;
-  guild_admins_only?: boolean;
+  community_admins_only?: boolean;
   audience_accounts?: AnnouncementAudienceAccounts;
   expires_at?: string | null;
   created_at?: string | null;
@@ -450,7 +450,7 @@ export interface AnnouncementUpdate {
   category?: AnnouncementCategory | null;
   sections?: AnnouncementSection[] | null;
   min_platform_role?: UserRole | null;
-  guild_admins_only?: boolean | null;
+  community_admins_only?: boolean | null;
   audience_accounts?: AnnouncementAudienceAccounts | null;
   published_at?: string | null;
   expires_at?: string | null;
@@ -473,7 +473,7 @@ export interface AnnouncementWrite {
   category?: AnnouncementCategory;
   sections?: AnnouncementSection[];
   min_platform_role?: UserRole;
-  guild_admins_only?: boolean;
+  community_admins_only?: boolean;
   audience_accounts?: AnnouncementAudienceAccounts;
   published_at?: string | null;
   expires_at?: string | null;
@@ -493,7 +493,7 @@ export interface ApiKeyCreateRequest {
   name: string;
   expires_at?: string | null;
   read_only?: boolean;
-  guild_id?: number | null;
+  community_id?: number | null;
 }
 
 export interface ApiKeyMetadata {
@@ -502,7 +502,7 @@ export interface ApiKeyMetadata {
   token_prefix: string;
   is_active: boolean;
   read_only: boolean;
-  guild_id: number | null;
+  community_id: number | null;
   created_at: string;
   last_used_at: string | null;
   expires_at: string | null;
@@ -1008,7 +1008,7 @@ export interface AppServiceVendorSetupStart {
  */
 export interface AppSurfaceAccessRead {
   surface_id: string;
-  openable_guild_wide: boolean;
+  openable_community_wide: boolean;
   openable_initiatives: number[];
 }
 
@@ -1510,7 +1510,7 @@ export interface BreakGlassCreate {
   code?: string | null;
   recovery_code?: string | null;
   passkey?: BreakGlassCreatePasskey;
-  guild_id: number;
+  community_id: number;
   requested_duration_minutes?: number | null;
   /**
    * @minLength 1
@@ -1701,7 +1701,7 @@ export interface CalendarEventSummary {
   series_id: number | null;
   calendar_id: number;
   initiative_id: number | null;
-  guild_id: number;
+  community_id: number;
   created_by: number | null;
   attendee_count: number;
   attendee_names: string[];
@@ -1824,8 +1824,8 @@ export interface TaskListRead {
   recurrence_until: string | null;
   comment_count: number;
   blocked_by_open_count: number;
-  guild_id: number | null;
-  guild_name: string | null;
+  community_id: number | null;
+  community_name: string | null;
   project_name: string | null;
   initiative_id: number | null;
   initiative_name: string | null;
@@ -1919,7 +1919,7 @@ export interface CalendarEventRead {
   series_id: number | null;
   calendar_id: number;
   initiative_id: number | null;
-  guild_id: number;
+  community_id: number;
   created_by: number | null;
   attendee_count: number;
   attendee_names: string[];
@@ -1980,7 +1980,7 @@ export interface CalendarSummary {
   can: ToolCan;
   id: number;
   initiative_id: number | null;
-  guild_id: number;
+  community_id: number;
   created_by: number | null;
   created_at: string;
   updated_at: string;
@@ -2012,7 +2012,7 @@ export interface CalendarRead {
   can: ToolCan;
   id: number;
   initiative_id: number | null;
-  guild_id: number;
+  community_id: number;
   created_by: number | null;
   created_at: string;
   updated_at: string;
@@ -2521,7 +2521,7 @@ export interface CommunityAppUpgradeAsks {
  */
 export interface CommunityAppDetail {
   id: number;
-  guild_id: number;
+  community_id: number;
   listing_uid: string;
   listing_version: string;
   app_kind: string;
@@ -2592,7 +2592,7 @@ export type CommunityAppReadDefinition = { [key: string]: unknown };
 
 export interface CommunityAppRead {
   id: number;
-  guild_id: number;
+  community_id: number;
   listing_uid: string;
   listing_version: string;
   app_kind: string;
@@ -2884,8 +2884,8 @@ export interface CommunityBillingSummaryRead {
  * Info about a guild blocking user deletion.
  */
 export interface CommunityBlockerInfo {
-  guild_id: number;
-  guild_name: string;
+  community_id: number;
+  community_name: string;
 }
 
 /**
@@ -2944,7 +2944,7 @@ export interface CommunityClaimRuleCreate {
   provider_id: number;
   /** @maxLength 500 */
   claim_value: string;
-  guild_role?: string;
+  community_role?: string;
   initiative_id?: number | null;
   initiative_role_id?: number | null;
 }
@@ -2959,7 +2959,7 @@ export interface CommunityClaimRuleRead {
   provider_display_name: string;
   provider_icon: string | null;
   claim_value: string;
-  guild_role: string;
+  community_role: string;
   initiative_id: number | null;
   initiative_name: string | null;
   initiative_role_id: number | null;
@@ -2978,9 +2978,9 @@ export interface ProviderPlacementRuleRead {
   claim_value: string | null;
   scope_claim: string | null;
   scope_value: string | null;
-  guild_id: number;
-  guild_name: string;
-  guild_role: string;
+  community_id: number;
+  community_name: string;
+  community_role: string;
   initiative_id: number | null;
   initiative_name: string | null;
   initiative_role_id: number | null;
@@ -3038,14 +3038,14 @@ export interface CommunityDeletionRequest {
  * screen.
  */
 export interface CommunityDmToggle {
-  guild_id: number;
+  community_id: number;
   name: string;
   icon_url: string | null;
   enabled: boolean;
 }
 
 export interface CommunityDmToggleUpdate {
-  guild_id: number;
+  community_id: number;
   enabled: boolean;
 }
 
@@ -3058,7 +3058,7 @@ export interface CommunityDmToggleUpdate {
  * a member's guild payload should not be carrying them at all.
  */
 export interface CommunityEntitlementsRead {
-  guild_id: number;
+  community_id: number;
   banner_image_enabled: boolean;
 }
 
@@ -3076,7 +3076,7 @@ export type ExportJobReadParams = { [key: string]: unknown };
 
 export interface ExportJobRead {
   id: number;
-  guild_id: number;
+  community_id: number;
   created_by: number;
   source: string;
   template_id: string;
@@ -3122,7 +3122,7 @@ export interface CommunityInviteCreate {
 export interface CommunityInviteRead {
   id: number;
   code: string;
-  guild_id: number;
+  community_id: number;
   created_by: number | null;
   expires_at: string | null;
   max_uses: number | null;
@@ -3133,8 +3133,8 @@ export interface CommunityInviteRead {
 
 export interface CommunityInviteStatus {
   code: string;
-  guild_id: number | null;
-  guild_name: string | null;
+  community_id: number | null;
+  community_name: string | null;
   is_valid: boolean;
   reason: string | null;
   expires_at: string | null;
@@ -3170,8 +3170,8 @@ export interface CommunityNarrowingAgreement {
  */
 export interface CommunityNarrowingPending {
   connection_id: number;
-  guild_id: number;
-  guild_name: string;
+  community_id: number;
+  community_name: string;
   provider_display_name: string;
   claim: string;
   claim_values: string[];
@@ -3197,15 +3197,15 @@ export const NotificationLevel = {
 } as const;
 
 export interface CommunityNotificationSettings {
-  guild_id: number;
-  guild_name: string;
+  community_id: number;
+  community_name: string;
   level: NotificationLevel;
   categories: CommunityNotificationSettingsCategories;
 }
 
 export interface CommunityOrderUpdate {
   /** @minItems 1 */
-  guildIds: number[];
+  community_ids: number[];
 }
 
 export interface CommunityPaymentIssueRead {
@@ -3336,7 +3336,7 @@ export interface CommunityRosterMember {
   status: UserStatus;
   display_name: string | null;
   profile_decorations: ProfileDecorationsOutput | null;
-  guild_role: string | null;
+  community_role: string | null;
   presence: Presence;
   custom_status: CustomStatusOutput;
 }
@@ -3397,7 +3397,7 @@ export interface CommunitySettingsUpdate {
 }
 
 export interface CommunityStorageUsageRead {
-  guild_id: number;
+  community_id: number;
   usage_bytes: number;
 }
 
@@ -3406,9 +3406,9 @@ export interface CommunityStorageUsageRead {
  */
 export interface CommunityTaskBreakdown {
   /** Guild ID */
-  guild_id: number;
+  community_id: number;
   /** Guild name */
-  guild_name: string;
+  community_name: string;
   /** Number of completed tasks in this guild */
   completed_count: number;
 }
@@ -3464,17 +3464,17 @@ export interface ContactRead {
   status: UserStatus;
   display_name: string | null;
   profile_decorations: ProfileDecorationsOutput;
-  guild_role: string | null;
+  community_role: string | null;
   presence: Presence;
-  shared_guild_ids: number[];
+  shared_community_ids: number[];
 }
 
 /**
  * One guild's roster, as one accordion section.
  */
 export interface ContactCommunitySection {
-  guild_id: number;
-  guild_name: string;
+  community_id: number;
+  community_name: string;
   icon_url: string | null;
   total_count: number;
   items: ContactRead[];
@@ -3622,7 +3622,7 @@ export interface CounterGroupSummary {
   can: ToolCan;
   id: number;
   initiative_id: number;
-  guild_id: number;
+  community_id: number;
   created_by: number | null;
   created_at: string;
   updated_at: string;
@@ -3656,7 +3656,7 @@ export interface CounterGroupListResponse {
 export interface CounterRead {
   id: number;
   counter_group_id: number;
-  guild_id: number;
+  community_id: number;
   name: string;
   color: string | null;
   count: string;
@@ -3676,7 +3676,7 @@ export interface CounterGroupRead {
   can: ToolCan;
   id: number;
   initiative_id: number;
-  guild_id: number;
+  community_id: number;
   created_by: number | null;
   created_at: string;
   updated_at: string;
@@ -3838,7 +3838,7 @@ export interface DashboardSummary {
   can: ToolCan;
   id: number;
   initiative_id: number;
-  guild_id: number;
+  community_id: number;
   created_by: number | null;
   created_at: string;
   updated_at: string;
@@ -3883,7 +3883,7 @@ export interface DashboardRead {
   can: ToolCan;
   id: number;
   initiative_id: number;
-  guild_id: number;
+  community_id: number;
   created_by: number | null;
   created_at: string;
   updated_at: string;
@@ -4022,7 +4022,7 @@ export interface DefaultFilter {
 export interface DeletionEligibilityResponse {
   can_delete: boolean;
   blockers: string[];
-  sole_superadmin_guilds: string[];
+  sole_superadmin_communities: string[];
 }
 
 /**
@@ -4447,7 +4447,7 @@ export interface DocumentSummary {
   can: ToolCan;
   id: number;
   initiative_id: number;
-  guild_id: number;
+  community_id: number;
   created_by: number | null;
   created_at: string;
   updated_at: string;
@@ -4456,7 +4456,7 @@ export interface DocumentSummary {
   properties: PropertySummary[];
   grants: ResourceGrantSchema[];
   name: string;
-  featured_image_url?: string | null;
+  featured_image_url: string | null;
   is_template: boolean;
   initiative: InitiativeSummary | null;
   owner: UserPublic | null;
@@ -4464,7 +4464,7 @@ export interface DocumentSummary {
   projects: DocumentProjectLink[];
   comment_count: number;
   document_type: DocumentType;
-  file_url?: string | null;
+  file_url: string | null;
   file_content_type: string | null;
   file_size: number | null;
   original_filename: string | null;
@@ -4490,7 +4490,7 @@ export interface DocumentRead {
   can: ToolCan;
   id: number;
   initiative_id: number;
-  guild_id: number;
+  community_id: number;
   created_by: number | null;
   created_at: string;
   updated_at: string;
@@ -4499,7 +4499,7 @@ export interface DocumentRead {
   properties: PropertySummary[];
   grants: ResourceGrantSchema[];
   name: string;
-  featured_image_url?: string | null;
+  featured_image_url: string | null;
   is_template: boolean;
   initiative: InitiativeSummary | null;
   owner: UserPublic | null;
@@ -4507,7 +4507,7 @@ export interface DocumentRead {
   projects: DocumentProjectLink[];
   comment_count: number;
   document_type: DocumentType;
-  file_url?: string | null;
+  file_url: string | null;
   file_content_type: string | null;
   file_size: number | null;
   original_filename: string | null;
@@ -4946,8 +4946,8 @@ export interface ForeignPreview {
  */
 export interface GalleryCover {
   image_id: number;
-  file_url?: string;
-  thumbnail_url?: string | null;
+  file_url: string;
+  thumbnail_url: string | null;
   width: number | null;
   height: number | null;
 }
@@ -4983,11 +4983,11 @@ export interface GalleryImageBulkDeleteResponse {
 export interface GalleryImageRead {
   id: number;
   gallery_id: number;
-  guild_id: number;
+  community_id: number;
   title: string | null;
   caption: string | null;
-  file_url?: string;
-  thumbnail_url?: string | null;
+  file_url: string;
+  thumbnail_url: string | null;
   file_content_type: string | null;
   file_size: number | null;
   original_filename: string | null;
@@ -5041,7 +5041,7 @@ export interface GallerySummary {
   can: ToolCan;
   id: number;
   initiative_id: number;
-  guild_id: number;
+  community_id: number;
   created_by: number | null;
   created_at: string;
   updated_at: string;
@@ -5079,7 +5079,7 @@ export interface GalleryRead {
   can: ToolCan;
   id: number;
   initiative_id: number;
-  guild_id: number;
+  community_id: number;
   created_by: number | null;
   created_at: string;
   updated_at: string;
@@ -5228,7 +5228,7 @@ export const ImportJobStatus = {
 
 export interface ImportJobRead {
   id: number;
-  guild_id: number;
+  community_id: number;
   created_by: number;
   source: string;
   params: ImportJobReadParams;
@@ -5360,7 +5360,7 @@ export interface UserSummary {
   status: UserStatus;
   display_name: string | null;
   profile_decorations: ProfileDecorationsOutput | null;
-  guild_role: string | null;
+  community_role: string | null;
 }
 
 /**
@@ -5401,14 +5401,14 @@ export interface InitiativeJoinRequestRead {
  * ``member`` — the caller's own workspace: the initiatives they hold a
  * membership in. This is what the sidebar and every initiative picker show.
  *
- * ``guild`` — every initiative in the guild, for the guild-settings
+ * ``community`` — every initiative in the community, for the guild-settings
  * management table. Guild admins only.
  */
 export type InitiativeListScope = (typeof InitiativeListScope)[keyof typeof InitiativeListScope];
 
 export const InitiativeListScope = {
   member: "member",
-  guild: "guild",
+  community: "community",
 } as const;
 
 /**
@@ -5471,7 +5471,7 @@ export interface InitiativeRead {
   description: string | null;
   color: string | null;
   id: number;
-  guild_id: number | null;
+  community_id: number | null;
   archived_at: string | null;
   join_policy: InitiativeJoinPolicy;
   auto_join: boolean;
@@ -5700,8 +5700,8 @@ export interface IntakeOptionsRead {
  * The pointer, every stream whether bound or not, and who to contact.
  */
 export interface IntakeSettingsRead {
-  operations_guild_id?: number | null;
-  operations_guild_name?: string | null;
+  operations_community_id?: number | null;
+  operations_community_name?: string | null;
   bindings: IntakeBindingRead[];
   general_contact_email?: string | null;
   contact_emails?: Partial<Record<IntakeStream, string>>;
@@ -5832,7 +5832,7 @@ export interface LoginProviderEntry {
 
 export interface LoginProvidersResponse {
   providers: LoginProviderEntry[];
-  guild_name: string | null;
+  community_name: string | null;
 }
 
 /**
@@ -6114,7 +6114,7 @@ export interface ModerationTicketCreate {
   target_id: number;
   reason: ReportReason;
   detail?: string | null;
-  guild_id?: number | null;
+  community_id?: number | null;
   stream: "moderation";
 }
 
@@ -6127,8 +6127,8 @@ export interface ModerationTicketCreate {
  * ``connection_id`` (mirrors the My Tasks / My Trash pattern).
  */
 export interface MyAIConnectionRow {
-  guild_id: number;
-  guild_name: string;
+  community_id: number;
+  community_name: string;
   scope: ConnectionScope;
   connection_id: number;
   label: string;
@@ -6223,7 +6223,7 @@ export interface NotificationRead {
   data: NotificationReadData;
   created_at: string;
   read_at: string | null;
-  guild_id: number | null;
+  community_id: number | null;
   initiative_id: number | null;
   tool: string | null;
 }
@@ -6272,7 +6272,7 @@ export interface NotificationCategoryRead {
   category: NotificationCategory;
   group: CategoryGroup;
   personal: boolean;
-  guild_scoped: boolean;
+  community_scoped: boolean;
   mutable_channels: Channel[];
   defaults: Partial<Record<Channel, boolean>>;
 }
@@ -6281,7 +6281,7 @@ export interface NotificationCategoryRead {
  * One switch being moved. ``guild_id`` scopes it to one community.
  */
 export interface NotificationChannelSet {
-  guild_id?: number | null;
+  community_id?: number | null;
   category: NotificationCategory;
   channel: Channel;
   enabled: boolean;
@@ -6292,7 +6292,7 @@ export interface NotificationCountResponse {
 }
 
 export interface NotificationLevelSet {
-  guild_id: number;
+  community_id: number;
   level: NotificationLevel;
 }
 
@@ -6308,7 +6308,7 @@ export interface NotificationListResponse {
  * comment on a task all of them down to the task.
  */
 export interface NotificationPlace {
-  guild_id: number | null;
+  community_id: number | null;
   initiative_id: number | null;
   tool: string | null;
   resource_id: number | null;
@@ -6341,7 +6341,7 @@ export interface NotificationPreferencesRead {
   email: EmailScheduleOutput;
   pause: PauseRead | null;
   respect_presence: boolean;
-  guilds: CommunityNotificationSettings[];
+  communities: CommunityNotificationSettings[];
 }
 
 /**
@@ -6400,7 +6400,7 @@ export interface OccurrenceRequest {
  * Point this deployment's operations work at a guild, or at nothing.
  */
 export interface OperationsCommunityUpdate {
-  guild_id?: number | null;
+  community_id?: number | null;
 }
 
 /**
@@ -6431,7 +6431,7 @@ export interface OperatorCatalogScanResult {
 export interface OperatorDeletionEligibilityResponse {
   can_delete: boolean;
   blockers: string[];
-  guild_blockers: CommunityBlockerInfo[];
+  community_blockers: CommunityBlockerInfo[];
 }
 
 /**
@@ -6523,7 +6523,7 @@ export interface OperatorUserRead {
   sign_in_locked_until: string | null;
   second_factor_enrolled: boolean;
   api_key_count: number;
-  readonly can_create_guilds: boolean;
+  readonly can_create_communities: boolean;
   /**
    * Platform capabilities granted by this user's standing role — none
    * while the account is suspended.
@@ -6906,7 +6906,7 @@ export const SecondFactorRequirement = {
  */
 export interface PlatformAuthSettingsResponse {
   methods: LoginMethodStatus[];
-  guilds_requiring_sign_in: number;
+  communities_requiring_sign_in: number;
   factor_methods_permitted: boolean;
   session_max_hours: number | null;
   session_idle_minutes: number | null;
@@ -7156,7 +7156,7 @@ export interface PostRead {
   can: ToolCan;
   id: number;
   initiative_id: number;
-  guild_id: number;
+  community_id: number;
   created_by: number | null;
   created_at: string;
   updated_at: string;
@@ -7358,7 +7358,7 @@ export interface ProjectRead {
   id: number;
   owner_id: number | null;
   initiative_id: number;
-  guild_id: number | null;
+  community_id: number | null;
   created_at: string;
   updated_at: string;
   is_template: boolean;
@@ -7519,8 +7519,8 @@ export interface ProviderPlacementRuleCreate {
   claim_value?: string | null;
   scope_claim?: string | null;
   scope_value?: string | null;
-  guild_id: number;
-  guild_role?: string;
+  community_id: number;
+  community_role?: string;
   initiative_id?: number | null;
   initiative_role_id?: number | null;
 }
@@ -7533,7 +7533,7 @@ export interface ProviderPlacementRuleUpdate {
   claim_value?: string | null;
   scope_claim?: string | null;
   scope_value?: string | null;
-  guild_role?: string | null;
+  community_role?: string | null;
   initiative_id?: number | null;
   initiative_role_id?: number | null;
 }
@@ -7819,7 +7819,7 @@ export interface QueueSummary {
   can: ToolCan;
   id: number;
   initiative_id: number;
-  guild_id: number;
+  community_id: number;
   created_by: number | null;
   created_at: string;
   updated_at: string;
@@ -7851,7 +7851,7 @@ export interface QueueRead {
   can: ToolCan;
   id: number;
   initiative_id: number;
-  guild_id: number;
+  community_id: number;
   created_by: number | null;
   created_at: string;
   updated_at: string;
@@ -7951,7 +7951,7 @@ export const RecentEntityType = {
 export interface RecentItemRead {
   entity_type: RecentEntityType;
   entity_id: number;
-  guild_id: number;
+  community_id: number;
   initiative_id: number | null;
   name: string;
   last_viewed_at: string;
@@ -8564,7 +8564,7 @@ export interface StreamAvailabilityRead {
  * The item its reader just opened.
  */
 export interface SubjectReadRequest {
-  guild_id: number;
+  community_id: number;
   /** @maxLength 32 */
   subject_type: string;
   subject_id: number;
@@ -8583,7 +8583,7 @@ export interface SubjectReadResponse {
  */
 export interface SupportTicketCreate {
   stream: "support";
-  guild_id: number;
+  community_id: number;
   /**
    * @minLength 1
    * @maxLength 200
@@ -8657,7 +8657,7 @@ export interface TagRead {
   /** @pattern ^#[0-9A-Fa-f]{6}$ */
   color: string;
   id: number;
-  guild_id: number;
+  community_id: number;
   created_at: string;
   updated_at: string;
 }
@@ -8947,7 +8947,7 @@ export interface ToolDuplicateRequest {
 export interface TrashItem {
   entity_type: EntityType;
   entity_id: number;
-  guild_id: number;
+  community_id: number;
   name: string;
   deleted_at: string;
   deleted_by_id: number | null;
@@ -9003,7 +9003,7 @@ export interface UserCommunityMember {
   status: UserStatus;
   created_at: string;
   initiative_roles: UserInitiativeRole[];
-  guild_role: string | null;
+  community_role: string | null;
   oidc_managed: boolean;
   display_name: string | null;
 }
@@ -9129,7 +9129,7 @@ export interface UserRead {
   has_password: boolean;
   password_required: boolean;
   initiative_roles: UserInitiativeRole[];
-  readonly can_create_guilds: boolean;
+  readonly can_create_communities: boolean;
   /**
    * Platform capabilities granted by this user's standing role — none
    * while the account is suspended.
@@ -9207,7 +9207,7 @@ export interface UserStatsResponse {
   /** Daily activity data for last 365 days */
   heatmap_data: HeatmapDayData[];
   /** Task completion breakdown by guild */
-  guild_breakdown: CommunityTaskBreakdown[];
+  community_breakdown: CommunityTaskBreakdown[];
 }
 
 /**
@@ -9457,7 +9457,7 @@ export interface WikiSummary {
   can: ToolCan;
   id: number;
   initiative_id: number;
-  guild_id: number;
+  community_id: number;
   created_by: number | null;
   created_at: string;
   updated_at: string;
@@ -9550,7 +9550,7 @@ export type WikiPageReadContent = { [key: string]: unknown };
 export interface WikiPageRead {
   id: number;
   wiki_id: number;
-  guild_id: number;
+  community_id: number;
   kind: WikiPageKind;
   parent_page_id: number | null;
   position: number;
@@ -9581,7 +9581,7 @@ export interface WikiPageRead {
 export interface WikiPageSummary {
   id: number;
   wiki_id: number;
-  guild_id: number;
+  community_id: number;
   kind: WikiPageKind;
   parent_page_id: number | null;
   position: number;
@@ -9637,7 +9637,7 @@ export interface WikiRead {
   can: ToolCan;
   id: number;
   initiative_id: number;
-  guild_id: number;
+  community_id: number;
   created_by: number | null;
   created_at: string;
   updated_at: string;
@@ -10009,12 +10009,12 @@ export type ListNotificationsParams = {
   limit?: number;
   cursor?: string | null;
   unread_only?: boolean;
-  guild_id?: number | null;
+  community_id?: number | null;
   personal_only?: boolean;
 };
 
 export type MarkAllNotificationsReadParams = {
-  guild_id?: number | null;
+  community_id?: number | null;
 };
 
 export type GetToolCountsParams = {
@@ -10215,7 +10215,7 @@ export type ListCounterGroupsParams = {
 
 export type ListCalendarsParams = {
   initiative_id?: number | null;
-  scope?: "guild" | null;
+  scope?: "community" | null;
   /**
    * Full-text match over the row — its name and its description. Reads the same index the search page does, so a list's filter box and a search agree about what matches.
    */
@@ -10640,7 +10640,7 @@ export const ExportTasksLayout = {
 export type ExportEventsParams = {
   format?: "ics";
   initiative_id?: number | null;
-  scope?: "guild" | null;
+  scope?: "community" | null;
   calendar_ids?: number[] | null;
   /**
    * Calendars to leave out, such as hidden ones
@@ -10679,7 +10679,7 @@ export type EstimateAggregateExportScope =
 
 export const EstimateAggregateExportScope = {
   initiative: "initiative",
-  guild: "guild",
+  community: "community",
 } as const;
 
 export type ExportInitiativeParams = {
@@ -10981,7 +10981,7 @@ export const SetAttendeesScope = {
 
 export type ListCalendarEntriesParams = {
   initiative_id?: number | null;
-  scope?: "guild" | null;
+  scope?: "community" | null;
   calendar_ids?: number[] | null;
   property_filters?: string | null;
   /**
@@ -11249,11 +11249,11 @@ export type ReadTicketAvailabilityParams = {
   /**
    * The community the reader is standing in.
    */
-  guild_id?: number | null;
+  community_id?: number | null;
 };
 
 export type GetMyToolCountsParams = {
-  guild_ids?: number[] | null;
+  community_ids?: number[] | null;
   /**
    * Count only what the caller wrote, matching the list views.
    */
@@ -11261,7 +11261,7 @@ export type GetMyToolCountsParams = {
 };
 
 export type ListMyProjectsParams = {
-  guild_ids?: number[] | null;
+  community_ids?: number[] | null;
   search?: string | null;
   /**
    * Narrow to projects the caller created.
@@ -11287,7 +11287,7 @@ export type ListMyProjectsParams = {
 };
 
 export type ListMyDocumentsParams = {
-  guild_ids?: number[] | null;
+  community_ids?: number[] | null;
   search?: string | null;
   /**
    * Narrow to documents the caller created.
@@ -11313,7 +11313,7 @@ export type ListMyDocumentsParams = {
 };
 
 export type ListMyQueuesParams = {
-  guild_ids?: number[] | null;
+  community_ids?: number[] | null;
   search?: string | null;
   /**
    * Narrow to queues the caller created.
@@ -11339,7 +11339,7 @@ export type ListMyQueuesParams = {
 };
 
 export type ListMyCounterGroupsParams = {
-  guild_ids?: number[] | null;
+  community_ids?: number[] | null;
   search?: string | null;
   /**
    * Narrow to counter groups the caller created.
@@ -11365,7 +11365,7 @@ export type ListMyCounterGroupsParams = {
 };
 
 export type ListMyCalendarsParams = {
-  guild_ids?: number[] | null;
+  community_ids?: number[] | null;
   search?: string | null;
   /**
    * Narrow to calendars the caller created.
@@ -11391,7 +11391,7 @@ export type ListMyCalendarsParams = {
 };
 
 export type ListMyDashboardsParams = {
-  guild_ids?: number[] | null;
+  community_ids?: number[] | null;
   search?: string | null;
   /**
    * Narrow to dashboards the caller created.
@@ -11417,7 +11417,7 @@ export type ListMyDashboardsParams = {
 };
 
 export type ListMyPostsParams = {
-  guild_ids?: number[] | null;
+  community_ids?: number[] | null;
   search?: string | null;
   /**
    * Narrow to posts the caller created.
@@ -11443,7 +11443,7 @@ export type ListMyPostsParams = {
 };
 
 export type ListMyGalleriesParams = {
-  guild_ids?: number[] | null;
+  community_ids?: number[] | null;
   search?: string | null;
   /**
    * Narrow to galleries the caller created.
@@ -11469,7 +11469,7 @@ export type ListMyGalleriesParams = {
 };
 
 export type ListMyWikisParams = {
-  guild_ids?: number[] | null;
+  community_ids?: number[] | null;
   search?: string | null;
   /**
    * Narrow to wikis the caller created.
@@ -11495,7 +11495,7 @@ export type ListMyWikisParams = {
 };
 
 export type ListMyCalendarEntriesParams = {
-  guild_ids?: number[] | null;
+  community_ids?: number[] | null;
   /**
    * Task filter conditions (same JSON shape as GET /me/tasks).
    */
@@ -11524,7 +11524,7 @@ export type ListContactSectionsParams = {
    * Narrows every section. Matches the handle, plus the real name in a guild that shows names; type a whole handle (`foobar#1234`) to pin one person.
    */
   search?: string | null;
-  guild_ids?: number[] | null;
+  community_ids?: number[] | null;
   /**
    * @minimum 1
    */
@@ -11567,7 +11567,7 @@ export type GetUserStatsParams = {
   /**
    * Optional guild ID to filter stats
    */
-  guild_id?: number | null;
+  community_id?: number | null;
   /**
    * Number of days to analyze
    * @minimum 1

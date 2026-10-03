@@ -152,7 +152,7 @@ const PostCardInner = ({ post, canPin = false, className }: PostCardProps) => {
             <Link to={detailRoute} className="hover:underline">
               {post.name}
             </Link>
-            {unread.hasResource(post.guild_id, Tool.post, post.id) ? (
+            {unread.hasResource(post.community_id, Tool.post, post.id) ? (
               <UnreadDot className="ml-2 inline-block align-middle" />
             ) : null}
           </CardTitle>

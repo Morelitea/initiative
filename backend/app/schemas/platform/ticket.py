@@ -33,7 +33,7 @@ class SupportTicketCreate(SanitizedBaseModel):
     stream: Literal["support"]
     #: The community they are asking from. Whether its members may ask is the
     #: operator's entitlement, checked against their own access to it.
-    guild_id: int
+    community_id: int
     #: One line saying what this is about. Becomes the case's title.
     subject: Annotated[str, AfterValidator(_said_something)] = PydanticField(
         min_length=1, max_length=SUBJECT_LENGTH

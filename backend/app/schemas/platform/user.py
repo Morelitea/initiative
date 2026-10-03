@@ -2,6 +2,7 @@ from datetime import date, datetime
 from typing import Any, List, Literal, Optional
 
 from pydantic import (
+    AliasChoices,
     ConfigDict,
     EmailStr,
     Field,
@@ -235,7 +236,9 @@ class UserCommunityMember(UserCommunityRead):
     #: The rung this member holds in the guild, set by the endpoint. Shown as
     #: it stands, and asked of the ladder where a surface needs to know
     #: whether it administers the place.
-    guild_role: Optional[str] = None
+    community_role: Optional[str] = Field(
+        default=None, validation_alias=AliasChoices("community_role", "guild_role")
+    )
     oidc_managed: bool = False  # Whether membership is managed via OIDC claim mappings
     #: The name set for this member in this guild. ``None`` when nobody set
     #: one, and the handle renders.
@@ -271,7 +274,9 @@ class UserSummary(UserIdentity, PersonShape):
     #: The rung this member holds in the guild this was read under. Absent
     #: where the caller asked outside a guild, which is why it is optional
     #: rather than defaulted to the quietest of them.
-    guild_role: Optional[str] = None
+    community_role: Optional[str] = Field(
+        default=None, validation_alias=AliasChoices("community_role", "guild_role")
+    )
 
 
 class UserSummaryListResponse(PageMeta):
@@ -709,7 +714,7 @@ class UserRead(UserBase):
 
     @computed_field(return_type=bool)  # type: ignore[misc]
     @property
-    def can_create_guilds(self) -> bool:
+    def can_create_communities(self) -> bool:
         if self.status == UserStatus.suspended:
             return False
         if not settings.DISABLE_GUILD_CREATION:
@@ -880,7 +885,12 @@ class DeletionEligibilityResponse(SanitizedBaseModel):
     blockers: List[str] = Field(default_factory=list)
     #: Communities this account holds the only superadmin seat of — the one
     #: thing that blocks deletion, and what the dialog offers to delete.
-    sole_superadmin_guilds: List[str] = Field(default_factory=list)
+    sole_superadmin_communities: List[str] = Field(
+        default_factory=list,
+        validation_alias=AliasChoices(
+            "sole_superadmin_communities", "sole_superadmin_guilds"
+        ),
+    )
 
 
 class AccountDeletionResponse(SanitizedBaseModel):

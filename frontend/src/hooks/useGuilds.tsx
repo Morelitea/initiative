@@ -103,8 +103,8 @@ const settingsGrantLevel = (grant?: AccessGrantRead): "admin" | "superadmin" | n
     : null;
 
 const grantEntry = (grant: AccessGrantRead, settingsGrant?: AccessGrantRead): GuildEntry => ({
-  id: grant.guild_id,
-  name: grant.guild_name ?? `Guild #${grant.guild_id}`,
+  id: grant.community_id,
+  name: grant.community_name ?? `Guild #${grant.community_id}`,
   description: null,
   icon_url: null,
   // A blank banner until the guild's own payload arrives with the real one.
@@ -137,7 +137,7 @@ const grantEntry = (grant: AccessGrantRead, settingsGrant?: AccessGrantRead): Gu
   tier_name: null,
   // The guild's lifecycle status, so an operator on a grant sees a suspended /
   // read-only guild they're acting in (the access banner surfaces it).
-  status: grant.guild_status,
+  status: grant.community_status,
   // PAM/break-glass overrides the lifecycle status — a grantee's writability
   // comes from the grant level, never from the guild being frozen.
   content_read_only: false,
@@ -269,12 +269,12 @@ const fetchGuildList = async (
       if (!grant.is_live || (grant.purpose !== "content" && grant.purpose !== "settings")) {
         continue;
       }
-      const pair = liveByGuild.get(grant.guild_id) ?? {};
+      const pair = liveByGuild.get(grant.community_id) ?? {};
       const purpose = grant.purpose;
       const existing = pair[purpose];
       if (!existing || (grant.expires_at ?? "") > (existing.expires_at ?? "")) {
         pair[purpose] = grant;
-        liveByGuild.set(grant.guild_id, pair);
+        liveByGuild.set(grant.community_id, pair);
       }
     }
     grantGuilds = Array.from(liveByGuild.entries()).flatMap(([guildId, { content, settings }]) => {
@@ -365,7 +365,7 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
   const userIdRef = useRef(userId);
   userIdRef.current = userId;
 
-  const canCreateGuilds = user?.can_create_guilds ?? true;
+  const canCreateGuilds = user?.can_create_communities ?? true;
 
   const guildQuery = useQuery(guildListQuery(userId, userIdRef));
   const guilds = guildQuery.data?.entries ?? NO_GUILDS;
@@ -450,7 +450,7 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
     const payload = pendingOrderRef.current;
     pendingOrderRef.current = null;
     try {
-      await apiClient.put("/communities/order", { guildIds: payload });
+      await apiClient.put("/communities/order", { community_ids: payload });
     } catch (err) {
       console.error("Failed to save guild order", err);
       toast.error(getErrorMessage(err, "errors:unableToSaveGuildOrder"));

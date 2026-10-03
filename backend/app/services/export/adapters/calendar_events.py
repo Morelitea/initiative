@@ -97,7 +97,7 @@ def _filters(params: dict[str, Any]) -> dict[str, Any]:
     """The calendar page's selector, as the shared event query takes it."""
     return dict(
         initiative_id=params.get("initiative_id"),
-        guild_scope=params.get("scope") == "guild",
+        guild_scope=params.get("scope") == "community",
         calendar_ids=params.get("calendar_ids"),
         exclude_calendar_ids=params.get("exclude_calendar_ids"),
         property_filters=params.get("property_filters"),

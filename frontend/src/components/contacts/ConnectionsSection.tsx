@@ -34,8 +34,6 @@ export const ConnectionsSection = ({ allowAdding = true }: ConnectionsSectionPro
 
   return (
     <div className="space-y-4">
-      <p className="text-muted-foreground text-sm">{t("privacy.connections.description")}</p>
-
       {allowAdding && (
         <HandleField
           label={t("privacy.connections.add")}

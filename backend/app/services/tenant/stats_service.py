@@ -460,7 +460,7 @@ async def get_guild_breakdown(
     name = name_row[0] if name_row is not None else None
     return [
         CommunityTaskBreakdown(
-            guild_id=guild_id, guild_name=name or "", completed_count=completed
+            community_id=guild_id, community_name=name or "", completed_count=completed
         )
     ]
 
@@ -571,7 +571,7 @@ async def _compute_guild_stats(
         backlog_trend=backlog_trend,
         velocity_data=velocity_data,
         heatmap_data=heatmap_data,
-        guild_breakdown=guild_breakdown,
+        community_breakdown=guild_breakdown,
     )
 
 
@@ -634,7 +634,7 @@ def _merge_stats(parts: List[UserStatsResponse]) -> UserStatsResponse:
         backlog_trend="Growing" if tot_assigned > tot_completed else "Shrinking",
         velocity_data=velocity_data,
         heatmap_data=heatmap_data,
-        guild_breakdown=[g for p in parts for g in p.guild_breakdown],
+        community_breakdown=[g for p in parts for g in p.community_breakdown],
     )
 
 
@@ -677,7 +677,7 @@ async def get_user_stats(
             backlog_trend="Shrinking",
             velocity_data=[],
             heatmap_data=[],
-            guild_breakdown=[],
+            community_breakdown=[],
         )
     if len(parts) == 1:
         return parts[0]

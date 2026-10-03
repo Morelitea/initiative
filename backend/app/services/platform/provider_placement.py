@@ -418,9 +418,9 @@ def rule_read(
         claim_value=row.claim_value,
         scope_claim=row.scope_claim,
         scope_value=row.scope_value,
-        guild_id=row.guild_id,
-        guild_name=guild_name,
-        guild_role=row.guild_role,
+        community_id=row.guild_id,
+        community_name=guild_name,
+        community_role=row.guild_role,
         initiative_id=row.initiative_id,
         initiative_name=initiative_name,
         initiative_role_id=row.initiative_role_id,
@@ -527,16 +527,16 @@ async def create_rule(
     actor_user_id: int | None = None,
 ) -> ProviderPlacementRuleRead:
     await _require_provider(session, payload.provider_id)
-    await _require_guild(session, payload.guild_id)
+    await _require_guild(session, payload.community_id)
     claim_value, scope_claim, scope_value = _clean_match(
         payload.claim_value, payload.scope_claim, payload.scope_value
     )
-    _require_mappable_role(payload.guild_role)
+    _require_mappable_role(payload.community_role)
     await _require_placeable(
-        session, provider_id=payload.provider_id, guild_id=payload.guild_id
+        session, provider_id=payload.provider_id, guild_id=payload.community_id
     )
     target_type = await _resolve_destination(
-        guild_id=payload.guild_id,
+        guild_id=payload.community_id,
         initiative_id=payload.initiative_id,
         initiative_role_id=payload.initiative_role_id,
     )
@@ -547,8 +547,8 @@ async def create_rule(
         scope_claim=scope_claim,
         scope_value=scope_value,
         target_type=target_type,
-        guild_id=payload.guild_id,
-        guild_role=payload.guild_role,
+        guild_id=payload.community_id,
+        guild_role=payload.community_role,
         initiative_id=payload.initiative_id,
         initiative_role_id=payload.initiative_role_id,
     )
@@ -594,9 +594,9 @@ async def update_rule(
         data["scope_claim"] if "scope_claim" in data else row.scope_claim,
         data["scope_value"] if "scope_value" in data else row.scope_value,
     )
-    if data.get("guild_role") is not None:
-        _require_mappable_role(data["guild_role"])
-        row.guild_role = data["guild_role"]
+    if data.get("community_role") is not None:
+        _require_mappable_role(data["community_role"])
+        row.guild_role = data["community_role"]
     if "initiative_id" in data:
         row.initiative_id = data["initiative_id"]
     if "initiative_role_id" in data:

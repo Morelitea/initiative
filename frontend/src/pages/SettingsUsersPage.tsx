@@ -267,12 +267,12 @@ export const SettingsUsersPage = () => {
         ]
       : []),
     {
-      accessorKey: "guild_role",
+      accessorKey: "community_role",
       header: t("users.guildRoleColumn"),
       cell: ({ row }) => {
         const guildMember = row.original;
         const isSelf = guildMember.id === user?.id;
-        const currentGuildRole = guildMember.guild_role ?? "member";
+        const currentGuildRole = guildMember.community_role ?? "member";
         return (
           <div className="flex flex-col gap-1">
             <Select

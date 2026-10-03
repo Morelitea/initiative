@@ -13,6 +13,7 @@ import type { LoginProviderEntry } from "@/api/generated/initiativeAPI.schemas";
 import { EmailOtpCard } from "@/components/auth/EmailOtpCard";
 import { PasskeyRelayCard } from "@/components/auth/PasskeyRelayCard";
 import { ProviderMark } from "@/components/auth/ProviderMark";
+import { ServerPicker } from "@/components/auth/ServerChoice";
 import { SignInFrame } from "@/components/auth/SignInFrame";
 import { Button } from "@/components/ui/button";
 import {
@@ -57,9 +58,13 @@ export const LoginPage = () => {
   const { isNativePlatform, isServerConfigured, serverUrl } = useServer();
 
   // The app needs a server before anything else can load, so until it has
-  // one the frame's server choice is all there is.
+  // one the server is all there is.
   if (isNativePlatform && !isServerConfigured) {
-    return <SignInFrame pickServer />;
+    return (
+      <SignInFrame>
+        <ServerPicker className="w-full max-w-md" />
+      </SignInFrame>
+    );
   }
   // Another server is another sign-in, so the card starts over.
   return <SignInCard key={serverUrl ?? "web"} />;
@@ -406,7 +411,7 @@ const SignInCard = () => {
   }
 
   return (
-    <SignInFrame pickServer>
+    <SignInFrame>
       <Card className="w-full max-w-md shadow-lg">
         <CardHeader>
           <CardTitle>{challenge ? t("secondFactor.title") : t("login.title")}</CardTitle>
@@ -590,6 +595,9 @@ const SignInCard = () => {
               </Link>
             </p>
           ) : null}
+        </CardFooter>
+        <CardFooter>
+          <ServerPicker className="w-full" />
         </CardFooter>
       </Card>
     </SignInFrame>

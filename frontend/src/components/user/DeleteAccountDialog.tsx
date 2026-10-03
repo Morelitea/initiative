@@ -30,7 +30,7 @@ type DeletionStep = "choose-type" | "check-blockers" | "confirm";
 interface DeletionEligibilityResponse {
   can_delete: boolean;
   blockers: string[];
-  sole_superadmin_guilds: string[];
+  sole_superadmin_communities: string[];
 }
 
 interface DeleteAccountDialogProps extends DialogWithSuccessProps {

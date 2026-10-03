@@ -8,7 +8,7 @@ state the screen can render.
 from datetime import datetime
 from typing import Dict, List, Optional
 
-from pydantic import ConfigDict, Field
+from pydantic import AliasChoices, ConfigDict, Field
 
 from app.models.platform.user import Presence, UserStatus
 from app.models.platform.user_dm_settings import DmPolicy
@@ -26,7 +26,7 @@ class CommunityDmToggle(SanitizedBaseModel):
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
-    guild_id: int
+    community_id: int = Field(validation_alias=AliasChoices("community_id", "guild_id"))
     name: str
     icon_url: Optional[str] = None
     enabled: bool
@@ -46,7 +46,7 @@ class DirectMessageSettingsRead(SanitizedBaseModel):
 
 
 class CommunityDmToggleUpdate(SanitizedBaseModel):
-    guild_id: int
+    community_id: int
     enabled: bool
 
 

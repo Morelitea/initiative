@@ -936,8 +936,8 @@ async def check_user_deletion_eligibility(
     return OperatorDeletionEligibilityResponse(
         can_delete=can_delete,
         blockers=blockers,
-        guild_blockers=[
-            CommunityBlockerInfo(guild_id=guild_id, guild_name=guild_name)
+        community_blockers=[
+            CommunityBlockerInfo(community_id=guild_id, community_name=guild_name)
             for guild_id, guild_name in await guilds_service.stranded_seats(
                 session, user_id=user_id
             )

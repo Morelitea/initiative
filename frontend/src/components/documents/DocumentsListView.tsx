@@ -35,7 +35,7 @@ const DocumentNameCell = ({ document }: { document: DocumentSummary }) => {
       >
         {document.name}
       </Link>
-      {unread.hasResource(document.guild_id, Tool.document, document.id) ? <UnreadDot /> : null}
+      {unread.hasResource(document.community_id, Tool.document, document.id) ? <UnreadDot /> : null}
     </div>
   );
 };
@@ -146,7 +146,7 @@ export const DocumentsListView = ({
           ) : (
             <TagBadgeList
               tags={row.original.tags}
-              tagHref={(tag) => guildPath(row.original.guild_id, `/tags/${tag.id}`)}
+              tagHref={(tag) => guildPath(row.original.community_id, `/tags/${tag.id}`)}
             />
           ),
         size: 150,
