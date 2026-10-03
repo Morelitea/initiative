@@ -61,6 +61,5 @@
   "createError": "Tag kann nicht erstellt werden.",
   "updateError": "Tag kann nicht aktualisiert werden.",
   "deleteError": "Tag kann nicht gelöscht werden.",
-  "toolTagsError": "Tags können nicht aktualisiert werden.",
-  "browseByTag": "Nach Tag durchsuchen"
+  "toolTagsError": "Tags können nicht aktualisiert werden."
 }

@@ -61,6 +61,5 @@
   "createError": "Unable to create tag.",
   "updateError": "Unable to update tag.",
   "deleteError": "Unable to delete tag.",
-  "toolTagsError": "Unable to update tags.",
-  "browseByTag": "Browse by tag"
+  "toolTagsError": "Unable to update tags."
 }
