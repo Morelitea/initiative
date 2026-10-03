@@ -1665,6 +1665,9 @@ async def _complete_provider_login(
         return _error_redirect(is_mobile, OidcMessages.EMAIL_UNVERIFIED)
 
     identity = resolution.identity
+    # Set where this sign-in proves an address the person added themselves.
+    proved_at = datetime.now(timezone.utc)
+    proved_address: str | None = None
     if resolution.outcome is ResolutionOutcome.EMAIL_MATCH:
         # Platform policy: a verified IdP email claims its matching local
         # account (parity with the previous flow); the link makes every later
@@ -1690,14 +1693,17 @@ async def _complete_provider_login(
             await addresses.retire_credentials_predating_proof(
                 system_session, user=user
             )
-            await addresses.ensure_address(
+            row = await addresses.ensure_address(
                 system_session,
                 user_id=user.id,
                 email=email,
                 source=addresses.SOURCE_OIDC,
                 verified=True,
                 provider_id=provider_row.id,
+                now=proved_at,
             )
+            if addresses.proved_an_added_address(row, at=proved_at):
+                proved_address = email
         identity = await link_identity(
             system_session,
             user=user,
@@ -1713,14 +1719,17 @@ async def _complete_provider_login(
     # already holds it; a linked one existed first, so this is where a work
     # address arrives beside whatever the person signed up with.
     if email:
-        await addresses.ensure_address(
+        row = await addresses.ensure_address(
             system_session,
             user_id=user.id,
             email=email,
             source=addresses.SOURCE_OIDC,
             verified=email_verified,
             provider_id=provider_row.id,
+            now=proved_at,
         )
+        if addresses.proved_an_added_address(row, at=proved_at):
+            proved_address = email
 
     # Profile refresh from the verified claims.
     if avatar_url and user.avatar_url != avatar_url:
@@ -1741,6 +1750,10 @@ async def _complete_provider_login(
     system_session.add(user)
     await system_session.commit()
     await system_session.refresh(user)
+    if proved_address is not None:
+        await email_service.announce_address_change(
+            system_session, user, change="proved", address=proved_address
+        )
 
     # What each community makes of this arrival. A connection can say that
     # people it counts as its own join on sight, which is how somebody reaches
@@ -1979,9 +1992,7 @@ async def confirm_verification(
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST, detail=exc.code
             ) from exc
-        # An address added to an account that already had one is a new way in,
-        # so the account is told once it is proved. A sign-up's own is not news.
-        if row.verified_at == proved_at and row.source == addresses.SOURCE_ADDED:
+        if addresses.proved_an_added_address(row, at=proved_at):
             proved_address = decrypt_field(row.email_encrypted, SALT_EMAIL)
 
     record.consumed_at = datetime.now(timezone.utc)
