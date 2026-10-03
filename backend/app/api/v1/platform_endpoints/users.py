@@ -1393,16 +1393,16 @@ async def make_my_address_primary(
     await require_password_or_recent_proof(
         request, system_session, current_user, payload.current_password
     )
-    previous = next(
-        (
-            held
-            for held in await addresses.list_for_user(
-                system_session, user_id=current_user.id
+    # Read directly: the primary can be an address the account was minted
+    # with, which the address list leaves out.
+    previous = (
+        await system_session.exec(
+            select(UserEmail).where(
+                UserEmail.user_id == current_user.id,
+                UserEmail.is_primary.is_(True),
             )
-            if held.is_primary
-        ),
-        None,
-    )
+        )
+    ).first()
     risky = await is_risky(request, system_session, current_user)
     try:
         row = await addresses.set_primary_for_user(
@@ -1432,7 +1432,14 @@ async def make_my_address_primary(
                     risky=risky,
                     undo={
                         "kind": "primary",
-                        "address_id": previous.id,
+                        # A minted address takes no mail, so undoing a move
+                        # away from one moves the primary to the address
+                        # whose link was clicked.
+                        "address_id": (
+                            None
+                            if previous.source == addresses.SOURCE_SYNTHETIC
+                            else previous.id
+                        ),
                         "made_primary": row.id,
                     },
                 )

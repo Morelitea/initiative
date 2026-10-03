@@ -104,7 +104,12 @@ async def subject_of(
     kind = undo.get("kind")
     if kind == "removed":
         return removed_address(change)
-    if kind in ("proved", "primary"):
+    if kind == "primary":
+        row = await _primary_again(
+            session, user_id=user_id, undo=undo, clicked_from=change.get("recipient")
+        )
+        return decrypt_field(row.email_encrypted, SALT_EMAIL) if row else None
+    if kind == "proved":
         row = await session.get(UserEmail, undo.get("address_id"))
         if row is None or row.user_id != user_id:
             return None
@@ -133,7 +138,12 @@ async def apply_undo(
         await _still_primary(
             session, user_id=user_id, address_id=undo.get("made_primary")
         )
-        await _make_primary(session, user_id=user_id, address_id=undo.get("address_id"))
+        target = await _primary_again(
+            session, user_id=user_id, undo=undo, clicked_from=clicked_from
+        )
+        if target is None:
+            raise UndoRefused()
+        await _make_primary(session, user_id=user_id, address_id=target.id)
     elif kind == "proved":
         await _take_back_address(
             session,
@@ -159,6 +169,18 @@ async def _still_primary(
     row = await session.get(UserEmail, address_id) if address_id is not None else None
     if row is None or row.user_id != user_id or not row.is_primary:
         raise UndoRefused()
+
+
+async def _primary_again(
+    session: AsyncSession, *, user_id: int, undo: dict[str, Any], clicked_from: Any
+) -> UserEmail | None:
+    """The address undoing a primary change makes primary: the previous
+    primary, or, where that was a minted address, the one whose link was
+    clicked."""
+    if undo.get("address_id") is None:
+        return await _held_by_hash(session, user_id=user_id, digest=clicked_from)
+    row = await session.get(UserEmail, undo["address_id"])
+    return row if row is not None and row.user_id == user_id else None
 
 
 async def _make_primary(
@@ -243,6 +265,8 @@ async def _put_back_address(
         delete(UserEmail).where(
             UserEmail.user_id == user_id,
             UserEmail.id != restored.id,
+            # A minted address is the account's own placeholder, not a change.
+            UserEmail.source != addresses.SOURCE_SYNTHETIC,
             UserEmail.verified_at > proved,
             UserEmail.verified_at >= removed_at - SEQUENCE_WINDOW,
             UserEmail.verified_at <= removed_at,
