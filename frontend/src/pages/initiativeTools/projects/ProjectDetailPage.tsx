@@ -6,8 +6,8 @@ import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { invalidate, q } from "@/api/query-keys";
 import { ToolCommentsPanel } from "@/components/comments/ToolCommentsPanel";
 import { PullToRefresh } from "@/components/PullToRefresh";
-import { ProjectDocumentsSection } from "@/components/projects/ProjectDocumentsSection";
 import { ProjectHeader } from "@/components/projects/ProjectHeader";
+import { ProjectRelationships } from "@/components/projects/ProjectRelationships";
 import { ProjectTasksSection } from "@/components/projects/ProjectTasksSection";
 import { ProjectDetailSkeleton } from "@/components/skeletons/PageSkeletons";
 import { ToolAccessStatus } from "@/components/ToolAccessStatus";
@@ -129,7 +129,7 @@ export const ProjectDetailPage = () => {
     <PullToRefresh onRefresh={handleRefresh}>
       <div className="space-y-6">
         <ProjectHeader project={project} projectIsArchived={projectIsArchived} />
-        <ProjectDocumentsSection
+        <ProjectRelationships
           projectId={project.id}
           projectName={project.name}
           initiativeId={project.initiative_id}
