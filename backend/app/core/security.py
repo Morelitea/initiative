@@ -328,6 +328,7 @@ def create_upload_token(
     satisfied_claims: dict | None = None,
     session_amr: Iterable[str] = (),
     expires_in: timedelta = UPLOAD_TOKEN_LIFETIME,
+    not_after: datetime | None = None,
 ) -> tuple[str, int]:
     """Mint a short-lived, uploads-scoped JWT for ``user_id``.
 
@@ -340,8 +341,14 @@ def create_upload_token(
     ``satisfied_claims`` what those providers asserted, so a download or
     keepalive in a guild with a requirement carries the same standing as the
     session that requested it (bounded by this token's short lifetime).
+
+    ``not_after`` is the latest the token may stand, whatever ``expires_in``
+    says: the expiry of the credential that asked for it.
     """
     now = datetime.now(timezone.utc)
+    expires = now + expires_in
+    if not_after is not None:
+        expires = min(expires, not_after)
     payload: dict[str, Any] = {
         "sub": str(user_id),
         "aud": UPLOAD_TOKEN_AUDIENCE,
@@ -353,10 +360,10 @@ def create_upload_token(
         # as from the session that asked for it.
         "amr": sorted(session_amr),
         "iat": int(now.timestamp()),
-        "exp": now + expires_in,
+        "exp": expires,
     }
     token = jwt.encode(payload, settings.jwt_signing_key, algorithm=JWT_ALGORITHM)
-    return token, int(expires_in.total_seconds())
+    return token, max(0, int((expires - now).total_seconds()))
 
 
 def verify_upload_token(

@@ -829,9 +829,11 @@ def _with_picture(body: dict[str, Any], src: str) -> dict[str, Any]:
 
 
 @pytest.mark.parametrize("reads_names", [True, False])
-async def test_a_mention_names_a_person_by_reference_and_by_name_under_members_read(
+async def test_a_mention_names_a_person_by_reference_and_never_by_name(
     reads_names, client, session, acting_user, role_session
 ):
+    """Content written before names were left out still carries one, and it
+    reaches no app, nor does anything derived from the text."""
     await lift_person_and_guild_ids(session)
     reads = ["projects:read", "comments:read", "documents:read", "posts:read"]
     installed = await install_app(
@@ -882,25 +884,19 @@ async def test_a_mention_names_a_person_by_reference_and_by_name_under_members_r
     for response in responses:
         assert response.status_code == 200, response.text
         assert_names_nobody(response.text, [seat.user.id, guild_id])
-        assert ("The Seat" in response.text) is reads_names
+        assert "The Seat" not in response.text
         assert "/uploads/" not in response.text
     read, comments, opened, posted, listed = (r.json() for r in responses)
     ref = read["assignees"][0]["id"]
-    name = "The Seat" if reads_names else ""
     # A stored picture is there, without its path.
-    assert read["description"] == f"Over to @[{name}]({ref}) ![shot]()"
+    assert read["description"] == f"Over to @[]({ref}) ![shot]()"
     assert comments["comments"][0]["content"] == read["description"]
     [_, node] = opened["content"]["root"]["children"][0]["children"]
-    assert (node["mentionUserId"], node["mentionName"], node["text"]) == (
-        ref,
-        name,
-        name,
-    )
+    assert (node["mentionUserId"], node["mentionName"], node["text"]) == (ref, "", "")
     assert opened["content"]["root"]["children"][1]["src"] == ""
     assert posted["body"]["root"]["children"][1]["src"] == ""
-    # What is derived from the text shows the name only as the text does.
-    assert posted["excerpt"] == f"Over to {name}".strip()
-    assert listed["items"][0]["description_excerpt"] == f"Over to @{name}"
+    assert posted["excerpt"] == f"Over to @[]({ref})"
+    assert listed["items"][0]["description_excerpt"] == f"Over to @[]({ref})"
     # The person's handle finds what mentions them only for an app that may
     # read names.
     found = await client.get(
@@ -950,7 +946,7 @@ async def test_a_response_mentioning_three_people_costs_one_statement_cold(
     assert len(cold) == len(warm) + 1, (cold, warm)
 
 
-async def test_a_mention_it_writes_is_stored_by_row_id_under_the_member_s_name(
+async def test_a_mention_it_writes_is_stored_by_row_id(
     client, session, acting_user, role_session
 ):
     scopes = ["comments:write", "documents:write", "members:read"]
@@ -961,9 +957,6 @@ async def test_a_mention_it_writes_is_stored_by_row_id_under_the_member_s_name(
         initiative=installed.placed,
         initiative_role="member",
     )
-    member.membership.display_name = "Sam Bee"
-    session.add(member.membership)
-    await session.commit()
     document = await _open_document(session, installed)
     headers = install_headers(installed, scopes)
     guild_id = installed.guild.id
@@ -980,7 +973,7 @@ async def test_a_mention_it_writes_is_stored_by_row_id_under_the_member_s_name(
         json={"content": f"Over to @[]({ref})", "document_id": document.id},
     )
     assert posted.status_code == 201, posted.text
-    assert posted.json()["content"] == f"Over to @[Sam Bee]({ref})"
+    assert posted.json()["content"] == f"Over to @[]({ref})"
     created = await client.post(
         guild_url(guild_id, "/documents/"),
         headers=headers,
@@ -995,13 +988,11 @@ async def test_a_mention_it_writes_is_stored_by_row_id_under_the_member_s_name(
     await route_session_to_guild(session, guild_id)
     comment = await session.get(Comment, posted.json()["id"])
     assert comment is not None
-    assert comment.content == f"Over to @[Sam Bee]({member.user.id})"
+    assert comment.content == f"Over to @[]({member.user.id})"
     stored = await session.exec(
         select(Document.content).where(Document.id == created.json()["id"])
     )
-    assert stored.one() == lexical_body(
-        "Over to ", mentioning=member.user.id, name="Sam Bee"
-    )
+    assert stored.one() == lexical_body("Over to ", mentioning=member.user.id)
 
     # The person it mentioned hears of it, as from anybody.
     await drain_notices()

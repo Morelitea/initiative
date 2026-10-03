@@ -17,7 +17,6 @@ from app.core.audit_events import AuditEventType
 from app.core.config import API_V1_STR
 from app.core.config import settings as app_config
 from app.core.intake import IntakeStream
-from app.core.rate_limit import limiter
 from app.db.query import build_paginated_response, paginated_query
 from app.models.platform.app_setting import AppSetting
 from app.models.platform.app_setting_secret import AppSettingSecret
@@ -739,7 +738,6 @@ async def update_push_settings(
 
 
 @router.get("/fcm-config", response_model=FCMConfigResponse)
-@limiter.limit("20/minute")
 async def get_fcm_config(request: Request) -> FCMConfigResponse:
     """Get public FCM configuration for mobile app initialization.
 

@@ -42,12 +42,8 @@ from app.api.deps import (
     SystemSessionDep,
 )
 from app.core import audit_context
-from app.core.app_access_token import (
-    AccessTokenError,
-    InstallAccessToken,
-    is_access_token,
-    unseal_access_token,
-)
+from app.core.app_access_token import InstallAccessToken
+from app.core.identify import bearer_app_token
 from app.core.messages import AuthMessages
 from app.db.session import clear_rls_context
 from app.models.tenant.guild_app import GuildApp
@@ -96,6 +92,7 @@ class Installation:
 async def installation_caller(
     request: Request,
     session: SessionDep,
+    # Declares the scheme for the API description; read by ``bearer_app_token``.
     bearer: Annotated[Optional[str], Depends(oauth2_scheme)] = None,
 ) -> Installation:
     """The install the request's installation token names, or 401.
@@ -104,12 +101,7 @@ async def installation_caller(
     standing, which is what says it may act now. The request's own session is
     left unrouted afterwards: the work runs on the system engine.
     """
-    if not bearer or not is_access_token(bearer):
-        raise _refuse()
-    try:
-        token = unseal_access_token(bearer)
-    except AccessTokenError as exc:
-        raise _refuse() from exc
+    token = bearer_app_token(request)
     if not isinstance(token, InstallAccessToken) or token.user_id is not None:
         raise _refuse()
     try:

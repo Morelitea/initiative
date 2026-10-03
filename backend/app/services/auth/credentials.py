@@ -3,7 +3,9 @@
 One reader for every transport. The HTTP dependency, the ``/uploads`` route and
 the realtime sockets each decide which kinds of credential they accept and how
 a refusal reaches the client; what a credential *is*, which account it names,
-and what it records about the sign-in behind it are decided here, once.
+and what it records about the sign-in behind it are decided here, once. What
+can be told without the database — the kind, a token's signature and expiry —
+is read first by ``app.core.identify``; this is the half that looks it up.
 
 What it records goes to ``app.core.auth_context``: the providers a session
 satisfied and what they asserted, the markers its ``amr`` carries, which session
@@ -19,14 +21,11 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
-from enum import Enum
 
-import jwt
 from fastapi import HTTPException, status
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.app_access_token import is_access_token
 from app.core.auth_context import (
     SessionCredential,
     claims_from_provider_auth,
@@ -38,13 +37,13 @@ from app.core.auth_context import (
     set_session_amr,
     set_session_credential,
 )
+from app.core.identify import (
+    CredentialKind,
+    Identified,
+    VerifiedUpload,
+)
 from app.core.login_methods import SecondFactorRequirement
 from app.core.messages import AuthMessages
-from app.core.security import (
-    UploadTokenError,
-    decode_session_token,
-    verify_upload_token,
-)
 from app.models.platform.api_key import UserApiKey
 from app.models.platform.app_setting import AppSetting
 from app.models.platform.user import User
@@ -53,26 +52,6 @@ from app.services.auth.assurance import policy_markers
 from app.services.auth.subject import account_for_subject
 from app.services.platform import api_keys as api_keys_service
 from app.services.platform import auth_posture
-
-
-class CredentialKind(str, Enum):
-    """Which kind of credential authenticated a request."""
-
-    #: An access token for a server-side session.
-    session = "session"
-    #: A personal API key.
-    api_key = "api_key"
-    #: A short-lived token that reaches ``/uploads`` and nothing else.
-    upload_token = "upload_token"
-
-
-#: What an ``Authorization: Bearer`` header or the session cookie may carry.
-HEADER_CREDENTIALS = frozenset({CredentialKind.session, CredentialKind.api_key})
-#: What may ride in a URL: only the narrow token minted to travel this way; a
-#: session token or an API key never does.
-URL_CREDENTIALS = frozenset({CredentialKind.upload_token})
-#: What a realtime socket's first frame may carry.
-SOCKET_CREDENTIALS = frozenset({CredentialKind.session})
 
 
 @dataclass(frozen=True)
@@ -136,15 +115,6 @@ def asked_of_an_account(settings_row: AppSetting | None) -> SecondFactorRequirem
     return auth_posture.requirement_from_row(settings_row)
 
 
-def _is_a_jwt(token: str) -> bool:
-    """Whether ``token`` is a JWT, whatever it says and whoever signed it."""
-    try:
-        jwt.get_unverified_header(token)
-    except jwt.PyJWTError:
-        return False
-    return True
-
-
 def _session_row_id(sid: str | None) -> uuid.UUID | None:
     if not sid:
         return None
@@ -157,13 +127,7 @@ def _session_row_id(sid: str | None) -> uuid.UUID | None:
 _UNREADABLE = AuthMessages.COULD_NOT_VALIDATE_CREDENTIALS
 
 
-async def _session(session: AsyncSession, token: str) -> Authenticated:
-    try:
-        token_data = TokenPayload(**decode_session_token(token))
-    except jwt.PyJWTError as exc:
-        raise CredentialRefused(_UNREADABLE) from exc
-    if not token_data.sub:
-        raise CredentialRefused(AuthMessages.INVALID_TOKEN_PAYLOAD)
+async def _session(session: AsyncSession, token_data: TokenPayload) -> Authenticated:
     account = await account_for_subject(session, subject=token_data.sub)
     if account is None:
         raise CredentialRefused(
@@ -187,21 +151,19 @@ async def _session(session: AsyncSession, token: str) -> Authenticated:
     return Authenticated(user=user, kind=CredentialKind.session, session_id=session_id)
 
 
-async def _upload_token(session: AsyncSession, token: str) -> Authenticated | None:
-    try:
-        user_id, satisfied, claims, markers = verify_upload_token(token)
-    except UploadTokenError:
-        return None
-    user = (await session.exec(select(User).where(User.id == user_id))).one_or_none()
+async def _upload_token(session: AsyncSession, upload: VerifiedUpload) -> Authenticated:
+    user = (
+        await session.exec(select(User).where(User.id == upload.user_id))
+    ).one_or_none()
     if user is None:
         raise CredentialRefused(
             AuthMessages.USER_NOT_FOUND, status_code=status.HTTP_404_NOT_FOUND
         )
     # The scoped token copied its minting session's satisfied set and markers,
     # so a policy-gated guild treats this request as that session.
-    set_satisfied_providers(satisfied)
-    set_satisfied_claims(claims)
-    set_session_amr(policy_markers(markers))
+    set_satisfied_providers(upload.satisfied)
+    set_satisfied_claims(upload.claims)
+    set_session_amr(policy_markers(upload.markers))
     return Authenticated(user=user, kind=CredentialKind.upload_token)
 
 
@@ -215,24 +177,25 @@ async def _api_key(session: AsyncSession, token: str) -> Authenticated | None:
     return Authenticated(user=user, kind=CredentialKind.api_key, api_key=api_key)
 
 
-async def authenticate(
-    session: AsyncSession,
-    token: str,
-    *,
-    allow: frozenset[CredentialKind],
-) -> Authenticated:
-    """The account ``token`` names, as one of the kinds in ``allow``.
+async def authenticate(session: AsyncSession, identified: Identified) -> Authenticated:
+    """The account a credential names, as one of the kinds it was read as.
 
-    Raises :class:`CredentialRefused` for anything else. An installed app's
-    access token is never a person and is refused whatever ``allow`` says; a
-    route that admits one reads it elsewhere.
-
-    The kinds tell themselves apart without being told: an API key by its
-    prefix, and the two token kinds by being JWTs with their own audiences.
+    ``identified`` is what ``app.core.identify`` read locally; this is the
+    half that asks the database. Raises :class:`CredentialRefused` for
+    anything else. An installed app's access token is never a person and is
+    refused whatever the caller allows; a route that admits one reads it from
+    :attr:`Identified.app_token`.
     """
     clear_recorded_credential()
-    if is_access_token(token):
+    token, allow = identified.token, identified.allow
+    if identified.refused is not None:
+        raise CredentialRefused(identified.refused)
+    if identified.access is not None:
         raise CredentialRefused(_UNREADABLE)
+    if identified.upload is not None:
+        return await _upload_token(session, identified.upload)
+    if identified.session is not None:
+        return await _session(session, identified.session)
 
     if token.startswith(api_keys_service.API_KEY_PREFIX):
         found = (
@@ -241,14 +204,4 @@ async def authenticate(
         if found is None:
             raise CredentialRefused(_UNREADABLE)
         return found
-
-    if _is_a_jwt(token):
-        if CredentialKind.upload_token in allow:
-            found = await _upload_token(session, token)
-            if found is not None:
-                return found
-        if CredentialKind.session in allow:
-            return await _session(session, token)
-        raise CredentialRefused(_UNREADABLE)
-
     raise CredentialRefused(_UNREADABLE)

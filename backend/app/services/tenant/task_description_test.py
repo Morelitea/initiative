@@ -121,12 +121,15 @@ async def test_an_edit_tells_only_the_people_it_adds(
         headers=writer.headers,
         json={
             "description": (
-                f"Pair with @[Tea M]({teammate.user.id}) "
-                f"and @[New Comer]({newcomer.user.id})"
+                f"Pair with @[Tea M]({teammate.user.id}) and @[]({newcomer.user.id})"
             )
         },
     )
     assert response.status_code == 200, response.text
+    # Stored by id alone, whoever's mention it is and however it was written.
+    assert response.json()["description"] == (
+        f"Pair with @[]({teammate.user.id}) and @[]({newcomer.user.id})"
+    )
 
     assert await _mentions_for(session, teammate.user.id) == []
     assert len(await _mentions_for(session, newcomer.user.id)) == 1

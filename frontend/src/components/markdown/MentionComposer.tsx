@@ -17,7 +17,13 @@ import { CommentReferences } from "@/components/comments/CommentReferences";
 import type { MentionChoice } from "@/components/comments/MentionPopover";
 import { MentionPopover } from "@/components/comments/MentionPopover";
 import { CreateReferencedThingDialog } from "@/components/references/CreateReferencedThingDialog";
+import {
+  MentionedPeopleScope,
+  ReportMentionedPeople,
+  useMentionedPeople,
+} from "@/hooks/useMentionedPeople";
 import { getCaretCoordinates } from "@/lib/caretCoordinates";
+import { withMentionNames } from "@/lib/commentReferences";
 import type { ActiveMention } from "@/lib/mentions";
 import {
   activeMention,
@@ -26,6 +32,7 @@ import {
   USER_TRIGGER,
   userMentionSyntax,
 } from "@/lib/mentions";
+import { getUserDisplayName } from "@/lib/userDisplay";
 
 import { MarkdownComposer } from "./MarkdownComposer";
 import type { ToolbarItem } from "./MarkdownToolbar";
@@ -90,8 +97,22 @@ interface MentionComposerProps
  * While the picker is open it owns the keyboard: `onKeyDown` hears nothing
  * until it closes, so a caller's own keys — submit, dismiss — never fire
  * underneath a half-typed mention.
+ *
+ * A person is stored without their name, `@[](4)`, which reads as nothing to
+ * whoever is editing the text. So the field shows each one with the name they
+ * go by now, `@[Ada](4)`, and asks who they are for itself. Until somebody
+ * types, the caller's value is left as it was, so opening saved text to edit
+ * changes nothing; once they do, it carries the names, which the server leaves
+ * out again on save.
  */
-export const MentionComposer = ({
+export const MentionComposer = (props: MentionComposerProps) => (
+  <MentionedPeopleScope>
+    <ReportMentionedPeople texts={[props.value]} />
+    <Composer {...props} />
+  </MentionedPeopleScope>
+);
+
+const Composer = ({
   value,
   onChange,
   initiativeId,
@@ -105,6 +126,16 @@ export const MentionComposer = ({
   ...composerProps
 }: MentionComposerProps) => {
   const { t } = useTranslation("comments");
+  const { find } = useMentionedPeople();
+  // What the field shows and edits: the value, with every person named.
+  const text = useMemo(
+    () =>
+      withMentionNames(value, (userId) => {
+        const person = find(userId);
+        return person && getUserDisplayName(person);
+      }),
+    [value, find]
+  );
   const ownRef = useRef<HTMLTextAreaElement>(null);
   const textareaRef = callerRef ?? ownRef;
   const [mentionTrigger, setMentionTrigger] = useState<MentionTrigger | null>(null);
@@ -157,21 +188,21 @@ export const MentionComposer = ({
     onSelect?.();
     const textarea = textareaRef.current;
     if (!textarea) return;
-    syncMentionTrigger(textarea, value, textarea.selectionStart);
-  }, [onSelect, value, syncMentionTrigger, textareaRef]);
+    syncMentionTrigger(textarea, text, textarea.selectionStart);
+  }, [onSelect, text, syncMentionTrigger, textareaRef]);
 
   /** Put `written` where the text from `start` to `end` was, caret after it. */
   const replaceRange = useCallback(
     (start: number, end: number, written: string) => {
-      const before = value.slice(0, start);
-      onChange(`${before}${written} ${value.slice(end)}`);
+      const before = text.slice(0, start);
+      onChange(`${before}${written} ${text.slice(end)}`);
       const caret = before.length + written.length + 1;
       setTimeout(() => {
         textareaRef.current?.focus();
         textareaRef.current?.setSelectionRange(caret, caret);
       }, 0);
     },
-    [value, onChange, textareaRef]
+    [text, onChange, textareaRef]
   );
 
   const handleMentionSelect = useCallback(
@@ -189,15 +220,16 @@ export const MentionComposer = ({
         return;
       }
 
-      // The label is written into the text, so the characters the syntax is
-      // built from cannot appear inside it.
-      const label = (choice.user ? choice.label : choice.suggestion.title).replace(/[[\]()]/g, "");
       replaceRange(
         start,
         end,
         choice.user
-          ? userMentionSyntax(label, choice.id)
-          : entityMentionSyntax(choice.suggestion.entity_type, label, choice.suggestion.entity_id)
+          ? userMentionSyntax(choice.label, choice.id)
+          : entityMentionSyntax(
+              choice.suggestion.entity_type,
+              choice.suggestion.title,
+              choice.suggestion.entity_id
+            )
       );
     },
     [mentionTrigger, replaceRange]
@@ -219,8 +251,8 @@ export const MentionComposer = ({
     textarea.focus();
     textarea.setSelectionRange(caret, caret);
     // Nothing was typed, so open the picker on the trigger that was placed.
-    syncMentionTrigger(textarea, value, caret);
-  }, [value, syncMentionTrigger, textareaRef]);
+    syncMentionTrigger(textarea, text, caret);
+  }, [text, syncMentionTrigger, textareaRef]);
 
   /** Write a bare trigger at the caret and open the picker on it. */
   const insertTrigger = useCallback(
@@ -228,14 +260,14 @@ export const MentionComposer = ({
       const textarea = textareaRef.current;
       if (!textarea) return;
       const { selectionStart, selectionEnd } = textarea;
-      const before = value.slice(0, selectionStart);
+      const before = text.slice(0, selectionStart);
       // A trigger only counts at a word boundary, so one landing against a
       // word brings its own space — otherwise it reads as part of the word.
       const written = before === "" || /[\s([{]$/.test(before) ? trigger : ` ${trigger}`;
       pendingTrigger.current = selectionStart + written.length;
-      onChange(before + written + value.slice(selectionEnd));
+      onChange(before + written + text.slice(selectionEnd));
     },
-    [value, onChange, textareaRef]
+    [text, onChange, textareaRef]
   );
 
   const allTools = useMemo<ToolbarItem[]>(
@@ -276,7 +308,7 @@ export const MentionComposer = ({
       <MarkdownComposer
         {...composerProps}
         textareaRef={textareaRef}
-        value={value}
+        value={text}
         onChange={handleChange}
         renderPreview={renderPreview}
         tools={allTools}

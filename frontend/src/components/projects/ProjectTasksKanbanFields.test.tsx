@@ -11,7 +11,12 @@ import userEvent from "@testing-library/user-event";
 import { HttpResponse } from "msw";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { buildDefaultTaskStatuses, buildTask, buildTaskListResponse } from "@/__tests__/factories";
+import {
+  buildDefaultTaskStatuses,
+  buildTask,
+  buildTaskListResponse,
+  buildUserSummary,
+} from "@/__tests__/factories";
 import { guildHttp } from "@/__tests__/helpers/guildHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
@@ -131,5 +136,25 @@ describe("a card's dates", () => {
 
     const due = await screen.findByText(/^Due:/);
     expect(due.textContent).toMatch(/\b(AM|PM)\b/);
+  });
+});
+
+describe("a card's excerpt", () => {
+  it("names the people it mentions as they are called now", async () => {
+    seedTask({ description_excerpt: "Start from the coast with @[](12)", has_description: true });
+    server.use(
+      guildHttp.get("/users/search", () =>
+        HttpResponse.json({
+          items: [buildUserSummary({ id: 12, display_name: "Ada King" })],
+          total: 1,
+          page: 1,
+          page_size: 100,
+        })
+      )
+    );
+    board();
+
+    expect(await screen.findByText("@Ada King")).toBeInTheDocument();
+    expect(screen.getByText(/Start from the coast with/)).toBeInTheDocument();
   });
 });

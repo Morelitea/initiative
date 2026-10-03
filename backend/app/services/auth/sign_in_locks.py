@@ -26,7 +26,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.audit_events import AuditEventType
-from app.core.rate_limit import clear_sign_in_failures
+from app.core.rate_limit import SIGN_IN_FAILURES
 from app.models.platform.sign_in_lock import SignInLock
 from app.services import audit as audit_service
 from app.services.auth import addresses
@@ -150,7 +150,7 @@ async def lift(session: AsyncSession, user_id: int) -> bool:
     await session.exec(delete(SignInLock).where(SignInLock.user_id == user_id))
     for address in await addresses.proven_addresses(session, user_id=user_id):
         try:
-            await clear_sign_in_failures(addresses.normalize(address))
+            await SIGN_IN_FAILURES.clear(addresses.normalize(address))
         except Exception:
             # The count lapses at the end of its window anyway; the lift and
             # whatever the caller commits with it go ahead without it.

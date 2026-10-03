@@ -47,7 +47,7 @@ from app.core.config import is_device
 from app.core.login_methods import LoginMethod
 from app.core.messages import AuthMessages
 from app.core.email_i18n import SUPPORTED_EMAIL_LOCALES
-from app.core.rate_limit import get_real_client_ip, get_user_or_ip_key, limiter
+from app.core.rate_limit import MAIL_SENDS, get_real_client_ip, limiter
 from app.db import session as db_session
 from app.db.session import get_session
 from app.models.platform.user import SIGN_IN_STATUSES, User
@@ -149,7 +149,6 @@ async def _post_code_letter(
 
 
 @router.post("/email-otp/send", response_model=EmailOtpSent)
-@limiter.limit("5/15minutes")
 async def send_sign_in_code(
     request: Request,
     payload: EmailOtpSend,
@@ -160,8 +159,8 @@ async def send_sign_in_code(
     """Post a code to an address, and hand back the handle that names it.
 
     The captcha is answered before the address is resolved: it says something
-    about the request, not about the address, so it is the one refusal this
-    route makes.
+    about the request, not about the address. Past it, the one refusal is the
+    address's mail allowance, taken whether or not anybody holds the address.
     """
     await require_login_method(session, LoginMethod.email_otp)
     await captcha_service.verify_or_raise(
@@ -173,7 +172,12 @@ async def send_sign_in_code(
             detail=AuthMessages.EMAIL_OTP_CANNOT_SEND,
         )
 
-    address = payload.email.lower().strip()
+    address = addresses.normalize(payload.email)
+    if not await MAIL_SENDS.take(address):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=AuthMessages.RATE_LIMITED,
+        )
     user = await addresses.account_holding(system_session, address)
     # An account that cannot sign in is not one to send a code to, and reads
     # from here exactly like an address nobody holds.
@@ -210,7 +214,6 @@ async def send_sign_in_code(
 
 
 @router.post("/email-otp/verify", response_model=Token)
-@limiter.limit("10/15minutes")
 async def verify_sign_in_code(
     request: Request,
     response: Response,
@@ -338,7 +341,6 @@ async def verify_sign_in_code(
     response_model=Token,
     status_code=status.HTTP_201_CREATED,
 )
-@limiter.limit("5/15minutes")
 async def register_with_code(
     request: Request,
     response: Response,
@@ -407,7 +409,7 @@ async def register_with_code(
 
 
 @router.post("/step-up/email-otp/send", response_model=EmailOtpSent)
-@limiter.limit("5/15minutes", key_func=get_user_or_ip_key)
+@limiter.limit("5/15minutes")
 async def send_step_up_code(
     request: Request,
     background: BackgroundTasks,
@@ -452,7 +454,7 @@ async def send_step_up_code(
 
 
 @router.post("/step-up/email-otp/verify", response_model=Token)
-@limiter.limit("10/15minutes", key_func=get_user_or_ip_key)
+@limiter.limit("10/15minutes")
 async def verify_step_up_code(
     request: Request,
     response: Response,

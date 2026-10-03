@@ -8,13 +8,10 @@ from typing import Optional
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.identify import SOCKET_CREDENTIALS, CredentialKind, identify_token
 from app.models.platform.user import User, UserStatus
 from app.services.auth import credentials
-from app.services.auth.credentials import (
-    SOCKET_CREDENTIALS,
-    CredentialKind,
-    CredentialRefused,
-)
+from app.services.auth.credentials import CredentialRefused
 
 
 async def authenticate_ws_token(token: str, session: AsyncSession) -> Optional[User]:
@@ -32,7 +29,7 @@ async def authenticate_ws_token(token: str, session: AsyncSession) -> Optional[U
     """
     try:
         authenticated = await credentials.authenticate(
-            session, token, allow=SOCKET_CREDENTIALS
+            session, identify_token(token, SOCKET_CREDENTIALS)
         )
     except CredentialRefused:
         return None

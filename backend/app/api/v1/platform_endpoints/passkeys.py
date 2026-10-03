@@ -49,7 +49,7 @@ from app.core.audit_events import AuditEventType
 from app.core.user_display import handle_of
 from app.core.login_methods import LoginMethod
 from app.core.messages import AuthMessages, NativeMessages
-from app.core.rate_limit import get_user_or_ip_key, limiter
+from app.core.rate_limit import limiter
 from app.db.session import get_session
 from app.models.platform.user import SIGN_IN_STATUSES, User
 from app.models.platform.user_passkey import UserPasskey
@@ -188,7 +188,7 @@ async def list_passkeys(
 
 
 @router.post("/passkeys/register/begin", response_model=PasskeyRegistrationOptions)
-@limiter.limit("10/15minutes", key_func=get_user_or_ip_key)
+@limiter.limit("10/15minutes")
 async def begin_passkey_registration(
     request: Request,
     current_user: FactorExemptUser,
@@ -249,7 +249,7 @@ async def begin_passkey_registration(
     response_model=PasskeyRead,
     status_code=status.HTTP_201_CREATED,
 )
-@limiter.limit("10/15minutes", key_func=get_user_or_ip_key)
+@limiter.limit("10/15minutes")
 async def finish_passkey_registration(
     request: Request,
     current_user: FactorExemptUser,
@@ -324,7 +324,7 @@ async def finish_passkey_registration(
 
 
 @router.patch("/passkeys/{passkey_id}", response_model=PasskeyRead)
-@limiter.limit("30/15minutes", key_func=get_user_or_ip_key)
+@limiter.limit("30/15minutes")
 async def rename_passkey(
     request: Request,
     passkey_id: uuid.UUID,
@@ -351,7 +351,7 @@ async def rename_passkey(
 
 
 @router.post("/passkeys/{passkey_id}/remove", status_code=status.HTTP_204_NO_CONTENT)
-@limiter.limit("10/15minutes", key_func=get_user_or_ip_key)
+@limiter.limit("10/15minutes")
 async def remove_passkey(
     request: Request,
     passkey_id: uuid.UUID,
@@ -413,7 +413,6 @@ async def remove_passkey(
 )
 # Every load of a sign-in page on a browser that offers a passkey in its
 # autofill spends one of these, so the ceiling is well above the button's.
-@limiter.limit("60/15minutes")
 async def begin_passkey_sign_in(
     request: Request,
     session: SessionDep,
@@ -442,7 +441,6 @@ async def begin_passkey_sign_in(
 
 
 @router.post("/passkeys/authenticate/finish", response_model=PasskeySignInResult)
-@limiter.limit("10/15minutes")
 async def finish_passkey_sign_in(
     request: Request,
     response: Response,

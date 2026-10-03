@@ -17,7 +17,11 @@ handles the people step placed, the way it already does for a Jira mention:
   with no account, which the editor already draws.
 
 A mention of somebody whose account is gone (anonymized, or no longer
-readable) crosses as the name it was written with, and nothing else.
+readable) crosses as the name it was written with where it has one, and
+nothing else.
+
+A rendered export is read away from the app, so :func:`mention_namer` writes
+into it the name each mention reads as now.
 """
 
 from __future__ import annotations
@@ -29,16 +33,17 @@ from typing import TYPE_CHECKING, Any
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.identity_boundary import (
+    STORED_MENTION,
+    MentionForm,
+    without_mention_names,
+)
 from app.core.user_display import handle_of
 from app.models.platform.user import UserStatus
-from app.models.platform.user_profile_view import MemberProfile
+from app.models.platform.user_profile_view import GuildMember, MemberProfile
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from app.services.import_engine.people import PeopleMap
-
-#: ``@[Name](id)`` — the name as well as the id, because a mention nobody can
-#: name a handle for crosses as its name.
-_MARKDOWN_MENTION = re.compile(r"@\[([^\]]+)\]\((\d+)\)")
 
 #: The node types a person's mention is written as (``mention_parser``).
 _MENTION_NODES = ("mention", "custom-mention")
@@ -46,10 +51,13 @@ _MENTION_NODES = ("mention", "custom-mention")
 #: The placeholder an exported mention node carries in place of its account.
 MENTION_HANDLE = "mentionHandle"
 
+#: A mention of somebody an export could not name: no account, and no name.
+_NOBODY = "@[]()"
+
 
 def markdown_mention_ids(text: str | None) -> set[int]:
     """The accounts a markdown body mentions."""
-    return {int(match[1]) for match in _MARKDOWN_MENTION.findall(text or "")}
+    return {int(match[1]) for match in STORED_MENTION.findall(text or "")}
 
 
 def editor_mention_ids(content: Any) -> set[int]:
@@ -98,12 +106,14 @@ def detach_markdown_mentions(
     def detach(match: re.Match[str]) -> str:
         handle = handles.get(int(match.group(2)))
         if handle is None:
-            return f"@{match.group(1)}"
+            # One with no name stays a mention of nobody named, which reads as
+            # a former member wherever it is shown.
+            return f"@{match.group(1)}" if match.group(1) else _NOBODY
         if handle not in named:
             named.append(handle)
         return f"@{handle}"
 
-    return _MARKDOWN_MENTION.sub(detach, text), named
+    return STORED_MENTION.sub(detach, text), named
 
 
 def detach_editor_mentions(
@@ -137,11 +147,11 @@ def detach_editor_mentions(
 
 
 def place_mention_node(node: dict[str, Any], account: int | None) -> dict[str, Any]:
-    """An exported mention node, linked to ``account`` if somebody here was
-    placed on its handle and a name with no account if not."""
+    """An exported mention node, linked to ``account`` with no name if somebody
+    here was placed on its handle, and a name with no account if not."""
     placed = {k: v for k, v in node.items() if k != MENTION_HANDLE}
     placed["mentionUserId"] = account
-    return placed
+    return without_mention_names(placed, MentionForm.lexical)
 
 
 def place_editor_mentions(
@@ -254,3 +264,68 @@ async def detach_envelope_mentions(session: AsyncSession, data: Any) -> None:
 
 def _is_id(value: Any) -> bool:
     return isinstance(value, int) and not isinstance(value, bool)
+
+
+#: What a markdown mention's name may not hold.
+_LABEL_BREAKS = re.compile(r"[\]\n]")
+
+
+async def mention_namer(
+    session: AsyncSession, value: Any, *, missing: str
+) -> Callable[[Any], Any]:
+    """What writes into a rendered export the name each mention of somebody in
+    ``value`` reads as now: their name in the community, or ``missing`` for
+    somebody no longer in it. Markdown mentions and editor-state mention nodes
+    alike, at any depth, looked up once for all of ``value``. What it returns
+    is a copy, as the content inside is usually a loaded row's column."""
+    wanted: set[int] = set()
+
+    def collect(value: Any) -> None:
+        if isinstance(value, str):
+            wanted.update(int(user_id) for _, user_id in STORED_MENTION.findall(value))
+        elif isinstance(value, dict):
+            if _is_id(value.get("mentionUserId")):
+                wanted.add(value["mentionUserId"])
+            for child in value.values():
+                collect(child)
+        elif isinstance(value, list):
+            for child in value:
+                collect(child)
+
+    collect(value)
+    names: dict[int, str] = (
+        dict(
+            (
+                await session.exec(
+                    select(GuildMember.id, GuildMember.display_name).where(
+                        GuildMember.id.in_(wanted)
+                    )
+                )
+            ).all()
+        )
+        if wanted
+        else {}
+    )
+
+    def named(value: Any) -> Any:
+        if isinstance(value, str):
+            return STORED_MENTION.sub(
+                lambda match: (
+                    f"@[{_LABEL_BREAKS.sub('', names.get(int(match.group(2)), missing))}]"
+                    f"({match.group(2)})"
+                ),
+                value,
+            ).replace(_NOBODY, f"@{missing}")
+        if isinstance(value, list):
+            return [named(child) for child in value]
+        if not isinstance(value, dict):
+            return value
+        node = {key: named(child) for key, child in value.items()}
+        if _is_id(node.get("mentionUserId")):
+            name = names.get(node["mentionUserId"], missing)
+            node |= {"mentionName": name, "text": name}
+        elif node.get("type") in _MENTION_NODES and not node.get("mentionName"):
+            node |= {"mentionName": missing, "text": missing}
+        return node
+
+    return named

@@ -1,17 +1,14 @@
 from __future__ import annotations
 
+import re
+
 from datetime import datetime
 from typing import Any, List, Optional, TYPE_CHECKING
 
 from pydantic import ConfigDict, Field, model_validator
 
-from app.core.identity_boundary import (
-    MentionForm,
-    PersonId,
-    without_mention_names,
-    without_upload_paths,
-)
-from app.schemas.base import SanitizedBaseModel, TitleStr
+from app.core.identity_boundary import PersonId, with_mention_markup
+from app.schemas.base import MentionStr, SanitizedBaseModel, TitleStr
 from app.schemas.tenant.document import LexicalState
 from app.schemas.tenant.property import PropertiesOnCreate
 from app.schemas.query import PageMeta
@@ -127,7 +124,7 @@ class PostSummary(PostBase, ToolSummaryBase):
     #: The first line or so of the body as plain text. Derived on the way out,
     #: never stored — the body is the truth, and a stored copy would go stale
     #: the first time somebody edited it.
-    excerpt: str = ""
+    excerpt: MentionStr = ""
     pinned_at: Optional[datetime] = None
     pinned_by: Optional[PersonId] = None
     pin_expires_at: Optional[datetime] = None
@@ -335,20 +332,21 @@ def post_body_too_long(body: Any) -> bool:
     return len(json.dumps(clean).encode("utf-8")) > MAX_POST_BODY_BYTES
 
 
+#: A mention the excerpt's cut goes through.
+_CUT_MENTION = re.compile(r"@\[\]\(\d*$")
+
+
 def post_excerpt(body: Any, *, limit: int = EXCERPT_CHARS) -> str:
     """The first line or so of a post, for the surfaces that show one in a
-    line — recents, search, the guild table. A mention names nobody to an
-    installed app that does not read names, and a stored file's path is left
-    out for an installed app."""
-    joined = post_text(
-        without_upload_paths(without_mention_names(body, MentionForm.lexical))
-    )
+    line — recents, search, the guild table. A mention reads as its markdown,
+    ``@[](42)``, which the client names."""
+    joined = post_text(with_mention_markup(body))
     if len(joined) <= limit:
         return joined
     # Cut on a word boundary where there is one nearby, so the excerpt does not
-    # end mid-word.
+    # end mid-word, and leave out a mention the cut goes through.
     cut = joined[: limit - 1]
     space = cut.rfind(" ")
     if space > limit // 2:
         cut = cut[:space]
-    return cut + "…"
+    return _CUT_MENTION.sub("", cut) + "…"

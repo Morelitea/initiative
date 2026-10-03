@@ -26,7 +26,6 @@ from app.core.identity_boundary import (
     admit_install,
     boundary_scope,
     current_install_boundary,
-    without_upload_paths,
 )
 from app.core.messages import AppMessages
 from app.db.guild_standing import named_ref_candidates
@@ -246,12 +245,28 @@ class _Body(BaseModel):
     state: Annotated[dict[str, Any], LEXICAL_MENTIONS] = {}
 
 
-def _mention(person: int | str, name: str) -> dict[str, Any]:
+def _mention(person: int | str | None, name: str) -> dict[str, Any]:
     return {
         "type": "mention",
         "mentionUserId": person,
         "mentionName": name,
         "text": name,
+    }
+
+
+def test_a_person_s_mention_is_stored_by_id_with_no_name():
+    """A mention of somebody without an account keeps the name it has."""
+    body = _Body.model_validate(
+        {
+            "text": "@[Ada](11), @[Bo]() on #task[Fix it](3)",
+            "state": {
+                "root": {"children": [_mention(11, "Ada"), _mention(None, "Bo")]}
+            },
+        }
+    )
+    assert body.text == "@[](11), @[Bo]() on #task[Fix it](3)"
+    assert body.state == {
+        "root": {"children": [_mention(11, ""), _mention(None, "Bo")]}
     }
 
 
@@ -271,15 +286,15 @@ def _image(src: str) -> dict[str, Any]:
 
 
 def _shown(text: str, picture: str, file: str) -> dict[str, Any]:
-    """A body mentioning Ada, showing a stored picture and file, and a linked
-    picture from another site."""
+    """A body mentioning somebody, showing a stored picture and file, and a
+    linked picture from another site."""
     elsewhere = f"[![logo]({_ELSEWHERE})]({_ELSEWHERE})"
     return {
         "text": f"{text} ![chart]({picture}) [notes.pdf]({file}) {elsewhere}",
         "state": {
             "root": {
                 "children": [
-                    _mention(11, "Ada"),
+                    _mention(11, ""),
                     _image(picture),
                     {"type": "link", "url": file, "children": []},
                     _image(_ELSEWHERE),
@@ -289,49 +304,40 @@ def _shown(text: str, picture: str, file: str) -> dict[str, Any]:
     }
 
 
-def test_a_person_s_mentions_and_files_pass_through():
-    body = _shown("@[Ada](11) on #task[Fix it](3)", _PICTURE, _FILE)
+def test_a_person_s_stored_files_pass_through():
+    body = _shown("@[](11) on #task[Fix it](3)", _PICTURE, _FILE)
     assert _Body.model_validate(body).model_dump(mode="json") == body
 
 
-def test_an_install_s_mention_is_stored_with_initiative_s_name():
+def test_an_install_s_mention_is_stored_by_row_id():
     with boundary_scope():
-        admit_install(_boundary(labels={11: "Ada]"}))
+        admit_install(_boundary(members=frozenset({11})))
         body = _Body.model_validate(
             {
                 "text": f"@[anyone]({_PERSON_REF}) on #task[Fix it](3)",
                 "state": {"root": _mention(_PERSON_REF, "anyone")},
             }
         )
-    assert body.text == "@[Ada](11) on #task[Fix it](3)"
-    assert body.state == {"root": _mention(11, "Ada]")}
+    assert body.text == "@[](11) on #task[Fix it](3)"
+    assert body.state == {"root": _mention(11, "")}
 
 
 def test_an_install_reads_a_mention_and_no_stored_file_s_path(own_origin):
-    body = _Body.model_validate(_shown("@[Ada](11)", _PICTURE, _FILE))
+    body = _Body.model_validate(_shown("@[](11)", _PICTURE, _FILE))
     with boundary_scope():
-        boundary = _boundary(reads_names=True)
+        boundary = _boundary()
         admit_install(boundary)
         boundary.phase = BoundaryPhase.response
         dumped = body.model_dump(mode="json")
-    expected = _shown(f"@[Ada]({boundary.nonce}:u:11)", "", "")
+    expected = _shown(f"@[]({boundary.nonce}:u:11)", "", "")
     expected["state"]["root"]["children"][0]["mentionUserId"] = f"{boundary.nonce}:u:11"
     assert dumped == expected
-
-
-def test_derived_text_shows_an_install_no_stored_file_s_path(own_origin):
-    text = f"see {_PICTURE} and {_ELSEWHERE}"
-    assert without_upload_paths(text) == text
-    with boundary_scope():
-        admit_install(_boundary())
-        assert without_upload_paths(text) == f"see  and {_ELSEWHERE}"
-        assert without_upload_paths({"root": _image(_PICTURE)}) == {"root": _image("")}
 
 
 @pytest.mark.parametrize("named", ["11", "uapp_nobody-here", _GUILD_REF, _OTHER_REF])
 def test_a_mention_of_nobody_named_here_is_refused(named):
     with boundary_scope():
-        admit_install(_boundary(labels={11: "Ada"}))
+        admit_install(_boundary(members=frozenset({11})))
         for body in (
             {"text": f"@[Ada]({named})"},
             {"text": "", "state": {"root": _mention(named, "Ada")}},

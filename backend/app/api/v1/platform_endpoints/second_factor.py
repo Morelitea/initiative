@@ -23,7 +23,7 @@ from app.api.deps import (
 from app.core.audit_events import AuditEventType
 from app.core.login_methods import LoginMethod
 from app.core.messages import AuthMessages
-from app.core.rate_limit import get_user_or_ip_key, limiter
+from app.core.rate_limit import limiter
 from app.core.security import has_usable_password
 from app.api.v1.platform_endpoints.password_recheck import (
     password_confirms,
@@ -114,7 +114,7 @@ async def read_second_factor(
 
 
 @router.post("/totp/enroll", response_model=SecondFactorEnrolment)
-@limiter.limit("10/hour", key_func=get_user_or_ip_key)
+@limiter.limit("10/hour")
 async def begin_second_factor(
     request: Request,
     current_user: FactorExemptUser,
@@ -215,7 +215,7 @@ async def confirm_second_factor(
 
 
 @router.post("/totp/disable", status_code=status.HTTP_204_NO_CONTENT)
-@limiter.limit("10/15minutes", key_func=get_user_or_ip_key)
+@limiter.limit("10/15minutes")
 async def disable_second_factor(
     request: Request,
     current_user: CurrentUser,
@@ -284,7 +284,7 @@ async def disable_second_factor(
 
 
 @router.post("/step-up/totp", response_model=Token)
-@limiter.limit("10/15minutes", key_func=get_user_or_ip_key)
+@limiter.limit("10/15minutes")
 async def step_up_with_factor(
     request: Request,
     response: Response,
@@ -345,7 +345,7 @@ async def step_up_with_factor(
 
 
 @router.post("/recovery-codes/regenerate", response_model=RecoveryCodes)
-@limiter.limit("5/hour", key_func=get_user_or_ip_key)
+@limiter.limit("5/hour")
 async def regenerate_recovery_codes(
     request: Request,
     current_user: CurrentUser,

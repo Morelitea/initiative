@@ -2309,7 +2309,8 @@ export const useConfirmVerificationApiV1AuthVerificationConfirmPost = <
  * Send a reset link to the account an address reaches.
  *
  * Answered the same way for every address: whether mail can be sent at all is
- * asked before the address is looked up, and the letter is posted after the
+ * asked before the address is looked up, the address's mail allowance is
+ * taken whether or not anybody holds it, and the letter is posted after the
  * response.
  * @summary Request Password Reset
  */
@@ -4282,8 +4283,8 @@ export const useRecoverWithCodeApiV1AuthPasswordRecoverPost = <
  * Post a code to an address, and hand back the handle that names it.
  *
  * The captcha is answered before the address is resolved: it says something
- * about the request, not about the address, so it is the one refusal this
- * route makes.
+ * about the request, not about the address. Past it, the one refusal is the
+ * address's mail allowance, taken whether or not anybody holds the address.
  * @summary Send Sign In Code
  */
 export const sendSignInCodeApiV1AuthEmailOtpSendPost = (

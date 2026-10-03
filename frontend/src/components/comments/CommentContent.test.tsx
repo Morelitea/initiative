@@ -1,6 +1,6 @@
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { HttpResponse, http } from "msw";
+import { delay, HttpResponse, http } from "msw";
 import { describe, expect, it } from "vitest";
 
 import { buildUserSummary } from "@/__tests__/factories";
@@ -104,6 +104,65 @@ describe("CommentContent", () => {
     const { container } = renderResolvedContent("thanks @[Ada Lovelace](12)!", true);
 
     expect(await screen.findByText("@Ada King")).toBeInTheDocument();
+    expect(container.querySelector("a")).toBeNull();
+  });
+
+  it("names a person stored by id alone as who they are now", async () => {
+    answerWithPeople(
+      buildUserSummary({ id: 12, username: "ada", discriminator: 7, display_name: "Ada King" })
+    );
+
+    renderResolvedContent("thanks @[](12)!");
+
+    const link = await screen.findByRole("link", { name: "@Ada King" });
+    expect(link).toHaveAttribute("href", "/u/ada0007");
+  });
+
+  it("reads somebody the answer leaves out as a former member, whatever they were called", async () => {
+    // Gone from the community, or no account at all: either way the page
+    // cannot say who they are, and the name a mention was written with is
+    // not who they are now.
+    answerWithPeople();
+
+    const { container } = renderResolvedContent("thanks @[](12) and @[Ada Lovelace](13)!");
+
+    expect(await screen.findAllByText("@Former member")).toHaveLength(2);
+    expect(container.querySelector("a")).toBeNull();
+  });
+
+  it("holds a nameless mention's place until the answer arrives, without guessing", async () => {
+    server.use(
+      http.get("*/api/v1/c/:guildId/users/search", async () => {
+        await delay("infinite");
+        return HttpResponse.json({});
+      })
+    );
+
+    const { container } = renderResolvedContent("thanks @[](12) and @[Ada Lovelace](13)!");
+
+    // Older text still carries a name, which stands in meanwhile.
+    expect(await screen.findByText("@Ada Lovelace")).toBeInTheDocument();
+    expect(container).toHaveTextContent("thanks @… and @Ada Lovelace!");
+    expect(screen.queryByText(/Former member/)).not.toBeInTheDocument();
+  });
+
+  it("stops waiting once the lookup gives up, without guessing", async () => {
+    server.use(
+      http.get("*/api/v1/c/:guildId/users/search", () => HttpResponse.json({}, { status: 500 }))
+    );
+
+    renderResolvedContent("thanks @[](12)!");
+
+    expect(await screen.findByTitle("Couldn't load this name")).toHaveTextContent("…");
+    expect(screen.queryByText(/Former member/)).not.toBeInTheDocument();
+  });
+
+  it("keeps the name of somebody with no account, who has nothing else to go by", () => {
+    // One an export could not name has neither, and reads as a former member.
+    const { container } = renderContent("thanks @[Ada Lovelace]() and @[]()!");
+
+    expect(screen.getByText("@Ada Lovelace")).toBeInTheDocument();
+    expect(screen.getByText("@Former member")).toBeInTheDocument();
     expect(container.querySelector("a")).toBeNull();
   });
 

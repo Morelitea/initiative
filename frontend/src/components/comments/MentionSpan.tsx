@@ -20,8 +20,8 @@ type SpanProps = ComponentPropsWithoutRef<"span"> & { node?: unknown };
  *
  *  Shared by everything that renders markdown with mentions in it — a comment,
  *  a task's description — so a mention is the same chip wherever it is
- *  written. Current names come from the nearest `CommentReferences`; without
- *  one, a mention shows the words it was written with. */
+ *  written. Current names come from the nearest `CommentReferences`, so every
+ *  surface that renders mentions sits under one. */
 const buildMentionSpan = (linked: boolean) =>
   function MentionSpan({ children, node: _node, ...props }: SpanProps) {
     const { t } = useTranslation(["comments", "search"]);

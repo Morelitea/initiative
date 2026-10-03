@@ -24,11 +24,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core import recurrence
 from app.core.messages import CalendarEventMessages, QueryMessages
-from app.core.identity_boundary import (
-    MentionForm,
-    without_mention_names,
-    without_upload_paths,
-)
+from app.core.identity_boundary import STORED_MENTION
 from app.core.references import TEXT_REFERENCE, kind_for_trigger
 from app.core.relationships import RelationshipType
 from app.core.search import SearchEntityType
@@ -346,6 +342,10 @@ _UNFINISHED_LINK = re.compile(r"(?:[!@]|#[\w-]+)?\[[^\]]*(?:\]\([^)]*)?$")
 #: The task box GFM puts at the start of a checklist item.
 _TASK_BOX = re.compile(r"^\[[ xX]\]\s+")
 
+#: A mention held through the parse as a word of its own, its id between two
+#: private-use characters, and the end of one the excerpt's cut goes through.
+_HELD_MENTION = re.compile("\ue000(\\d*)(\ue001)?")
+
 
 def _description_excerpt(head: str | None) -> str | None:
     """A list row's plain-text excerpt of a description, from its head.
@@ -354,19 +354,17 @@ def _description_excerpt(head: str | None) -> str | None:
     the markdown; one past the source length means the description goes on, so
     the excerpt is cut even when the text read so far is short. The excerpt is
     the text of each block's inline content: pictures, HTML and code blocks
-    drop out, a link or a mention keeps the words it shows. A mention names
-    nobody to an installed app that does not read names, and a stored file's
-    path is left out for an installed app.
+    drop out, a link keeps the words it shows, and a mention of somebody stays
+    its markdown, ``@[](42)``, which the client names.
     """
     if not head:
         return None
     source_cut = len(head) > _DESCRIPTION_SOURCE_CHARS
-    source = without_upload_paths(
-        without_mention_names(head[:_DESCRIPTION_SOURCE_CHARS], MentionForm.markdown)
-    )
+    source = head[:_DESCRIPTION_SOURCE_CHARS]
     if source_cut:
         # A link, picture or mention the cut goes through is left out whole.
         source = _UNFINISHED_LINK.sub("", source)
+    source = STORED_MENTION.sub(lambda m: f"\ue000{m.group(2)}\ue001", source)
     source = TEXT_REFERENCE.sub(
         lambda m: m.group(2) if kind_for_trigger(m.group(1)) else m.group(0), source
     )
@@ -382,14 +380,23 @@ def _description_excerpt(head: str | None) -> str | None:
         words.append(" ")
     text = " ".join("".join(words).split())
     if not source_cut and len(text) <= _DESCRIPTION_EXCERPT_CHARS:
-        return text or None
+        return _released(text) or None
     # Leave room for the ellipsis, and end on a whole word: unless the cut
     # falls before a space, drop what follows the last one, which is part of a
     # word or, where the source was cut, of a piece of markup.
     cut = text[: _DESCRIPTION_EXCERPT_CHARS - 1]
     if not text[len(cut) :].startswith(" "):
         cut = cut.rpartition(" ")[0] or cut
-    return cut.rstrip() + "…" if cut else None
+    cut = _released(cut).rstrip()
+    return cut + "…" if cut else None
+
+
+def _released(text: str) -> str:
+    """``text`` with each held mention written back as its markdown, and one
+    the cut went through left out."""
+    return _HELD_MENTION.sub(
+        lambda m: f"@[]({m.group(1)})" if m.group(2) and m.group(1) else "", text
+    )
 
 
 def _task_to_list_read(

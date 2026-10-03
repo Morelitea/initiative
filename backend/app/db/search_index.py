@@ -17,7 +17,6 @@ path that gives a long document several.
 from __future__ import annotations
 
 import hashlib
-import re
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 
@@ -42,22 +41,6 @@ MAX_CHUNKS = 2000
 
 #: How much of a comment stands in for its title.
 COMMENT_PREVIEW_CHARS = 140
-
-#: What a cut preview can end inside: a mention or reference, a markdown
-#: picture or link, or a stored file's address, none of them finished.
-_UNFINISHED_TAIL = re.compile(
-    r"(?:(?:[@!]|#\w+)?\[[^\]\n]*(?:\]\([^)\n]*)?|\S*/uploads/\S*)$"
-)
-
-
-def comment_preview_title(preview: str) -> str:
-    """A comment's preview as its title. When the preview was cut, it ends
-    before a mention, picture, link or stored file's address the cut went
-    through, so none is left half-written."""
-    if len(preview) < COMMENT_PREVIEW_CHARS:
-        return preview
-    return _UNFINISHED_TAIL.sub("", preview).rstrip()
-
 
 #: What an entry holds for each person its body mentions: this and their id, as
 #: a word of its own. The parser never starts a word with it, so nothing typed
@@ -228,14 +211,27 @@ def _task_text(row: str) -> str:
     return f"coalesce({row}.description, '') || ' ' || {lines}"
 
 
+#: What a cut preview can end inside, with the space before it: a mention or
+#: reference, a markdown picture or link, or a stored file's address.
+_UNFINISHED_TAIL = (
+    r"\s*(?:(?:[@!]|#\w+)?\[[^\]\n]*(?:\](?:\([^)\n]*)?)?|\S*/uploads/\S*)$"
+)
+
+
 def _comment_preview(row: str) -> str:
     """The opening of a comment, as the line a result is shown by.
 
     A comment has no title. Storing the whole of one would put an essay where a
     name goes; the full text is still indexed as the body, so what matched is
-    findable either way.
+    findable either way. A mention, reference, picture or link, or a stored
+    file's address, that the cut goes through is left out whole.
     """
-    return f"left({row}.content, {COMMENT_PREVIEW_CHARS})"
+    content = f"{row}.content"
+    return (
+        f"CASE WHEN length({content}) > {COMMENT_PREVIEW_CHARS} THEN"
+        f" regexp_replace(left({content}, {COMMENT_PREVIEW_CHARS}), '{_UNFINISHED_TAIL}', '')"
+        f" ELSE {content} END"
+    )
 
 
 def _comment_dac(row: str) -> tuple[str, str]:

@@ -41,17 +41,17 @@ _SECURITY_SCHEME = "AppToken"
 #: What a field that mentions people says about them, by its ``x-mentions``.
 _MENTIONS = {
     MentionForm.markdown.value: (
-        "A person is mentioned as `@[Name](<reference>)`, by your reference for "
-        "them. The name is empty without `members:read`. Write "
-        "`@[](<reference>)`: the person's name is filled in. A stored file "
-        "comes without its path: `![alt]()`, `[name]()`."
+        "A person is mentioned as `@[](<reference>)`, by your reference for "
+        "them, with no name: read who they are from the members search "
+        "(`members:read`). Write a mention the same way. A stored file comes "
+        "without its path: `![alt]()`, `[name]()`."
     ),
     MentionForm.lexical.value: (
         "A Lexical editor state. A person is mentioned by a node whose "
-        "`mentionUserId` is your reference for them; its `mentionName` and "
-        "`text` are empty without `members:read`, and filled in when you write "
-        "one. A stored file comes without its path: an image's `src` and a "
-        "link's `url` are empty."
+        "`mentionUserId` is your reference for them, with `mentionName` and "
+        "`text` empty: read who they are from the members search "
+        "(`members:read`). Write a mention the same way. A stored file comes "
+        "without its path: an image's `src` and a link's `url` are empty."
     ),
 }
 

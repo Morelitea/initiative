@@ -43,7 +43,6 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, fields, replace
-from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any, Optional, Sequence
 
 from app.core.app_scopes import (
@@ -53,7 +52,6 @@ from app.core.app_scopes import (
     InstallLevel,
 )
 from app.core.tools import Tool
-from app.core.user_display import display_name
 from app.db import gucs
 from app.db.authorization import LIVE_GRANT, sql_values
 from app.models.platform.access_grant import AccessGrantPurpose, AccessLevel
@@ -427,10 +425,10 @@ _INSTALL_STANDING: dict[gucs.Guc, str] = {
 #: own sector (``purpose = 'app'``, the routed community and the routed
 #: install): ``guild_ref``, its live reference for the community, and
 #: ``named_refs``, the references in ``:named_refs`` that name somebody there,
-#: as ``{ref: [entity_type, entity_id, username, discriminator,
-#: display_name]}``. The last three are a person's member profile in the
-#: community, which a mention the request writes is stored with; empty for a
-#: community, and for somebody who is not a member. A replaced reference still
+#: as ``{ref: [entity_type, entity_id, member]}``, where ``member`` says
+#: whether a person is a member of the community — the profiles an install
+#: reads are its members' — which is who a mention the request writes may
+#: name. A replaced reference still
 #: resolves for its grace window, as ``identity_refs.resolve_ref`` has it. The
 #: array chooses which rows are looked up; the sector is the routing's.
 INSTALL_STANDING_SQL = f"""
@@ -586,12 +584,13 @@ SELECT
       SELECT jsonb_object_agg(
         r.ref,
         jsonb_build_array(
-          r.entity_type, r.entity_id, p.username, p.discriminator, p.display_name
+          r.entity_type, r.entity_id,
+          r.entity_type = '{IdentityEntity.user.value}' AND EXISTS (
+            SELECT 1 FROM public.guild_member_profiles p WHERE p.id = r.entity_id
+          )
         )
       )
       FROM public.identity_refs r
-      LEFT JOIN public.guild_member_profiles p
-        ON r.entity_type = '{IdentityEntity.user.value}' AND p.id = r.entity_id
       WHERE r.ref = ANY(CAST(:named_refs AS text[]))
         AND {_IN_INSTALL_SECTOR}
         AND (r.retired_at IS NULL OR r.retired_at > now() - {_GRACE_INTERVAL})
@@ -903,9 +902,8 @@ class InstallContext:
     #: sector, as ``(ref, entity_type, entity_id)``. For this request only:
     #: the replay writes the standing, and names nobody.
     named_refs: tuple[tuple[str, str, int], ...] = ()
-    #: What Initiative calls each member those references name, in the
-    #: community, as ``(user_id, name)``.
-    named_labels: tuple[tuple[int, str], ...] = ()
+    #: The members of the community among the people those references name.
+    named_members: frozenset[int] = frozenset()
 
     @property
     def guild_auth_ok(self) -> bool:
@@ -981,7 +979,7 @@ class InstallContext:
             live=bool(row.get("live")),
             guild_ref=row.get("guild_ref") or None,
             named_refs=_named_refs(row.get("named_refs")),
-            named_labels=_named_labels(row.get("named_refs")),
+            named_members=_named_members(row.get("named_refs")),
         )
 
 
@@ -1008,18 +1006,11 @@ def _named_refs(value: Any) -> tuple[tuple[str, str, int], ...]:
     )
 
 
-def _named_labels(value: Any) -> tuple[tuple[int, str], ...]:
-    """What Initiative calls each member the ``named_refs`` column names."""
-    labels = set()
-    for entity_type, entity_id, *profile in _named(value).values():
-        if entity_type != IdentityEntity.user.value or profile[0] is None:
-            continue
-        username, discriminator, name = profile
-        person = SimpleNamespace(
-            username=username, discriminator=discriminator, display_name=name
-        )
-        labels.add((int(entity_id), display_name(person)))
-    return tuple(sorted(labels))
+def _named_members(value: Any) -> frozenset[int]:
+    """The members of the community the ``named_refs`` column names."""
+    return frozenset(
+        int(entity_id) for _, entity_id, member in _named(value).values() if member
+    )
 
 
 def standing_values(

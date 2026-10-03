@@ -8,7 +8,7 @@
 
 import { Link } from "@tanstack/react-router";
 import { MessageSquare } from "lucide-react";
-import { useLayoutEffect, useRef, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
@@ -17,6 +17,7 @@ import {
   Tool,
 } from "@/api/generated/initiativeAPI.schemas";
 import { CommentContent } from "@/components/comments/CommentContent";
+import { CommentReferences } from "@/components/comments/CommentReferences";
 import { ReactionBar } from "@/components/reactions/ReactionBar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -172,6 +173,7 @@ const CommentEntry = ({ entry }: { entry: RecentActivityEntry }) => {
 export const GuildRecentComments = () => {
   const { t } = useTranslation(["guildHome", "comments"]);
   const { data: comments, isLoading, isError } = useRecentComments(RECENT_COMMENTS_PARAMS);
+  const contents = useMemo(() => (comments ?? []).map((entry) => entry.content), [comments]);
 
   return (
     <Card>
@@ -202,11 +204,14 @@ export const GuildRecentComments = () => {
             </div>
           </div>
         ) : (
-          <div className="space-y-4">
-            {comments.map((entry) => (
-              <CommentEntry key={entry.comment_id} entry={entry} />
-            ))}
-          </div>
+          // What the comments mention is read for the whole strip at once.
+          <CommentReferences contents={contents}>
+            <div className="space-y-4">
+              {comments.map((entry) => (
+                <CommentEntry key={entry.comment_id} entry={entry} />
+              ))}
+            </div>
+          </CommentReferences>
         )}
       </CardContent>
     </Card>

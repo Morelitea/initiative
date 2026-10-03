@@ -34,10 +34,7 @@ from app.db.session import set_rls_context
 from app.core.config import API_V1_STR, is_device, settings
 from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core import auth_context
-from app.core.rate_limit import (
-    get_inet_client_ip,
-    limiter,
-)
+from app.core.rate_limit import MAIL_SENDS, get_inet_client_ip, limiter
 from app.core.encryption import (
     decrypt_field,
     SALT_OIDC_CLIENT_SECRET,
@@ -52,6 +49,7 @@ from app.core.messages import (
 from app.core.password_policy import enforce_password_policy
 from app.core import usernames
 from app.core.usernames import UsernameError
+from app.core.identify import identify
 from app.core.security import (
     REFRESH_COOKIE_NAME,
     create_handle_offer,
@@ -247,7 +245,6 @@ class RegisteredAccount:
 
 
 @router.post("/register", response_model=UserRead, status_code=status.HTTP_201_CREATED)
-@limiter.limit("5/15minutes")
 async def register_user(
     request: Request,
     user_in: UserCreate,
@@ -633,7 +630,6 @@ async def _passkey_sign_up_allowed(session: AsyncSession) -> None:
 
 
 @router.post("/register/passkey/begin", response_model=PasskeyRegistrationOptions)
-@limiter.limit("5/15minutes")
 async def begin_passkey_sign_up(
     request: Request,
     payload: PasskeySignUpStart,
@@ -680,7 +676,6 @@ async def begin_passkey_sign_up(
     response_model=PasskeySignUpResult,
     status_code=status.HTTP_201_CREATED,
 )
-@limiter.limit("5/15minutes")
 async def finish_passkey_sign_up(
     request: Request,
     response: Response,
@@ -930,7 +925,6 @@ async def answer_second_factor(
 
 
 @router.post("/refresh", response_model=Token)
-@limiter.limit("60/minute")
 async def refresh_access_token(
     request: Request,
     response: Response,
@@ -1024,7 +1018,6 @@ async def refresh_access_token(
 
 
 @router.get("/username-suggestions", response_model=UsernameSuggestionsResponse)
-@limiter.limit("30/minute")
 async def suggest_usernames(
     request: Request,
     session: SystemSessionDep,
@@ -1041,7 +1034,6 @@ async def suggest_usernames(
 
 
 @router.get("/username-available", response_model=UsernameAvailabilityResponse)
-@limiter.limit("60/minute")
 async def check_username_available(
     request: Request,
     session: SystemSessionDep,
@@ -1186,6 +1178,11 @@ async def issue_upload_token(
     token is accepted only by the uploads/download routes and is useless as a
     general API credential.
     """
+    # No longer than the session that asked for it: its access token is minted
+    # no longer-lived than the session row, so ending with the access token
+    # ends no later than the session. An API key has no session to end with.
+    identified = identify(request)
+    session_exp = identified.session.exp if identified and identified.session else None
     # Copy the minting session's satisfied-provider set into the scoped token
     # so media loads and the collaboration handover pass a policy-gated guild
     # exactly when the session itself would.
@@ -1194,12 +1191,16 @@ async def issue_upload_token(
         satisfied_providers=sorted(auth_context.satisfied_providers()),
         satisfied_claims=auth_context.satisfied_claims(),
         session_amr=auth_context.session_amr(),
+        not_after=(
+            datetime.fromtimestamp(session_exp, timezone.utc)
+            if session_exp is not None
+            else None
+        ),
     )
     return UploadTokenResponse(upload_token=token, expires_in=expires_in)
 
 
 @router.post("/native/token", response_model=Token)
-@limiter.limit("20/15minutes")
 async def redeem_native_sign_in(
     request: Request,
     system_session: SystemSessionDep,
@@ -1515,7 +1516,6 @@ async def list_guild_login_providers(
 
 
 @router.get("/{provider_slug}/login")
-@limiter.limit("20/minute")
 async def provider_login(
     request: Request,
     session: SessionDep,
@@ -1909,7 +1909,6 @@ async def _complete_provider_login(
 
 
 @router.get("/{provider_slug}/callback")
-@limiter.limit("20/minute")
 async def provider_callback(
     request: Request,
     session: SessionDep,
@@ -1928,7 +1927,6 @@ async def provider_callback(
 
 
 @router.post("/verification/confirm", response_model=VerificationSendResponse)
-@limiter.limit("5/15minutes")
 async def confirm_verification(
     request: Request,
     system_session: SystemSessionDep,
@@ -2032,7 +2030,6 @@ async def _post_reset_letter(user_id: int, token: str) -> None:
 
 
 @router.post("/password/forgot", response_model=VerificationSendResponse)
-@limiter.limit("5/15minutes")
 async def request_password_reset(
     request: Request,
     payload: PasswordResetRequest,
@@ -2043,7 +2040,8 @@ async def request_password_reset(
     """Send a reset link to the account an address reaches.
 
     Answered the same way for every address: whether mail can be sent at all is
-    asked before the address is looked up, and the letter is posted after the
+    asked before the address is looked up, the address's mail allowance is
+    taken whether or not anybody holds it, and the letter is posted after the
     response.
     """
     await require_login_method(session, LoginMethod.password)
@@ -2052,7 +2050,12 @@ async def request_password_reset(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=AuthMessages.SMTP_NOT_CONFIGURED,
         )
-    normalized_email = payload.email.lower().strip()
+    normalized_email = addresses.normalize(payload.email)
+    if not await MAIL_SENDS.take(normalized_email):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=AuthMessages.RATE_LIMITED,
+        )
     # Held, not necessarily confirmed: an account that never confirmed the
     # address it signed up with is exactly the one a reset has to reach.
     user = await addresses.account_holding(system_session, normalized_email)
@@ -2068,7 +2071,6 @@ async def request_password_reset(
 
 
 @router.post("/password/reset", response_model=VerificationSendResponse)
-@limiter.limit("5/15minutes")
 async def reset_password(
     request: Request,
     payload: PasswordResetSubmit,

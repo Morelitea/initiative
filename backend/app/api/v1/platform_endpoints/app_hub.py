@@ -28,13 +28,9 @@ from app.api.deps import (
     SystemSessionDep,
 )
 from app.core import audit_context
-from app.core.app_access_token import (
-    AccessTokenError,
-    InstallAccessToken,
-    is_access_token,
-    unseal_access_token,
-)
+from app.core.app_access_token import InstallAccessToken
 from app.core.audit_events import AuditEventType
+from app.core.identify import bearer_app_token
 from app.core.messages import AppDataMessages, AuthMessages
 from app.core.rate_limit import (
     APP_HUB_CALLS_PER_INSTALL,
@@ -69,6 +65,7 @@ def _refuse() -> HTTPException:
 async def hub_caller(
     request: Request,
     session: SessionDep,
+    # Declares the scheme for the API description; read by ``bearer_app_token``.
     bearer: Annotated[Optional[str], Depends(oauth2_scheme)] = None,
 ) -> hub_service.HubCaller:
     """The app the request's installation or member token names, or 401.
@@ -78,12 +75,7 @@ async def hub_caller(
     still belongs and still consents. The request's own session is left
     unrouted afterwards; the call runs on the system engine.
     """
-    if not bearer or not is_access_token(bearer):
-        raise _refuse()
-    try:
-        token = unseal_access_token(bearer)
-    except AccessTokenError as exc:
-        raise _refuse() from exc
+    token = bearer_app_token(request)
     if not isinstance(token, InstallAccessToken):
         raise _refuse()
     try:

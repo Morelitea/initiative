@@ -248,8 +248,10 @@ async def test_comments_are_reached_by_asking_for_them(
     which is what the results page's own tab does."""
     a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
     task = await create_task(session, a.project, title="stage build")
+    # Its opening is its title, which leaves out a mention the cut goes through.
+    opening = "the vendor confirmed the platform " + "." * 101 + " "
     await create_comment(
-        session, a.user, task=task, content="the vendor confirmed the platform"
+        session, a.user, task=task, content=f"{opening}@[]({a.user.id}) done"
     )
 
     unasked = await client.get(
@@ -269,6 +271,7 @@ async def test_comments_are_reached_by_asking_for_them(
     # It names the project, because that is where a comment on a task is read.
     assert items[0]["tool"] == "project"
     assert items[0]["tool_id"] == a.project.id
+    assert items[0]["title"] == opening
 
 
 async def test_suggest_narrows_to_the_types_it_is_given(

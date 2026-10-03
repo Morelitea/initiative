@@ -23,6 +23,7 @@ import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { TOOL_HOOKS } from "@/hooks/toolHooks";
 import type { ToolPaletteListOptions } from "@/hooks/useToolPaletteList";
 import { useToolPaletteList } from "@/hooks/useToolPaletteList";
+import { USER_MENTION_PATTERN } from "@/lib/commentReferences";
 import { getDocumentIcon, getDocumentIconColor } from "@/lib/fileUtils";
 import { TOOLS, toolCamelPlural, toolDetailRoute } from "@/lib/tools";
 import { cn } from "@/lib/utils";
@@ -166,7 +167,8 @@ export const TOOL_PALETTE: Record<Tool, ToolPaletteSource> = {
       return (query.data?.items ?? []).map((post) => ({
         id: post.id,
         label: post.name,
-        keywords: [post.excerpt],
+        // What it says, not the markup of who it mentions.
+        keywords: [post.excerpt.replace(USER_MENTION_PATTERN, " ")],
         icon: null,
         path: toolDetailRoute(Tool.post, post.initiative_id, post.id),
       }));
