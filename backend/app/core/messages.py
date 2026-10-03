@@ -76,6 +76,8 @@ class AuthMessages:
     EMAIL_OTP_INVALID = "EMAIL_OTP_INVALID"
     #: A code was asked for while the deployment cannot send mail.
     EMAIL_OTP_CANNOT_SEND = "EMAIL_OTP_CANNOT_SEND"
+    #: An address has been sent as many letters as it may be in this window.
+    RATE_LIMITED = "RATE_LIMITED"
     #: A code confirming the session was asked for, and the account has proved
     #: no address to send it to.
     EMAIL_OTP_NO_PROVED_ADDRESS = "EMAIL_OTP_NO_PROVED_ADDRESS"

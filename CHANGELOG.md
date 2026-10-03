@@ -43,6 +43,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The app opens faster.** The sign-in page loads less than half the code it used to, in 30 files rather than nearly 170, and the rest of the app loads as you reach it.
 - **Documentation and Ask for help are two buttons now.** The question mark at the foot of the sidebar always opens the documentation. **Ask for help**, the lifebuoy beside it, shows wherever there is somebody to ask: the form in a community that takes help requests, or else your server's support address. The "Something is wrong" notice offers the address too.
 - **App and API integrations:** help requests and reports are filed with `POST /me/tickets`, which takes a `stream` of `support` or `moderation`, and `GET /me/tickets/availability` says what each kind offers. `POST /me/reports` and `/c/{id}/support` have been removed. Comments report `audience` and `system_kind`.
+- **People sharing a network no longer share a rate limit.** Requests are counted per signed-in account, so an office behind one address gets an allowance each. Sign-in codes and password reset emails are limited per email address, five every 15 minutes, rather than per network. Loading the app's own pages and scripts no longer counts at all.
 
 ### Fixed
 
