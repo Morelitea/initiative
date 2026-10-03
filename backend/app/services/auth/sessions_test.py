@@ -8,10 +8,14 @@ detection behaviour the refresh endpoint will depend on.
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import uuid
 from datetime import datetime, timedelta, timezone
 
+
+from sqlalchemy.ext.asyncio import async_sessionmaker
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.auth_session import AuthSession
 from app.services.auth import sessions as session_service
@@ -253,16 +257,26 @@ async def test_revoke_all_for_user_scoped_to_that_user(session):
         session, user_id=other.id, amr=["pwd"], satisfied_providers=[], now=_at()
     )
 
+    # The sign-in asking is spared, renewals of it included.
+    kept = await session_service.create_session(
+        session, user_id=user.id, amr=["pwd"], satisfied_providers=[], now=_at()
+    )
+    kept_renewal = await _rotate_ok(session, kept.refresh_token, _at(minutes=1))
+
     revoked = await session_service.revoke_all_for_user(
-        session, user_id=user.id, now=_at(minutes=1)
+        session,
+        user_id=user.id,
+        now=_at(minutes=1),
+        except_session_id=str(kept.session.id),
     )
     assert set(revoked) == {a.session.id, b.session.id}
 
     for issued in (a, b):
         await session.refresh(issued.session)
         assert issued.session.revoked_at == _at(minutes=1)
-    await session.refresh(c.session)
-    assert c.session.revoked_at is None
+    for spared in (c, kept_renewal):
+        await session.refresh(spared.session)
+        assert spared.session.revoked_at is None
 
 
 async def test_revoke_chain_from_any_member_revokes_all(session):
@@ -283,6 +297,41 @@ async def test_revoke_chain_from_any_member_revokes_all(session):
     for issued in (r1, r2, r3):
         await session.refresh(issued.session)
         assert issued.session.revoked_at is not None
+
+
+async def test_revoke_chain_takes_a_renewal_committed_while_it_ran(session, engine):
+    """A renewal that had claimed the live row before the revocation began holds
+    it until it commits. The revocation waits for it, and the row the renewal
+    opened is ended too rather than left live."""
+    user = await create_user(session)
+    first = await session_service.create_session(
+        session, user_id=user.id, amr=["pwd"], satisfied_providers=[]
+    )
+    await session.commit()
+    maker = async_sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
+
+    async with maker() as renewing, maker() as revoking:
+        renewed = await session_service.rotate_session(
+            renewing, raw_refresh_token=first.refresh_token
+        )
+        assert renewed.ok and renewed.issued is not None
+
+        async def revoke() -> set[uuid.UUID]:
+            ended = await session_service.revoke_chain(
+                revoking, session_id=first.session.id
+            )
+            await revoking.commit()
+            return ended
+
+        revocation = asyncio.create_task(revoke())
+        await asyncio.sleep(0.3)  # long enough for it to be waiting on the row
+        await renewing.commit()
+        ended = await revocation
+
+    child = renewed.issued.session.id
+    assert ended == {child}
+    stored = await session.get(AuthSession, child, populate_existing=True)
+    assert stored is not None and stored.revoked_at is not None
 
 
 async def test_revoke_chain_missing_id_is_noop(session):
