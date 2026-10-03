@@ -34,13 +34,18 @@ export const ServerChip = () => {
 };
 
 /**
- * Where signing in or up in the app goes, inside its card. A self-hosted
+ * Where signing in or up goes, inside its card. In the app a self-hosted
  * server takes an address, which the app keeps for next time. A browser is
- * on its server already, so this shows nothing there.
+ * on its server already, so there it is the chip.
  */
 export const ServerPicker = ({ className }: { className?: string }) => {
   const { isNativePlatform } = useServer();
-  return isNativePlatform ? <AppServerPicker className={className} /> : null;
+  if (isNativePlatform) return <AppServerPicker className={className} />;
+  return (
+    <div className={className}>
+      <ServerChip />
+    </div>
+  );
 };
 
 const AppServerPicker = ({ className }: { className?: string }) => {

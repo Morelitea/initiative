@@ -3,16 +3,15 @@ import { useTranslation } from "react-i18next";
 
 import { ServerChip } from "@/components/auth/ServerChoice";
 import { LogoIcon } from "@/components/LogoIcon";
-import { useServer } from "@/hooks/useServer";
 import { cn } from "@/lib/utils";
 
 /**
  * The ground every signed-out card sits on: the hex backdrop, the wordmark,
  * and under the card, the server the sign-in goes to.
  *
- * `pickServer` says the card holds a `ServerPicker`, where the app signs in
- * or up, so the frame leaves the server to it there. Everywhere else, and in
- * a browser, the frame shows the server as a chip.
+ * `pickServer` says the card holds a `ServerPicker`, where signing in or up
+ * happens, so the frame leaves the server to it. Everywhere else the frame
+ * shows the server as a chip.
  *
  * `fillPhone` drops the margin and the wordmark below `sm`, for a card that
  * takes the whole screen on a phone.
@@ -27,7 +26,6 @@ export const SignInFrame = ({
   pickServer?: boolean;
 }) => {
   const { t } = useTranslation("common");
-  const { isNativePlatform } = useServer();
   const isDark = document.documentElement.classList.contains("dark");
 
   return (
@@ -55,7 +53,7 @@ export const SignInFrame = ({
           <span className="pride-wordmark">{t("appName")}</span>
         </div>
         {children}
-        {pickServer && isNativePlatform ? null : <ServerChip />}
+        {pickServer ? null : <ServerChip />}
       </div>
     </div>
   );

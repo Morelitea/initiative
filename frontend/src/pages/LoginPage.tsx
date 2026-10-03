@@ -65,7 +65,7 @@ export const LoginPage = () => {
       <SignInFrame pickServer>
         <Card className="w-full max-w-md shadow-lg">
           <CardHeader>
-            <CardTitle>{t("server.title")}</CardTitle>
+            <CardTitle>{t("server.label")}</CardTitle>
           </CardHeader>
           <CardContent>
             <ServerPicker />

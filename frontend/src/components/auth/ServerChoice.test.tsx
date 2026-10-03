@@ -33,9 +33,10 @@ describe("ServerChip", () => {
 });
 
 describe("ServerPicker", () => {
-  it("shows nothing in a browser, which is on its server already", () => {
+  it("shows a browser the chip, since it is on its server already", () => {
     renderWithProviders(<ServerPicker />, { server: { isNativePlatform: false } });
 
+    expect(screen.getByText(/^self-hosted$/i)).toBeInTheDocument();
     expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
   });
 
