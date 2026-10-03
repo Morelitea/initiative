@@ -18,11 +18,22 @@ import {
   syncLexicalUpdateToYjs,
   syncYjsChangesToLexical,
 } from "@lexical/yjs";
-import { $createParagraphNode, $getRoot, type LexicalEditor } from "lexical";
+import {
+  $createParagraphNode,
+  $getRoot,
+  $isElementNode,
+  $isTextNode,
+  $parseSerializedNode,
+  type ElementNode,
+  type LexicalEditor,
+  type LexicalNode,
+  type SerializedLexicalNode,
+} from "lexical";
 import {
   applyUpdate,
   Doc,
   encodeStateAsUpdate,
+  encodeStateVector,
   type Transaction,
   type YEvent,
   type Text as YText,
@@ -122,14 +133,192 @@ function bootstrap(json: string | null, clientId: number): string {
   });
 }
 
+function load(editor: LexicalEditor, doc: Doc, state: string) {
+  applyUpdate(doc, fromHex(state), { isUpdateRemote: true });
+  editor.update(() => {}, { discrete: true });
+}
+
 /** The editor JSON a Yjs state reads as. Nothing it does is kept. */
 function render(state: string): string {
   return withEditor(null, (editor, doc) => {
-    applyUpdate(doc, fromHex(state), { isUpdateRemote: true });
-    editor.update(() => {}, { discrete: true });
+    load(editor, doc, state);
     modernize(editor);
     return JSON.stringify(editor.getEditorState().toJSON());
   });
 }
 
-(globalThis as { serverEditor?: unknown }).serverEditor = { bootstrap, render };
+type Serialized = SerializedLexicalNode & { children?: Serialized[]; text?: string };
+
+/** A node as a comparison sees it: its JSON with keys in order, without
+ *  default values, which a parsed node leaves out and a node read from Yjs
+ *  spells out, and without `direction`, which the browser works out as it
+ *  draws the text and the server, drawing nothing, never does. */
+const keyOf = (node: Serialized, without?: "children" | "text") =>
+  JSON.stringify(node, (key, value) => {
+    if (
+      key !== "" &&
+      (key === without ||
+        key === "direction" ||
+        value === 0 ||
+        value === "" ||
+        value === null ||
+        value === false ||
+        value === "normal")
+    ) {
+      return undefined;
+    }
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      return Object.fromEntries(Object.entries(value).sort(([a], [b]) => (a < b ? -1 : 1)));
+    }
+    return value;
+  });
+
+/** Past this many pairs to compare, the changed middle of a run is matched
+ *  by position rather than searched for blocks that moved. */
+const MATCH_LIMIT = 1_000_000;
+
+/** Pairs `[i, j]` of equal keys in `was` and `next`, in order, as many as
+ *  there can be: the children a change kept, wherever they now sit. The
+ *  unchanged ends are paired first, so only what lies between them is
+ *  searched. */
+function unchangedPairs(was: string[], next: string[]): Array<[number, number]> {
+  let head = 0;
+  while (head < was.length && head < next.length && was[head] === next[head]) head++;
+  let tail = 0;
+  while (
+    tail < was.length - head &&
+    tail < next.length - head &&
+    was[was.length - 1 - tail] === next[next.length - 1 - tail]
+  ) {
+    tail++;
+  }
+  const pairs: Array<[number, number]> = [];
+  for (let k = 0; k < head; k++) pairs.push([k, k]);
+  const midWas = was.slice(head, was.length - tail);
+  const midNext = next.slice(head, next.length - tail);
+  if (midWas.length * midNext.length <= MATCH_LIMIT) {
+    const longest = Array.from({ length: midWas.length + 1 }, () =>
+      new Array<number>(midNext.length + 1).fill(0)
+    );
+    for (let i = midWas.length - 1; i >= 0; i--) {
+      for (let j = midNext.length - 1; j >= 0; j--) {
+        longest[i][j] =
+          midWas[i] === midNext[j]
+            ? longest[i + 1][j + 1] + 1
+            : Math.max(longest[i + 1][j], longest[i][j + 1]);
+      }
+    }
+    let i = 0;
+    let j = 0;
+    while (i < midWas.length && j < midNext.length) {
+      if (midWas[i] === midNext[j]) {
+        pairs.push([head + i, head + j]);
+        i++;
+        j++;
+      } else if (longest[i + 1][j] >= longest[i][j + 1]) {
+        i++;
+      } else {
+        j++;
+      }
+    }
+  }
+  for (let k = tail; k > 0; k--) pairs.push([was.length - k, next.length - k]);
+  return pairs;
+}
+
+/**
+ * Make `parent`'s children, whose JSON is `was`, read as `next`. Children a
+ * change kept stay as they are, wherever they now sit. Between them, a run
+ * with as many children on each side is reconciled child by child, and any
+ * other run is replaced.
+ */
+function $reconcileChildren(parent: ElementNode, was: Serialized[], next: Serialized[]) {
+  const nodes = parent.getChildren();
+  const wasKeys = was.map((node) => keyOf(node));
+  const nextKeys = next.map((node) => keyOf(node));
+  let previous: LexicalNode | null = null;
+  const place = (node: LexicalNode) => {
+    if (previous) previous.insertAfter(node);
+    else {
+      const first = parent.getFirstChild();
+      if (first) first.insertBefore(node);
+      else parent.append(node);
+    }
+    previous = node;
+  };
+  const settle = (fromWas: number, toWas: number, fromNext: number, toNext: number) => {
+    if (toWas - fromWas === toNext - fromNext) {
+      for (let k = 0; k < toWas - fromWas; k++) {
+        previous = $reconcile(nodes[fromWas + k], was[fromWas + k], next[fromNext + k]);
+      }
+      return;
+    }
+    for (const node of nodes.slice(fromWas, toWas)) node.remove();
+    for (const node of next.slice(fromNext, toNext)) place($parseSerializedNode(node));
+  };
+  let i = 0;
+  let j = 0;
+  for (const [keptWas, keptNext] of unchangedPairs(wasKeys, nextKeys)) {
+    settle(i, keptWas, j, keptNext);
+    previous = nodes[keptWas];
+    i = keptWas + 1;
+    j = keptNext + 1;
+  }
+  settle(i, was.length, j, next.length);
+}
+
+/** Make `node`, whose JSON is `was`, read as `next`: an element of the same
+ *  kind keeps itself and reconciles its children, a text of the same kind has
+ *  only its changed characters spliced, and anything else is replaced.
+ *  Returns the node that now stands where `node` did. */
+function $reconcile(node: LexicalNode, was: Serialized, next: Serialized): LexicalNode {
+  if (keyOf(was) === keyOf(next)) return node;
+  if (
+    $isElementNode(node) &&
+    Array.isArray(was.children) &&
+    Array.isArray(next.children) &&
+    keyOf(was, "children") === keyOf(next, "children")
+  ) {
+    $reconcileChildren(node, was.children, next.children);
+    return node;
+  }
+  if ($isTextNode(node) && keyOf(was, "text") === keyOf(next, "text")) {
+    const from = node.getTextContent();
+    const to = next.text ?? "";
+    let start = 0;
+    while (start < from.length && start < to.length && from[start] === to[start]) start++;
+    let end = 0;
+    while (
+      end < from.length - start &&
+      end < to.length - start &&
+      from[from.length - 1 - end] === to[to.length - 1 - end]
+    ) {
+      end++;
+    }
+    node.spliceText(start, from.length - start - end, to.slice(start, to.length - end));
+    return node;
+  }
+  return node.replace($parseSerializedNode(next));
+}
+
+/**
+ * The Yjs update that makes a state read as `json`, written as the named
+ * client. Only what changed is rewritten — down to the characters of a text
+ * — so it merges with edits made to the same state elsewhere as a person's
+ * own typing would.
+ */
+function apply(state: string, json: string, clientId: number): string {
+  return withEditor(clientId, (editor, doc) => {
+    load(editor, doc, state);
+    const before = encodeStateVector(doc);
+    const was = editor.getEditorState().toJSON().root as Serialized;
+    const next = (JSON.parse(json) as { root: Serialized }).root;
+    editor.update(() => $reconcileChildren($getRoot(), was.children ?? [], next.children ?? []), {
+      discrete: true,
+    });
+    modernize(editor);
+    return toHex(encodeStateAsUpdate(doc, before));
+  });
+}
+
+(globalThis as { serverEditor?: unknown }).serverEditor = { apply, bootstrap, render };

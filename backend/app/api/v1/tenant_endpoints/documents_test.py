@@ -15,6 +15,7 @@ from app.models.tenant.document import (
 from app.models.platform.guild import CommunityRole
 from app.models.tenant.initiative import InitiativeRoleModel
 from app.models.tenant.resource_grant import ResourceAccessLevel
+from app.services import editor_engine
 from app.testing import (
     guild_of,
     create_document,
@@ -438,54 +439,37 @@ async def test_download_native_document_returns_404(
     assert response.status_code == 404
 
 
-async def test_update_content_clears_yjs_state(
+async def test_update_content_is_written_into_yjs_state(
     client: AsyncClient, session: AsyncSession, acting_user
 ) -> None:
-    """PATCH /documents/{id} with content should clear yjs_state.
-
-    Regression: editing in non-collab mode used to leave a stale yjs_state,
-    which then overwrote the freshly-saved content when the user re-enabled
-    collaboration (the CollaborationPlugin synced from the old Yjs state).
-    """
+    """PATCH /documents/{id} with content writes it into the stored Yjs state,
+    which the next collaborative session opens on."""
     owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
 
-    create_resp = await client.post(
-        owner.g("/documents/"),
-        headers=owner.headers,
-        json={"name": "Collab Doc", "initiative_id": owner.initiative.id},
+    def saying(words: str) -> dict:
+        text = {"type": "text", "text": words, "version": 1}
+        paragraph = {"type": "paragraph", "version": 1, "children": [text]}
+        return {"root": {"type": "root", "version": 1, "children": [paragraph]}}
+
+    before, after = saying("before"), saying("after")
+    doc = await create_document(
+        session,
+        owner.initiative,
+        owner.user,
+        content=before,
+        yjs_state=await editor_engine.bootstrap(before),
     )
-    assert create_resp.status_code == 201
-    doc_id = create_resp.json()["id"]
 
-    # Simulate a prior collaborative session by writing a stale yjs_state blob
-    doc = await session.get(Document, doc_id)
-    assert doc is not None
-    doc.yjs_state = b"\x00\x01\x02 stale yjs blob"
-    session.add(doc)
-    await session.commit()
-
-    # PATCH the content via the REST endpoint (the non-collab save path)
     patch_resp = await client.patch(
-        owner.g(f"/documents/{doc_id}"),
-        headers=owner.headers,
-        json={
-            "content": {
-                "root": {
-                    "children": [],
-                    "direction": None,
-                    "format": "",
-                    "indent": 0,
-                    "type": "root",
-                    "version": 1,
-                }
-            }
-        },
+        owner.g(f"/documents/{doc.id}"), headers=owner.headers, json={"content": after}
     )
     assert patch_resp.status_code == 200
 
-    # Re-read the document to confirm yjs_state was cleared
     await session.refresh(doc, ["yjs_state"])
-    assert doc.yjs_state is None
+    assert doc.yjs_state is not None
+    rendered = await editor_engine.render(doc.yjs_state)
+    (paragraph,) = rendered["root"]["children"]
+    assert [node["text"] for node in paragraph["children"]] == ["after"]
 
 
 async def test_create_whiteboard_document(client: AsyncClient, acting_user) -> None:

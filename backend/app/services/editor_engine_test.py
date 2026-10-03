@@ -169,6 +169,93 @@ async def test_legacy_nodes_come_back_as_the_browser_shows_them():
     assert paragraph["children"][0]["text"] == "A page nobody wrote#idea"
 
 
+def _merged(*updates: bytes) -> bytes:
+    doc = Doc()
+    for update in updates:
+        doc.apply_update(update)
+    return bytes(doc.get_update())
+
+
+async def test_writing_what_a_state_already_reads_as_changes_nothing():
+    state = await editor_engine.bootstrap(DOCUMENT)
+
+    update = await editor_engine.apply(state, await editor_engine.render(state))
+
+    assert update == bytes(Doc().get_update())
+
+
+async def test_an_applied_edit_reads_back_as_written():
+    state = await editor_engine.bootstrap(DOCUMENT)
+    edited = await editor_engine.render(state)
+    edited["root"]["children"][1] = _paragraph(_text("Rewritten"))
+
+    update = await editor_engine.apply(state, edited)
+
+    rendered = await editor_engine.render(_merged(state, update))
+    assert _without_defaults(rendered) == _without_defaults(edited)
+
+
+async def test_two_edits_to_one_paragraph_keep_each_others_words():
+    """Each write changes only its own characters, so two made from the same
+    state merge as two people typing would."""
+    state = await editor_engine.bootstrap(_document(_paragraph(_text("hello world"))))
+
+    async def written(words: str) -> bytes:
+        return await editor_engine.apply(state, _document(_paragraph(_text(words))))
+
+    merged = _merged(
+        state, await written("hello brave world"), await written("hello world!")
+    )
+
+    rendered = await editor_engine.render(merged)
+    (paragraph,) = rendered["root"]["children"]
+    assert [node["text"] for node in paragraph["children"]] == ["hello brave world!"]
+
+
+def _paragraphs(*words: str) -> dict:
+    return _document(*(_paragraph(_text(w)) for w in words))
+
+
+async def _words_of(state: bytes) -> list[str]:
+    rendered = await editor_engine.render(state)
+    return [
+        "".join(node["text"] for node in block["children"])
+        for block in rendered["root"]["children"]
+    ]
+
+
+async def test_blocks_written_before_the_first_keep_their_order():
+    state = await editor_engine.bootstrap(_paragraphs("Z"))
+
+    update = await editor_engine.apply(state, _paragraphs("A", "B", "Z"))
+
+    assert await _words_of(_merged(state, update)) == ["A", "B", "Z"]
+
+
+async def test_a_block_a_write_kept_takes_edits_made_to_it_elsewhere():
+    """Removing B and adding D leaves C as it was, so an edit made to C from
+    the same state still lands on C."""
+    state = await editor_engine.bootstrap(_paragraphs("A", "B", "C"))
+
+    rewritten = await editor_engine.apply(state, _paragraphs("A", "C", "D"))
+    edited = await editor_engine.apply(state, _paragraphs("A", "B", "C!"))
+
+    assert await _words_of(_merged(state, rewritten, edited)) == ["A", "C!", "D"]
+
+
+async def test_a_long_document_keeps_its_blocks_when_one_is_added():
+    """Past the size where moved blocks are searched for, the unchanged ends
+    are still kept, so an edit made elsewhere to the first block lands."""
+    words = [f"block {n}" for n in range(1200)]
+    state = await editor_engine.bootstrap(_paragraphs(*words))
+
+    appended = await editor_engine.apply(state, _paragraphs(*words, "the end"))
+    edited = await editor_engine.apply(state, _paragraphs("block 0!", *words[1:]))
+
+    merged = await _words_of(_merged(state, appended, edited))
+    assert merged == ["block 0!", *words[1:], "the end"]
+
+
 async def test_content_the_editor_refuses_is_an_error():
     with pytest.raises(EditorError):
         await editor_engine.bootstrap(_document({"type": "no-such-node", "version": 1}))
