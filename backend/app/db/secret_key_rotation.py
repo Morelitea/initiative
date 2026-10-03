@@ -117,6 +117,15 @@ _PUBLIC_JSON_MAPS: list[tuple[str, str, bytes]] = [
     ("app_service_registrations", "vendor_values", SALT_APP_VENDOR),
 ]
 
+# Shared-table JSONB columns holding ciphertext at known places beside plain
+# values. An account letter's change record carries the address a removal took
+# (``undo.email``), and the link minted from it the address it went to
+# (``recipient``). (table, column, salt, paths): only those leaves are re-keyed.
+_PUBLIC_JSON_PATHS: list[tuple[str, str, bytes, tuple[tuple[str, ...], ...]]] = [
+    ("email_outbox", "change", SALT_EMAIL, (("undo", "email"),)),
+    ("user_tokens", "change", SALT_EMAIL, (("undo", "email"), ("recipient",))),
+]
+
 # Columns rotated once per ``guild_<id>`` schema (the live copies). The member
 # key table carries own-row RLS; the sweep runs on the system engine, whose
 # login is what that policy's system leg names, so the SET ROLE into
@@ -304,6 +313,31 @@ def _rotate_map(
     return new_value, True
 
 
+def _rotate_paths(
+    value: Any,
+    paths: tuple[tuple[str, ...], ...],
+    salt: bytes,
+    old_key: str,
+    new_key: str,
+    result: ColumnResult,
+) -> tuple[Any, bool]:
+    """Re-key the ciphertext at each of ``paths`` in one JSONB document,
+    leaving every other value as it is. Rewrites ``value`` in place; returns
+    it and whether anything moved."""
+    changed = False
+    for path in paths:
+        parent = value
+        for step in path[:-1]:
+            parent = parent.get(step) if isinstance(parent, dict) else None
+        if not isinstance(parent, dict) or not isinstance(parent.get(path[-1]), str):
+            continue
+        rotated, moved = _rotate_map(parent[path[-1]], salt, old_key, new_key, result)
+        if moved:
+            parent[path[-1]] = rotated
+            changed = True
+    return value, changed
+
+
 async def _rotate_fernet_json_map(
     read_conn: AsyncConnection,
     write_conn: AsyncConnection,
@@ -315,8 +349,10 @@ async def _rotate_fernet_json_map(
     new_key: str,
     dry_run: bool,
     key: str = "id",
+    paths: tuple[tuple[str, ...], ...] = (),
 ) -> ColumnResult:
-    """Re-encrypt the ciphertexts held inside one JSONB column.
+    """Re-encrypt the ciphertexts held inside one JSONB column: every string
+    in it, or only those at ``paths``.
 
     Rewritten by the primary key ``key`` rather than by matching the old value:
     the column holds a document, not a token, so it has no single ciphertext to
@@ -342,7 +378,11 @@ async def _rotate_fernet_json_map(
         # not guaranteed to have that codec in place, so accept either form.
         if isinstance(value, str):
             value = json.loads(value)
-        rewritten, changed = _rotate_map(value, salt, old_key, new_key, result)
+        rewritten, changed = (
+            _rotate_paths(value, paths, salt, old_key, new_key, result)
+            if paths
+            else _rotate_map(value, salt, old_key, new_key, result)
+        )
         if not changed or dry_run:
             continue
         await write_conn.execute(
@@ -472,6 +512,21 @@ async def rotate_secret_key(*, dry_run: bool = False) -> RotationSummary:
                     old_key,
                     new_key,
                     dry_run,
+                )
+            )
+        for table, column, salt, paths in _PUBLIC_JSON_PATHS:
+            summary.columns.append(
+                await _rotate_fernet_json_map(
+                    read_conn,
+                    write_conn,
+                    "public",
+                    table,
+                    column,
+                    salt,
+                    old_key,
+                    new_key,
+                    dry_run,
+                    paths=paths,
                 )
             )
 

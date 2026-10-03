@@ -524,7 +524,8 @@ async def _answer_link(
     Its own token, minted as the copy is sent so no raw token is ever stored,
     and committed first so the link never names one that was not kept. It
     records the address it went to and that address's proof time, which the
-    link is held to when it is used.
+    link is held to when it is used: the address encrypted, as every stored
+    address is, rather than as a hash of a key that may be rotated.
     """
     digest = hash_email(addresses.normalize(recipient))
     held = (
@@ -556,7 +557,7 @@ async def _answer_link(
         expires_minutes=ANSWER_LINK_MINUTES,
         change={
             **change,
-            "recipient": digest,
+            "recipient": encrypt_field(addresses.normalize(recipient), SALT_EMAIL),
             "recipient_proved_at": proved_at.isoformat() if proved_at else None,
             "removed_copy": removed_copy,
             "may_undo": may_undo,

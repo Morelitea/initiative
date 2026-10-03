@@ -61,7 +61,7 @@ async def _still_answers(system_session: AsyncSession, record: UserToken) -> boo
         await system_session.exec(
             select(UserEmail).where(
                 UserEmail.user_id == record.user_id,
-                UserEmail.email_hash == change.get("recipient"),
+                UserEmail.email_hash == account_changes.recipient_hash(change),
                 UserEmail.verified_at.is_not(None),
             )
         )
@@ -192,7 +192,7 @@ async def undo_account_change(
             system_session,
             user_id=user.id,
             change=change,
-            clicked_from=change.get("recipient"),
+            clicked_from=account_changes.recipient_hash(change),
         )
     except account_changes.UndoRefused as exc:
         await system_session.rollback()

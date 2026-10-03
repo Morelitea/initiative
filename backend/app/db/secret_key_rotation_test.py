@@ -10,6 +10,7 @@ Rows encrypted under some *other* key are classified ``failed`` and left untouch
 (no UPDATE), so they can't be corrupted by these tests.
 """
 
+import json
 import secrets
 
 import pytest
@@ -180,6 +181,65 @@ async def test_rotate_user_email_hash_and_fernet_columns(engine, monkeypatch):
                     text("DELETE FROM public.user_emails WHERE user_id = :i"),
                     {"i": user_id},
                 )
+
+
+async def test_rotate_the_addresses_inside_an_account_letter(engine, monkeypatch):
+    """The removed address and the link's recipient are re-keyed where they sit
+    in the change record; the plain values beside them are left alone."""
+    email = "rot-letter@example.com"
+    user_id = None
+    try:
+        async with engine.begin() as conn:
+            user_id = await _insert_user(conn, email, key=OLD)
+            sealed = encrypt_field(email, SALT_EMAIL, secret_key=OLD)
+            letter = {"notice": "address.removed", "undo": {"email": sealed}}
+            await conn.execute(
+                text(
+                    "INSERT INTO public.email_outbox (user_id, category, security, "
+                    "locale, subject, headline, body, change, created_at, "
+                    "deliver_after) VALUES (:uid, 'account', true, 'en', 's', 'h', "
+                    "'b', CAST(:change AS jsonb), now(), now())"
+                ),
+                {"uid": user_id, "change": json.dumps(letter)},
+            )
+            await conn.execute(
+                text(
+                    "INSERT INTO public.user_tokens (user_id, token, purpose, change, "
+                    "expires_at, created_at) VALUES (:uid, :token, 'account_change', "
+                    "CAST(:change AS jsonb), now() + interval '1 day', now())"
+                ),
+                {
+                    "uid": user_id,
+                    "token": secrets.token_hex(16),
+                    "change": json.dumps({**letter, "recipient": sealed}),
+                },
+            )
+
+        _use_keys(monkeypatch, old=OLD, new=NEW)
+        await rotate_secret_key()
+
+        async with engine.connect() as conn:
+            changes = [
+                await conn.scalar(
+                    text(f"SELECT change FROM public.{table} WHERE user_id = :i"),
+                    {"i": user_id},
+                )
+                for table in ("email_outbox", "user_tokens")
+            ]
+        for change in changes:
+            assert change["notice"] == "address.removed"
+            sealed_now = [change["undo"]["email"], change.get("recipient")]
+            for value in filter(None, sealed_now):
+                assert decrypt_field(value, SALT_EMAIL, secret_key=NEW) == email
+        assert changes[1]["recipient"] is not None
+    finally:
+        if user_id is not None:
+            async with engine.begin() as conn:
+                for table in ("email_outbox", "user_tokens", "user_emails"):
+                    await conn.execute(
+                        text(f"DELETE FROM public.{table} WHERE user_id = :i"),
+                        {"i": user_id},
+                    )
 
 
 async def test_dry_run_reports_but_does_not_write(engine, monkeypatch):

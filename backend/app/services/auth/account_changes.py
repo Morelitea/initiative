@@ -14,6 +14,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+from cryptography.fernet import InvalidToken
 from sqlmodel import delete, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -79,6 +80,18 @@ def removal_undo(row: UserEmail, *, primary_id: int | None) -> dict[str, Any]:
     }
 
 
+def recipient_hash(change: dict[str, Any]) -> str | None:
+    """The hash of the address a link went to, which its token holds
+    encrypted, so it is computed under the key in use."""
+    recipient = change.get("recipient")
+    if not recipient:
+        return None
+    try:
+        return hash_email(decrypt_field(recipient, SALT_EMAIL))
+    except InvalidToken:
+        return None
+
+
 def removed_address(change: dict[str, Any]) -> str | None:
     """The address a removal notice is about, for the copy sent to it."""
     undo = change.get("undo") or {}
@@ -116,7 +129,7 @@ async def subject_of(
         return removed_address(change)
     if kind == "primary":
         row = await _primary_again(
-            session, user_id=user_id, undo=undo, clicked_from=change.get("recipient")
+            session, user_id=user_id, undo=undo, clicked_from=recipient_hash(change)
         )
         return decrypt_field(row.email_encrypted, SALT_EMAIL) if row else None
     if kind == "proved":
