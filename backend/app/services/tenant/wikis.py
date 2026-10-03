@@ -624,37 +624,3 @@ async def _linked_document_ids(session: AsyncSession, wiki_id: int) -> list[int]
         for kind, entity_id in (decode_node_id(edge.source_node) for edge in edges)
         if kind is SearchEntityType.document
     ]
-
-
-async def page_links(session: AsyncSession, page: WikiPage) -> tuple[list, list]:
-    """What this page connects to, and what connects to it.
-
-    One query each way over ``relationships``, which is where both the
-    ``[[ ]]`` links read out of the body and the connections somebody drew by
-    hand already live. The titles are resolved through the same reference
-    machinery every other surface uses, so a page names a task the way the
-    editor's own chip does.
-    """
-    from app.core.relationships import node_id
-    from app.core.search import SearchEntityType
-    from app.models.tenant.relationship import EntityRelationship
-
-    node = node_id(SearchEntityType.wiki_page, page.id)
-
-    outgoing = (
-        await session.exec(
-            select(EntityRelationship).where(
-                EntityRelationship.source_node == node,
-                EntityRelationship.removed_at.is_(None),
-            )
-        )
-    ).all()
-    incoming = (
-        await session.exec(
-            select(EntityRelationship).where(
-                EntityRelationship.target_node == node,
-                EntityRelationship.removed_at.is_(None),
-            )
-        )
-    ).all()
-    return list(outgoing), list(incoming)

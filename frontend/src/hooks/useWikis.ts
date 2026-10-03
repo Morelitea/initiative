@@ -2,7 +2,6 @@ import { useQuery } from "@tanstack/react-query";
 
 import type {
   WikiPageCreate,
-  WikiPageLinks,
   WikiPageMove,
   WikiPageRead,
   WikiPageTree,
@@ -16,12 +15,10 @@ import {
   duplicateWikiPageApiV1CGuildIdWikiPagesPageIdDuplicatePost,
   getListWikiPagesApiV1CGuildIdWikisWikiIdPagesGetQueryKey,
   getReadWikiPageApiV1CGuildIdWikiPagesPageIdGetQueryKey,
-  getReadWikiPageLinksApiV1CGuildIdWikiPagesPageIdLinksGetQueryKey,
   listWikiPagesApiV1CGuildIdWikisWikiIdPagesGet,
   moveWikiDocumentApiV1CGuildIdWikisWikiIdDocumentsDocumentIdMovePost,
   moveWikiPageApiV1CGuildIdWikiPagesPageIdMovePost,
   readWikiPageApiV1CGuildIdWikiPagesPageIdGet,
-  readWikiPageLinksApiV1CGuildIdWikiPagesPageIdLinksGet,
   removeDocumentFromWikiApiV1CGuildIdWikisWikiIdDocumentsDocumentIdDelete,
   updateWikiPageApiV1CGuildIdWikiPagesPageIdPatch,
 } from "@/api/generated/wikis/wikis";
@@ -69,19 +66,6 @@ export const useWikiPage = (pageId: number | null, options?: QueryOpts<WikiPageR
   return useQuery<WikiPageRead>({
     queryKey: getReadWikiPageApiV1CGuildIdWikiPagesPageIdGetQueryKey(guildId, pageId!),
     queryFn: () => readWikiPageApiV1CGuildIdWikiPagesPageIdGet(guildId, pageId!),
-    enabled: ready && userEnabled,
-    ...rest,
-  });
-};
-
-/** What a page links to, and what links back — the backlinks panel. */
-export const useWikiPageLinks = (pageId: number | null, options?: QueryOpts<WikiPageLinks>) => {
-  const guildId = useActiveGuildId();
-  const { enabled: userEnabled = true, ...rest } = options ?? {};
-  const ready = pageId !== null && Number.isFinite(pageId);
-  return useQuery<WikiPageLinks>({
-    queryKey: getReadWikiPageLinksApiV1CGuildIdWikiPagesPageIdLinksGetQueryKey(guildId, pageId!),
-    queryFn: () => readWikiPageLinksApiV1CGuildIdWikiPagesPageIdLinksGet(guildId, pageId!),
     enabled: ready && userEnabled,
     ...rest,
   });
@@ -166,7 +150,7 @@ export const useUpdateWikiPage = (
         updateWikiPageApiV1CGuildIdWikiPagesPageIdPatch(guildId, pageId, data),
       // A rename changes the tree, and a body edit changes what links out of
       // this page — so both the tree and the connections are stale.
-      invalidate: () => invalidate(q.wikiPages(wikiId)),
+      invalidate: () => invalidate(q.wikiPages(wikiId), q.relationships()),
       errorKey: "wikis:error",
     },
     options

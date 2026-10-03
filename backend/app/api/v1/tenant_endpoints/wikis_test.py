@@ -1042,28 +1042,21 @@ async def test_a_page_reports_what_links_to_it(
     )
     assert patched.status_code == 200, patched.text
 
-    links = await client.get(a.g(f"/wiki-pages/{target.id}/links"), headers=a.headers)
+    links = await client.get(
+        a.g("/relationships/"),
+        headers=a.headers,
+        params={"entity": f"wiki_page:{target.id}"},
+    )
     assert links.status_code == 200, links.text
-    incoming = links.json()["incoming"]
-    assert [row["entity_id"] for row in incoming] == [source.id]
-    assert incoming[0]["entity_type"] == "wiki_page"
+    [incoming] = links.json()
+    assert incoming["direction"] == "inbound"
+    assert (incoming["other"]["type"], incoming["other"]["id"]) == (
+        "wiki_page",
+        source.id,
+    )
     # Enough to address the far end without a second request.
-    assert incoming[0]["tool"] == "wiki"
-    assert incoming[0]["tool_id"] == wiki.id
-
-
-async def test_links_are_empty_for_a_page_nothing_names(
-    client: AsyncClient, acting_user, session
-):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    await _wikis_enabled(session, a.initiative)
-    wiki = await create_wiki(session, a.initiative, a.user)
-    page = await create_wiki_page(session, wiki, a.user, title="Alone")
-
-    response = await client.get(a.g(f"/wiki-pages/{page.id}/links"), headers=a.headers)
-
-    assert response.status_code == 200, response.text
-    assert response.json() == {"outgoing": [], "incoming": []}
+    assert incoming["other"]["tool"] == "wiki"
+    assert incoming["other"]["tool_id"] == wiki.id
 
 
 # ---------------------------------------------------------------------------

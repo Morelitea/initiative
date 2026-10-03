@@ -4,7 +4,12 @@ import { SlidersHorizontal } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { PropertyTarget, Tool, WikiReadingWidth } from "@/api/generated/initiativeAPI.schemas";
+import {
+  PropertyTarget,
+  SearchEntityType,
+  Tool,
+  WikiReadingWidth,
+} from "@/api/generated/initiativeAPI.schemas";
 import { ToolCommentsPanel } from "@/components/comments/ToolCommentsPanel";
 import { Editor } from "@/components/documents/editor/editor";
 import { WikiChrome } from "@/components/initiativeTools/wikis/WikiChrome";
@@ -66,6 +71,7 @@ export const WikiPageView = () => {
   const pageId = Number(pageIdParam);
   const initiativeId = Number(initiativeIdParam);
   const validIds = Number.isFinite(wikiId) && Number.isFinite(pageId);
+  const pageRef = { type: SearchEntityType.wiki_page, id: pageId };
 
   // The newest body regardless of whether it has been sent, which is what the
   // reading view is shown the moment somebody stops writing. The server hears
@@ -490,7 +496,7 @@ export const WikiPageView = () => {
               at which opening it moves nothing. */}
           {railOpen && railFitsBeside ? (
             <div className="flex w-72 shrink-0 flex-col overflow-y-auto py-6 pr-6">
-              <WikiPageConnections pageId={pageId} className="min-h-0" />
+              <WikiPageConnections entity={pageRef} className="min-h-0" />
             </div>
           ) : null}
         </div>
@@ -507,7 +513,7 @@ export const WikiPageView = () => {
             <SheetTitle className="sr-only">{t("links.title")}</SheetTitle>
           </SheetHeader>
           <div className="min-h-0 flex-1 overflow-y-auto p-3">
-            <WikiPageConnections pageId={pageId} className="border-0 shadow-none" />
+            <WikiPageConnections entity={pageRef} className="border-0 shadow-none" />
           </div>
         </SheetContent>
       </Sheet>

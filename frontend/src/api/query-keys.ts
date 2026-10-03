@@ -495,12 +495,15 @@ const galleryImages = (galleryId: number): Spec => ({
 
 // ── Wikis (guild) ────────────────────────────────────────────────────────────
 
-/** A wiki's pages — the tree, each page's own read, and its connections —
- *  without the wiki row itself. A page is read by its own id
- *  (`/wiki-pages/{id}`), which names no wiki, so every page read goes too. */
+/** A wiki's pages — the tree and each page's own read — without the wiki row
+ *  itself. A page is read by its own id (`/wiki-pages/{id}`), which names no
+ *  wiki, so every page read goes too. */
 const wikiPages = (wikiId: number): Spec => ({
   guildPrefix: [`/api/v1/wikis/${wikiId}/pages`, "/api/v1/wiki-pages"],
 });
+
+/** One page's own read. */
+const wikiPage = (pageId: number): Spec => ({ guildExact: [`/api/v1/wiki-pages/${pageId}`] });
 
 // ── Version (personal) ───────────────────────────────────────────────────────
 
@@ -701,6 +704,7 @@ export const q = {
   version,
   writableProjects,
   wiki,
+  wikiPage,
   wikiPages,
 };
 

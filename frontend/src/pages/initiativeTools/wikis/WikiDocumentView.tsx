@@ -2,7 +2,12 @@ import { Link, useLocation, useParams } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { Tool, WikiPageKind, WikiReadingWidth } from "@/api/generated/initiativeAPI.schemas";
+import {
+  SearchEntityType,
+  Tool,
+  WikiPageKind,
+  WikiReadingWidth,
+} from "@/api/generated/initiativeAPI.schemas";
 import { ToolCommentsPanel } from "@/components/comments/ToolCommentsPanel";
 import { WikiChrome } from "@/components/initiativeTools/wikis/WikiChrome";
 import {
@@ -51,6 +56,7 @@ export const WikiDocumentView = () => {
   const documentId = Number(documentIdParam);
   const initiativeId = Number(initiativeIdParam);
   const validIds = Number.isFinite(wikiId) && Number.isFinite(documentId);
+  const documentRef = { type: SearchEntityType.document, id: documentId };
 
   const wikiQuery = useWiki(validIds ? wikiId : null);
   const documentQuery = useDocument(validIds ? documentId : null);
@@ -166,7 +172,7 @@ export const WikiDocumentView = () => {
 
           {railOpen && railFitsBeside ? (
             <div className="flex w-72 shrink-0 flex-col overflow-y-auto py-6 pr-6">
-              <WikiPageConnections pageId={documentId} className="min-h-0" />
+              <WikiPageConnections entity={documentRef} className="min-h-0" />
             </div>
           ) : null}
         </div>
@@ -181,7 +187,7 @@ export const WikiDocumentView = () => {
             <SheetTitle className="sr-only">{t("links.title")}</SheetTitle>
           </SheetHeader>
           <div className="min-h-0 flex-1 overflow-y-auto p-3">
-            <WikiPageConnections pageId={documentId} className="border-0 shadow-none" />
+            <WikiPageConnections entity={documentRef} className="border-0 shadow-none" />
           </div>
         </SheetContent>
       </Sheet>

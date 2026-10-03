@@ -14,14 +14,14 @@ Three things here are the wiki's own rather than the generic tool shape:
   wiki, flat and in reading order, because the navigation draws all of it at
   once. The rows carry no bodies, so the payload grows with the number of
   pages rather than with what has been written on them.
-* **A page knows what points at it.** ``GET /wiki-pages/{id}/links``
-  reads the ``relationships`` table both ways — the ``[[ ]]`` links extracted
-  from bodies on save, and the connections people drew by hand — which is what
-  makes a wiki a web rather than a folder.
+* **A page knows what points at it.** Saving a body records the ``[[ ]]``
+  links it makes in ``relationships``, beside the connections people drew by
+  hand, so ``GET /relationships/?entity=wiki_page:{id}`` reads a page's links
+  both ways — which is what makes a wiki a web rather than a folder.
 """
 
 from copy import deepcopy
-from typing import Annotated, Any, Optional
+from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
@@ -41,14 +41,11 @@ from app.core.messages import WikiMessages
 from app.core.relationships import RelationshipType
 from app.core.search import SearchEntityType
 from app.core.tools import Tool
-from app.db import reference_targets
 from app.models.platform.user import User
 from app.models.tenant.wiki import Wiki, WikiPage
 from app.schemas.tenant.wiki import (
     WikiCreate,
     WikiPageCreate,
-    WikiPageLink,
-    WikiPageLinks,
     WikiPageMove,
     WikiPageRead,
     WikiPageTree,
@@ -654,63 +651,3 @@ async def delete_wiki_page(
         deleted_by_user_id=current_user.id,
     )
     await session.commit()
-
-
-@pages_router.get("/wiki-pages/{page_id}/links", response_model=WikiPageLinks)
-async def read_wiki_page_links(
-    page_id: int,
-    session: RLSSessionDep,
-    current_user: CurrentUserDep,
-    guild_context: GuildContextDep,
-) -> WikiPageLinks:
-    """What this page names, and what names it.
-
-    The second half is the backlinks. They are read from the same table the
-    ``[[ ]]`` extractor writes to, so a page that somebody linked to from a
-    task knows about it without the task having to say so twice.
-    """
-    page = await resource_access.load_child(session, WikiPage, page_id)
-    outgoing, incoming = await wikis_service.page_links(session, page)
-
-    async def _links(rows, *, other: str) -> list[WikiPageLink]:
-        # Resolve titles one kind at a time rather than one row at a time, and
-        # through the shared resolver — which answers only for rows this reader
-        # may see, so a link to something hidden from them simply is not shown.
-        wanted: dict[str, list[int]] = {}
-        for row in rows:
-            wanted.setdefault(getattr(row, f"{other}_type"), []).append(
-                getattr(row, f"{other}_id")
-            )
-        found: dict[tuple[str, int], Any] = {}
-        for entity_type, ids in wanted.items():
-            resolved = await reference_targets.resolve_many(
-                session, SearchEntityType(entity_type), ids, user_id=current_user.id
-            )
-            for entity_id, row in resolved.items():
-                found[(entity_type, entity_id)] = row
-
-        links: list[WikiPageLink] = []
-        for row in rows:
-            entity_type = getattr(row, f"{other}_type")
-            entity_id = getattr(row, f"{other}_id")
-            target = found.get((entity_type, entity_id))
-            if target is None:
-                continue
-            tool = getattr(target, "tool", None)
-            links.append(
-                WikiPageLink(
-                    entity_type=entity_type,
-                    entity_id=entity_id,
-                    title=target.title,
-                    relationship_type=row.relationship_type,
-                    initiative_id=getattr(target, "initiative_id", None),
-                    tool=getattr(tool, "value", tool),
-                    tool_id=getattr(target, "tool_id", None),
-                )
-            )
-        return links
-
-    return WikiPageLinks(
-        outgoing=await _links(outgoing, other="target"),
-        incoming=await _links(incoming, other="source"),
-    )
