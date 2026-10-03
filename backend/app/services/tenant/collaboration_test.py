@@ -335,6 +335,26 @@ async def test_an_edit_during_a_write_survives_it() -> None:
     assert room.is_dirty is True
 
 
+async def test_an_edit_while_a_sweep_reads_the_row_is_written() -> None:
+    """A sweep of a room with nothing to write waits on the database first;
+    an edit landing in that wait is the room's own, and is written."""
+    manager = CollaborationManager()
+    room = loaded_room(1, 5)
+    manager._rooms[(1, DOC, 5)] = room
+
+    class EditedMeanwhile(RecordingSession):
+        async def exec(self, statement):
+            if not self.statements:
+                room.apply_update(_an_update())
+            return await super().exec(statement)
+
+    reading = EditedMeanwhile()
+    await manager._write_room(room, reading)
+
+    assert len(reading.statements) == 2  # the read, then the write
+    assert room.is_dirty is False
+
+
 async def test_an_unchanged_room_is_not_rewritten(monkeypatch) -> None:
     """Idle documents cost nothing to keep open."""
     manager = CollaborationManager()

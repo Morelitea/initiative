@@ -574,6 +574,9 @@ class CollaborationManager:
         spec = resource_for(room.resource_type)
         state_column = getattr(spec.model, YJS_STATE_COLUMN)
         this_row = spec.model.id == room.resource_id
+        # Where the room stood before this save waits on the database: an edit
+        # arriving meanwhile is the room's own, and is written.
+        before = room.snapshot()[0]
         own_edits = room.is_dirty
         stored = (
             await session.exec(
@@ -583,10 +586,12 @@ class CollaborationManager:
             )
         ).one_or_none()
         digest = stored[1] if stored is not None else None
+        newer = None
         if digest is not None and digest != room.stored_digest:
-            room.take_stored(
-                (await session.exec(select(state_column).where(this_row))).one()
-            )
+            newer = (await session.exec(select(state_column).where(this_row))).one()
+        own_edits = own_edits or room.snapshot()[0] != before
+        if newer is not None:
+            room.take_stored(newer)
             room.stored_digest = digest
         if not own_edits and not (stored is not None and digest is None):
             # Everything the room holds is stored. A row whose state was

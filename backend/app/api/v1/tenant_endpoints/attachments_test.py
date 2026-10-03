@@ -724,6 +724,64 @@ async def test_a_picture_pasted_from_another_initiative_is_copied(
     assert await _status(client, there, url) == 404
 
 
+async def test_a_picture_copied_into_a_document_reaches_its_live_state(
+    client: AsyncClient, session, acting_user
+):
+    """The copy's address is written into the document's stored Yjs state as
+    well as its content, so a live session merges it in rather than writing
+    the original's back."""
+    from sqlalchemy.orm import undefer
+    from sqlmodel import select
+
+    from app.models.tenant.document import Document
+    from app.services.tenant.body_states import LEXICAL
+    from app.testing import create_document, create_initiative, lexical_body
+
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
+    elsewhere = await create_initiative(session, a.guild, a.user)
+    url = await _paste(client, a)
+    body = lexical_body("A picture")
+    body["root"]["children"][0]["children"].append(
+        {"type": "image", "src": url, "altText": "shot", "version": 1}
+    )
+    first = await create_document(session, a.initiative, a.user)
+    doc = await create_document(
+        session,
+        elsewhere,
+        a.user,
+        content=lexical_body("Nothing yet"),
+        yjs_state=await LEXICAL.bootstrap(lexical_body("Nothing yet")),
+    )
+    await session.commit()
+    kept = await client.patch(
+        a.g(f"/documents/{first.id}"), headers=a.headers, json={"content": body}
+    )
+    assert kept.status_code == 200, kept.text
+
+    response = await client.patch(
+        a.g(f"/documents/{doc.id}"), headers=a.headers, json={"content": body}
+    )
+
+    assert response.status_code == 200, response.text
+    saved = (
+        await session.exec(
+            select(Document)
+            .where(Document.id == doc.id)
+            .options(undefer(Document.content), undefer(Document.yjs_state))
+            .execution_options(populate_existing=True)
+        )
+    ).one()
+    [image] = [
+        node
+        for node in saved.content["root"]["children"][0]["children"]
+        if node["type"] == "image"
+    ]
+    assert image["src"] != url
+    rendered = await LEXICAL.render(saved.yjs_state or b"")
+    assert rendered is not None
+    assert image["src"] in str(rendered) and url not in str(rendered)
+
+
 async def test_a_picture_the_saver_cannot_read_is_left_as_written(
     client: AsyncClient, session, acting_user
 ):
