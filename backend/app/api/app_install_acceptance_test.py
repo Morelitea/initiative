@@ -25,6 +25,7 @@ from app.api.deps import route_app_scopes
 from app.core.identity_boundary import BoundaryPhase
 from app.core.app_scopes import ALL_SCOPES
 from app.core.messages import AppMessages
+from app.db.search_index import COMMENT_PREVIEW_CHARS
 from app.main import app
 from app.models.platform.guild import Guild, GuildRole, GuildStatus
 from app.models.platform.notification import Notification, NotificationType
@@ -1106,6 +1107,7 @@ async def test_suggest_asks_the_scope_of_the_tool_a_comment_is_on(
     """A comment on a task is read through the task's project, so finding one
     needs ``projects:read`` beside ``comments:read``. Its title is the start of
     what was written, and mentions and shows files as the comment does."""
+    await lift_person_and_guild_ids(session)
     installed = await install_app(
         session,
         acting_user,
@@ -1146,6 +1148,37 @@ async def test_suggest_asks_the_scope_of_the_tool_a_comment_is_on(
     assert found["title"].startswith("beacon confirmed @[](")
     assert found["title"].endswith(") ![shot]()")
     assert_names_nobody(found["title"], [seat.id, installed.guild.id])
+
+
+@pytest.mark.parametrize(
+    "written", ["@[The Seat]({seat})", "![shot](/uploads/{guild}/pasted-shot.png)"]
+)
+async def test_a_cut_comment_title_ends_before_what_the_cut_goes_through(
+    written, client, session, acting_user, role_session
+):
+    """A comment's title is its first characters. When they end inside a
+    mention or a stored file's address, the title ends before it."""
+    scopes = ["projects:read", "comments:read"]
+    await lift_person_and_guild_ids(session)
+    installed = await install_app(session, acting_user, role_session, granted=scopes)
+    seat = installed.seat.user
+    project = await _open_project(session, installed, installed.placed, "Open A")
+    task = await create_task(session, project, title="stage build")
+    written = written.format(seat=seat.id, guild=installed.guild.id)
+    row_id = str(seat.id) if "@" in written else str(installed.guild.id)
+    # The cut goes through the row id's first digit.
+    lead = "beacon " + "x" * (COMMENT_PREVIEW_CHARS - written.index(row_id) - 9)
+    await create_comment(session, seat, task=task, content=f"{lead} {written} end")
+
+    response = await _suggest(
+        client,
+        installed,
+        install_headers(installed, scopes),
+        q="beacon",
+        types=["comment"],
+    )
+    assert response.status_code == 200, response.text
+    assert [found["title"] for found in response.json()] == [lead]
 
 
 async def test_a_narrowed_token_suggests_only_its_initiative(

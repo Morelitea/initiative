@@ -4,10 +4,11 @@ from __future__ import annotations
 
 from typing import List, Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, ValidationInfo, field_validator
 
 from app.core.search import SearchEntityType
 from app.core.tools import Tool
+from app.db.search_index import comment_preview_title
 from app.schemas.base import MentionStr
 
 
@@ -66,3 +67,10 @@ class SearchSuggestion(BaseModel):
     #: row that IS a tool — a project does not live in a project.
     tool_title: Optional[str] = None
     initiative_name: Optional[str] = None
+
+    @field_validator("title")
+    @classmethod
+    def _comment_title_whole(cls, title: str, info: ValidationInfo) -> str:
+        if info.data.get("entity_type") is SearchEntityType.comment:
+            return comment_preview_title(title)
+        return title

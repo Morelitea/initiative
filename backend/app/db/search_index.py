@@ -17,6 +17,7 @@ path that gives a long document several.
 from __future__ import annotations
 
 import hashlib
+import re
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 
@@ -41,6 +42,22 @@ MAX_CHUNKS = 2000
 
 #: How much of a comment stands in for its title.
 COMMENT_PREVIEW_CHARS = 140
+
+#: What a cut preview can end inside: a mention or reference, a markdown
+#: picture or link, or a stored file's address, none of them finished.
+_UNFINISHED_TAIL = re.compile(
+    r"(?:(?:[@!]|#\w+)?\[[^\]\n]*(?:\]\([^)\n]*)?|\S*/uploads/\S*)$"
+)
+
+
+def comment_preview_title(preview: str) -> str:
+    """A comment's preview as its title. When the preview was cut, it ends
+    before a mention, picture, link or stored file's address the cut went
+    through, so none is left half-written."""
+    if len(preview) < COMMENT_PREVIEW_CHARS:
+        return preview
+    return _UNFINISHED_TAIL.sub("", preview).rstrip()
+
 
 #: What an entry holds for each person its body mentions: this and their id, as
 #: a word of its own. The parser never starts a word with it, so nothing typed
