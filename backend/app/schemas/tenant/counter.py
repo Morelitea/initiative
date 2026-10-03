@@ -10,7 +10,7 @@ from pydantic import ConfigDict, Field, model_validator
 from app.core.identity_boundary import GuildId
 from app.core.messages import CounterMessages
 from app.models.tenant.counter import COUNTER_DIGITS, COUNTER_PLACES, CounterViewMode
-from app.schemas.base import MentionStr, SanitizedBaseModel, TitleStr
+from app.schemas.base import MentionStr, SanitizedBaseModel, TitleStr, reject_null
 from app.schemas.query import PageMeta
 from app.schemas.tenant.property import (
     PropertiesOnCreate,
@@ -81,8 +81,8 @@ class CounterUpdate(SanitizedBaseModel):
     name: Optional[TitleStr] = Field(default=None, min_length=1, max_length=255)
     color: Optional[str] = None
     # ``min``/``max`` are nullable columns — an explicit null clears the bound.
-    # The remaining fields back NOT NULL columns, so a null is meaningless; the
-    # endpoint drops explicit nulls for them. ``gt=0`` rejects a provided step
+    # The remaining fields back NOT NULL columns, so they refuse a null.
+    # ``gt=0`` rejects a provided step
     # of 0/negative with a clean 422. ``position`` allows negatives so a
     # fractional drop-to-front (prev - 1) still validates.
     min: Optional[CounterNumber] = None
@@ -91,6 +91,8 @@ class CounterUpdate(SanitizedBaseModel):
     initial_count: Optional[CounterNumber] = None
     view_mode: Optional[CounterViewMode] = None
     position: Optional[CounterNumber] = None
+
+    _required = reject_null("name", "step", "initial_count", "view_mode", "position")
 
 
 class CounterSetCountRequest(SanitizedBaseModel):
