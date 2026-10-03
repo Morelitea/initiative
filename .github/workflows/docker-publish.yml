@@ -309,10 +309,14 @@ jobs:
   publish:
     # Tags the checked image as the release: the candidate, or the build
     # above once its walk and journeys passed. Nothing is published unchecked.
-    needs: [decide, candidate, docker-public, walk, journeys]
+    # A release that moves a floor publishes only once that app is built, so
+    # no server asks for an app that is not there; a skipped build passes.
+    needs: [decide, candidate, docker-public, walk, journeys, build-android, build-desktop]
     if: >-
       ${{ !cancelled() && (needs.candidate.outputs.checked == 'true'
-      || (needs.walk.result == 'success' && needs.journeys.result == 'success')) }}
+      || (needs.walk.result == 'success' && needs.journeys.result == 'success'))
+      && needs.build-android.result != 'failure'
+      && needs.build-desktop.result != 'failure' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:

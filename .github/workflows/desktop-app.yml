@@ -13,6 +13,11 @@ on:
       - dev
     paths:
       - "frontend/electron/**"
+      # Where the platform's version and the app's config live, and the
+      # setup the build shares with the rest of CI.
+      - "frontend/package.json"
+      - "frontend/capacitor.config.ts"
+      - ".github/actions/setup-frontend/**"
       - ".github/workflows/desktop-app.yml"
   workflow_dispatch:
 
