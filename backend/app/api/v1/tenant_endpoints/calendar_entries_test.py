@@ -11,6 +11,7 @@ from datetime import datetime, timedelta, timezone
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core import recurrence
 from app.core.messages import CalendarEventMessages
 from app.models.platform.guild import GuildRole
 from app.testing import (
@@ -76,11 +77,12 @@ async def test_guild_entries_unions_events_and_task_markers(
 
 
 async def test_guild_entries_give_each_occurrence_of_a_repeat(
-    client: AsyncClient, session: AsyncSession, acting_user
+    client: AsyncClient, session: AsyncSession, acting_user, monkeypatch
 ):
     """A weekly event that began before the window is there once a week, and
     one that ended before it is not. A repeating task stays where it is, and its
-    next occurrences in the window come with it, up to its end."""
+    next occurrences in the window come with it, up to its end. A window whose
+    repeats hold more occurrences than a read expands is refused."""
     a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
     calendar = await _enable_events(session, a.initiative, a.user)
     weekly = await create_calendar_event(
@@ -135,6 +137,20 @@ async def test_guild_entries_give_each_occurrence_of_a_repeat(
         (task.id, NOW - timedelta(days=24)),
         (task.id, NOW - timedelta(days=17)),
     ]
+
+    params = {
+        "initiative_id": a.initiative.id,
+        "start_after": WINDOW_START,
+        "start_before": WINDOW_END,
+    }
+    # Eight event occurrences, then two task occurrences alone.
+    for leg, budget in (({}, 7), ({"include_events": False}, 1)):
+        monkeypatch.setattr(recurrence, "MAX_EXPANDED", budget)
+        refused = await client.get(
+            a.g("/calendar-entries/"), headers=a.headers, params={**params, **leg}
+        )
+        assert refused.status_code == 422, refused.text
+        assert refused.json()["detail"] == CalendarEventMessages.WINDOW_TOO_FULL
 
 
 async def test_guild_entries_include_flags_skip_legs(
@@ -340,14 +356,21 @@ async def test_guild_scope_returns_every_guild_calendar_s_events(
 
 
 async def test_me_entries_aggregate_across_guilds(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, monkeypatch
 ):
+    """Entries from every guild, narrowed by ``guild_ids``; the guilds share
+    one budget of repeating occurrences."""
     user = await create_user(session, email="cal-me@example.com")
     g1, i1, p1, cal1 = await _guild_with_project(session, user, name="Alpha")
     g2, i2, p2, cal2 = await _guild_with_project(session, user, name="Beta")
 
-    event1 = await create_calendar_event(session, cal1, user, start_at=NOW)
-    event2 = await create_calendar_event(session, cal2, user, start_at=NOW)
+    weekly = "RRULE:FREQ=WEEKLY"
+    event1 = await create_calendar_event(
+        session, cal1, user, start_at=NOW, recurrence=weekly
+    )
+    event2 = await create_calendar_event(
+        session, cal2, user, start_at=NOW, recurrence=weekly
+    )
     task1 = await create_task(session, p1, due_date=NOW, assignees=[user])
     task2 = await create_task(session, p2, due_date=NOW, assignees=[user])
 
@@ -381,6 +404,16 @@ async def test_me_entries_aggregate_across_guilds(
     narrowed_event_keys = {(e["guild_id"], e["id"]) for e in nbody["events"]}
     assert (g1.id, event1.id) in narrowed_event_keys
     assert (g2.id, event2.id) not in narrowed_event_keys
+
+    # Five weekly occurrences in each guild: either fits alone, not both.
+    monkeypatch.setattr(recurrence, "MAX_EXPANDED", 9)
+    refused = await client.get(
+        "/api/v1/me/calendar-entries",
+        headers=headers,
+        params={"start_after": WINDOW_START, "start_before": WINDOW_END},
+    )
+    assert refused.status_code == 422, refused.text
+    assert refused.json()["detail"] == CalendarEventMessages.WINDOW_TOO_FULL
 
 
 async def test_me_entries_windows_tasks_by_params(

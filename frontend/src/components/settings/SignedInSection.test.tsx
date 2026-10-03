@@ -1,11 +1,9 @@
 /**
- * The one list, built from two credentials.
+ * Where the account is signed in.
  *
- * What is worth pinning here is the merge: browser sessions and signed-in
- * phones arrive from different endpoints in different shapes, and the person
- * reading the page is owed one ordered list where the row they are sitting at
- * is obvious and is not offered a button that would sign them out of the page
- * they are on.
+ * The person reading the page is owed one ordered list where the row they are
+ * sitting at is obvious and is not offered a button that would sign them out of
+ * the page they are on.
  */
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -17,9 +15,7 @@ import { SignedInSection } from "./SignedInSection";
 
 const mocks = vi.hoisted(() => ({
   sessions: vi.fn(),
-  devices: vi.fn(),
   revokeSession: vi.fn(),
-  revokeDevice: vi.fn(),
   revokeOthers: vi.fn(),
 }));
 
@@ -29,9 +25,7 @@ vi.mock("@/lib/chesterToast", () => ({
 
 vi.mock("@/hooks/useSecurity", () => ({
   useMySessions: () => mocks.sessions(),
-  useDeviceTokens: () => mocks.devices(),
   useRevokeSession: () => ({ mutate: mocks.revokeSession, isPending: false }),
-  useRevokeDeviceToken: () => ({ mutate: mocks.revokeDevice, isPending: false }),
   useRevokeOtherSessions: () => ({ mutate: mocks.revokeOthers, isPending: false }),
 }));
 
@@ -58,7 +52,15 @@ const otherBrowser = {
   is_current: false,
 };
 
-const phone = { id: 7, device_name: "Lee's iPhone", created_at: ago(10 * 24 * HOUR) };
+const phone = {
+  id: "33333333-3333-3333-3333-333333333333",
+  label: "Lee's iPhone",
+  kind: "mobile" as const,
+  ip: "86.20.4.12",
+  started_at: ago(10 * 24 * HOUR),
+  last_used_at: null,
+  is_current: false,
+};
 
 const loaded = <T,>(data: T) => ({ data, isLoading: false, isError: false });
 
@@ -66,12 +68,11 @@ const rows = () => screen.getAllByRole("button", { name: /sign out$/i });
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.sessions.mockReturnValue(loaded([thisBrowser, otherBrowser]));
-  mocks.devices.mockReturnValue(loaded([phone]));
+  mocks.sessions.mockReturnValue(loaded([phone, thisBrowser, otherBrowser]));
 });
 
 describe("SignedInSection", () => {
-  it("shows browsers and phones in one list", () => {
+  it("shows browsers and the app in one list", () => {
     renderWithProviders(<SignedInSection />);
 
     expect(screen.getByText("Chrome on macOS")).toBeInTheDocument();
@@ -102,7 +103,7 @@ describe("SignedInSection", () => {
     expect(labels).toEqual(["Chrome on macOS", "Firefox on Windows", "Lee's iPhone"]);
   });
 
-  it("ends a browser session by its id", async () => {
+  it("ends a session by its id", async () => {
     const user = userEvent.setup();
     renderWithProviders(<SignedInSection />);
 
@@ -111,24 +112,10 @@ describe("SignedInSection", () => {
     await user.click(screen.getByRole("button", { name: "Sign out" }));
 
     expect(mocks.revokeSession).toHaveBeenCalledWith(otherBrowser.id);
-    expect(mocks.revokeDevice).not.toHaveBeenCalled();
-  });
-
-  it("ends a phone through the other credential", async () => {
-    const user = userEvent.setup();
-    renderWithProviders(<SignedInSection />);
-
-    const row = screen.getByText("Lee's iPhone").closest("div.rounded-lg");
-    await user.click(within(row as HTMLElement).getByRole("button", { name: /sign out/i }));
-    await user.click(screen.getByRole("button", { name: "Sign out" }));
-
-    expect(mocks.revokeDevice).toHaveBeenCalledWith(phone.id);
-    expect(mocks.revokeSession).not.toHaveBeenCalled();
   });
 
   it("offers the sweep only when there is somewhere else to sweep", () => {
     mocks.sessions.mockReturnValue(loaded([thisBrowser]));
-    mocks.devices.mockReturnValue(loaded([]));
     renderWithProviders(<SignedInSection />);
 
     expect(screen.queryByRole("button", { name: /everywhere else/i })).toBeNull();
@@ -139,7 +126,7 @@ describe("SignedInSection", () => {
     renderWithProviders(<SignedInSection />);
 
     await user.click(screen.getByRole("button", { name: "Sign out everywhere else" }));
-    // The dialog names how many go, so the count covers both credentials.
+    // The dialog names how many go.
     expect(screen.getByText(/ends all 2 other sessions/i)).toBeInTheDocument();
 
     const dialog = screen.getByRole("alertdialog");
@@ -149,7 +136,6 @@ describe("SignedInSection", () => {
 
   it("says so when the account is signed in nowhere else", () => {
     mocks.sessions.mockReturnValue(loaded([]));
-    mocks.devices.mockReturnValue(loaded([]));
     renderWithProviders(<SignedInSection />);
 
     expect(screen.getByText("Nowhere else")).toBeInTheDocument();

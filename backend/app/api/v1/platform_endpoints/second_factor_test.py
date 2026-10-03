@@ -493,48 +493,34 @@ async def test_a_hash_no_scheme_verifies_is_not_a_password(
     assert response.status_code == 200, response.text
 
 
-async def test_the_app_is_asked_for_the_code_too(
+async def test_the_app_is_asked_for_the_code_and_keeps_its_refresh_token(
     client: AsyncClient, session: AsyncSession
 ):
-    """The native sign-in takes a password on a different route, and a proved
-    factor is part of signing in on every route that takes one."""
-    await _enrol(client, session, "native@example.com")
+    """A proved factor is part of signing in from the app too. A browser reads
+    its refresh token from a cookie it never sees; the app, which presents its
+    own origin, is handed one."""
+    _user, secret, _codes = await _enrol(client, session, "native@example.com")
+    app = {"Origin": "https://com.morelitea.initiative"}
 
     response = await client.post(
-        "/api/v1/auth/device-token",
-        json={
-            "email": "native@example.com",
+        "/api/v1/auth/token",
+        data={
+            "username": "native@example.com",
             "password": PASSWORD,
             "device_name": "Phone",
         },
+        headers=app,
     )
     assert response.status_code == 401, response.text
     body = response.json()
     assert body["detail"] == "TOTP_REQUIRED"
     assert body["challenge"]
-    assert "device_token" not in body
-
-
-async def test_the_app_keeps_the_refresh_token_it_is_given(
-    client: AsyncClient, session: AsyncSession
-):
-    """A browser reads its refresh token from a cookie it never sees; the app
-    is handed one. Which of the two asked is on the challenge."""
-    _user, secret, _codes = await _enrol(client, session, "native2@example.com")
-    challenge = (
-        await client.post(
-            "/api/v1/auth/device-token",
-            json={
-                "email": "native2@example.com",
-                "password": PASSWORD,
-                "device_name": "Phone",
-            },
-        )
-    ).json()["challenge"]
+    assert "refresh_token" not in body
 
     answered = await client.post(
         "/api/v1/auth/token/totp",
-        json={"challenge": challenge, "code": _next_code(secret)},
+        json={"challenge": body["challenge"], "code": _next_code(secret)},
+        headers=app,
     )
     assert answered.status_code == 200, answered.text
     assert answered.json()["access_token"]

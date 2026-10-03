@@ -11,6 +11,7 @@ from app.schemas.base import (
     RichTextStr,
     SanitizedBaseModel,
     TitleStr,
+    reject_null,
 )
 from app.schemas.query import PageMeta
 from app.schemas.tenant.archive import ToolCan, ToolState
@@ -67,6 +68,8 @@ class ProjectUpdate(SanitizedBaseModel):
     # Send ``null`` to clear a date; omit the field to leave it untouched.
     start_date: Optional[date] = None
     end_date: Optional[date] = None
+
+    _required = reject_null("name", "is_template")
 
 
 class ProjectTaskSummary(SanitizedBaseModel):

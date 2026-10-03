@@ -22,8 +22,7 @@ community, and what leaves a community on its behalf, is a :class:`Rule` in
    can answer it, and a writer who already answers it themselves.
 4. Write, and record each rule that moved. One that did not move records
    nothing.
-5. Follow up and commit: a shorter session limit reaches device tokens
-   already issued, and switching push off drops the tokens it was sent to.
+5. Follow up and commit: switching push off drops the tokens it was sent to.
 
 A community's rule applies only while it holds the option the rule needs
 (``guild_administration.auth_options``), and every point that enforces
@@ -64,7 +63,6 @@ from app.services import audit as audit_service
 from app.services import email as email_service
 from app.services.auth import guild_provider_connections as guild_connections
 from app.services.auth import identity as identity_service
-from app.services.auth import session_lifetime
 from app.services.auth.platform_provider import is_login_ready
 from app.services.platform import app_settings as app_settings_service
 from app.services.platform import guild_entitlements
@@ -472,13 +470,6 @@ class Rule:
             )
 
 
-async def _sweep_device_tokens(ctx: RuleContext, before: Any, after: Any) -> None:
-    # A device token carries its deadline in its own expiry, so the new limit
-    # is written into the ones already issued rather than read back on every
-    # native request.
-    await session_lifetime.apply_to_device_tokens(ctx.system)
-
-
 async def _drop_push_tokens(ctx: RuleContext, before: Any, after: Any) -> None:
     # The deployment stops keeping the addresses it was sending to. Devices
     # register again the next time the app starts, once push is back on.
@@ -800,11 +791,7 @@ PLATFORM_RULES: dict[str, Rule] = {
     for rule in (
         _LoginMethods("login_methods", area="login_methods"),
         _FactorRequirement("second_factor_requirement", area="second_factor"),
-        Rule(
-            "session_max_hours",
-            area="session_lifetime",
-            follow_up=_sweep_device_tokens,
-        ),
+        Rule("session_max_hours", area="session_lifetime"),
         Rule("session_idle_minutes", area="session_lifetime"),
         Rule(
             "push_notifications_enabled",
@@ -835,7 +822,6 @@ COMMUNITY_RULES: dict[str, Rule] = {
             area="session_limit",
             loose=False,
             entitlement=_RESTRICTIONS,
-            follow_up=_sweep_device_tokens,
         ),
         Rule(
             "allow_api_keys", area="api_access", loose=True, entitlement=_RESTRICTIONS

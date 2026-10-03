@@ -106,7 +106,6 @@
     "loadingDevices": "Loading devices…",
     "devicesError": "Unable to load devices.",
     "unknownDevice": "Unknown device",
-    "loggedIn": "Logged in {{date}}",
     "revokeDialogCancel": "Cancel",
     "revoking": "Revoking…",
     "revokeError": "Unable to revoke device access",
@@ -363,7 +362,8 @@
     "channels": {
       "in_app": "Bell",
       "email": "Email",
-      "push": "Mobile"
+      "push": "Mobile",
+      "desktop": "Desktop"
     },
     "groups": {
       "addressed_to_me": "Addressed to me",
@@ -390,7 +390,7 @@
     },
     "quietHours": {
       "title": "Quiet hours",
-      "description": "Hold email and mobile overnight. The bell still collects, and one summary goes out when the window ends.",
+      "description": "Hold email, mobile and desktop overnight. The bell still collects, and one summary goes out when the window ends.",
       "from": "From",
       "to": "Until"
     },
@@ -425,7 +425,7 @@
       "respectPresenceHelp": "If you're already here, the bell has told you. Email waits a few minutes and mobile stays quiet.",
       "pause": {
         "title": "Pause notifications",
-        "description": "Email and mobile stand down for the days you pick. The bell keeps collecting, and you get one summary of everything when you're back.",
+        "description": "Email, mobile and desktop stand down for the days you pick. The bell keeps collecting, and you get one summary of everything when you're back.",
         "active": "Paused until {{until}}",
         "scheduled": "Pausing {{from}} to {{until}}",
         "resume": "Resume",
@@ -1900,9 +1900,9 @@
     "saved": "Notification settings saved",
     "error": "Could not save notification settings",
     "push": {
-      "label": "Mobile notifications",
-      "onHelp": "Notifications reach phones through Apple and Google.",
-      "offHelp": "This server sends nothing to a phone and stores no device registrations."
+      "label": "Phone and desktop notifications",
+      "onHelp": "Notifications reach phones through Apple and Google, and the desktop app directly.",
+      "offHelp": "This server sends nothing to a phone or the desktop app, and stores no device registrations."
     },
     "email": {
       "label": "Email notifications",
@@ -1921,10 +1921,10 @@
     "saved": "Notification settings saved",
     "error": "Could not save notification settings",
     "push": {
-      "label": "Mobile notifications",
-      "onHelp": "This community's notifications reach members' phones.",
-      "offHelp": "Nothing about this community is sent to a phone. Members still get the bell, and email if it is on.",
-      "platformHelp": "This server sends nothing to a phone, so there is nothing here to decide."
+      "label": "Phone and desktop notifications",
+      "onHelp": "This community's notifications reach members' phones and desktop apps.",
+      "offHelp": "Nothing about this community is sent to a phone or the desktop app. Members still get the bell, and email if it is on.",
+      "platformHelp": "This server sends nothing to a phone or the desktop app, so there is nothing here to decide."
     },
     "email": {
       "label": "Email notifications",

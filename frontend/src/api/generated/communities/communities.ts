@@ -2675,9 +2675,7 @@ export function useGetGuildAuthSettingsApiV1CommunitiesGuildIdAuthSettingsGet<
  * keeps an admin from locking the community behind a sign-in they have not
  * completed.
  *
- * Nobody is signed out by a change, with one exception: a device token
- * carries its deadline in its own expiry, so holding members to the
- * twelve-hour standard brings the ones already issued under it. Existing API
+ * Nobody is signed out by a change. Existing API
  * keys are left alone when keys are refused, so accepting them again
  * restores them. Every notification answer only narrows what the deployment
  * permits.

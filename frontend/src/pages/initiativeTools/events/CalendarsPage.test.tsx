@@ -107,6 +107,21 @@ describe("CalendarsView calendar-entries query", () => {
     expect(groups).toHaveLength(0);
   });
 
+  it("says why a range could not be shown", async () => {
+    stubEntries({});
+    server.use(
+      guildHttp.get("/calendar-entries/", () =>
+        HttpResponse.json({ detail: "CALENDAR_WINDOW_TOO_FULL" }, { status: 422 })
+      )
+    );
+
+    renderCalendars();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "This range has too many repeating events to show at once. Pick a shorter range"
+    );
+  });
+
   it("renders every in-window task the aggregate returns", async () => {
     // The aggregate returns all in-window tasks in one payload; the page used to
     // walk paginated /tasks and silently drop anything past the hundredth.

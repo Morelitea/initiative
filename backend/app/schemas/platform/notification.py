@@ -25,6 +25,27 @@ class NotificationRead(SanitizedBaseModel):
     tool: str | None = None
 
 
+class RedactedAlert(SanitizedBaseModel):
+    """The kind-only wording a phone's push carries where content is
+    redacted."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    title: str
+    body: str
+
+
+class NotificationAlertRead(SanitizedBaseModel):
+    """What the desktop app shows for one line."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    notification: NotificationRead
+    #: Set where the deployment or the line's community redacts notifications
+    #: that leave the app: show this instead of the line's own wording.
+    redacted: RedactedAlert | None = None
+
+
 class NotificationListResponse(SanitizedBaseModel):
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 

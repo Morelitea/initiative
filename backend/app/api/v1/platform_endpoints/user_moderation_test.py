@@ -630,7 +630,6 @@ class TestTimeOut:
             "/api/v1/users/me",
             "/api/v1/users/me/time-out",
             "/api/v1/auth/sessions",
-            "/api/v1/auth/device-tokens",
             "/api/v1/notifications/",
         ):
             response = await client.get(path, headers=headers)

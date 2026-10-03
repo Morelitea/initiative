@@ -253,6 +253,15 @@ async def test_update_queue_item(client: AsyncClient, acting_user):
     assert data["label"] == "Renamed"
     assert data["position"] == 5
 
+    # A required field is omitted to keep it, never nulled.
+    for field in ("label", "position", "is_visible"):
+        response = await client.patch(
+            a.g(f"/queues/{queue_data['id']}/items/{item_data['id']}"),
+            headers=a.headers,
+            json={field: None},
+        )
+        assert response.status_code == 422, field
+
 
 async def test_delete_queue_item(client: AsyncClient, acting_user):
     """Owner can delete an item."""

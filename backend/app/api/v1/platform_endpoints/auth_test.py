@@ -10,7 +10,7 @@ Tests the auth API endpoints including:
 """
 
 import secrets
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, timedelta
 from urllib.parse import parse_qs, urlsplit
 
 import httpx
@@ -24,7 +24,6 @@ from app.core.encryption import (
     hash_email,
 )
 from app.core.messages import OidcMessages
-from app.core.transitions import NATIVE_SIGN_IN_CODE
 from app.core.security import (
     REFRESH_COOKIE_NAME,
     SESSION_COOKIE_NAME,
@@ -59,6 +58,8 @@ from app.testing.oidc import (
     FakeIdp,
     mint_id_token,
 )
+
+APP_ORIGIN = {"Origin": "https://com.morelitea.initiative"}
 
 
 async def test_bootstrap_status_no_users(client: AsyncClient):
@@ -180,7 +181,8 @@ async def test_register_answers_the_age_question(client: AsyncClient):
     assert minor.json()["age_confirmed_at"] is None
     assert minor.json()["age_below_minimum_at"] is not None
 
-    unborn = await register("unborn", today + timedelta(days=1))
+    # Two days on, so no time zone the suite runs in reads it as today.
+    unborn = await register("unborn", today + timedelta(days=2))
     assert unborn.status_code == 422
     assert unborn.json()["detail"] == "USER_AGE_INVALID_BIRTHDATE"
 
@@ -593,11 +595,13 @@ async def test_login_wrong_password(client: AsyncClient, session: AsyncSession):
     assert "incorrect" in response.json()["detail"].lower()
 
 
-@pytest.mark.parametrize("endpoint", ["token", "device-token"])
+@pytest.mark.parametrize("origin", [None, APP_ORIGIN])
 async def test_password_token_refusal_does_not_reveal_account_resolution(
-    client: AsyncClient, session: AsyncSession, endpoint: str
+    client: AsyncClient, session: AsyncSession, origin: dict[str, str] | None
 ) -> None:
-    """Known, unknown, and non-password accounts have one public refusal shape."""
+    """Known, unknown, and non-password accounts have one public refusal shape,
+    from a browser and from the app alike."""
+    endpoint = "app" if origin else "browser"
     await create_user(session, email=f"known-{endpoint}@example.com")
     # Built through the factory rather than by hand: an account is more than
     # its row now that addresses are resolved separately, and a test that
@@ -609,18 +613,10 @@ async def test_password_token_refusal_does_not_reveal_account_resolution(
     )
 
     async def refuse(email: str):
-        if endpoint == "token":
-            return await client.post(
-                "/api/v1/auth/token",
-                data={"username": email, "password": "wrong-password"},
-            )
         return await client.post(
-            "/api/v1/auth/device-token",
-            json={
-                "email": email,
-                "password": "wrong-password",
-                "device_name": "test-phone",
-            },
+            "/api/v1/auth/token",
+            data={"username": email, "password": "wrong-password"},
+            headers=origin,
         )
 
     responses = [
@@ -690,18 +686,15 @@ async def test_address_out_of_refusals_refuses_the_right_password(
 async def test_address_allowance_is_shared_and_ignores_whether_anyone_holds_it(
     client: AsyncClient, two_refusals_per_address
 ) -> None:
-    """Both password routes draw on one allowance, and an address nobody holds
-    runs out the same way as one somebody does."""
+    """The browser and the app draw on one allowance, and an address nobody
+    holds runs out the same way as one somebody does."""
     await _sign_in(client, "Nobody@Example.com ", "wrong")
     await _sign_in(client, "nobody@example.com", "wrong")
 
     response = await client.post(
-        "/api/v1/auth/device-token",
-        json={
-            "email": "nobody@example.com",
-            "password": "wrong",
-            "device_name": "test-phone",
-        },
+        "/api/v1/auth/token",
+        data={"username": "nobody@example.com", "password": "wrong"},
+        headers=APP_ORIGIN,
     )
     assert response.status_code == 429
     assert response.json() == {"detail": "SIGN_IN_LOCKED"}
@@ -717,12 +710,9 @@ async def test_one_network_address_is_not_one_allowance(
         response = await _sign_in(client, f"person{n}@example.com", "wrong")
         assert response.status_code == 400, response.text
         app_response = await client.post(
-            "/api/v1/auth/device-token",
-            json={
-                "email": f"phone{n}@example.com",
-                "password": "wrong",
-                "device_name": "test-phone",
-            },
+            "/api/v1/auth/token",
+            data={"username": f"phone{n}@example.com", "password": "wrong"},
+            headers=APP_ORIGIN,
         )
         assert app_response.status_code == 400, app_response.text
 
@@ -826,12 +816,9 @@ async def test_five_wrong_passwords_lock_the_account(
     assert refused.json() == {"detail": "SIGN_IN_LOCKED"}
 
     app_refused = await client.post(
-        "/api/v1/auth/device-token",
-        json={
-            "email": "five@example.com",
-            "password": "right-password",
-            "device_name": "test-phone",
-        },
+        "/api/v1/auth/token",
+        data={"username": "five@example.com", "password": "right-password"},
+        headers=APP_ORIGIN,
     )
     assert app_refused.status_code == 429
 
@@ -1212,40 +1199,6 @@ async def test_logout_revokes_the_refresh_token_presented_in_the_body(
 
     client.cookies.set("refresh_token", presented, path="/api/v1/auth")
     assert (await client.post("/api/v1/auth/refresh")).status_code == 401
-
-
-async def test_logout_consumes_only_the_device_token_it_came_in_on(
-    client: AsyncClient, session: AsyncSession
-):
-    """A device token names one installed client, so signing out on a phone
-    leaves the tablet's token working."""
-    from app.services.platform import user_tokens
-
-    user = await create_user(session, email="two-phones@example.com")
-    signing_out = await user_tokens.create_device_token(
-        session, user_id=user.id, device_name="Phone"
-    )
-    elsewhere = await user_tokens.create_device_token(
-        session, user_id=user.id, device_name="Tablet"
-    )
-
-    logout = await client.post(
-        "/api/v1/auth/logout",
-        headers={"Authorization": f"DeviceToken {signing_out}"},
-    )
-    assert logout.status_code == 204
-
-    spent = await client.get(
-        "/api/v1/users/me",
-        headers={"Authorization": f"DeviceToken {signing_out}"},
-    )
-    assert spent.status_code == 401
-
-    still_live = await client.get(
-        "/api/v1/users/me",
-        headers={"Authorization": f"DeviceToken {elsewhere}"},
-    )
-    assert still_live.status_code == 200
 
 
 async def test_logout_ignores_a_refresh_token_belonging_to_someone_else(
@@ -2193,8 +2146,8 @@ async def test_oidc_callback_mobile_flow_hands_back_a_code(
 ):
     """The app's sign-in comes back as a one-time code bound to the challenge
     it began with. The verifier behind that challenge opens a session that
-    records the provider; any answer spends the code. A begin with no
-    challenge, from an older app, is handed a device token."""
+    records the provider and is a device's; any answer spends the code. A
+    begin with no challenge, from an older app, is asked to update."""
     await _enable_platform_oidc(session)
     idp = FakeIdp()
     _wire_fake_idp(monkeypatch, idp)
@@ -2247,40 +2200,16 @@ async def test_oidc_callback_mobile_flow_hands_back_a_code(
     auth_session = (await session.exec(select(AuthSession))).one()
     assert auth_session.satisfied_providers == [provider.id]
     assert auth_session.device_name == "Pixel"
+    assert auth_session.device is True
 
-    async def legacy_redirect() -> dict[str, str]:
-        legacy = await _run_oidc_flow(
-            client,
-            idp,
-            id_token_claims=claims,
-            login_params={"mobile": "true", "device_name": "Pixel"},
-        )
-        location = urlsplit(legacy.headers["location"])
-        return {k: v[0] for k, v in parse_qs(location.query).items()}
-
-    # The grace runs from this deployment's first boot with the code flow, and
-    # booting again does not restart it.
-    await app_settings_service.record_running_version(
-        session, version="0.99.0", transitions=[NATIVE_SIGN_IN_CODE.name]
+    legacy = await _run_oidc_flow(
+        client,
+        idp,
+        id_token_claims=claims,
+        login_params={"mobile": "true", "device_name": "Pixel"},
     )
-    started = (await app_settings_service.get_app_settings(session)).transitions
-    await app_settings_service.record_running_version(
-        session, version="0.99.1", transitions=[NATIVE_SIGN_IN_CODE.name]
-    )
-    row = await app_settings_service.get_app_settings(session)
-    assert row.transitions == started
-    query = await legacy_redirect()
-    assert query["token_type"] == "device_token"
-    assert query["token"]
-
-    row.transitions = {
-        NATIVE_SIGN_IN_CODE.name: (
-            datetime.now(timezone.utc) - NATIVE_SIGN_IN_CODE.grace - timedelta(days=1)
-        ).isoformat()
-    }
-    session.add(row)
-    await session.commit()
-    assert await legacy_redirect() == {"error": "NATIVE_APP_UPDATE_REQUIRED"}
+    location = urlsplit(legacy.headers["location"])
+    assert parse_qs(location.query) == {"error": ["NATIVE_APP_UPDATE_REQUIRED"]}
 
 
 async def test_oidc_callback_enriches_missing_email_from_userinfo(
@@ -2454,22 +2383,21 @@ async def test_password_reset_rejects_short_password(
     assert fresh.consumed_at is None
 
 
-async def test_password_reset_revokes_sessions_and_device_tokens(
+async def test_password_reset_revokes_sessions_on_every_device(
     client: AsyncClient, session: AsyncSession
 ):
-    """A successful forgot-password reset must invalidate the user's
-    outstanding JWT (token_version bump) and active device tokens, so a
-    stolen-but-unexpired credential can't survive the reset."""
-    from sqlmodel import select
-
-    from app.models.platform.user_token import UserToken, UserTokenPurpose
+    """A successful forgot-password reset invalidates the user's outstanding
+    JWT (token_version bump) and every session, the app's included."""
+    from app.models.platform.user_token import UserTokenPurpose
+    from app.services.auth import sessions as session_service
     from app.services.platform import user_tokens
 
     user = await create_user(session, email="reset-revoke@example.com")
     old_jwt = get_auth_token(user)
-    device_token = await user_tokens.create_device_token(
-        session, user_id=user.id, device_name="Reset phone"
+    phone = await session_service.create_session(
+        session, user_id=user.id, amr=["pwd"], satisfied_providers=[], device=True
     )
+    phone_id = phone.session.id
     reset_token = await user_tokens.create_token(
         session,
         user_id=user.id,
@@ -2489,22 +2417,11 @@ async def test_password_reset_revokes_sessions_and_device_tokens(
     )
     assert post_jwt.status_code == 401
 
-    # Device token rejected (consumed).
-    post_device = await client.get(
-        "/api/v1/users/me",
-        headers={"Authorization": f"DeviceToken {device_token}"},
-    )
-    assert post_device.status_code == 401
-
-    token_row = (
-        await session.exec(
-            select(UserToken).where(
-                UserToken.user_id == user.id,
-                UserToken.purpose == UserTokenPurpose.device_auth,
-            )
-        )
-    ).one()
-    assert token_row.consumed_at is not None
+    # The phone's session is ended too.
+    session.expire_all()
+    ended = await session.get(AuthSession, phone_id)
+    assert ended is not None
+    assert ended.revoked_at is not None
 
 
 async def test_password_reset_tells_the_account(

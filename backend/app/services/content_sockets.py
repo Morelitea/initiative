@@ -68,7 +68,7 @@ from app.db.session import RLS_CONTEXT_MAX_AGE_SECONDS
 from app.models.platform.user import Presence, User, UserStatus
 from app.services.auth import credentials
 from app.services.auth import sessions as session_service
-from app.services.platform import presence, user_tokens
+from app.services.platform import presence
 
 logger = logging.getLogger(__name__)
 
@@ -156,7 +156,6 @@ class Credential:
     satisfied_claims: dict[str, dict[str, list[str]]] = field(default_factory=dict)
     session_id: Optional[uuid.UUID] = None
     token_version: Optional[int] = None
-    device_token_id: Optional[int] = None
 
     @classmethod
     def captured(cls) -> "Credential":
@@ -167,7 +166,6 @@ class Credential:
             satisfied_claims=auth_context.satisfied_claims(),
             session_id=session.session_id if session else None,
             token_version=session.token_version if session else None,
-            device_token_id=auth_context.device_token_id(),
         )
 
     def presented(self) -> tuple[Any, ...]:
@@ -543,29 +541,20 @@ class ContentSockets:
     async def _ended_credentials(self, targets: list[Subscriber]) -> set[Subscriber]:
         """The sockets among ``targets`` whose credential no longer stands.
 
-        One statement per kind of credential for the whole batch, on the system
-        engine. A session's id moves to the live row its chain has reached.
+        One statement for the whole batch, on the system engine. A session's id moves to the live row its chain has reached.
         Fail closed: a lookup that errors ends every credential it was asked
         about.
         """
         session_ids = {s.session_id for s in targets if s.session_id is not None}
-        device_ids = {
-            s.credential.device_token_id
-            for s in targets
-            if s.credential.device_token_id is not None
-        }
         versioned = {
             s.user_id for s in targets if s.credential.token_version is not None
         }
-        if not session_ids and not device_ids:
+        if not session_ids:
             return set()
         try:
             async with db_session.SystemSessionLocal() as system_session:
                 tips = await session_service.live_chain_tips(
                     system_session, session_ids=session_ids
-                )
-                live_devices = await user_tokens.live_device_token_ids(
-                    system_session, token_ids=device_ids
                 )
                 versions: dict[int, int] = {}
                 if versioned:
@@ -579,11 +568,7 @@ class ContentSockets:
             logger.exception(
                 "content socket credential check failed; closing to fail closed"
             )
-            return {
-                s
-                for s in targets
-                if s.session_id is not None or s.credential.device_token_id is not None
-            }
+            return {s for s in targets if s.session_id is not None}
 
         ended: set[Subscriber] = set()
         for sub in targets:
@@ -596,9 +581,6 @@ class ContentSockets:
                     ended.add(sub)
                     continue
                 sub.session_id = tip
-            device = sub.credential.device_token_id
-            if device is not None and device not in live_devices:
-                ended.add(sub)
         return ended
 
     async def _disconnect(

@@ -24,6 +24,7 @@ import type {
   HTTPValidationError,
   ListNotificationsApiV1NotificationsGetParams,
   MarkAllNotificationsReadApiV1NotificationsReadAllPostParams,
+  NotificationAlertRead,
   NotificationCountResponse,
   NotificationListResponse,
   NotificationPreferencesRead,
@@ -463,6 +464,180 @@ export const useReadNotificationSubjectApiV1NotificationsReadSubjectPost = <
     queryClient
   );
 };
+/**
+ * One line as the desktop app announces it, after an ``alert`` frame.
+ *
+ * The switches are read as they stand now: a community that has started
+ * redacting since the frame went gets the kind of thing that happened, and
+ * one that has switched push off gets no more than that.
+ * @summary Read Notification Alert
+ */
+export const readNotificationAlertApiV1NotificationsNotificationIdAlertGet = (
+  notificationId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<NotificationAlertRead>(
+    { url: `/api/v1/notifications/${notificationId}/alert`, method: "GET", signal },
+    options
+  );
+};
+
+export const getReadNotificationAlertApiV1NotificationsNotificationIdAlertGetQueryKey = (
+  notificationId: number
+) => {
+  return [`/api/v1/notifications/${notificationId}/alert`] as const;
+};
+
+export const getReadNotificationAlertApiV1NotificationsNotificationIdAlertGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof readNotificationAlertApiV1NotificationsNotificationIdAlertGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  notificationId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readNotificationAlertApiV1NotificationsNotificationIdAlertGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getReadNotificationAlertApiV1NotificationsNotificationIdAlertGetQueryKey(notificationId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof readNotificationAlertApiV1NotificationsNotificationIdAlertGet>>
+  > = ({ signal }) =>
+    readNotificationAlertApiV1NotificationsNotificationIdAlertGet(
+      notificationId,
+      requestOptions,
+      signal
+    );
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: notificationId !== null && notificationId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof readNotificationAlertApiV1NotificationsNotificationIdAlertGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ReadNotificationAlertApiV1NotificationsNotificationIdAlertGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof readNotificationAlertApiV1NotificationsNotificationIdAlertGet>>
+>;
+export type ReadNotificationAlertApiV1NotificationsNotificationIdAlertGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useReadNotificationAlertApiV1NotificationsNotificationIdAlertGet<
+  TData = Awaited<ReturnType<typeof readNotificationAlertApiV1NotificationsNotificationIdAlertGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  notificationId: number,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readNotificationAlertApiV1NotificationsNotificationIdAlertGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof readNotificationAlertApiV1NotificationsNotificationIdAlertGet>>,
+          TError,
+          Awaited<ReturnType<typeof readNotificationAlertApiV1NotificationsNotificationIdAlertGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadNotificationAlertApiV1NotificationsNotificationIdAlertGet<
+  TData = Awaited<ReturnType<typeof readNotificationAlertApiV1NotificationsNotificationIdAlertGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  notificationId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readNotificationAlertApiV1NotificationsNotificationIdAlertGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof readNotificationAlertApiV1NotificationsNotificationIdAlertGet>>,
+          TError,
+          Awaited<ReturnType<typeof readNotificationAlertApiV1NotificationsNotificationIdAlertGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadNotificationAlertApiV1NotificationsNotificationIdAlertGet<
+  TData = Awaited<ReturnType<typeof readNotificationAlertApiV1NotificationsNotificationIdAlertGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  notificationId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readNotificationAlertApiV1NotificationsNotificationIdAlertGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Read Notification Alert
+ */
+
+export function useReadNotificationAlertApiV1NotificationsNotificationIdAlertGet<
+  TData = Awaited<ReturnType<typeof readNotificationAlertApiV1NotificationsNotificationIdAlertGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  notificationId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readNotificationAlertApiV1NotificationsNotificationIdAlertGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getReadNotificationAlertApiV1NotificationsNotificationIdAlertGetQueryOptions(
+    notificationId,
+    options
+  );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
 /**
  * @summary Mark Notification Read
  */

@@ -10,6 +10,7 @@ from fastapi import (
     APIRouter,
     BackgroundTasks,
     Depends,
+    Form,
     HTTPException,
     Query,
     Request,
@@ -22,17 +23,15 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import delete as sql_delete, select
 
 from app.api.deps import (
-    AccountHolder,
     SessionDep,
     get_current_active_user,
     get_current_user_optional,
-    require_first_party_session,
     SystemSessionDep,
 )
 from app.db import cohorts
 from app.db import session as db_session
 from app.db.session import set_rls_context
-from app.core.config import API_V1_STR, settings
+from app.core.config import API_V1_STR, is_device, settings
 from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core import auth_context
 from app.core.rate_limit import (
@@ -44,7 +43,6 @@ from app.core.encryption import (
     SALT_OIDC_CLIENT_SECRET,
 )
 from app.core.login_methods import LoginMethod
-from app.core.transitions import NATIVE_SIGN_IN_CODE
 from app.core.messages import (
     AuthMessages,
     NativeMessages,
@@ -104,11 +102,7 @@ from app.models.platform.guild import Guild, GuildInvite, GuildRole
 from app.schemas.platform.token import Token
 from app.schemas.platform.second_factor import SecondFactorChallengeAnswer
 from app.schemas.platform.auth import (
-    DeviceTokenInfo,
-    DeviceTokenRequest,
-    DeviceTokenExchangeRequest,
     NativeSignInRedeem,
-    DeviceTokenResponse,
     RefreshRequest,
     LoginProviderEntry,
     LoginProvidersResponse,
@@ -792,7 +786,13 @@ async def login_access_token(
     session: SessionDep,
     system_session: SystemSessionDep,
     form_data: OAuth2PasswordRequestForm = Depends(),
+    device_name: Annotated[str | None, Form(max_length=255)] = None,
 ) -> Token | JSONResponse:
+    """Sign in with an address and password, from a browser or a device.
+
+    A device (:func:`is_device`) is handed its refresh token in the body as well
+    and opens a device session, labelled ``device_name``.
+    """
     user = await prove_password(
         session, system_session, email=form_data.username, password=form_data.password
     )
@@ -803,7 +803,11 @@ async def login_access_token(
     # The password is right, and for an account holding a proved factor that
     # is not the whole sign-in.
     challenge = await second_factor_outstanding(
-        session, system_session, user_id=user_id, leg=PASSWORD_LEG, native=False
+        session,
+        system_session,
+        user_id=user_id,
+        leg=PASSWORD_LEG,
+        native=is_device(request),
     )
     if challenge is not None:
         return challenge
@@ -816,6 +820,7 @@ async def login_access_token(
         token_version=token_version,
         amr=PASSWORD_LEG.amr,
         audit_detail={"method": PASSWORD_LEG.method},
+        device_name=(device_name or "").strip() or None,
     )
 
 
@@ -912,7 +917,7 @@ async def answer_second_factor(
             },
         )
 
-    leg, native = first_leg_of(challenge.purpose)
+    leg, _ = first_leg_of(challenge.purpose)
     return await open_session(
         request,
         response,
@@ -921,10 +926,6 @@ async def answer_second_factor(
         token_version=user.token_version,
         amr=[*leg.amr, *factor_amr],
         audit_detail={"method": leg.method, "second_factor": method},
-        # The app keeps its refresh token; a browser reads one from a cookie it
-        # never sees. Which of the two asked is on the challenge, not on the
-        # request, so the client is not the one saying.
-        return_refresh_token=native,
     )
 
 
@@ -1138,32 +1139,18 @@ async def logout(
     login. The access token it came in on is short-lived and the client drops
     it.
 
-    A native client authenticating with a device token consumes that row too —
-    the token is one installed client's, so consuming it is the same per-device
-    scope by another name.
-
     A client whose access token has already expired still signs out: the
     refresh token it presents names its session, and holding it is what
     renewing would have asked for. That session's chain is revoked and no
     other.
 
-    Connections opened on the ended session or device token are re-checked
-    once it commits, and close.
+    Connections opened on the ended session are re-checked once it commits, and
+    close.
     """
     signed_out: int | None = None
-    # ``auth_sessions`` and ``user_tokens`` are both reached on the system
-    # engine, so the device token, the login chain and the record commit
-    # together.
+    # ``auth_sessions`` is reached on the system engine, so the login chain and
+    # the record commit together.
     if current_user is not None:
-        auth_header = request.headers.get("Authorization", "")
-        if auth_header.startswith("DeviceToken "):
-            device_token_str = auth_header[12:]
-            device_token = await user_tokens.get_device_token(
-                system_session, token=device_token_str
-            )
-            if device_token:
-                device_token.consumed_at = datetime.now(timezone.utc)
-                system_session.add(device_token)
         await _revoke_signed_out_login(
             request, system_session, payload=payload, user_id=current_user.id
         )
@@ -1209,138 +1196,6 @@ async def issue_upload_token(
         session_amr=auth_context.session_amr(),
     )
     return UploadTokenResponse(upload_token=token, expires_in=expires_in)
-
-
-@router.post("/device-token", response_model=DeviceTokenResponse)
-async def create_device_token(
-    request: Request,
-    session: SessionDep,
-    system_session: SystemSessionDep,
-    payload: DeviceTokenRequest,
-) -> DeviceTokenResponse | JSONResponse:
-    """Sign the app in with an address and password.
-
-    Hands back a device token beside an ordinary session. The password is
-    proved the same way ``/token`` proves it, including whether the deployment
-    permits passwords at all.
-    """
-    user = await prove_password(
-        session, system_session, email=payload.email, password=payload.password
-    )
-    user_id, token_version = user.id, user.token_version
-    device_name = payload.device_name.strip()
-
-    # The same rule the browser sign-in follows: a proved factor is part of
-    # signing in, on every path that takes a password. The app presents the
-    # code against the challenge at /auth/token/totp, and what comes back from
-    # there is a session rather than a device token: an account holding a
-    # factor moves onto the rotating credential rather than the ninety-day one.
-    challenge = await second_factor_outstanding(
-        session, system_session, user_id=user_id, leg=PASSWORD_LEG, native=True
-    )
-    if challenge is not None:
-        return challenge
-
-    # Both credentials on one transaction, so a failure takes both: a device
-    # token committed on its own would outlive the response it was for, and
-    # each retry would leave another live one in the account's device list.
-    #
-    # The session carries ``pwd`` because that is what was presented here —
-    # which is what the device token itself cannot say, and why a device-token
-    # session satisfies no policy.
-    async with session_store(system_session, user_id=user_id):
-        device_token = await user_tokens.create_device_token(
-            system_session,
-            user_id=user_id,
-            device_name=device_name,
-            amr=list(PASSWORD_LEG.amr),
-            commit=False,
-        )
-        await audit_service.record(
-            system_session,
-            event_type=AuditEventType.AUTH_DEVICE_TOKEN_ISSUED,
-            actor_user_id=user_id,
-            detail={"method": PASSWORD_LEG.method, "device_name": device_name},
-        )
-        await sign_in_locks.record_success(system_session, user_id)
-        issued = await issue_session(
-            request,
-            system_session,
-            user_id=user_id,
-            token_version=token_version,
-            amr=PASSWORD_LEG.amr,
-            device_name=device_name,
-        )
-    return DeviceTokenResponse(
-        device_token=device_token,
-        access_token=issued.access_token,
-        refresh_token=issued.refresh_token,
-        expires_in=issued.access_max_age,
-    )
-
-
-@router.post("/device-token/exchange", response_model=Token)
-@limiter.limit("20/15minutes")
-async def exchange_device_token(
-    request: Request,
-    system_session: SystemSessionDep,
-    payload: DeviceTokenExchangeRequest,
-) -> Token:
-    """Trade a device token for a session of the ordinary kind.
-
-    How an installed client moves across without asking anybody to sign in
-    again: it presents the token it already holds and is handed an access token
-    and a refresh token. The device token is left alone — it keeps working
-    until the client stops sending it, and the build that stops is the one that
-    decides when.
-
-    The session carries what the sign-in that minted the token recorded, and
-    only across the handoff: the relay sign-ins hand the app a token instead of
-    a session, so the first exchange inside the window is the rest of that
-    sign-in. After it — a later launch, a chain that lapsed — the app is
-    resuming on a string it has been keeping, and the session it gets records
-    nothing, which satisfies no community's sign-in requirement. See
-    ``user_tokens.claim_handoff_amr``.
-    """
-    record = await user_tokens.get_device_token(
-        system_session, token=payload.device_token
-    )
-    if record is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=AuthMessages.NOT_AUTHENTICATED,
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    user = await system_session.get(User, record.user_id)
-    if user is None or user.status not in LOGIN_STATUSES:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=AuthMessages.NOT_AUTHENTICATED,
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    user_id, token_version = user.id, user.token_version
-    device_name = record.device_name
-    async with session_store(system_session, user_id=user_id):
-        # The row that records the handoff and the session that took it commit
-        # together; ``record`` is only read for its values, and the update
-        # carries its own condition.
-        handed_over = await user_tokens.claim_handoff_amr(system_session, record=record)
-        await audit_service.record(
-            system_session,
-            event_type=AuditEventType.AUTH_DEVICE_TOKEN_EXCHANGED,
-            actor_user_id=user_id,
-            detail={"device_name": device_name},
-        )
-        issued = await issue_session(
-            request,
-            system_session,
-            user_id=user_id,
-            token_version=token_version,
-            amr=handed_over,
-            device_name=device_name,
-        )
-    return issued.to_token(include_refresh=True)
 
 
 @router.post("/native/token", response_model=Token)
@@ -1391,50 +1246,9 @@ async def redeem_native_sign_in(
             satisfied_providers=handoff.satisfied_providers,
             provider_auth=handoff.provider_auth,
             device_name=handoff.device_name,
+            device=True,
         )
     return issued.to_token(include_refresh=True)
-
-
-@router.get("/device-tokens", response_model=list[DeviceTokenInfo])
-async def list_device_tokens(
-    system_session: SystemSessionDep,
-    current_user: AccountHolder,
-    _first_party: Annotated[str, Depends(require_first_party_session)],
-) -> list[DeviceTokenInfo]:
-    """List all device tokens for the current user."""
-    tokens = await user_tokens.get_user_device_tokens(
-        system_session, user_id=current_user.id
-    )
-    return [
-        DeviceTokenInfo(
-            id=t.id,
-            device_name=t.device_name,
-            created_at=t.created_at,
-        )
-        for t in tokens
-    ]
-
-
-@router.delete("/device-tokens/{token_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def revoke_device_token(
-    system_session: SystemSessionDep,
-    current_user: AccountHolder,
-    _first_party: Annotated[str, Depends(require_first_party_session)],
-    token_id: int,
-) -> None:
-    """Revoke a device token."""
-    success = await user_tokens.revoke_device_token(
-        system_session,
-        token_id=token_id,
-        user_id=current_user.id,
-    )
-    if not success:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.TOKEN_NOT_FOUND
-        )
-    # Connections the device opened with it close now rather than at the next
-    # sweep.
-    await content_sockets.revoke_user_everywhere(current_user.id)
 
 
 def _provider_state_key(row: AuthProvider) -> str:
@@ -1975,48 +1789,9 @@ async def _complete_provider_login(
         logger.exception("OIDC claim sync failed for user %s", user.id)
 
     if is_mobile and not completion.app_challenge:
-        # An app bundle from before the code flow began this sign-in.
-        if await app_settings_service.transition_over(
-            system_session, NATIVE_SIGN_IN_CODE
-        ):
-            return _error_redirect(True, NativeMessages.APP_UPDATE_REQUIRED)
-        device_name = completion.device_name or "Mobile Device"
-        device_token = await user_tokens.create_device_token(
-            system_session,
-            user_id=user.id,
-            device_name=device_name,
-            # What the provider said about this authentication, kept for the
-            # exchange the app makes next. The same handoff the relay passkey
-            # sign-in takes, for the same reason: this branch answers with a
-            # redirect, so there is no session here to carry it.
-            amr=session_amr(
-                provider_row.slug,
-                read_assurance(completion.claims),
-                asserts_second_factor=provider_row.asserts_second_factor,
-            ),
-        )
-        # No session alongside this one: it answers with a redirect, and a
-        # refresh token does not belong in a URL. ``POST /auth/device-token/
-        # exchange`` is where this client trades the token for one.
-        #
-        # The record is best-effort here, unlike the password route. This
-        # branch has already authenticated somebody against their IdP, and the
-        # rule it works under — stated a few lines down for the session — is
-        # that a store that is briefly unavailable does not fail an SSO login.
-        try:
-            await audit_service.record(
-                system_session,
-                event_type=AuditEventType.AUTH_DEVICE_TOKEN_ISSUED,
-                actor_user_id=user.id,
-                detail={"method": "oidc", "device_name": device_name},
-            )
-            await system_session.commit()
-        except Exception:
-            await system_session.rollback()
-            logger.exception("Could not record device-token issue for user %s", user.id)
-        redirect_params = {"token": device_token, "token_type": "device_token"}
-        redirect_url = f"{MOBILE_CALLBACK_URI}?{urlencode(redirect_params)}"
-        return RedirectResponse(redirect_url)
+        # An app bundle from before the code flow began this sign-in. It can
+        # only be handed a session through the code, so it is asked to update.
+        return _error_redirect(True, NativeMessages.APP_UPDATE_REQUIRED)
     # ``user`` is attached to ``system_session``, so a rollback expires its
     # attributes; the plain values are captured up front so the failure path
     # never touches the ORM object again.
@@ -2338,7 +2113,7 @@ async def reset_password(
     # The link proved the inbox, so the new password is not held back by wrong
     # answers counted before it.
     await sign_in_locks.lift(system_session, user.id)
-    # Bump token_version and revoke device tokens / API keys / refresh sessions
+    # Bump token_version and revoke API keys / refresh sessions
     # so no stale credential (JWT or captured refresh) survives either.
     # ``token_version`` is bumped on ``user``, which is bound to the system
     # engine here, so that half commits with the password.

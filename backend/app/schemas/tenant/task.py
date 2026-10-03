@@ -11,6 +11,7 @@ from app.schemas.base import (
     RichMentionStr,
     SanitizedBaseModel,
     TitleStr,
+    reject_null,
 )
 from app.schemas.query import PageMeta
 from app.schemas.recurrence import OccurrenceScope, TaskRule
@@ -153,6 +154,8 @@ class TaskUpdate(PropertiesOnUpdate):
     #: Omitted, it carries forward from this task ("following"). The repeat
     #: itself always changes from this task on.
     scope: Optional[OccurrenceScope] = None
+
+    _required = reject_null("title", "priority")
 
 
 class TaskMoveRequest(SanitizedBaseModel):

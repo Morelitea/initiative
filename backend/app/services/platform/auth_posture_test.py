@@ -3,7 +3,7 @@
 Each rule in ``PLATFORM_RULES`` and ``COMMUNITY_RULES`` has a case below: a
 loose and a tight value, and how to put the tight one in place. What the
 rules have of their own (the stranded-account count, a provider's
-connection, the device-token sweep) is tested beside the routes that take it.
+connection) is tested beside the routes that take it.
 """
 
 from dataclasses import dataclass

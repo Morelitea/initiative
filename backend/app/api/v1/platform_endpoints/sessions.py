@@ -10,12 +10,6 @@ request path is granted nothing on it — and the filter is what makes this the
 account's own list rather than a view of the table. What comes back carries no
 refresh-token hash; :class:`~app.services.auth.sessions.LiveSession` selects
 the columns a person needs to recognise their own laptop and no others.
-
-The native devices the same screen shows are a different credential on a
-different table (``user_tokens``), served by ``/auth/device-tokens``. They are
-merged into one list by the page, not by an endpoint: one of the two is on its
-way out (see ``lib/nativeSession.ts``), and when it goes the list loses a
-source rather than a branch.
 """
 
 from __future__ import annotations
@@ -27,7 +21,6 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from app.api.deps import AccountHolder, require_first_party_session, SystemSessionDep
 from app.api.v1.platform_endpoints.session_opening import current_session_row
-from app.core import auth_context
 from app.core.audit_events import AuditEventType
 from app.core.messages import AuthMessages
 from app.core.user_agents import describe, kind_of
@@ -35,7 +28,6 @@ from app.models.platform.auth_session import AuthSession
 from app.schemas.platform.auth import SignedInSessionInfo
 from app.services import audit as audit_service
 from app.services.auth import sessions as session_service
-from app.services.platform import user_tokens
 from app.services.content_sockets import sockets as content_sockets
 
 router = APIRouter()
@@ -122,21 +114,9 @@ async def revoke_my_other_sessions(
 ) -> None:
     """End every session the account holds except the one asking.
 
-    Both credentials, because the list this backs shows both and a button that
-    signed out the browsers while leaving the phones would not be telling the
-    truth. Which one is spared depends on what the caller is holding: a browser
-    session spares its own row and takes every device token, a native client
-    spares its own token and takes every session.
-
-    Both tables are the system engine's, so the two halves and the record
+    ``auth_sessions`` is the system engine's, so the revocation and the record
     commit together.
     """
-    await user_tokens.revoke_other_device_tokens(
-        system_session,
-        user_id=current_user.id,
-        keep_token_id=auth_context.device_token_id(),
-    )
-
     current = current_session_row(request)
     await session_service.revoke_all_for_user(
         system_session,
@@ -152,6 +132,6 @@ async def revoke_my_other_sessions(
         detail={"scope": "others"},
     )
     await system_session.commit()
-    # The connections this device opened stand on the credential it kept, so
-    # they pass the re-check; every other one closes.
+    # The connections this session opened pass the re-check; every other one
+    # closes.
     await content_sockets.revoke_user_everywhere(current_user.id)
