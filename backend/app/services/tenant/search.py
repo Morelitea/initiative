@@ -8,10 +8,12 @@ what it is looking for, and the database decides what the reader may see.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, replace
-from typing import Optional, Sequence
+from typing import Iterable, Optional, Sequence
 
-from sqlalchemy import Select, false, func, select, text
+from sqlalchemy import Select, String, Text, cast, false, func, literal, select, text
+from sqlalchemy.dialects.postgresql import TSQUERY
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
@@ -23,8 +25,9 @@ from app.core.messages import AppMessages
 from app.core.search import SearchEntityType
 from app.core.tools import Tool
 from app.db.app_rls import SEARCH_ENTRY_READ_SCOPE
-from app.db.guild_standing import InstallContext
-from app.db.search_index import entity_types
+from app.db.guild_standing import ActorContext, InstallContext
+from app.db.search_index import MENTION_LEXEME, entity_types
+from app.models.platform.user_profile_view import MemberProfile
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.search_entry import SearchEntry
 from app.schemas.tenant.search import SearchHit, SearchResults, SearchSuggestion
@@ -177,6 +180,85 @@ def _trailing_prefix(query: str) -> tuple[str, Optional[str]]:
     return head, last
 
 
+#: A quoted phrase, or anything else up to a space: the terms
+#: ``websearch_to_tsquery`` reads.
+_TERM = re.compile(r'"([^"]*)"|(\S+)')
+#: A run of letters and digits, as the ``simple`` parser reads a word.
+_WORD = re.compile(r"[^\W_]+")
+
+
+def _typed_terms(query: str) -> list[str]:
+    """What was typed, as terms each parsing alone to the subtree it parses to
+    within the whole: a quoted phrase with its quotes, and every other word
+    without an exclusion's ``-``. Operators and terms holding no word are left
+    out, as they name nobody."""
+    terms = []
+    for phrase, word in _TERM.findall(query):
+        term = f'"{phrase}"' if phrase else word.lstrip("-").strip('"')
+        if term.lower() not in _WEBSEARCH_OPERATORS and _WORD.search(term):
+            terms.append(term)
+    return terms
+
+
+def _people_named(term: str) -> ColumnElement:
+    """Mentions of every member ``term`` names, as one tsquery, or NULL where it
+    names nobody.
+
+    A term names a member when its whole words are words of their name in this
+    community or of their handle, as the term would match those written in
+    text. Whole words, never a prefix: three letters typed would otherwise name
+    everyone whose name starts with them. The members are the routed
+    community's own.
+    """
+    from app.services.platform.users import visible_to_other_people
+
+    names = func.concat_ws(" ", MemberProfile.display_name, MemberProfile.username)
+    # A name holding the term holds each of its words, so testing one as a
+    # substring first leaves only those few names to parse.
+    word = max(_WORD.findall(term), key=len)
+    return cast(
+        select(
+            func.string_agg(
+                func.quote_literal(MENTION_LEXEME + cast(MemberProfile.id, String)),
+                " | ",
+            )
+        )
+        .where(
+            visible_to_other_people(),
+            names.ilike(f"%{word}%"),
+            func.to_tsvector("simple", names).op("@@")(
+                func.websearch_to_tsquery("simple", term)
+            ),
+        )
+        .scalar_subquery(),
+        TSQUERY,
+    )
+
+
+def _with_people(parsed, terms: Iterable[str], prefix: Optional[str] = None):
+    """``parsed`` with each term also matching a mention of anybody it names.
+
+    Applied to the parsed query rather than to the text, so a phrase, an ``or``
+    and an exclusion keep what they meant: ``-ada`` leaves out a mention of Ada
+    as well as the word. Each term is parsed alone by the function that parsed
+    the whole, which gives the subtree the rewrite has to find — a handle such
+    as ``brave-otter`` parses to a phrase of its parts. ``prefix`` is the last
+    word where it is matched as a prefix, and names whoever it names whole.
+    """
+    targets = [
+        (func.websearch_to_tsquery("simple", term), term)
+        for term in dict.fromkeys(terms)
+    ]
+    if prefix is not None:
+        targets.append((func.to_tsquery("simple", f"{prefix}:*"), prefix))
+    for target, term in targets:
+        mentioned = target.op("||", return_type=TSQUERY)(_people_named(term))
+        parsed = func.ts_rewrite(
+            parsed, target, func.coalesce(mentioned, target), type_=TSQUERY
+        )
+    return parsed
+
+
 def _tsquery(query: str):
     """The parsed query. ``websearch_to_tsquery`` takes what a person types —
     bare words, "quoted phrases", ``or``, ``-excluded`` — and never raises on
@@ -186,16 +268,19 @@ def _tsquery(query: str):
     found while a word is still being typed. So a bare last word is matched as a
     prefix and ANDed onto the rest, which keeps every bit of the syntax above
     and answers as the reader types.
+
+    A word naming a member also finds what mentions them (:func:`_with_people`).
     """
     head, prefix = _trailing_prefix(query)
     if prefix is None:
-        return func.websearch_to_tsquery("simple", query)
-    # `prefix` is alphanumeric, so it reaches `to_tsquery` as a word and never
-    # as syntax.
-    tail = func.to_tsquery("simple", f"{prefix}:*")
-    if not head.strip():
-        return tail
-    return func.websearch_to_tsquery("simple", head).op("&&")(tail)
+        parsed = func.websearch_to_tsquery("simple", query)
+    else:
+        # `prefix` is alphanumeric, so it reaches `to_tsquery` as a word and
+        # never as syntax.
+        parsed = func.to_tsquery("simple", f"{prefix}:*")
+        if head.strip():
+            parsed = func.websearch_to_tsquery("simple", head).op("&&")(parsed)
+    return _with_people(parsed, _typed_terms(head), prefix)
 
 
 @dataclass(frozen=True)
@@ -345,7 +430,11 @@ async def search(
     if not query.strip():
         return SearchResults(items=[], total=0, limit=limit, offset=offset)
 
-    parsed = _tsquery(query)
+    # Parsed once, by itself: the people its words name are looked up there,
+    # not again by each clause below that matches, ranks or quotes with it.
+    parsed = cast(
+        literal(await session.scalar(select(cast(_tsquery(query), Text)))), TSQUERY
+    )
     best = _best_chunk(search_match_clause(parsed) & filters.clause(), parsed)
     total = await session.scalar(select(func.count()).select_from(best)) or 0
 
@@ -584,22 +673,31 @@ def prefix_tsquery(text: str):
     Tokens are reduced to alphanumerics, so nothing a person types reaches
     ``to_tsquery`` as syntax.
     """
-    tokens = ["".join(c for c in part if c.isalnum()) for part in text.split()]
-    tokens = [t for t in tokens if t]
+    tokens = _prefix_words(text)
     if not tokens:
         return None
     return func.to_tsquery("simple", " & ".join([*tokens[:-1], f"{tokens[-1]}:*"]))
 
 
+def _prefix_words(text: str) -> list[str]:
+    """The words of ``text`` :func:`prefix_tsquery` matches."""
+    tokens = ["".join(c for c in part if c.isalnum()) for part in text.split()]
+    return [t for t in tokens if t]
+
+
 def tool_search_clause(
-    tool: Tool, id_col: ColumnElement[int], search: Optional[str]
+    tool: Tool,
+    id_col: ColumnElement[int],
+    search: Optional[str],
+    context: ActorContext,
 ) -> Optional[ColumnElement[bool]]:
     """Narrow a tool's list to rows whose indexed text matches ``search``.
 
     The same index the search page reads, so a tool's filter box and the search
     page agree about what matches — and it reaches a description, not just a
-    name. ``None`` when there is nothing to search for, so a caller appends it
-    conditionally.
+    name, and what mentions a member the words name. An installed app finds a
+    mention by a name only when it may read names (``members:read``). ``None``
+    when there is nothing to search for, so a caller appends it conditionally.
 
     The subquery reads ``search_entries``, which is gated by its own policies;
     the caller's own access clause still applies to the rows it returns.
@@ -612,6 +710,9 @@ def tool_search_clause(
         # Nothing matches it, which is a truer answer than the unfiltered list
         # a caller would read as "the filter was ignored".
         return false()
+    if not isinstance(context, InstallContext) or context.holds("members:read"):
+        *words, last = _prefix_words(search)
+        parsed = _with_people(parsed, words, last)
     return id_col.in_(
         select(SearchEntry.entity_id).where(
             SearchEntry.entity_type == tool.value,

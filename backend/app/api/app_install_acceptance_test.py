@@ -820,21 +820,6 @@ async def test_a_write_naming_three_people_costs_the_same_two(
 # ---------------------------------------------------------------------------
 
 
-def _mentioning(person: int | str, name: str) -> dict[str, Any]:
-    """An editor state whose one paragraph mentions ``person``."""
-    body = lexical_body("Over to ")
-    body["root"]["children"][0]["children"].append(
-        {
-            "type": "mention",
-            "mentionName": name,
-            "mentionUserId": person,
-            "text": name,
-            "version": 1,
-        }
-    )
-    return body
-
-
 @pytest.mark.parametrize("reads_names", [True, False])
 async def test_a_mention_names_a_person_by_reference_and_by_name_under_members_read(
     reads_names, client, session, acting_user, role_session
@@ -847,7 +832,10 @@ async def test_a_mention_names_a_person_by_reference_and_by_name_under_members_r
     seat = installed.seat
     mention = f"Over to @[The Seat]({seat.user.id})"
     post = await create_post(
-        session, installed.placed, seat.user, body=_mentioning(seat.user.id, "The Seat")
+        session,
+        installed.placed,
+        seat.user,
+        body=lexical_body("Over to ", mentioning=seat.user.id, name="The Seat"),
     )
     project = await _open_project(session, installed, installed.placed, "Open A")
     task = await create_task(
@@ -858,7 +846,7 @@ async def test_a_mention_names_a_person_by_reference_and_by_name_under_members_r
         session,
         installed.placed,
         seat.user,
-        content=_mentioning(seat.user.id, "The Seat"),
+        content=lexical_body("Over to ", mentioning=seat.user.id, name="The Seat"),
     )
     await share_with_members(session, document, installed.placed.id)
     headers = install_headers(
@@ -894,6 +882,15 @@ async def test_a_mention_names_a_person_by_reference_and_by_name_under_members_r
     # What is derived from the text shows the name only as the text does.
     assert posted["excerpt"] == f"Over to {name}".strip()
     assert listed["items"][0]["description_excerpt"] == f"Over to @{name}"
+    # A word of the person's handle finds what mentions them only for an app
+    # that may read names.
+    found = await client.get(
+        guild_url(guild_id, "/documents/"),
+        headers=headers,
+        params={"search": seat.user.username.split("-")[0]},
+    )
+    assert found.status_code == 200, found.text
+    assert len(found.json()["items"]) == int(reads_names)
 
 
 async def test_a_response_mentioning_three_people_costs_one_statement_cold(
@@ -966,7 +963,7 @@ async def test_a_mention_it_writes_is_stored_by_row_id_under_the_member_s_name(
         json={
             "name": "Mentions Sam",
             "initiative_id": installed.placed.id,
-            "content": _mentioning(ref, "Whoever"),
+            "content": lexical_body("Over to ", mentioning=ref, name="Whoever"),
         },
     )
     assert created.status_code == 201, created.text
@@ -978,7 +975,9 @@ async def test_a_mention_it_writes_is_stored_by_row_id_under_the_member_s_name(
     stored = await session.exec(
         select(Document.content).where(Document.id == created.json()["id"])
     )
-    assert stored.one() == _mentioning(member.user.id, "Sam Bee")
+    assert stored.one() == lexical_body(
+        "Over to ", mentioning=member.user.id, name="Sam Bee"
+    )
 
     # The person it mentioned hears of it, as from anybody.
     await drain_notices()

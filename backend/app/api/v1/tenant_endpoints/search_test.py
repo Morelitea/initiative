@@ -23,6 +23,7 @@ from app.testing import (
     create_project,
     create_tag,
     create_task,
+    lexical_body,
     route_session_to_guild,
 )
 
@@ -45,6 +46,57 @@ async def test_it_finds_a_task(client, session, acting_user: ActingUser) -> None
     body = await _search(client, a, q="vendor renewal")
     assert [h["title"] for h in body["items"]] == ["quarterly vendor renewal"]
     assert body["total"] == 1
+
+
+async def test_a_person_is_found_where_they_are_mentioned(
+    client, session, acting_user: ActingUser
+) -> None:
+    """By the words that name them now, with no name written in the text: their
+    name in this community, or their handle. A name they no longer have, or a
+    person no longer here, finds nothing."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    ada = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+    membership = ada.membership
+    assert membership is not None
+    membership.display_name = "Countess"
+    session.add(membership)
+    await session.commit()
+    await create_task(
+        session,
+        a.project,
+        title="budget review",
+        description=f"with @[]({ada.user.id})",
+    )
+    await create_document(
+        session,
+        a.initiative,
+        a.user,
+        name="minutes",
+        content=lexical_body("Thanks ", mentioning=ada.user.id),
+    )
+
+    async def found(q: str) -> list[str]:
+        # What matched, not the close titles offered when nothing did.
+        body = await _search(client, a, q=q)
+        return [] if body["fuzzy"] else sorted(h["title"] for h in body["items"])
+
+    both = ["budget review", "minutes"]
+    assert await found("countess") == both
+    # A name is matched whole: three letters do not name everyone they start.
+    assert await found("Coun") == []
+    assert await found(ada.user.username) == both
+    assert await found("countess budget") == ["budget review"]
+    assert await found("budget -countess") == []
+
+    membership.display_name = "Duchess"
+    session.add(membership)
+    await session.commit()
+    assert await found("duchess") == both
+    assert await found("countess") == []
+
+    await session.delete(membership)
+    await session.commit()
+    assert await found("duchess") == []
 
 
 async def test_it_finds_across_tools_in_one_query(
