@@ -458,6 +458,8 @@ class DocumentMessages:
     TOO_MANY_IDS = "DOCUMENT_TOO_MANY_IDS"
     NAME_REQUIRED = "DOCUMENT_NAME_REQUIRED"
     LIVE_SESSION_OWNS_CONTENT = "DOCUMENT_LIVE_SESSION_OWNS_CONTENT"
+    #: A write named a version of the content that is no longer current.
+    CONTENT_CHANGED = "DOCUMENT_CONTENT_CHANGED"
     COLLABORATION_UPDATE_INVALID = "DOCUMENT_COLLABORATION_UPDATE_INVALID"
     AI_NATIVE_ONLY = "DOCUMENT_AI_NATIVE_ONLY"
     SMART_LINK_URL_REQUIRED = "DOCUMENT_SMART_LINK_URL_REQUIRED"
@@ -1039,6 +1041,8 @@ class WikiMessages:
     #: A page with a live collaboration room has that room as the writer of
     #: its content; a save from outside the session is refused.
     LIVE_SESSION_OWNS_CONTENT = "WIKI_LIVE_SESSION_OWNS_CONTENT"
+    #: A write named a version of the content that is no longer current.
+    CONTENT_CHANGED = "WIKI_CONTENT_CHANGED"
 
 
 class MarketplaceMessages:

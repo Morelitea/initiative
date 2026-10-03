@@ -4527,6 +4527,7 @@ export interface DocumentRead {
   smart_link_url: string | null;
   yjs_updated_at: string | null;
   content: DocumentReadContent;
+  content_version: string | null;
 }
 
 export type DocumentUpdateContent = { [key: string]: unknown } | null;
@@ -4534,6 +4535,7 @@ export type DocumentUpdateContent = { [key: string]: unknown } | null;
 export interface DocumentUpdate {
   name?: string | null;
   content?: DocumentUpdateContent;
+  content_version?: string | null;
   featured_image_url?: string | null;
   is_template?: boolean | null;
 }
@@ -9599,6 +9601,7 @@ export interface WikiPageRead {
   original_filename: string | null;
   smart_link_url: string | null;
   content: WikiPageReadContent;
+  content_version: string | null;
   comment_count: number;
 }
 
@@ -9655,6 +9658,7 @@ export interface WikiPageUpdate {
   title?: string | null;
   is_draft?: boolean | null;
   content?: WikiPageUpdateContent;
+  content_version?: string | null;
   tag_ids?: number[] | null;
 }
 

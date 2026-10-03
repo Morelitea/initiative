@@ -2,6 +2,7 @@
 Integration tests for document endpoints — create with permissions.
 """
 
+from types import SimpleNamespace
 import pytest
 from httpx import AsyncClient
 from sqlmodel import select
@@ -15,12 +16,16 @@ from app.models.tenant.document import (
 from app.models.platform.guild import CommunityRole
 from app.models.tenant.initiative import InitiativeRoleModel
 from app.models.tenant.resource_grant import ResourceAccessLevel
+from app.core.search import SearchEntityType
 from app.services import editor_engine
+from app.services.tenant.collaboration import collaboration_manager
 from app.testing import (
     guild_of,
     create_document,
     create_initiative,
     create_resource_grant,
+    lexical_body,
+    route_as,
 )
 
 
@@ -439,19 +444,22 @@ async def test_download_native_document_returns_404(
     assert response.status_code == 404
 
 
+async def _words(state: bytes) -> str:
+    rendered = await editor_engine.render(state)
+    return "".join(
+        node["text"]
+        for block in rendered["root"]["children"]
+        for node in block["children"]
+    )
+
+
 async def test_update_content_is_written_into_yjs_state(
     client: AsyncClient, session: AsyncSession, acting_user
 ) -> None:
     """PATCH /documents/{id} with content writes it into the stored Yjs state,
     which the next collaborative session opens on."""
     owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
-
-    def saying(words: str) -> dict:
-        text = {"type": "text", "text": words, "version": 1}
-        paragraph = {"type": "paragraph", "version": 1, "children": [text]}
-        return {"root": {"type": "root", "version": 1, "children": [paragraph]}}
-
-    before, after = saying("before"), saying("after")
+    before, after = lexical_body("before"), lexical_body("after")
     doc = await create_document(
         session,
         owner.initiative,
@@ -470,6 +478,85 @@ async def test_update_content_is_written_into_yjs_state(
     rendered = await editor_engine.render(doc.yjs_state)
     (paragraph,) = rendered["root"]["children"]
     assert [node["text"] for node in paragraph["children"]] == ["after"]
+
+
+async def test_a_write_naming_a_version_since_changed_is_refused(
+    client: AsyncClient, session: AsyncSession, acting_user
+) -> None:
+    owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
+    doc = await create_document(
+        session, owner.initiative, owner.user, content=lexical_body("first")
+    )
+    url = owner.g(f"/documents/{doc.id}")
+    version = (await client.get(url, headers=owner.headers)).json()["content_version"]
+
+    taken = await client.patch(
+        url,
+        headers=owner.headers,
+        json={"content": lexical_body("second"), "content_version": version},
+    )
+    stale = await client.patch(
+        url,
+        headers=owner.headers,
+        json={"content": lexical_body("third"), "content_version": version},
+    )
+
+    assert taken.status_code == 200, taken.text
+    assert taken.json()["content_version"] != version
+    assert stale.status_code == 409
+    assert stale.json()["detail"] == "DOCUMENT_CONTENT_CHANGED"
+
+
+async def test_a_versioned_write_goes_into_a_live_session(
+    client: AsyncClient, session: AsyncSession, acting_user, role_session
+) -> None:
+    """A write naming the session's current content reaches the room, where
+    the editors are; one naming no version is still refused."""
+    owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
+    doc = await create_document(
+        session, owner.initiative, owner.user, content=lexical_body("in the session")
+    )
+    routed = await role_session("app_user")
+    await route_as(routed, user_id=owner.user.id, guild_id=owner.guild.id)
+    room = await collaboration_manager.get_or_create_room(
+        owner.guild.id, SearchEntityType.document.value, doc.id, routed
+    )
+    room.hold()  # somebody is in it
+    try:
+        url = owner.g(f"/documents/{doc.id}")
+        read = (await client.get(url, headers=owner.headers)).json()
+
+        unversioned = await client.patch(
+            url, headers=owner.headers, json={"content": lexical_body("ignored")}
+        )
+        versioned = await client.patch(
+            url,
+            headers=owner.headers,
+            json={
+                "content": lexical_body("from the API"),
+                "content_version": read["content_version"],
+            },
+        )
+        stale = await client.patch(
+            url,
+            headers=owner.headers,
+            json={
+                "content": lexical_body("from a second writer"),
+                "content_version": read["content_version"],
+            },
+        )
+
+        assert unversioned.status_code == 409
+        assert unversioned.json()["detail"] == "DOCUMENT_LIVE_SESSION_OWNS_CONTENT"
+        assert versioned.status_code == 200, versioned.text
+        assert stale.status_code == 409
+        assert stale.json()["detail"] == "DOCUMENT_CONTENT_CHANGED"
+        assert await _words(room.get_state()) == "from the API"
+    finally:
+        room.release()
+        await collaboration_manager.leave(
+            owner.guild.id, SearchEntityType.document.value, doc.id
+        )
 
 
 async def test_create_whiteboard_document(client: AsyncClient, acting_user) -> None:
@@ -879,7 +966,10 @@ async def test_a_content_patch_against_a_live_document_is_refused(
     original = doc.content
 
     monkeypatch.setattr(
-        collaboration_manager, "has_active_collaborators", lambda *_a: True
+        collaboration_manager,
+        "live_room",
+        # A room somebody is in; reads leave a room the browser renders alone.
+        lambda *_a: SimpleNamespace(renders_content=False),
     )
 
     response = await client.patch(
@@ -905,7 +995,10 @@ async def test_a_live_document_can_still_be_renamed(
     doc = await create_document(session, owner.initiative, owner.user)
 
     monkeypatch.setattr(
-        collaboration_manager, "has_active_collaborators", lambda *_a: True
+        collaboration_manager,
+        "live_room",
+        # A room somebody is in; reads leave a room the browser renders alone.
+        lambda *_a: SimpleNamespace(renders_content=False),
     )
 
     response = await client.patch(

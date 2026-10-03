@@ -7,6 +7,7 @@ is shown it) and the **web** (what a page's body names, and what names it
 back).
 """
 
+from types import SimpleNamespace
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -15,6 +16,7 @@ from app.testing import (
     create_document,
     create_wiki,
     create_wiki_page,
+    lexical_body,
     strip_non_owner_grants,
 )
 
@@ -934,7 +936,10 @@ async def test_a_body_saved_outside_a_live_session_is_refused(
     page = await create_wiki_page(session, wiki, a.user, title="Live")
     url = a.g(f"/wiki-pages/{page.id}")
     monkeypatch.setattr(
-        collaboration_manager, "has_active_collaborators", lambda *_a: True
+        collaboration_manager,
+        "live_room",
+        # A room somebody is in; reads leave a room the browser renders alone.
+        lambda *_a: SimpleNamespace(renders_content=False),
     )
 
     refused = await client.patch(
@@ -971,6 +976,31 @@ async def test_a_body_saved_with_no_session_clears_the_stored_yjs_state(
     assert saved.status_code == 200, saved.text
     await session.refresh(page, ["yjs_state"])
     assert page.yjs_state is None
+
+
+async def test_a_page_write_naming_a_version_since_changed_is_refused(
+    client: AsyncClient, acting_user, session
+):
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
+    await _wikis_enabled(session, a.initiative)
+    wiki = await create_wiki(session, a.initiative, a.user)
+    page = await create_wiki_page(session, wiki, a.user, title="Versioned")
+    url = a.g(f"/wiki-pages/{page.id}")
+    version = (await client.get(url, headers=a.headers)).json()["content_version"]
+    taken = await client.patch(
+        url,
+        headers=a.headers,
+        json={"content": lexical_body("second"), "content_version": version},
+    )
+    stale = await client.patch(
+        url,
+        headers=a.headers,
+        json={"content": lexical_body("third"), "content_version": version},
+    )
+
+    assert taken.status_code == 200, taken.text
+    assert stale.status_code == 409
+    assert stale.json()["detail"] == "WIKI_CONTENT_CHANGED"
 
 
 # ---------------------------------------------------------------------------

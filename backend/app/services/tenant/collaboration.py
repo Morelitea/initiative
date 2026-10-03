@@ -16,6 +16,7 @@ the sockets that actually exist.
 """
 
 import asyncio
+import hashlib
 import json
 import logging
 from contextlib import suppress
@@ -79,6 +80,9 @@ class CollaborationRoom:
         # room together, and the row must end up holding the newer of the two
         # snapshots rather than whichever commits last.
         self._write_lock = asyncio.Lock()
+        # One versioned write at a time, so two naming the same version cannot
+        # both find it current.
+        self._edit_lock = asyncio.Lock()
         # Connections that have been handed this room but have not yet reached
         # the register. They are on their way in, so the room is not idle.
         self._holds = 0
@@ -130,7 +134,8 @@ class CollaborationRoom:
         return self.connection_count() == 0 and self._holds == 0
 
     def hold(self) -> None:
-        """Claim this room for a connection that is joining."""
+        """Claim this room for a connection that is joining, or a write that is
+        on its way in."""
         self._holds += 1
 
     def release(self) -> None:
@@ -244,6 +249,40 @@ class CollaborationRoom:
         self._last_writer = connection
         if user_id is not None:
             self.writers.add(user_id)
+
+    async def rendering(self) -> dict:
+        """What this editor body reads as now, rendered from its live document."""
+        return without_mention_names(
+            await editor_engine.render(self.get_state()), MentionForm.lexical
+        )
+
+    async def write(self, content: dict, version: str, user_id: Optional[int]) -> bool:
+        """Write ``content`` into this editor body's live document, as the
+        server's editor makes it read, if the body still reads as ``version``,
+        and hand the change to everyone in the room. It is saved as their
+        edits are.
+
+        Returns whether it was written. The room is held until the write is in
+        it, so it stays registered for the save; one the last editor left in
+        the meantime is saved and retired here.
+        """
+        self.hold()
+        try:
+            async with self._edit_lock:
+                if content_version(await self.rendering()) != version:
+                    return False
+                update = await editor_engine.apply(self.get_state(), content)
+                self.apply_update(update, user_id=user_id)
+                sockets.emit_bytes(
+                    resource_room(self.guild_id, self.resource_type, self.resource_id),
+                    bytes([MSG_UPDATE]) + update,
+                )
+                return True
+        finally:
+            self.release()
+            await collaboration_manager.leave(
+                self.guild_id, self.resource_type, self.resource_id
+            )
 
     def offer_content(self, content: dict, connection: Any = None) -> bool:
         """Record the JSON an editor says this document now reads as.
@@ -364,6 +403,36 @@ async def written_into(state: Optional[bytes], content: dict) -> Optional[bytes]
     doc.apply_update(state)
     doc.apply_update(update)
     return bytes(doc.get_update())
+
+
+#: The socket frame that carries a Yjs update.
+MSG_UPDATE = 2
+
+
+def content_version(content: dict) -> str:
+    """A body's version, as a write names the one it read: a digest of the
+    content, so it moves exactly when what the body reads as does."""
+    canonical = json.dumps(content, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(canonical.encode()).hexdigest()[:32]
+
+
+async def current_content(
+    guild_id: int, resource_type: str, resource_id: int, stored: dict
+) -> dict:
+    """What a body reads as now: an open editor room's rendering of its live
+    document, or ``stored`` while no room is open."""
+    room = collaboration_manager.live_room(guild_id, resource_type, resource_id)
+    if room is None or not room.renders_content:
+        return stored
+    return await room.rendering()
+
+
+async def versioned(read: Any, guild_id: int, resource_type: str) -> Any:
+    """``read`` with the content its body reads as now and that content's
+    version, for the next write to name."""
+    read.content = await current_content(guild_id, resource_type, read.id, read.content)
+    read.content_version = content_version(read.content)
+    return read
 
 
 # A room is identified by (guild_id, resource_type, resource_id). The guild_id
@@ -667,8 +736,14 @@ class CollaborationManager:
         self, guild_id: int, resource_type: str, resource_id: int
     ) -> bool:
         """Check if a document has any live connection."""
+        return self.live_room(guild_id, resource_type, resource_id) is not None
+
+    def live_room(
+        self, guild_id: int, resource_type: str, resource_id: int
+    ) -> Optional[CollaborationRoom]:
+        """The room a body is being edited in, if anyone is connected to it."""
         room = self._rooms.get((guild_id, resource_type, resource_id))
-        return room is not None and not room.is_empty()
+        return room if room is not None and not room.is_empty() else None
 
 
 def room_roster(guild_id: int, resource_type: str, resource_id: int) -> list[dict]:

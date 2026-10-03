@@ -31,6 +31,7 @@ from app.models.platform.user import User
 from app.schemas.tenant.collaboration import CollaborationHandover
 from sqlmodel.ext.asyncio.session import AsyncSession
 from app.services.tenant.collaboration import (
+    MSG_UPDATE,
     broadcast_awareness,
     collaboration_manager,
     room_roster,
@@ -59,7 +60,7 @@ logger = logging.getLogger(__name__)
 # Message types for the collaboration protocol
 MSG_SYNC_STEP1 = 0  # Client requests current state
 MSG_SYNC_STEP2 = 1  # Server sends current state
-MSG_UPDATE = 2  # Incremental Yjs update
+# MSG_UPDATE = 2, an incremental Yjs update, is the service's: it sends them too.
 MSG_AWARENESS = 3  # Join / leave / roster, server to client (JSON)
 MSG_AWARENESS_BINARY = 4  # y-protocols awareness (binary, relayed as-is)
 MSG_CONTENT = 6  # Editor's JSON rendering of the document, for the content column
