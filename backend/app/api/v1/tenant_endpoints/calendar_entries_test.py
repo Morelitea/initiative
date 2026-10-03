@@ -356,14 +356,21 @@ async def test_guild_scope_returns_every_guild_calendar_s_events(
 
 
 async def test_me_entries_aggregate_across_guilds(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, monkeypatch
 ):
+    """Entries from every guild, narrowed by ``guild_ids``; the guilds share
+    one budget of repeating occurrences."""
     user = await create_user(session, email="cal-me@example.com")
     g1, i1, p1, cal1 = await _guild_with_project(session, user, name="Alpha")
     g2, i2, p2, cal2 = await _guild_with_project(session, user, name="Beta")
 
-    event1 = await create_calendar_event(session, cal1, user, start_at=NOW)
-    event2 = await create_calendar_event(session, cal2, user, start_at=NOW)
+    weekly = "RRULE:FREQ=WEEKLY"
+    event1 = await create_calendar_event(
+        session, cal1, user, start_at=NOW, recurrence=weekly
+    )
+    event2 = await create_calendar_event(
+        session, cal2, user, start_at=NOW, recurrence=weekly
+    )
     task1 = await create_task(session, p1, due_date=NOW, assignees=[user])
     task2 = await create_task(session, p2, due_date=NOW, assignees=[user])
 
@@ -397,6 +404,16 @@ async def test_me_entries_aggregate_across_guilds(
     narrowed_event_keys = {(e["guild_id"], e["id"]) for e in nbody["events"]}
     assert (g1.id, event1.id) in narrowed_event_keys
     assert (g2.id, event2.id) not in narrowed_event_keys
+
+    # Five weekly occurrences in each guild: either fits alone, not both.
+    monkeypatch.setattr(recurrence, "MAX_EXPANDED", 9)
+    refused = await client.get(
+        "/api/v1/me/calendar-entries",
+        headers=headers,
+        params={"start_after": WINDOW_START, "start_before": WINDOW_END},
+    )
+    assert refused.status_code == 422, refused.text
+    assert refused.json()["detail"] == CalendarEventMessages.WINDOW_TOO_FULL
 
 
 async def test_me_entries_windows_tasks_by_params(

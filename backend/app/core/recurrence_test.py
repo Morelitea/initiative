@@ -53,6 +53,8 @@ def test_normalize_writes_canonical_lines(text, kind, stored):
         ("FREQ=DAILY\nEXDATE;VALUE=DATE:00010101", "event"),
         ("FREQ=DAILY;UNTIL=99991231T235959Z", "event"),
         ("FREQ=DAILY\nEXDATE:" + ",".join(["20261012T063000Z"] * 250), "event"),
+        # Within the limit as written, past it as stored.
+        ("FREQ=WEEKLY\nRDATE:" + ",".join(["20261012T063000Z"] * 234), "event"),
     ],
 )
 def test_normalize_refuses(text, kind):

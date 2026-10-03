@@ -217,7 +217,10 @@ def normalize(text: str, *, kind: RecurrenceKind) -> str:
     # dateutil is the engine every date comes from, so it has to read the rule.
     reference = datetime(2000, 1, 1, tzinfo=timezone.utc)
     next(_walk(recurrence, reference, 0, reference, reference), None)
-    return recurrence.to_lines()
+    lines = recurrence.to_lines()
+    if len(lines) > MAX_LENGTH:
+        raise ValueError(f"A repeat is at most {MAX_LENGTH} characters.")
+    return lines
 
 
 def shift_for(text: str, start: datetime, zone: tzinfo) -> int:

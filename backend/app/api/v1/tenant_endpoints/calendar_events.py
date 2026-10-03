@@ -217,6 +217,7 @@ def occurrences(
     start_before: datetime,
     tz: Optional[str] = None,
     changed: Mapping[int, set[datetime]] | None = None,
+    budget: int = recurrence.MAX_EXPANDED,
 ) -> list[CalendarEventSummary]:
     """The events starting in the window, a repeating one once for each of
     its occurrences there, ordered by start.
@@ -225,8 +226,8 @@ def occurrences(
     length, and ``original_start`` naming it. One with a row of its own
     (``changed``, by series id) is left out: the row stands in for it.
 
-    A window whose repeats hold more than ``recurrence.MAX_EXPANDED``
-    occurrences is refused, for a shorter one."""
+    A window whose repeats hold more than ``budget`` occurrences is refused,
+    for a shorter one."""
     first = _window_day(start_after, _NO_ZONE_INWARD, tz)
     last = _window_day(start_before, -_NO_ZONE_INWARD, tz)
     found: list[CalendarEventSummary] = []
@@ -243,14 +244,14 @@ def occurrences(
                 event.recurrence_shift,
                 lower,
                 upper,
-                at_most=recurrence.MAX_EXPANDED - expanded + 1,
+                at_most=budget - expanded + 1,
             )
         except ValueError:
             # Unreadable, so drawn once, where it starts.
             found.append(event)
             continue
         expanded += len(starts)
-        if expanded > recurrence.MAX_EXPANDED:
+        if expanded > budget:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail=CalendarEventMessages.WINDOW_TOO_FULL,
@@ -407,10 +408,13 @@ async def query_my_calendar_events(
     guild schemas (routed to the user's own RLS context, so guild isolation +
     DAC still hold) and merge, sorted by ``(start_at, guild_id, id)``. Each
     event is serialized inside the guild it was read from, so the summary
-    carries that guild and the level the reader holds there.
+    carries that guild and the level the reader holds there. The guilds share
+    one ``recurrence.MAX_EXPANDED`` budget of occurrences.
     """
+    budget = recurrence.MAX_EXPANDED
 
     async def _fetch(guild_session, guild_id):  # type: ignore[no-untyped-def]
+        nonlocal budget
         context = require_guild_context(guild_session)
         # Guild calendars included: this is the user's own calendar view, one of
         # the two places their events show (the app's page is the other).
@@ -436,7 +440,7 @@ async def query_my_calendar_events(
         ]
         if not expand or start_after is None or start_before is None:
             return summaries
-        return occurrences(
+        found = occurrences(
             summaries,
             start_after,
             start_before,
@@ -444,7 +448,10 @@ async def query_my_calendar_events(
             await occurrences_service.changed_starts(
                 guild_session, [e.id for e in events if e.recurrence]
             ),
+            budget,
         )
+        budget -= sum(1 for event in found if event.recurrence)
+        return found
 
     target_guilds = await member_guild_ids(
         session, current_user.id, restrict_to=guild_ids
