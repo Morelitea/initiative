@@ -47,6 +47,7 @@ from app.db.bootstrap import login_roles
 from app.db.request_context import (
     Billing,
     ContentGrantee,
+    Filer,
     Install,
     Member,
     Platform,
@@ -164,6 +165,34 @@ class Scenario:
     route: Route
     reads: frozenset[str]
     writes: frozenset[str]
+    #: Whether the routing names its community in the request variables.
+    #: A filer's names it by schema and role alone: the shared tables read
+    #: those variables as being in the community, which a filer is not.
+    names_community: bool = True
+
+
+#: The communities a scenario gave a filer role, dropped once the test ends:
+#: the role is cluster-wide, where the community's schema is pooled.
+_FILER_GUILDS: list[int] = []
+
+
+@pytest.fixture(autouse=True)
+async def _drop_filer_roles():
+    yield
+    from app.db import filer_access
+
+    while _FILER_GUILDS:
+        await filer_access.deprovision_filer_access(_FILER_GUILDS.pop())
+
+
+async def _as_filer(w: World, s) -> None:
+    """Someone who filed a case, reading it from outside the community: its
+    filer role, provisioned as choosing it for operations work does."""
+    from app.db import filer_access
+
+    await filer_access.provision_filer_access(w.guild_id)
+    _FILER_GUILDS.append(w.guild_id)
+    await set_rls_context(s, Filer(guild_id=w.guild_id, user_id=w.member_id))
 
 
 def _as(user: str, **kwargs) -> Route:
@@ -232,6 +261,10 @@ SCENARIOS: tuple[Scenario, ...] = (
         lambda w, s: set_rls_context(s, Unattributed()),
         _NONE,
         _NONE,
+    ),
+    # Their cases' columns and nothing of the projects: refused outright.
+    Scenario(
+        "filer", Filer, "app_user", _as_filer, _NONE, _NONE, names_community=False
     ),
     Scenario(
         "billing",
@@ -304,7 +337,9 @@ async def test_the_route_holds(session, acting_user, role_session, scenario):
     # One community, named the same way everywhere.
     if shape.guild_id is not None:
         assert held["sp"].split(",")[0].strip() == guild_schema_name(shape.guild_id)
-        assert await _scalar(s, f"SELECT {gucs.ROUTED_GUILD_ID}") == shape.guild_id
+        assert await _scalar(s, f"SELECT {gucs.ROUTED_GUILD_ID}") == (
+            shape.guild_id if scenario.names_community else None
+        )
         standing = getattr(shape, "standing", None)
         if standing is not None and standing.standing_guild_id is not None:
             assert held["standing_guild_id"] == str(shape.guild_id)
