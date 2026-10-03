@@ -20,6 +20,7 @@ from sqlalchemy.orm import aliased
 from sqlalchemy.sql.elements import ColumnElement
 
 from app.db.schema_provisioning import search_operator_available
+from app.db.query import build_paginated_response
 from app.core.app_scopes import tool_resource
 from app.core.messages import AppMessages
 from app.core.search import SearchEntityType
@@ -131,7 +132,7 @@ def search_match_clause(tsquery: ColumnElement) -> ColumnElement[bool]:
 
 
 #: Widest page a caller may ask for.
-MAX_LIMIT = 100
+MAX_PAGE_SIZE = 100
 #: Jump-to results for the palette. Small on purpose: it is a way to reach one
 #: thing, not a way to read a result set.
 SUGGEST_LIMIT = 10
@@ -437,18 +438,18 @@ async def search(
     *,
     query: str,
     filters: Filters = Filters(),
-    limit: int = 20,
-    offset: int = 0,
+    page: int = 1,
+    page_size: int = 20,
 ) -> SearchResults:
     """Ranked matches across the guild, newest first among equals.
 
     ``total`` counts entities, not chunks, and is exact: every gate is a
     predicate in this one statement, so there is nothing to filter afterwards.
     """
-    limit = max(1, min(limit, MAX_LIMIT))
-    offset = max(0, offset)
+    page = max(1, page)
+    page_size = max(1, min(page_size, MAX_PAGE_SIZE))
     if not query.strip():
-        return SearchResults(items=[], total=0, limit=limit, offset=offset)
+        return SearchResults(**build_paginated_response([], 0, page, page_size))
 
     # Parsed once, by itself: the people its words name are looked up there,
     # not again by each clause below that matches, ranks or quotes with it.
@@ -469,7 +470,13 @@ async def search(
             rows.c.entity_id,
         )
 
-    page = select(best).order_by(*ranked(best)).limit(limit).offset(offset).subquery()
+    window = (
+        select(best)
+        .order_by(*ranked(best))
+        .limit(page_size)
+        .offset((page - 1) * page_size)
+        .subquery()
+    )
     # The snippet is drawn from the chunk each row on the page chose, read back
     # by its key, so the bodies of the rows the ranking passed over are never
     # read.
@@ -477,41 +484,40 @@ async def search(
     rows = (
         await session.exec(
             select(
-                *(column for column in page.c if column.key != "chunk_ix"),
+                *(column for column in window.c if column.key != "chunk_ix"),
                 func.ts_headline("simple", chunk.body, parsed, _HEADLINE_OPTIONS).label(
                     "snippet"
                 ),
             )
-            .select_from(page)
+            .select_from(window)
             .join(
                 chunk,
-                (chunk.entity_type == page.c.entity_type)
-                & (chunk.entity_id == page.c.entity_id)
-                & (chunk.chunk_ix == page.c.chunk_ix),
+                (chunk.entity_type == window.c.entity_type)
+                & (chunk.entity_id == window.c.entity_id)
+                & (chunk.chunk_ix == window.c.chunk_ix),
             )
             # Re-stated outside the page: a subquery's ordering is not something
             # the query around it inherits.
-            .order_by(*ranked(page))
+            .order_by(*ranked(window))
         )
     ).all()
-    if not rows and offset == 0:
+    if not rows and page == 1:
         # Nothing matched what was typed. Offer what is closest to it rather
         # than an empty page — flagged, so the reader is told which they got.
         close = await _close_titles(session, query=query, filters=filters)
         if close:
             return SearchResults(
-                items=close,
-                total=len(close),
-                limit=limit,
-                offset=offset,
+                **build_paginated_response(close, len(close), page, page_size),
                 fuzzy=True,
             )
 
     return SearchResults(
-        items=[SearchHit.model_validate(r, from_attributes=True) for r in rows],
-        total=total,
-        limit=limit,
-        offset=offset,
+        **build_paginated_response(
+            [SearchHit.model_validate(r, from_attributes=True) for r in rows],
+            total,
+            page,
+            page_size,
+        )
     )
 
 

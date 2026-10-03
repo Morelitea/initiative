@@ -50,12 +50,7 @@ export const useCommunityGuilds = (filters: CommunityFilters, options?: { enable
         signal
       ),
     initialPageParam: 1,
-    // ``total`` is how many matched, not how many were returned, so the page
-    // after the last full one is the end.
-    getNextPageParam: (lastPage, allPages) => {
-      const loaded = allPages.reduce((count, page) => count + page.items.length, 0);
-      return loaded < lastPage.total ? allPages.length + 1 : undefined;
-    },
+    getNextPageParam: (last) => (last.has_next ? last.page + 1 : undefined),
     // Keeps the grid on screen while the next search or category loads, rather
     // than blanking it out on every keystroke.
     placeholderData: keepPreviousData,

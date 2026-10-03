@@ -49,6 +49,7 @@ from app.models.platform.user import User
 from app.models.tenant.document import Document
 from app.api import resource_access, tool_copy
 from app.core.tools import Tool
+from app.db.query import build_paginated_response, paginated_query
 from app.db.session import require_actor_context, require_guild_context
 from app.services import notifications as notifications_service
 from app.services.tenant import ownership as ownership_service
@@ -699,21 +700,23 @@ async def project_activity_feed(
     project = await resource_access.load_authorized(
         session, Tool.project, project_id, current_user, guild_context
     )
-    offset = (page - 1) * page_size
-    stmt = (
+    on_project = Task.project_id == project.id
+    rows, total_count, actual_page = await paginated_query(
+        session,
         select(Comment, Task)
         .join(Task, Comment.task_id == Task.id)
-        .where(Task.project_id == project.id)
+        .where(on_project)
         .options(selectinload(Comment.author))
-        .order_by(Comment.created_at.desc(), Comment.id.desc())
-        .limit(page_size + 1)
-        .offset(offset)
+        .order_by(Comment.created_at.desc(), Comment.id.desc()),
+        select(func.count())
+        .select_from(Comment)
+        .join(Task, Comment.task_id == Task.id)
+        .where(on_project),
+        page,
+        page_size,
     )
-    result = await session.exec(stmt)
-    rows = result.all()
-    has_next = len(rows) > page_size
     entries: list[ProjectActivityEntry] = []
-    for comment, task in rows[:page_size]:
+    for comment, task in rows:
         author = comment.author
         author_payload = CommentAuthor.model_validate(author) if author else None
         entries.append(
@@ -726,8 +729,9 @@ async def project_activity_feed(
                 task_title=task.title,
             )
         )
-    next_page = page + 1 if has_next else None
-    return ProjectActivityResponse(items=entries, next_page=next_page)
+    return ProjectActivityResponse(
+        **build_paginated_response(entries, total_count, actual_page, page_size)
+    )
 
 
 @router.get("/{project_id}", response_model=ProjectRead)

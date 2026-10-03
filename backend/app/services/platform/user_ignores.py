@@ -19,7 +19,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import col, func, select
 
-from app.db.query import apply_pagination
+from app.db.query import build_paginated_response, paginated_query
 from app.models.platform.user_ignore import UserIgnore
 from app.models.platform.user_profile_view import user_profiles
 from app.services.platform import contacts_stream
@@ -30,14 +30,6 @@ async def list_ignored(
     session: AsyncSession, *, user_id: int, page: int = 1, page_size: int = 50
 ) -> IgnoredAccountsResponse:
     """The holder's own list, newest first, with the profile of each account."""
-    total = (
-        await session.exec(
-            select(func.count())
-            .select_from(UserIgnore)
-            .where(UserIgnore.user_id == user_id)
-        )
-    ).one()
-
     statement = (
         select(
             UserIgnore.ignored_user_id,
@@ -53,20 +45,32 @@ async def list_ignored(
         .where(UserIgnore.user_id == user_id)
         .order_by(col(UserIgnore.created_at).desc())
     )
-    rows = (await session.exec(apply_pagination(statement, page, page_size))).all()
+    rows, total, page = await paginated_query(
+        session,
+        statement,
+        select(func.count())
+        .select_from(UserIgnore)
+        .where(UserIgnore.user_id == user_id),
+        page,
+        page_size,
+    )
 
     return IgnoredAccountsResponse(
-        items=[
-            IgnoredAccountRead(
-                user_id=row[0],
-                created_at=row[1],
-                username=row[2],
-                discriminator=row[3],
-                avatar_url=row[4],
-            )
-            for row in rows
-        ],
-        total=total,
+        **build_paginated_response(
+            [
+                IgnoredAccountRead(
+                    user_id=row[0],
+                    created_at=row[1],
+                    username=row[2],
+                    discriminator=row[3],
+                    avatar_url=row[4],
+                )
+                for row in rows
+            ],
+            total,
+            page,
+            page_size,
+        )
     )
 
 

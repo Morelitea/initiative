@@ -10,7 +10,7 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { buildBanner, buildUser } from "@/__tests__/factories";
+import { buildBanner, buildPage, buildUser } from "@/__tests__/factories";
 import { renderPage } from "@/__tests__/helpers/render";
 import type { DirectoryCommunityRead } from "@/api/generated/initiativeAPI.schemas";
 
@@ -66,7 +66,7 @@ const directoryResult = (
   items: DirectoryCommunityRead[],
   overrides: Record<string, unknown> = {}
 ) => ({
-  data: { pages: [{ items, total: items.length }] },
+  data: { pages: [buildPage(items)] },
   isLoading: false,
   isError: false,
   hasNextPage: false,

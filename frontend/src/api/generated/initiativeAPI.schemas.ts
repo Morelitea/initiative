@@ -253,6 +253,15 @@ export interface AccessGrantRead {
   readonly is_live: boolean;
 }
 
+export interface AccessGrantListResponse {
+  total_count: number;
+  page: number;
+  page_size: number;
+  has_next: boolean;
+  has_prev: boolean;
+  items: AccessGrantRead[];
+}
+
 export type AccountDeletionRequestAction =
   (typeof AccountDeletionRequestAction)[keyof typeof AccountDeletionRequestAction];
 
@@ -4110,11 +4119,15 @@ export interface DirectoryCommunityRead {
 }
 
 /**
- * A page of directory results, plus how many matched in total.
+ * A page of directory results.
  */
 export interface DirectoryCommunityPage {
+  total_count: number;
+  page: number;
+  page_size: number;
+  has_next: boolean;
+  has_prev: boolean;
   items: DirectoryCommunityRead[];
-  total: number;
 }
 
 export interface DmConversationCreate {
@@ -5203,8 +5216,12 @@ export interface IgnoredAccountRead {
 }
 
 export interface IgnoredAccountsResponse {
+  total_count: number;
+  page: number;
+  page_size: number;
+  has_next: boolean;
+  has_prev: boolean;
   items: IgnoredAccountRead[];
-  total: number;
 }
 
 export type ImportJobReadParams = { [key: string]: unknown };
@@ -5919,8 +5936,12 @@ export interface MarketplaceListingSummary {
 }
 
 export interface MarketplaceListingPage {
+  total_count: number;
+  page: number;
+  page_size: number;
+  has_next: boolean;
+  has_prev: boolean;
   items: MarketplaceListingSummary[];
-  total: number;
 }
 
 /**
@@ -6102,8 +6123,12 @@ export interface ModerationReportRead {
 }
 
 export interface ModerationReportList {
+  total_count: number;
+  page: number;
+  page_size: number;
+  has_next: boolean;
+  has_prev: boolean;
   items: ModerationReportRead[];
-  total: number;
 }
 
 /**
@@ -7303,8 +7328,12 @@ export interface ProjectActivityEntry {
 }
 
 export interface ProjectActivityResponse {
+  total_count: number;
+  page: number;
+  page_size: number;
+  has_next: boolean;
+  has_prev: boolean;
   items: ProjectActivityEntry[];
-  next_page: number | null;
 }
 
 export interface ProjectCan {
@@ -8267,11 +8296,13 @@ export interface SearchHit {
 }
 
 export interface SearchResults {
+  total_count: number;
+  page: number;
+  page_size: number;
+  has_next: boolean;
+  has_prev: boolean;
   items: SearchHit[];
-  total: number;
-  limit: number;
-  offset: number;
-  fuzzy?: boolean;
+  fuzzy: boolean;
 }
 
 /**
@@ -9876,14 +9907,14 @@ export type ListAccessGrantsParams = {
    */
   live?: boolean;
   /**
-   * Page size — the number of most-recent grants returned.
+   * @minimum 1
    */
-  limit?: number | null;
+  page?: number;
   /**
-   * Number of grants to skip (for paging).
-   * @minimum 0
+   * @minimum 1
+   * @maximum 200
    */
-  offset?: number;
+  page_size?: number;
 };
 
 export type ListAccessGrantQueueParams = {
@@ -9893,14 +9924,14 @@ export type ListAccessGrantQueueParams = {
    */
   live?: boolean;
   /**
-   * Page size — the number of most-recent grants returned.
+   * @minimum 1
    */
-  limit?: number | null;
+  page?: number;
   /**
-   * Number of grants to skip (for paging).
-   * @minimum 0
+   * @minimum 1
+   * @maximum 200
    */
-  offset?: number;
+  page_size?: number;
 };
 
 export type ListPlatformCommunityStorageParams = {
@@ -10489,13 +10520,13 @@ export type ListReportsParams = {
   settled?: boolean;
   /**
    * @minimum 1
+   */
+  page?: number;
+  /**
+   * @minimum 1
    * @maximum 200
    */
-  limit?: number;
-  /**
-   * @minimum 0
-   */
-  offset?: number;
+  page_size?: number;
 };
 
 export type ListCommentsParams = {
@@ -11068,13 +11099,13 @@ export type SearchCommunityParams = {
   is_template?: boolean | null;
   /**
    * @minimum 1
+   */
+  page?: number;
+  /**
+   * @minimum 1
    * @maximum 100
    */
-  limit?: number;
-  /**
-   * @minimum 0
-   */
-  offset?: number;
+  page_size?: number;
 };
 
 export type RecentCommunityParams = {

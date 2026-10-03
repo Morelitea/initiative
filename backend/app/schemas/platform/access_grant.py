@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Any, List, Optional
 
 from pydantic import (
     AliasChoices,
@@ -18,6 +18,7 @@ from app.models.platform.access_grant import (
 )
 from app.models.platform.guild import CommunityStatus
 from app.schemas.base import SanitizedBaseModel
+from app.schemas.query import PageMeta
 
 
 class AccessGrantCreate(SanitizedBaseModel):
@@ -187,3 +188,7 @@ class AccessGrantLimits(SanitizedBaseModel):
 
     #: The longest window, in minutes, the caller may request.
     max_duration_minutes: int
+
+
+class AccessGrantListResponse(PageMeta):
+    items: List[AccessGrantRead]

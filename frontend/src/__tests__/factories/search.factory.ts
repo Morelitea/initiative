@@ -5,6 +5,8 @@ import type {
 } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 
+import { buildPage } from "./page.factory";
+
 let counter = 0;
 
 export function resetCounter(): void {
@@ -57,5 +59,5 @@ export function buildSearchResults(
   items: SearchHit[] = [],
   overrides: Partial<SearchResults> = {}
 ): SearchResults {
-  return { items, total: items.length, limit: 20, offset: 0, ...overrides };
+  return { ...buildPage(items), fuzzy: false, ...overrides };
 }

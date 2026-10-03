@@ -83,7 +83,7 @@ async def test_support_requests_owner_approves_and_the_queue_masks_addresses(
     # The owner sees it in the full queue (which requires access.approve).
     queue = await client.get(f"{GRANTS}queue?status=pending", headers=owner.headers)
     assert queue.status_code == 200
-    row = next(g for g in queue.json() if g["id"] == grant_id)
+    row = next(g for g in queue.json()["items"] if g["id"] == grant_id)
     assert row["user_email"] == "s***t@e***m"
 
     approved = await client.post(
@@ -121,17 +121,18 @@ async def test_my_requests_respects_limit_and_order(
         )
     await session.commit()
 
-    page = await client.get(f"{GRANTS}?mine=true&limit=3", headers=support.headers)
+    page = await client.get(f"{GRANTS}?mine=true&page_size=3", headers=support.headers)
     assert page.status_code == 200, page.text
     # Newest-first: the three most-recently-requested ("old 4/3/2").
-    assert [g["reason"] for g in page.json()] == ["old 4", "old 3", "old 2"]
+    assert [g["reason"] for g in page.json()["items"]] == ["old 4", "old 3", "old 2"]
+    assert page.json()["total_count"] == 5
 
-    # Second page via offset continues where the first left off.
+    # The second page continues where the first left off.
     rest = await client.get(
-        f"{GRANTS}?mine=true&limit=3&offset=3", headers=support.headers
+        f"{GRANTS}?mine=true&page=2&page_size=3", headers=support.headers
     )
     assert rest.status_code == 200, rest.text
-    assert [g["reason"] for g in rest.json()] == ["old 1", "old 0"]
+    assert [g["reason"] for g in rest.json()["items"]] == ["old 1", "old 0"]
 
 
 async def test_queue_live_filter_excludes_expired(
@@ -154,7 +155,7 @@ async def test_queue_live_filter_excludes_expired(
         f"{GRANTS}queue?status=approved&live=true", headers=host.headers
     )
     assert queue.status_code == 200, queue.text
-    assert [g["reason"] for g in queue.json()] == ["live one"]
+    assert [g["reason"] for g in queue.json()["items"]] == ["live one"]
 
 
 async def test_member_cannot_request_access(
@@ -409,7 +410,7 @@ async def test_grant_read_carries_guild_status(
 
     mine = await client.get(f"{GRANTS}?mine=true", headers=support.headers)
     assert mine.status_code == 200, mine.text
-    rows = [g for g in mine.json() if g["community_id"] == host.guild.id]
+    rows = [g for g in mine.json()["items"] if g["community_id"] == host.guild.id]
     assert rows and rows[0]["community_status"] == "suspended"
 
 
@@ -436,7 +437,7 @@ async def test_the_queue_is_read_by_approvers_on_their_own_tier(
 
     assert queue.status_code == expected, queue.text
     if expected == 200:
-        row = next(g for g in queue.json() if g["id"] == grant.id)
+        row = next(g for g in queue.json()["items"] if g["id"] == grant.id)
         assert row["community_name"] == host.guild.name
         assert row["user_email"] is not None
 
@@ -453,12 +454,12 @@ async def test_a_grantee_reads_their_own_grant_and_not_somebody_elses(
 
     own = await client.get(GRANTS, headers=support.headers)
     assert own.status_code == 200, own.text
-    row = next(g for g in own.json() if g["id"] == grant.id)
+    row = next(g for g in own.json()["items"] if g["id"] == grant.id)
     assert row["community_name"] == host.guild.name
 
     listed = await client.get(GRANTS, headers=other.headers)
     assert listed.status_code == 200, listed.text
-    assert grant.id not in {g["id"] for g in listed.json()}
+    assert grant.id not in {g["id"] for g in listed.json()["items"]}
 
 
 @pytest.mark.parametrize(

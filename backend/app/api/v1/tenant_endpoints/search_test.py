@@ -45,7 +45,7 @@ async def test_it_finds_a_task(client, session, acting_user: ActingUser) -> None
 
     body = await _search(client, a, q="vendor renewal")
     assert [h["title"] for h in body["items"]] == ["quarterly vendor renewal"]
-    assert body["total"] == 1
+    assert body["total_count"] == 1
 
 
 async def test_a_person_is_found_where_they_are_mentioned(
@@ -171,7 +171,7 @@ async def test_it_returns_only_what_the_caller_may_see(
     )
     await create_task(session, a.project, title="restricted renewal")
 
-    assert (await _search(client, a, q="restricted"))["total"] == 1
+    assert (await _search(client, a, q="restricted"))["total_count"] == 1
     assert (await _search(client, b, q="restricted"))["items"] == []
 
 
@@ -190,10 +190,11 @@ async def test_the_total_counts_what_the_caller_may_see(
     for n in range(3):
         await create_task(session, a.project, title=f"renewal {n}")
 
-    assert (await _search(client, b, q="renewal"))["total"] == 0
-    mine = await _search(client, a, q="renewal", limit=2)
-    assert mine["total"] == 3
+    assert (await _search(client, b, q="renewal"))["total_count"] == 0
+    mine = await _search(client, a, q="renewal", page_size=2)
+    assert mine["total_count"] == 3
     assert len(mine["items"]) == 2
+    assert mine["has_next"] is True
 
 
 async def test_it_can_be_narrowed_by_type_and_initiative(
@@ -217,9 +218,11 @@ async def test_an_empty_query_is_not_an_error(client, acting_user: ActingUser) -
     body = await _search(client, a, q="   ")
     assert body == {
         "items": [],
-        "total": 0,
-        "limit": 20,
-        "offset": 0,
+        "total_count": 0,
+        "page": 1,
+        "page_size": 20,
+        "has_next": False,
+        "has_prev": False,
         "fuzzy": False,
     }
 
@@ -318,7 +321,7 @@ async def test_the_last_word_matches_as_a_prefix(
             a.g("/search/"), headers=a.headers, params={"q": query}
         )
         assert response.status_code == 200, response.text
-        assert response.json()["total"] == 1, f"{query} found nothing"
+        assert response.json()["total_count"] == 1, f"{query} found nothing"
 
 
 async def test_what_the_reader_asked_for_exactly_is_left_exact(
@@ -461,8 +464,8 @@ async def test_paging_does_not_repeat_or_drop_a_hit(
         await create_task(session, a.project, title=f"renewal item {n}")
 
     seen: list[int] = []
-    for offset in (0, 2, 4):
-        page = await _search(client, a, q="renewal", limit=2, offset=offset)
+    for number in (1, 2, 3):
+        page = await _search(client, a, q="renewal", page=number, page_size=2)
         seen.extend(h["entity_id"] for h in page["items"])
     assert len(seen) == 6
     assert len(set(seen)) == 6
@@ -484,7 +487,7 @@ async def test_archived_work_is_kept_back_until_it_is_asked_for(
 
     default = await _search(client, a, q="shelved")
     assert [h["entity_id"] for h in default["items"]] == [live.id]
-    assert default["total"] == 1
+    assert default["total_count"] == 1
 
     asked = await _search(client, a, q="shelved", include_archived=True)
     assert {h["entity_id"] for h in asked["items"]} == {live.id, filed.id}

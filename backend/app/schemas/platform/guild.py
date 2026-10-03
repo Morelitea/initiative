@@ -655,10 +655,7 @@ class DirectoryCommunityRead(SanitizedBaseModel):
     banner: CommunityBannerRead = CommunityBannerRead()
 
 
-class DirectoryCommunityPage(SanitizedBaseModel):
-    """A page of directory results, plus how many matched in total."""
-
-    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+class DirectoryCommunityPage(PageMeta):
+    """A page of directory results."""
 
     items: List[DirectoryCommunityRead]
-    total: int

@@ -118,13 +118,13 @@ async def test_ignoring_is_idempotent_and_reversible(client, session, acting_use
     listing = await client.get("/api/v1/me/ignored", headers=a.headers)
     assert listing.status_code == 200
     assert [row["user_id"] for row in listing.json()["items"]] == [target.id]
-    assert listing.json()["total"] == 1
+    assert listing.json()["total_count"] == 1
 
     assert (
         await client.delete(f"/api/v1/me/ignored/{target.id}", headers=a.headers)
     ).status_code == 204
     assert (await client.get("/api/v1/me/ignored", headers=a.headers)).json()[
-        "total"
+        "total_count"
     ] == 0
 
 
@@ -180,7 +180,8 @@ async def test_the_list_never_answers_the_other_direction(client, session, actin
     assert [r["user_id"] for r in mine.json()["items"]] == [bram.user.id]
 
     theirs = await client.get("/api/v1/me/ignored", headers=bram.headers)
-    assert theirs.json() == {"items": [], "total": 0}
+    assert theirs.json()["items"] == []
+    assert theirs.json()["total_count"] == 0
 
 
 # -------------------------------------------------------------- permission ---

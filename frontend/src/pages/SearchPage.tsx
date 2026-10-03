@@ -17,7 +17,6 @@ import { Search, SearchX, TriangleAlert } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { SearchResults } from "@/api/generated/initiativeAPI.schemas";
 import { StatusMessage } from "@/components/StatusMessage";
 import { MemberResultRow } from "@/components/search/MemberResultRow";
 import { SearchResultList } from "@/components/search/SearchResultRow";
@@ -129,8 +128,8 @@ export function SearchPage() {
     {
       q: query,
       types: indexTypes ?? TOOL_ENTITY_TYPES,
-      limit: PAGE_SIZE,
-      offset: (page - 1) * PAGE_SIZE,
+      page,
+      page_size: PAGE_SIZE,
       ...(includeArchived ? { include_archived: true } : {}),
     },
     { enabled: enabled && indexTypes !== null }
@@ -237,7 +236,11 @@ export function SearchPage() {
                     </p>
                   )}
                   <SearchResultList hits={items} />
-                  <Pager page={page} hasNext={hasNextPage(results.data)} onPageChange={setPage} />
+                  <Pager
+                    page={page}
+                    hasNext={results.data?.has_next ?? false}
+                    onPageChange={setPage}
+                  />
                 </>
               )}
             </TabsContent>
@@ -260,7 +263,7 @@ export function SearchPage() {
  */
 function settledTotal(query: ReturnType<typeof useGuildSearch>): number | undefined {
   if (query.isPlaceholderData || !query.isFetched) return undefined;
-  return query.data?.total;
+  return query.data?.total_count;
 }
 
 function Loading() {
@@ -331,12 +334,6 @@ function Pager({
       </Button>
     </div>
   );
-}
-
-/** Whether a page of index results has one after it. */
-function hasNextPage(results?: SearchResults): boolean {
-  if (!results) return false;
-  return results.offset + results.items.length < results.total;
 }
 
 /** The member roster's own total, once it belongs to this query. */

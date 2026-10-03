@@ -34,12 +34,12 @@ vi.mock("@/hooks/useSearch", () => ({
 /** The mocked module, for asserting how the palette scoped its question. */
 const useSearchModule = { useGuildSearchSuggest: mocks.suggest };
 
-type SearchParams = { types?: string[]; limit?: number; offset?: number };
+type SearchParams = { types?: string[]; page?: number; page_size?: number };
 
 /**
- * Answer per scope and per page, the way the endpoint does: `total` counts
- * everything that matched, not what came back, and a window past the end comes
- * back empty with the total intact.
+ * Answer per scope and per page, the way the endpoint does: `total_count`
+ * counts everything that matched, not what came back, and a page past the end
+ * comes back empty with the total intact.
  */
 const withHits = (tools: SearchHit[], tags: SearchHit[], comments: SearchHit[] = []) => {
   mocks.search.mockImplementation((params: SearchParams) => {
@@ -48,13 +48,16 @@ const withHits = (tools: SearchHit[], tags: SearchHit[], comments: SearchHit[] =
       : params.types?.includes("comment")
         ? comments
         : tools;
-    const limit = params.limit ?? 20;
-    const offset = params.offset ?? 0;
+    const page = params.page ?? 1;
+    const pageSize = params.page_size ?? 20;
+    const start = (page - 1) * pageSize;
     return {
-      data: buildSearchResults(all.slice(offset, offset + limit), {
-        total: all.length,
-        limit,
-        offset,
+      data: buildSearchResults(all.slice(start, start + pageSize), {
+        total_count: all.length,
+        page,
+        page_size: pageSize,
+        has_next: start + pageSize < all.length,
+        has_prev: page > 1,
       }),
       isLoading: false,
       isFetched: true,
@@ -72,7 +75,7 @@ const withStaleAnswer = () => {
   mocks.search.mockImplementation((params: SearchParams) => {
     const isTags = params.types?.includes("tag") ?? false;
     return {
-      data: buildSearchResults(isTags ? [] : [buildSearchHit()], { total: isTags ? 0 : 1 }),
+      data: buildSearchResults(isTags ? [] : [buildSearchHit()], { total_count: isTags ? 0 : 1 }),
       isLoading: false,
       isFetched: true,
       isPlaceholderData: true,

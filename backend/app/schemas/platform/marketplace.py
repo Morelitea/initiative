@@ -17,6 +17,7 @@ from typing import Any, Dict, List, Optional, TYPE_CHECKING
 from pydantic import ConfigDict, Field
 
 from app.schemas.base import RawTextStr, SanitizedBaseModel, TitleStr
+from app.schemas.query import PageMeta
 from app.services.import_engine.contract import EnvelopeImportResult
 from app.services.marketplace.definitions import LISTING_KINDS, LISTING_SOURCES
 
@@ -243,11 +244,8 @@ class MarketplaceLocalSettings(SanitizedBaseModel):
     members_publish_directly: bool
 
 
-class MarketplaceListingPage(SanitizedBaseModel):
-    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
-
+class MarketplaceListingPage(PageMeta):
     items: List[MarketplaceListingSummary]
-    total: int
 
 
 def serialize_version(

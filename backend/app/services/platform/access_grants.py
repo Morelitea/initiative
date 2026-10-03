@@ -17,7 +17,7 @@ from datetime import timedelta
 from typing import Optional, Sequence, cast
 
 from sqlalchemy import or_, text, update as sa_update
-from sqlmodel import select
+from sqlmodel import func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.capabilities import (
@@ -27,6 +27,7 @@ from app.core.capabilities import (
     roles_with_capability,
 )
 from app.core.login_methods import LoginMethod
+from app.db.query import paginated_query
 from app.core.email_i18n import translate
 from app.models.platform.access_grant import (
     LEVEL_LABEL_KEYS,
@@ -673,16 +674,15 @@ async def list_grants(
     user_id: Optional[int] = None,
     statuses: Optional[list[str]] = None,
     live_only: bool = False,
-    limit: Optional[int] = None,
-    offset: Optional[int] = None,
-) -> list[AccessGrant]:
-    """List grants, optionally filtered to one grantee and/or a set of statuses.
+    page: int = 1,
+    page_size: int = 50,
+) -> tuple[list[AccessGrant], int, int]:
+    """One page of grants, newest first, optionally filtered to one grantee
+    and/or a set of statuses.
 
     Approvers pass ``user_id=None`` for the full queue; requesters pass their
     own id for "my requests". ``live_only`` keeps only grants that are live:
-    approved and unexpired.
-    ``limit``/``offset`` page the result (ordered newest-first) so a list that
-    grows with users/usage stays bounded.
+    approved and unexpired. Returns ``(grants, total_count, page)``.
     """
     stmt = select(AccessGrant)
     if user_id is not None:
@@ -691,13 +691,13 @@ async def list_grants(
         stmt = stmt.where(AccessGrant.status.in_(statuses))
     if live_only:
         stmt = stmt.where(AccessGrant.live(utcnow()))
-    stmt = stmt.order_by(AccessGrant.requested_at.desc())
-    if offset:
-        stmt = stmt.offset(offset)
-    if limit is not None:
-        stmt = stmt.limit(limit)
-    result = await session.exec(stmt)
-    return list(result.all())
+    return await paginated_query(
+        session,
+        stmt.order_by(AccessGrant.requested_at.desc(), AccessGrant.id.desc()),
+        select(func.count()).select_from(stmt.subquery()),
+        page,
+        page_size,
+    )
 
 
 #: How often grants past their window are marked expired.

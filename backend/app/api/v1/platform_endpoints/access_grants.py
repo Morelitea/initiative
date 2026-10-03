@@ -12,7 +12,7 @@ writes the table; authorization for those is enforced here via capabilities +
 ownership, mirroring the ``/operator/*`` endpoints.
 """
 
-from typing import Annotated, List, Optional
+from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from webauthn.helpers import bytes_to_base64url
@@ -26,6 +26,7 @@ from app.api.deps import (
 from app.core.capabilities import Capability
 from app.core.audit_events import AuditEventType
 from app.core.messages import AccessGrantMessages, AuthMessages
+from app.db.query import build_paginated_response
 from app.models.platform.user import User
 from app.models.platform.access_grant import (
     AccessGrantPurpose,
@@ -33,6 +34,7 @@ from app.models.platform.access_grant import (
     SettingsLevel,
 )
 from app.schemas.platform.access_grant import (
+    AccessGrantListResponse,
     AccessGrantApprove,
     AccessGrantCreate,
     AccessGrantLimits,
@@ -364,64 +366,61 @@ async def break_glass_access(
     return read
 
 
-@router.get("/", response_model=List[AccessGrantRead])
+@router.get("/", response_model=AccessGrantListResponse)
 async def list_access_grants(
     session: UserSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     grant_status: Optional[str] = Query(None, alias="status"),
     live: bool = Query(False, description="Keep only grants that haven't expired yet."),
-    limit: Optional[int] = Query(
-        None,
-        ge=1,
-        le=200,
-        description="Page size — the number of most-recent grants returned.",
-    ),
-    offset: int = Query(0, ge=0, description="Number of grants to skip (for paging)."),
-) -> List[AccessGrantRead]:
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=50, ge=1, le=200),
+) -> AccessGrantListResponse:
     """List your own access grants.
 
-    Ordered newest-first; ``limit``/``offset`` page the result so it can't grow
-    unbounded, and ``live=true`` narrows to grants that are still within their
-    window. The full queue is ``GET /access-grants/queue``.
+    Newest first, a page at a time; ``live=true`` narrows to grants that are
+    still within their window. The full queue is ``GET /access-grants/queue``.
     """
-    grants = await service.list_grants(
+    grants, total_count, actual_page = await service.list_grants(
         session,
         user_id=current_user.id,
         statuses=[grant_status] if grant_status else None,
         live_only=live,
-        limit=limit,
-        offset=offset,
+        page=page,
+        page_size=page_size,
     )
-    return await service.to_read(grants)
+    return AccessGrantListResponse(
+        **build_paginated_response(
+            await service.to_read(grants), total_count, actual_page, page_size
+        )
+    )
 
 
-@router.get("/queue", response_model=List[AccessGrantRead])
+@router.get("/queue", response_model=AccessGrantListResponse)
 async def list_access_grant_queue(
     session: UserSessionDep,
     _approver: AccessApproveDep,
     grant_status: Optional[str] = Query(None, alias="status"),
     live: bool = Query(False, description="Keep only grants that haven't expired yet."),
-    limit: Optional[int] = Query(
-        None,
-        ge=1,
-        le=200,
-        description="Page size — the number of most-recent grants returned.",
-    ),
-    offset: int = Query(0, ge=0, description="Number of grants to skip (for paging)."),
-) -> List[AccessGrantRead]:
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=50, ge=1, le=200),
+) -> AccessGrantListResponse:
     """Every grant on the platform, for approvers (``access.approve``).
 
     Newest-first and paged like the caller's own list; ``live=true`` keeps only
     grants still within their window.
     """
-    grants = await service.list_grants(
+    grants, total_count, actual_page = await service.list_grants(
         session,
         statuses=[grant_status] if grant_status else None,
         live_only=live,
-        limit=limit,
-        offset=offset,
+        page=page,
+        page_size=page_size,
     )
-    return await service.to_read(grants)
+    return AccessGrantListResponse(
+        **build_paginated_response(
+            await service.to_read(grants), total_count, actual_page, page_size
+        )
+    )
 
 
 @router.get("/limits", response_model=AccessGrantLimits)

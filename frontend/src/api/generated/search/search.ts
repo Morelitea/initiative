@@ -49,8 +49,8 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
 /**
  * Ranked matches across the guild's tools, comments and tags.
  *
- * ``total`` counts entities the caller may see, so it is what a pager should
- * show rather than an estimate to correct later.
+ * ``total_count`` counts entities the caller may see, so it is what a pager
+ * should show rather than an estimate to correct later.
  * @summary Search Community
  */
 export const searchCommunity = (

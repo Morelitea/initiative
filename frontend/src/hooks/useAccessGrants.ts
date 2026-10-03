@@ -20,6 +20,7 @@ import type {
   AccessGrantApprove,
   AccessGrantCreate,
   AccessGrantLimits,
+  AccessGrantListResponse,
   AccessGrantRead,
   BreakGlassCreate,
   BreakGlassRequirements,
@@ -32,18 +33,11 @@ import type { MutationOpts } from "@/types/mutation";
 // than fetching the whole history at once.
 export const ACCESS_GRANTS_PAGE_SIZE = 25;
 
-// A full page back means there may be more; a short page is the end.
-const nextOffset = (
-  lastPage: AccessGrantRead[],
-  allPages: AccessGrantRead[][]
-): number | undefined =>
-  lastPage.length === ACCESS_GRANTS_PAGE_SIZE
-    ? allPages.length * ACCESS_GRANTS_PAGE_SIZE
-    : undefined;
+const nextPage = (last: AccessGrantListResponse) => (last.has_next ? last.page + 1 : undefined);
 
 /** Flatten the loaded pages of an access-grants infinite query into one array. */
-export const flattenGrants = (pages: AccessGrantRead[][] | undefined): AccessGrantRead[] =>
-  pages?.flat() ?? [];
+export const flattenGrants = (pages: AccessGrantListResponse[] | undefined): AccessGrantRead[] =>
+  pages?.flatMap((page) => page.items) ?? [];
 
 /** Any grant mutation refreshes both lists, every filter of each. */
 function useInvalidateAccessGrants() {
@@ -63,11 +57,11 @@ export const useMyAccessGrants = () =>
     queryKey: getListAccessGrantsQueryKey(),
     queryFn: ({ pageParam }) =>
       listAccessGrants({
-        limit: ACCESS_GRANTS_PAGE_SIZE,
-        offset: pageParam,
+        page: pageParam,
+        page_size: ACCESS_GRANTS_PAGE_SIZE,
       }),
-    initialPageParam: 0,
-    getNextPageParam: nextOffset,
+    initialPageParam: 1,
+    getNextPageParam: nextPage,
   });
 
 /**
@@ -85,11 +79,11 @@ export const useAccessGrantQueue = (status: string | undefined, opts?: { live?: 
       listAccessGrantQueue({
         status,
         live: opts?.live,
-        limit: ACCESS_GRANTS_PAGE_SIZE,
-        offset: pageParam,
+        page: pageParam,
+        page_size: ACCESS_GRANTS_PAGE_SIZE,
       }),
-    initialPageParam: 0,
-    getNextPageParam: nextOffset,
+    initialPageParam: 1,
+    getNextPageParam: nextPage,
   });
 
 /**
