@@ -5,6 +5,7 @@ import {
   CheckSquare,
   FilePlus,
   LayoutGrid,
+  LifeBuoy,
   ListTodo,
   MessageSquare,
   Plus,
@@ -39,6 +40,7 @@ import { MentionedPeopleScope, ReportMentionedPeople } from "@/hooks/useMentione
 import { useRecents } from "@/hooks/useRecents";
 import { useCommunitySearchSuggest } from "@/hooks/useSearch";
 import { useTasks } from "@/hooks/useTasks";
+import { useHasFiledTickets } from "@/hooks/useTickets";
 import { useUserSearch } from "@/hooks/useUsers";
 import { USER_MENTION_PATTERN } from "@/lib/commentReferences";
 import { communityPath, useCommunityPath } from "@/lib/communityUrl";
@@ -245,6 +247,7 @@ export function CommandCenter() {
 
   const isCommunityAdmin = Boolean(activeCommunity?.can.administer);
   const dmEnabled = useDirectMessagesEnabled();
+  const hasTickets = useHasFiledTickets();
   const showPlatformSettings = canManagePlatformConfig(user);
   const showOperatorDashboard = canAccessOperatorDashboard(user);
 
@@ -259,6 +262,7 @@ export function CommandCenter() {
       ...(dmEnabled
         ? [{ label: t("pages.myMessages"), path: "/messages", icon: MessageSquare }]
         : []),
+      ...(hasTickets ? [{ label: t("pages.myTickets"), path: "/my-tickets", icon: LifeBuoy }] : []),
       { label: t("pages.myStats"), path: "/user-stats", icon: BarChart3 },
       { label: t("pages.mySettings"), path: "/profile", icon: UserCog },
       {
@@ -297,6 +301,7 @@ export function CommandCenter() {
     t,
     getCommunityPath,
     dmEnabled,
+    hasTickets,
     isCommunityAdmin,
     showOperatorDashboard,
     showPlatformSettings,

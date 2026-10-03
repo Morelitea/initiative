@@ -14,18 +14,26 @@ than the address it replaces.
 
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
+from datetime import datetime
 from enum import Enum
-from typing import Optional
+from typing import AsyncIterator, Optional
 
 from limits import parse
+from sqlalchemy import String, cast
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.intake import IntakeStream, meta
+from app.core.intake import Conversation, IntakeStream, meta
 from app.core.rate_limit import take_allowance
+from app.db import cohorts
+from app.db.session import routed_guild_id
 from app.models.platform.app_setting import AppSetting
 from app.models.platform.user import User
+from app.models.tenant.comment import Comment
+from app.models.tenant.intake import IntakeBinding, IntakeCase
+from app.models.tenant.task import Task, TaskStatus, TaskStatusCategory
 from app.services.platform import intake as intake_service
 from app.services.tenant import support as support_service
 
@@ -130,3 +138,254 @@ async def hold_pace(user: User, stream: IntakeStream) -> None:
         f"{stream.value}:user:{user.id}",
     ):
         raise FilingTooFast
+
+
+# ── Following a ticket ───────────────────────────────────────────────────────
+
+
+class FilerState(str, Enum):
+    """Where a filed case stands, as its filer is shown it.
+
+    Derived from the case's status when read, never stored: the people working
+    the case move it, and this follows.
+    """
+
+    received = "received"
+    in_progress = "in_progress"
+    waiting_on_you = "waiting_on_you"
+    closed = "closed"
+
+
+def derive_state(
+    *,
+    category: str,
+    status_id: Optional[int],
+    awaiting_status_id: Optional[int],
+    stream: IntakeStream,
+    trashed: bool = False,
+) -> FilerState:
+    """The state a case's status shows its filer.
+
+    A case the team put in the trash is closed to its filer. A stream with no
+    conversation never waits on its filer, who has no way to answer.
+    """
+    if trashed or category == TaskStatusCategory.done:
+        return FilerState.closed
+    if (
+        awaiting_status_id is not None
+        and status_id == awaiting_status_id
+        and meta(stream).conversation is not Conversation.none
+    ):
+        return FilerState.waiting_on_you
+    if category == TaskStatusCategory.todo:
+        return FilerState.received
+    return FilerState.in_progress
+
+
+@dataclass(frozen=True)
+class FiledTicket:
+    """One case its filer can follow."""
+
+    task_id: int
+    stream: IntakeStream
+    subject: Optional[str]
+    state: FilerState
+    opened_at: datetime
+    updated_at: Optional[datetime]
+    status_id: Optional[int] = None
+
+
+@dataclass(frozen=True)
+class TicketMessage:
+    """One part of the conversation, as its filer reads it."""
+
+    id: int
+    #: Written by the filer; otherwise by the people handling the case, who
+    #: are shown as the team rather than by name.
+    mine: bool
+    content: str
+    created_at: datetime
+
+
+@dataclass(frozen=True)
+class FiledTicketDetail:
+    #: The operations community the case was read in, which is where an
+    #: answer to it is written.
+    guild_id: int
+    ticket: FiledTicket
+    conversation: Conversation
+    can_reply: bool
+    messages: list[TicketMessage]
+
+
+class TicketNotFound(Exception):
+    """No case of theirs by that id."""
+
+
+class ReplyRefused(Exception):
+    """The case takes no answer from its filer now."""
+
+
+@asynccontextmanager
+async def _as_filer(user: User) -> AsyncIterator[Optional[AsyncSession]]:
+    """A request session routed as ``user`` reading the cases they filed, or
+    ``None`` where there is no operations community to read them in.
+
+    From the operations community's cohort on the request engine, through the
+    seam: what the session reads is the filer role's to decide.
+    """
+    from app.api.deps import FilerAccessError, establish_filer_access
+
+    guild_id = await intake_service.configured_operations_guild_id()
+    if guild_id is None:
+        yield None
+        return
+    async with cohorts.request_sessionmaker(guild_id)() as session:
+        try:
+            await establish_filer_access(session, user)
+        except FilerAccessError:
+            yield None
+            return
+        yield session
+
+
+def _ticket_columns():
+    return (
+        IntakeCase.task_id,
+        IntakeCase.stream,
+        IntakeCase.filer_subject,
+        IntakeCase.opened_at,
+        Task.updated_at,
+        Task.task_status_id,
+        # As text: the filer role decodes no enum type, which the driver would
+        # first have to look up in the catalog with privileges it does not hold.
+        cast(TaskStatus.category, String),
+        IntakeBinding.awaiting_filer_status_id,
+        Task.deleted_at,
+    )
+
+
+def _ticket_from(row) -> FiledTicket:
+    (
+        task_id,
+        stream,
+        subject,
+        opened_at,
+        updated_at,
+        status_id,
+        category,
+        awaiting,
+        deleted_at,
+    ) = row
+    return FiledTicket(
+        task_id=task_id,
+        stream=IntakeStream(stream),
+        subject=subject,
+        state=derive_state(
+            category=category,
+            status_id=status_id,
+            awaiting_status_id=awaiting,
+            stream=IntakeStream(stream),
+            trashed=deleted_at is not None,
+        ),
+        opened_at=opened_at,
+        updated_at=updated_at,
+        status_id=status_id,
+    )
+
+
+def _tickets_query():
+    return (
+        select(*_ticket_columns())
+        .join(Task, Task.id == IntakeCase.task_id)
+        .join(TaskStatus, TaskStatus.id == Task.task_status_id)
+        .outerjoin(IntakeBinding, IntakeBinding.stream == IntakeCase.stream)
+    )
+
+
+async def list_filed(user: User) -> list[FiledTicket]:
+    """The cases ``user`` filed, the most recently moved first."""
+    async with _as_filer(user) as session:
+        if session is None:
+            return []
+        rows = (
+            await session.exec(
+                _tickets_query().order_by(Task.updated_at.desc(), Task.id.desc())
+            )
+        ).all()
+    return [_ticket_from(row) for row in rows]
+
+
+def _can_reply(
+    conversation: Conversation, state: FilerState, messages: list[TicketMessage]
+) -> bool:
+    if state is FilerState.closed or conversation is Conversation.none:
+        return False
+    if conversation is Conversation.staff_first:
+        return any(not message.mine for message in messages)
+    return True
+
+
+async def read_filed(user: User, task_id: int) -> FiledTicketDetail:
+    """One case ``user`` filed, with the conversation said to them."""
+    async with _as_filer(user) as session:
+        if session is None:
+            raise TicketNotFound
+        row = (
+            await session.exec(_tickets_query().where(IntakeCase.task_id == task_id))
+        ).first()
+        if row is None:
+            raise TicketNotFound
+        said = (
+            await session.exec(
+                select(
+                    Comment.id, Comment.created_by, Comment.content, Comment.created_at
+                )
+                .where(Comment.task_id == task_id)
+                .order_by(Comment.created_at, Comment.id)
+            )
+        ).all()
+        guild_id = routed_guild_id(session)
+    if guild_id is None:
+        raise TicketNotFound
+    ticket = _ticket_from(row)
+    messages = [
+        TicketMessage(
+            id=comment_id,
+            mine=author == user.id,
+            content=content,
+            created_at=created_at,
+        )
+        for comment_id, author, content, created_at in said
+    ]
+    conversation = meta(ticket.stream).conversation
+    return FiledTicketDetail(
+        guild_id=guild_id,
+        ticket=ticket,
+        conversation=conversation,
+        can_reply=_can_reply(conversation, ticket.state, messages),
+        messages=messages,
+    )
+
+
+async def reply(user: User, detail: FiledTicketDetail, words: str) -> None:
+    """Add ``user``'s answer to a case they filed.
+
+    ``detail`` is the case as read through their filer access, which is what
+    says it is theirs and takes an answer now. The answer is written on the
+    writer's own session, said to them like the rest of the conversation. A
+    case waiting on them goes back to the status the stream's binding names for
+    that, where it names one, and the case's assignees are told as they are of
+    any comment on it.
+    """
+    if not detail.can_reply:
+        raise ReplyRefused
+    taken = await intake_service.add_filer_reply(
+        guild_id=detail.guild_id,
+        task_id=detail.ticket.task_id,
+        filer=user,
+        words=words,
+        stream=detail.ticket.stream,
+    )
+    if not taken:
+        raise ReplyRefused

@@ -1,5 +1,12 @@
 import { Link, useLocation } from "@tanstack/react-router";
-import { CalendarDays, ChartColumn, LayoutGrid, MessageSquare, SquareCheckBig } from "lucide-react";
+import {
+  CalendarDays,
+  ChartColumn,
+  LayoutGrid,
+  LifeBuoy,
+  MessageSquare,
+  SquareCheckBig,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -16,6 +23,7 @@ import {
 } from "@/components/ui/sidebar";
 import { useDirectMessagesEnabled } from "@/hooks/useDirectMessages";
 import { useMessagesWaiting } from "@/hooks/useMyMessages";
+import { useHasFiledTickets } from "@/hooks/useTickets";
 
 export const HomeSidebarContent = () => {
   const { t } = useTranslation("nav");
@@ -40,6 +48,10 @@ export const HomeSidebarContent = () => {
   // Whether this deployment offers messaging at all. Off, there is no item and
   // no route worth drilling into, so the whole branch below goes with it.
   const dmEnabled = useDirectMessagesEnabled();
+
+  // Offered once the reader has filed something: before that it would be an
+  // empty page in everybody's sidebar.
+  const hasTickets = useHasFiledTickets();
 
   if (dmEnabled && onMessages && !climbedOut) {
     return <MessagesSidebarContent onBack={() => setClimbedOut(true)} />;
@@ -68,6 +80,7 @@ export const HomeSidebarContent = () => {
           },
         ]
       : []),
+    ...(hasTickets ? [{ to: "/my-tickets", label: t("myTickets"), icon: LifeBuoy }] : []),
     { to: "/user-stats", label: t("myStats"), icon: ChartColumn },
   ];
 

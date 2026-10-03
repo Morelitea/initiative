@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
-from typing import Annotated, Literal, Optional, Union
+from datetime import datetime
+from typing import Annotated, List, Literal, Optional, Union
 
 from pydantic import AfterValidator, ConfigDict, Field as PydanticField
 
+from app.core.intake import Conversation, IntakeStream
 from app.core.moderation import ReportVenue
-from app.schemas.base import SanitizedBaseModel
+from app.schemas.base import RichTextStr, SanitizedBaseModel
 from app.schemas.tenant.moderation import ReportCreate
-from app.services.platform.tickets import TicketMode
+from app.services.platform.tickets import FilerState, TicketMode
 from app.services.tenant.support import BODY_LENGTH, SUBJECT_LENGTH
 
 
@@ -88,3 +90,55 @@ class TicketAvailability(SanitizedBaseModel):
     moderation: StreamAvailabilityRead
     support: StreamAvailabilityRead
     feedback: StreamAvailabilityRead
+
+
+class FiledTicketRead(SanitizedBaseModel):
+    """One case its filer can follow: what they called it, and where it stands."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    task_id: int
+    stream: IntakeStream
+    #: What they called it, in their own words.
+    subject: Optional[str] = None
+    state: FilerState
+    opened_at: datetime
+    updated_at: Optional[datetime] = None
+
+
+class FiledTicketList(SanitizedBaseModel):
+    """The cases the reader filed, most recently moved first."""
+
+    items: List[FiledTicketRead]
+
+
+class TicketMessageRead(SanitizedBaseModel):
+    """One part of the conversation about a case, as its filer reads it.
+
+    The people handling the case are not named here: ``mine`` says whether the
+    reader wrote it, and everything else is the team's.
+    """
+
+    id: int
+    mine: bool
+    #: Kept as written, like any comment body.
+    content: RichTextStr
+    created_at: datetime
+
+
+class FiledTicketDetailRead(FiledTicketRead):
+    """One case its filer filed, with what has been said to them about it."""
+
+    conversation: Conversation
+    #: Whether the reader may answer now: the kind of case allows it, it is
+    #: not closed, and where the people handling it speak first, they have.
+    can_reply: bool
+    messages: List[TicketMessageRead]
+
+
+class TicketReplyCreate(SanitizedBaseModel):
+    """A filer's answer on their own case."""
+
+    body: Annotated[str, AfterValidator(_said_something)] = PydanticField(
+        min_length=1, max_length=BODY_LENGTH
+    )

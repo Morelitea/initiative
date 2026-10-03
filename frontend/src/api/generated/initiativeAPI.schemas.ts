@@ -2117,6 +2117,17 @@ export interface CaptchaSettingsUpdate {
   secret_key?: string | null;
 }
 
+/**
+ * One part of the conversation with whoever filed a case.
+ */
+export interface CaseMessageRead {
+  id: number;
+  author?: UserPublic | null;
+  from_requester: boolean;
+  content: string;
+  created_at: string;
+}
+
 export type CategoryGroup = (typeof CategoryGroup)[keyof typeof CategoryGroup];
 
 export const CategoryGroup = {
@@ -2214,7 +2225,9 @@ export interface CollaborationHandover {
  * Every comment is said to the people who can read its thread. A comment on
  * an operations case can also be said to the person who filed the case, who
  * is not one of them: that is the conversation with them, and it is the only
- * part of the case they are ever shown.
+ * part of the case they are ever shown. It is kept apart from the thread:
+ * the case shows it on its own, and the thread, its counts and its feeds
+ * never carry it.
  */
 export type CommentAudience = (typeof CommentAudience)[keyof typeof CommentAudience];
 
@@ -2316,6 +2329,7 @@ export interface CommentCreate {
   gallery_id?: number | null;
   wiki_id?: number | null;
   parent_comment_id?: number | null;
+  audience?: CommentAudience;
 }
 
 /**
@@ -3561,6 +3575,17 @@ export const ControlKind = {
   boolean: "boolean",
   number: "number",
   text: "text",
+} as const;
+
+/**
+ * Whether the people handling a case and the person who filed it talk.
+ */
+export type Conversation = (typeof Conversation)[keyof typeof Conversation];
+
+export const Conversation = {
+  none: "none",
+  staff_first: "staff_first",
+  open: "open",
 } as const;
 
 /**
@@ -4880,6 +4905,80 @@ export interface FieldCatalogResponse {
   default_filters?: DefaultFilter[];
 }
 
+/**
+ * The kinds of operations work a deployment can route into a project.
+ */
+export type IntakeStream = (typeof IntakeStream)[keyof typeof IntakeStream];
+
+export const IntakeStream = {
+  security: "security",
+  moderation: "moderation",
+  support: "support",
+  feedback: "feedback",
+} as const;
+
+/**
+ * Where a filed case stands, as its filer is shown it.
+ *
+ * Derived from the case's status when read, never stored: the people working
+ * the case move it, and this follows.
+ */
+export type FilerState = (typeof FilerState)[keyof typeof FilerState];
+
+export const FilerState = {
+  received: "received",
+  in_progress: "in_progress",
+  waiting_on_you: "waiting_on_you",
+  closed: "closed",
+} as const;
+
+/**
+ * One part of the conversation about a case, as its filer reads it.
+ *
+ * The people handling the case are not named here: ``mine`` says whether the
+ * reader wrote it, and everything else is the team's.
+ */
+export interface TicketMessageRead {
+  id: number;
+  mine: boolean;
+  content: string;
+  created_at: string;
+}
+
+/**
+ * One case its filer filed, with what has been said to them about it.
+ */
+export interface FiledTicketDetailRead {
+  task_id: number;
+  stream: IntakeStream;
+  subject: string | null;
+  state: FilerState;
+  opened_at: string;
+  updated_at: string | null;
+  conversation: Conversation;
+  can_reply: boolean;
+  messages: TicketMessageRead[];
+}
+
+/**
+ * One case its filer can follow: what they called it, and where it stands.
+ */
+export interface FiledTicketRead {
+  task_id: number;
+  stream: IntakeStream;
+  subject: string | null;
+  state: FilerState;
+  opened_at: string;
+  updated_at: string | null;
+}
+
+/**
+ * The cases the reader filed, most recently moved first.
+ */
+export interface FiledTicketList {
+  items: FiledTicketRead[];
+}
+
 export interface PresetPropertyFilter {
   property_id: number;
   op?: FilterOp;
@@ -5699,18 +5798,6 @@ export interface InitiativeUpdate {
 }
 
 /**
- * The kinds of operations work a deployment can route into a project.
- */
-export type IntakeStream = (typeof IntakeStream)[keyof typeof IntakeStream];
-
-export const IntakeStream = {
-  security: "security",
-  moderation: "moderation",
-  support: "support",
-  feedback: "feedback",
-} as const;
-
-/**
  * One stream and where it currently lands.
  */
 export interface IntakeBindingRead {
@@ -5723,6 +5810,11 @@ export interface IntakeBindingRead {
   initiative_name?: string | null;
   default_status_id?: number | null;
   default_status_name?: string | null;
+  awaiting_filer_status_id?: number | null;
+  active_status_id?: number | null;
+  conversation?: Conversation;
+  isolated?: boolean;
+  shares_initiative?: boolean;
   enabled?: boolean;
   last_case_at?: string | null;
 }
@@ -5733,6 +5825,8 @@ export interface IntakeBindingRead {
 export interface IntakeBindingUpsert {
   project_id: number;
   default_status_id?: number | null;
+  awaiting_filer_status_id?: number | null;
+  active_status_id?: number | null;
   enabled?: boolean;
 }
 
@@ -6318,6 +6412,7 @@ export const NotificationType = {
   direct_message: "direct_message",
   app_consent_requested: "app_consent_requested",
   app_update_pending: "app_update_pending",
+  ticket_updated: "ticket_updated",
 } as const;
 
 export type NotificationReadData = { [key: string]: unknown };
@@ -8808,6 +8903,20 @@ export interface TaggedEntitiesResponse {
   items: SearchHit[];
 }
 
+/**
+ * How an operations case was filed, for the people working it.
+ */
+export interface TaskCaseRead {
+  stream: IntakeStream;
+  opened_at: string;
+  filer?: UserPublic | null;
+  filer_subject?: string | null;
+  conversation: Conversation;
+  awaiting_filer_status_id?: number | null;
+  active_status_id?: number | null;
+  messages?: CaseMessageRead[];
+}
+
 export type TaskCreateRecurrenceStrategy =
   (typeof TaskCreateRecurrenceStrategy)[keyof typeof TaskCreateRecurrenceStrategy];
 
@@ -9005,6 +9114,17 @@ export interface TicketAvailability {
   moderation: StreamAvailabilityRead;
   support: StreamAvailabilityRead;
   feedback: StreamAvailabilityRead;
+}
+
+/**
+ * A filer's answer on their own case.
+ */
+export interface TicketReplyCreate {
+  /**
+   * @minLength 1
+   * @maxLength 5000
+   */
+  body: string;
 }
 
 /**

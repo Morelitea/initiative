@@ -39,10 +39,11 @@ vi.mock("@/api/generated/auth/auth", () => ({
     },
     isPending: false,
   }),
-  useDisableSecondFactor: (options?: { mutation?: { onSuccess?: () => void } }) => ({
+  useDisableSecondFactor: (options?: { mutation?: { onSuccess?: (data: unknown) => void } }) => ({
     mutate: (vars: unknown) => {
       mocks.disable(vars);
-      options?.mutation?.onSuccess?.();
+      // What the endpoint answers: the change was made, with nothing held.
+      options?.mutation?.onSuccess?.({ held: null });
     },
     isPending: false,
   }),

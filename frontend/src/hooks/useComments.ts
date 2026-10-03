@@ -16,16 +16,18 @@ import {
   recentComments,
   updateComment,
 } from "@/api/generated/comments/comments";
-import type {
-  CommentListResponse,
-  CommentRead,
-  ListCommentsParams,
-  RecentActivityEntry,
-  RecentCommentsParams,
+import {
+  CommentAudience,
+  type CommentListResponse,
+  type CommentRead,
+  type ListCommentsParams,
+  type RecentActivityEntry,
+  type RecentCommentsParams,
 } from "@/api/generated/initiativeAPI.schemas";
 import { invalidate, q } from "@/api/query-keys";
 import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { useCommunityMutation } from "@/hooks/useApiMutation";
+import { refreshTaskCase } from "@/hooks/useTickets";
 import { getHttpStatus } from "@/lib/errorMessage";
 import { queryClient } from "@/lib/queryClient";
 import { singularOf } from "@/lib/tools";
@@ -181,6 +183,9 @@ const COMMENT_TARGETS = [
 ] as const satisfies readonly (keyof CommentThreadParams & keyof CommentRead)[];
 
 const inThread = (comment: CommentRead, params: CommentThreadParams) => {
+  // What is said with whoever filed a case is the case's conversation, read
+  // on the case, never a comment in the task's thread.
+  if (comment.audience === CommentAudience.filer) return false;
   const target = COMMENT_TARGETS.find((key) => comment[key] != null);
   return target !== undefined && params[target] === comment[target];
 };
@@ -202,6 +207,11 @@ const readBack = async (
   parent: { type: string; id: number },
   commentIds: readonly number[]
 ) => {
+  if (parent.type === "tasks") {
+    // A comment on a case task may be part of its conversation with the
+    // requester, which the case carries.
+    void refreshTaskCase(parent.id, communityId);
+  }
   const threads = threadsOf(communityId, parent);
   const refetch = () =>
     Promise.all(

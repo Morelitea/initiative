@@ -455,6 +455,13 @@ async def _prepare_database() -> None:
             backfill.skipped,
             backfill.total,
         )
+    # The filer role exists in the operations community alone. Re-asserted
+    # after the back-fill, and dropped from any community it was left in.
+    from app.db.filer_access import reconcile_filer_access
+    from app.services.platform.intake import configured_operations_guild_id
+
+    await reconcile_filer_access(await configured_operations_guild_id())
+
     # Every schema the back-fill reached now binds its own copies of the
     # guild functions, so the copies the migrations left in public can go.
     # Postgres refuses each one that a schema still binds (a guild the

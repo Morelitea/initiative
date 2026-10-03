@@ -369,6 +369,11 @@ const ticketAvailability = (): Spec => ({
   personalExact: ["/api/v1/me/tickets/availability"],
 });
 
+/** The tickets the reader filed. Moves when they file or answer one. */
+const filedTickets = (): Spec => ({
+  personalExact: ["/api/v1/me/tickets"],
+});
+
 /** One initiative's moderation reports. A prefix, so the open list and the
  *  settled one — which differ only in their params — both move on a write. */
 const moderationReports = (initiativeId: number): Spec => ({
@@ -647,6 +652,7 @@ export const q = {
   intakeOptions,
   intakeSettings,
   ticketAvailability,
+  filedTickets,
   moderationReports,
   contactGrants,
   contacts,

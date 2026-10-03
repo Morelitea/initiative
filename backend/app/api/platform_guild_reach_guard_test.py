@@ -75,6 +75,10 @@ _SERVICES = "app/services/platform"
 
 #: Functions that route into whichever community their caller names.
 _WRAPPERS: dict[tuple[str, str], str] = {
+    (f"{_SERVICES}/intake.py", "add_filer_reply"): (
+        "writes a filer's answer in the operations community its caller read "
+        "the case in"
+    ),
     (f"{_SERVICES}/users.py", "hard_delete_user.erase"): (
         "erases a deleted account's rows in one community, on that community's "
         "cohort session"
@@ -149,6 +153,13 @@ _ALLOWED: dict[tuple[str, str], str] = {
     ),
     (f"{_SERVICES}/intake.py", "open_case"): (
         "intake: opens a case in the operations community on the deployment's behalf"
+    ),
+    (f"{_SERVICES}/tickets.py", "reply"): (
+        "tickets: writes a filer's answer in the operations community the "
+        "filer role just read their case in"
+    ),
+    (f"{_SERVICES}/ticket_notices.py", "notify_filers"): (
+        "the scheduled sweep that tells filers their case moved"
     ),
     (f"{_SERVICES}/intake_setup.py", "bind"): (
         "intake setup: the platform owner's Intake page (config.manage)"

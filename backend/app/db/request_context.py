@@ -37,6 +37,7 @@ __all__ = [
     "Billing",
     "ContentGrantee",
     "ContextShapeError",
+    "Filer",
     "SignIn",
     "Install",
     "Member",
@@ -472,6 +473,45 @@ class Install:
         )
 
 
+# --- Somebody who filed a case ------------------------------------------------
+
+
+@dataclass(frozen=True)
+class Filer:
+    """A person reading the cases they filed, in the operations community.
+
+    Not a member and not a grantee: they hold no standing in the community and
+    are routed into the one role that exists for this, ``guild_<id>_filer``,
+    whose grants and row policies admit their own cases and nothing else (see
+    ``app.db.filer_access``). Only the account and its cases are written. The community is the
+    schema and the role, never ``app.current_guild_id``, which the shared
+    tables read as membership.
+    """
+
+    guild_id: int
+    user_id: int
+    #: The tasks of the cases they filed, as the seam read them through the
+    #: filer role. Empty on the first routing, which is what reads them.
+    cases: tuple[int, ...] = ()
+    attributed = True
+
+    def __post_init__(self) -> None:
+        if self.user_id is None or self.guild_id is None:
+            raise ContextShapeError(
+                "a filer routing names the account and the community"
+            )
+        object.__setattr__(self, "cases", tuple(sorted(int(c) for c in self.cases)))
+
+    def route(self) -> Route:
+        from app.db.filer_access import filer_role_name
+
+        return Route(
+            {gucs.USER_ID: self.user_id, gucs.FILER_CASES: self.cases},
+            filer_role_name(self.guild_id),
+            _guild_schemas(self.guild_id),
+        )
+
+
 # --- Nobody behind it ---------------------------------------------------------
 
 
@@ -529,6 +569,7 @@ RequestContext = Union[
     ContentGrantee,
     SettingsGrantee,
     Install,
+    Filer,
     SystemGuild,
     SystemMaintenance,
 ]

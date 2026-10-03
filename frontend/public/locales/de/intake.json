@@ -68,7 +68,14 @@
     "saveError": "Die Änderung konnte nicht gespeichert werden.",
     "destinationArchived": "Ziel archiviert",
     "archivedOption": "{{name}} (archiviert)",
-    "archivedNote": "Dieses Projekt ist archiviert, es kann also nichts darin landen. Hol es zurück oder richte diesen Kanal auf ein aktives Projekt."
+    "archivedNote": "Dieses Projekt ist archiviert, es kann also nichts darin landen. Hol es zurück oder richte diesen Kanal auf ein aktives Projekt.",
+    "awaitingLabel": "Wartet auf die anfragende Person",
+    "activeLabel": "Bei Antwort verschieben nach",
+    "noStatusRole": "Keiner",
+    "statusRolesHelp": "Ein Fall im ersten Status zeigt der anfragenden Person „Wartet auf dich“. Sobald sie antwortet, wechselt er in den zweiten.",
+    "noAwaitingHelp": "Ohne gewählten Status sehen anfragende Personen Eingegangen, In Bearbeitung und Geschlossen, aber nie „Wartet auf dich“.",
+    "sharesIsolated": "Ein anderer Kanal landet ebenfalls in dieser Initiative. Sicherheits- und Moderationsfälle sollten eine eigene Initiative haben, damit nur die Bearbeitenden sie lesen können.",
+    "sharesWithIsolated": "Diese Initiative enthält auch Sicherheits- oder Moderationsfälle, die eine eigene Initiative haben sollten. Leite einen der Kanäle woandershin."
   },
   "loadFailed": {
     "title": "Diese Einstellungen konnten nicht geladen werden",
@@ -94,5 +101,44 @@
     "copy": "Adresse kopieren",
     "copyDraft": "Deinen Text kopieren",
     "write": "E-Mail schreiben"
+  },
+  "tickets": {
+    "state": {
+      "received": "Eingegangen",
+      "in_progress": "In Bearbeitung",
+      "waiting_on_you": "Wartet auf dich",
+      "closed": "Geschlossen"
+    },
+    "you": "Du",
+    "team": "Das Team",
+    "back": "Zurück zu Meine Tickets",
+    "notFound": "Dieses Ticket wurde nicht gefunden.",
+    "opened": "eröffnet {{when}}",
+    "waitingNote": "Das Team wartet auf deine Antwort.",
+    "replyLabel": "Deine Antwort",
+    "replyPlaceholder": "Schreibe deine Antwort…",
+    "send": "Antwort senden",
+    "sending": "Wird gesendet…",
+    "replyError": "Deine Antwort konnte nicht gesendet werden. Versuche es gleich noch einmal.",
+    "closedNote": "Dieses Ticket ist geschlossen. Wenn etwas anderes ansteht, bitte erneut um Hilfe.",
+    "noConversation": "Danke für die Meldung. Das Team sieht sich jede an, antwortet hier aber nicht auf Meldungen.",
+    "staffFirst": "Danke für deine Rückmeldung. Du kannst hier antworten, sobald sich das Team gemeldet hat.",
+    "empty": "Du hast noch keine Tickets eingereicht. Wenn du um Hilfe bittest, erscheint sie hier, damit du sie verfolgen kannst.",
+    "loadError": "Deine Tickets konnten nicht geladen werden."
+  },
+  "case": {
+    "filedBy": "Eingereicht von",
+    "noFiler": "Automatisch eröffnet",
+    "theyCalledIt": "Ihr Betreff:",
+    "noConversation": "Diese Art von Fall eröffnet kein Gespräch mit der einreichenden Person.",
+    "staffFirst": "Sie kann antworten, sobald das Team ihr etwas geschrieben hat.",
+    "replyLabel": "{{name}} antworten",
+    "replyPlaceholder": "An {{name}} schreiben…",
+    "replyHelp": "Sie sehen nur dieses Gespräch, nie die Kommentare darunter, und deine Antworten kommen für sie vom Team statt namentlich von dir.",
+    "reply": "Antwort senden",
+    "replyAndWait": "Senden und auf Antwort warten",
+    "fromTeam": "Das Team ({{name}})",
+    "someone": "Jemand",
+    "conversationLabel": "Gespräch mit {{name}}"
   }
 }

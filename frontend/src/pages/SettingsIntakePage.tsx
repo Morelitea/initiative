@@ -17,11 +17,13 @@
 import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type {
-  IntakeBindingRead,
-  IntakeInitiativeOption,
-  IntakeSettingsRead,
-  IntakeStream,
+import {
+  Conversation,
+  type IntakeBindingRead,
+  type IntakeBindingUpsert,
+  type IntakeInitiativeOption,
+  type IntakeSettingsRead,
+  type IntakeStream,
 } from "@/api/generated/initiativeAPI.schemas";
 import { AsyncCombobox } from "@/components/ui/async-combobox";
 import { Badge } from "@/components/ui/badge";
@@ -347,6 +349,22 @@ const StreamCard = ({ binding, initiatives, settled }: StreamCardProps) => {
 
   const busy = !settled || importBlueprint.isPending || upsert.isPending || remove.isPending;
 
+  // A PUT replaces the whole binding, so each change carries the rest of it.
+  const save = (changes: Partial<IntakeBindingUpsert>) =>
+    upsert.mutate({
+      stream,
+      body: {
+        project_id: binding.project_id as number,
+        default_status_id: binding.default_status_id ?? null,
+        awaiting_filer_status_id: binding.awaiting_filer_status_id ?? null,
+        active_status_id: binding.active_status_id ?? null,
+        enabled: binding.enabled,
+        ...changes,
+      },
+    });
+  const statusOption = (id: number | null | undefined) => (id ? String(id) : NONE);
+  const statusValue = (value: string) => (value === NONE ? null : Number(value));
+
   // Each stream's card is a landmark named by its own title, so a screen
   // reader announces which stream a control belongs to rather than reading
   // four identical sets of pickers.
@@ -472,16 +490,7 @@ const StreamCard = ({ binding, initiatives, settled }: StreamCardProps) => {
               <Select
                 value={binding.default_status_id ? String(binding.default_status_id) : NONE}
                 disabled={busy || statuses.length === 0}
-                onValueChange={(value) =>
-                  upsert.mutate({
-                    stream,
-                    body: {
-                      project_id: binding.project_id as number,
-                      default_status_id: value === NONE ? null : Number(value),
-                      enabled: binding.enabled,
-                    },
-                  })
-                }
+                onValueChange={(value) => save({ default_status_id: statusValue(value) })}
               >
                 <SelectTrigger id={`status-${stream}`} className="max-w-xs">
                   <SelectValue />
@@ -497,21 +506,72 @@ const StreamCard = ({ binding, initiatives, settled }: StreamCardProps) => {
               </Select>
             </div>
 
+            {binding.conversation && binding.conversation !== Conversation.none ? (
+              <div className="space-y-3">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor={`awaiting-${stream}`}>{t("stream.awaitingLabel")}</Label>
+                    <Select
+                      value={statusOption(binding.awaiting_filer_status_id)}
+                      disabled={busy || statuses.length === 0}
+                      onValueChange={(value) =>
+                        save({ awaiting_filer_status_id: statusValue(value) })
+                      }
+                    >
+                      <SelectTrigger id={`awaiting-${stream}`}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={NONE}>{t("stream.noStatusRole")}</SelectItem>
+                        {statuses.map((status) => (
+                          <SelectItem key={status.id} value={String(status.id)}>
+                            {status.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor={`active-${stream}`}>{t("stream.activeLabel")}</Label>
+                    <Select
+                      value={statusOption(binding.active_status_id)}
+                      disabled={busy || statuses.length === 0}
+                      onValueChange={(value) => save({ active_status_id: statusValue(value) })}
+                    >
+                      <SelectTrigger id={`active-${stream}`}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={NONE}>{t("stream.noStatusRole")}</SelectItem>
+                        {statuses.map((status) => (
+                          <SelectItem key={status.id} value={String(status.id)}>
+                            {status.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <p className="text-muted-foreground text-xs">
+                  {binding.awaiting_filer_status_id
+                    ? t("stream.statusRolesHelp")
+                    : t("stream.noAwaitingHelp")}
+                </p>
+              </div>
+            ) : null}
+
+            {binding.shares_initiative ? (
+              <p className="text-destructive text-sm">
+                {t(binding.isolated ? "stream.sharesIsolated" : "stream.sharesWithIsolated")}
+              </p>
+            ) : null}
+
             <div className="flex items-center gap-3 border-t pt-4">
               <Switch
                 id={`enabled-${stream}`}
                 checked={binding.enabled}
                 disabled={busy}
-                onCheckedChange={(checked) =>
-                  upsert.mutate({
-                    stream,
-                    body: {
-                      project_id: binding.project_id as number,
-                      default_status_id: binding.default_status_id,
-                      enabled: Boolean(checked),
-                    },
-                  })
-                }
+                onCheckedChange={(checked) => save({ enabled: Boolean(checked) })}
               />
               <Label htmlFor={`enabled-${stream}`}>{t("stream.enabledLabel")}</Label>
             </div>

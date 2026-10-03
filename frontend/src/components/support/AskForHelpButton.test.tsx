@@ -7,6 +7,7 @@
  */
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { Suspense } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { renderWithProviders } from "@/__tests__/helpers/render";
@@ -16,6 +17,20 @@ type Offer = { mode: "form" | "email" | "none"; contact: string | null };
 const offered = vi.hoisted(() => ({ current: undefined as Offer | undefined }));
 
 vi.mock("@/hooks/useActiveCommunityId", () => ({ useActiveCommunityId: () => 3 }));
+
+// A dialog whose first opening is still loading, the way the real one waits on
+// its translations the first time.
+const loading = vi.hoisted(() => ({ current: false }));
+vi.mock("@/components/tickets/FileTicketDialog", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/components/tickets/FileTicketDialog")>();
+  return {
+    ...actual,
+    FileTicketDialog: (props: Parameters<typeof actual.FileTicketDialog>[0]) => {
+      if (loading.current) throw new Promise(() => {});
+      return <actual.FileTicketDialog {...props} />;
+    },
+  };
+});
 vi.mock("@/hooks/useTickets", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/hooks/useTickets")>();
   return {
@@ -59,5 +74,21 @@ describe("AskForHelpButton", () => {
     render(true);
     await userEvent.click(screen.getByRole("button", { name: "Ask for help" }));
     expect(await screen.findByLabelText("What is this about?")).toBeInTheDocument();
+  });
+
+  it("waits on the dialog alone while it loads, leaving the sidebar it sits in", async () => {
+    // The sidebar is suspended along with it otherwise, and on a phone that
+    // closes the drawer the button was tapped in.
+    loading.current = true;
+    offered.current = { mode: "form", contact: null };
+    renderWithProviders(
+      <Suspense fallback={<p>sidebar suspended</p>}>
+        <AskForHelpButton />
+      </Suspense>
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Ask for help" }));
+    expect(screen.queryByText("sidebar suspended")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Ask for help" })).toBeInTheDocument();
+    loading.current = false;
   });
 });

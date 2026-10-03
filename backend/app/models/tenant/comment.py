@@ -30,7 +30,9 @@ class CommentAudience(str, Enum):
     Every comment is said to the people who can read its thread. A comment on
     an operations case can also be said to the person who filed the case, who
     is not one of them: that is the conversation with them, and it is the only
-    part of the case they are ever shown.
+    part of the case they are ever shown. It is kept apart from the thread:
+    the case shows it on its own, and the thread, its counts and its feeds
+    never carry it.
     """
 
     members = "members"
@@ -198,3 +200,10 @@ class Comment(CreatedByMixin, SoftDeleteMixin, table=True):
             "viewonly": True,
         },
     )
+
+
+def in_thread():
+    """The comments that make up a thread, its counts and its feeds: all but
+    the conversation with whoever filed an operations case, which the case
+    shows on its own."""
+    return Comment.audience == CommentAudience.members

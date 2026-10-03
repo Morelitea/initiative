@@ -40,7 +40,7 @@ from app.schemas.tenant.import_envelopes import EnvelopePropertyValue
 from app.schemas.tenant.property import annotated_properties
 from app.services.export.property_values import exported_properties
 from app.core.version import get_version
-from app.models.tenant.comment import Comment
+from app.models.tenant.comment import Comment, in_thread
 from app.models.tenant.relationship import EntityRelationship
 from app.models.tenant.project import Project
 from app.models.platform.user_profile_view import MemberProfile
@@ -305,6 +305,7 @@ async def _load_comments(
             .where(
                 Comment.task_id.in_(task_ids),
                 Comment.deleted_at.is_(None),
+                in_thread(),
             )
             .options(selectinload(Comment.author))
             .order_by(Comment.created_at.asc(), Comment.id.asc())

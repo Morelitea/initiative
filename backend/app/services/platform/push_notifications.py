@@ -78,6 +78,10 @@ PUSH_CHANNELS: dict[NotificationType, str] = {
     NotificationType.access_grant_approved: "access_grants",
     NotificationType.access_grant_denied: "access_grants",
     NotificationType.access_grant_revoked: "access_grants",
+    # Mostly a reply on something the reader wrote, so it rides the comments
+    # channel the installed app already registers rather than asking for a
+    # new one — a new channel id would mean a native release.
+    NotificationType.ticket_updated: "comments",
 }
 
 

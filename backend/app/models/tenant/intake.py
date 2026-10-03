@@ -87,6 +87,28 @@ class IntakeBinding(CreatedByMixin, table=True):
         ),
     )
 
+    # The status that means "waiting on whoever filed it", and the one a case
+    # goes back to when they answer. NULL where the project has no such
+    # status: a filer is then never told the case is waiting on them, and
+    # their answer moves nothing. Read, like the landing status, against the
+    # project when used.
+    awaiting_filer_status_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(
+            Integer,
+            ForeignKey("task_statuses.id", ondelete="SET NULL"),
+            nullable=True,
+        ),
+    )
+    active_status_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(
+            Integer,
+            ForeignKey("task_statuses.id", ondelete="SET NULL"),
+            nullable=True,
+        ),
+    )
+
     # Whether the writer routes to this project right now. A disabled binding
     # keeps the project and the history; it just stops receiving.
     enabled: bool = Field(
@@ -166,4 +188,13 @@ class IntakeCase(SQLModel, table=True):
     filer_subject: Optional[str] = Field(
         default=None,
         sa_column=Column(String(length=FILER_SUBJECT_LENGTH), nullable=True),
+    )
+    #: What the filer was last told about the case: the state they were shown,
+    #: and the newest reply said to them. The ticket sweep compares these with
+    #: the case as it is now and tells them only about what moved.
+    filer_notified_state: Optional[str] = Field(
+        default=None, sa_column=Column(String(length=16), nullable=True)
+    )
+    filer_notified_comment_id: Optional[int] = Field(
+        default=None, sa_column=Column(Integer, nullable=True)
     )

@@ -64,6 +64,10 @@ class NotificationType(str, Enum):
     #: holds, and waits for the community's seat. Written once per version to
     #: each seat holder; it links to where they accept or decline it.
     app_update_pending = "app_update_pending"
+    #: A case this account filed moved: somebody answered it, or it is now
+    #: waiting on them, in progress or closed. Names the case and its state,
+    #: never what was said.
+    ticket_updated = "ticket_updated"
 
 
 class Notification(SQLModel, table=True):

@@ -6,7 +6,7 @@ from typing import Dict, List, Optional
 
 from pydantic import AliasChoices, EmailStr, Field
 
-from app.core.intake import IntakeStream
+from app.core.intake import Conversation, IntakeStream
 from app.schemas.base import SanitizedBaseModel
 
 
@@ -25,6 +25,20 @@ class IntakeBindingRead(SanitizedBaseModel):
     initiative_name: Optional[str] = None
     default_status_id: Optional[int] = None
     default_status_name: Optional[str] = None
+    #: The status that tells whoever filed a case it is waiting on them, and
+    #: the one a case moves back to when they answer. Without the first, a
+    #: filer sees Received, In progress and Closed, never Waiting on you.
+    awaiting_filer_status_id: Optional[int] = None
+    active_status_id: Optional[int] = None
+    #: What the stream allows with whoever filed a case: with ``none`` there
+    #: is nobody to wait on, and the status roles mean nothing.
+    conversation: Conversation = Conversation.none
+    #: The stream keeps its initiative to itself.
+    isolated: bool = False
+    #: Another stream lands in the same initiative while one of the two keeps
+    #: its initiative to itself — bound before that was refused, and left as
+    #: it was rather than broken.
+    shares_initiative: bool = False
     enabled: bool = False
     #: When this stream last opened a case. The one number worth watching on
     #: this page: whether the thing is on.
@@ -69,6 +83,8 @@ class IntakeBindingUpsert(SanitizedBaseModel):
 
     project_id: int
     default_status_id: Optional[int] = None
+    awaiting_filer_status_id: Optional[int] = None
+    active_status_id: Optional[int] = None
     enabled: bool = True
 
 

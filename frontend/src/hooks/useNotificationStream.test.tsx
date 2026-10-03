@@ -190,6 +190,29 @@ describe("useNotificationStream", () => {
     expect(timesNamed(q.notifications())).toBe(0);
   });
 
+  it("re-reads the reader's tickets when one of them moved, and nothing else", () => {
+    const refreshUser = vi.fn();
+    renderWithProviders(<Probe />, { auth: { refreshUser } });
+    const socket = latestSocket();
+    socket.open();
+    refreshUser.mockClear();
+    invalidations.mockClear();
+    const open = ["/api/v1/me/tickets/7"];
+    const availability = ["/api/v1/me/tickets/availability"];
+    queryClient.setQueryData(open, { seeded: true });
+    queryClient.setQueryData(availability, { seeded: true });
+
+    socket.receive({ resource: "tickets", action: "changed", ids: {} });
+
+    expect(timesNamed(q.filedTickets())).toBe(1);
+    expect(queryClient.getQueryState(open)?.isInvalidated).toBe(true);
+    // What each kind of ticket offers did not move.
+    expect(queryClient.getQueryState(availability)?.isInvalidated).toBe(false);
+    expect(refreshUser).not.toHaveBeenCalled();
+    expect(timesNamed(q.notifications())).toBe(0);
+    queryClient.clear();
+  });
+
   it("ignores a frame naming a channel it does not know", () => {
     renderWithProviders(<Probe />);
     const socket = latestSocket();

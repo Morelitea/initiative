@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from typing import Annotated, List, Optional, Sequence
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import case, func
+from sqlalchemy import and_, case, func
 from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.orm import selectinload, undefer
 from sqlmodel import select
@@ -43,7 +43,7 @@ from app.models.tenant.task import (
     TaskStatus,
     TaskStatusCategory,
 )
-from app.models.tenant.comment import Comment
+from app.models.tenant.comment import Comment, in_thread
 from app.models.tenant.initiative import Initiative
 from app.models.platform.user import User
 from app.models.tenant.document import Document
@@ -700,7 +700,7 @@ async def project_activity_feed(
     project = await resource_access.load_authorized(
         session, Tool.project, project_id, current_user, guild_context
     )
-    on_project = Task.project_id == project.id
+    on_project = and_(Task.project_id == project.id, in_thread())
     rows, total_count, actual_page = await paginated_query(
         session,
         select(Comment, Task)
