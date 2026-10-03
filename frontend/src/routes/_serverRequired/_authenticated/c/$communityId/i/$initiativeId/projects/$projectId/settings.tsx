@@ -33,6 +33,8 @@ export const Route = createFileRoute(
     });
   },
   component: lazyRouteComponent(() =>
-    import("@/pages/ProjectSettingsPage").then((m) => ({ default: m.ProjectSettingsPage }))
+    import("@/pages/initiativeTools/projects/ProjectSettingsPage").then((m) => ({
+      default: m.ProjectSettingsPage,
+    }))
   ),
 });

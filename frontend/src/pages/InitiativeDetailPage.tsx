@@ -21,15 +21,15 @@ import { useCommunityPath } from "@/lib/communityUrl";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
 import { initiativeRoute, TOOLS, toolCamelPlural, toolListRoute } from "@/lib/tools";
 
-import { DocumentsView } from "./DocumentsPage";
 import { CounterGroupsView } from "./initiativeTools/counters/CounterGroupsPage";
 import { DashboardsView } from "./initiativeTools/dashboards/DashboardsPage";
+import { DocumentsView } from "./initiativeTools/documents/DocumentsPage";
 import { CalendarsView } from "./initiativeTools/events/CalendarsPage";
 import { GalleriesView } from "./initiativeTools/galleries/GalleriesPage";
 import { PostsView } from "./initiativeTools/posts/PostsPage";
+import { ProjectsView } from "./initiativeTools/projects/ProjectsPage";
 import { QueuesView } from "./initiativeTools/queues/QueuesPage";
 import { WikisView } from "./initiativeTools/wikis/WikisPage";
-import { ProjectsView } from "./ProjectsPage";
 
 type ToolViewProps = { fixedInitiativeId: number; canCreate?: boolean };
 

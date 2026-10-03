@@ -117,6 +117,8 @@ export const Route = createFileRoute(
     })();
   },
   component: lazyRouteComponent(() =>
-    import("@/pages/ProjectDetailPage").then((m) => ({ default: m.ProjectDetailPage }))
+    import("@/pages/initiativeTools/projects/ProjectDetailPage").then((m) => ({
+      default: m.ProjectDetailPage,
+    }))
   ),
 });
