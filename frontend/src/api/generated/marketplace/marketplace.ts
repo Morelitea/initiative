@@ -45,6 +45,7 @@ import type {
 
 import { apiMutator } from "../../mutator";
 import type { ErrorType, BodyType } from "../../mutator";
+import { toFormData } from "../../formData";
 
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
@@ -435,9 +436,7 @@ export const uploadRegistryBundle = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  const formData = new FormData();
-  formData.append(`file`, bodyUploadRegistryBundle.file);
-
+  const formData = toFormData(bodyUploadRegistryBundle);
   return apiMutator<RegistryRefreshRead>(
     {
       url: `/api/v1/marketplace/registry/bundle`,
@@ -1326,9 +1325,7 @@ export const uploadListingPicture = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  const formData = new FormData();
-  formData.append(`file`, bodyUploadListingPicture.file);
-
+  const formData = toFormData(bodyUploadListingPicture);
   return apiMutator<ListingMediaRead>(
     {
       url: `/api/v1/marketplace/local/media`,
@@ -1978,39 +1975,7 @@ export const shareToMarketplace = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  const formData = new FormData();
-  formData.append(`kind`, bodyShareToMarketplace.kind);
-  formData.append(`entity_id`, bodyShareToMarketplace.entity_id.toString());
-  formData.append(`name`, bodyShareToMarketplace.name);
-  formData.append(`description`, bodyShareToMarketplace.description);
-  if (
-    bodyShareToMarketplace.example_entity_id !== undefined &&
-    bodyShareToMarketplace.example_entity_id !== null
-  ) {
-    formData.append(`example_entity_id`, bodyShareToMarketplace.example_entity_id.toString());
-  }
-  if (
-    bodyShareToMarketplace.long_description !== undefined &&
-    bodyShareToMarketplace.long_description !== null
-  ) {
-    formData.append(`long_description`, bodyShareToMarketplace.long_description);
-  }
-  if (
-    bodyShareToMarketplace.release_notes !== undefined &&
-    bodyShareToMarketplace.release_notes !== null
-  ) {
-    formData.append(`release_notes`, bodyShareToMarketplace.release_notes);
-  }
-  if (
-    bodyShareToMarketplace.listing_uid !== undefined &&
-    bodyShareToMarketplace.listing_uid !== null
-  ) {
-    formData.append(`listing_uid`, bodyShareToMarketplace.listing_uid);
-  }
-  if (bodyShareToMarketplace.images !== undefined) {
-    bodyShareToMarketplace.images.forEach((value) => formData.append(`images`, value));
-  }
-
+  const formData = toFormData(bodyShareToMarketplace);
   return apiMutator<MarketplaceShareResult>(
     {
       url: `/api/v1/c/${communityId}/marketplace/share`,

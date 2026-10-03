@@ -41,6 +41,7 @@ import type {
 
 import { apiMutator } from "../../mutator";
 import type { ErrorType, BodyType } from "../../mutator";
+import { toFormData } from "../../formData";
 
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
@@ -293,11 +294,7 @@ export const uploadDocumentFile = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  const formData = new FormData();
-  formData.append(`name`, bodyUploadDocumentFile.name);
-  formData.append(`initiative_id`, bodyUploadDocumentFile.initiative_id.toString());
-  formData.append(`file`, bodyUploadDocumentFile.file);
-
+  const formData = toFormData(bodyUploadDocumentFile);
   return apiMutator<DocumentRead>(
     {
       url: `/api/v1/c/${communityId}/documents/upload`,
@@ -391,9 +388,7 @@ export const uploadDocumentVersion = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  const formData = new FormData();
-  formData.append(`file`, bodyUploadDocumentVersion.file);
-
+  const formData = toFormData(bodyUploadDocumentVersion);
   return apiMutator<DocumentFileVersionRead>(
     {
       url: `/api/v1/c/${communityId}/documents/${documentId}/versions`,
@@ -1236,9 +1231,7 @@ export const importSpreadsheetFile = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  const formData = new FormData();
-  formData.append(`file`, bodyImportSpreadsheetFile.file);
-
+  const formData = toFormData(bodyImportSpreadsheetFile);
   return apiMutator<SpreadsheetImportRead>(
     {
       url: `/api/v1/c/${communityId}/documents/${documentId}/spreadsheet/import`,

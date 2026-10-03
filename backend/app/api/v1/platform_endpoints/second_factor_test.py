@@ -280,7 +280,7 @@ async def test_removing_it_asks_for_the_password_and_the_factor(
         json={"current_password": PASSWORD, "code": _next_code(secret)},
         headers=headers,
     )
-    assert removed.status_code == 204
+    assert removed.status_code == 200
 
     # And the sign-in stops asking.
     response = await _sign_in(client, "remove@example.com")
@@ -391,7 +391,7 @@ async def test_removing_it_leaves_this_session_signed_in(
         json={"current_password": PASSWORD, "code": _next_code(secret)},
         headers={"Authorization": f"Bearer {token}"},
     )
-    assert removed.status_code == 204, removed.text
+    assert removed.status_code == 200, removed.text
 
     session.expire_all()
     assert (await session.get(AuthSession, mine_id)).revoked_at is None
@@ -951,7 +951,7 @@ async def test_turning_it_off_from_a_new_sign_in_waits(
         headers=headers,
     )
     assert held.status_code == 202, held.text
-    assert held.json()["kind"] == "second_factor_off"
+    assert held.json()["held"]["kind"] == "second_factor_off"
     assert await totp_service.is_enrolled(session, user_id=user_id)
 
     factor = await totp_service.get_factor(session, user_id=user_id)

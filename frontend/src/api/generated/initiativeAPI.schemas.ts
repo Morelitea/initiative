@@ -5230,6 +5230,14 @@ export interface HeldChangeRead {
   applies_at: string;
 }
 
+/**
+ * What a change that may be held answers, made or not: ``held`` is the
+ * change waiting (``202``), or null where it was made at once (``200``).
+ */
+export interface HeldChangeOutcome {
+  held: HeldChangeRead | null;
+}
+
 export interface ICalEventPreview {
   summary: string;
   start_at: string;

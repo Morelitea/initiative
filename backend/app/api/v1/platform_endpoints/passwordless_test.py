@@ -837,7 +837,7 @@ _GATED = [
     ("enrol-a-factor", _enrol_a_factor, 200),
     ("delete-guild", _delete_guild, 204),
     ("register-a-passkey", _begin_registration, 200),
-    ("remove-a-passkey", _remove_passkey, 204),
+    ("remove-a-passkey", _remove_passkey, 200),
     ("re-issue-the-codes", _regenerate_codes, 200),
     ("set-a-password", _set_a_password, 200),
     ("turn-off-the-factor", _turn_off_the_factor, 202),

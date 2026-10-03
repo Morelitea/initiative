@@ -589,7 +589,7 @@ async def test_removing_forgets_the_credential(
         json={"current_password": PASSWORD},
         headers=await signed_in_headers(session, user, amr=["hwk"]),
     )
-    assert response.status_code == 204, response.text
+    assert response.status_code == 200, response.text
 
     session.expire_all()
     rows = (
@@ -650,7 +650,7 @@ async def test_the_account_is_told_about_both_changes(
         json={"current_password": PASSWORD},
         headers=await signed_in_headers(session, user, amr=["hwk"]),
     )
-    assert response.status_code == 204, response.text
+    assert response.status_code == 200, response.text
     assert sent[-1]["subject"] == email_t("passkey.removed.subject", "en", escape=False)
     assert "Phone" in sent[-1]["body"]
 
@@ -1490,7 +1490,7 @@ async def test_a_password_beside_it_lets_the_credential_go(
         json={"current_password": PASSWORD},
         headers=await signed_in_headers(session, user, amr=["hwk"]),
     )
-    assert response.status_code == 204, response.text
+    assert response.status_code == 200, response.text
 
 
 async def test_a_second_credential_lets_the_first_go(
@@ -1505,7 +1505,7 @@ async def test_a_second_credential_lets_the_first_go(
         json={},
         headers=await signed_in_headers(session, user, amr=["webauthn"]),
     )
-    assert response.status_code == 204, response.text
+    assert response.status_code == 200, response.text
 
 
 async def test_the_last_passkey_removed_from_a_new_sign_in_waits(
@@ -1523,7 +1523,7 @@ async def test_the_last_passkey_removed_from_a_new_sign_in_waits(
         json={"current_password": PASSWORD},
         headers=headers,
     )
-    assert gone.status_code == 204, gone.text
+    assert gone.status_code == 200, gone.text
 
     held = await client.post(
         f"/api/v1/auth/passkeys/{last_id}/remove",
@@ -1531,7 +1531,7 @@ async def test_the_last_passkey_removed_from_a_new_sign_in_waits(
         headers=headers,
     )
     assert held.status_code == 202, held.text
-    assert held.json()["kind"] == "last_passkey"
-    assert held.json()["subject"] == "Phone"
+    assert held.json()["held"]["kind"] == "last_passkey"
+    assert held.json()["held"]["subject"] == "Phone"
     session.expire_all()
     assert await session.get(UserPasskey, last_id) is not None

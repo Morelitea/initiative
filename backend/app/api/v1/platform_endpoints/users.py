@@ -42,7 +42,12 @@ from app.api.v1.platform_endpoints.password_recheck import (
     require_password_or_recent_proof,
 )
 from app.api.v1.platform_endpoints.change_assessment import is_risky
-from app.api.v1.platform_endpoints.held_changes import HELD, hold_change
+from app.api.v1.platform_endpoints.held_changes import (
+    HELD,
+    HELD_OUTCOME,
+    held_response,
+    hold_change,
+)
 from app.api.v1.platform_endpoints.session_opening import replace_session
 from app.core.password_policy import enforce_password_policy
 from app.core.identity_boundary import PersonId
@@ -83,6 +88,7 @@ from app.schemas.platform.guild import (
     CommunityCategory,
 )
 from app.schemas.platform.user import (
+    HeldChangeOutcome,
     AccountTimeOutRead,
     CookieConsentRead,
     CookieConsentUpdate,
@@ -1325,8 +1331,8 @@ def _address_refused(exc: addresses.AddressError) -> HTTPException:
 
 @me_router.post(
     "/emails/{address_id}/remove",
-    status_code=status.HTTP_204_NO_CONTENT,
-    responses=HELD,
+    response_model=HeldChangeOutcome,
+    responses=HELD_OUTCOME,
 )
 @limiter.limit("10/15minutes")
 async def remove_my_address(
@@ -1336,7 +1342,7 @@ async def remove_my_address(
     system_session: SystemSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     _first_party: Annotated[str, Depends(require_first_party_session)],
-) -> Response:
+) -> HeldChangeOutcome | JSONResponse:
     """Stop holding one address. The password is asked for again, as it is for
     a password change. A proved address removed from somewhere the account
     does not yet know waits two days (``202``)."""
@@ -1350,19 +1356,20 @@ async def remove_my_address(
         if target.verified_at is not None and await is_risky(
             request, system_session, current_user
         ):
-            return await hold_change(
+            held = await hold_change(
                 request,
                 system_session,
                 current_user,
                 kind=HeldChangeKind.remove_address,
                 address_id=address_id,
             )
+            return held_response(HeldChangeOutcome(held=held))
         await held_changes.remove_address(
             system_session, current_user, address_id=address_id, risky=False
         )
     except addresses.AddressError as exc:
         raise _address_refused(exc) from exc
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
+    return HeldChangeOutcome()
 
 
 @me_router.put(
@@ -1391,12 +1398,14 @@ async def make_my_address_primary(
         if not target.is_primary and await is_risky(
             request, system_session, current_user
         ):
-            return await hold_change(
-                request,
-                system_session,
-                current_user,
-                kind=HeldChangeKind.primary,
-                address_id=address_id,
+            return held_response(
+                await hold_change(
+                    request,
+                    system_session,
+                    current_user,
+                    kind=HeldChangeKind.primary,
+                    address_id=address_id,
+                )
             )
         row = await held_changes.make_primary(
             system_session, current_user, address_id=address_id, risky=False

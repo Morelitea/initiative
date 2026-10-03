@@ -34,7 +34,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { WizardDialog } from "@/components/ui/wizard-dialog";
-import { isHeld, useAnnounceHeld } from "@/hooks/useHeldChange";
+import { useAnnounceHeld } from "@/hooks/useHeldChange";
 import { useServer } from "@/hooks/useServer";
 import { useWizard } from "@/hooks/useWizard";
 import { toast } from "@/lib/chesterToast";
@@ -198,7 +198,7 @@ export const PasskeysSection = () => {
   const remove = useRemovePasskey({
     mutation: {
       onSuccess: (result) => {
-        if (isHeld(result)) announceHeld(result);
+        if (result.held) announceHeld(result.held);
         else toast.success(t("passkeys.removed"));
         void refresh();
         setRemoveTarget(null);

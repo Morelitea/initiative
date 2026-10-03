@@ -45,6 +45,7 @@ import type {
 
 import { apiMutator } from "../../mutator";
 import type { ErrorType, BodyType } from "../../mutator";
+import { toFormData } from "../../formData";
 
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
@@ -766,15 +767,7 @@ export const uploadGalleryImage = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  const formData = new FormData();
-  formData.append(`file`, bodyUploadGalleryImage.file);
-  if (bodyUploadGalleryImage.title !== undefined && bodyUploadGalleryImage.title !== null) {
-    formData.append(`title`, bodyUploadGalleryImage.title);
-  }
-  if (bodyUploadGalleryImage.caption !== undefined && bodyUploadGalleryImage.caption !== null) {
-    formData.append(`caption`, bodyUploadGalleryImage.caption);
-  }
-
+  const formData = toFormData(bodyUploadGalleryImage);
   return apiMutator<GalleryImageRead>(
     {
       url: `/api/v1/c/${communityId}/galleries/${galleryId}/images`,
@@ -1480,9 +1473,7 @@ export const uploadGalleryImageVersion = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  const formData = new FormData();
-  formData.append(`file`, bodyUploadGalleryImageVersion.file);
-
+  const formData = toFormData(bodyUploadGalleryImageVersion);
   return apiMutator<GalleryImageVersionRead>(
     {
       url: `/api/v1/c/${communityId}/galleries/${galleryId}/images/${imageId}/versions`,

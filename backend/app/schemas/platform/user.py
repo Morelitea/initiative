@@ -605,6 +605,15 @@ class HeldChangeRead(SanitizedBaseModel):
     applies_at: datetime
 
 
+class HeldChangeOutcome(SanitizedBaseModel):
+    """What a change that may be held answers, made or not: ``held`` is the
+    change waiting (``202``), or null where it was made at once (``200``)."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    held: Optional[HeldChangeRead] = None
+
+
 class UserEmailListResponse(SanitizedBaseModel):
     items: List[UserEmailRead]
     #: Whether changing the list asks for the password. Where it does not, a

@@ -59,8 +59,8 @@ export const useAddAddress = (options?: MutationOpts<VerificationSendResponse, A
     options
   );
 
-/** Removing an address or moving the primary can come back waiting
- * (`HeldChangeRead`) rather than made. */
+/** Removing an address answers with the change held, or `held: null` where
+ * it was made at once. */
 type Removed = Awaited<ReturnType<typeof removeMyAddress>>;
 
 export const useRemoveAddress = (options?: MutationOpts<Removed, AddressChange>) =>
