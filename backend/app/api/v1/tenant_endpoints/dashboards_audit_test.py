@@ -1,9 +1,8 @@
-"""Published views reaching the audit log.
+"""A dashboard's view mode reaching the audit log.
 
-Publishing over a resource hands one person's reach to everybody who can open
-the dashboard, so it is a grant — recorded as one, with the dashboard as the
-grantee. Adding a resource to the published list and taking one back are the
-two ends of it.
+Running a dashboard as its initiative shows everybody who can open it what the
+initiative holds, so turning it on or off is a sharing change, recorded as one
+against the dashboard.
 """
 
 from __future__ import annotations
@@ -13,7 +12,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.audit_events import AuditEventType
 from app.models.platform.guild import CommunityRole
-from app.testing import create_project, emitted
+from app.testing import emitted
 
 
 COUNT_TASKS = "SELECT count(*) AS n FROM tasks"
@@ -50,92 +49,56 @@ async def _dashboard(client: AsyncClient, actor) -> int:
     return response.json()["id"]
 
 
-def _published_rows(capfd):
-    """Only the grants made TO a dashboard — a creation's own default share is
-    an ordinary grant and is recorded separately."""
+def _view_mode_rows(capfd):
+    """Only the view-mode changes — a creation's own default share is an
+    ordinary grant and is recorded separately."""
     rows = emitted(capfd, AuditEventType.SHARING_GRANT_CHANGED)
-    return [row for row in rows if row["detail"]["grantee"]["kind"] == "dashboard"]
+    return [row for row in rows if "view_mode" in row["detail"]]
 
 
-async def test_publishing_over_a_resource_records_the_dashboard_as_the_grantee(
-    client: AsyncClient, session: AsyncSession, acting_user, capfd
-):
-    author = await acting_user(guild_role=CommunityRole.admin, initiative=True)
-    await _dashboards_on(session, author.initiative)
-    project = await create_project(session, author.initiative, author.user)
-    dashboard_id = await _dashboard(client, author)
-    capfd.readouterr()
-
+async def _set(client: AsyncClient, actor, dashboard_id: int, mode: str):
     response = await client.put(
-        author.g(f"/dashboards/{dashboard_id}/published"),
-        headers=author.headers,
-        json={"resources": [{"resource_type": "project", "resource_id": project.id}]},
+        actor.g(f"/dashboards/{dashboard_id}/view-mode"),
+        headers=actor.headers,
+        json={"mode": mode},
     )
     assert response.status_code == 200, response.text
 
-    (row,) = _published_rows(capfd)
+
+async def test_running_as_the_initiative_is_recorded_as_a_sharing_change(
+    client: AsyncClient, session: AsyncSession, acting_user, capfd
+):
+    author = await acting_user(guild_role=CommunityRole.admin, initiative=True)
+    await _dashboards_on(session, author.initiative)
+    dashboard_id = await _dashboard(client, author)
+    capfd.readouterr()
+
+    await _set(client, author, dashboard_id, "initiative")
+
+    (row,) = _view_mode_rows(capfd)
     assert row["actor_user_id"] == author.user.id
-    assert row["target_user_id"] is None
     assert row["guild_id"] == author.guild.id
-    assert row["target"] == {"type": "project", "id": project.id}
+    assert row["target"] == {"type": "dashboard", "id": dashboard_id}
     assert row["detail"] == {
         "initiative_id": author.initiative.id,
-        "grantee": {"kind": "dashboard", "id": dashboard_id},
-        "from": None,
-        "to": "read",
+        "view_mode": {"from": "individual", "to": "initiative"},
     }
 
 
-async def test_republishing_the_same_list_records_nothing_further(
+async def test_setting_the_same_mode_again_records_nothing_further(
     client: AsyncClient, session: AsyncSession, acting_user, capfd
 ):
     author = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _dashboards_on(session, author.initiative)
-    project = await create_project(session, author.initiative, author.user)
-    dashboard_id = await _dashboard(client, author)
-    body = {"resources": [{"resource_type": "project", "resource_id": project.id}]}
-    capfd.readouterr()
-
-    first = await client.put(
-        author.g(f"/dashboards/{dashboard_id}/published"),
-        headers=author.headers,
-        json=body,
-    )
-    second = await client.put(
-        author.g(f"/dashboards/{dashboard_id}/published"),
-        headers=author.headers,
-        json=body,
-    )
-    assert first.status_code == second.status_code == 200
-
-    assert len(_published_rows(capfd)) == 1
-
-
-async def test_taking_a_published_view_back_records_the_withdrawal(
-    client: AsyncClient, session: AsyncSession, acting_user, capfd
-):
-    author = await acting_user(guild_role=CommunityRole.admin, initiative=True)
-    await _dashboards_on(session, author.initiative)
-    project = await create_project(session, author.initiative, author.user)
     dashboard_id = await _dashboard(client, author)
     capfd.readouterr()
-    await client.put(
-        author.g(f"/dashboards/{dashboard_id}/published"),
-        headers=author.headers,
-        json={"resources": [{"resource_type": "project", "resource_id": project.id}]},
-    )
 
-    revoked = await client.put(
-        author.g(f"/dashboards/{dashboard_id}/published"),
-        headers=author.headers,
-        json={"resources": []},
-    )
-    assert revoked.status_code == 200, revoked.text
+    await _set(client, author, dashboard_id, "initiative")
+    await _set(client, author, dashboard_id, "initiative")
+    await _set(client, author, dashboard_id, "individual")
 
-    rows = _published_rows(capfd)
-    assert [(r["detail"]["from"], r["detail"]["to"]) for r in rows] == [
-        (None, "read"),
-        ("read", None),
+    rows = _view_mode_rows(capfd)
+    assert [r["detail"]["view_mode"]["to"] for r in rows] == [
+        "initiative",
+        "individual",
     ]
-    assert rows[-1]["actor_user_id"] == author.user.id
-    assert rows[-1]["target"] == {"type": "project", "id": project.id}

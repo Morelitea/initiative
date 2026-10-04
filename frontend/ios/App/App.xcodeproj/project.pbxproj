@@ -35,6 +35,7 @@
 		7A1C0E5B2F4D3A1E00C0F001 /* MainViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainViewController.swift; sourceTree = "<group>"; };
 		7A1C0E5B2F4D3A1E00C0F003 /* FirebaseRuntimePlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirebaseRuntimePlugin.swift; sourceTree = "<group>"; };
 		7A1C0E5B2F4D3A1E00C0F005 /* App.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = App.entitlements; sourceTree = "<group>"; };
+		7A1C0E5B2F4D3A1E00C0F00C /* AppRelease.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = AppRelease.entitlements; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -74,6 +75,7 @@
 				7A1C0E5B2F4D3A1E00C0F001 /* MainViewController.swift */,
 				7A1C0E5B2F4D3A1E00C0F003 /* FirebaseRuntimePlugin.swift */,
 				7A1C0E5B2F4D3A1E00C0F005 /* App.entitlements */,
+				7A1C0E5B2F4D3A1E00C0F00C /* AppRelease.entitlements */,
 				504EC30B1FED79650016851F /* Main.storyboard */,
 				504EC30E1FED79650016851F /* Assets.xcassets */,
 				504EC3101FED79650016851F /* LaunchScreen.storyboard */,
@@ -355,7 +357,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_ENTITLEMENTS = App/App.entitlements;
+				CODE_SIGN_ENTITLEMENTS = App/AppRelease.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				INFOPLIST_FILE = App/Info.plist;

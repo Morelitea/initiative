@@ -21,7 +21,7 @@ import {
   type QueryBuildRequest,
   type QueryColumnSpec,
 } from "@/api/generated/initiativeAPI.schemas";
-import { FilterBuilder } from "@/components/initiativeTools/dashboards/FilterBuilder";
+import { FilterBuilder, fieldLabel } from "@/components/initiativeTools/dashboards/FilterBuilder";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
@@ -172,19 +172,19 @@ export function QueryBuilder({ spec, onChange, initiativeId }: QueryBuilderProps
                 })
               }
             >
-              <SelectTrigger className="flex-1">
+              <SelectTrigger className="flex-1" aria-label={t("dashboards:builder.field")}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="*">{t("dashboards:builder.everyRow")}</SelectItem>
                 {selectable.map((field) => (
                   <SelectItem key={field.field} value={field.field}>
-                    {field.field}
+                    {fieldLabel(field.field, t)}
                   </SelectItem>
                 ))}
                 {reachable.map((field) => (
                   <SelectItem key={field.name} value={field.name}>
-                    {field.name}
+                    {fieldLabel(field.name, t)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -199,7 +199,7 @@ export function QueryBuilder({ spec, onChange, initiativeId }: QueryBuilderProps
                 })
               }
             >
-              <SelectTrigger className="w-32">
+              <SelectTrigger className="w-32" aria-label={t("dashboards:builder.fn")}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -293,7 +293,7 @@ export function QueryBuilder({ spec, onChange, initiativeId }: QueryBuilderProps
               .filter((name) => name !== "*")
               .map((name) => (
                 <SelectItem key={name} value={name}>
-                  {name}
+                  {fieldLabel(name, t)}
                 </SelectItem>
               ))}
           </SelectContent>

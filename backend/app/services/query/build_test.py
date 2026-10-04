@@ -73,6 +73,24 @@ def test_a_date_is_rounded_before_it_is_grouped():
     assert "completed_at IS NOT NULL" in sql
 
 
+@pytest.mark.parametrize("bucket", ["day", "week", "month", "quarter", "year"])
+def test_a_grouped_series_comes_back_in_order(bucket):
+    """Without an order of its own, a grouped statement reads in the order of
+    what it is grouped by — a time series left to right, at every grain."""
+    sql, _ = build_and_resolve(
+        QuerySpec(
+            dataset="tasks",
+            columns=(
+                Column(field="due_date", bucket=bucket),
+                Column(field="*", aggregate="count"),
+            ),
+            group_by=("due_date",),
+        )
+    )
+    assert f"date_trunc('{bucket}', due_date) AS due_date" in sql
+    assert "GROUP BY 1 ORDER BY 1 ASC" in sql
+
+
 @pytest.mark.parametrize(
     "value",
     [

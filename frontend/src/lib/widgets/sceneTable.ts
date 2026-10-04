@@ -19,6 +19,7 @@
 
 import type { TFunction } from "i18next";
 
+import { formatTimeBucket } from "@/lib/widgets/format";
 import type { SceneNode, TableCell, TableColumn, TimelineLane } from "@/lib/widgets/sceneSpec";
 
 type TableScene = Extract<SceneNode, { kind: "table" }>;
@@ -88,7 +89,7 @@ export function sceneToTables(node: SceneNode, t: SceneTableT): TableScene[] {
         for (const point of series.points) {
           let row = byX.get(point.x);
           if (!row) {
-            row = { x: point.x };
+            row = { x: node.xTime ? formatTimeBucket(point.x, node.xTime) : point.x };
             byX.set(point.x, row);
             order.push(point.x);
           }

@@ -1115,7 +1115,8 @@
       "access": "Acceso",
       "communities": "Comunidades",
       "placement": "Asignación al iniciar sesión",
-      "announcements": "Anuncios"
+      "announcements": "Anuncios",
+      "billing": "Facturación"
     }
   },
   "providerPlacement": {
@@ -1955,5 +1956,17 @@
       "offHelp": "Las notificaciones sobre esta comunidad dicen de qué tratan al salir de la aplicación.",
       "platformHelp": "Este servidor oculta los detalles en todas partes, así que esta comunidad ya está cubierta."
     }
+  },
+  "billingInsights": {
+    "title": "Métricas de facturación",
+    "description": "Cómo va el negocio en todas las comunidades: ingresos, suscriptores y cancelaciones.",
+    "fromPaddle": "Los ingresos, ingresos recurrentes, reembolsos, contracargos y suscriptores vienen directamente del procesador de pagos, tal como los calculó.",
+    "fromBilling": "Las comunidades por plan, pruebas, pagos atrasados y cancelaciones vienen de los registros propios del servicio de facturación.",
+    "noCommunity": "No abre ninguna comunidad ni necesita un permiso de acceso: nada en la página identifica a una comunidad, un cliente o una persona.",
+    "open": "Abrir métricas de facturación",
+    "opening": "Abriendo…",
+    "openError": "No se pudieron abrir las métricas de facturación.",
+    "notConfigured": "Esta instalación no tiene servicio de facturación o clave de firma para la transferencia.",
+    "platformOnly": "Las métricas de facturación son para operadores y propietarios de la plataforma."
   }
 }

@@ -1227,7 +1227,8 @@
       "access": "Access",
       "communities": "Communities",
       "placement": "Sign-in placement",
-      "announcements": "Announcements"
+      "announcements": "Announcements",
+      "billing": "Billing"
     }
   },
   "providerPlacement": {
@@ -1955,5 +1956,17 @@
       "offHelp": "Notifications about this community name what they are about once they leave the app.",
       "platformHelp": "This server hides notification details everywhere, so this community is already covered."
     }
+  },
+  "billingInsights": {
+    "title": "Billing insights",
+    "description": "How the business is doing, across every community: revenue, subscribers and cancellations.",
+    "fromPaddle": "Revenue, recurring revenue, refunds, chargebacks and subscriber counts come straight from the payment processor, as it computed them.",
+    "fromBilling": "Communities by plan, trials, overdue payments and cancellations come from the billing service's own records.",
+    "noCommunity": "It opens no community and needs no access grant: nothing on the page names a community, a customer or a person.",
+    "open": "Open billing insights",
+    "opening": "Opening…",
+    "openError": "Billing insights could not be opened.",
+    "notConfigured": "This deployment has no billing service to open, or no handoff signing key.",
+    "platformOnly": "Billing insights are for platform operators and owners."
   }
 }

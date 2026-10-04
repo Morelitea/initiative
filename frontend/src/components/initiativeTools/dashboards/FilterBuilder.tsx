@@ -8,11 +8,13 @@
  *
  * Two decisions worth stating:
  *
- * **Flat by default, one group deep at most.** The endpoint's parser caps group
- * nesting, and the host already spends a level wrapping the dashboard's own
- * initiative — so a second level of grouping here is the last one that can
- * survive the round trip. The builder offers exactly that and says so, rather
- * than letting someone compose a filter that 400s the whole query on save.
+ * **One choice, said once.** The rows either all have to match or any one
+ * may, and the author picks which at the top; a group inside asks the other
+ * question. "Any" is stored as one OR group, so the description is still the
+ * plain filter tree the server reads. The dataset's lifecycle defaults (not
+ * archived, not a template) are a leave out / include / only choice above the
+ * rows rather than rows, so
+ * choosing "any" never turns them into "archived or not".
  *
  * **Dates are relative unless you ask otherwise.** A dashboard is a standing
  * question, not a snapshot; "due in the next 30 days" stays true and
@@ -91,8 +93,94 @@ const emptyLeaf = (fields: readonly FilterFieldSpec[]): FilterLeaf => {
  *  locale file at compile time the way a literal union was. A missing label
  *  therefore degrades to the field's own name — readable, and visible enough in
  *  review to be fixed — rather than rendering a raw i18n key. */
-const fieldLabel = (name: string, t: TFunction<readonly ["dashboards", "common"]>): string =>
-  t(`dashboards:filterField.${name}` as never, { defaultValue: name });
+export const fieldLabel = (
+  name: string,
+  t: TFunction<readonly ["dashboards", "common"]> | TFunction
+): string => {
+  // A field reached through a relation reads "Project › Name".
+  if (name.includes(".")) {
+    return name
+      .split(".")
+      .map((part) => fieldLabel(part, t))
+      .join(" › ");
+  }
+  const spaced =
+    name
+      .replace(/_ids?$/, "")
+      .replace(/_/g, " ")
+      .trim() || name;
+  return (t as TFunction)(`dashboards:filterField.${name}` as never, {
+    defaultValue: spaced.charAt(0).toUpperCase() + spaced.slice(1),
+  }) as string;
+};
+
+/** Whether a top-level condition is one of the dataset's lifecycle defaults —
+ *  "not archived", "not a template" — or its opposite. Those are offered as a
+ *  choice above the rows rather than as rows, so the match-all/any choice
+ *  below never applies to them. */
+const sameLeaf = (node: FilterNode, wanted: FilterLeaf): boolean =>
+  !isGroup(node) &&
+  node.field === wanted.field &&
+  node.op === wanted.op &&
+  JSON.stringify(node.value) === JSON.stringify(wanted.value) &&
+  !node.negate;
+
+/** Leave the archived (or templates) out, count them too, or count only them. */
+export type Lifecycle = "exclude" | "include" | "only";
+
+/** The opposite of a default: both are yes/no questions ("is it unarchived",
+ *  "is it not a template"), so asking only for the others is the same
+ *  comparison with the answer flipped. */
+const onlyLeaf = (leaf: FilterLeaf): FilterLeaf => ({ ...leaf, value: !leaf.value });
+
+const lifecycleOf = (value: FilterNode[], leaf: FilterLeaf): Lifecycle =>
+  value.some((node) => sameLeaf(node, leaf))
+    ? "exclude"
+    : value.some((node) => sameLeaf(node, onlyLeaf(leaf)))
+      ? "only"
+      : "include";
+
+/** Which choice a default condition is, by what it reads. */
+const defaultLabelKey = (field: string) =>
+  field.endsWith("is_template")
+    ? ("dashboards:filterBuilder.templates" as const)
+    : ("dashboards:filterBuilder.archived" as const);
+
+/**
+ * The stored filter, read as the builder draws it: the lifecycle switches that
+ * are on, whether the rest must all match or any may, and the rest.
+ *
+ * "Any" is stored as one OR group at the top, which is exactly what it means;
+ * a stored filter of one OR group therefore reads back as "any".
+ */
+function splitFilters(value: FilterNode[], defaults: readonly FilterLeaf[]) {
+  const lifecycle = defaults.map((wanted) => lifecycleOf(value, wanted));
+  const rest = value.filter(
+    (node) => !defaults.some((wanted) => sameLeaf(node, wanted) || sameLeaf(node, onlyLeaf(wanted)))
+  );
+  const only = rest.length === 1 ? rest[0] : undefined;
+  if (only && isGroup(only) && only.logic === "or") {
+    return { lifecycle, match: "any" as const, rows: only.conditions };
+  }
+  return { lifecycle, match: "all" as const, rows: rest };
+}
+
+function joinFilters(
+  lifecycle: Lifecycle[],
+  defaults: readonly FilterLeaf[],
+  match: "all" | "any",
+  rows: FilterNode[]
+): FilterNode[] {
+  const kept = defaults.flatMap((leaf, index) =>
+    lifecycle[index] === "exclude"
+      ? [{ ...leaf }]
+      : lifecycle[index] === "only"
+        ? [onlyLeaf(leaf)]
+        : []
+  );
+  if (match === "any" && rows.length) return [...kept, { logic: "or", conditions: rows }];
+  return [...kept, ...rows];
+}
 
 export function FilterBuilder({ value, onChange, initiativeId, dataset }: FilterBuilderProps) {
   const { t } = useTranslation(["dashboards", "tasks", "common"]);
@@ -105,7 +193,13 @@ export function FilterBuilder({ value, onChange, initiativeId, dataset }: Filter
 
   // What may be filtered on, from the server's field registry — one
   // declaration, so a control cannot offer an operator the engine refuses.
-  const { fields, isLoading: fieldsLoading } = useFieldCatalog(dataset as DatasetName);
+  const {
+    fields,
+    defaultFilters,
+    isLoading: fieldsLoading,
+  } = useFieldCatalog(dataset as DatasetName);
+  const defaults = defaultFilters as unknown as FilterLeaf[];
+  const switchId = useId();
 
   const options = useMemo(
     () => ({
@@ -119,16 +213,24 @@ export function FilterBuilder({ value, onChange, initiativeId, dataset }: Filter
     [projects.data, tags.data, initiativeId]
   );
 
+  const { lifecycle, match, rows } = splitFilters(value, defaults);
+  const emit = (next: { lifecycle?: Lifecycle[]; match?: "all" | "any"; rows?: FilterNode[] }) =>
+    onChange(
+      joinFilters(next.lifecycle ?? lifecycle, defaults, next.match ?? match, next.rows ?? rows)
+    );
+
   const replaceAt = (index: number, node: FilterNode | null) => {
-    const next = value.slice();
+    const next = rows.slice();
     if (node === null) next.splice(index, 1);
     else next[index] = node;
-    onChange(next);
+    emit({ rows: next });
   };
 
-  // One group level is all that survives the round trip, so the affordance is
-  // offered only while none exists.
-  const hasGroup = value.some(isGroup);
+  // A group inside asks the other question: "any of" these when everything
+  // else must match, "all of" these when anything may.
+  const groupLogic = match === "all" ? "or" : "and";
+  const joiner =
+    match === "all" ? t("dashboards:filterBuilder.and") : t("dashboards:filterBuilder.or");
 
   // Until the declarations arrive, a condition has no field to be read
   // against: its operator list and its value control would both fall back to
@@ -138,10 +240,7 @@ export function FilterBuilder({ value, onChange, initiativeId, dataset }: Filter
     return <p className="text-muted-foreground text-xs">{t("dashboards:filterBuilder.loading")}</p>;
   }
 
-  // A dataset that named no fields — because the catalog could not be read, or
-  // because it holds nothing to compare — has nothing to build a condition
-  // from. Offering to add one would store a condition naming no field, which
-  // the server refuses on the next keystroke.
+  // A dataset that named no fields has nothing to build a condition from.
   if (!fields.length) {
     return (
       <p className="text-muted-foreground text-xs">{t("dashboards:filterBuilder.noFields")}</p>
@@ -149,87 +248,155 @@ export function FilterBuilder({ value, onChange, initiativeId, dataset }: Filter
   }
 
   return (
-    <div className="space-y-2">
-      {value.length === 0 && (
+    <div className="space-y-3">
+      {defaults.length > 0 && (
+        <div className="flex flex-wrap gap-x-6 gap-y-2">
+          {defaults.map((leaf, index) => (
+            <div key={leaf.field} className="flex items-center gap-2">
+              <Label htmlFor={`${switchId}-${index}`} className="font-normal text-sm">
+                {t(defaultLabelKey(leaf.field))}
+              </Label>
+              <Select
+                value={lifecycle[index]}
+                onValueChange={(choice) => {
+                  const next = lifecycle.slice();
+                  next[index] = choice as Lifecycle;
+                  emit({ lifecycle: next });
+                }}
+              >
+                <SelectTrigger id={`${switchId}-${index}`} className="h-8 w-32">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="exclude">
+                    {t("dashboards:filterBuilder.lifecycleExclude")}
+                  </SelectItem>
+                  <SelectItem value="include">
+                    {t("dashboards:filterBuilder.lifecycleInclude")}
+                  </SelectItem>
+                  <SelectItem value="only">
+                    {t("dashboards:filterBuilder.lifecycleOnly")}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {rows.length === 0 && lifecycle.every((choice) => choice === "include") && (
         <p className="text-muted-foreground text-xs">{t("dashboards:filterBuilder.empty")}</p>
       )}
 
-      {value.map((node, index) => (
+      {rows.length > 1 && (
+        <div className="flex items-center gap-2 text-sm">
+          <span>{t("dashboards:filterBuilder.matchPrefix")}</span>
+          <Select value={match} onValueChange={(next) => emit({ match: next as "all" | "any" })}>
+            <SelectTrigger className="h-8 w-28" aria-label={t("dashboards:filterBuilder.match")}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{t("dashboards:filterBuilder.matchAll")}</SelectItem>
+              <SelectItem value="any">{t("dashboards:filterBuilder.matchAny")}</SelectItem>
+            </SelectContent>
+          </Select>
+          <span>{t("dashboards:filterBuilder.matchSuffix")}</span>
+        </div>
+      )}
+
+      {rows.map((node, index) => (
         <div
           // Conditions have no id; position is the identity the author sees and
           // edits, and reordering is not offered.
           // biome-ignore lint/suspicious/noArrayIndexKey: positional by design
           key={index}
-          className="rounded-md border bg-muted/30 p-2"
+          className="space-y-2"
         >
-          {isGroup(node) ? (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label className="text-xs">{t("dashboards:filterBuilder.group")}</Label>
+          {index > 0 && (
+            <p className="text-center font-medium text-muted-foreground text-xs uppercase">
+              {joiner}
+            </p>
+          )}
+          <div className="rounded-md border bg-muted/30 p-2">
+            {isGroup(node) ? (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs">
+                    {node.logic === "or"
+                      ? t("dashboards:filterBuilder.groupAny")
+                      : t("dashboards:filterBuilder.groupAll")}
+                  </Label>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-6 w-6"
+                    aria-label={t("dashboards:filterBuilder.remove")}
+                    onClick={() => replaceAt(index, null)}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+                {node.conditions.map((child, childIndex) => (
+                  <LeafRow
+                    fields={fields}
+                    // biome-ignore lint/suspicious/noArrayIndexKey: positional by design
+                    key={childIndex}
+                    leaf={child as FilterLeaf}
+                    options={options}
+                    onChange={(next) => {
+                      const conditions = node.conditions.slice();
+                      if (next === null) conditions.splice(childIndex, 1);
+                      else conditions[childIndex] = next;
+                      replaceAt(index, conditions.length ? { ...node, conditions } : null);
+                    }}
+                  />
+                ))}
                 <Button
-                  size="icon"
+                  size="sm"
                   variant="ghost"
-                  className="h-6 w-6"
-                  aria-label={t("dashboards:filterBuilder.remove")}
-                  onClick={() => replaceAt(index, null)}
+                  onClick={() =>
+                    replaceAt(index, {
+                      ...node,
+                      conditions: [...node.conditions, emptyLeaf(fields)],
+                    })
+                  }
                 >
-                  <X className="h-3.5 w-3.5" />
+                  <Plus className="mr-1 h-3.5 w-3.5" />
+                  {t("dashboards:filterBuilder.addToGroup")}
                 </Button>
               </div>
-              <p className="text-muted-foreground text-xs">
-                {t("dashboards:filterBuilder.groupHint")}
-              </p>
-              {node.conditions.map((child, childIndex) => (
-                <LeafRow
-                  fields={fields}
-                  // biome-ignore lint/suspicious/noArrayIndexKey: positional by design
-                  key={childIndex}
-                  leaf={child as FilterLeaf}
-                  options={options}
-                  onChange={(next) => {
-                    const conditions = node.conditions.slice();
-                    if (next === null) conditions.splice(childIndex, 1);
-                    else conditions[childIndex] = next;
-                    replaceAt(index, conditions.length ? { ...node, conditions } : null);
-                  }}
-                />
-              ))}
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() =>
-                  replaceAt(index, { ...node, conditions: [...node.conditions, emptyLeaf(fields)] })
-                }
-              >
-                <Plus className="mr-1 h-3.5 w-3.5" />
-                {t("dashboards:filterBuilder.add")}
-              </Button>
-            </div>
-          ) : (
-            <LeafRow
-              leaf={node}
-              fields={fields}
-              options={options}
-              onChange={(next) => replaceAt(index, next)}
-            />
-          )}
+            ) : (
+              <LeafRow
+                leaf={node}
+                fields={fields}
+                options={options}
+                onChange={(next) => replaceAt(index, next)}
+              />
+            )}
+          </div>
         </div>
       ))}
 
       <div className="flex flex-wrap gap-2">
-        <Button size="sm" variant="outline" onClick={() => onChange([...value, emptyLeaf(fields)])}>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => emit({ rows: [...rows, emptyLeaf(fields)] })}
+        >
           <Plus className="mr-1 h-3.5 w-3.5" />
           {t("dashboards:filterBuilder.add")}
         </Button>
-        {!hasGroup && (
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => onChange([...value, { logic: "or", conditions: [emptyLeaf(fields)] }])}
-          >
-            {t("dashboards:filterBuilder.addGroup")}
-          </Button>
-        )}
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() =>
+            emit({ rows: [...rows, { logic: groupLogic, conditions: [emptyLeaf(fields)] }] })
+          }
+        >
+          {groupLogic === "or"
+            ? t("dashboards:filterBuilder.addGroupAny")
+            : t("dashboards:filterBuilder.addGroupAll")}
+        </Button>
       </div>
     </div>
   );

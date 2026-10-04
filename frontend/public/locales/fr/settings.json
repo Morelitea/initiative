@@ -1115,7 +1115,8 @@
       "access": "Accès",
       "communities": "Communautés",
       "placement": "Affectation à la connexion",
-      "announcements": "Annonces"
+      "announcements": "Annonces",
+      "billing": "Facturation"
     }
   },
   "providerPlacement": {
@@ -1955,5 +1956,17 @@
       "offHelp": "Les notifications concernant cette communauté indiquent de quoi il s'agit une fois sorties de l'application.",
       "platformHelp": "Ce serveur masque les détails partout : cette communauté est déjà couverte."
     }
+  },
+  "billingInsights": {
+    "title": "Indicateurs de facturation",
+    "description": "Où en est l’activité, sur toutes les communautés : chiffre d’affaires, abonnés et résiliations.",
+    "fromPaddle": "Le chiffre d’affaires, le revenu récurrent, les remboursements, les rétrofacturations et les abonnés viennent directement du prestataire de paiement, tels qu’il les a calculés.",
+    "fromBilling": "Les communautés par formule, les essais, les paiements en retard et les résiliations viennent des données propres du service de facturation.",
+    "noCommunity": "Cela n’ouvre aucune communauté et ne demande aucun accès : rien sur la page ne désigne une communauté, un client ou une personne.",
+    "open": "Ouvrir les indicateurs de facturation",
+    "opening": "Ouverture…",
+    "openError": "Les indicateurs de facturation n’ont pas pu être ouverts.",
+    "notConfigured": "Ce déploiement n’a pas de service de facturation ou pas de clé de signature pour le transfert.",
+    "platformOnly": "Les indicateurs de facturation sont réservés aux opérateurs et propriétaires de la plateforme."
   }
 }

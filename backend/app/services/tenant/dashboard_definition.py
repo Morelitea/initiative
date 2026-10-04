@@ -163,7 +163,7 @@ WIDGET_SPECS: dict[str, WidgetSpec] = {
             Slot("group", LABEL_TYPES, required=False),
         ),
         options={
-            "scale": _option("day", "week", "month", "quarter", default="week"),
+            "scale": _option("day", "week", "month", "quarter", "year", default="week"),
             # Whether rows fold into summaries at all. What they fold *by*
             # is the column the author mapped to the group slot, not an option
             # this build could name in advance.

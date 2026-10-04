@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import {
+  EXTRA_PERMISSION_KEYS,
   PERMISSION_LABEL_KEYS,
   useDeleteRole,
   useInitiativeRoles,
@@ -330,6 +331,26 @@ export const InitiativeSettingsRolesTab = ({
                       onToggle={handleTogglePermission}
                       t={translate}
                     />
+                  ))}
+
+                  {/* Capabilities inside a tool rather than the tool itself. */}
+                  {EXTRA_PERMISSION_KEYS.map((key) => (
+                    <div key={key} className="flex items-center gap-2 border-t pt-3">
+                      <span className="min-w-0 flex-1 text-sm">
+                        {t(PERMISSION_LABEL_KEYS[key] as never)}
+                      </span>
+                      <Switch
+                        checked={role.permissions[key] ?? false}
+                        disabled={!canManageMembers || updateRoleMutation.isPending}
+                        aria-label={t(PERMISSION_LABEL_KEYS[key] as never)}
+                        onCheckedChange={(on) =>
+                          updateRoleMutation.mutate({
+                            roleId: role.id,
+                            data: { permissions: { ...role.permissions, [key]: on } },
+                          })
+                        }
+                      />
+                    </div>
                   ))}
 
                   {tools.off.length > 0 && (

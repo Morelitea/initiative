@@ -581,6 +581,7 @@ export interface BillingConfig {
   url: string;
   operator_handoff?: boolean;
   manages_plans?: boolean;
+  insights?: boolean;
 }
 
 /**
@@ -721,6 +722,7 @@ export const FieldType = {
 export interface QueryColumnDescription {
   name: string;
   type: FieldType;
+  grain?: string | null;
 }
 
 /**
@@ -1582,9 +1584,8 @@ export const ResourceAccessLevel = {
 /**
  * One ``resource_grants`` row — exactly the columns that define a grant: a
  * ``level`` for a user (``user_id``), an initiative role (``role_id``), all
- * initiative members (``all_initiative_members``), a dashboard
- * (``dashboard_id``), or an installed app (``app_install_id``). Exactly one
- * grantee is set.
+ * initiative members (``all_initiative_members``), or an installed app
+ * (``app_install_id``). Exactly one grantee is set.
  *
  * The identical shape both reports a resource's grants (``grants`` is a list of
  * these) and replaces them (the ``PUT /{id}/grants`` body) — no field is
@@ -1592,13 +1593,7 @@ export const ResourceAccessLevel = {
  * grant. Role display names are resolved client-side from the initiative's roles
  * by ``role_id``.
  *
- * A **dashboard** grantee is reported here and not taken from here: it is what
- * a published view is made of, the owner sees it in their sharing panel, and
- * the server keeps it whatever this list says. Taking one back is its own act,
- * against the dashboard that published it — so a client that knows nothing
- * about published views cannot remove one by saving the panel.
- *
- * An **app install** grantee is the same: reported, never taken, and kept by
+ * An **app install** grantee is reported here and not taken from here: kept by
  * the server whatever this list says. What an app may reach is the seat's to
  * decide, not a resource owner's sharing panel.
  */
@@ -1607,7 +1602,6 @@ export interface ResourceGrantSchema {
   user_id?: number | null;
   role_id?: number | null;
   all_initiative_members?: boolean;
-  dashboard_id?: number | null;
   app_install_id?: number | null;
 }
 
@@ -2078,6 +2072,7 @@ export const Capability = {
   usersmanage: "users.manage",
   usersdelete: "users.delete",
   communitiesmanage: "communities.manage",
+  billinginsights: "billing.insights",
   announcementsmanage: "announcements.manage",
   rolesassign: "roles.assign",
   databypass: "data.bypass",
@@ -3887,6 +3882,16 @@ export interface DashboardInstalledListings {
   counts: DashboardInstalledListingsCounts;
 }
 
+/**
+ * Whose access a dashboard's query widgets answer from.
+ */
+export type DashboardViewMode = (typeof DashboardViewMode)[keyof typeof DashboardViewMode];
+
+export const DashboardViewMode = {
+  individual: "individual",
+  initiative: "initiative",
+} as const;
+
 export type DashboardPreviewDefinition = { [key: string]: unknown };
 
 export type DashboardPreviewConfig = { [key: string]: unknown };
@@ -3924,6 +3929,7 @@ export interface DashboardSummary {
   description: string | null;
   listing_uid: string | null;
   listing_version: string | null;
+  view_mode: DashboardViewMode;
   preview: DashboardPreview | null;
 }
 
@@ -3939,15 +3945,6 @@ export interface DashboardListResponse {
 export type DashboardReadDefinition = { [key: string]: unknown };
 
 export type DashboardReadConfig = { [key: string]: unknown };
-
-/**
- * One resource this dashboard shows to everybody who can open it.
- */
-export interface PublishedOver {
-  resource_type: string;
-  resource_id: number;
-  name?: string | null;
-}
 
 export interface DashboardRead {
   archived_at: string | null;
@@ -3970,11 +3967,11 @@ export interface DashboardRead {
   description: string | null;
   listing_uid: string | null;
   listing_version: string | null;
+  view_mode: DashboardViewMode;
   preview: DashboardPreview | null;
   definition: DashboardReadDefinition;
   config: DashboardReadConfig;
-  published_over: PublishedOver[];
-  published_active: boolean;
+  can_run_as_initiative: boolean;
 }
 
 export type DashboardUpdateDefinition = { [key: string]: unknown } | null;
@@ -3986,6 +3983,10 @@ export interface DashboardUpdate {
   description?: string | null;
   definition?: DashboardUpdateDefinition;
   config?: DashboardUpdateConfig;
+}
+
+export interface DashboardViewModeRequest {
+  mode: DashboardViewMode;
 }
 
 /**
@@ -5693,6 +5694,7 @@ export const PermissionKey = {
   create_galleries: "create_galleries",
   wikis_enabled: "wikis_enabled",
   create_wikis: "create_wikis",
+  dashboards_run_as_initiative: "dashboards_run_as_initiative",
 } as const;
 
 /**
@@ -5747,7 +5749,6 @@ export interface SharedResourceRead {
   all_initiative_members: boolean;
   user_grant_count: number;
   role_grant_count: number;
-  via_dashboard: boolean;
 }
 
 /**
@@ -7740,27 +7741,6 @@ export interface ProviderPlacementRuleUpdate {
   community_role?: string | null;
   initiative_id?: number | null;
   initiative_role_id?: number | null;
-}
-
-export interface PublishTarget {
-  /**
-   * @minLength 1
-   * @maxLength 32
-   */
-  resource_type: string;
-  /** @exclusiveMinimum 0 */
-  resource_id: number;
-}
-
-/**
- * What a dashboard should publish over, in full.
- *
- * The whole list each time, like the sharing panel: publishing is an explicit
- * act and what it grants over is what somebody looked at when they did it.
- */
-export interface PublishRequest {
-  /** @maxItems 50 */
-  resources?: PublishTarget[];
 }
 
 /**
