@@ -2181,6 +2181,11 @@ export const useUpdatePushSettings = <TError = ErrorType<HTTPValidationError>, T
  *
  * Rate limited to 20 requests per minute to prevent abuse.
  *
+ * With no service account configured, pushes go through Morelitea's push
+ * relay, and the Firebase settings served are the relay's (fetched with this
+ * server's relay key and cached); if the relay cannot say, ``enabled`` is
+ * served alone.
+ *
  * Read from the settings row (``push_config``), not the environment: an owner
  * who turns push on in Settings has the mobile clients pick it up on their
  * next launch rather than on the next redeploy. The resolver opens its own

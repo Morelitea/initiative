@@ -36,7 +36,9 @@ def fcm(monkeypatch):
     calls: list[str] = []
     answer = {"now": (True, False)}
 
-    async def _send(client, push_token, title, body, data=None, channel_id=None):
+    async def _send(
+        client, push_token, title, body, data=None, channel_id=None, platform=None
+    ):
         calls.append(title)
         return answer["now"]
 

@@ -69,6 +69,17 @@ class AppSettingSecret(SQLModel, table=True):
         default=None, sa_column=Column(String(4000), nullable=True)
     )
 
+    # This server's registration with the push relay: its id, which is not a
+    # secret, and its key (``SALT_PUSH_RELAY_KEY``). Written by the first push
+    # that goes through the relay, and cleared when the relay no longer knows
+    # the key, so the next push registers again.
+    push_relay_server_id: Optional[str] = Field(
+        default=None, sa_column=Column(String(64), nullable=True)
+    )
+    push_relay_key_encrypted: Optional[str] = Field(
+        default=None, sa_column=Column(String(2000), nullable=True)
+    )
+
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(

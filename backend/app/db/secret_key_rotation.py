@@ -57,6 +57,7 @@ from app.core.encryption import (
     SALT_OIDC_REFRESH_TOKEN,
     SALT_CAPTCHA_SECRET_KEY,
     SALT_FCM_SERVICE_ACCOUNT,
+    SALT_PUSH_RELAY_KEY,
     SALT_S3_SECRET_KEY,
     SALT_SMTP_PASSWORD,
     SALT_TOTP_SECRET,
@@ -102,6 +103,7 @@ _PUBLIC_FERNET_COLUMNS: list[tuple[str, str, bytes]] = [
         "app_platform_signing_key_encrypted",
         SALT_APP_PLATFORM_SIGNING_KEY,
     ),
+    ("app_setting_secrets", "push_relay_key_encrypted", SALT_PUSH_RELAY_KEY),
     ("guild_invites", "invitee_email_encrypted", SALT_EMAIL),
     # The address a sign-in code was sent to before any account held it. Same
     # ciphertext and same salt as the two address columns above, so it is
