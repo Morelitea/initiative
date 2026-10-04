@@ -94,6 +94,7 @@ async def _build_settings(ctx: SectionContext) -> tuple[dict[str, Any], int] | N
         "is_community": guild.is_community,
         "show_member_names": guild.show_member_names,
         "categories": list(guild.categories or []),
+        "location": guild.location,
         "has_adult_content": guild.has_adult_content,
         "allow_api_keys": guild.allow_api_keys,
         "enforce_compliance_session": guild.enforce_compliance_session,

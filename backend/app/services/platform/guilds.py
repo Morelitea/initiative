@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 import logging
 import secrets
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import exists, func, or_, text
 from sqlalchemy.orm import aliased
@@ -1014,6 +1014,8 @@ async def update_guild(
     banner: Mapping[str, str] | None = None,
     banner_provided: bool = False,
     show_member_names: bool | None = None,
+    location: Mapping[str, Any] | None = None,
+    location_provided: bool = False,
     max_storage_bytes: int | None = None,
     max_storage_bytes_provided: bool = False,
     max_users: int | None = None,
@@ -1036,6 +1038,17 @@ async def update_guild(
         normalized_banner = normalize_banner(banner)
         if guild.banner != normalized_banner:
             guild.banner = normalized_banner
+            updated = True
+    if location_provided:
+        # Absent parts are dropped rather than stored as nulls, so two
+        # locations that say the same thing are the same value.
+        normalized_location = (
+            {key: value for key, value in location.items() if value is not None}
+            if location
+            else None
+        )
+        if guild.location != normalized_location:
+            guild.location = normalized_location
             updated = True
     # An explicit ``null`` is meaningless for a boolean opt-in (mirroring
     # ``auth_options`` below), so null and omitted alike are a no-op.

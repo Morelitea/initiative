@@ -243,6 +243,7 @@ def _serialize_guild(
         categories=[GuildCategory(value) for value in guild.categories],
         show_member_names=guild.show_member_names,
         has_adult_content=guild.has_adult_content,
+        location=guild.location,
         # Where the guild's pictures are, not the pictures. Callers that have
         # no reason to have looked them up pass nothing, which reads the same
         # as a guild without any. The rest of the banner is stored, so it needs
@@ -266,6 +267,7 @@ _GUILD_PROFILE_FIELDS = (
     "categories",
     "has_adult_content",
     "show_member_names",
+    "location",
 )
 
 
@@ -395,6 +397,7 @@ async def list_community_guilds(
                     **guild.banner,
                 ),
                 categories=[GuildCategory(value) for value in guild.categories],
+                location=guild.location,
                 member_count=member_count,
                 online_count=online.get(guild.id, 0),
                 already_member=already_member,
@@ -684,6 +687,7 @@ async def update_guild(
     categories_provided = "categories" in updates.model_fields_set
     has_adult_content_provided = "has_adult_content" in updates.model_fields_set
     banner_provided = "banner" in updates.model_fields_set
+    location_provided = "location" in updates.model_fields_set
     # The state this PATCH is measured against. Read before the write, since the
     # service edits the row in place.
     before_profile = audit_service.snapshot(
@@ -715,6 +719,10 @@ async def update_guild(
             banner=(updates.banner.model_dump(mode="json") if updates.banner else None),
             banner_provided=banner_provided,
             show_member_names=updates.show_member_names,
+            location=(
+                updates.location.model_dump(mode="json") if updates.location else None
+            ),
+            location_provided=location_provided,
         )
     except guilds_service.CommunityDirectoryDisabledError as exc:
         # No directory on this deployment, so there is nothing to list in.

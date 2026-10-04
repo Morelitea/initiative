@@ -1,0 +1,205 @@
+"""A community's location: set by its admin, read by its members and the
+directory.
+
+``PATCH /api/v1/communities/{guild_id}`` replaces the whole location; omitting
+it leaves it alone and ``null`` clears it.
+"""
+
+import pytest
+from httpx import AsyncClient
+from sqlmodel.ext.asyncio.session import AsyncSession
+
+from app.models.platform.guild import GuildRole
+from app.services.platform import app_settings as app_settings_service
+from app.testing.factories import create_guild
+
+
+async def _admin(session: AsyncSession, acting_user):
+    guild = await create_guild(session, name="Queen Anne Gardeners")
+    admin = await acting_user(guild_role=GuildRole.admin, guild=guild)
+    return guild, admin
+
+
+async def _patch(client: AsyncClient, guild_id: int, headers: dict, body: dict):
+    return await client.patch(
+        f"/api/v1/communities/{guild_id}", json=body, headers=headers
+    )
+
+
+async def test_a_guild_starts_with_no_location(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    guild, admin = await _admin(session, acting_user)
+
+    response = await client.get("/api/v1/communities/", headers=admin.headers)
+
+    assert response.status_code == 200
+    [read] = [item for item in response.json() if item["id"] == guild.id]
+    assert read["location"] is None
+
+
+async def test_a_country_alone_is_a_location(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    guild, admin = await _admin(session, acting_user)
+
+    response = await _patch(
+        client, guild.id, admin.headers, {"location": {"country": "jp"}}
+    )
+
+    assert response.status_code == 200, response.text
+    await session.refresh(guild)
+    # Stored upper case, and with only the parts that were given.
+    assert guild.location == {"country": "JP"}
+    assert response.json()["location"] == {
+        "country": "JP",
+        "region": None,
+        "region_code": None,
+        "city": None,
+        "address": None,
+        "postal_code": None,
+        "label": None,
+    }
+
+
+async def test_an_exact_address_is_stored_tidied(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    guild, admin = await _admin(session, acting_user)
+
+    response = await _patch(
+        client,
+        guild.id,
+        admin.headers,
+        {
+            "location": {
+                "country": "US",
+                "region": "Washington",
+                "region_code": "WA",
+                "city": "  Seattle ",
+                "address": "1 Queen  Anne Ave N",
+                "postal_code": "98109",
+                "label": "Queen Anne Neighborhood",
+            }
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    await session.refresh(guild)
+    assert guild.location == {
+        "country": "US",
+        "region": "Washington",
+        "region_code": "WA",
+        "city": "Seattle",
+        "address": "1 Queen Anne Ave N",
+        "postal_code": "98109",
+        "label": "Queen Anne Neighborhood",
+    }
+
+
+async def test_a_blank_part_is_absent(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    guild, admin = await _admin(session, acting_user)
+
+    response = await _patch(
+        client,
+        guild.id,
+        admin.headers,
+        {"location": {"country": "GB", "city": "London", "region": "  "}},
+    )
+
+    assert response.status_code == 200, response.text
+    await session.refresh(guild)
+    assert guild.location == {"country": "GB", "city": "London"}
+
+
+async def test_omitting_the_location_leaves_it_and_null_clears_it(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    guild, admin = await _admin(session, acting_user)
+    await _patch(
+        client,
+        guild.id,
+        admin.headers,
+        {"location": {"country": "CA", "city": "Toronto"}},
+    )
+
+    renamed = await _patch(client, guild.id, admin.headers, {"name": "Gardeners"})
+    assert renamed.status_code == 200, renamed.text
+    await session.refresh(guild)
+    assert guild.location == {"country": "CA", "city": "Toronto"}
+
+    cleared = await _patch(client, guild.id, admin.headers, {"location": None})
+    assert cleared.status_code == 200, cleared.text
+    await session.refresh(guild)
+    assert guild.location is None
+    assert cleared.json()["location"] is None
+
+
+@pytest.mark.parametrize(
+    "location",
+    [
+        {"city": "Seattle"},
+        {"country": "USA"},
+        {"country": "1A"},
+        {"country": "US", "label": "x" * 61},
+    ],
+    ids=["no country", "three letters", "not letters", "label too long"],
+)
+async def test_a_malformed_location_is_refused(
+    client: AsyncClient, session: AsyncSession, acting_user, location: dict
+):
+    guild, admin = await _admin(session, acting_user)
+
+    response = await _patch(client, guild.id, admin.headers, {"location": location})
+
+    assert response.status_code == 422
+    await session.refresh(guild)
+    assert guild.location is None
+
+
+async def test_a_member_cannot_set_the_location(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    guild = await create_guild(session, name="Queen Anne Gardeners")
+    member = await acting_user(guild_role=GuildRole.member, guild=guild)
+
+    response = await _patch(
+        client, guild.id, member.headers, {"location": {"country": "US"}}
+    )
+
+    assert response.status_code == 403
+    await session.refresh(guild)
+    assert guild.location is None
+
+
+async def test_members_and_the_directory_read_the_location(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    await app_settings_service.update_community_settings(
+        session, community_directory_enabled=True
+    )
+    guild = await create_guild(
+        session,
+        name="Queen Anne Gardeners",
+        location={"country": "US", "region_code": "WA", "city": "Seattle"},
+    )
+    member = await acting_user(guild_role=GuildRole.member, guild=guild)
+    guild.is_community = True
+    guild.show_member_names = False
+    guild.categories = ["other"]
+    guild.has_adult_content = False
+    session.add(guild)
+    await session.commit()
+
+    mine = await client.get("/api/v1/communities/", headers=member.headers)
+    [read] = [item for item in mine.json() if item["id"] == guild.id]
+    assert read["location"]["city"] == "Seattle"
+
+    browser = await acting_user("member")
+    directory = await client.get(
+        "/api/v1/communities/directory", headers=browser.headers
+    )
+    [card] = [item for item in directory.json()["items"] if item["id"] == guild.id]
+    assert card["location"]["region_code"] == "WA"
