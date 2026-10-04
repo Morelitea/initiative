@@ -52,6 +52,8 @@ from app.schemas.tenant.dashboard import (
     DashboardCreate,
     DashboardRead,
     DashboardUpdate,
+    DashboardViewAsRequest,
+    DashboardViewMode,
     WidgetCatalog,
     build_widget_catalog,
 )
@@ -69,6 +71,7 @@ from app.services.marketplace.installs import (
 )
 from app.services.tenant import dashboards as dashboards_service
 from app.services.tenant import published_views
+from app.services.tenant import view_as
 from app.services.tenant import tags as tags_service
 from app.models.tenant.guild_app import GuildApp
 from app.services.marketplace.app_data import row_columns
@@ -337,6 +340,8 @@ async def update_dashboard(
         normalized, normalized_config = _normalize_body(
             definition, config, await _endpoint_columns(session)
         )
+        if (normalized, normalized_config) != (dashboard.definition, dashboard.config):
+            _check_view_as_allows(dashboard, current_user)
         await _check_publishing_allows(
             session,
             dashboard_id,
@@ -355,8 +360,8 @@ async def update_dashboard(
         await session.commit()
 
     hydrated = await _refetch_dashboard(session, dashboard.id)
-    return serialize_tool(
-        DashboardRead, hydrated, user_id=current_user.id, context=guild_context
+    return await _serialized_with_published(
+        session, hydrated, current_user, guild_context.guild_id
     )
 
 
@@ -409,6 +414,7 @@ async def upgrade_dashboard(
     # publishing. That is the same act as editing it, and answers to the same
     # two rules — a listing whose new version asks about the reader cannot be
     # taken by a dashboard that publishes, until it stops publishing.
+    _check_view_as_allows(dashboard, current_user)
     await _check_publishing_allows(
         session, dashboard_id, definition, config, current_user, guild_context
     )
@@ -455,6 +461,21 @@ async def _check_publishing_allows(
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=DashboardMessages.PUBLISHED_VIEW_HAS_NO_READER,
+        )
+
+
+def _check_view_as_allows(dashboard: Dashboard, user: User) -> None:
+    """Whether *user* may change what this dashboard's widgets ask.
+
+    A dashboard showing somebody's view answers as them, so what its
+    statements ask is what of theirs everybody sees. Only that person decides
+    it; anybody else with write access can switch the dashboard back to each
+    viewer's own view first.
+    """
+    if dashboard.view_as_user_id is not None and dashboard.view_as_user_id != user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=DashboardMessages.VIEW_AS_EDIT_OWNER_ONLY,
         )
 
 
@@ -549,6 +570,24 @@ async def _published_through(
     return through
 
 
+async def _answered_as(
+    session: Any, dashboard: Dashboard, guild_id: int
+) -> tuple[Any, Optional[int]]:
+    """Who this canvas's statements run as, and the dashboard they may read
+    through.
+
+    The owner's view when the dashboard shows it and they still stand in the
+    community; otherwise the viewer's own, with whatever it publishes over.
+    Asked only after the dashboard's own gates have admitted the reader.
+    """
+    owner = await view_as.owner_context(dashboard, guild_id)
+    if owner is not None:
+        return owner, None
+    return routed_context(session), await _published_through(
+        session, dashboard, guild_id
+    )
+
+
 @router.get("/{dashboard_id}/data", response_model=DashboardDataResponse)
 async def load_dashboard_data(
     dashboard_id: int,
@@ -567,7 +606,7 @@ async def load_dashboard_data(
     dashboard = await resource_access.load_authorized(
         session, Tool.dashboard, dashboard_id, current_user, guild_context
     )
-    through = await _published_through(session, dashboard, guild_context.guild_id)
+    context, through = await _answered_as(session, dashboard, guild_context.guild_id)
 
     widgets: dict[str, DashboardWidgetData] = {}
     statements: dict[str, query_service.ResolvedQuery] = {}
@@ -583,7 +622,7 @@ async def load_dashboard_data(
     try:
         outcomes = await query_service.execute_canvas(
             statements,
-            context=routed_context(session),
+            context=context,
             initiative_id=dashboard.initiative_id,
             via_dashboard_id=through,
         )
@@ -629,11 +668,11 @@ async def run_widget_query(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=DashboardMessages.WIDGET_HAS_NO_QUERY,
         )
-    through = await _published_through(session, dashboard, guild_context.guild_id)
+    context, through = await _answered_as(session, dashboard, guild_context.guild_id)
     try:
         result = await query_service.run(
             sql,
-            context=routed_context(session),
+            context=context,
             initiative_id=dashboard.initiative_id,
             via_dashboard_id=through,
         )
@@ -824,7 +863,57 @@ async def _serialized_with_published(
         and not published_views.names_the_reader(dashboard.definition, dashboard.config)
         and await published_views.author_still_reaches(grants, guild_id)
     )
+    read.view_as_active = await view_as.serves(dashboard, guild_id)
     return read
+
+
+@router.put("/{dashboard_id}/view-as", response_model=DashboardRead)
+async def set_view_as(
+    dashboard_id: int,
+    payload: DashboardViewAsRequest,
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> DashboardRead:
+    """Choose whose access this dashboard's query widgets answer from.
+
+    ``owner`` shows everybody who can open the dashboard what the caller sees —
+    always the caller, never somebody else. ``viewer`` goes back to each
+    person's own. Either takes write access to the dashboard, like any other
+    change to it.
+    """
+    dashboard = await resource_access.load_authorized(
+        session,
+        Tool.dashboard,
+        dashboard_id,
+        current_user,
+        guild_context,
+        access="write",
+    )
+    wanted = current_user.id if payload.mode == DashboardViewMode.owner else None
+    if dashboard.view_as_user_id != wanted:
+        previous = dashboard.view_as_user_id
+        dashboard.view_as_user_id = wanted
+        dashboard.updated_at = datetime.now(timezone.utc)
+        session.add(dashboard)
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.SHARING_GRANT_CHANGED,
+            actor_user_id=current_user.id,
+            guild_id=routed_guild_id(session),
+            target_type=Tool.dashboard.value,
+            target_id=dashboard_id,
+            detail={
+                "initiative_id": dashboard.initiative_id,
+                "view_as": {"from": previous, "to": wanted},
+            },
+        )
+        await session.commit()
+
+    hydrated = await _refetch_dashboard(session, dashboard_id)
+    return await _serialized_with_published(
+        session, hydrated, current_user, guild_context.guild_id
+    )
 
 
 # ---------------------------------------------------------------------------

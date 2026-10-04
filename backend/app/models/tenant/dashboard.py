@@ -38,6 +38,10 @@ class Dashboard(
     the normal gated endpoints, so a dashboard grants no access of its own and
     can never mutate what it displays.
 
+    ``view_as_user_id`` is the one exception to "per viewer": a dashboard
+    whose owner has chosen to show their own view answers its statements as
+    them, for everybody who can open it.
+
     ``config`` fills the binding slots a definition leaves open, so one shared
     definition can be pointed at this initiative's actual counters/documents.
 
@@ -78,6 +82,12 @@ class Dashboard(
         default_factory=dict,
         sa_column=Column(JSONB, nullable=False, server_default="{}"),
     )
+    #: Whose access the query widgets answer from. ``None`` is each viewer's
+    #: own, which is the default and almost always right. A user id means the
+    #: canvas shows everybody who can open it what that person sees: it is set
+    #: only by that person, for themselves, and stops serving the moment they
+    #: no longer stand in the community (see ``app.services.tenant.view_as``).
+    view_as_user_id: Optional[int] = Field(default=None, nullable=True)
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),

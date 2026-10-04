@@ -27,6 +27,7 @@ import type {
   DashboardListResponse,
   DashboardRead,
   DashboardUpdate,
+  DashboardViewAsRequest,
   HTTPValidationError,
   ListDashboardsApiV1CGuildIdDashboardsGetParams,
   PublishRequest,
@@ -1782,6 +1783,119 @@ export const useSetPublishedViewApiV1CGuildIdDashboardsDashboardIdPublishedPut =
 > => {
   return useMutation(
     getSetPublishedViewApiV1CGuildIdDashboardsDashboardIdPublishedPutMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Choose whose access this dashboard's query widgets answer from.
+ *
+ * ``owner`` shows everybody who can open the dashboard what the caller sees —
+ * always the caller, never somebody else. ``viewer`` goes back to each
+ * person's own. Either takes write access to the dashboard, like any other
+ * change to it.
+ * @summary Set View As
+ */
+export const setViewAsApiV1CGuildIdDashboardsDashboardIdViewAsPut = (
+  guildId: number,
+  dashboardId: number,
+  dashboardViewAsRequest: BodyType<DashboardViewAsRequest>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<DashboardRead>(
+    {
+      url: `/api/v1/c/${guildId}/dashboards/${dashboardId}/view-as`,
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      data: dashboardViewAsRequest,
+      signal,
+    },
+    options
+  );
+};
+
+export const getSetViewAsApiV1CGuildIdDashboardsDashboardIdViewAsPutMutationKey = () =>
+  ["setViewAsApiV1CGuildIdDashboardsDashboardIdViewAsPut"] as const;
+
+export const getSetViewAsApiV1CGuildIdDashboardsDashboardIdViewAsPutMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setViewAsApiV1CGuildIdDashboardsDashboardIdViewAsPut>>,
+    TError,
+    SetViewAsApiV1CGuildIdDashboardsDashboardIdViewAsPutMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof setViewAsApiV1CGuildIdDashboardsDashboardIdViewAsPut>>,
+  TError,
+  SetViewAsApiV1CGuildIdDashboardsDashboardIdViewAsPutMutationVariables,
+  TContext
+> => {
+  const mutationKey = getSetViewAsApiV1CGuildIdDashboardsDashboardIdViewAsPutMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof setViewAsApiV1CGuildIdDashboardsDashboardIdViewAsPut>>,
+    SetViewAsApiV1CGuildIdDashboardsDashboardIdViewAsPutMutationVariables
+  > = (props) => {
+    const { guildId, dashboardId, data } = props ?? {};
+
+    return setViewAsApiV1CGuildIdDashboardsDashboardIdViewAsPut(
+      guildId,
+      dashboardId,
+      data,
+      requestOptions
+    );
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SetViewAsApiV1CGuildIdDashboardsDashboardIdViewAsPutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof setViewAsApiV1CGuildIdDashboardsDashboardIdViewAsPut>>
+>;
+export type SetViewAsApiV1CGuildIdDashboardsDashboardIdViewAsPutMutationBody =
+  BodyType<DashboardViewAsRequest>;
+export type SetViewAsApiV1CGuildIdDashboardsDashboardIdViewAsPutMutationError =
+  ErrorType<HTTPValidationError>;
+export type SetViewAsApiV1CGuildIdDashboardsDashboardIdViewAsPutMutationVariables = {
+  guildId: number;
+  dashboardId: number;
+  data: BodyType<DashboardViewAsRequest>;
+};
+
+/**
+ * @summary Set View As
+ */
+export const useSetViewAsApiV1CGuildIdDashboardsDashboardIdViewAsPut = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof setViewAsApiV1CGuildIdDashboardsDashboardIdViewAsPut>>,
+      TError,
+      SetViewAsApiV1CGuildIdDashboardsDashboardIdViewAsPutMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof setViewAsApiV1CGuildIdDashboardsDashboardIdViewAsPut>>,
+  TError,
+  SetViewAsApiV1CGuildIdDashboardsDashboardIdViewAsPutMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getSetViewAsApiV1CGuildIdDashboardsDashboardIdViewAsPutMutationOptions(options),
     queryClient
   );
 };

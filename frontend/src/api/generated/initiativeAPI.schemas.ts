@@ -2873,6 +2873,7 @@ export interface DashboardSummary {
   description: string | null;
   listing_uid: string | null;
   listing_version: string | null;
+  view_as_user_id: number | null;
 }
 
 export interface DashboardListResponse {
@@ -2918,10 +2919,12 @@ export interface DashboardRead {
   description: string | null;
   listing_uid: string | null;
   listing_version: string | null;
+  view_as_user_id: number | null;
   definition: DashboardReadDefinition;
   config: DashboardReadConfig;
   published_over: PublishedOver[];
   published_active: boolean;
+  view_as_active: boolean;
 }
 
 export type DashboardUpdateDefinition = { [key: string]: unknown } | null;
@@ -2933,6 +2936,20 @@ export interface DashboardUpdate {
   description?: string | null;
   definition?: DashboardUpdateDefinition;
   config?: DashboardUpdateConfig;
+}
+
+/**
+ * Whose access a dashboard's query widgets answer from.
+ */
+export type DashboardViewMode = (typeof DashboardViewMode)[keyof typeof DashboardViewMode];
+
+export const DashboardViewMode = {
+  viewer: "viewer",
+  owner: "owner",
+} as const;
+
+export interface DashboardViewAsRequest {
+  mode: DashboardViewMode;
 }
 
 /**
