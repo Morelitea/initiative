@@ -31,6 +31,7 @@ from app.services.tenant import relationships
 from app.services.tenant.relationships import Endpoint
 from app.api.actor_route import ActorRoute
 from app.api.deps import (
+    CommunityIdPath,
     ActorContext,
     ActorSessionDep,
     ActorUserDep,
@@ -42,7 +43,6 @@ from app.api.deps import (
     establish_guild_access,
     get_current_active_user,
     GuildAccessError,
-    GuildContext,
     GuildContextDep,
 )
 from app.core.messages import (
@@ -61,7 +61,6 @@ from app.models.tenant.initiative import Initiative
 from app.models.platform.notification import NotificationType
 from app.models.platform.user import User
 from app.schemas.tenant.document import (
-    DocumentCopyRequest,
     DocumentCreate,
     DocumentFileVersionRead,
     DocumentRead,
@@ -80,6 +79,7 @@ from app.services import storage_config
 from app.services.storage import build_upload_response, get_guild_storage
 from app.api import resource_access
 from app.core.tools import Tool
+from app.services.tenant import body_states
 from app.services.tenant import documents as documents_service
 from app.services.tenant import ownership as ownership_service
 from app.services.tenant import properties as properties_service
@@ -92,7 +92,12 @@ from app.services import audit as audit_service
 from app.services.ai_generation import AIGenerationError, generate_document_summary
 from app.services.ai_settings import resolve_ai_settings
 from app.services.tenant import spreadsheet_import
-from app.services.tenant.collaboration import collaboration_manager
+from app.services.tenant.collaboration import (
+    collaboration_manager,
+    content_version,
+    versioned,
+    written_into,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -743,11 +748,16 @@ async def read_document(
         access="read",
         hydrated=True,
     )
-    return serialize_document(
+    read = serialize_document(
         document,
         user_id=guild_context.user_id,
         include_content=include_content,
         context=guild_context,
+    )
+    if not include_content:
+        return read
+    return await versioned(
+        read, guild_context.guild_id, SearchEntityType.document.value
     )
 
 
@@ -787,27 +797,52 @@ async def update_document(
         updated = True
 
     content_updated = False
-    # A document with a live collaboration room has that room as the writer of
-    # both its views — it saves ``content`` and ``yjs_state`` from one snapshot,
-    # on an interval and at teardown. Everything else in the patch (the name,
-    # the featured image) is unrelated to that and still applies.
-    if "content" in update_data and collaboration_manager.has_active_collaborators(
-        guild_context.guild_id, SearchEntityType.document.value, document.id
-    ):
-        # An editor inside the session reports its content to the room over its
-        # own socket, which is what ties a rendering to the state it was made
-        # from. A rendering arriving here belongs to a tab outside the session,
-        # whose view of the document the session has moved on from — and a
-        # request carries no connection, so one of an account's tabs cannot be
-        # told from another here. It is refused rather than taken and reported
-        # as saved; reconnecting is what gets that tab's work in, and the
-        # handshake carries it.
+    room = (
+        collaboration_manager.live_room(
+            guild_context.guild_id, SearchEntityType.document.value, document.id
+        )
+        if "content" in update_data
+        else None
+    )
+    version = update_data.get("content_version")
+    if room is not None and (version is None or not room.renders_content):
+        # A live room is the writer of both of the document's views. A body
+        # that names no version may describe one the session has moved on
+        # from, and a body the browser renders is reconciled by its editors,
+        # so either is refused rather than taken and reported as saved.
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=DocumentMessages.LIVE_SESSION_OWNS_CONTENT,
         )
-    if "content" in update_data:
-        await session.refresh(document, ["content"])
+    if room is not None:
+        # The writer read what the session holds now: the change goes into
+        # it, reaches the open editors, and is saved with their edits.
+        try:
+            live_content = documents_service.normalize_document_content(
+                update_data["content"], document_type=document.document_type
+            )
+        except documents_service.DocumentContentError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail=exc.code
+            ) from exc
+        if not await room.write(live_content, version, user_id=guild_context.user_id):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=DocumentMessages.CONTENT_CHANGED,
+            )
+        updated = True
+    elif "content" in update_data:
+        # Locked until this write commits, so a write naming the same version
+        # reads this one's content.
+        await session.refresh(document, ["content"], with_for_update=True)
+        if version is not None and content_version(document.content) != version:
+            # The writer says which content it changed. Anything since would
+            # be undone by writing this whole body over it, so the write is
+            # refused and the writer reads again.
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=DocumentMessages.CONTENT_CHANGED,
+            )
         previous_content_urls = attachments_service.extract_upload_urls(
             document.content
         )
@@ -822,11 +857,17 @@ async def update_document(
             ) from exc
         new_content_urls = attachments_service.extract_upload_urls(document.content)
         removed_upload_urls.update(previous_content_urls - new_content_urls)
-        # Reaching here means no room is live, so this edit is the newest
-        # thing about the document and any stored Yjs state predates it. It is
-        # cleared so the next collaborative session bootstraps from this
-        # content rather than from state that never saw it.
-        document.yjs_state = None
+        # No room is live, so this edit is the newest thing about the
+        # document. Its stored Yjs state has it written in, so the next
+        # session opens on it with its history.
+        body = body_states.for_kind(document.document_type)
+        if body is not None:
+            await session.refresh(document, ["yjs_state"])
+            document.yjs_state = await written_into(
+                body, document.yjs_state, document.content
+            )
+        else:
+            document.yjs_state = None
         content_updated = True
         updated = True
 
@@ -871,106 +912,6 @@ async def update_document(
             )
     attachments_service.delete_blobs(guild_context.guild_id, released)
     return await read_after_write(session, document.id, current_user, guild_context)
-
-
-async def _duplicate_into(
-    session: RLSSessionDep,
-    source: Document,
-    *,
-    initiative_id: int,
-    name: str,
-    user: User,
-    guild_context: GuildContext,
-) -> DocumentRead:
-    """Make a copy of ``source`` named ``name`` in ``initiative_id``, held to
-    what a create is held to: the caller may create documents there and the
-    name is free in it. Commits."""
-    await resource_access.prepare_create(
-        session, Tool.document, initiative_id, user, guild_context
-    )
-    name = name.strip()
-    if not name:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=DocumentMessages.NAME_REQUIRED,
-        )
-    await ensure_name_free(
-        session,
-        Document.name,
-        name,
-        Document.initiative_id == initiative_id,
-        detail=DocumentMessages.NAME_ALREADY_EXISTS,
-    )
-    try:
-        duplicated = await documents_service.duplicate_document(
-            session,
-            source=source,
-            initiative_id=initiative_id,
-            name=name,
-            user=user,
-            actor=guild_context,
-        )
-    except attachments_service.StorageQuotaExceededError:
-        raise HTTPException(
-            status_code=status.HTTP_507_INSUFFICIENT_STORAGE,
-            detail=AttachmentMessages.STORAGE_QUOTA_EXCEEDED,
-        )
-    await content_references.sync_for_entity(
-        session,
-        Endpoint(SearchEntityType.document, duplicated.id),
-        body=duplicated.content,
-        author_id=user.id,
-    )
-    await session.commit()
-    return await read_after_write(session, duplicated.id, user, guild_context)
-
-
-@router.post(
-    "/{document_id}/copy",
-    response_model=DocumentRead,
-    status_code=status.HTTP_201_CREATED,
-)
-async def copy_document(
-    document_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-    payload: DocumentCopyRequest | None = Body(default=None),
-) -> DocumentRead:
-    """Copy a document into an initiative — its own, unless another is named.
-
-    A copy beside its original is named "<name> (Copy)" unless the body names
-    it; one in another initiative keeps the original's name.
-    """
-    payload = payload or DocumentCopyRequest()
-    document = await resource_access.load_authorized(
-        session, Tool.document, document_id, current_user, guild_context
-    )
-    # Templates are starter content meant to be copied — read on the source is
-    # enough. Copying anything else asks for write on it, so a copy is never a
-    # quiet fork of somebody else's work.
-    if not document.is_template:
-        resource_access.authorize(
-            Tool.document,
-            document,
-            current_user,
-            access="write",
-            context=guild_context,
-        )
-    initiative_id = payload.target_initiative_id or document.initiative_id
-    return await _duplicate_into(
-        session,
-        document,
-        initiative_id=initiative_id,
-        name=payload.name
-        or (
-            f"{document.name} (Copy)"
-            if initiative_id == document.initiative_id
-            else document.name
-        ),
-        user=current_user,
-        guild_context=guild_context,
-    )
 
 
 @router.post("/{document_id}/mentions", status_code=status.HTTP_204_NO_CONTENT)
@@ -1094,8 +1035,12 @@ async def read_after_write(
             not_found=Tool.document.not_found_code,
             denied=Tool.document.no_access_code,
         )
-    return serialize_document(
-        document, user_id=guild_context.user_id, context=guild_context
+    return await versioned(
+        serialize_document(
+            document, user_id=guild_context.user_id, context=guild_context
+        ),
+        guild_context.guild_id,
+        SearchEntityType.document.value,
     )
 
 
@@ -1106,7 +1051,7 @@ async def _load_download_document(
     with the eager loads the access check needs.
 
     Downloads are served via iframe/window.open, which can't send headers, so
-    the guild rides in the ``/c/{guild_id}`` path segment and names exactly the
+    the guild rides in the ``/c/{community_id}`` path segment and names exactly the
     schema to read. Access is re-validated here (membership or live PAM grant).
     Leaves the session routed into the guild so a follow-up version query runs
     in the same schema.
@@ -1147,7 +1092,7 @@ async def _load_download_document(
 @limiter.limit("30/minute")
 async def download_document_file(
     request: Request,
-    guild_id: int,
+    guild_id: CommunityIdPath,
     document_id: int,
     current_user: UploadUserDep,
     # SessionDep (not RLSSessionDep) because the loader routes the session
@@ -1196,7 +1141,7 @@ async def download_document_file(
 @limiter.limit("30/minute")
 async def download_document_file_version(
     request: Request,
-    guild_id: int,
+    guild_id: CommunityIdPath,
     document_id: int,
     version_id: int,
     current_user: UploadUserDep,

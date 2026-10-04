@@ -17,7 +17,7 @@ import { Card, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { ProgressCircle } from "@/components/ui/progress-circle";
 import { useUnreadTree } from "@/hooks/useUnreadTree";
-import { useGuildPath } from "@/lib/guildUrl";
+import { useCommunityPath } from "@/lib/communityUrl";
 import { InitiativeColorDot, resolveInitiativeColor } from "@/lib/initiativeColors";
 import { initiativeRoute, toolDetailRoute } from "@/lib/tools";
 import { cn } from "@/lib/utils";
@@ -42,7 +42,7 @@ export const ProjectCardLink = ({
   showInitiative = true,
 }: ProjectLinkProps) => {
   const { t } = useTranslation("projects");
-  const gp = useGuildPath();
+  const gp = useCommunityPath();
   const unread = useUnreadTree();
   const initiative = project.initiative;
   const initiativeColor = initiative ? resolveInitiativeColor(initiative.color) : null;
@@ -67,7 +67,7 @@ export const ProjectCardLink = ({
         {dragHandleProps ? (
           <button
             type="button"
-            className="rounded-full border bg-background p-1 text-muted-foreground transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="rounded-md p-1 text-muted-foreground transition hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             aria-label="Reorder project"
             {...dragHandleProps}
           >
@@ -79,10 +79,12 @@ export const ProjectCardLink = ({
         to={gp(toolDetailRoute(Tool.project, project.initiative_id, project.id))}
         className="block"
       >
-        <Card className="overflow-hidden shadow-sm">
-          {initiativeColor ? (
+        <Card className="overflow-hidden">
+          {/* Which initiative a card is from, where a list mixes them; inside
+              one initiative every card would wear the same colour. */}
+          {initiativeColor && showInitiative ? (
             <div
-              className="h-1.5 w-full"
+              className="h-1 w-full"
               style={{ backgroundColor: initiativeColor }}
               aria-hidden="true"
             />
@@ -91,7 +93,7 @@ export const ProjectCardLink = ({
             <CardTitle className="flex flex-wrap items-center gap-2 text-xl">
               {project.icon ? <span className="text-2xl leading-none">{project.icon}</span> : null}
               <span>{project.name}</span>
-              {unread.hasResource(project.guild_id, Tool.project, project.id) ? (
+              {unread.hasResource(project.community_id, Tool.project, project.id) ? (
                 <UnreadDot />
               ) : null}
               <ProjectStateBadge project={project} />
@@ -139,7 +141,7 @@ export const ProjectRowLink = ({
   showInitiative = true,
 }: ProjectLinkProps) => {
   const { t } = useTranslation("projects");
-  const gp = useGuildPath();
+  const gp = useCommunityPath();
   const unread = useUnreadTree();
   const initiativeColor = project.initiative
     ? resolveInitiativeColor(project.initiative.color)
@@ -151,7 +153,7 @@ export const ProjectRowLink = ({
       {dragHandleProps ? (
         <button
           type="button"
-          className="absolute top-1/2 left-4 z-10 -translate-y-1/2 rounded-full border bg-background p-1 text-muted-foreground transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="absolute top-1/2 left-4 z-10 -translate-y-1/2 rounded-md p-1 text-muted-foreground transition hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           aria-label="Reorder project"
           {...dragHandleProps}
         >
@@ -181,15 +183,21 @@ export const ProjectRowLink = ({
         className="block"
       >
         <Card
-          className={cn("p-4 pr-16 shadow-sm", actions && "pr-24", initiativeColor && "border-l-4")}
-          style={initiativeColor ? { borderLeftColor: initiativeColor } : undefined}
+          className={cn(
+            "p-4 pr-16",
+            actions && "pr-24",
+            initiativeColor && showInitiative && "border-l-4"
+          )}
+          style={
+            initiativeColor && showInitiative ? { borderLeftColor: initiativeColor } : undefined
+          }
         >
           <div className={`flex flex-wrap items-center gap-4 ${dragHandleProps ? "pl-10" : ""}`}>
             {project.icon ? <span className="text-2xl leading-none">{project.icon}</span> : null}
             <div className="min-w-[200px] flex-1">
               <div className="flex flex-wrap items-center gap-2">
                 <p className="font-semibold">{project.name}</p>
-                {unread.hasResource(project.guild_id, Tool.project, project.id) ? (
+                {unread.hasResource(project.community_id, Tool.project, project.id) ? (
                   <UnreadDot />
                 ) : null}
                 <ProjectStateBadge project={project} />
@@ -256,7 +264,7 @@ export const InitiativeLabel = ({
    * click from also triggering the outer link. */
   nested?: boolean;
 }) => {
-  const gp = useGuildPath();
+  const gp = useCommunityPath();
   const navigate = useNavigate();
   if (!initiative) {
     return null;

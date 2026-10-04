@@ -71,7 +71,6 @@ _LABELS = ("Planning", "Design", "Build", "Review", "Launch", "Support")
 #: Checked in order; the first word the name contains wins.
 _TEXT_VOCABULARY: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("display_name", _PEOPLE),
-    ("full_name", _PEOPLE),
     ("assignee", _PEOPLE),
     ("member", _PEOPLE),
     ("author", _PEOPLE),

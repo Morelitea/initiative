@@ -3,7 +3,7 @@ member token that follows.
 
 An app asks on its installation token (``POST /app-platform/consent-requests``)
 for one purpose; the member is notified and answers on their consent screen
-(``/c/{guild_id}/apps/{app_id}/consents/{consent_id}``); the app then presents
+(``/c/{community_id}/apps/{app_id}/consents/{consent_id}``); the app then presents
 a JWT-bearer assertion at the token endpoint and is issued a member token only
 while that answer stands. The token's reach is the install standing's member branch
 (``app/db/member_standing_test.py``); here the probe route reads through it.
@@ -30,7 +30,7 @@ from app.core.app_access_token import (
 from app.core.messages import AppMessages, AuthMessages, GuildAppMessages
 from app.db.guild_standing import InstallContext
 from app.main import app
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.platform.notification import Notification, NotificationType
 from app.models.tenant.document import Document
 from app.models.tenant.initiative import InitiativeMember
@@ -48,7 +48,7 @@ CONSENT_URL = "/api/v1/app-platform/consent-requests"
 TOKEN_URL = "/api/v1/app-platform/oauth/token"
 JWT_BEARER = "urn:ietf:params:oauth:grant-type:jwt-bearer"
 
-_PROBE_PATH = "/api/v1/c/{guild_id}/member-token-probe/documents"
+_PROBE_PATH = "/api/v1/c/{community_id}/member-token-probe/documents"
 _read_documents = app_scope("documents:read")
 _probe = APIRouter(route_class=ActorRoute)
 
@@ -92,7 +92,7 @@ def _installation_token(installed: InstalledApp, **overrides) -> str:
 
 async def _member(acting_user, installed: InstalledApp):
     return await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=installed.guild,
         initiative=installed.placed,
         initiative_role="member",
@@ -257,7 +257,7 @@ async def test_a_request_bound_to_an_initiative_names_a_member_of_it(
     installed = await install_app(
         session, acting_user, role_session, granted=["documents:read"]
     )
-    outsider = await acting_user(guild_role=GuildRole.member, guild=installed.guild)
+    outsider = await acting_user(guild_role=CommunityRole.member, guild=installed.guild)
     outsider_ref = await _ref(installed, outsider.user.id)
 
     bound = await _ask(
@@ -433,7 +433,7 @@ async def test_a_member_token_waits_for_the_answer(
     assert (token.user_id, token.purpose) == (member.user.id, "node-1")
 
     read = await client.get(
-        _PROBE_PATH.format(guild_id=installed.guild.id),
+        _PROBE_PATH.format(community_id=installed.guild.id),
         headers=_bearer(issued.json()["access_token"]),
     )
     assert read.status_code == 200, read.text
@@ -533,7 +533,7 @@ async def test_leaving_the_initiative_or_revoking_stops_the_member_token(
     resource = f"urn:initiative:initiative:{installed.placed.id}"
     issued = await _grant_token(client, installed, member_ref, resource=resource)
     token = issued.json()["access_token"]
-    url = _PROBE_PATH.format(guild_id=installed.guild.id)
+    url = _PROBE_PATH.format(community_id=installed.guild.id)
 
     assert (await client.get(url, headers=_bearer(token))).json()["documents"] == [
         "Theirs"

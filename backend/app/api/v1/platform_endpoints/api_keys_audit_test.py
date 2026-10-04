@@ -11,7 +11,7 @@ from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.audit_events import AuditEventType
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.testing import emitted
 from app.testing.factories import (
     create_guild,
@@ -39,7 +39,7 @@ async def test_minting_and_dropping_a_key_are_both_recorded(
     capfd.readouterr()
 
     minted = await client.post(
-        "/api/v1/users/me/api-keys", headers=headers, json={"name": "laptop"}
+        "/api/v1/me/api-keys", headers=headers, json={"name": "laptop"}
     )
     assert minted.status_code == 201, minted.text
     key_id = minted.json()["api_key"]["id"]
@@ -56,9 +56,7 @@ async def test_minting_and_dropping_a_key_are_both_recorded(
     # What the key is called is the account's business, not the log's.
     assert "name" not in created[0]["detail"]
 
-    dropped = await client.delete(
-        f"/api/v1/users/me/api-keys/{key_id}", headers=headers
-    )
+    dropped = await client.delete(f"/api/v1/me/api-keys/{key_id}", headers=headers)
     assert dropped.status_code == 204, dropped.text
 
     deleted = emitted(capfd, AuditEventType.API_KEY_DELETED)
@@ -75,14 +73,14 @@ async def test_a_key_bound_to_one_community_records_which(
     guild = await create_guild(session)
     guild_id = guild.id
     await create_guild_membership(
-        session, user=user, guild=guild, role=GuildRole.member
+        session, user=user, guild=guild, role=CommunityRole.member
     )
     capfd.readouterr()
 
     minted = await client.post(
-        "/api/v1/users/me/api-keys",
+        "/api/v1/me/api-keys",
         headers=get_auth_headers(user),
-        json={"name": "ci", "guild_id": guild_id, "read_only": True},
+        json={"name": "ci", "community_id": guild_id, "read_only": True},
     )
     assert minted.status_code == 201, minted.text
     key_id = minted.json()["api_key"]["id"]
@@ -105,7 +103,7 @@ async def test_dropping_a_key_that_is_not_yours_records_nothing(
     other = await create_user(session)
 
     minted = await client.post(
-        "/api/v1/users/me/api-keys",
+        "/api/v1/me/api-keys",
         headers=get_auth_headers(owner),
         json={"name": "laptop"},
     )
@@ -114,7 +112,7 @@ async def test_dropping_a_key_that_is_not_yours_records_nothing(
     capfd.readouterr()
 
     refused = await client.delete(
-        f"/api/v1/users/me/api-keys/{key_id}", headers=get_auth_headers(other)
+        f"/api/v1/me/api-keys/{key_id}", headers=get_auth_headers(other)
     )
     assert refused.status_code == 404
     assert emitted(capfd, AuditEventType.API_KEY_DELETED) == []

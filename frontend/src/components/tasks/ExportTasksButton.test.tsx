@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { HttpResponse } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 import type { ExportJobRead } from "@/api/generated/initiativeAPI.schemas";
@@ -11,19 +11,19 @@ import type { ExportJobRead } from "@/api/generated/initiativeAPI.schemas";
 import { ExportTasksButton } from "./ExportTasksButton";
 
 vi.mock("@/lib/csv", () => ({ downloadBlob: vi.fn() }));
-vi.mock("@/lib/chesterToast", () => ({
+vi.mock("@/lib/mascotToast", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 
-import { toast } from "@/lib/chesterToast";
 import { downloadBlob } from "@/lib/csv";
+import { toast } from "@/lib/mascotToast";
 import { getItem, setItem } from "@/lib/storage";
 
 const PDF = new Uint8Array([0x25, 0x50, 0x44, 0x46]); // "%PDF"
 
 const buildJob = (overrides: Partial<ExportJobRead> = {}): ExportJobRead => ({
   id: 7,
-  guild_id: 1,
+  community_id: 1,
   created_by: 1,
   source: "tasks",
   template_id: "task-table",
@@ -48,7 +48,7 @@ describe("ExportTasksButton", () => {
   });
 
   it("downloads the PDF directly on an inline (200) export", async () => {
-    server.use(guildHttp.get("/exports/tasks", () => pdfResponse()));
+    server.use(communityHttp.get("/exports/tasks", () => pdfResponse()));
     renderWithProviders(<ExportTasksButton params={{ conditions: [] }} />);
 
     await userEvent.click(screen.getByRole("button", { name: /export/i }));
@@ -62,9 +62,11 @@ describe("ExportTasksButton", () => {
 
   it("polls a queued (202) job and downloads when it finishes", async () => {
     server.use(
-      guildHttp.get("/exports/tasks", () => HttpResponse.json(buildJob(), { status: 202 })),
-      guildHttp.get("/exports/:jobId", () => HttpResponse.json(buildJob({ status: "done" }))),
-      guildHttp.get("/exports/:jobId/download", () => pdfResponse())
+      communityHttp.get("/exports/tasks", () => HttpResponse.json(buildJob(), { status: 202 })),
+      communityHttp.get("/exports/jobs/:jobId", () =>
+        HttpResponse.json(buildJob({ status: "done" }))
+      ),
+      communityHttp.get("/exports/jobs/:jobId/download", () => pdfResponse())
     );
     renderWithProviders(<ExportTasksButton params={{ conditions: [] }} />);
 
@@ -77,8 +79,8 @@ describe("ExportTasksButton", () => {
 
   it("surfaces a failed job as an error toast, without downloading", async () => {
     server.use(
-      guildHttp.get("/exports/tasks", () => HttpResponse.json(buildJob(), { status: 202 })),
-      guildHttp.get("/exports/:jobId", () =>
+      communityHttp.get("/exports/tasks", () => HttpResponse.json(buildJob(), { status: 202 })),
+      communityHttp.get("/exports/jobs/:jobId", () =>
         HttpResponse.json(buildJob({ status: "failed", error: "EXPORT_RENDER_FAILED" }))
       )
     );
@@ -95,7 +97,7 @@ describe("ExportTasksButton", () => {
     let sentConditions: unknown = null;
     let sentFormat: string | null = null;
     server.use(
-      guildHttp.get("/exports/tasks", ({ request }) => {
+      communityHttp.get("/exports/tasks", ({ request }) => {
         const url = new URL(request.url);
         const raw = url.searchParams.get("conditions");
         sentConditions = raw ? JSON.parse(raw) : null;
@@ -122,7 +124,7 @@ describe("ExportTasksButton", () => {
   it("sends layout=checklist for the Markdown task list entry", async () => {
     let sent: { format: string | null; layout: string | null } | null = null;
     server.use(
-      guildHttp.get("/exports/tasks", ({ request }) => {
+      communityHttp.get("/exports/tasks", ({ request }) => {
         const url = new URL(request.url);
         sent = {
           format: url.searchParams.get("format"),
@@ -144,7 +146,7 @@ describe("ExportTasksButton", () => {
   it("sends format=pdf&layout=detailed for the detailed PDF entry", async () => {
     let sent: { format: string | null; layout: string | null } | null = null;
     server.use(
-      guildHttp.get("/exports/tasks", ({ request }) => {
+      communityHttp.get("/exports/tasks", ({ request }) => {
         const url = new URL(request.url);
         sent = {
           format: url.searchParams.get("format"),
@@ -166,10 +168,10 @@ describe("ExportTasksButton", () => {
   it("resumes a pending job from storage on mount and downloads it", async () => {
     setItem("exports:pending:1", "9");
     server.use(
-      guildHttp.get("/exports/:jobId", () =>
+      communityHttp.get("/exports/jobs/:jobId", () =>
         HttpResponse.json(buildJob({ id: 9, status: "done" }))
       ),
-      guildHttp.get("/exports/:jobId/download", () => pdfResponse())
+      communityHttp.get("/exports/jobs/:jobId/download", () => pdfResponse())
     );
     renderWithProviders(<ExportTasksButton params={{ conditions: [] }} resumePending />);
 
@@ -180,12 +182,12 @@ describe("ExportTasksButton", () => {
   });
 
   it("does not adopt a stored pending job without resumePending", async () => {
-    // Two instances share the guild's pending key (toolbar + Export
+    // Two instances share the community's pending key (toolbar + Export
     // Selected); only the designated adopter may resume, or a job in flight
     // when the second instance mounts would download twice.
     setItem("exports:pending:1", "9");
     const jobPoll = vi.fn(() => HttpResponse.json(buildJob({ id: 9, status: "done" })));
-    server.use(guildHttp.get("/exports/:jobId", jobPoll));
+    server.use(communityHttp.get("/exports/jobs/:jobId", jobPoll));
     renderWithProviders(<ExportTasksButton params={{ conditions: [] }} />);
 
     await new Promise((resolve) => setTimeout(resolve, 50));
@@ -196,7 +198,7 @@ describe("ExportTasksButton", () => {
 
   it("shows a localized error for a rejected export (too large)", async () => {
     server.use(
-      guildHttp.get("/exports/tasks", () =>
+      communityHttp.get("/exports/tasks", () =>
         HttpResponse.json({ detail: "EXPORT_TOO_LARGE" }, { status: 400 })
       )
     );

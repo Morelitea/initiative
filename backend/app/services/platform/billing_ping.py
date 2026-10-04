@@ -84,7 +84,9 @@ def _build_ping(ping_path: str, guild_ref: str) -> tuple[str, bytes, dict[str, s
     billing's verifier will see, so a base URL with a path prefix still signs
     correctly.
     """
-    return _signed_post(ping_path, {"guild_ref": guild_ref, "event_id": uuid4().hex})
+    return _signed_post(
+        ping_path, {"community_ref": guild_ref, "event_id": uuid4().hex}
+    )
 
 
 def _signed_post(route: str, payload: dict) -> tuple[str, bytes, dict[str, str]]:
@@ -170,7 +172,7 @@ def notify_lifecycle_changed(guild_id: int) -> None:
 
 
 def build_payment_issue_query(guild_ref: str) -> tuple[str, bytes, dict[str, str]]:
-    return _signed_post(PAYMENT_ISSUE_PATH, {"guild_ref": guild_ref})
+    return _signed_post(PAYMENT_ISSUE_PATH, {"community_ref": guild_ref})
 
 
 async def guild_payment_failed(guild_id: int) -> bool:
@@ -234,7 +236,7 @@ class PlanSummary(BaseModel):
 
 
 def build_plan_summary_query(guild_ref: str) -> tuple[str, bytes, dict[str, str]]:
-    return _signed_post(PLAN_SUMMARY_PATH, {"guild_ref": guild_ref})
+    return _signed_post(PLAN_SUMMARY_PATH, {"community_ref": guild_ref})
 
 
 async def guild_plan_summary(guild_id: int) -> PlanSummary | None:

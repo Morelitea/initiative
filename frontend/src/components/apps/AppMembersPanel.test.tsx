@@ -12,20 +12,20 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { buildPage } from "@/__tests__/factories";
 import { renderPage } from "@/__tests__/helpers/render";
 import {
+  type CommunityAppMemberConsent,
   ConsentAccess,
   ConsentStatus,
-  type GuildAppMemberConsent,
 } from "@/api/generated/initiativeAPI.schemas";
 
 import { AppMembersPanel } from "./AppMembersPanel";
 
 const revokeMember = vi.fn();
 const revokeAll = vi.fn();
-let consents: GuildAppMemberConsent[] = [];
+let consents: CommunityAppMemberConsent[] = [];
 
-vi.mock("@/hooks/useGuildAppDetail", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/hooks/useGuildAppDetail")>()),
-  useGuildAppMembers: () => ({
+vi.mock("@/hooks/useCommunityAppDetail", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/hooks/useCommunityAppDetail")>()),
+  useCommunityAppMembers: () => ({
     isLoading: false,
     data: {
       ...buildPage([]),
@@ -51,14 +51,16 @@ vi.mock("@/hooks/useUsers", () => ({
   useUserSearch: () => ({
     data: {
       items: [
-        { id: 5, full_name: "Ada" },
-        { id: 6, full_name: "Grace" },
+        { id: 5, display_name: "Ada" },
+        { id: 6, display_name: "Grace" },
       ],
     },
   }),
 }));
 
-const consent = (overrides: Partial<GuildAppMemberConsent> = {}): GuildAppMemberConsent => ({
+const consent = (
+  overrides: Partial<CommunityAppMemberConsent> = {}
+): CommunityAppMemberConsent => ({
   id: 1,
   user_id: 5,
   purpose: "node-1",

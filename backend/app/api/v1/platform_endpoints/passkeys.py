@@ -23,6 +23,7 @@ from urllib.parse import urlencode
 
 import webauthn
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from webauthn.helpers import bytes_to_base64url
 from webauthn.helpers.exceptions import WebAuthnException
@@ -32,6 +33,12 @@ from app.api.deps import (
     require_first_party_session,
     SystemSessionDep,
     CurrentUser,
+)
+from app.api.v1.platform_endpoints.change_assessment import is_risky
+from app.api.v1.platform_endpoints.held_changes import (
+    HELD_OUTCOME,
+    held_response,
+    hold_change,
 )
 from app.api.v1.platform_endpoints.password_recheck import (
     password_confirms,
@@ -46,11 +53,12 @@ from app.api.v1.platform_endpoints.session_opening import (
     upgrade_session,
 )
 from app.core.audit_events import AuditEventType
+from app.core.user_display import handle_of
 from app.core.login_methods import LoginMethod
 from app.core.messages import AuthMessages, NativeMessages
-from app.core.transitions import NATIVE_SIGN_IN_CODE
-from app.core.rate_limit import get_user_or_ip_key, limiter
+from app.core.rate_limit import limiter
 from app.db.session import get_session
+from app.models.platform.account_change_hold import HeldChangeKind
 from app.models.platform.user import SIGN_IN_STATUSES, User
 from app.models.platform.user_passkey import UserPasskey
 from app.schemas.platform.passkey import (
@@ -68,17 +76,16 @@ from app.schemas.platform.passkey import (
     PasskeyStepUpFinish,
 )
 from app.schemas.platform.token import Token
+from app.schemas.platform.user import HeldChangeOutcome
 from app.services import audit as audit_service
 from app.services import email as email_service
-from app.services.auth import addresses
+from app.services.auth import account_changes, addresses, held_changes
 from app.services.auth import challenges as challenge_service
 from app.services.auth import native_handoff
 from app.services.auth import identity as identity_service
 from app.services.auth import passkeys as passkey_service
 from app.services.auth.assurance import passkey_amr
-from app.services.platform import app_settings as app_settings_service
 from app.services.platform import auth_posture
-from app.services.platform import user_tokens
 
 logger = logging.getLogger(__name__)
 
@@ -190,7 +197,7 @@ async def list_passkeys(
 
 
 @router.post("/passkeys/register/begin", response_model=PasskeyRegistrationOptions)
-@limiter.limit("10/15minutes", key_func=get_user_or_ip_key)
+@limiter.limit("10/15minutes")
 async def begin_passkey_registration(
     request: Request,
     current_user: FactorExemptUser,
@@ -222,14 +229,13 @@ async def begin_passkey_registration(
         await addresses.primary_address(system_session, user_id=current_user.id)
         or current_user.username
     )
-    display_name = current_user.full_name or current_user.username
 
     try:
         ceremony = await passkey_service.begin_registration(
             system_session,
             user_id=current_user.id,
             account_name=account_name,
-            display_name=display_name,
+            display_name=handle_of(current_user),
         )
     except passkey_service.PasskeyLimitReached:
         raise _limit_reached() from None
@@ -252,7 +258,7 @@ async def begin_passkey_registration(
     response_model=PasskeyRead,
     status_code=status.HTTP_201_CREATED,
 )
-@limiter.limit("10/15minutes", key_func=get_user_or_ip_key)
+@limiter.limit("10/15minutes")
 async def finish_passkey_registration(
     request: Request,
     current_user: FactorExemptUser,
@@ -309,6 +315,7 @@ async def finish_passkey_registration(
         raise _registration_invalid()
 
     read = _read(row)
+    risky = await is_risky(request, system_session, current_user)
     await audit_service.record(
         system_session,
         event_type=AuditEventType.AUTH_PASSKEY_REGISTERED,
@@ -321,13 +328,23 @@ async def finish_passkey_registration(
     )
     await system_session.commit()
     await email_service.announce_passkey_change(
-        system_session, current_user, added=True, name=read.name
+        system_session,
+        current_user,
+        added=True,
+        name=read.name,
+        record=await account_changes.change_record(
+            system_session,
+            user_id=current_user.id,
+            risky=risky,
+            undo={"kind": "passkey", "passkey_id": str(read.id)},
+            any_address=True,
+        ),
     )
     return read
 
 
 @router.patch("/passkeys/{passkey_id}", response_model=PasskeyRead)
-@limiter.limit("30/15minutes", key_func=get_user_or_ip_key)
+@limiter.limit("30/15minutes")
 async def rename_passkey(
     request: Request,
     passkey_id: uuid.UUID,
@@ -353,8 +370,12 @@ async def rename_passkey(
     return read
 
 
-@router.post("/passkeys/{passkey_id}/remove", status_code=status.HTTP_204_NO_CONTENT)
-@limiter.limit("10/15minutes", key_func=get_user_or_ip_key)
+@router.post(
+    "/passkeys/{passkey_id}/remove",
+    response_model=HeldChangeOutcome,
+    responses=HELD_OUTCOME,
+)
+@limiter.limit("10/15minutes")
 async def remove_passkey(
     request: Request,
     passkey_id: uuid.UUID,
@@ -362,9 +383,11 @@ async def remove_passkey(
     system_session: SystemSessionDep,
     payload: PasskeyRemove,
     _first_party: str = FirstPartyOnly,
-) -> None:
+) -> HeldChangeOutcome | JSONResponse:
     """Forget the credential. The password is asked for again, as it is for a
-    password change, because a way in is being taken away."""
+    password change, because a way in is being taken away. The account's last
+    passkey, removed from somewhere the account does not yet know, waits two
+    days (``202``)."""
     await require_password_or_recent_proof(
         request, system_session, current_user, payload.current_password
     )
@@ -374,41 +397,42 @@ async def remove_passkey(
     # Where it is the whole of that, it stays. A deployment that has withdrawn
     # passkeys leaves such an account with nothing at all, which is the same
     # answer.
-    ways = await identity_service.ways_in(system_session, user_id=current_user.id)
-    if not (ways - {LoginMethod.passkey}) and (
-        await passkey_service.count_for_user(system_session, user_id=current_user.id)
-        == 1
+    if await identity_service.passkey_is_last_way_in(
+        system_session, user_id=current_user.id
     ):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=AuthMessages.PASSKEY_IS_LAST_METHOD,
         )
 
-    # Read the name while the row is still there, so the letter can say which
-    # credential went.
     existing = await system_session.get(UserPasskey, passkey_id)
-    name = existing.name if existing is not None else ""
-
-    if not await passkey_service.remove(
-        system_session, user_id=current_user.id, passkey_id=passkey_id
+    if (
+        existing is not None
+        and existing.user_id == current_user.id
+        and await passkey_service.count_for_user(
+            system_session, user_id=current_user.id
+        )
+        == 1
+        and await is_risky(request, system_session, current_user)
+    ):
+        held = await hold_change(
+            request,
+            system_session,
+            current_user,
+            kind=HeldChangeKind.last_passkey,
+            passkey_id=passkey_id,
+        )
+        return held_response(HeldChangeOutcome(held=held))
+    # Sessions are left alone: the person is where they are and has just
+    # proved it.
+    if not await held_changes.remove_passkey(
+        system_session, current_user, passkey_id=passkey_id
     ):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=AuthMessages.PASSKEY_NOT_FOUND,
         )
-
-    await audit_service.record(
-        system_session,
-        event_type=AuditEventType.AUTH_PASSKEY_REMOVED,
-        actor_user_id=current_user.id,
-        detail={"passkey_id": str(passkey_id)},
-    )
-    # Sessions are left alone: the person is where they are and has just
-    # proved it.
-    await system_session.commit()
-    await email_service.announce_passkey_change(
-        system_session, current_user, added=False, name=name
-    )
+    return HeldChangeOutcome()
 
 
 @router.post(
@@ -416,7 +440,6 @@ async def remove_passkey(
 )
 # Every load of a sign-in page on a browser that offers a passkey in its
 # autofill spends one of these, so the ceiling is well above the button's.
-@limiter.limit("60/15minutes")
 async def begin_passkey_sign_in(
     request: Request,
     session: SessionDep,
@@ -445,7 +468,6 @@ async def begin_passkey_sign_in(
 
 
 @router.post("/passkeys/authenticate/finish", response_model=PasskeySignInResult)
-@limiter.limit("10/15minutes")
 async def finish_passkey_sign_in(
     request: Request,
     response: Response,
@@ -561,37 +583,13 @@ async def finish_passkey_sign_in(
             redirect_to=f"{MOBILE_CALLBACK_URI}?{urlencode({'code': code})}"
         )
     if payload.mobile:
-        # An app bundle from before the code flow began this sign-in.
-        if await app_settings_service.transition_over(
-            system_session, NATIVE_SIGN_IN_CODE
-        ):
-            await system_session.rollback()
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=NativeMessages.APP_UPDATE_REQUIRED,
-            )
-        device_name = payload.device_name.strip() or _DEFAULT_DEVICE_NAME
-        device_token = await user_tokens.create_device_token(
-            system_session,
-            user_id=user_id,
-            device_name=device_name,
-            # What this ceremony proved, kept for the exchange the app makes
-            # next: the relay is a sign-in that hands back a token instead of
-            # a session, and the session is opened a moment later.
-            amr=passkey_amr(backed_up=backed_up),
-            commit=False,
+        # An app bundle from before the code flow began this sign-in. It can
+        # only be handed a session through the code, so it is asked to update.
+        await system_session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=NativeMessages.APP_UPDATE_REQUIRED,
         )
-        await audit_service.record(
-            system_session,
-            event_type=AuditEventType.AUTH_DEVICE_TOKEN_ISSUED,
-            actor_user_id=user_id,
-            detail={"method": "passkey", "device_name": device_name},
-        )
-        # One commit for the token, the record, the spent challenge and the
-        # credential's counter.
-        await system_session.commit()
-        redirect = urlencode({"token": device_token, "token_type": "device_token"})
-        return PasskeySignInResult(redirect_to=f"{MOBILE_CALLBACK_URI}?{redirect}")
 
     # The spent challenge and the credential's counter commit with the session.
     token = await open_session(

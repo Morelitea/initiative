@@ -19,6 +19,12 @@ const mocks = vi.hoisted(() => ({
   messageRequests: vi.fn(),
   pending: vi.fn(),
   dmEnabled: vi.fn(),
+  hasTickets: vi.fn(),
+}));
+
+vi.mock("@/hooks/useTickets", async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  useHasFiledTickets: () => mocks.hasTickets(),
 }));
 
 vi.mock("@/hooks/useMyMessages", async (importOriginal) => ({
@@ -55,9 +61,23 @@ beforeEach(() => {
   mocks.messageRequests.mockReturnValue({ data: { accepted: [], incoming: [], outgoing: [] } });
   mocks.pending.mockReturnValue(0);
   mocks.dmEnabled.mockReturnValue(true);
+  mocks.hasTickets.mockReturnValue(false);
 });
 
 describe("the home sidebar", () => {
+  it("offers My Tickets only to somebody who has filed one", async () => {
+    setup("/");
+    expect(await screen.findByText("My Tasks")).toBeInTheDocument();
+    expect(screen.queryByText("My Tickets")).toBeNull();
+  });
+
+  it("leads to the tickets somebody filed", async () => {
+    mocks.hasTickets.mockReturnValue(true);
+    setup("/");
+    const item = await screen.findByRole("link", { name: "My Tickets" });
+    expect(item).toHaveAttribute("href", "/my-tickets");
+  });
+
   it("shows the navigation away from My Messages", async () => {
     setup("/");
 

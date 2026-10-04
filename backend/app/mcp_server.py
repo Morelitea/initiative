@@ -94,21 +94,23 @@ READ_TAGS = (
 _ID = r"\{[^}]+\}"
 
 
-def _create_and_edit(segment: str) -> list[RouteMap]:
+def _create_and_edit(created_at: str, edited_at: str) -> list[RouteMap]:
     """The two route shapes that author and edit one kind of thing.
 
-    ``POST /<segment>`` creates and ``PATCH /<segment>/{id}`` edits. Both are
-    anchored at the end, so a suffixed route on the same collection — an
+    ``POST /<created_at>`` creates and ``PATCH /<edited_at>/{id}`` edits. Both
+    are anchored at the end, so a suffixed route on the same collection — an
     ``/archive``, a ``/grants``, a ``/properties``, a ``/reorder`` — matches
     neither and stays excluded.
     """
     return [
         RouteMap(
-            methods=["POST"], pattern=r".*/" + segment + r"/?$", mcp_type=MCPType.TOOL
+            methods=["POST"],
+            pattern=r".*/" + created_at + r"/?$",
+            mcp_type=MCPType.TOOL,
         ),
         RouteMap(
             methods=["PATCH"],
-            pattern=r".*/" + segment + "/" + _ID + "$",
+            pattern=r".*/" + edited_at + "/" + _ID + "$",
             mcp_type=MCPType.TOOL,
         ),
     ]
@@ -116,18 +118,19 @@ def _create_and_edit(segment: str) -> list[RouteMap]:
 
 _WRITABLE_SEGMENTS = (
     # Every tool an initiative holds, addressed by its own path segment.
-    *(tool.route_segment for tool in Tool),
+    *((tool.route_segment, tool.route_segment) for tool in Tool),
     # And what those tools hold in turn: a project's tasks, a calendar's
     # events, a queue's items, a counter group's counters, a wiki's pages. Not
     # derivable from the enum — each names its parent differently — so each is
-    # spelled out.
-    "tasks",
-    "calendar-events",
-    "queues/" + _ID + "/items",
-    "counter-groups/" + _ID + "/counters",
-    "wikis/" + _ID + "/pages",
+    # spelled out. Tasks and events name their parent in the body; the other
+    # three are added under it, and edited at their own id like the rest.
+    ("tasks", "tasks"),
+    ("calendar-events", "calendar-events"),
+    ("queues/" + _ID + "/items", "queue-items"),
+    ("counter-groups/" + _ID + "/counters", "counters"),
+    ("wikis/" + _ID + "/pages", "wiki-pages"),
     # The comment surface every tool shares.
-    "comments",
+    ("comments", "comments"),
 )
 
 # Two writes that ``create``/``edit`` doesn't reach, added by hand:
@@ -164,7 +167,7 @@ _EXTRA_WRITE_ROUTE_MAPS = [
 ]
 
 _WRITE_ROUTE_MAPS = [
-    *(m for segment in _WRITABLE_SEGMENTS for m in _create_and_edit(segment)),
+    *(m for segments in _WRITABLE_SEGMENTS for m in _create_and_edit(*segments)),
     *_EXTRA_WRITE_ROUTE_MAPS,
 ]
 
@@ -376,9 +379,9 @@ async def _forward_authorization(request: httpx.Request) -> None:
 
 
 # The list endpoints take ``conditions``/``sorting`` as a JSON *string* query
-# param, but ``main._inject_query_schemas`` retypes them to arrays-of-objects in
-# the OpenAPI so the frontend's axios serializer JSON-encodes them. The MCP
-# request builder doesn't do that JSON-encoding: handed an array argument it
+# param, which ``main._inject_query_schemas`` publishes as its decoded array
+# type under ``content: application/json``. The MCP request builder reads that
+# type but doesn't JSON-encode the value: handed an array argument it
 # serializes each item with Python ``str()`` (single-quoted, e.g.
 # ``{'field': 'due_date'}``), which the backend's ``json.loads`` rejects — every
 # filtered/sorted list call 400s. Presenting the param to the model as a plain

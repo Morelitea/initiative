@@ -1,15 +1,15 @@
 import { useParams, useRouter, useSearch } from "@tanstack/react-router";
 import { format } from "date-fns";
-import { Plus, Upload } from "lucide-react";
+import { FileDown, Loader2, Plus, Upload } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type {
   CalendarSummary,
-  ExportEventsApiV1CGuildIdExportsEventsGetParams,
+  ExportEventsParams,
   FilterCondition,
   FilterGroup,
-  ListCalendarEntriesApiV1CGuildIdCalendarEntriesGetParams,
+  ListCalendarEntriesParams,
   TaskPriority,
   TaskStatusCategory,
 } from "@/api/generated/initiativeAPI.schemas";
@@ -20,6 +20,7 @@ import {
   buildTaskCalendarEntries,
   buildTaskOccurrenceEntries,
   CALENDAR_VIEW_MODE_KEY,
+  CALENDAR_VIEW_OPTIONS,
   type CalendarEntry,
   type CalendarEntryReschedule,
   CalendarView,
@@ -31,10 +32,9 @@ import {
 } from "@/components/calendar";
 import { ToolCommentsPanel } from "@/components/comments/ToolCommentsPanel";
 import { ToolRelationsPanel } from "@/components/entities/ToolRelationsPanel";
-import { ExportButton, type ExportFormatOption } from "@/components/exports/ExportButton";
 import { useToolImportAction } from "@/components/imports/ToolImportAction";
 import {
-  CalendarPanelDropdown,
+  CalendarPicker,
   type ProjectTaskCalendar,
 } from "@/components/initiativeTools/events/CalendarListPanel";
 import { CreateCalendarDialog } from "@/components/initiativeTools/events/CreateCalendarDialog";
@@ -56,7 +56,9 @@ import {
   CardGridSkeleton,
   SkeletonRegion,
 } from "@/components/skeletons/PageSkeletons";
+import { ToolPageHeader } from "@/components/tools/ToolPageHeader";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   DateRangeField,
   dateRangeBounds,
@@ -67,21 +69,25 @@ import {
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
 import { MultiSelect } from "@/components/ui/multi-select";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
+import { Switch } from "@/components/ui/switch";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { useAuth } from "@/hooks/useAuth";
 import { useCalendarEntries } from "@/hooks/useCalendarEntries";
 import { useRescheduleCalendarEvent } from "@/hooks/useCalendarEvents";
 import { useCalendar, useCalendarsList } from "@/hooks/useCalendars";
+import { useCommunities } from "@/hooks/useCommunities";
 import { useCreateFromSearchParam } from "@/hooks/useCreateFromSearchParam";
-import { useGuilds } from "@/hooks/useGuilds";
+import { useExportJob } from "@/hooks/useExportJob";
 import { useToolCreateAccess } from "@/hooks/useInitiativeAccess";
+import { useInitiative } from "@/hooks/useInitiatives";
 import { useReadOnOpen } from "@/hooks/useNotifications";
 import { useProjects } from "@/hooks/useProjects";
 import { useRecordRecentView } from "@/hooks/useRecents";
 import { useUpdateTask } from "@/hooks/useTasks";
 import { useUnreadTree } from "@/hooks/useUnreadTree";
 import { useViewPreference } from "@/hooks/useViewPreference";
-import { useGuildPath } from "@/lib/guildUrl";
+import { useCommunityPath } from "@/lib/communityUrl";
+import { getErrorMessage } from "@/lib/errorMessage";
 import { getProjectColor } from "@/lib/projectColor";
 import { PRIORITY_ORDER } from "@/lib/sorting";
 import { getItem, setItem } from "@/lib/storage";
@@ -89,7 +95,6 @@ import { eventRoute, taskRoute, toolSettingsRoute, toolViewParams } from "@/lib/
 
 const STORAGE_KEY = "initiative-calendars-prefs";
 const VISIBILITY_KEY = "initiative-calendar-visibility";
-const ICS_FORMATS: ExportFormatOption[] = [{ format: "ics", labelKey: "export.formatIcs" }];
 
 const STATUS_CATEGORIES: TaskStatusCategory[] = ["backlog", "todo", "in_progress", "done"];
 
@@ -100,7 +105,7 @@ interface StoredPrefs {
 }
 
 const PREFS_DEFAULTS: StoredPrefs = {
-  statusFilters: [], // Don't apply default status filters - they're custom per guild
+  statusFilters: [], // Don't apply default status filters - they're custom per community
   priorityFilters: [],
   propertyFilters: [],
 };
@@ -132,16 +137,16 @@ type CalendarsViewProps = {
   /** Focus a single calendar (the /calendars/$calendarId route): it is forced
    * visible so the deep link always shows its events. */
   focusCalendarId?: number;
-  /** A guild calendar rendered as its own whole surface — a deep link to one
-   * of them. Guild apps show guild-level content only, so this mode shows
+  /** A community calendar rendered as its own whole surface — a deep link to one
+   * of them. Community apps show community-level content only, so this mode shows
    * exactly this calendar's events: no tasks, no projects, no other calendars,
    * no initiative-flavored filters. */
   soloCalendar?: CalendarSummary;
-  /** The calendar app's own surface: every guild calendar this reader may see,
-   * overlaid. Guild-level content only, like {@link soloCalendar} — but the
+  /** The calendar app's own surface: every community calendar this reader may see,
+   * overlaid. Community-level content only, like {@link soloCalendar} — but the
    * app holds many calendars, so this one keeps the calendar list panel and
    * the create seam. */
-  guildScope?: boolean;
+  communityScope?: boolean;
 };
 
 export const CalendarsView = ({
@@ -149,13 +154,13 @@ export const CalendarsView = ({
   canCreate,
   focusCalendarId,
   soloCalendar,
-  guildScope = false,
+  communityScope = false,
 }: CalendarsViewProps) => {
-  const { t } = useTranslation(["calendars", "tasks", "common", "access"]);
+  const { t } = useTranslation(["calendars", "tasks", "common", "access", "exports"]);
   const router = useRouter();
   const { user } = useAuth();
-  const gp = useGuildPath();
-  const guildId = useActiveGuildId();
+  const gp = useCommunityPath();
+  const communityId = useActiveCommunityId();
   const searchParams = useSearch({ strict: false }) as {
     create?: string;
   };
@@ -168,18 +173,20 @@ export const CalendarsView = ({
   const weekStartsOn = (user?.week_starts_on ?? 0) as 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
   const solo = soloCalendar != null;
-  // Both guild surfaces show guild-level content only. What separates them is
+  // Both community surfaces show community-level content only. What separates them is
   // how many calendars are in view, not what kind of thing is.
-  const guildOnly = solo || guildScope;
+  const communityOnly = solo || communityScope;
   // Set only by the initiative page's tool tabs — the deep-link surfaces
   // resolve their initiative from the URL instead.
   const isInitiativeTab = fixedInitiativeId != null;
 
-  // Resolve initiative from prop or URL param. A guild calendar belongs to no
+  // Resolve initiative from prop or URL param. A community calendar belongs to no
   // initiative, so none applies.
-  const initiativeId = guildOnly
+  const initiativeId = communityOnly
     ? null
     : (fixedInitiativeId ?? (initiativeIdParam ? Number(initiativeIdParam) : null));
+  // Nothing is exported from an initiative that keeps its content in.
+  const keepsContentIn = Boolean(useInitiative(initiativeId).data?.keep_content_in);
 
   const searchParamsRef = useRef(searchParams);
   searchParamsRef.current = searchParams;
@@ -211,14 +218,14 @@ export const CalendarsView = ({
   // longer take the top of the page before the list itself.
   const [filtersOpen, setFiltersOpen] = useState(false);
 
-  // Per-calendar / per-project visibility, kept per guild.
-  const visibility = useCalendarVisibility(`${VISIBILITY_KEY}:${guildId}`);
-  const { showCalendar } = visibility;
+  // Per-calendar / per-project visibility, kept per community.
+  const visibility = useCalendarVisibility(`${VISIBILITY_KEY}:${communityId}`);
+  const { showCalendar, tasksHidden } = visibility;
 
   // A deep-linked calendar is always shown, whatever the stored toggles say.
   useEffect(() => {
-    if (focusCalendarId !== undefined) showCalendar(guildId, focusCalendarId);
-  }, [focusCalendarId, guildId, showCalendar]);
+    if (focusCalendarId !== undefined) showCalendar(communityId, focusCalendarId);
+  }, [focusCalendarId, communityId, showCalendar]);
 
   // Persist preferences
   useEffect(() => {
@@ -256,7 +263,7 @@ export const CalendarsView = ({
   const taskConditions = useMemo((): (FilterCondition | FilterGroup)[] => {
     const conditions: (FilterCondition | FilterGroup)[] = [];
 
-    // If initiativeId is specified, filter by that initiative; otherwise show all guild tasks
+    // If initiativeId is specified, filter by that initiative; otherwise show all community tasks
     if (initiativeId) {
       conditions.push({ field: "initiative_ids", op: "in_", value: [initiativeId] });
     }
@@ -284,11 +291,11 @@ export const CalendarsView = ({
   }, [initiativeId, statusFilters, priorityFilters, propertyFilters]);
 
   // The real calendars backing the list panel, colors, and the create seams.
-  // Asked for before the entries, because on a guild surface they are what
+  // Asked for before the entries, because on a community surface they are what
   // names the entries to fetch.
   const calendarsQuery = useCalendarsList(
-    guildScope
-      ? { page_size: 200, scope: "guild" }
+    communityScope
+      ? { page_size: 200, scope: "community" }
       : { page_size: 200, ...(initiativeId ? { initiative_id: initiativeId } : {}) },
     { enabled: !solo }
   );
@@ -303,15 +310,15 @@ export const CalendarsView = ({
   }, [calendars]);
 
   // --- One request: events + task markers over the visible window. ---
-  const entriesParams = useMemo((): ListCalendarEntriesApiV1CGuildIdCalendarEntriesGetParams => {
+  const entriesParams = useMemo((): ListCalendarEntriesParams => {
     const span = entriesWindow ?? visibleRange;
-    // A guild surface: guild-level events, and nothing task- or
+    // A community surface: community-level events, and nothing task- or
     // initiative-shaped at all. The app asks by scope rather than by naming its
     // calendars — the calendars below arrive one page at a time, and an event
     // on one that fell off the end would simply not be drawn.
-    if (guildOnly) {
+    if (communityOnly) {
       return {
-        ...(solo ? { calendar_ids: [soloCalendar.id] } : { scope: "guild" as const }),
+        ...(solo ? { calendar_ids: [soloCalendar.id] } : { scope: "community" as const }),
         start_after: span.start.toISOString(),
         start_before: span.end.toISOString(),
         tz: userTimezone,
@@ -327,10 +334,11 @@ export const CalendarsView = ({
       conditions: taskConditions,
       tz: userTimezone,
       include_events: true,
-      include_tasks: true,
+      // Tasks switched off in the filters are not asked for at all.
+      include_tasks: !tasksHidden,
     };
   }, [
-    guildOnly,
+    communityOnly,
     solo,
     soloCalendar?.id,
     initiativeId,
@@ -338,6 +346,7 @@ export const CalendarsView = ({
     visibleRange,
     propertyFiltersParam,
     taskConditions,
+    tasksHidden,
     userTimezone,
   ]);
 
@@ -349,36 +358,41 @@ export const CalendarsView = ({
   // grid: the date range when one is set, and every date when not. Hidden
   // calendars are left out by their saved ids, so one past the loaded page of
   // calendars stays out too.
-  const exportParams = useMemo((): ExportEventsApiV1CGuildIdExportsEventsGetParams | null => {
+  const eventsExport = useExportJob({ resumePending: true });
+  const exportParams = useMemo((): ExportEventsParams | null => {
+    if (keepsContentIn) {
+      return null;
+    }
     const allHidden = calendars.every((calendar) =>
-      visibility.isCalendarHidden(guildId, calendar.id)
+      visibility.isCalendarHidden(communityId, calendar.id)
     );
     if (!solo && allHidden && !calendarsQuery.data?.has_next) {
       return null;
     }
-    const hidden = visibility.hiddenCalendarIds(guildId);
+    const hidden = visibility.hiddenCalendarIds(communityId);
     return {
       ...(solo
         ? { calendar_ids: [soloCalendar.id] }
-        : guildScope
-          ? { scope: "guild" as const }
+        : communityScope
+          ? { scope: "community" as const }
           : initiativeId
             ? { initiative_id: initiativeId }
             : {}),
       ...(!solo && hidden.length > 0 ? { exclude_calendar_ids: hidden } : {}),
-      ...(!guildOnly && propertyFiltersParam ? { property_filters: propertyFiltersParam } : {}),
+      ...(!communityOnly && propertyFiltersParam ? { property_filters: propertyFiltersParam } : {}),
       ...dateRangeParams(dateRange),
     };
   }, [
     calendars,
     calendarsQuery.data?.has_next,
     visibility,
-    guildId,
+    communityId,
     solo,
     soloCalendar?.id,
-    guildScope,
-    guildOnly,
+    communityScope,
+    communityOnly,
     initiativeId,
+    keepsContentIn,
     propertyFiltersParam,
     dateRange,
   ]);
@@ -386,7 +400,7 @@ export const CalendarsView = ({
   // Same param shape the sidebar and dashboard filters use, so this shares their cache.
   const projectsQuery = useProjects(
     { slim: true, ...toolViewParams(Tool.project, "active") },
-    { staleTime: 30_000, enabled: !guildOnly }
+    { staleTime: 30_000, enabled: !communityOnly }
   );
   const projectNamesById = useMemo(() => {
     const map = new Map<number, string>();
@@ -403,27 +417,27 @@ export const CalendarsView = ({
       if (task.project_id == null || seen.has(task.project_id)) continue;
       seen.set(task.project_id, {
         projectId: task.project_id,
-        guildId: task.guild_id ?? guildId,
+        communityId: task.community_id ?? communityId,
         name: projectNamesById.get(task.project_id) ?? `#${task.project_id}`,
         color: getProjectColor(task.project_id),
       });
     }
     return [...seen.values()].sort((a, b) => a.name.localeCompare(b.name));
-  }, [entriesData, projectNamesById, guildId]);
+  }, [entriesData, projectNamesById, communityId]);
 
   // Creating a CALENDAR is the role-permission gate; creating an EVENT is
   // write access on at least one calendar (the project→task pattern). An
   // explicit canCreate prop (e.g. from InitiativeDetailPage) wins.
-  const { activeGuild } = useGuilds();
+  const { activeCommunity } = useCommunities();
   const { canCreate: canCreateCalendarsDerived } = useToolCreateAccess(Tool.calendar, {
     initiativeId,
-    enabled: !guildOnly,
+    enabled: !communityOnly,
   });
-  // At guild scope there is no initiative role to consult: the guild's
+  // At community scope there is no initiative role to consult: the community's
   // calendars are its admins' to add. The solo deep link is one calendar's
   // surface, so it offers no list to add to.
-  const canCreateCalendars = guildScope
-    ? Boolean(activeGuild?.can.administer_content)
+  const canCreateCalendars = communityScope
+    ? Boolean(activeCommunity?.can.administer_content)
     : solo
       ? false
       : (canCreate ?? canCreateCalendarsDerived);
@@ -436,33 +450,33 @@ export const CalendarsView = ({
     const entries: CalendarEntry[] = [];
 
     for (const event of entriesData?.events ?? []) {
-      if (visibility.isCalendarHidden(guildId, event.calendar_id)) continue;
+      if (visibility.isCalendarHidden(communityId, event.calendar_id)) continue;
       entries.push(
         buildEventCalendarEntry(
           event,
           calendarsById.get(event.calendar_id)?.color,
-          unread.hasSubject(event.guild_id, "calendar_event", event.id)
+          unread.hasSubject(event.community_id, "calendar_event", event.id)
         )
       );
     }
 
-    for (const task of entriesData?.tasks ?? []) {
-      if (task.project_id != null && visibility.isProjectHidden(guildId, task.project_id)) {
+    for (const task of tasksHidden ? [] : (entriesData?.tasks ?? [])) {
+      if (task.project_id != null && visibility.isProjectHidden(communityId, task.project_id)) {
         continue;
       }
       // Task chips stay non-draggable here: per-project edit rights vary
       // across the visible projects; the task page is the editing surface.
       entries.push(...buildTaskCalendarEntries(task, getProjectColor(task.project_id), false));
     }
-    for (const task of entriesData?.task_occurrences ?? []) {
-      if (task.project_id != null && visibility.isProjectHidden(guildId, task.project_id)) {
+    for (const task of tasksHidden ? [] : (entriesData?.task_occurrences ?? [])) {
+      if (task.project_id != null && visibility.isProjectHidden(communityId, task.project_id)) {
         continue;
       }
       entries.push(...buildTaskOccurrenceEntries(task, getProjectColor(task.project_id)));
     }
 
     return entries;
-  }, [entriesData, visibility, guildId, calendarsById, unread]);
+  }, [entriesData, tasksHidden, visibility, communityId, calendarsById, unread]);
 
   // Create dialog state
   const {
@@ -497,21 +511,22 @@ export const CalendarsView = ({
 
   const calendarImport = useToolImportAction({
     tool: Tool.calendar,
-    canImport: !guildOnly && canCreateCalendars,
+    canImport: !communityOnly && canCreateCalendars,
     fixedInitiativeId,
   });
 
-  // Hidden calendars count too: the reader has narrowed what the grid shows,
-  // and nothing else on screen says so once the panel is closed.
+  // Hidden tasks count too: the reader has narrowed what the grid shows, and
+  // nothing else on screen says so once the panel is closed. Hidden calendars
+  // don't — the title says which calendars are showing.
   const activeFilterCount =
-    visibility.hiddenCount +
+    visibility.hiddenTaskCount +
     statusFilters.length +
     priorityFilters.length +
     propertyFilters.length +
     (isDateRangeSet(dateRange) ? 1 : 0);
 
   const clearFilters = () => {
-    visibility.clear();
+    visibility.showTasks();
     setStatusFilters([]);
     setPriorityFilters([]);
     setPropertyFilters([]);
@@ -605,21 +620,21 @@ export const CalendarsView = ({
     [t]
   );
 
-  // Which calendars are drawn — real calendars plus one read-only calendar per
-  // project with tasks in the window. On the app's own surface this is the only
-  // control the page has, so it rides the toolbar row; an initiative's calendar
-  // tab has a panel full of task-shaped filters for it to sit in.
+  // Which calendars are drawn. The picker is the page's title: it names what
+  // is showing and opens the checklist that changes it.
+  const shownCalendars = solo
+    ? [soloCalendar]
+    : calendars.filter((calendar) => !visibility.isCalendarHidden(communityId, calendar.id));
+  const onlyCalendar = shownCalendars.length === 1 ? shownCalendars[0] : null;
+  const settingsPathFor = (calendar: CalendarSummary) =>
+    gp(toolSettingsRoute(Tool.calendar, calendar.initiative_id, calendar.id));
   const calendarPicker = (
-    <CalendarPanelDropdown
+    <CalendarPicker
       calendars={calendars}
-      projectCalendars={projectCalendars}
-      isCalendarHidden={(calendar) => visibility.isCalendarHidden(guildId, calendar.id)}
-      isProjectHidden={(project) => visibility.isProjectHidden(guildId, project.projectId)}
-      onToggleCalendar={(calendar) => visibility.toggleCalendar(guildId, calendar.id)}
-      onToggleProject={(project) => visibility.toggleProject(guildId, project.projectId)}
-      settingsPathFor={(calendar) =>
-        gp(toolSettingsRoute(Tool.calendar, calendar.initiative_id, calendar.id))
-      }
+      isCalendarHidden={(calendar) => visibility.isCalendarHidden(communityId, calendar.id)}
+      onToggleCalendar={(calendar) => visibility.toggleCalendar(communityId, calendar.id)}
+      onShowAll={() => visibility.showAllCalendars(communityId)}
+      settingsPathFor={settingsPathFor}
       canCreate={canCreateCalendars}
       onCreate={() => setCreateCalendarOpen(true)}
     />
@@ -630,38 +645,58 @@ export const CalendarsView = ({
     (calendarsQuery.isLoading && !calendarsQuery.data);
 
   return (
-    <div className="space-y-4">
-      {/* Only the standalone surfaces title themselves. Inside an initiative
-          this view is a tab under that initiative's own heading, which already
-          says both where you are and that you're looking at calendars. */}
+    <div className="space-y-6">
+      {/* A tab sits under the initiative's own heading, which already says
+          where you are; the standalone surfaces head themselves. */}
       {isInitiativeTab ? null : (
-        <h1 className="font-semibold text-3xl tracking-tight">
-          {solo ? soloCalendar.name : guildScope ? t("guildScope.title") : t("title")}
-        </h1>
+        <ToolPageHeader
+          tool={Tool.calendar}
+          initiativeId={initiativeId}
+          mark={
+            onlyCalendar ? (
+              <span
+                aria-hidden
+                className="h-4 w-4 shrink-0 rounded-full"
+                style={{ backgroundColor: onlyCalendar.color }}
+              />
+            ) : null
+          }
+          settingsTo={
+            onlyCalendar?.can.edit
+              ? toolSettingsRoute(Tool.calendar, onlyCalendar.initiative_id, onlyCalendar.id)
+              : undefined
+          }
+          // The solo deep link is one calendar's surface: nothing to pick.
+          title={solo ? soloCalendar.name : calendarPicker}
+        />
       )}
 
       <ToolListToolbar
-        leading={guildScope ? calendarPicker : undefined}
+        // As a tab, the picker heads the row instead, at a title's size.
+        heading={
+          isInitiativeTab ? (
+            <h2 className="font-semibold text-xl tracking-tight">{calendarPicker}</h2>
+          ) : undefined
+        }
         filters={
-          /* The app surface's filters were only ever the calendar picker, now
-             on the row itself; the solo deep link has one calendar to narrow. */
-          guildOnly
+          /* Every filter is task- or initiative-shaped, and neither community
+             surface holds tasks or an initiative. */
+          communityOnly
             ? undefined
             : { open: filtersOpen, onOpenChange: setFiltersOpen, activeCount: activeFilterCount }
         }
-        trailing={
-          exportParams ? (
-            <ExportButton
-              endpoint="/exports/events"
-              params={exportParams}
-              formats={ICS_FORMATS}
-              filenameStem="events"
-              resumePending
-            />
-          ) : null
-        }
+        view={{
+          value: viewMode,
+          onChange: setViewMode,
+          options: CALENDAR_VIEW_OPTIONS.map(({ mode, icon, labelKey }) => ({
+            value: mode,
+            label: t(`common:${labelKey}`),
+            icon,
+          })),
+          label: t("common:calendar.viewMode"),
+        }}
         actions={
-          guildScope && canCreateCalendars ? (
+          communityScope && canCreateCalendars ? (
             <Button size="sm" className="h-9" onClick={() => setCreateCalendarOpen(true)}>
               <Plus className="h-4 w-4" />
               {t("createCalendar")}
@@ -670,6 +705,28 @@ export const CalendarsView = ({
         }
         menuItems={
           <>
+            {/* One format, so one entry: the job reports itself in a toast. */}
+            {exportParams ? (
+              <DropdownMenuItem
+                disabled={eventsExport.busy}
+                onSelect={() =>
+                  void eventsExport.start({
+                    endpoint: "/exports/events",
+                    params: { ...exportParams, format: "ics" },
+                    fallbackFilename: "events.ics",
+                  })
+                }
+              >
+                {eventsExport.busy ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <FileDown className="h-4 w-4" />
+                )}
+                {eventsExport.busy
+                  ? t("exports:export.preparing")
+                  : `${t("exports:export.button")} · ${t("exports:export.formatIcs")}`}
+              </DropdownMenuItem>
+            ) : null}
             {canCreateEvents ? (
               <DropdownMenuItem onSelect={() => setImportDialogOpen(true)}>
                 <Upload className="h-4 w-4" />
@@ -683,10 +740,9 @@ export const CalendarsView = ({
       {calendarImport.dialog}
 
       {/* Filters — task- and initiative-shaped, every one of them. Neither
-          guild surface holds tasks or an initiative, so they are absent there
-          rather than empty, and the one control those surfaces do want (which
-          calendars are showing) sits on the toolbar row instead. */}
-      {!guildOnly && (
+          community surface holds tasks or an initiative, so they are absent there
+          rather than empty. Which calendars are showing is the title's. */}
+      {!communityOnly && (
         <ToolFilterPanel
           open={filtersOpen}
           onOpenChange={setFiltersOpen}
@@ -695,9 +751,50 @@ export const CalendarsView = ({
           activeCount={activeFilterCount}
         >
           <div className="flex flex-wrap items-end gap-4">
-            {/* Calendar visibility — real calendars + per-project task
-                calendars behind one dropdown, so the grid keeps full width. */}
-            <div className="flex items-end">{calendarPicker}</div>
+            {/* Tasks on the grid: all of them, and each project's. */}
+            <div className="w-full space-y-2">
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="calendar-show-tasks"
+                  checked={!tasksHidden}
+                  onCheckedChange={visibility.toggleTasks}
+                />
+                <Label htmlFor="calendar-show-tasks" className="cursor-pointer font-medium text-sm">
+                  {t("filters.tasks")}
+                </Label>
+              </div>
+              {!tasksHidden && projectCalendars.length > 0 ? (
+                <fieldset className="space-y-1">
+                  <legend className="mb-1 font-medium text-muted-foreground text-xs">
+                    {t("panel.projectTasks")}
+                  </legend>
+                  <ul className="flex flex-wrap gap-x-4 gap-y-1">
+                    {projectCalendars.map((project) => {
+                      const id = `project-calendar-toggle-${project.communityId}-${project.projectId}`;
+                      return (
+                        <li key={id} className="flex items-center gap-2">
+                          <Checkbox
+                            id={id}
+                            checked={!visibility.isProjectHidden(communityId, project.projectId)}
+                            onCheckedChange={() =>
+                              visibility.toggleProject(communityId, project.projectId)
+                            }
+                          />
+                          <span
+                            aria-hidden
+                            className="h-2.5 w-2.5 shrink-0 rounded-full"
+                            style={{ backgroundColor: project.color }}
+                          />
+                          <Label htmlFor={id} className="cursor-pointer font-normal text-sm">
+                            {project.name}
+                          </Label>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </fieldset>
+              ) : null}
+            </div>
 
             <div className="w-full sm:w-64">
               <Label
@@ -756,16 +853,22 @@ export const CalendarsView = ({
         </ToolFilterPanel>
       )}
 
+      {entriesQuery.isError ? (
+        <p className="text-destructive text-sm" role="alert">
+          {getErrorMessage(entriesQuery.error, "calendars:loadError")}
+        </p>
+      ) : null}
+
       {isLoading ? (
         <SkeletonRegion label={t("loading")}>
           <CardGridSkeleton />
         </SkeletonRegion>
-      ) : guildScope && calendars.length === 0 ? (
+      ) : communityScope && calendars.length === 0 ? (
         /* An empty grid would read as "nothing is happening" rather than
            "there is nothing to happen in yet". */
-        <div className="rounded-lg border border-dashed p-10 text-center">
-          <p className="font-medium">{t("guildScope.empty")}</p>
-          <p className="mt-1 text-muted-foreground text-sm">{t("guildScope.emptyHint")}</p>
+        <div className="rounded-lg border border-dashed p-8 text-center">
+          <p className="font-medium">{t("communityScope.empty")}</p>
+          <p className="mt-1 text-muted-foreground text-sm">{t("communityScope.emptyHint")}</p>
           {canCreateCalendars ? (
             <Button className="mt-4" onClick={() => setCreateCalendarOpen(true)}>
               {t("createCalendar")}
@@ -777,6 +880,8 @@ export const CalendarsView = ({
           entries={calendarEntries}
           viewMode={viewMode}
           onViewModeChange={setViewMode}
+          // Offered in the toolbar, where other tools keep their views.
+          hideViewSwitch
           focusDate={focusDate}
           onFocusDateChange={setFocusDate}
           onEntryClick={handleEntryClick}
@@ -801,7 +906,7 @@ export const CalendarsView = ({
       <CreateCalendarDialog
         open={createCalendarOpen}
         onOpenChange={setCreateCalendarOpen}
-        guildScope={guildScope}
+        communityScope={communityScope}
         initiativeId={fixedInitiativeId}
         defaultInitiativeId={initiativeId ?? undefined}
       />
@@ -814,26 +919,26 @@ export const CalendarsView = ({
 /**
  * The /calendars route — the calendar app's own surface.
  *
- * Every guild calendar this reader may see, overlaid in one view: the guild's
+ * Every community calendar this reader may see, overlaid in one view: the community's
  * own events and nothing else. Which calendars are showing is the reader's to
  * narrow, and any member may add one.
  */
-export function GuildCalendarsPage() {
-  return <CalendarsView guildScope />;
+export function CommunityCalendarsPage() {
+  return <CalendarsView communityScope />;
 }
 
 /** The /calendars/$calendarId deep link (recents tabs, command palette):
  * the same calendar page with that calendar forced visible, recorded as a
  * recent open. */
 export function CalendarFocusPage() {
-  const { calendarId: calendarIdParam, guildId } = useParams({ strict: false });
+  const { calendarId: calendarIdParam, communityId } = useParams({ strict: false });
   const calendarId = Number(calendarIdParam);
   const calendarQuery = useCalendar(Number.isFinite(calendarId) ? calendarId : null);
   const calendar = calendarQuery.data;
 
   // Track recently viewed calendars for the layout header tabs bar — only
   // once the read succeeds (access checks passed).
-  const recordViewMutation = useRecordRecentView("calendar", Number(guildId));
+  const recordViewMutation = useRecordRecentView("calendar", Number(communityId));
   const viewedCalendarId = calendar?.id;
   useReadOnOpen(Tool.calendar, viewedCalendarId);
   useEffect(() => {
@@ -842,20 +947,20 @@ export function CalendarFocusPage() {
   }, [viewedCalendarId, recordViewMutation.mutate]);
 
   // Which kind of calendar decides which surface renders, so nothing renders
-  // until the read resolves: a guild calendar (the app) must never flash the
-  // guild-wide view, whose fetches reach into initiative content.
+  // until the read resolves: a community calendar (the app) must never flash the
+  // community-wide view, whose fetches reach into initiative content.
   if (!calendar) {
     return <CalendarPageSkeleton />;
   }
 
-  const isGuildCalendar = calendar.initiative_id == null;
+  const isCommunityCalendar = calendar.initiative_id == null;
   return (
     <div className="space-y-6">
       <CalendarsView
         focusCalendarId={calendar.id}
-        soloCalendar={isGuildCalendar ? calendar : undefined}
+        soloCalendar={isCommunityCalendar ? calendar : undefined}
       />
-      {/* A guild calendar belongs to no initiative, and a link is only ever
+      {/* A community calendar belongs to no initiative, and a link is only ever
           made inside one — the panel takes itself out of the way there. */}
       <ToolRelationsPanel
         tool={Tool.calendar}
@@ -864,7 +969,7 @@ export function CalendarFocusPage() {
         entityTitle={calendar.name}
       />
 
-      <ToolCommentsPanel tool={Tool.calendar} entity={calendar} canModerate={calendar.can.edit} />
+      <ToolCommentsPanel tool={Tool.calendar} entity={calendar} />
     </div>
   );
 }

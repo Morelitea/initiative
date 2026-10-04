@@ -177,6 +177,20 @@ detect_native_change() {
     return 1
 }
 
+# Detect whether the desktop app's shell changed between two refs: its Electron project and
+# plugins, or the Capawesome platform it runs on. It has a floor of its own, MIN_DESKTOP_VERSION,
+# so a desktop change builds no APK and a phone change no installers.
+detect_desktop_change() {
+    local base="$1" head="$2"
+    git diff --quiet "$base" "$head" -- frontend/electron || return 0
+    local re='"@capawesome/'
+    local old new
+    old=$(git show "$base:frontend/package.json" 2>/dev/null | grep -E "$re" | sort || true)
+    new=$(git show "$head:frontend/package.json" 2>/dev/null | grep -E "$re" | sort || true)
+    [[ "$old" != "$new" ]] && return 0
+    return 1
+}
+
 # Bump MIN_NATIVE_VERSION to the release version when the native shell changed since `base`
 # (or when --force-native is passed). Stages the file so it lands in the version-bump commit.
 # The committed value is the single signal CI keys off to decide whether to build the APK
@@ -195,6 +209,14 @@ stamp_min_native_version() {
         warn "  Native surface changed → MIN_NATIVE_VERSION $current_min → $new_version (new APK/IPA REQUIRED; CI will build it)"
     else
         info "  No native changes → MIN_NATIVE_VERSION stays $current_min (web-only OTA release, no APK build)"
+    fi
+    current_min=$(cat MIN_DESKTOP_VERSION 2>/dev/null | tr -d '[:space:]' || echo "unknown")
+    if detect_desktop_change "$base" "$head"; then
+        echo "$new_version" > MIN_DESKTOP_VERSION
+        git add MIN_DESKTOP_VERSION
+        warn "  Desktop app changed → MIN_DESKTOP_VERSION $current_min → $new_version (new installers REQUIRED; CI will build them)"
+    else
+        info "  No desktop changes → MIN_DESKTOP_VERSION stays $current_min (no installer build)"
     fi
 }
 
@@ -268,6 +290,12 @@ preview_min_native_version() {
         warn "  MIN_NATIVE_VERSION: $current_min → $new_version (native change detected; CI builds APK/IPA)"
     else
         info "  MIN_NATIVE_VERSION: stays $current_min (web-only OTA release, no APK build)"
+    fi
+    current_min=$(cat MIN_DESKTOP_VERSION 2>/dev/null | tr -d '[:space:]' || echo "unknown")
+    if detect_desktop_change "$base" "$head"; then
+        warn "  MIN_DESKTOP_VERSION: $current_min → $new_version (desktop change detected; CI builds installers)"
+    else
+        info "  MIN_DESKTOP_VERSION: stays $current_min (no installer build)"
     fi
     echo ""
 }

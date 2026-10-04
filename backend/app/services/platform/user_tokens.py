@@ -1,50 +1,26 @@
-"""Single-use and device tokens (``user_tokens``).
+"""Single-use tokens (``user_tokens``): address confirmation and password reset.
 
 The table is read and written on the system engine alone, like
 ``auth_sessions`` and ``user_api_keys``: every function here takes a session on
-``app_admin``, and the request-path authenticators reach it through
-:func:`authenticate_device_token`, which opens one of its own.
+``app_admin``.
 """
 
-import logging
 from datetime import datetime, timedelta, timezone
 from hashlib import sha256
 import secrets
-from typing import Collection, Optional, List, Sequence
+from typing import Any, Optional
 
 from sqlmodel import col, select, delete, update as sql_update
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.user import User
 from app.models.platform.user_token import UserToken, UserTokenPurpose
-from app.services.auth import session_lifetime
 from app.services.auth import challenges as challenge_service
 from app.services.auth import sessions as session_service
 from app.services.platform import api_keys as api_keys_service
 
 
 DEFAULT_TOKEN_TTL_MINUTES = 60
-# Device tokens are sliding-window: capped at this many days from last use.
-# Presenting the token (see ``get_device_token``) refreshes the expiry, so an
-# actively-used device stays logged in indefinitely while an abandoned token
-# dies within the cap.
-logger = logging.getLogger(__name__)
-
-DEVICE_TOKEN_TTL_DAYS = 90
-# Refreshing expiry on every single request would write to the DB on every
-# authenticated call. The window is only re-slid once the previous slide is
-# more than a day old — i.e. when the remaining lifetime has dropped below
-# ``TTL - 1 day`` — so an active device writes at most ~once/day while its
-# expiry still tracks last use to within a day.
-DEVICE_TOKEN_SLIDING_REFRESH_THRESHOLD = timedelta(days=DEVICE_TOKEN_TTL_DAYS - 1)
-# How long a device token still offers the sign-in's own markers to the
-# exchange that turns it into a session. The relay hands the token to the app
-# by a deep link and the app trades it at once, so this is the length of that
-# handoff and not a session lifetime: what a passkey ceremony proved is true of
-# a moment, and the token that carries it across is a bearer string with a
-# sliding window. An app that comes back later resumes without them, which is
-# where it stood before any of this.
-DEVICE_TOKEN_HANDOFF_WINDOW = timedelta(hours=1)
 
 
 def _hash_token(token: str) -> str:
@@ -67,10 +43,8 @@ async def _delete_existing_tokens(
 
     Scoped to the address when there is one: an account proving two addresses
     has one pending token per address, and issuing the second must not spend
-    the first. Device tokens are per device and replace nothing.
+    the first.
     """
-    if purpose == UserTokenPurpose.device_auth:
-        return
     stmt = delete(UserToken).where(
         UserToken.user_id == user_id,
         UserToken.purpose == purpose,
@@ -91,15 +65,20 @@ async def create_token(
     expires_minutes: int = DEFAULT_TOKEN_TTL_MINUTES,
     user_email_id: int | None = None,
     invite_id: int | None = None,
+    change: dict[str, Any] | None = None,
     commit: bool = True,
 ) -> str:
     """Issue a token of ``purpose``, replacing the outstanding one it supersedes.
+
+    An ``account_change`` token replaces nothing: each letter carries its own,
+    and a second notice must not spend the link in the first.
 
     ``commit=False`` stages the swap instead, for a caller that commits only
     once the token has been delivered, so the one it replaces stays good if
     delivery fails.
     """
-    await _delete_existing_tokens(session, user_id, purpose, user_email_id)
+    if purpose is not UserTokenPurpose.account_change:
+        await _delete_existing_tokens(session, user_id, purpose, user_email_id)
     token_value = secrets.token_urlsafe(48)
     expires_at = datetime.now(timezone.utc) + timedelta(minutes=expires_minutes)
     token = UserToken(
@@ -108,6 +87,7 @@ async def create_token(
         purpose=purpose,
         user_email_id=user_email_id,
         invite_id=invite_id,
+        change=change,
         expires_at=expires_at,
     )
     session.add(token)
@@ -143,11 +123,15 @@ async def consume_token(
     *,
     token: str,
     purpose: UserTokenPurpose,
+    commit: bool = True,
 ) -> Optional[UserToken]:
     """Spend a live token and return it, or ``None``.
 
     One conditional update claims it, so a token is spent once however many
     requests present it at the same moment.
+
+    ``commit=False`` stages the spend, for a caller whose work and spend must
+    land together, so a link whose work failed stays good.
     """
     now = datetime.now(timezone.utc)
     claimed = (
@@ -165,7 +149,8 @@ async def consume_token(
     ).first()
     if claimed is None:
         return None
-    await session.commit()
+    if commit:
+        await session.commit()
     return await session.get(UserToken, claimed[0], populate_existing=True)
 
 
@@ -185,9 +170,8 @@ TOKEN_PURGE_POLL_SECONDS = 3600
 async def process_expired_token_purge() -> None:
     """Hourly background sweep: delete the rows nothing can use again.
 
-    Covers all ``user_tokens`` purposes — consumed/expired password-reset and
-    email-verify tokens as well as device tokens past their sliding-window cap
-    — and the part-way sign-ins in ``auth_challenges``, which end the same way.
+    Covers consumed and expired password-reset and email-verify tokens, and the
+    part-way sign-ins in ``auth_challenges``, which end the same way.
     Without it, those rows accumulate forever.
     """
     from app.db.session import SystemSessionLocal
@@ -196,319 +180,6 @@ async def process_expired_token_purge() -> None:
         await purge_expired_tokens(session)
         await challenge_service.purge_expired(session)
         await session.commit()
-
-
-# Device token functions
-
-
-def _slide_to(
-    window_ends: datetime,
-    max_hours: int | None,
-    *,
-    created_at: datetime,
-) -> datetime:
-    """Where a device token's window may reach, given the absolute limit.
-
-    ``window_ends`` is where the sliding window would put it; the limit is
-    measured from when the token was created, which is when its owner last
-    actually signed in.
-    """
-    if max_hours is None:
-        return window_ends
-    return min(window_ends, created_at + timedelta(hours=max_hours))
-
-
-async def create_device_token(
-    session: AsyncSession,
-    *,
-    user_id: int,
-    device_name: str,
-    amr: Sequence[str] = (),
-    commit: bool = True,
-) -> str:
-    """Create a sliding-window device token for mobile app authentication.
-
-    ``amr`` is what the sign-in that minted it recorded about itself, kept so
-    the session the app trades this for can say the same. It is offered to one
-    exchange, within :data:`DEVICE_TOKEN_HANDOFF_WINDOW` of here (see
-    :func:`claim_handoff_amr`).
-
-    ``commit=False`` stages it instead, for a caller issuing something else in
-    the same transaction: a token that outlived the response it was minted for
-    would be a live credential nobody was handed, sitting in the account's
-    device list for its whole window.
-
-    The deployment's absolute session limit binds this too. A device token is
-    the one credential whose window slides without ever being renewed against
-    the account, so the limit is applied here and again wherever it slides,
-    from the date this row was created.
-    """
-    token_value = secrets.token_urlsafe(48)
-    now = datetime.now(timezone.utc)
-    expires_at = _slide_to(
-        now + timedelta(days=DEVICE_TOKEN_TTL_DAYS),
-        await session_lifetime.resolve_max_hours(session, user_id=user_id),
-        created_at=now,
-    )
-    token = UserToken(
-        user_id=user_id,
-        token=_hash_token(token_value),
-        purpose=UserTokenPurpose.device_auth,
-        device_name=device_name,
-        amr=list(amr),
-        expires_at=expires_at,
-    )
-    session.add(token)
-    if commit:
-        await session.commit()
-    else:
-        await session.flush()
-    # Return the raw token exactly once; only its hash is persisted.
-    return token_value
-
-
-async def claim_handoff_amr(session: AsyncSession, *, record: UserToken) -> list[str]:
-    """Take the sign-in's markers across to the session being opened, once.
-
-    The relay sign-in hands the app a token instead of a session, so the first
-    exchange is the rest of that sign-in and carries what it proved. Every
-    exchange after it is the app resuming on a string it has been keeping,
-    which proves nothing new, and a token that was never traded stops offering
-    them a window after it was minted.
-
-    Returns what the new session may record — empty in every case above — and
-    marks the row so the next exchange gets nothing. The caller commits.
-    """
-    if not record.amr or record.amr_claimed_at is not None:
-        return []
-    now = datetime.now(timezone.utc)
-    if now - record.created_at > DEVICE_TOKEN_HANDOFF_WINDOW:
-        return []
-
-    # Conditional on it still being unclaimed: two exchanges arriving together
-    # both read the row above, and this is what settles which of them is the
-    # handoff.
-    claimed = await session.exec(
-        sql_update(UserToken)
-        .where(UserToken.id == record.id, UserToken.amr_claimed_at.is_(None))
-        .values(amr_claimed_at=now)
-    )
-    if claimed.rowcount != 1:
-        return []
-    return list(record.amr)
-
-
-async def get_device_token(
-    session: AsyncSession,
-    *,
-    token: str,
-) -> Optional[UserToken]:
-    """Get a valid device token (not consumed, not expired) and slide its expiry.
-
-    Device tokens use a sliding 90-day window: each successful presentation
-    pushes ``expires_at`` to now + ``DEVICE_TOKEN_TTL_DAYS`` so an actively-used
-    device never has to re-authenticate, while an abandoned token expires within
-    the cap. The write is throttled (only once the remaining lifetime falls below
-    ``DEVICE_TOKEN_SLIDING_REFRESH_THRESHOLD``, i.e. at most ~once/day) to avoid
-    a DB write on every call.
-
-    The absolute limit is read at the same rate, and it moves the window in as
-    well as out: a limit that applies now and did not when the token was
-    issued (a community's standard, or its option granted back) reaches the
-    token within a day of its last slide, and a token already past it is
-    refused.
-    """
-    record = await get_valid_token(
-        session, token=token, purpose=UserTokenPurpose.device_auth
-    )
-    if record is None:
-        return None
-    now = datetime.now(timezone.utc)
-    if record.expires_at - now < DEVICE_TOKEN_SLIDING_REFRESH_THRESHOLD:
-        # The slide is throttled to about once a day, so reading the limit here
-        # costs a query at that rate rather than one per request.
-        slid = _slide_to(
-            now + timedelta(days=DEVICE_TOKEN_TTL_DAYS),
-            await session_lifetime.resolve_max_hours(session, user_id=record.user_id),
-            created_at=record.created_at,
-        )
-        if slid == record.expires_at:
-            # The limit has been reached: the window stops moving and the token
-            # expires where it stands.
-            return record
-        previous = record.expires_at
-        # Conditional on the expiry just read: two requests arriving together
-        # both see the old one, and this is what settles which moved it — so
-        # the record below is one event per window, not one per request.
-        result = await session.exec(
-            sql_update(UserToken)
-            .where(UserToken.id == record.id, UserToken.expires_at == previous)
-            .values(expires_at=slid)
-        )
-        await session.commit()
-        await session.refresh(record)
-        # Moved in past now, the token is spent: stored, so everything that
-        # reads its expiry (push delivery, the content sockets) agrees.
-        if slid <= now:
-            return None
-        if result.rowcount:
-            await _record_device_token_use(user_id=record.user_id)
-    return record
-
-
-async def authenticate_device_token(token: str) -> Optional[UserToken]:
-    """Resolve a presented device token on the system engine, sliding its window.
-
-    What the request-path authenticators call (``deps.get_current_user`` and
-    the WebSocket handshake): the lookup is a match by hash before anybody is
-    known, so it opens a system-engine session of its own, as a personal API
-    key's lookup does. The row comes back detached, with its columns loaded.
-    """
-    from app.db.session import SystemSessionLocal
-
-    async with SystemSessionLocal() as system_session:
-        return await get_device_token(system_session, token=token)
-
-
-async def _record_device_token_use(*, user_id: int) -> None:
-    """Note that a device token was presented, at the throttle above.
-
-    Once per device per day rather than once per request, which is what makes
-    it readable as adoption. On a session of its own, since the throttle runs
-    with none open.
-
-    A record that cannot be written is logged and passed over. Presenting a
-    credential that is still good is not the moment to refuse service.
-    """
-    from app.core.audit_events import AuditEventType
-    from app.db import session as db_session
-    from app.services import audit as audit_service
-
-    try:
-        async with db_session.SystemSessionLocal() as system_session:
-            await audit_service.record(
-                system_session,
-                event_type=AuditEventType.AUTH_DEVICE_TOKEN_USED,
-                actor_user_id=user_id,
-            )
-            await system_session.commit()
-    except Exception:
-        logger.exception("Could not record device-token use for user %s", user_id)
-
-
-async def get_user_device_tokens(
-    session: AsyncSession,
-    *,
-    user_id: int,
-) -> List[UserToken]:
-    """Get all device tokens for a user."""
-    now = datetime.now(timezone.utc)
-    stmt = (
-        select(UserToken)
-        .where(
-            UserToken.user_id == user_id,
-            UserToken.purpose == UserTokenPurpose.device_auth,
-            UserToken.consumed_at.is_(None),
-            UserToken.expires_at > now,
-        )
-        .order_by(UserToken.created_at.desc())
-    )
-    result = await session.exec(stmt)
-    return list(result.all())
-
-
-async def live_device_token_ids(
-    session: AsyncSession,
-    *,
-    token_ids: Collection[int],
-) -> set[int]:
-    """Which of these device tokens can still be used: not consumed, not
-    expired. One statement for any number of ids.
-
-    A plain read, unlike :func:`get_device_token`: asking whether a token is
-    still good is not presenting it, so the window does not slide.
-    """
-    if not token_ids:
-        return set()
-    now = datetime.now(timezone.utc)
-    result = await session.exec(
-        select(UserToken.id).where(
-            col(UserToken.id).in_(list(token_ids)),
-            UserToken.purpose == UserTokenPurpose.device_auth,
-            UserToken.consumed_at.is_(None),
-            UserToken.expires_at > now,
-        )
-    )
-    return set(result.all())
-
-
-async def revoke_device_token(
-    session: AsyncSession,
-    *,
-    token_id: int,
-    user_id: int,
-) -> bool:
-    """Revoke a device token by marking it as consumed."""
-    stmt = select(UserToken).where(
-        UserToken.id == token_id,
-        UserToken.user_id == user_id,
-        UserToken.purpose == UserTokenPurpose.device_auth,
-    )
-    result = await session.exec(stmt)
-    token = result.one_or_none()
-    if not token:
-        return False
-    token.consumed_at = datetime.now(timezone.utc)
-    session.add(token)
-    await session.commit()
-    return True
-
-
-async def revoke_active_device_tokens(
-    session: AsyncSession,
-    *,
-    user_id: int,
-) -> None:
-    """Mark every active device token for a user as consumed.
-
-    Used after a password change/reset so previously-issued long-lived
-    device tokens can no longer authenticate. Does not commit — the caller
-    owns the surrounding transaction.
-    """
-    await session.exec(
-        sql_update(UserToken)
-        .where(
-            UserToken.user_id == user_id,
-            UserToken.purpose == UserTokenPurpose.device_auth,
-            UserToken.consumed_at.is_(None),
-        )
-        .values(consumed_at=datetime.now(timezone.utc))
-    )
-
-
-async def revoke_other_device_tokens(
-    session: AsyncSession,
-    *,
-    user_id: int,
-    keep_token_id: Optional[int] = None,
-) -> int:
-    """Consume every active device token for a user bar one. Returns the count.
-
-    The counterpart to :func:`revoke_active_device_tokens` for the account's
-    own "sign out everywhere else": ``keep_token_id`` is the device asking, so
-    it is not signed out by its own button. Left unset, nothing is spared.
-
-    Does not commit — the caller owns the surrounding transaction.
-    """
-    stmt = sql_update(UserToken).where(
-        UserToken.user_id == user_id,
-        UserToken.purpose == UserTokenPurpose.device_auth,
-        UserToken.consumed_at.is_(None),
-    )
-    if keep_token_id is not None:
-        stmt = stmt.where(UserToken.id != keep_token_id)
-    result = await session.exec(stmt.values(consumed_at=datetime.now(timezone.utc)))
-    return result.rowcount
 
 
 async def revoke_user_sessions(
@@ -521,8 +192,8 @@ async def revoke_user_sessions(
     change.
 
     Bumps ``token_version`` (which the JWT/WS authenticators compare against,
-    invalidating any still-unexpired access token), bulk-revokes the user's
-    active ``device_auth`` tokens, deactivates their API keys, and revokes their
+    invalidating any still-unexpired access token), deactivates their API keys,
+    and revokes their
     rotating **refresh sessions** — a refresh would otherwise keep minting access
     tokens *at the new ``token_version``* after the reset. Shared by
     the self-service password change, the forgot-password reset, and the operator
@@ -541,7 +212,6 @@ async def revoke_user_sessions(
     open the replacement leaves the account holding everything it had.
     """
     user.token_version += 1
-    await revoke_active_device_tokens(system_session, user_id=user.id)
     await api_keys_service.deactivate_user_api_keys(system_session, user_id=user.id)
     await session_service.revoke_all_for_user(system_session, user_id=user.id)
     # A sign-in part-way through rests on the password it proved, so it goes

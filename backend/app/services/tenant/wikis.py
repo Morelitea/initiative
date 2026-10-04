@@ -26,7 +26,7 @@ the edges are meaning, and they are kept apart on purpose.
 
 from __future__ import annotations
 
-from typing import Any, Iterable, Sequence
+from typing import Any, Iterable
 
 from fastapi import HTTPException, status
 from sqlalchemy import cast, func
@@ -40,6 +40,7 @@ from app.core.messages import WikiMessages
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.resource_grant import ResourceGrant
 from app.models.tenant.wiki import Wiki, WikiPage, WikiPageOrder
+from app.services.permissions import with_tool
 from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
 from app.services.tenant.names import slugify, unique_slug
@@ -80,15 +81,25 @@ async def get_wiki(
 
 
 async def get_page(
-    session: AsyncSession, wiki_id: int, page_id: int
+    session: AsyncSession,
+    page_id: int,
+    *,
+    wiki_id: int | None = None,
+    populate_existing: bool = False,
 ) -> WikiPage | None:
-    """One page of one wiki. Keyed by both so a page id from another wiki
-    reads as missing rather than as somebody else's page."""
+    """One page, with its wiki as authorizing it reads it. ``wiki_id`` makes a
+    page of another wiki read as missing rather than as somebody else's."""
     statement = (
         select(WikiPage)
-        .where(WikiPage.id == page_id, WikiPage.wiki_id == wiki_id)
-        .options(selectinload(WikiPage.author))
+        .where(WikiPage.id == page_id)
+        .options(
+            selectinload(WikiPage.author),
+            with_tool(WikiPage.wiki),
+        )
     )
+    if wiki_id is not None:
+        statement = statement.where(WikiPage.wiki_id == wiki_id)
+    statement = statement.execution_options(populate_existing=populate_existing)
     return (await session.exec(statement)).one_or_none()
 
 
@@ -446,7 +457,7 @@ async def validate_reparent(
             detail=WikiMessages.PAGE_PARENT_ITSELF,
         )
 
-    parent = await get_page(session, page.wiki_id, new_parent_id)
+    parent = await get_page(session, new_parent_id, wiki_id=page.wiki_id)
     if parent is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -542,25 +553,6 @@ def page_headings(content: Any) -> list[dict[str, Any]]:
     return found
 
 
-async def annotate_page_counts(session: AsyncSession, rows: Sequence[Wiki]) -> None:
-    """Set ``page_count`` on each wiki from one grouped query.
-
-    Trashed pages are excluded by the soft-delete filter, so a wiki emptied
-    into the trash reads as empty rather than as full.
-    """
-    ids = [w.id for w in rows if w.id is not None]
-    if not ids:
-        return
-    result = await session.exec(
-        select(WikiPage.wiki_id, func.count(WikiPage.id))
-        .where(WikiPage.wiki_id.in_(tuple(ids)))
-        .group_by(WikiPage.wiki_id)
-    )
-    counts = dict(result.all())
-    for wiki in rows:
-        object.__setattr__(wiki, "page_count", counts.get(wiki.id, 0))
-
-
 async def list_wiki_ids_for_export(
     session: AsyncSession,
     current_user: Any,
@@ -632,37 +624,3 @@ async def _linked_document_ids(session: AsyncSession, wiki_id: int) -> list[int]
         for kind, entity_id in (decode_node_id(edge.source_node) for edge in edges)
         if kind is SearchEntityType.document
     ]
-
-
-async def page_links(session: AsyncSession, page: WikiPage) -> tuple[list, list]:
-    """What this page connects to, and what connects to it.
-
-    One query each way over ``relationships``, which is where both the
-    ``[[ ]]`` links read out of the body and the connections somebody drew by
-    hand already live. The titles are resolved through the same reference
-    machinery every other surface uses, so a page names a task the way the
-    editor's own chip does.
-    """
-    from app.core.relationships import node_id
-    from app.core.search import SearchEntityType
-    from app.models.tenant.relationship import EntityRelationship
-
-    node = node_id(SearchEntityType.wiki_page, page.id)
-
-    outgoing = (
-        await session.exec(
-            select(EntityRelationship).where(
-                EntityRelationship.source_node == node,
-                EntityRelationship.removed_at.is_(None),
-            )
-        )
-    ).all()
-    incoming = (
-        await session.exec(
-            select(EntityRelationship).where(
-                EntityRelationship.target_node == node,
-                EntityRelationship.removed_at.is_(None),
-            )
-        )
-    ).all()
-    return list(outgoing), list(incoming)

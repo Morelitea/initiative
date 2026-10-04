@@ -2,49 +2,49 @@ import { useMemo } from "react";
 
 import type { InitiativeRead, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { useAuth } from "@/hooks/useAuth";
-import { type GuildEntry, useGuilds } from "@/hooks/useGuilds";
-import { useInitiatives, useInitiativesForGuild } from "@/hooks/useInitiatives";
+import { type CommunityEntry, useCommunities } from "@/hooks/useCommunities";
+import { useInitiatives, useInitiativesForCommunity } from "@/hooks/useInitiatives";
 
 const byName = (a: InitiativeRead, b: InitiativeRead) => a.name.localeCompare(b.name);
 
 /**
  * The initiatives to navigate by, from the server's list: the caller's own, or
  * every one a grant reaches — without the archived ones (they stay manageable
- * from guild settings → Initiatives), by name.
+ * from community settings → Initiatives), by name.
  */
 export const liveInitiatives = (initiatives: InitiativeRead[] | undefined): InitiativeRead[] =>
   (initiatives ?? []).filter((initiative) => initiative.archived_at === null).sort(byName);
 
 /**
  * Cheap, switcher-entry-only test for whether the user could **author a new
- * top-level tool** somewhere in this guild — used to gate always-mounted
- * surfaces (the global create wizards' entry points and guild pickers) without
- * fetching every guild's initiatives. It never yields a false "cannot": the
+ * top-level tool** somewhere in this community — used to gate always-mounted
+ * surfaces (the global create wizards' entry points and community pickers) without
+ * fetching every community's initiatives. It never yields a false "cannot": the
  * wizard's own initiative picker reads each initiative's `can.create`. It
- * excludes only the provably-dead guilds — frozen ones, and granted access,
+ * excludes only the provably-dead communities — frozen ones, and granted access,
  * which edits what exists and authors nothing.
  */
-export const guildMayAuthorTools = (guild: GuildEntry): boolean =>
-  !guild.content_read_only && guild.accessType !== "grant";
+export const communityMayAuthorTools = (community: CommunityEntry): boolean =>
+  !community.content_read_only && community.accessType !== "grant";
 
 /**
  * The same for **writing existing content** (e.g. a task inside a project they
  * can write): a read_write grant qualifies. The wizard's project step reads
  * each project's `can.edit`.
  */
-export const guildMayWriteContent = (guild: GuildEntry): boolean =>
-  !guild.content_read_only &&
-  (guild.accessType !== "grant" || guild.grantAccessLevel === "read_write");
+export const communityMayWriteContent = (community: CommunityEntry): boolean =>
+  !community.content_read_only &&
+  (community.accessType !== "grant" || community.grantAccessLevel === "read_write");
 
 /**
- * The active guild's standing as the list pages read it: whether the reader
+ * The active community's standing as the list pages read it: whether the reader
  * administers its content, and whether they reach it by a grant.
  */
 export function useInitiativeAccess() {
-  const { activeGuild } = useGuilds();
+  const { activeCommunity } = useCommunities();
   return {
-    isGuildAdmin: Boolean(activeGuild?.can.administer_content),
-    isGrantGuild: activeGuild?.accessType === "grant",
+    isCommunityAdmin: Boolean(activeCommunity?.can.administer_content),
+    isGrantCommunity: activeCommunity?.accessType === "grant",
   };
 }
 
@@ -83,13 +83,13 @@ export function useToolCreateAccess(
 }
 
 /**
- * Cross-guild variant for the global create wizards, which pick a guild first:
- * the live initiatives in `guildId` the user can create `tool` in — or every
+ * Cross-community variant for the global create wizards, which pick a community first:
+ * the live initiatives in `communityId` the user can create `tool` in — or every
  * live one when `tool` is null, for a wizard that writes into existing content
  * — fetched lazily and sharing the wizard's own query cache.
  */
-export function useCreatableInitiatives(tool: Tool | null, guildId: number | null) {
-  const query = useInitiativesForGuild(guildId);
+export function useCreatableInitiatives(tool: Tool | null, communityId: number | null) {
+  const query = useInitiativesForCommunity(communityId);
   const initiatives = useMemo(
     () => liveInitiatives(query.data).filter((i) => tool === null || i.can.create.includes(tool)),
     [query.data, tool]
@@ -99,17 +99,17 @@ export function useCreatableInitiatives(tool: Tool | null, guildId: number | nul
 
 /**
  * Whether the user has anywhere to land the two global create wizards, from the
- * guild switcher alone (no per-guild initiative fetch — this backs always-mounted
+ * community switcher alone (no per-community initiative fetch — this backs always-mounted
  * entry points). `document` follows authoring; `task` follows writing existing
  * content. Both err toward showing the entry.
  */
 export function useGlobalCreateAccess() {
-  const { guilds } = useGuilds();
+  const { communities } = useCommunities();
   return useMemo(
     () => ({
-      document: guilds.some(guildMayAuthorTools),
-      task: guilds.some(guildMayWriteContent),
+      document: communities.some(communityMayAuthorTools),
+      task: communities.some(communityMayWriteContent),
     }),
-    [guilds]
+    [communities]
   );
 }

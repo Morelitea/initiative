@@ -9,7 +9,7 @@ const timeOut = vi.hoisted(() => ({
 
 vi.mock("@/api/generated/users/users", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/api/generated/users/users")>()),
-  readMyTimeOutApiV1UsersMeTimeOutGet: () => Promise.resolve(timeOut.value),
+  readMyTimeOut: () => Promise.resolve(timeOut.value),
 }));
 
 import { AccountTimeOut } from "./AccountTimeOut";

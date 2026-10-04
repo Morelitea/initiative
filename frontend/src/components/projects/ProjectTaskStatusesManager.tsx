@@ -22,7 +22,7 @@ import { useTranslation } from "react-i18next";
 import type { TaskStatusCategory, TaskStatusRead } from "@/api/generated/initiativeAPI.schemas";
 import { invalidate, q } from "@/api/query-keys";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ColorPickerPopover } from "@/components/ui/color-picker-popover";
 import {
@@ -58,8 +58,8 @@ import {
   useReorderTaskStatuses,
   useUpdateTaskStatus,
 } from "@/hooks/useProjects";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 import { defaultsForCategory, maybeSwapDefaultsOnCategoryChange } from "@/lib/taskStatusDefaults";
 import { cn } from "@/lib/utils";
 
@@ -400,7 +400,6 @@ export const ProjectTaskStatusesManager = ({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{t("statuses.title")}</CardTitle>
         <CardDescription>{t("statuses.description")}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -543,7 +542,7 @@ export const ProjectTaskStatusesManager = ({
       </CardContent>
 
       <Dialog open={Boolean(deleteTarget)} onOpenChange={(open) => !open && setDeleteTarget(null)}>
-        <DialogContent className="max-h-screen overflow-y-auto bg-card">
+        <DialogContent className="bg-card">
           <DialogHeader>
             <DialogTitle>{t("statuses.deleteTitle")}</DialogTitle>
             <DialogDescription>

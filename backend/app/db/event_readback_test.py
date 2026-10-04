@@ -6,7 +6,7 @@ lets it stay content-free: the subscriber reads the state back through the API,
 where the gates decide. It only works if each id is a whole address, so the
 route for a resource type is derivable from the type itself:
 
-    resource_type -> /c/{guild_id}/<kebab>/{id}
+    resource_type -> /c/{community_id}/<kebab>/{id}
 
 Which is not a convention invented here — it is what the resources that already
 worked all do. Sub-resources with an id of their own (``comments``,
@@ -34,9 +34,9 @@ def _detail_paths() -> set[str]:
     for route in app.routes:
         path = getattr(route, "path", "")
         methods = getattr(route, "methods", set()) or set()
-        if "GET" not in methods or "/c/{guild_id}/" not in path:
+        if "GET" not in methods or "/c/{community_id}/" not in path:
             continue
-        tail = path.split("/c/{guild_id}/", 1)[1]
+        tail = path.split("/c/{community_id}/", 1)[1]
         parts = tail.split("/")
         # Exactly "<segment>/{param}" — one hop, then the id.
         if (

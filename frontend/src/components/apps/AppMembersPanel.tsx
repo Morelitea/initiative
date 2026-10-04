@@ -1,5 +1,5 @@
 /**
- * Who reaches an outside system through this guild, and the levers for it.
+ * Who reaches an outside system through this community, and the levers for it.
  *
  * Installing an app is an admin decision, and so is who may use it. What an
  * admin gets here is governance, not inspection: which member connected as
@@ -26,11 +26,11 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
+  type CommunityAppConnectionSummary,
+  type CommunityAppMemberConnection,
+  type CommunityAppMemberConsent,
   ConsentAccess,
   ConsentStatus,
-  type GuildAppConnectionSummary,
-  type GuildAppMemberConnection,
-  type GuildAppMemberConsent,
 } from "@/api/generated/initiativeAPI.schemas";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -46,28 +46,28 @@ import {
 } from "@/components/ui/table";
 import {
   useBlockMemberConnection,
-  useGuildAppMembers,
+  useCommunityAppMembers,
   useRevokeAllConnections,
   useRevokeAllConsents,
   useRevokeMemberConnection,
   useRevokeMemberConsents,
-} from "@/hooks/useGuildAppDetail";
+} from "@/hooks/useCommunityAppDetail";
 import { useUserSearch } from "@/hooks/useUsers";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 import { getUserDisplayName } from "@/lib/userDisplay";
 import { localized } from "@/lib/widgets/widgetMeta";
 
 export interface AppMembersPanelProps {
   appId: number;
-  /** Rendered only for guild admins; the server refuses everyone else anyway. */
+  /** Rendered only for community admins; the server refuses everyone else anyway. */
   enabled: boolean;
 }
 
 export function AppMembersPanel({ appId, enabled }: AppMembersPanelProps) {
   const { t } = useTranslation(["apps", "common"]);
   const [page, setPage] = useState(1);
-  const membersQuery = useGuildAppMembers(appId, page, enabled);
+  const membersQuery = useCommunityAppMembers(appId, page, enabled);
   const summary = membersQuery.data?.summary ?? [];
   const items = membersQuery.data?.items ?? [];
   const consents = membersQuery.data?.consents ?? [];
@@ -189,10 +189,10 @@ export function AppMembersPanel({ appId, enabled }: AppMembersPanelProps) {
 }
 
 /** Whether an answer still stands or still waits: the ones an admin can end. */
-const isOpen = (consent: GuildAppMemberConsent) =>
+const isOpen = (consent: CommunityAppMemberConsent) =>
   consent.status === ConsentStatus.granted || consent.status === ConsentStatus.pending;
 
-function consentStatusKey(consent: GuildAppMemberConsent) {
+function consentStatusKey(consent: CommunityAppMemberConsent) {
   switch (consent.status) {
     case ConsentStatus.granted:
       return consent.granted_access === ConsentAccess.read_write
@@ -224,7 +224,7 @@ function MemberConsents({
 }: {
   appId: number;
   /** The answers of the members on this page. */
-  consents: GuildAppMemberConsent[];
+  consents: CommunityAppMemberConsent[];
   /** Across every member, not just this page. */
   allowedCount: number;
   anyOpen: boolean;
@@ -235,7 +235,7 @@ function MemberConsents({
   const revokeAll = useRevokeAllConsents(appId);
   const [confirming, setConfirming] = useState(false);
 
-  const byMember = new Map<number, GuildAppMemberConsent[]>();
+  const byMember = new Map<number, CommunityAppMemberConsent[]>();
   for (const consent of consents) {
     byMember.set(consent.user_id, [...(byMember.get(consent.user_id) ?? []), consent]);
   }
@@ -343,8 +343,8 @@ function ConnectionMembers({
   nameFor,
 }: {
   appId: number;
-  summary: GuildAppConnectionSummary;
-  items: GuildAppMemberConnection[];
+  summary: CommunityAppConnectionSummary;
+  items: CommunityAppMemberConnection[];
   nameFor: (userId: number) => string;
 }) {
   const { t, i18n } = useTranslation(["apps", "common"]);
@@ -361,13 +361,13 @@ function ConnectionMembers({
     onError: (error: unknown) => toast.error(getErrorMessage(error, "apps:error")),
   });
 
-  const revokeMember = (item: GuildAppMemberConnection) =>
+  const revokeMember = (item: CommunityAppMemberConnection) =>
     revoke.mutate(
       { userId: item.user_id, connectionId: item.connection_id },
       notify(t("apps:members.revoked"))
     );
 
-  const toggleBlock = (item: GuildAppMemberConnection) =>
+  const toggleBlock = (item: CommunityAppMemberConnection) =>
     block.mutate(
       { userId: item.user_id, connectionId: item.connection_id, blocked: item.blocked },
       notify(t(item.blocked ? "apps:members.unblocked" : "apps:members.blockedDone"))

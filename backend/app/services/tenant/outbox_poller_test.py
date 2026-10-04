@@ -132,10 +132,10 @@ async def test_every_subscription_in_a_guild_is_drained(
     """Each pass expunges the identity map, so the roster is held as ids and
     each subscription is re-loaded. Held as instances, the second and later ones
     are detached and every one after the first fails."""
-    from app.models.platform.guild import GuildRole
+    from app.models.platform.guild import CommunityRole
     from app.services.tenant import outbox_poller as poller
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     guild_id, user_id = a.guild.id, a.user.id
 
     for index in range(3):
@@ -190,11 +190,11 @@ async def test_ledger_delivers_each_transaction_once(
 ):
     """A drain marks each pending transaction delivered, and a second pass over
     the same log sends nothing further."""
-    from app.models.platform.guild import GuildRole
+    from app.models.platform.guild import CommunityRole
     from app.services.tenant import outbox_poller as poller
     from app.testing import create_task
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     guild_id, user_id = a.guild.id, a.user.id
     await create_task(session, a.project)
     await create_task(session, a.project)
@@ -239,11 +239,11 @@ async def test_a_refused_batch_is_retried_not_lost(
 ):
     """A refusal leaves the transaction pending, so it comes back once its
     backoff expires rather than being skipped."""
-    from app.models.platform.guild import GuildRole
+    from app.models.platform.guild import CommunityRole
     from app.services.tenant import outbox_poller as poller
     from app.testing import create_task
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     guild_id, user_id = a.guild.id, a.user.id
     await create_task(session, a.project)
 
@@ -295,11 +295,11 @@ async def test_repeated_refusals_escalate_the_backoff(
     """
     from sqlalchemy import text as sa_text
 
-    from app.models.platform.guild import GuildRole
+    from app.models.platform.guild import CommunityRole
     from app.services.tenant import outbox_poller as poller
     from app.testing import create_task
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     guild_id, user_id = a.guild.id, a.user.id
     await create_task(session, a.project)
 
@@ -362,11 +362,11 @@ async def test_an_exhausted_batch_is_dead_lettered_and_unblocks_the_backlog(
     """
     from sqlalchemy import text as sa_text
 
-    from app.models.platform.guild import GuildRole
+    from app.models.platform.guild import CommunityRole
     from app.services.tenant import outbox_poller as poller
     from app.testing import create_task
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     guild_id, user_id = a.guild.id, a.user.id
 
     # The batch that will be refused until it gives up.
@@ -482,7 +482,7 @@ def test_the_envelope_names_the_guild_and_the_actor_by_reference():
         subscription, 500, [_row(1, 500)], guild_ref=_GUILD_REF, actor_ref=_ACTOR_REF
     )
 
-    assert envelope["guild_ref"] == _GUILD_REF
+    assert envelope["community_ref"] == _GUILD_REF
     assert envelope["actor_ref"] == _ACTOR_REF
     assert "guild_id" not in envelope
     assert "actor_user_id" not in envelope
@@ -626,21 +626,28 @@ def _app_event(**overrides) -> AppEventOutbox:
     return AppEventOutbox(**defaults)
 
 
-def test_an_app_event_is_one_change_carrying_its_payload():
+@pytest.mark.parametrize(
+    ("subscribed_in", "about", "carried"),
+    [(None, None, None), (11, None, 11), (None, 12, 12), (12, 12, 12)],
+    ids=["community", "narrowed", "its-own-community", "its-own-narrowed"],
+)
+def test_an_app_event_is_one_change_carrying_its_payload(subscribed_in, about, carried):
+    """It carries the initiative it landed in: its own, or the one the
+    subscription is narrowed to."""
     envelope = outbox_poller._envelope(
-        _subscription(event_types=[_GH_EVENT]),
+        _subscription(initiative_id=subscribed_in, event_types=[_GH_EVENT]),
         500,
         [],
         guild_ref=_GUILD_REF,
         actor_ref=None,
         actor_app="tests.gh",
-        app_events=[(_app_event(), "tests.gh")],
+        app_events=[(_app_event(initiative_id=about), "tests.gh")],
     )
     assert envelope["actor_app"] == "tests.gh"
     assert envelope["changes"] == [
         {
             "event_type": _GH_EVENT,
-            "initiative_id": None,
+            "initiative_id": carried,
             "app": "tests.gh",
             "payload": {"number": 12},
         }

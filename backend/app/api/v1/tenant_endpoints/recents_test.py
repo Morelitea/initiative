@@ -13,7 +13,7 @@ from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.tools import Tool
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.testing import (
     create_calendar,
     create_guild,
@@ -34,7 +34,7 @@ async def test_recents_mixed_ordering(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """Items from different entity types must be ordered by last_viewed_at desc."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
     project = await create_project(session, a.initiative, a.user, name="Older project")
     queue = await create_queue(session, a.initiative, a.user, name="Newer queue")
 
@@ -60,7 +60,7 @@ async def test_recents_are_cross_guild_names_only(
     """The tabs bar shows entities from ANY of the user's guilds, from any
     context — render metadata only, tagged with the owning guild. Another
     user never sees them."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
     project_a = await create_project(session, a.initiative, a.user, name="A's project")
 
     # The same user also belongs to a second guild.
@@ -70,7 +70,7 @@ async def test_recents_are_cross_guild_names_only(
 
     # A different member of guild A.
     other = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="member",
@@ -84,7 +84,7 @@ async def test_recents_are_cross_guild_names_only(
     r = await client.get(RECENTS, headers=a.headers)
     assert r.status_code == 200
     items = r.json()
-    assert [(i["entity_type"], i["entity_id"], i["guild_id"]) for i in items] == [
+    assert [(i["entity_type"], i["entity_id"], i["community_id"]) for i in items] == [
         ("project", project_a.id, a.guild.id)
     ]
     assert items[0]["name"] == "A's project"
@@ -100,11 +100,11 @@ async def test_recent_tabs_limit_caps_list_and_prune(
 ):
     """The user's ``recent_tabs_limit`` bounds both what's stored (prune) and
     what the tabs-bar endpoint returns."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
 
     # Lower the user's recents cap to 2 via self-update.
     r = await client.patch(
-        "/api/v1/users/me", json={"recent_tabs_limit": 2}, headers=a.headers
+        "/api/v1/me", json={"recent_tabs_limit": 2}, headers=a.headers
     )
     assert r.status_code == 200, r.text
     assert r.json()["recent_tabs_limit"] == 2
@@ -130,14 +130,14 @@ async def test_recent_tabs_limit_rejects_out_of_range(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """The cap is validated to [1, 100]."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
 
     r = await client.patch(
-        "/api/v1/users/me", json={"recent_tabs_limit": 0}, headers=a.headers
+        "/api/v1/me", json={"recent_tabs_limit": 0}, headers=a.headers
     )
     assert r.status_code == 422
     r = await client.patch(
-        "/api/v1/users/me", json={"recent_tabs_limit": 101}, headers=a.headers
+        "/api/v1/me", json={"recent_tabs_limit": 101}, headers=a.headers
     )
     assert r.status_code == 422
 
@@ -146,7 +146,7 @@ async def test_clear_recent_is_guild_addressed(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """Closing a tab works from any context via the guild path segment."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
     project = await create_project(session, a.initiative, a.user, name="P")
 
     other_guild = await create_guild(session)
@@ -171,7 +171,7 @@ async def test_recent_guild_level_calendar_has_no_initiative(
 ):
     """A guild-level calendar reports ``initiative_id: None`` — the tabs bar
     reads that as "address me at the guild route", not as missing data."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     a.initiative.calendars_enabled = True
     session.add(a.initiative)
     await session.commit()
@@ -195,7 +195,7 @@ async def test_opening_a_tab_puts_the_tool_in_the_tabs_bar(
 ):
     """Recording a view reads the entity as its own page does, and a guild
     member outside the initiative is refused in the tool's own words."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
     await enable_all_tools(session, a.initiative)
     entity = await create_tool_entity(session, tool, a.initiative, a.user)
 
@@ -213,7 +213,7 @@ async def test_opening_a_tab_puts_the_tool_in_the_tabs_bar(
         (tool.value, entity.id)
     ]
 
-    outsider = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+    outsider = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
     refused = await client.post(
         outsider.g(f"/recents/{tool.value}/{entity.id}"), headers=outsider.headers
     )

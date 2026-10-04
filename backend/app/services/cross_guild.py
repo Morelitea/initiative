@@ -16,7 +16,7 @@ from typing import Any, Awaitable, Callable, Optional, Sequence, TypeVar
 from sqlalchemy import or_
 from sqlmodel import select
 
-from app.core.guild_auth_options import GuildAuthOption
+from app.core.guild_auth_options import CommunityAuthOption
 from app.services.platform import guild_entitlements
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -61,7 +61,7 @@ async def member_guild_ids(
     Suspended guilds are excluded for every membership role: content access is
     cut for members AND guild admins alike (admins keep only the settings
     surface), so no cross-guild aggregate may surface a suspended guild's
-    content — the ``/c/{guild_id}`` choke point (``_load_guild_context``)
+    content — the ``/c/{community_id}`` choke point (``_load_guild_context``)
     refuses those guilds and this is its aggregate-path twin.
 
     A suspended *user* is excluded the same way, and for the same reason. They
@@ -69,9 +69,10 @@ async def member_guild_ids(
     the guild path answers such a caller with nothing, and being the twin of
     that path means answering the same.
 
-    A guild that declines personal API keys is excluded when the request is
-    carrying one, which is the same twinning: ``/c/{guild_id}`` refuses that
-    caller, so an aggregate cannot be the way its content is read instead.
+    A guild that turned off this member's API access is excluded when the
+    request is carrying a personal API key, which is the same twinning:
+    ``/c/{community_id}`` refuses that caller, so an aggregate cannot be the
+    way its content is read instead.
     A key limited to one guild reaches that guild alone, for the same reason."""
     await set_rls_context(session, Platform(user_id=user_id))
     conditions = [
@@ -82,9 +83,9 @@ async def member_guild_ids(
     if auth_context.api_key_credential():
         conditions.append(
             or_(
-                Guild.allow_api_keys.is_(True),
+                GuildMembership.api_keys_allowed.is_(True),
                 ~guild_entitlements.holds_option(
-                    Guild.id, GuildAuthOption.restrictions
+                    Guild.id, CommunityAuthOption.restrictions
                 ),
             )
         )
@@ -118,7 +119,7 @@ async def gather_across_guilds(
     concatenate the results. Each guild gets a session of its own, since ids
     are unique only within a schema, not across them.
 
-    Each community is entered through the **same seam** a ``/c/{guild_id}``
+    Each community is entered through the **same seam** a ``/c/{community_id}``
     request goes through, so what these views show is what that request would
     show: the same lookup, the same refusals, and the same standing computed in
     the community's own schema. A community this caller cannot reach right now
@@ -130,7 +131,7 @@ async def gather_across_guilds(
     who asked for it (``establish_guild_access``).
 
     ``for_settings`` enters each community on its configuration surface, as
-    ``/c/{guild_id}`` settings routes do (``establish_guild_access``'s
+    ``/c/{community_id}`` settings routes do (``establish_guild_access``'s
     ``for_settings``), for a read of what its administrator configures.
 
     ``session`` is a request-path session, or one from
@@ -187,7 +188,7 @@ async def gather_across_guilds(
                 )
         except GuildAccessError:
             # A community this caller cannot reach right now contributes
-            # nothing, exactly as its own ``/c/{guild_id}`` requests would.
+            # nothing, exactly as its own ``/c/{community_id}`` requests would.
             return False
         return True
 

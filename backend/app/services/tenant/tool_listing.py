@@ -148,7 +148,7 @@ def base_conditions(
     if initiative_id is not None:
         conditions.append(model.initiative_id == initiative_id)
 
-    name_match = search_service.tool_search_clause(tool, model.id, search)
+    name_match = search_service.tool_search_clause(tool, model.id, search, context)
     if name_match is not None:
         conditions.append(name_match)
 

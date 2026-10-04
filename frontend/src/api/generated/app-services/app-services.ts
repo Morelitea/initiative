@@ -24,9 +24,14 @@ import type {
   AppPublisherCreate,
   AppPublisherRead,
   AppPublisherUpdate,
+  AppServiceConnect,
+  AppServicePublishedKey,
   AppServiceRegistrationCreate,
   AppServiceRegistrationRead,
   AppServiceRegistrationUpdate,
+  AppServiceVendorSetup,
+  AppServiceVendorSetupComplete,
+  AppServiceVendorSetupStart,
   HTTPValidationError,
 } from "../initiativeAPI.schemas";
 
@@ -54,7 +59,7 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
  * Every app service this deployment has wired up (``apps.manage``).
  * @summary List App Services
  */
-export const listAppServicesApiV1AppServicesGet = (
+export const listAppServices = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
@@ -64,52 +69,45 @@ export const listAppServicesApiV1AppServicesGet = (
   );
 };
 
-export const getListAppServicesApiV1AppServicesGetQueryKey = () => {
+export const getListAppServicesQueryKey = () => {
   return [`/api/v1/app-services/`] as const;
 };
 
-export const getListAppServicesApiV1AppServicesGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof listAppServicesApiV1AppServicesGet>>,
+export const getListAppServicesQueryOptions = <
+  TData = Awaited<ReturnType<typeof listAppServices>>,
   TError = ErrorType<HTTPValidationError>,
 >(options?: {
-  query?: Partial<
-    UseQueryOptions<Awaited<ReturnType<typeof listAppServicesApiV1AppServicesGet>>, TError, TData>
-  >;
+  query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listAppServices>>, TError, TData>>;
   request?: SecondParameter<typeof apiMutator>;
 }) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey = queryOptions?.queryKey ?? getListAppServicesApiV1AppServicesGetQueryKey();
+  const queryKey = queryOptions?.queryKey ?? getListAppServicesQueryKey();
 
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof listAppServicesApiV1AppServicesGet>>> = ({
-    signal,
-  }) => listAppServicesApiV1AppServicesGet(requestOptions, signal);
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listAppServices>>> = ({ signal }) =>
+    listAppServices(requestOptions, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof listAppServicesApiV1AppServicesGet>>,
+    Awaited<ReturnType<typeof listAppServices>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ListAppServicesApiV1AppServicesGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof listAppServicesApiV1AppServicesGet>>
->;
-export type ListAppServicesApiV1AppServicesGetQueryError = ErrorType<HTTPValidationError>;
+export type ListAppServicesQueryResult = NonNullable<Awaited<ReturnType<typeof listAppServices>>>;
+export type ListAppServicesQueryError = ErrorType<HTTPValidationError>;
 
-export function useListAppServicesApiV1AppServicesGet<
-  TData = Awaited<ReturnType<typeof listAppServicesApiV1AppServicesGet>>,
+export function useListAppServices<
+  TData = Awaited<ReturnType<typeof listAppServices>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options: {
-    query: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listAppServicesApiV1AppServicesGet>>, TError, TData>
-    > &
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof listAppServices>>, TError, TData>> &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listAppServicesApiV1AppServicesGet>>,
+          Awaited<ReturnType<typeof listAppServices>>,
           TError,
-          Awaited<ReturnType<typeof listAppServicesApiV1AppServicesGet>>
+          Awaited<ReturnType<typeof listAppServices>>
         >,
         "initialData"
       >;
@@ -117,19 +115,17 @@ export function useListAppServicesApiV1AppServicesGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListAppServicesApiV1AppServicesGet<
-  TData = Awaited<ReturnType<typeof listAppServicesApiV1AppServicesGet>>,
+export function useListAppServices<
+  TData = Awaited<ReturnType<typeof listAppServices>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
-    query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listAppServicesApiV1AppServicesGet>>, TError, TData>
-    > &
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listAppServices>>, TError, TData>> &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listAppServicesApiV1AppServicesGet>>,
+          Awaited<ReturnType<typeof listAppServices>>,
           TError,
-          Awaited<ReturnType<typeof listAppServicesApiV1AppServicesGet>>
+          Awaited<ReturnType<typeof listAppServices>>
         >,
         "initialData"
       >;
@@ -137,14 +133,12 @@ export function useListAppServicesApiV1AppServicesGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListAppServicesApiV1AppServicesGet<
-  TData = Awaited<ReturnType<typeof listAppServicesApiV1AppServicesGet>>,
+export function useListAppServices<
+  TData = Awaited<ReturnType<typeof listAppServices>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
-    query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listAppServicesApiV1AppServicesGet>>, TError, TData>
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listAppServices>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
@@ -153,19 +147,17 @@ export function useListAppServicesApiV1AppServicesGet<
  * @summary List App Services
  */
 
-export function useListAppServicesApiV1AppServicesGet<
-  TData = Awaited<ReturnType<typeof listAppServicesApiV1AppServicesGet>>,
+export function useListAppServices<
+  TData = Awaited<ReturnType<typeof listAppServices>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
-    query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listAppServicesApiV1AppServicesGet>>, TError, TData>
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listAppServices>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListAppServicesApiV1AppServicesGetQueryOptions(options);
+  const queryOptions = getListAppServicesQueryOptions(options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -180,7 +172,7 @@ export function useListAppServicesApiV1AppServicesGet<
  * prefix names, added unverified when there is none.
  * @summary Create App Service
  */
-export const createAppServiceApiV1AppServicesPost = (
+export const createAppService = (
   appServiceRegistrationCreate: BodyType<AppServiceRegistrationCreate>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
@@ -197,27 +189,26 @@ export const createAppServiceApiV1AppServicesPost = (
   );
 };
 
-export const getCreateAppServiceApiV1AppServicesPostMutationKey = () =>
-  ["createAppServiceApiV1AppServicesPost"] as const;
+export const getCreateAppServiceMutationKey = () => ["createAppService"] as const;
 
-export const getCreateAppServiceApiV1AppServicesPostMutationOptions = <
+export const getCreateAppServiceMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof createAppServiceApiV1AppServicesPost>>,
+    Awaited<ReturnType<typeof createAppService>>,
     TError,
-    CreateAppServiceApiV1AppServicesPostMutationVariables,
+    CreateAppServiceMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof createAppServiceApiV1AppServicesPost>>,
+  Awaited<ReturnType<typeof createAppService>>,
   TError,
-  CreateAppServiceApiV1AppServicesPostMutationVariables,
+  CreateAppServiceMutationVariables,
   TContext
 > => {
-  const mutationKey = getCreateAppServiceApiV1AppServicesPostMutationKey();
+  const mutationKey = getCreateAppServiceMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -225,58 +216,52 @@ export const getCreateAppServiceApiV1AppServicesPostMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof createAppServiceApiV1AppServicesPost>>,
-    CreateAppServiceApiV1AppServicesPostMutationVariables
+    Awaited<ReturnType<typeof createAppService>>,
+    CreateAppServiceMutationVariables
   > = (props) => {
     const { data } = props ?? {};
 
-    return createAppServiceApiV1AppServicesPost(data, requestOptions);
+    return createAppService(data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type CreateAppServiceApiV1AppServicesPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof createAppServiceApiV1AppServicesPost>>
+export type CreateAppServiceMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createAppService>>
 >;
-export type CreateAppServiceApiV1AppServicesPostMutationBody =
-  BodyType<AppServiceRegistrationCreate>;
-export type CreateAppServiceApiV1AppServicesPostMutationError = ErrorType<HTTPValidationError>;
-export type CreateAppServiceApiV1AppServicesPostMutationVariables = {
-  data: BodyType<AppServiceRegistrationCreate>;
-};
+export type CreateAppServiceMutationBody = BodyType<AppServiceRegistrationCreate>;
+export type CreateAppServiceMutationError = ErrorType<HTTPValidationError>;
+export type CreateAppServiceMutationVariables = { data: BodyType<AppServiceRegistrationCreate> };
 
 /**
  * @summary Create App Service
  */
-export const useCreateAppServiceApiV1AppServicesPost = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
+export const useCreateAppService = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof createAppServiceApiV1AppServicesPost>>,
+      Awaited<ReturnType<typeof createAppService>>,
       TError,
-      CreateAppServiceApiV1AppServicesPostMutationVariables,
+      CreateAppServiceMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof createAppServiceApiV1AppServicesPost>>,
+  Awaited<ReturnType<typeof createAppService>>,
   TError,
-  CreateAppServiceApiV1AppServicesPostMutationVariables,
+  CreateAppServiceMutationVariables,
   TContext
 > => {
-  return useMutation(getCreateAppServiceApiV1AppServicesPostMutationOptions(options), queryClient);
+  return useMutation(getCreateAppServiceMutationOptions(options), queryClient);
 };
 /**
  * Enable/disable, repoint either address, replace the keys, change the
  * reach conferred, or set the vendor values.
  * @summary Update App Service
  */
-export const updateAppServiceApiV1AppServicesRegistrationIdPatch = (
+export const updateAppService = (
   registrationId: number,
   appServiceRegistrationUpdate: BodyType<AppServiceRegistrationUpdate>,
   options?: SecondParameter<typeof apiMutator>,
@@ -294,27 +279,26 @@ export const updateAppServiceApiV1AppServicesRegistrationIdPatch = (
   );
 };
 
-export const getUpdateAppServiceApiV1AppServicesRegistrationIdPatchMutationKey = () =>
-  ["updateAppServiceApiV1AppServicesRegistrationIdPatch"] as const;
+export const getUpdateAppServiceMutationKey = () => ["updateAppService"] as const;
 
-export const getUpdateAppServiceApiV1AppServicesRegistrationIdPatchMutationOptions = <
+export const getUpdateAppServiceMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof updateAppServiceApiV1AppServicesRegistrationIdPatch>>,
+    Awaited<ReturnType<typeof updateAppService>>,
     TError,
-    UpdateAppServiceApiV1AppServicesRegistrationIdPatchMutationVariables,
+    UpdateAppServiceMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof updateAppServiceApiV1AppServicesRegistrationIdPatch>>,
+  Awaited<ReturnType<typeof updateAppService>>,
   TError,
-  UpdateAppServiceApiV1AppServicesRegistrationIdPatchMutationVariables,
+  UpdateAppServiceMutationVariables,
   TContext
 > => {
-  const mutationKey = getUpdateAppServiceApiV1AppServicesRegistrationIdPatchMutationKey();
+  const mutationKey = getUpdateAppServiceMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -322,29 +306,23 @@ export const getUpdateAppServiceApiV1AppServicesRegistrationIdPatchMutationOptio
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof updateAppServiceApiV1AppServicesRegistrationIdPatch>>,
-    UpdateAppServiceApiV1AppServicesRegistrationIdPatchMutationVariables
+    Awaited<ReturnType<typeof updateAppService>>,
+    UpdateAppServiceMutationVariables
   > = (props) => {
     const { registrationId, data } = props ?? {};
 
-    return updateAppServiceApiV1AppServicesRegistrationIdPatch(
-      registrationId,
-      data,
-      requestOptions
-    );
+    return updateAppService(registrationId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type UpdateAppServiceApiV1AppServicesRegistrationIdPatchMutationResult = NonNullable<
-  Awaited<ReturnType<typeof updateAppServiceApiV1AppServicesRegistrationIdPatch>>
+export type UpdateAppServiceMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateAppService>>
 >;
-export type UpdateAppServiceApiV1AppServicesRegistrationIdPatchMutationBody =
-  BodyType<AppServiceRegistrationUpdate>;
-export type UpdateAppServiceApiV1AppServicesRegistrationIdPatchMutationError =
-  ErrorType<HTTPValidationError>;
-export type UpdateAppServiceApiV1AppServicesRegistrationIdPatchMutationVariables = {
+export type UpdateAppServiceMutationBody = BodyType<AppServiceRegistrationUpdate>;
+export type UpdateAppServiceMutationError = ErrorType<HTTPValidationError>;
+export type UpdateAppServiceMutationVariables = {
   registrationId: number;
   data: BodyType<AppServiceRegistrationUpdate>;
 };
@@ -352,36 +330,30 @@ export type UpdateAppServiceApiV1AppServicesRegistrationIdPatchMutationVariables
 /**
  * @summary Update App Service
  */
-export const useUpdateAppServiceApiV1AppServicesRegistrationIdPatch = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
+export const useUpdateAppService = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof updateAppServiceApiV1AppServicesRegistrationIdPatch>>,
+      Awaited<ReturnType<typeof updateAppService>>,
       TError,
-      UpdateAppServiceApiV1AppServicesRegistrationIdPatchMutationVariables,
+      UpdateAppServiceMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof updateAppServiceApiV1AppServicesRegistrationIdPatch>>,
+  Awaited<ReturnType<typeof updateAppService>>,
   TError,
-  UpdateAppServiceApiV1AppServicesRegistrationIdPatchMutationVariables,
+  UpdateAppServiceMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getUpdateAppServiceApiV1AppServicesRegistrationIdPatchMutationOptions(options),
-    queryClient
-  );
+  return useMutation(getUpdateAppServiceMutationOptions(options), queryClient);
 };
 /**
  * Remove the registration. Every channel it backed stops with the row.
  * @summary Delete App Service
  */
-export const deleteAppServiceApiV1AppServicesRegistrationIdDelete = (
+export const deleteAppService = (
   registrationId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
@@ -392,27 +364,26 @@ export const deleteAppServiceApiV1AppServicesRegistrationIdDelete = (
   );
 };
 
-export const getDeleteAppServiceApiV1AppServicesRegistrationIdDeleteMutationKey = () =>
-  ["deleteAppServiceApiV1AppServicesRegistrationIdDelete"] as const;
+export const getDeleteAppServiceMutationKey = () => ["deleteAppService"] as const;
 
-export const getDeleteAppServiceApiV1AppServicesRegistrationIdDeleteMutationOptions = <
+export const getDeleteAppServiceMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof deleteAppServiceApiV1AppServicesRegistrationIdDelete>>,
+    Awaited<ReturnType<typeof deleteAppService>>,
     TError,
-    DeleteAppServiceApiV1AppServicesRegistrationIdDeleteMutationVariables,
+    DeleteAppServiceMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof deleteAppServiceApiV1AppServicesRegistrationIdDelete>>,
+  Awaited<ReturnType<typeof deleteAppService>>,
   TError,
-  DeleteAppServiceApiV1AppServicesRegistrationIdDeleteMutationVariables,
+  DeleteAppServiceMutationVariables,
   TContext
 > => {
-  const mutationKey = getDeleteAppServiceApiV1AppServicesRegistrationIdDeleteMutationKey();
+  const mutationKey = getDeleteAppServiceMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -420,60 +391,467 @@ export const getDeleteAppServiceApiV1AppServicesRegistrationIdDeleteMutationOpti
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof deleteAppServiceApiV1AppServicesRegistrationIdDelete>>,
-    DeleteAppServiceApiV1AppServicesRegistrationIdDeleteMutationVariables
+    Awaited<ReturnType<typeof deleteAppService>>,
+    DeleteAppServiceMutationVariables
   > = (props) => {
     const { registrationId } = props ?? {};
 
-    return deleteAppServiceApiV1AppServicesRegistrationIdDelete(registrationId, requestOptions);
+    return deleteAppService(registrationId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type DeleteAppServiceApiV1AppServicesRegistrationIdDeleteMutationResult = NonNullable<
-  Awaited<ReturnType<typeof deleteAppServiceApiV1AppServicesRegistrationIdDelete>>
+export type DeleteAppServiceMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteAppService>>
 >;
 
-export type DeleteAppServiceApiV1AppServicesRegistrationIdDeleteMutationError =
-  ErrorType<HTTPValidationError>;
-export type DeleteAppServiceApiV1AppServicesRegistrationIdDeleteMutationVariables = {
-  registrationId: number;
-};
+export type DeleteAppServiceMutationError = ErrorType<HTTPValidationError>;
+export type DeleteAppServiceMutationVariables = { registrationId: number };
 
 /**
  * @summary Delete App Service
  */
-export const useDeleteAppServiceApiV1AppServicesRegistrationIdDelete = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
+export const useDeleteAppService = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof deleteAppServiceApiV1AppServicesRegistrationIdDelete>>,
+      Awaited<ReturnType<typeof deleteAppService>>,
       TError,
-      DeleteAppServiceApiV1AppServicesRegistrationIdDeleteMutationVariables,
+      DeleteAppServiceMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof deleteAppServiceApiV1AppServicesRegistrationIdDelete>>,
+  Awaited<ReturnType<typeof deleteAppService>>,
   TError,
-  DeleteAppServiceApiV1AppServicesRegistrationIdDeleteMutationVariables,
+  DeleteAppServiceMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getDeleteAppServiceApiV1AppServicesRegistrationIdDeleteMutationOptions(options),
-    queryClient
+  return useMutation(getDeleteAppServiceMutationOptions(options), queryClient);
+};
+/**
+ * The keys the app serves at ``{base_url}/.well-known/jwks.json``, each
+ * with its fingerprint, for the operator to confirm. Stores nothing.
+ * @summary Read App Service Keys
+ */
+export const readAppServiceKeys = (
+  registrationId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<AppServicePublishedKey[]>(
+    { url: `/api/v1/app-services/${registrationId}/connect`, method: "GET", signal },
+    options
   );
+};
+
+export const getReadAppServiceKeysQueryKey = (registrationId: number) => {
+  return [`/api/v1/app-services/${registrationId}/connect`] as const;
+};
+
+export const getReadAppServiceKeysQueryOptions = <
+  TData = Awaited<ReturnType<typeof readAppServiceKeys>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  registrationId: number,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readAppServiceKeys>>, TError, TData>>;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getReadAppServiceKeysQueryKey(registrationId);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof readAppServiceKeys>>> = ({ signal }) =>
+    readAppServiceKeys(registrationId, requestOptions, signal);
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: registrationId !== null && registrationId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<Awaited<ReturnType<typeof readAppServiceKeys>>, TError, TData> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+};
+
+export type ReadAppServiceKeysQueryResult = NonNullable<
+  Awaited<ReturnType<typeof readAppServiceKeys>>
+>;
+export type ReadAppServiceKeysQueryError = ErrorType<HTTPValidationError>;
+
+export function useReadAppServiceKeys<
+  TData = Awaited<ReturnType<typeof readAppServiceKeys>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  registrationId: number,
+  options: {
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof readAppServiceKeys>>, TError, TData>> &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof readAppServiceKeys>>,
+          TError,
+          Awaited<ReturnType<typeof readAppServiceKeys>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadAppServiceKeys<
+  TData = Awaited<ReturnType<typeof readAppServiceKeys>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  registrationId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof readAppServiceKeys>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof readAppServiceKeys>>,
+          TError,
+          Awaited<ReturnType<typeof readAppServiceKeys>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadAppServiceKeys<
+  TData = Awaited<ReturnType<typeof readAppServiceKeys>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  registrationId: number,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readAppServiceKeys>>, TError, TData>>;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Read App Service Keys
+ */
+
+export function useReadAppServiceKeys<
+  TData = Awaited<ReturnType<typeof readAppServiceKeys>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  registrationId: number,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readAppServiceKeys>>, TError, TData>>;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getReadAppServiceKeysQueryOptions(registrationId, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * Store the key set the app serves as the registration's pasted set, in
+ * place of any key set address, when its keys are the ones confirmed and
+ * its base URL has not moved (409 otherwise).
+ * @summary Connect App Service
+ */
+export const connectAppService = (
+  registrationId: number,
+  appServiceConnect: BodyType<AppServiceConnect>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<AppServiceRegistrationRead>(
+    {
+      url: `/api/v1/app-services/${registrationId}/connect`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: appServiceConnect,
+      signal,
+    },
+    options
+  );
+};
+
+export const getConnectAppServiceMutationKey = () => ["connectAppService"] as const;
+
+export const getConnectAppServiceMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof connectAppService>>,
+    TError,
+    ConnectAppServiceMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof connectAppService>>,
+  TError,
+  ConnectAppServiceMutationVariables,
+  TContext
+> => {
+  const mutationKey = getConnectAppServiceMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof connectAppService>>,
+    ConnectAppServiceMutationVariables
+  > = (props) => {
+    const { registrationId, data } = props ?? {};
+
+    return connectAppService(registrationId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ConnectAppServiceMutationResult = NonNullable<
+  Awaited<ReturnType<typeof connectAppService>>
+>;
+export type ConnectAppServiceMutationBody = BodyType<AppServiceConnect>;
+export type ConnectAppServiceMutationError = ErrorType<HTTPValidationError>;
+export type ConnectAppServiceMutationVariables = {
+  registrationId: number;
+  data: BodyType<AppServiceConnect>;
+};
+
+/**
+ * @summary Connect App Service
+ */
+export const useConnectAppService = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof connectAppService>>,
+      TError,
+      ConnectAppServiceMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof connectAppService>>,
+  TError,
+  ConnectAppServiceMutationVariables,
+  TContext
+> => {
+  return useMutation(getConnectAppServiceMutationOptions(options), queryClient);
+};
+/**
+ * Start the vendor's own setup of the app's client: the manifest the
+ * operator's browser posts to the vendor, where, and the state that brings
+ * them back (409 when the listing declares no such setup).
+ * @summary Start App Service Vendor Setup
+ */
+export const startAppServiceVendorSetup = (
+  registrationId: number,
+  appServiceVendorSetupStart: BodyType<AppServiceVendorSetupStart>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<AppServiceVendorSetup>(
+    {
+      url: `/api/v1/app-services/${registrationId}/vendor-setup`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: appServiceVendorSetupStart,
+      signal,
+    },
+    options
+  );
+};
+
+export const getStartAppServiceVendorSetupMutationKey = () =>
+  ["startAppServiceVendorSetup"] as const;
+
+export const getStartAppServiceVendorSetupMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof startAppServiceVendorSetup>>,
+    TError,
+    StartAppServiceVendorSetupMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof startAppServiceVendorSetup>>,
+  TError,
+  StartAppServiceVendorSetupMutationVariables,
+  TContext
+> => {
+  const mutationKey = getStartAppServiceVendorSetupMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof startAppServiceVendorSetup>>,
+    StartAppServiceVendorSetupMutationVariables
+  > = (props) => {
+    const { registrationId, data } = props ?? {};
+
+    return startAppServiceVendorSetup(registrationId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type StartAppServiceVendorSetupMutationResult = NonNullable<
+  Awaited<ReturnType<typeof startAppServiceVendorSetup>>
+>;
+export type StartAppServiceVendorSetupMutationBody = BodyType<AppServiceVendorSetupStart>;
+export type StartAppServiceVendorSetupMutationError = ErrorType<HTTPValidationError>;
+export type StartAppServiceVendorSetupMutationVariables = {
+  registrationId: number;
+  data: BodyType<AppServiceVendorSetupStart>;
+};
+
+/**
+ * @summary Start App Service Vendor Setup
+ */
+export const useStartAppServiceVendorSetup = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof startAppServiceVendorSetup>>,
+      TError,
+      StartAppServiceVendorSetupMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof startAppServiceVendorSetup>>,
+  TError,
+  StartAppServiceVendorSetupMutationVariables,
+  TContext
+> => {
+  return useMutation(getStartAppServiceVendorSetupMutationOptions(options), queryClient);
+};
+/**
+ * Finish the setup the vendor sent the operator back from, writing the
+ * new client's values into the registration's vendor values.
+ * @summary Complete App Service Vendor Setup
+ */
+export const completeAppServiceVendorSetup = (
+  registrationId: number,
+  appServiceVendorSetupComplete: BodyType<AppServiceVendorSetupComplete>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<AppServiceRegistrationRead>(
+    {
+      url: `/api/v1/app-services/${registrationId}/vendor-setup/complete`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: appServiceVendorSetupComplete,
+      signal,
+    },
+    options
+  );
+};
+
+export const getCompleteAppServiceVendorSetupMutationKey = () =>
+  ["completeAppServiceVendorSetup"] as const;
+
+export const getCompleteAppServiceVendorSetupMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof completeAppServiceVendorSetup>>,
+    TError,
+    CompleteAppServiceVendorSetupMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof completeAppServiceVendorSetup>>,
+  TError,
+  CompleteAppServiceVendorSetupMutationVariables,
+  TContext
+> => {
+  const mutationKey = getCompleteAppServiceVendorSetupMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof completeAppServiceVendorSetup>>,
+    CompleteAppServiceVendorSetupMutationVariables
+  > = (props) => {
+    const { registrationId, data } = props ?? {};
+
+    return completeAppServiceVendorSetup(registrationId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CompleteAppServiceVendorSetupMutationResult = NonNullable<
+  Awaited<ReturnType<typeof completeAppServiceVendorSetup>>
+>;
+export type CompleteAppServiceVendorSetupMutationBody = BodyType<AppServiceVendorSetupComplete>;
+export type CompleteAppServiceVendorSetupMutationError = ErrorType<HTTPValidationError>;
+export type CompleteAppServiceVendorSetupMutationVariables = {
+  registrationId: number;
+  data: BodyType<AppServiceVendorSetupComplete>;
+};
+
+/**
+ * @summary Complete App Service Vendor Setup
+ */
+export const useCompleteAppServiceVendorSetup = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof completeAppServiceVendorSetup>>,
+      TError,
+      CompleteAppServiceVendorSetupMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof completeAppServiceVendorSetup>>,
+  TError,
+  CompleteAppServiceVendorSetupMutationVariables,
+  TContext
+> => {
+  return useMutation(getCompleteAppServiceVendorSetupMutationOptions(options), queryClient);
 };
 /**
  * Every publisher of app services on this deployment (``apps.manage``).
  * @summary List App Publishers
  */
-export const listAppPublishersApiV1AppPublishersGet = (
+export const listAppPublishers = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
@@ -483,60 +861,47 @@ export const listAppPublishersApiV1AppPublishersGet = (
   );
 };
 
-export const getListAppPublishersApiV1AppPublishersGetQueryKey = () => {
+export const getListAppPublishersQueryKey = () => {
   return [`/api/v1/app-publishers/`] as const;
 };
 
-export const getListAppPublishersApiV1AppPublishersGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof listAppPublishersApiV1AppPublishersGet>>,
+export const getListAppPublishersQueryOptions = <
+  TData = Awaited<ReturnType<typeof listAppPublishers>>,
   TError = ErrorType<HTTPValidationError>,
 >(options?: {
-  query?: Partial<
-    UseQueryOptions<
-      Awaited<ReturnType<typeof listAppPublishersApiV1AppPublishersGet>>,
-      TError,
-      TData
-    >
-  >;
+  query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listAppPublishers>>, TError, TData>>;
   request?: SecondParameter<typeof apiMutator>;
 }) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey = queryOptions?.queryKey ?? getListAppPublishersApiV1AppPublishersGetQueryKey();
+  const queryKey = queryOptions?.queryKey ?? getListAppPublishersQueryKey();
 
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof listAppPublishersApiV1AppPublishersGet>>
-  > = ({ signal }) => listAppPublishersApiV1AppPublishersGet(requestOptions, signal);
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listAppPublishers>>> = ({ signal }) =>
+    listAppPublishers(requestOptions, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof listAppPublishersApiV1AppPublishersGet>>,
+    Awaited<ReturnType<typeof listAppPublishers>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ListAppPublishersApiV1AppPublishersGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof listAppPublishersApiV1AppPublishersGet>>
+export type ListAppPublishersQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listAppPublishers>>
 >;
-export type ListAppPublishersApiV1AppPublishersGetQueryError = ErrorType<HTTPValidationError>;
+export type ListAppPublishersQueryError = ErrorType<HTTPValidationError>;
 
-export function useListAppPublishersApiV1AppPublishersGet<
-  TData = Awaited<ReturnType<typeof listAppPublishersApiV1AppPublishersGet>>,
+export function useListAppPublishers<
+  TData = Awaited<ReturnType<typeof listAppPublishers>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options: {
-    query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listAppPublishersApiV1AppPublishersGet>>,
-        TError,
-        TData
-      >
-    > &
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof listAppPublishers>>, TError, TData>> &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listAppPublishersApiV1AppPublishersGet>>,
+          Awaited<ReturnType<typeof listAppPublishers>>,
           TError,
-          Awaited<ReturnType<typeof listAppPublishersApiV1AppPublishersGet>>
+          Awaited<ReturnType<typeof listAppPublishers>>
         >,
         "initialData"
       >;
@@ -544,23 +909,17 @@ export function useListAppPublishersApiV1AppPublishersGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListAppPublishersApiV1AppPublishersGet<
-  TData = Awaited<ReturnType<typeof listAppPublishersApiV1AppPublishersGet>>,
+export function useListAppPublishers<
+  TData = Awaited<ReturnType<typeof listAppPublishers>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listAppPublishersApiV1AppPublishersGet>>,
-        TError,
-        TData
-      >
-    > &
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listAppPublishers>>, TError, TData>> &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listAppPublishersApiV1AppPublishersGet>>,
+          Awaited<ReturnType<typeof listAppPublishers>>,
           TError,
-          Awaited<ReturnType<typeof listAppPublishersApiV1AppPublishersGet>>
+          Awaited<ReturnType<typeof listAppPublishers>>
         >,
         "initialData"
       >;
@@ -568,18 +927,12 @@ export function useListAppPublishersApiV1AppPublishersGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListAppPublishersApiV1AppPublishersGet<
-  TData = Awaited<ReturnType<typeof listAppPublishersApiV1AppPublishersGet>>,
+export function useListAppPublishers<
+  TData = Awaited<ReturnType<typeof listAppPublishers>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listAppPublishersApiV1AppPublishersGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listAppPublishers>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
@@ -588,23 +941,17 @@ export function useListAppPublishersApiV1AppPublishersGet<
  * @summary List App Publishers
  */
 
-export function useListAppPublishersApiV1AppPublishersGet<
-  TData = Awaited<ReturnType<typeof listAppPublishersApiV1AppPublishersGet>>,
+export function useListAppPublishers<
+  TData = Awaited<ReturnType<typeof listAppPublishers>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listAppPublishersApiV1AppPublishersGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listAppPublishers>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListAppPublishersApiV1AppPublishersGetQueryOptions(options);
+  const queryOptions = getListAppPublishersQueryOptions(options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -618,7 +965,7 @@ export function useListAppPublishersApiV1AppPublishersGet<
  * unverified.
  * @summary Create App Publisher
  */
-export const createAppPublisherApiV1AppPublishersPost = (
+export const createAppPublisher = (
   appPublisherCreate: BodyType<AppPublisherCreate>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
@@ -635,27 +982,26 @@ export const createAppPublisherApiV1AppPublishersPost = (
   );
 };
 
-export const getCreateAppPublisherApiV1AppPublishersPostMutationKey = () =>
-  ["createAppPublisherApiV1AppPublishersPost"] as const;
+export const getCreateAppPublisherMutationKey = () => ["createAppPublisher"] as const;
 
-export const getCreateAppPublisherApiV1AppPublishersPostMutationOptions = <
+export const getCreateAppPublisherMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof createAppPublisherApiV1AppPublishersPost>>,
+    Awaited<ReturnType<typeof createAppPublisher>>,
     TError,
-    CreateAppPublisherApiV1AppPublishersPostMutationVariables,
+    CreateAppPublisherMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof createAppPublisherApiV1AppPublishersPost>>,
+  Awaited<ReturnType<typeof createAppPublisher>>,
   TError,
-  CreateAppPublisherApiV1AppPublishersPostMutationVariables,
+  CreateAppPublisherMutationVariables,
   TContext
 > => {
-  const mutationKey = getCreateAppPublisherApiV1AppPublishersPostMutationKey();
+  const mutationKey = getCreateAppPublisherMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -663,60 +1009,52 @@ export const getCreateAppPublisherApiV1AppPublishersPostMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof createAppPublisherApiV1AppPublishersPost>>,
-    CreateAppPublisherApiV1AppPublishersPostMutationVariables
+    Awaited<ReturnType<typeof createAppPublisher>>,
+    CreateAppPublisherMutationVariables
   > = (props) => {
     const { data } = props ?? {};
 
-    return createAppPublisherApiV1AppPublishersPost(data, requestOptions);
+    return createAppPublisher(data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type CreateAppPublisherApiV1AppPublishersPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof createAppPublisherApiV1AppPublishersPost>>
+export type CreateAppPublisherMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createAppPublisher>>
 >;
-export type CreateAppPublisherApiV1AppPublishersPostMutationBody = BodyType<AppPublisherCreate>;
-export type CreateAppPublisherApiV1AppPublishersPostMutationError = ErrorType<HTTPValidationError>;
-export type CreateAppPublisherApiV1AppPublishersPostMutationVariables = {
-  data: BodyType<AppPublisherCreate>;
-};
+export type CreateAppPublisherMutationBody = BodyType<AppPublisherCreate>;
+export type CreateAppPublisherMutationError = ErrorType<HTTPValidationError>;
+export type CreateAppPublisherMutationVariables = { data: BodyType<AppPublisherCreate> };
 
 /**
  * @summary Create App Publisher
  */
-export const useCreateAppPublisherApiV1AppPublishersPost = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
+export const useCreateAppPublisher = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof createAppPublisherApiV1AppPublishersPost>>,
+      Awaited<ReturnType<typeof createAppPublisher>>,
       TError,
-      CreateAppPublisherApiV1AppPublishersPostMutationVariables,
+      CreateAppPublisherMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof createAppPublisherApiV1AppPublishersPost>>,
+  Awaited<ReturnType<typeof createAppPublisher>>,
   TError,
-  CreateAppPublisherApiV1AppPublishersPostMutationVariables,
+  CreateAppPublisherMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getCreateAppPublisherApiV1AppPublishersPostMutationOptions(options),
-    queryClient
-  );
+  return useMutation(getCreateAppPublisherMutationOptions(options), queryClient);
 };
 /**
  * Rename a publisher, or switch it on or off. Off makes every app under
  * its prefix not live.
  * @summary Update App Publisher
  */
-export const updateAppPublisherApiV1AppPublishersPublisherIdPatch = (
+export const updateAppPublisher = (
   publisherId: number,
   appPublisherUpdate: BodyType<AppPublisherUpdate>,
   options?: SecondParameter<typeof apiMutator>,
@@ -734,27 +1072,26 @@ export const updateAppPublisherApiV1AppPublishersPublisherIdPatch = (
   );
 };
 
-export const getUpdateAppPublisherApiV1AppPublishersPublisherIdPatchMutationKey = () =>
-  ["updateAppPublisherApiV1AppPublishersPublisherIdPatch"] as const;
+export const getUpdateAppPublisherMutationKey = () => ["updateAppPublisher"] as const;
 
-export const getUpdateAppPublisherApiV1AppPublishersPublisherIdPatchMutationOptions = <
+export const getUpdateAppPublisherMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof updateAppPublisherApiV1AppPublishersPublisherIdPatch>>,
+    Awaited<ReturnType<typeof updateAppPublisher>>,
     TError,
-    UpdateAppPublisherApiV1AppPublishersPublisherIdPatchMutationVariables,
+    UpdateAppPublisherMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof updateAppPublisherApiV1AppPublishersPublisherIdPatch>>,
+  Awaited<ReturnType<typeof updateAppPublisher>>,
   TError,
-  UpdateAppPublisherApiV1AppPublishersPublisherIdPatchMutationVariables,
+  UpdateAppPublisherMutationVariables,
   TContext
 > => {
-  const mutationKey = getUpdateAppPublisherApiV1AppPublishersPublisherIdPatchMutationKey();
+  const mutationKey = getUpdateAppPublisherMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -762,25 +1099,23 @@ export const getUpdateAppPublisherApiV1AppPublishersPublisherIdPatchMutationOpti
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof updateAppPublisherApiV1AppPublishersPublisherIdPatch>>,
-    UpdateAppPublisherApiV1AppPublishersPublisherIdPatchMutationVariables
+    Awaited<ReturnType<typeof updateAppPublisher>>,
+    UpdateAppPublisherMutationVariables
   > = (props) => {
     const { publisherId, data } = props ?? {};
 
-    return updateAppPublisherApiV1AppPublishersPublisherIdPatch(publisherId, data, requestOptions);
+    return updateAppPublisher(publisherId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type UpdateAppPublisherApiV1AppPublishersPublisherIdPatchMutationResult = NonNullable<
-  Awaited<ReturnType<typeof updateAppPublisherApiV1AppPublishersPublisherIdPatch>>
+export type UpdateAppPublisherMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateAppPublisher>>
 >;
-export type UpdateAppPublisherApiV1AppPublishersPublisherIdPatchMutationBody =
-  BodyType<AppPublisherUpdate>;
-export type UpdateAppPublisherApiV1AppPublishersPublisherIdPatchMutationError =
-  ErrorType<HTTPValidationError>;
-export type UpdateAppPublisherApiV1AppPublishersPublisherIdPatchMutationVariables = {
+export type UpdateAppPublisherMutationBody = BodyType<AppPublisherUpdate>;
+export type UpdateAppPublisherMutationError = ErrorType<HTTPValidationError>;
+export type UpdateAppPublisherMutationVariables = {
   publisherId: number;
   data: BodyType<AppPublisherUpdate>;
 };
@@ -788,28 +1123,22 @@ export type UpdateAppPublisherApiV1AppPublishersPublisherIdPatchMutationVariable
 /**
  * @summary Update App Publisher
  */
-export const useUpdateAppPublisherApiV1AppPublishersPublisherIdPatch = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
+export const useUpdateAppPublisher = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof updateAppPublisherApiV1AppPublishersPublisherIdPatch>>,
+      Awaited<ReturnType<typeof updateAppPublisher>>,
       TError,
-      UpdateAppPublisherApiV1AppPublishersPublisherIdPatchMutationVariables,
+      UpdateAppPublisherMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof updateAppPublisherApiV1AppPublishersPublisherIdPatch>>,
+  Awaited<ReturnType<typeof updateAppPublisher>>,
   TError,
-  UpdateAppPublisherApiV1AppPublishersPublisherIdPatchMutationVariables,
+  UpdateAppPublisherMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getUpdateAppPublisherApiV1AppPublishersPublisherIdPatchMutationOptions(options),
-    queryClient
-  );
+  return useMutation(getUpdateAppPublisherMutationOptions(options), queryClient);
 };

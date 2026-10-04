@@ -18,8 +18,7 @@ connection carries the rule, and the two meet in the gate.
 The value is the frozenset of provider ids the session proved. Work a job does
 on somebody's behalf is routed with ``on_behalf`` instead
 (``app.api.deps.establish_guild_access``). The default is the empty set —
-credentials that carry no ``sat`` (legacy tokens, API keys, device tokens)
-fail closed against policy-gated guilds.
+credentials that carry no ``sat`` (legacy tokens, API keys) fail closed against policy-gated guilds.
 """
 
 from __future__ import annotations
@@ -60,7 +59,7 @@ def satisfied_claims() -> dict[str, dict[str, list[str]]]:
     """Those assertions, for this request/task.
 
     Empty for every credential that records nothing about how its owner signed
-    in — device tokens, API keys — which is the fail-closed answer against a
+    in — API keys — which is the fail-closed answer against a
     community that narrows the way in.
     """
     return _satisfied_claims.get()
@@ -130,7 +129,7 @@ def session_amr() -> frozenset[str]:
 #: presented. Its own reading rather than :func:`session_amr`'s, because the
 #: two questions are different — a community asks what *this session* proved,
 #: and the deployment asks what the *account* has — and because a credential
-#: that cannot present one (the app's device token, a personal API key) still
+#: that cannot present one (a personal API key) still
 #: answers the deployment by the account holding a factor.
 #:
 #: Resolved once per request by the gate in ``app.api.deps`` and handed to the
@@ -198,30 +197,6 @@ def set_api_key_guild_id(value: int | None) -> None:
 
 def api_key_guild_id() -> int | None:
     return _api_key_guild_id.get()
-
-
-#: The ``user_tokens`` row that authenticated this request, when the credential
-#: was a device token. It names one installed client, which is the only stable
-#: handle the server has on "this phone" — a push token rotates and a login
-#: expires, so anything that has to recognise the same installation twice
-#: (linking its push registration to its message key store) keys on this.
-#: ``None`` for every other credential, including the web session: a browser
-#: has no device token and minting one to tidy the join would put a long-lived
-#: credential where it does not belong.
-_device_token_id: contextvars.ContextVar[int | None] = contextvars.ContextVar(
-    "auth_device_token_id", default=None
-)
-
-
-def set_device_token_id(value: int | None) -> None:
-    """Record the device token that authenticated this request (or clear it)."""
-    _device_token_id.set(value)
-
-
-def device_token_id() -> int | None:
-    """The device token recorded for this request, if it was authenticated by
-    one."""
-    return _device_token_id.get()
 
 
 @dataclass(frozen=True)

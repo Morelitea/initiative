@@ -135,7 +135,7 @@ def _authorize(
         if not guild_context.is_admin:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=GuildMessages.GUILD_ADMIN_REQUIRED,
+                detail=GuildMessages.COMMUNITY_ADMIN_REQUIRED,
             )
         return
     governing = Tool.project if entity_type == "task" else Tool(entity_type)

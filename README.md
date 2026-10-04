@@ -136,7 +136,7 @@ Or take the newest [release](https://github.com/Morelitea/initiative/releases) w
 | `DATABASE_URL` | PostgreSQL connection as the database owner (see [Database connection](#database-connection)) | Required |
 | `SECRET_KEY` | JWT signing and encryption key | Required |
 | `APP_URL` | Public base URL (required for OIDC callbacks) | - |
-| `DISABLE_GUILD_CREATION` | Restrict guild creation to `guilds.manage` holders (operator and owner) | `false` |
+| `DISABLE_GUILD_CREATION` | Restrict guild creation to `communities.manage` holders (operator and owner) | `false` |
 | `ENABLE_PUBLIC_REGISTRATION` | Allow registration without invite link | `true` |
 | `ENABLE_MCP` | Mount the in-app MCP server at `/api/v1/mcp/` for AI assistants (see [MCP Server](#mcp-server)) | `false` |
 | `MARKETPLACE_EXTRA_CATALOG_DIR` | Directory of your own marketplace listing files (see [Publishing your own listings](docs/en/running-a-server/publishing-listings.md)) | - |
@@ -279,7 +279,7 @@ The application in this repository is **open source** under the [GNU Affero Gene
 | Repository | License | What it is |
 |---|---|---|
 | [Morelitea/initiative](https://github.com/Morelitea/initiative) | AGPL-3.0 | The application: backend, frontend, and mobile builds |
-| [initiative-app-kit](https://github.com/Morelitea/initiative-app-kit) | MIT | The protocol half of writing an app for Initiative |
-| [initiative-github](https://github.com/Morelitea/initiative-github) | MIT | The reference app — clone it to start your own |
+| [initiative-app-sdk](https://github.com/Morelitea/initiative-app-sdk) | MIT | The SDK and CLI for writing an app for Initiative |
+| [initiative-developer](https://github.com/Morelitea/initiative-developer) | MIT | The app registry, and the GitHub app to start your own from |
 
 **What isn't:** automations and billing are proprietary, are not published, and are not part of this repository. They exist to run Initiative Cloud; a self-hosted install is the complete product without them.

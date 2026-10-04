@@ -3,7 +3,7 @@ import type { SerializedEditorState } from "lexical";
 import { HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
 
-import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
 import { Editor } from "@/components/documents/editor/editor";
@@ -64,7 +64,7 @@ function DocumentUnderTest() {
 describe("a smart chip in a real document", () => {
   it("shows what the thing is doing now, not the words stored beside it", async () => {
     server.use(
-      guildHttp.get("/smart-chips/", ({ request }) => {
+      communityHttp.get("/smart-chips/", ({ request }) => {
         const refs = new URL(request.url).searchParams.getAll("ref");
         // One reference per chip: the answer names its own thing.
         expect(refs).toEqual(["counter:4:value"]);
@@ -94,7 +94,7 @@ describe("a smart chip in a real document", () => {
   });
 
   it("falls back to the stored label when the thing cannot be read", async () => {
-    server.use(guildHttp.get("/smart-chips/", () => HttpResponse.json({ items: [] })));
+    server.use(communityHttp.get("/smart-chips/", () => HttpResponse.json({ items: [] })));
 
     renderPage(DocumentUnderTest);
 

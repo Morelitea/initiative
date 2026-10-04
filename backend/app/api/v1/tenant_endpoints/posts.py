@@ -505,6 +505,7 @@ async def update_post(
             )
             await attachments_service.claim_uploads(session, post)
         if publish_now:
+            await post_polls_service.open_lapsed_polls(session, [post.id], now=now)
             author = await notifications_service.author_of(
                 session, guild_context, current_user
             )

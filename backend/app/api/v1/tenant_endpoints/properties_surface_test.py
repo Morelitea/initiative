@@ -27,7 +27,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.tools import Tool
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.property import PropertyType, PropertyValue
 from app.models.tenant.task import Task
@@ -181,7 +181,7 @@ surfaces = pytest.mark.parametrize("surface", SURFACES, ids=[s.kind for s in SUR
 
 async def _scene(surface: Surface, session, acting_user) -> tuple[Actor, Any]:
     """An initiative admin and the parent the surface's entities hang off."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     return a, await surface.parent(session, a, a.initiative)
 
 
@@ -379,7 +379,7 @@ async def test_put_refuses_a_person_who_cannot_open_it(
     # In the community, not in the initiative.
     outsider = await create_user(session)
     await create_guild_membership(
-        session, user=outsider, guild=a.guild, role=GuildRole.member
+        session, user=outsider, guild=a.guild, role=CommunityRole.member
     )
     defn = await create_property_definition(
         session, a.initiative, name="Owner", type=PropertyType.user_reference
@@ -423,7 +423,7 @@ async def test_put_on_an_entity_of_another_community_is_not_found(
     a, _parent = await _scene(surface, session, acting_user)
     guild_b = await create_guild(session, name="B")
     await create_guild_membership(
-        session, user=a.user, guild=guild_b, role=GuildRole.admin
+        session, user=a.user, guild=guild_b, role=CommunityRole.admin
     )
     initiative_b = await create_initiative(session, guild_b, a.user, name="Init B")
     parent_b = await surface.parent(session, a, initiative_b)
@@ -444,9 +444,9 @@ async def test_put_needs_write_on_the_tool_that_governs_it(
     a, parent = await _scene(surface, session, acting_user)
     entity = await surface.make(session, a, parent, "E")
     defn = await create_property_definition(session, a.initiative, name="Tag")
-    outsider = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+    outsider = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
     reader = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="member",
@@ -545,7 +545,7 @@ async def test_every_tool_and_its_sub_tools_read_back_what_they_carry(
 ):
     """Every tool, a queue's items and a wiki's pages are written like any
     other target, and each one's own read returns its values."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await enable_all_tools(session, a.initiative)
     defn = await create_property_definition(session, a.initiative, name="Note")
 
@@ -604,7 +604,7 @@ async def test_a_create_writes_its_values_with_the_row(
     in it come back holding them, and a task naming a person who cannot open
     its project is refused whole — no task is left without its values. A
     task's update does the same."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     await enable_all_tools(session, a.initiative)
     note = await create_property_definition(session, a.initiative, name="Note")
     owner = await create_property_definition(
@@ -635,7 +635,7 @@ async def test_a_create_writes_its_values_with_the_row(
 
     outsider = await create_user(session)
     await create_guild_membership(
-        session, user=outsider, guild=a.guild, role=GuildRole.member
+        session, user=outsider, guild=a.guild, role=CommunityRole.member
     )
     refused = await client.post(
         a.g("/tasks/"),
@@ -758,7 +758,7 @@ async def test_list_documents_refuses_a_filter_it_cannot_take(
     client: AsyncClient, acting_user, property_filters: str
 ):
     """Malformed, or past the five-predicate cap; the ids need not exist."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
 
     response = await client.get(
         a.g(
@@ -785,7 +785,7 @@ async def test_duplicating_a_document_in_place_carries_its_values(
     )
 
     duplicated = await client.post(
-        a.g(f"/documents/{doc}/copy"), headers=a.headers, json={"name": "Dup"}
+        a.g(f"/documents/{doc}/duplicate"), headers=a.headers, json={"name": "Dup"}
     )
 
     assert duplicated.status_code == 201
@@ -808,7 +808,7 @@ async def test_copying_a_document_to_another_initiative_drops_its_values(
     )
 
     copied = await client.post(
-        a.g(f"/documents/{doc}/copy"),
+        a.g(f"/documents/{doc}/duplicate"),
         headers=a.headers,
         json={"name": "Copied", "target_initiative_id": init_b.id},
     )

@@ -37,8 +37,8 @@ import {
   useUploadAnnouncementImage,
 } from "@/hooks/usePlatformAnnouncements";
 import { validateTriggerRoute } from "@/lib/announcementPages";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 import { resolveHeaderlessApiUrl } from "@/lib/uploadUrl";
 
 const CATEGORIES: AnnouncementCategory[] = [
@@ -90,7 +90,7 @@ interface EditorState {
   title: string;
   category: AnnouncementCategory;
   minPlatformRole: PlatformRole;
-  guildAdminsOnly: boolean;
+  communityAdminsOnly: boolean;
   audienceAccounts: AnnouncementAudienceAccounts;
   publishedAt: string;
   expiresAt: string;
@@ -111,7 +111,7 @@ const initialState = (announcement: AnnouncementOperatorRead | null): EditorStat
   title: announcement?.title ?? "",
   category: announcement?.category ?? "feature",
   minPlatformRole: (announcement?.min_platform_role ?? "member") as PlatformRole,
-  guildAdminsOnly: announcement?.guild_admins_only ?? false,
+  communityAdminsOnly: announcement?.community_admins_only ?? false,
   audienceAccounts: announcement?.audience_accounts ?? "everyone",
   publishedAt: toLocalInput(announcement?.published_at),
   expiresAt: toLocalInput(announcement?.expires_at),
@@ -209,7 +209,7 @@ export const AnnouncementEditorDialog = ({
       category: state.category,
       sections,
       min_platform_role: state.minPlatformRole,
-      guild_admins_only: state.guildAdminsOnly,
+      community_admins_only: state.communityAdminsOnly,
       audience_accounts: state.audienceAccounts,
       published_at: fromLocalInput(state.publishedAt),
       expires_at: fromLocalInput(state.expiresAt),
@@ -351,17 +351,17 @@ export const AnnouncementEditorDialog = ({
               <div className="flex items-center justify-between rounded-md border p-3">
                 <div className="space-y-0.5">
                   <Label htmlFor="announcement-admins-only">
-                    {t("operator.fields.guildAdminsOnly")}
+                    {t("operator.fields.communityAdminsOnly")}
                   </Label>
                   <p className="text-muted-foreground text-xs">
-                    {t("operator.fields.guildAdminsOnlyHint")}
+                    {t("operator.fields.communityAdminsOnlyHint")}
                   </p>
                 </div>
                 <Switch
                   id="announcement-admins-only"
-                  checked={state.guildAdminsOnly}
+                  checked={state.communityAdminsOnly}
                   onCheckedChange={(checked) =>
-                    setState((previous) => ({ ...previous, guildAdminsOnly: checked }))
+                    setState((previous) => ({ ...previous, communityAdminsOnly: checked }))
                   }
                 />
               </div>

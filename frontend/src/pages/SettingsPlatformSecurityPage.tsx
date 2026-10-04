@@ -27,10 +27,7 @@ export const SettingsPlatformSecurityPage = () => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="font-semibold text-2xl tracking-tight">{t("platformSecurity.title")}</h2>
-        <p className="text-muted-foreground text-sm">{t("platformSecurity.description")}</p>
-      </div>
+      <p className="text-muted-foreground text-sm">{t("platformSecurity.description")}</p>
       <SessionLifetimeSection />
       {/* Offered first, then required: a rule needs something to answer it. */}
       <SecondFactorMethodSection />

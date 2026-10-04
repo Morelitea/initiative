@@ -1,11 +1,11 @@
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { describe, expect, it } from "vitest";
 
 import { buildComment } from "@/__tests__/factories/comment.factory";
 import { buildUser } from "@/__tests__/factories/user.factory";
-import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
 import type { CommentCreate, SubjectReadRequest } from "@/api/generated/initiativeAPI.schemas";
@@ -17,7 +17,7 @@ import { CommentSection } from "./CommentSection";
 const captureCreate = (): { body: () => CommentCreate | null } => {
   let received: CommentCreate | null = null;
   server.use(
-    guildHttp.post("/comments/", async ({ request }) => {
+    communityHttp.post("/comments/", async ({ request }) => {
       received = (await request.json()) as CommentCreate;
       return HttpResponse.json(buildComment({ content: received.content }), { status: 201 });
     })
@@ -32,6 +32,34 @@ const postComment = async (text: string) => {
 };
 
 describe("CommentSection", () => {
+  it("offers Delete only where the server says the reader may, and asks first", async () => {
+    let deleted: string | null = null;
+    server.use(
+      communityHttp.delete("/comments/:commentId", ({ params }) => {
+        deleted = String(params.commentId);
+        return new HttpResponse(null, { status: 204 });
+      })
+    );
+    const mine = buildComment({ content: "Removable", task_id: 3, can_remove: true });
+    const theirs = buildComment({ content: "Not removable", task_id: 3, can_remove: false });
+
+    renderPage(() => (
+      <CommentSection entityType="task" entityId={3} comments={[mine, theirs]} initiativeId={7} />
+    ));
+
+    await screen.findByText("Removable");
+    const deleteButtons = screen.getAllByRole("button", { name: /^delete$/i });
+    expect(deleteButtons).toHaveLength(1);
+
+    await userEvent.click(deleteButtons[0]);
+    expect(deleted).toBeNull();
+    const dialog = await screen.findByRole("alertdialog");
+    expect(dialog).toHaveTextContent("Delete this comment?");
+    await userEvent.click(within(dialog).getByRole("button", { name: /^delete$/i }));
+
+    await waitFor(() => expect(deleted).toBe(String(mine.id)));
+  });
+
   it("posts a queue comment under queue_id", async () => {
     const created = captureCreate();
 
@@ -141,13 +169,13 @@ describe("CommentSection", () => {
 
     const marked = (text: string) => screen.getByText(text).closest("[data-unread]") !== null;
     await waitFor(() => expect(marked("Named by a line")).toBe(true));
-    expect(read).toEqual({ guild_id: 1, subject_type: "task", subject_id: 3 });
+    expect(read).toEqual({ community_id: 1, subject_type: "task", subject_id: 3 });
     expect(marked("After the roll-up")).toBe(true);
     expect(marked("Before the roll-up")).toBe(false);
     expect(marked("My own reply")).toBe(false);
   });
 
-  it("offers no mention suggestions for a guild-level entity", async () => {
+  it("offers no mention suggestions for a community-level entity", async () => {
     renderPage(() => (
       <CommentSection entityType={Tool.calendar} entityId={5} comments={[]} initiativeId={0} />
     ));

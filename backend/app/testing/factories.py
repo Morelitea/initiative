@@ -16,6 +16,7 @@ it was flushed. Raw ``session.add()`` of tenant models in tests is covered by
 the fail-closed flush router in ``schema_harness``.
 """
 
+import base64
 import json
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -58,8 +59,8 @@ from app.models.tenant.comment import Comment
 from app.models.tenant.counter import Counter, CounterGroup
 from app.models.tenant.document import Document, DocumentType
 from app.models.platform.access_grant import AccessGrant
-from app.models.platform.guild import Guild, GuildMembership, GuildRole
-from app.core.guild_auth_options import GuildAuthOption
+from app.models.platform.guild import Guild, GuildMembership, CommunityRole
+from app.core.guild_auth_options import CommunityAuthOption
 from app.models.platform.guild_administration import GuildAdministration
 from app.services.marketplace import app_installs
 from app.services.marketplace import catalog as marketplace_catalog
@@ -149,7 +150,6 @@ async def create_user(
         # not about the age gate should never meet it. The gate's own tests
         # pass ``age_confirmed_at=None`` to get an account that has not.
         "age_confirmed_at": datetime.now(timezone.utc),
-        "full_name": "Test User",
         "hashed_password": get_password_hash("testpassword123"),
         "role": UserRole.member,
         "status": UserStatus.active,
@@ -243,7 +243,7 @@ async def create_guild(
     # ``auth_options=[]`` to exercise the ungranted paths, or a shorter list to
     # exercise one option without the other.
     administration_data: dict[str, Any] = {
-        "auth_options": [option.value for option in GuildAuthOption],
+        "auth_options": [option.value for option in CommunityAuthOption],
         **{
             field: overrides.pop(field)
             for field in ("max_storage_bytes", "max_users", "tier_name", "auth_options")
@@ -252,7 +252,7 @@ async def create_guild(
     }
     # Accepts the enum or its value, like every other enum a factory takes.
     administration_data["auth_options"] = [
-        option.value if isinstance(option, GuildAuthOption) else option
+        option.value if isinstance(option, CommunityAuthOption) else option
         for option in administration_data["auth_options"]
     ]
     if creator is None:
@@ -356,7 +356,7 @@ async def create_guild_membership(
     session: AsyncSession,
     user: User | None = None,
     guild: Guild | None = None,
-    role: GuildRole = GuildRole.member,
+    role: CommunityRole = CommunityRole.member,
     commit: bool = True,
     **overrides: Any,
 ) -> GuildMembership:
@@ -379,7 +379,7 @@ async def create_guild_membership(
             session,
             user=test_user,
             guild=test_guild,
-            role=GuildRole.admin
+            role=CommunityRole.admin
         )
     """
     if user is None:
@@ -468,7 +468,7 @@ def get_auth_token(
 
     Example:
         headers = {"Authorization": f"Bearer {get_auth_token(test_user)}"}
-        response = await client.get("/api/v1/users/me", headers=headers)
+        response = await client.get("/api/v1/me", headers=headers)
     """
     subject = getattr(user, AUTH_SUBJECT_ATTR, None)
     if subject is None:
@@ -508,25 +508,31 @@ def get_auth_headers(user: User) -> dict[str, str]:
 
     Example:
         headers = get_auth_headers(test_user)
-        response = await client.get("/api/v1/users/me", headers=headers)
+        response = await client.get("/api/v1/me", headers=headers)
     """
     token = get_auth_token(user)
     return {"Authorization": f"Bearer {token}"}
 
 
-async def signed_in_headers(session: AsyncSession, user: User) -> dict[str, str]:
+async def signed_in_headers(
+    session: AsyncSession, user: User, *, amr: list[str] | None = None
+) -> dict[str, str]:
     """Authorization headers naming a real ``auth_sessions`` row, as a signed-in
     app's do — for what is tied to the sign-in behind a request, such as a
-    registered push token."""
+    registered push token. ``amr`` is how the sign-in was proved; a passkey's
+    (``["hwk"]``) makes a change to the account at once rather than holding it."""
     from app.services.auth import sessions as session_service
 
     user_id = user.id
+    amr = amr or ["pwd"]
     issued = await session_service.create_session(
-        session, user_id=user_id, amr=["pwd"], satisfied_providers=[]
+        session, user_id=user_id, amr=amr, satisfied_providers=[]
     )
     session_id = issued.session.id
     await session.commit()
-    return {"Authorization": f"Bearer {get_auth_token(user, session_id=session_id)}"}
+    return {
+        "Authorization": f"Bearer {get_auth_token(user, session_id=session_id, amr=amr)}"
+    }
 
 
 async def create_initiative(
@@ -1474,14 +1480,27 @@ async def create_dashboard(
     return dashboard
 
 
-def lexical_body(text: str) -> dict[str, Any]:
+#: A collaboration state as the editor's binding writes one: a paragraph,
+#: ``Hi `` and a mention of user 42 holding the name ``Ada``, the way an editor
+#: from before mentions stopped storing names wrote it. Made with ``yjs``.
+MENTIONING_YJS_STATE = base64.b64decode(
+    "AQeWo/S3AwAHAQRyb290BigAlqP0twMABl9fdHlwZQF3CXBhcmFncmFwaAQAlqP0twMAA0hp"
+    "IIeWo/S3AwQDB21lbnRpb24oAJaj9LcDBQZfX3R5cGUBdwdtZW50aW9uKACWo/S3AwUJX19t"
+    "ZW50aW9uAXcDQWRhKACWo/S3AwUPX19tZW50aW9uVXNlcklkAX0qAA=="
+)
+
+
+def lexical_body(
+    text: str, *, mentioning: int | str | None = None, name: str = ""
+) -> dict[str, Any]:
     """The smallest valid Lexical editor state holding one paragraph.
 
     Spelled out here rather than in each test so a post body in a test is the
     same shape the editor actually saves — which is what the search extractor
-    and the excerpt walk both read.
+    and the excerpt walk both read. ``mentioning`` ends the paragraph with a
+    mention of that person, written as ``name``.
     """
-    return {
+    body = {
         "root": {
             "type": "root",
             "format": "",
@@ -1510,6 +1529,17 @@ def lexical_body(text: str) -> dict[str, Any]:
             ],
         }
     }
+    if mentioning is not None:
+        body["root"]["children"][0]["children"].append(
+            {
+                "type": "mention",
+                "mentionName": name,
+                "mentionUserId": mentioning,
+                "text": name,
+                "version": 1,
+            }
+        )
+    return body
 
 
 async def create_post(

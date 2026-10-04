@@ -41,7 +41,7 @@ from types import SimpleNamespace
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.tenant.ai_member_key import GuildAIMemberKey
 from app.models.tenant.ai_member_pref import GuildAIMemberPref
 from app.models.tenant.comment import Comment
@@ -97,7 +97,7 @@ async def _seed(session: AsyncSession) -> SimpleNamespace:
     victim = await create_user(session, email=f"leaver-{secrets.token_hex(4)}@e.test")
     guild = await create_guild(session, creator=keeper)
     await create_guild_membership(
-        session, user=victim, guild=guild, role=GuildRole.member
+        session, user=victim, guild=guild, role=CommunityRole.member
     )
     initiative = await create_initiative(session, guild, keeper)
     await create_initiative_member(session, initiative=initiative, user=victim)
@@ -120,12 +120,15 @@ async def _seed(session: AsyncSession) -> SimpleNamespace:
         # Held in custody for them: an API key and the preference beside it.
         "ai_key": GuildAIMemberKey(
             user_id=victim.id,
-            connection_scope="guild",
+            connection_scope="community",
             connection_id=1,
             api_key_encrypted="ciphertext",
         ),
         "ai_pref": GuildAIMemberPref(
-            user_id=victim.id, connection_scope="guild", connection_id=1, enabled=True
+            user_id=victim.id,
+            connection_scope="community",
+            connection_id=1,
+            enabled=True,
         ),
         # A receipt that a reminder for this event reached this person.
         "dispatch": EventReminderDispatch(

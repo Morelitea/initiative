@@ -7,14 +7,16 @@ is shown it) and the **web** (what a page's body names, and what names it
 back).
 """
 
+from types import SimpleNamespace
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.testing import (
     create_document,
     create_wiki,
     create_wiki_page,
+    lexical_body,
     strip_non_owner_grants,
 )
 
@@ -34,7 +36,7 @@ async def _wikis_enabled(session: AsyncSession, initiative) -> None:
 async def test_create_wiki(client: AsyncClient, acting_user, session):
     """Creating seeds the creator's owner grant plus the default all-members
     read grant."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _wikis_enabled(session, a.initiative)
 
     response = await client.post(
@@ -51,7 +53,6 @@ async def test_create_wiki(client: AsyncClient, acting_user, session):
     body = response.json()
     assert body["name"] == "Club handbook"
     assert body["can"]["delete"] is True
-    assert body["page_count"] == 0
     assert body["home_page_id"] is None
     levels = {(g.get("all_initiative_members"), g["level"]) for g in body["grants"]}
     assert (True, "read") in levels
@@ -60,7 +61,7 @@ async def test_create_wiki(client: AsyncClient, acting_user, session):
 async def test_create_requires_feature_enabled(
     client: AsyncClient, acting_user, session
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     a.initiative.wikis_enabled = False
     session.add(a.initiative)
     await session.commit()
@@ -80,11 +81,11 @@ async def test_a_member_outside_the_initiative_cannot_see_it(
 ):
     """Gate 2: not being in the initiative reads as 404, not 403 — the row is
     hidden rather than refused."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _wikis_enabled(session, a.initiative)
     wiki = await create_wiki(session, a.initiative, a.user)
 
-    b = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+    b = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
     response = await client.get(a.g(f"/wikis/{wiki.id}"), headers=b.headers)
 
     assert response.status_code == 404
@@ -100,7 +101,7 @@ async def test_create_page_records_its_author_and_slug(
 ):
     """The regression this file exists for: a page is written with the caller
     as its author, and its title becomes the slug that addresses it."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _wikis_enabled(session, a.initiative)
     wiki = await create_wiki(session, a.initiative, a.user)
 
@@ -119,7 +120,7 @@ async def test_create_page_records_its_author_and_slug(
 async def test_a_page_starts_as_a_draft(client: AsyncClient, acting_user, session):
     """Nobody writes a page in one keystroke, and the people who only read this
     wiki have no use for an empty one — so it is published when it is ready."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _wikis_enabled(session, a.initiative)
     wiki = await create_wiki(session, a.initiative, a.user)
 
@@ -132,7 +133,7 @@ async def test_a_page_starts_as_a_draft(client: AsyncClient, acting_user, sessio
     assert created.json()["is_draft"] is True
 
     published = await client.patch(
-        a.g(f"/wikis/{wiki.id}/pages/{created.json()['id']}"),
+        a.g(f"/wiki-pages/{created.json()['id']}"),
         headers=a.headers,
         json={"is_draft": False},
     )
@@ -143,7 +144,7 @@ async def test_a_page_starts_as_a_draft(client: AsyncClient, acting_user, sessio
 
 async def test_a_page_starts_with_no_name(client: AsyncClient, acting_user, session):
     """A page is made before it is about anything, so nothing names it for you."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _wikis_enabled(session, a.initiative)
     wiki = await create_wiki(session, a.initiative, a.user)
 
@@ -161,7 +162,7 @@ async def test_a_page_starts_with_no_name(client: AsyncClient, acting_user, sess
 async def test_two_pages_with_one_title_get_distinct_slugs(
     client: AsyncClient, acting_user, session
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _wikis_enabled(session, a.initiative)
     wiki = await create_wiki(session, a.initiative, a.user)
 
@@ -187,7 +188,7 @@ async def test_a_name_goes_back_into_circulation_with_the_trash(
     slug rather than a suffix — and, before this was a partial index, rather
     than a unique violation nobody could see the cause of.
     """
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _wikis_enabled(session, a.initiative)
     wiki = await create_wiki(session, a.initiative, a.user)
 
@@ -198,7 +199,7 @@ async def test_a_name_goes_back_into_circulation_with_the_trash(
     assert first.json()["slug"] == "step-1"
 
     trashed = await client.delete(
-        a.g(f"/wikis/{wiki.id}/pages/{first.json()['id']}"), headers=a.headers
+        a.g(f"/wiki-pages/{first.json()['id']}"), headers=a.headers
     )
     assert trashed.status_code == 204, trashed.text
 
@@ -214,7 +215,7 @@ async def test_a_page_can_be_renamed_onto_a_trashed_pages_name(
     client: AsyncClient, acting_user, session
 ):
     """The same freed name, taken by a rename rather than by a new page."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _wikis_enabled(session, a.initiative)
     wiki = await create_wiki(session, a.initiative, a.user)
 
@@ -222,9 +223,7 @@ async def test_a_page_can_be_renamed_onto_a_trashed_pages_name(
         a.g(f"/wikis/{wiki.id}/pages"), headers=a.headers, json={"title": "Step 1"}
     )
     assert first.status_code == 201, first.text
-    await client.delete(
-        a.g(f"/wikis/{wiki.id}/pages/{first.json()['id']}"), headers=a.headers
-    )
+    await client.delete(a.g(f"/wiki-pages/{first.json()['id']}"), headers=a.headers)
 
     second = await client.post(
         a.g(f"/wikis/{wiki.id}/pages"), headers=a.headers, json={"title": "Untitled"}
@@ -232,7 +231,7 @@ async def test_a_page_can_be_renamed_onto_a_trashed_pages_name(
     assert second.status_code == 201, second.text
 
     renamed = await client.patch(
-        a.g(f"/wikis/{wiki.id}/pages/{second.json()['id']}"),
+        a.g(f"/wiki-pages/{second.json()['id']}"),
         headers=a.headers,
         json={"title": "Step 1"},
     )
@@ -245,7 +244,7 @@ async def test_a_restored_page_takes_its_name_back(
     client: AsyncClient, acting_user, session
 ):
     """Out of the bin and back at its own address, when it is still free."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _wikis_enabled(session, a.initiative)
     wiki = await create_wiki(session, a.initiative, a.user)
 
@@ -253,7 +252,7 @@ async def test_a_restored_page_takes_its_name_back(
         a.g(f"/wikis/{wiki.id}/pages"), headers=a.headers, json={"title": "Step 1"}
     )
     page_id = page.json()["id"]
-    await client.delete(a.g(f"/wikis/{wiki.id}/pages/{page_id}"), headers=a.headers)
+    await client.delete(a.g(f"/wiki-pages/{page_id}"), headers=a.headers)
 
     restored = await client.post(
         a.g(f"/trash/wiki_page/{page_id}/restore"), headers=a.headers
@@ -271,7 +270,7 @@ async def test_a_restored_page_comes_back_beside_the_one_that_took_its_name(
     """The other end of the same rule: a page in the bin has no claim on a name
     somebody has used since, so it comes back under a suffixed one rather than
     not coming back at all."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _wikis_enabled(session, a.initiative)
     wiki = await create_wiki(session, a.initiative, a.user)
 
@@ -279,7 +278,7 @@ async def test_a_restored_page_comes_back_beside_the_one_that_took_its_name(
         a.g(f"/wikis/{wiki.id}/pages"), headers=a.headers, json={"title": "Step 1"}
     )
     page_id = first.json()["id"]
-    await client.delete(a.g(f"/wikis/{wiki.id}/pages/{page_id}"), headers=a.headers)
+    await client.delete(a.g(f"/wiki-pages/{page_id}"), headers=a.headers)
     replacement = await client.post(
         a.g(f"/wikis/{wiki.id}/pages"), headers=a.headers, json={"title": "Step 1"}
     )
@@ -305,7 +304,7 @@ async def test_a_wiki_restored_whole_keeps_its_pages_addresses(
 ):
     """Nothing can take a name while the whole wiki is in the bin, so every
     page comes back at the address links point at."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _wikis_enabled(session, a.initiative)
     wiki = await create_wiki(session, a.initiative, a.user)
     for title in ("Step 1", "Step 2"):
@@ -330,7 +329,7 @@ async def test_the_tree_comes_back_in_reading_order(
 ):
     """In the order somebody arranged them, so a client draws the list without
     sorting it."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _wikis_enabled(session, a.initiative)
     wiki = await create_wiki(session, a.initiative, a.user)
 
@@ -350,7 +349,7 @@ async def test_moving_a_page_renumbers_its_new_siblings(
 ):
     """A move is one fact — where in the list this page now goes — and the
     whole list is renumbered so the order it lands in is the order drawn."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _wikis_enabled(session, a.initiative)
     wiki = await create_wiki(session, a.initiative, a.user)
 
@@ -359,7 +358,7 @@ async def test_moving_a_page_renumbers_its_new_siblings(
     moved = await create_wiki_page(session, wiki, a.user, title="Third")
 
     response = await client.post(
-        a.g(f"/wikis/{wiki.id}/pages/{moved.id}/move"),
+        a.g(f"/wiki-pages/{moved.id}/move"),
         headers=a.headers,
         json={"position": 0},
     )
@@ -369,41 +368,18 @@ async def test_moving_a_page_renumbers_its_new_siblings(
     assert [p["title"] for p in tree.json()["items"]] == ["Third", "First", "Second"]
 
 
-async def test_a_page_from_another_wiki_reads_as_missing(
-    client: AsyncClient, acting_user, session
-):
-    """A page is written through its wiki, so an id from a different one is
-    not found rather than somebody else's page."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    await _wikis_enabled(session, a.initiative)
-    mine = await create_wiki(session, a.initiative, a.user)
-    theirs = await create_wiki(session, a.initiative, a.user)
-    stray = await create_wiki_page(session, theirs, a.user, title="Elsewhere")
-
-    response = await client.patch(
-        a.g(f"/wikis/{mine.id}/pages/{stray.id}"),
-        headers=a.headers,
-        json={"title": "Moved in"},
-    )
-
-    assert response.status_code == 404
-    assert response.json()["detail"] == "WIKI_PAGE_NOT_FOUND"
-
-
 async def test_deleting_a_page_takes_its_sub_pages(
     client: AsyncClient, acting_user, session
 ):
     """The page goes, and the ones around it stay."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _wikis_enabled(session, a.initiative)
     wiki = await create_wiki(session, a.initiative, a.user)
 
     doomed = await create_wiki_page(session, wiki, a.user, title="Bar")
     await create_wiki_page(session, wiki, a.user, title="Kitchen")
 
-    response = await client.delete(
-        a.g(f"/wikis/{wiki.id}/pages/{doomed.id}"), headers=a.headers
-    )
+    response = await client.delete(a.g(f"/wiki-pages/{doomed.id}"), headers=a.headers)
     assert response.status_code == 204, response.text
 
     tree = await client.get(a.g(f"/wikis/{wiki.id}/pages"), headers=a.headers)
@@ -442,7 +418,7 @@ async def test_a_document_put_in_a_wiki_is_one_of_its_pages(
 ):
     """It joins by an edge, so it reads as a page without becoming one — its
     headings drawn in the tree like a page's own."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _wikis_enabled(session, a.initiative)
     wiki = await create_wiki(session, a.initiative, a.user)
     await create_wiki_page(
@@ -476,7 +452,7 @@ async def test_a_page_filed_under_another_reads_after_it(
     client: AsyncClient, acting_user, session
 ):
     """Reading order is depth-first: a page, then what is filed under it."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _wikis_enabled(session, a.initiative)
     wiki = await create_wiki(session, a.initiative, a.user)
     parent = await create_wiki_page(session, wiki, a.user, title="Rules")
@@ -503,7 +479,7 @@ async def test_a_drag_files_a_page_and_places_it_in_one_request(
     client: AsyncClient, acting_user, session
 ):
     """A drag is one gesture, so filing and ordering arrive together."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _wikis_enabled(session, a.initiative)
     wiki = await create_wiki(session, a.initiative, a.user)
     parent = await create_wiki_page(session, wiki, a.user, title="Rules")
@@ -513,7 +489,7 @@ async def test_a_drag_files_a_page_and_places_it_in_one_request(
     loose = await create_wiki_page(session, wiki, a.user, title="Travel")
 
     moved = await client.post(
-        a.g(f"/wikis/{wiki.id}/pages/{loose.id}/move"),
+        a.g(f"/wiki-pages/{loose.id}/move"),
         headers=a.headers,
         json={"parent_page_id": parent.id, "position": 0},
     )
@@ -533,7 +509,7 @@ async def test_a_page_cannot_be_filed_under_its_own_descendant(
     client: AsyncClient, acting_user, session
 ):
     """It would take the branch out of the wiki, so it is refused by name."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _wikis_enabled(session, a.initiative)
     wiki = await create_wiki(session, a.initiative, a.user)
     parent = await create_wiki_page(session, wiki, a.user, title="Rules")
@@ -542,7 +518,7 @@ async def test_a_page_cannot_be_filed_under_its_own_descendant(
     )
 
     response = await client.post(
-        a.g(f"/wikis/{wiki.id}/pages/{parent.id}/move"),
+        a.g(f"/wiki-pages/{parent.id}/move"),
         headers=a.headers,
         json={"parent_page_id": child.id, "position": 0},
     )
@@ -554,13 +530,13 @@ async def test_a_page_cannot_be_filed_under_its_own_descendant(
 async def test_a_page_cannot_be_its_own_parent(
     client: AsyncClient, acting_user, session
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _wikis_enabled(session, a.initiative)
     wiki = await create_wiki(session, a.initiative, a.user)
     page = await create_wiki_page(session, wiki, a.user, title="Rules")
 
     response = await client.post(
-        a.g(f"/wikis/{wiki.id}/pages/{page.id}/move"),
+        a.g(f"/wiki-pages/{page.id}/move"),
         headers=a.headers,
         json={"parent_page_id": page.id, "position": 0},
     )
@@ -573,7 +549,7 @@ async def test_trashing_a_page_takes_what_is_filed_under_it(
     client: AsyncClient, acting_user, session
 ):
     """A section is put away whole, and comes back whole."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _wikis_enabled(session, a.initiative)
     wiki = await create_wiki(session, a.initiative, a.user)
     parent = await create_wiki_page(session, wiki, a.user, title="Rules")
@@ -581,9 +557,7 @@ async def test_trashing_a_page_takes_what_is_filed_under_it(
         session, wiki, a.user, title="Combat", parent_page_id=parent.id
     )
 
-    trashed = await client.delete(
-        a.g(f"/wikis/{wiki.id}/pages/{parent.id}"), headers=a.headers
-    )
+    trashed = await client.delete(a.g(f"/wiki-pages/{parent.id}"), headers=a.headers)
     assert trashed.status_code == 204, trashed.text
 
     listed = await client.get(a.g(f"/wikis/{wiki.id}/pages"), headers=a.headers)
@@ -602,7 +576,7 @@ async def test_a_document_can_be_moved_among_the_pages(
 ):
     """A borrowed document is a row of the wiki's list, so it is arranged like
     one — and the document itself is never written to say so."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _wikis_enabled(session, a.initiative)
     wiki = await create_wiki(session, a.initiative, a.user)
     await create_wiki_page(session, wiki, a.user, title="First")
@@ -640,7 +614,7 @@ async def test_a_document_can_be_filed_under_a_page(
     """Where a document sits is this wiki's record, so filing it under a page
     is the same kind of fact as its place in the list — and it comes back out
     to the top the same way."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _wikis_enabled(session, a.initiative)
     wiki = await create_wiki(session, a.initiative, a.user)
     rules = await create_wiki_page(session, wiki, a.user, title="Rules")
@@ -672,7 +646,7 @@ async def test_a_document_can_be_filed_under_a_page(
     # A page dragged in beside it counts it among its neighbours.
     loose = await create_wiki_page(session, wiki, a.user, title="Travel")
     await client.post(
-        a.g(f"/wikis/{wiki.id}/pages/{loose.id}/move"),
+        a.g(f"/wiki-pages/{loose.id}/move"),
         headers=a.headers,
         json={"parent_page_id": rules.id, "position": 2},
     )
@@ -697,7 +671,7 @@ async def test_a_document_can_be_filed_under_a_page(
 async def test_a_document_is_not_filed_under_a_page_of_another_wiki(
     client: AsyncClient, acting_user, session
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _wikis_enabled(session, a.initiative)
     wiki = await create_wiki(session, a.initiative, a.user)
     other = await create_wiki(session, a.initiative, a.user, name="Elsewhere")
@@ -721,7 +695,7 @@ async def test_a_document_under_a_trashed_page_is_drawn_at_the_top(
 ):
     """The page is the wiki's to put away; the document is not. It stays in
     the wiki, at the top, and goes back under the page when it is restored."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _wikis_enabled(session, a.initiative)
     wiki = await create_wiki(session, a.initiative, a.user)
     rules = await create_wiki_page(session, wiki, a.user, title="Rules")
@@ -735,7 +709,7 @@ async def test_a_document_under_a_trashed_page_is_drawn_at_the_top(
         json={"parent_page_id": rules.id, "position": 0},
     )
 
-    await client.delete(a.g(f"/wikis/{wiki.id}/pages/{rules.id}"), headers=a.headers)
+    await client.delete(a.g(f"/wiki-pages/{rules.id}"), headers=a.headers)
     listed = await client.get(a.g(f"/wikis/{wiki.id}/pages"), headers=a.headers)
     (row,) = listed.json()["items"]
     assert row["title"] == "Borrowed" and row["parent_page_id"] is None
@@ -753,7 +727,7 @@ async def test_a_document_row_says_what_kind_of_document_it_is(
     """So the navigation can draw a spreadsheet as a spreadsheet."""
     from app.models.tenant.document import DocumentType
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _wikis_enabled(session, a.initiative)
     wiki = await create_wiki(session, a.initiative, a.user)
     await create_wiki_page(session, wiki, a.user, title="Written here")
@@ -777,7 +751,7 @@ async def test_a_page_can_be_moved_past_a_document(
     client: AsyncClient, acting_user, session
 ):
     """The other half of one list: moving a page counts the documents in it."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _wikis_enabled(session, a.initiative)
     wiki = await create_wiki(session, a.initiative, a.user)
     first = await create_wiki_page(session, wiki, a.user, title="First")
@@ -788,7 +762,7 @@ async def test_a_page_can_be_moved_past_a_document(
     )
 
     moved = await client.post(
-        a.g(f"/wikis/{wiki.id}/pages/{first.id}/move"),
+        a.g(f"/wiki-pages/{first.id}/move"),
         headers=a.headers,
         json={"position": 2},
     )
@@ -807,7 +781,7 @@ async def test_a_document_taken_out_gives_up_its_place(
 ):
     """Put back in later, it arrives at the end like a new one rather than in
     the spot it held last time."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _wikis_enabled(session, a.initiative)
     wiki = await create_wiki(session, a.initiative, a.user)
     await create_wiki_page(session, wiki, a.user, title="First")
@@ -836,7 +810,7 @@ async def test_a_document_in_a_wiki_is_never_a_draft(
     client: AsyncClient, acting_user, session
 ):
     """It is readable wherever else it lives, so this wiki cannot hold it back."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _wikis_enabled(session, a.initiative)
     wiki = await create_wiki(session, a.initiative, a.user)
     document = await create_document(session, a.initiative, a.user)
@@ -853,7 +827,7 @@ async def test_taking_a_document_out_leaves_the_document(
     client: AsyncClient, acting_user, session
 ):
     """The wiki loses a page. The document loses nothing."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _wikis_enabled(session, a.initiative)
     wiki = await create_wiki(session, a.initiative, a.user)
     document = await create_document(session, a.initiative, a.user)
@@ -882,7 +856,7 @@ async def test_a_draft_is_not_in_the_list_a_reader_gets(
     client: AsyncClient, acting_user, session
 ):
     """A page somebody is still writing belongs to the people writing it."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _wikis_enabled(session, a.initiative)
     wiki = await create_wiki(session, a.initiative, a.user)
 
@@ -890,7 +864,7 @@ async def test_a_draft_is_not_in_the_list_a_reader_gets(
     await create_wiki_page(session, wiki, a.user, title="Half written", is_draft=True)
 
     b = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="member",
@@ -904,7 +878,7 @@ async def test_a_draft_is_not_in_the_list_a_reader_gets(
 async def test_a_writer_sees_their_own_drafts(
     client: AsyncClient, acting_user, session
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _wikis_enabled(session, a.initiative)
     wiki = await create_wiki(session, a.initiative, a.user)
 
@@ -923,7 +897,7 @@ async def test_a_draft_page_reads_as_missing_to_a_reader(
 ):
     """Missing rather than refused: being told a page exists is being told
     something about it."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _wikis_enabled(session, a.initiative)
     wiki = await create_wiki(session, a.initiative, a.user)
     page = await create_wiki_page(
@@ -931,7 +905,7 @@ async def test_a_draft_page_reads_as_missing_to_a_reader(
     )
 
     b = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="member",
@@ -956,13 +930,16 @@ async def test_a_body_saved_outside_a_live_session_is_refused(
     document's does. A body arriving over REST is refused; a rename is not."""
     from app.services.tenant.collaboration import collaboration_manager
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _wikis_enabled(session, a.initiative)
     wiki = await create_wiki(session, a.initiative, a.user)
     page = await create_wiki_page(session, wiki, a.user, title="Live")
-    url = a.g(f"/wikis/{wiki.id}/pages/{page.id}")
+    url = a.g(f"/wiki-pages/{page.id}")
     monkeypatch.setattr(
-        collaboration_manager, "has_active_collaborators", lambda *_a: True
+        collaboration_manager,
+        "live_room",
+        # A room somebody is in; reads leave a room the browser renders alone.
+        lambda *_a: SimpleNamespace(renders_content=False),
     )
 
     refused = await client.patch(
@@ -983,7 +960,7 @@ async def test_a_body_saved_with_no_session_clears_the_stored_yjs_state(
 ):
     """Stored Yjs state predates a body saved over REST; left in place, the
     next live session would load it and save it back over the edit."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _wikis_enabled(session, a.initiative)
     wiki = await create_wiki(session, a.initiative, a.user)
     page = await create_wiki_page(
@@ -991,7 +968,7 @@ async def test_a_body_saved_with_no_session_clears_the_stored_yjs_state(
     )
 
     saved = await client.patch(
-        a.g(f"/wikis/{wiki.id}/pages/{page.id}"),
+        a.g(f"/wiki-pages/{page.id}"),
         headers=a.headers,
         json={"content": {"root": {"children": [], "type": "root"}}},
     )
@@ -999,6 +976,31 @@ async def test_a_body_saved_with_no_session_clears_the_stored_yjs_state(
     assert saved.status_code == 200, saved.text
     await session.refresh(page, ["yjs_state"])
     assert page.yjs_state is None
+
+
+async def test_a_page_write_naming_a_version_since_changed_is_refused(
+    client: AsyncClient, acting_user, session
+):
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
+    await _wikis_enabled(session, a.initiative)
+    wiki = await create_wiki(session, a.initiative, a.user)
+    page = await create_wiki_page(session, wiki, a.user, title="Versioned")
+    url = a.g(f"/wiki-pages/{page.id}")
+    version = (await client.get(url, headers=a.headers)).json()["content_version"]
+    taken = await client.patch(
+        url,
+        headers=a.headers,
+        json={"content": lexical_body("second"), "content_version": version},
+    )
+    stale = await client.patch(
+        url,
+        headers=a.headers,
+        json={"content": lexical_body("third"), "content_version": version},
+    )
+
+    assert taken.status_code == 200, taken.text
+    assert stale.status_code == 409
+    assert stale.json()["detail"] == "WIKI_CONTENT_CHANGED"
 
 
 # ---------------------------------------------------------------------------
@@ -1009,7 +1011,7 @@ async def test_a_body_saved_with_no_session_clears_the_stored_yjs_state(
 async def test_home_page_has_to_be_one_of_this_wikis_pages(
     client: AsyncClient, acting_user, session
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _wikis_enabled(session, a.initiative)
     mine = await create_wiki(session, a.initiative, a.user)
     theirs = await create_wiki(session, a.initiative, a.user)
@@ -1035,7 +1037,7 @@ async def test_a_page_reports_what_links_to_it(
 ):
     """The backlink. One page's body names another, and the named page says so
     without anybody recording it twice."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _wikis_enabled(session, a.initiative)
     wiki = await create_wiki(session, a.initiative, a.user)
 
@@ -1064,38 +1066,27 @@ async def test_a_page_reports_what_links_to_it(
         }
     }
     patched = await client.patch(
-        a.g(f"/wikis/{wiki.id}/pages/{source.id}"),
+        a.g(f"/wiki-pages/{source.id}"),
         headers=a.headers,
         json={"content": body},
     )
     assert patched.status_code == 200, patched.text
 
     links = await client.get(
-        a.g(f"/wikis/{wiki.id}/pages/{target.id}/links"), headers=a.headers
+        a.g("/relationships/"),
+        headers=a.headers,
+        params={"entity": f"wiki_page:{target.id}"},
     )
     assert links.status_code == 200, links.text
-    incoming = links.json()["incoming"]
-    assert [row["entity_id"] for row in incoming] == [source.id]
-    assert incoming[0]["entity_type"] == "wiki_page"
-    # Enough to address the far end without a second request.
-    assert incoming[0]["tool"] == "wiki"
-    assert incoming[0]["tool_id"] == wiki.id
-
-
-async def test_links_are_empty_for_a_page_nothing_names(
-    client: AsyncClient, acting_user, session
-):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    await _wikis_enabled(session, a.initiative)
-    wiki = await create_wiki(session, a.initiative, a.user)
-    page = await create_wiki_page(session, wiki, a.user, title="Alone")
-
-    response = await client.get(
-        a.g(f"/wikis/{wiki.id}/pages/{page.id}/links"), headers=a.headers
+    [incoming] = links.json()
+    assert incoming["direction"] == "inbound"
+    assert (incoming["other"]["type"], incoming["other"]["id"]) == (
+        "wiki_page",
+        source.id,
     )
-
-    assert response.status_code == 200, response.text
-    assert response.json() == {"outgoing": [], "incoming": []}
+    # Enough to address the far end without a second request.
+    assert incoming["other"]["tool"] == "wiki"
+    assert incoming["other"]["tool_id"] == wiki.id
 
 
 # ---------------------------------------------------------------------------
@@ -1108,12 +1099,12 @@ async def test_read_access_cannot_write_a_page(
 ):
     """Gate 4: a page is the wiki's content, so adding one asks for write on
     the wiki."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _wikis_enabled(session, a.initiative)
     wiki = await create_wiki(session, a.initiative, a.user)
 
     b = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="member",
@@ -1131,13 +1122,13 @@ async def test_read_access_cannot_write_a_page(
 async def test_an_unshared_wiki_is_invisible_to_a_co_member(
     client: AsyncClient, acting_user, session
 ):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
     await _wikis_enabled(session, a.initiative)
     wiki = await create_wiki(session, a.initiative, a.user)
     await strip_non_owner_grants(session, wiki, a.user.id)
 
     b = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="member",
@@ -1148,3 +1139,96 @@ async def test_an_unshared_wiki_is_invisible_to_a_co_member(
     )
     assert listing.status_code == 200
     assert listing.json()["items"] == []
+
+
+async def test_a_copy_has_its_published_pages_in_their_tree(
+    client: AsyncClient, acting_user, session
+):
+    """Drafts stay behind; a published page or borrowed document under a
+    draft moves up to the draft's own parent, and the home page points at its
+    copy."""
+    from sqlmodel import select
+
+    from app.models.tenant.wiki import Wiki, WikiPage
+    from app.testing import route_session_to_guild
+
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
+    await _wikis_enabled(session, a.initiative)
+    wiki = await create_wiki(session, a.initiative, a.user)
+    home = await create_wiki_page(session, wiki, a.user, title="Home")
+    draft = await create_wiki_page(
+        session, wiki, a.user, title="Draft", parent_page_id=home.id, is_draft=True
+    )
+    await create_wiki_page(session, wiki, a.user, title="Leaf", parent_page_id=draft.id)
+    document = await create_document(session, a.initiative, a.user, name="Borrowed")
+    wiki = await session.get(Wiki, wiki.id)
+    wiki.home_page_id = home.id
+    session.add(wiki)
+    await session.commit()
+    await client.put(
+        a.g(f"/wikis/{wiki.id}/documents/{document.id}"), headers=a.headers
+    )
+    await client.post(
+        a.g(f"/wikis/{wiki.id}/documents/{document.id}/move"),
+        headers=a.headers,
+        json={"parent_page_id": draft.id, "position": 0},
+    )
+
+    response = await client.post(a.g(f"/wikis/{wiki.id}/duplicate"), headers=a.headers)
+
+    assert response.status_code == 201, response.text
+    copy_id = response.json()["id"]
+    await route_session_to_guild(session, a.guild.id)
+    pages = {
+        page.title: page
+        for page in (
+            await session.exec(select(WikiPage).where(WikiPage.wiki_id == copy_id))
+        ).all()
+    }
+    assert set(pages) == {"Home", "Leaf"}
+    assert pages["Leaf"].parent_page_id == pages["Home"].id
+    copied = (
+        await session.exec(
+            select(Wiki)
+            .where(Wiki.id == copy_id)
+            .execution_options(populate_existing=True)
+        )
+    ).one()
+    assert copied.home_page_id == pages["Home"].id
+    listed = await client.get(a.g(f"/wikis/{copy_id}/pages"), headers=a.headers)
+    (borrowed,) = [row for row in listed.json()["items"] if row["kind"] == "document"]
+    assert borrowed["parent_page_id"] == pages["Home"].id
+
+
+async def test_a_copied_page_goes_last_where_it_is_filed_without_its_subpages(
+    client: AsyncClient, acting_user, session
+):
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
+    await _wikis_enabled(session, a.initiative)
+    wiki = await create_wiki(session, a.initiative, a.user)
+    rules = await create_wiki_page(session, wiki, a.user, title="Rules")
+    combat, travel = [
+        await create_wiki_page(
+            session, wiki, a.user, title=title, parent_page_id=rules.id, position=n
+        )
+        for n, title in enumerate(("Combat", "Travel"))
+    ]
+    await create_wiki_page(
+        session, wiki, a.user, title="Grapple", parent_page_id=combat.id
+    )
+
+    response = await client.post(
+        a.g(f"/wiki-pages/{combat.id}/duplicate"), headers=a.headers
+    )
+
+    assert response.status_code == 201, response.text
+    copy = response.json()
+    assert (copy["title"], copy["slug"], copy["parent_page_id"]) == (
+        "Combat (Copy)",
+        "combat-copy",
+        rules.id,
+    )
+    assert copy["position"] > travel.position
+    listed = await client.get(a.g(f"/wikis/{wiki.id}/pages"), headers=a.headers)
+    titles = [row["title"] for row in listed.json()["items"]]
+    assert titles.count("Grapple") == 1

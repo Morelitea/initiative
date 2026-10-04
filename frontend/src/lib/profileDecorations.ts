@@ -812,7 +812,7 @@ export const DECORATIONS: Readonly<Record<string, Decoration>> = {
   "flag.venezuela": entry("flag.venezuela", "trophy", "flag-venezuela", "flagvenezuela"),
   "flag.vietnam": entry("flag.vietnam", "trophy", "flag-vietnam", "flagvietnam"),
 
-  // Guilds, raid nights, arcades, patch day, and the table.
+  // Communities, raid nights, arcades, patch day, and the table.
   "gaming.arcade": entry("gaming.arcade", "banner", "gaming-arcade", "arcade"),
   "gaming.blocks": entry("gaming.blocks", "banner", "gaming-blocks", "blocks"),
   "gaming.tabletop": entry("gaming.tabletop", "banner", "gaming-tabletop", "gamesnight"),

@@ -21,9 +21,9 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
-  GetPostTimelineApiV1CGuildIdPostsTimelineGetParams,
+  GetPostTimelineParams,
   HTTPValidationError,
-  ListPostsApiV1CGuildIdPostsGetParams,
+  ListPostsParams,
   PollVoteWrite,
   PollVoters,
   PollWrite,
@@ -36,9 +36,10 @@ import type {
   PostReadReceipt,
   PostReaders,
   PostUpdate,
-  ReadPostApiV1CGuildIdPostsPostIdGetParams,
+  ReadPostParams,
   ResourceGrantSchema,
   TimelineResponse,
+  ToolDuplicateRequest,
 } from "../initiativeAPI.schemas";
 
 import { apiMutator } from "../../mutator";
@@ -69,79 +70,66 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
  * could edit it; for everyone else the board starts when it goes up.
  * @summary List Posts
  */
-export const listPostsApiV1CGuildIdPostsGet = (
-  guildId: number,
-  params?: ListPostsApiV1CGuildIdPostsGetParams,
+export const listPosts = (
+  communityId: number,
+  params?: ListPostsParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<PostListResponse>(
-    { url: `/api/v1/c/${guildId}/posts/`, method: "GET", params, signal },
+    { url: `/api/v1/c/${communityId}/posts/`, method: "GET", params, signal },
     options
   );
 };
 
-export const getListPostsApiV1CGuildIdPostsGetQueryKey = (
-  guildId: number,
-  params?: ListPostsApiV1CGuildIdPostsGetParams
-) => {
-  return [`/api/v1/c/${guildId}/posts/`, ...(params ? [params] : [])] as const;
+export const getListPostsQueryKey = (communityId: number, params?: ListPostsParams) => {
+  return [`/api/v1/c/${communityId}/posts/`, ...(params ? [params] : [])] as const;
 };
 
-export const getListPostsApiV1CGuildIdPostsGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof listPostsApiV1CGuildIdPostsGet>>,
+export const getListPostsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listPosts>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
-  params?: ListPostsApiV1CGuildIdPostsGetParams,
+  communityId: number,
+  params?: ListPostsParams,
   options?: {
-    query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listPostsApiV1CGuildIdPostsGet>>, TError, TData>
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listPosts>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   }
 ) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey =
-    queryOptions?.queryKey ?? getListPostsApiV1CGuildIdPostsGetQueryKey(guildId, params);
+  const queryKey = queryOptions?.queryKey ?? getListPostsQueryKey(communityId, params);
 
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof listPostsApiV1CGuildIdPostsGet>>> = ({
-    signal,
-  }) => listPostsApiV1CGuildIdPostsGet(guildId, params, requestOptions, signal);
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listPosts>>> = ({ signal }) =>
+    listPosts(communityId, params, requestOptions, signal);
 
   return {
     queryKey,
     queryFn,
-    enabled: guildId !== null && guildId !== undefined,
+    enabled: communityId !== null && communityId !== undefined,
     ...queryOptions,
-  } as UseQueryOptions<
-    Awaited<ReturnType<typeof listPostsApiV1CGuildIdPostsGet>>,
-    TError,
-    TData
-  > & { queryKey: DataTag<QueryKey, TData, TError> };
+  } as UseQueryOptions<Awaited<ReturnType<typeof listPosts>>, TError, TData> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 };
 
-export type ListPostsApiV1CGuildIdPostsGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof listPostsApiV1CGuildIdPostsGet>>
->;
-export type ListPostsApiV1CGuildIdPostsGetQueryError = ErrorType<HTTPValidationError>;
+export type ListPostsQueryResult = NonNullable<Awaited<ReturnType<typeof listPosts>>>;
+export type ListPostsQueryError = ErrorType<HTTPValidationError>;
 
-export function useListPostsApiV1CGuildIdPostsGet<
-  TData = Awaited<ReturnType<typeof listPostsApiV1CGuildIdPostsGet>>,
+export function useListPosts<
+  TData = Awaited<ReturnType<typeof listPosts>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
-  params: undefined | ListPostsApiV1CGuildIdPostsGetParams,
+  communityId: number,
+  params: undefined | ListPostsParams,
   options: {
-    query: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listPostsApiV1CGuildIdPostsGet>>, TError, TData>
-    > &
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof listPosts>>, TError, TData>> &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listPostsApiV1CGuildIdPostsGet>>,
+          Awaited<ReturnType<typeof listPosts>>,
           TError,
-          Awaited<ReturnType<typeof listPostsApiV1CGuildIdPostsGet>>
+          Awaited<ReturnType<typeof listPosts>>
         >,
         "initialData"
       >;
@@ -149,21 +137,19 @@ export function useListPostsApiV1CGuildIdPostsGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListPostsApiV1CGuildIdPostsGet<
-  TData = Awaited<ReturnType<typeof listPostsApiV1CGuildIdPostsGet>>,
+export function useListPosts<
+  TData = Awaited<ReturnType<typeof listPosts>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
-  params?: ListPostsApiV1CGuildIdPostsGetParams,
+  communityId: number,
+  params?: ListPostsParams,
   options?: {
-    query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listPostsApiV1CGuildIdPostsGet>>, TError, TData>
-    > &
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listPosts>>, TError, TData>> &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listPostsApiV1CGuildIdPostsGet>>,
+          Awaited<ReturnType<typeof listPosts>>,
           TError,
-          Awaited<ReturnType<typeof listPostsApiV1CGuildIdPostsGet>>
+          Awaited<ReturnType<typeof listPosts>>
         >,
         "initialData"
       >;
@@ -171,16 +157,14 @@ export function useListPostsApiV1CGuildIdPostsGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListPostsApiV1CGuildIdPostsGet<
-  TData = Awaited<ReturnType<typeof listPostsApiV1CGuildIdPostsGet>>,
+export function useListPosts<
+  TData = Awaited<ReturnType<typeof listPosts>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
-  params?: ListPostsApiV1CGuildIdPostsGetParams,
+  communityId: number,
+  params?: ListPostsParams,
   options?: {
-    query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listPostsApiV1CGuildIdPostsGet>>, TError, TData>
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listPosts>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
@@ -189,21 +173,19 @@ export function useListPostsApiV1CGuildIdPostsGet<
  * @summary List Posts
  */
 
-export function useListPostsApiV1CGuildIdPostsGet<
-  TData = Awaited<ReturnType<typeof listPostsApiV1CGuildIdPostsGet>>,
+export function useListPosts<
+  TData = Awaited<ReturnType<typeof listPosts>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
-  params?: ListPostsApiV1CGuildIdPostsGetParams,
+  communityId: number,
+  params?: ListPostsParams,
   options?: {
-    query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listPostsApiV1CGuildIdPostsGet>>, TError, TData>
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listPosts>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListPostsApiV1CGuildIdPostsGetQueryOptions(guildId, params, options);
+  const queryOptions = getListPostsQueryOptions(communityId, params, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -217,15 +199,15 @@ export function useListPostsApiV1CGuildIdPostsGet<
  * on the initiative (or guild admin); the author gets the owner grant.
  * @summary Create Post
  */
-export const createPostApiV1CGuildIdPostsPost = (
-  guildId: number,
+export const createPost = (
+  communityId: number,
   postCreate: BodyType<PostCreate>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<PostRead>(
     {
-      url: `/api/v1/c/${guildId}/posts/`,
+      url: `/api/v1/c/${communityId}/posts/`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
       data: postCreate,
@@ -235,27 +217,26 @@ export const createPostApiV1CGuildIdPostsPost = (
   );
 };
 
-export const getCreatePostApiV1CGuildIdPostsPostMutationKey = () =>
-  ["createPostApiV1CGuildIdPostsPost"] as const;
+export const getCreatePostMutationKey = () => ["createPost"] as const;
 
-export const getCreatePostApiV1CGuildIdPostsPostMutationOptions = <
+export const getCreatePostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof createPostApiV1CGuildIdPostsPost>>,
+    Awaited<ReturnType<typeof createPost>>,
     TError,
-    CreatePostApiV1CGuildIdPostsPostMutationVariables,
+    CreatePostMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof createPostApiV1CGuildIdPostsPost>>,
+  Awaited<ReturnType<typeof createPost>>,
   TError,
-  CreatePostApiV1CGuildIdPostsPostMutationVariables,
+  CreatePostMutationVariables,
   TContext
 > => {
-  const mutationKey = getCreatePostApiV1CGuildIdPostsPostMutationKey();
+  const mutationKey = getCreatePostMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -263,51 +244,43 @@ export const getCreatePostApiV1CGuildIdPostsPostMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof createPostApiV1CGuildIdPostsPost>>,
-    CreatePostApiV1CGuildIdPostsPostMutationVariables
+    Awaited<ReturnType<typeof createPost>>,
+    CreatePostMutationVariables
   > = (props) => {
-    const { guildId, data } = props ?? {};
+    const { communityId, data } = props ?? {};
 
-    return createPostApiV1CGuildIdPostsPost(guildId, data, requestOptions);
+    return createPost(communityId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type CreatePostApiV1CGuildIdPostsPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof createPostApiV1CGuildIdPostsPost>>
->;
-export type CreatePostApiV1CGuildIdPostsPostMutationBody = BodyType<PostCreate>;
-export type CreatePostApiV1CGuildIdPostsPostMutationError = ErrorType<HTTPValidationError>;
-export type CreatePostApiV1CGuildIdPostsPostMutationVariables = {
-  guildId: number;
-  data: BodyType<PostCreate>;
-};
+export type CreatePostMutationResult = NonNullable<Awaited<ReturnType<typeof createPost>>>;
+export type CreatePostMutationBody = BodyType<PostCreate>;
+export type CreatePostMutationError = ErrorType<HTTPValidationError>;
+export type CreatePostMutationVariables = { communityId: number; data: BodyType<PostCreate> };
 
 /**
  * @summary Create Post
  */
-export const useCreatePostApiV1CGuildIdPostsPost = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
+export const useCreatePost = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof createPostApiV1CGuildIdPostsPost>>,
+      Awaited<ReturnType<typeof createPost>>,
       TError,
-      CreatePostApiV1CGuildIdPostsPostMutationVariables,
+      CreatePostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof createPostApiV1CGuildIdPostsPost>>,
+  Awaited<ReturnType<typeof createPost>>,
   TError,
-  CreatePostApiV1CGuildIdPostsPostMutationVariables,
+  CreatePostMutationVariables,
   TContext
 > => {
-  return useMutation(getCreatePostApiV1CGuildIdPostsPostMutationOptions(options), queryClient);
+  return useMutation(getCreatePostMutationOptions(options), queryClient);
 };
 /**
  * The months this board has notices in, newest first.
@@ -322,89 +295,66 @@ export const useCreatePostApiV1CGuildIdPostsPost = <
  * the rail can never show a month whose notices the reader cannot open.
  * @summary Get Post Timeline
  */
-export const getPostTimelineApiV1CGuildIdPostsTimelineGet = (
-  guildId: number,
-  params?: GetPostTimelineApiV1CGuildIdPostsTimelineGetParams,
+export const getPostTimeline = (
+  communityId: number,
+  params?: GetPostTimelineParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<TimelineResponse>(
-    { url: `/api/v1/c/${guildId}/posts/timeline`, method: "GET", params, signal },
+    { url: `/api/v1/c/${communityId}/posts/timeline`, method: "GET", params, signal },
     options
   );
 };
 
-export const getGetPostTimelineApiV1CGuildIdPostsTimelineGetQueryKey = (
-  guildId: number,
-  params?: GetPostTimelineApiV1CGuildIdPostsTimelineGetParams
-) => {
-  return [`/api/v1/c/${guildId}/posts/timeline`, ...(params ? [params] : [])] as const;
+export const getGetPostTimelineQueryKey = (communityId: number, params?: GetPostTimelineParams) => {
+  return [`/api/v1/c/${communityId}/posts/timeline`, ...(params ? [params] : [])] as const;
 };
 
-export const getGetPostTimelineApiV1CGuildIdPostsTimelineGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof getPostTimelineApiV1CGuildIdPostsTimelineGet>>,
+export const getGetPostTimelineQueryOptions = <
+  TData = Awaited<ReturnType<typeof getPostTimeline>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
-  params?: GetPostTimelineApiV1CGuildIdPostsTimelineGetParams,
+  communityId: number,
+  params?: GetPostTimelineParams,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getPostTimelineApiV1CGuildIdPostsTimelineGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getPostTimeline>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   }
 ) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey =
-    queryOptions?.queryKey ??
-    getGetPostTimelineApiV1CGuildIdPostsTimelineGetQueryKey(guildId, params);
+  const queryKey = queryOptions?.queryKey ?? getGetPostTimelineQueryKey(communityId, params);
 
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof getPostTimelineApiV1CGuildIdPostsTimelineGet>>
-  > = ({ signal }) =>
-    getPostTimelineApiV1CGuildIdPostsTimelineGet(guildId, params, requestOptions, signal);
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getPostTimeline>>> = ({ signal }) =>
+    getPostTimeline(communityId, params, requestOptions, signal);
 
   return {
     queryKey,
     queryFn,
-    enabled: guildId !== null && guildId !== undefined,
+    enabled: communityId !== null && communityId !== undefined,
     ...queryOptions,
-  } as UseQueryOptions<
-    Awaited<ReturnType<typeof getPostTimelineApiV1CGuildIdPostsTimelineGet>>,
-    TError,
-    TData
-  > & { queryKey: DataTag<QueryKey, TData, TError> };
+  } as UseQueryOptions<Awaited<ReturnType<typeof getPostTimeline>>, TError, TData> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 };
 
-export type GetPostTimelineApiV1CGuildIdPostsTimelineGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof getPostTimelineApiV1CGuildIdPostsTimelineGet>>
->;
-export type GetPostTimelineApiV1CGuildIdPostsTimelineGetQueryError = ErrorType<HTTPValidationError>;
+export type GetPostTimelineQueryResult = NonNullable<Awaited<ReturnType<typeof getPostTimeline>>>;
+export type GetPostTimelineQueryError = ErrorType<HTTPValidationError>;
 
-export function useGetPostTimelineApiV1CGuildIdPostsTimelineGet<
-  TData = Awaited<ReturnType<typeof getPostTimelineApiV1CGuildIdPostsTimelineGet>>,
+export function useGetPostTimeline<
+  TData = Awaited<ReturnType<typeof getPostTimeline>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
-  params: undefined | GetPostTimelineApiV1CGuildIdPostsTimelineGetParams,
+  communityId: number,
+  params: undefined | GetPostTimelineParams,
   options: {
-    query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getPostTimelineApiV1CGuildIdPostsTimelineGet>>,
-        TError,
-        TData
-      >
-    > &
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getPostTimeline>>, TError, TData>> &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getPostTimelineApiV1CGuildIdPostsTimelineGet>>,
+          Awaited<ReturnType<typeof getPostTimeline>>,
           TError,
-          Awaited<ReturnType<typeof getPostTimelineApiV1CGuildIdPostsTimelineGet>>
+          Awaited<ReturnType<typeof getPostTimeline>>
         >,
         "initialData"
       >;
@@ -412,25 +362,19 @@ export function useGetPostTimelineApiV1CGuildIdPostsTimelineGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetPostTimelineApiV1CGuildIdPostsTimelineGet<
-  TData = Awaited<ReturnType<typeof getPostTimelineApiV1CGuildIdPostsTimelineGet>>,
+export function useGetPostTimeline<
+  TData = Awaited<ReturnType<typeof getPostTimeline>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
-  params?: GetPostTimelineApiV1CGuildIdPostsTimelineGetParams,
+  communityId: number,
+  params?: GetPostTimelineParams,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getPostTimelineApiV1CGuildIdPostsTimelineGet>>,
-        TError,
-        TData
-      >
-    > &
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getPostTimeline>>, TError, TData>> &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getPostTimelineApiV1CGuildIdPostsTimelineGet>>,
+          Awaited<ReturnType<typeof getPostTimeline>>,
           TError,
-          Awaited<ReturnType<typeof getPostTimelineApiV1CGuildIdPostsTimelineGet>>
+          Awaited<ReturnType<typeof getPostTimeline>>
         >,
         "initialData"
       >;
@@ -438,20 +382,14 @@ export function useGetPostTimelineApiV1CGuildIdPostsTimelineGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetPostTimelineApiV1CGuildIdPostsTimelineGet<
-  TData = Awaited<ReturnType<typeof getPostTimelineApiV1CGuildIdPostsTimelineGet>>,
+export function useGetPostTimeline<
+  TData = Awaited<ReturnType<typeof getPostTimeline>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
-  params?: GetPostTimelineApiV1CGuildIdPostsTimelineGetParams,
+  communityId: number,
+  params?: GetPostTimelineParams,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getPostTimelineApiV1CGuildIdPostsTimelineGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getPostTimeline>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
@@ -460,29 +398,19 @@ export function useGetPostTimelineApiV1CGuildIdPostsTimelineGet<
  * @summary Get Post Timeline
  */
 
-export function useGetPostTimelineApiV1CGuildIdPostsTimelineGet<
-  TData = Awaited<ReturnType<typeof getPostTimelineApiV1CGuildIdPostsTimelineGet>>,
+export function useGetPostTimeline<
+  TData = Awaited<ReturnType<typeof getPostTimeline>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
-  params?: GetPostTimelineApiV1CGuildIdPostsTimelineGetParams,
+  communityId: number,
+  params?: GetPostTimelineParams,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getPostTimelineApiV1CGuildIdPostsTimelineGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getPostTimeline>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getGetPostTimelineApiV1CGuildIdPostsTimelineGetQueryOptions(
-    guildId,
-    params,
-    options
-  );
+  const queryOptions = getGetPostTimelineQueryOptions(communityId, params, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -496,92 +424,74 @@ export function useGetPostTimelineApiV1CGuildIdPostsTimelineGet<
  * anyone else it is not there (the posts read policy).
  * @summary Read Post
  */
-export const readPostApiV1CGuildIdPostsPostIdGet = (
-  guildId: number,
+export const readPost = (
+  communityId: number,
   postId: number,
-  params?: ReadPostApiV1CGuildIdPostsPostIdGetParams,
+  params?: ReadPostParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<PostRead>(
-    { url: `/api/v1/c/${guildId}/posts/${postId}`, method: "GET", params, signal },
+    { url: `/api/v1/c/${communityId}/posts/${postId}`, method: "GET", params, signal },
     options
   );
 };
 
-export const getReadPostApiV1CGuildIdPostsPostIdGetQueryKey = (
-  guildId: number,
+export const getReadPostQueryKey = (
+  communityId: number,
   postId: number,
-  params?: ReadPostApiV1CGuildIdPostsPostIdGetParams
+  params?: ReadPostParams
 ) => {
-  return [`/api/v1/c/${guildId}/posts/${postId}`, ...(params ? [params] : [])] as const;
+  return [`/api/v1/c/${communityId}/posts/${postId}`, ...(params ? [params] : [])] as const;
 };
 
-export const getReadPostApiV1CGuildIdPostsPostIdGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof readPostApiV1CGuildIdPostsPostIdGet>>,
+export const getReadPostQueryOptions = <
+  TData = Awaited<ReturnType<typeof readPost>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   postId: number,
-  params?: ReadPostApiV1CGuildIdPostsPostIdGetParams,
+  params?: ReadPostParams,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readPostApiV1CGuildIdPostsPostIdGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readPost>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   }
 ) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey =
-    queryOptions?.queryKey ??
-    getReadPostApiV1CGuildIdPostsPostIdGetQueryKey(guildId, postId, params);
+  const queryKey = queryOptions?.queryKey ?? getReadPostQueryKey(communityId, postId, params);
 
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof readPostApiV1CGuildIdPostsPostIdGet>>> = ({
-    signal,
-  }) => readPostApiV1CGuildIdPostsPostIdGet(guildId, postId, params, requestOptions, signal);
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof readPost>>> = ({ signal }) =>
+    readPost(communityId, postId, params, requestOptions, signal);
 
   return {
     queryKey,
     queryFn,
-    enabled: guildId !== null && guildId !== undefined && postId !== null && postId !== undefined,
+    enabled:
+      communityId !== null && communityId !== undefined && postId !== null && postId !== undefined,
     ...queryOptions,
-  } as UseQueryOptions<
-    Awaited<ReturnType<typeof readPostApiV1CGuildIdPostsPostIdGet>>,
-    TError,
-    TData
-  > & { queryKey: DataTag<QueryKey, TData, TError> };
+  } as UseQueryOptions<Awaited<ReturnType<typeof readPost>>, TError, TData> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 };
 
-export type ReadPostApiV1CGuildIdPostsPostIdGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof readPostApiV1CGuildIdPostsPostIdGet>>
->;
-export type ReadPostApiV1CGuildIdPostsPostIdGetQueryError = ErrorType<HTTPValidationError>;
+export type ReadPostQueryResult = NonNullable<Awaited<ReturnType<typeof readPost>>>;
+export type ReadPostQueryError = ErrorType<HTTPValidationError>;
 
-export function useReadPostApiV1CGuildIdPostsPostIdGet<
-  TData = Awaited<ReturnType<typeof readPostApiV1CGuildIdPostsPostIdGet>>,
+export function useReadPost<
+  TData = Awaited<ReturnType<typeof readPost>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   postId: number,
-  params: undefined | ReadPostApiV1CGuildIdPostsPostIdGetParams,
+  params: undefined | ReadPostParams,
   options: {
-    query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readPostApiV1CGuildIdPostsPostIdGet>>,
-        TError,
-        TData
-      >
-    > &
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof readPost>>, TError, TData>> &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readPostApiV1CGuildIdPostsPostIdGet>>,
+          Awaited<ReturnType<typeof readPost>>,
           TError,
-          Awaited<ReturnType<typeof readPostApiV1CGuildIdPostsPostIdGet>>
+          Awaited<ReturnType<typeof readPost>>
         >,
         "initialData"
       >;
@@ -589,26 +499,20 @@ export function useReadPostApiV1CGuildIdPostsPostIdGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadPostApiV1CGuildIdPostsPostIdGet<
-  TData = Awaited<ReturnType<typeof readPostApiV1CGuildIdPostsPostIdGet>>,
+export function useReadPost<
+  TData = Awaited<ReturnType<typeof readPost>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   postId: number,
-  params?: ReadPostApiV1CGuildIdPostsPostIdGetParams,
+  params?: ReadPostParams,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readPostApiV1CGuildIdPostsPostIdGet>>,
-        TError,
-        TData
-      >
-    > &
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readPost>>, TError, TData>> &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readPostApiV1CGuildIdPostsPostIdGet>>,
+          Awaited<ReturnType<typeof readPost>>,
           TError,
-          Awaited<ReturnType<typeof readPostApiV1CGuildIdPostsPostIdGet>>
+          Awaited<ReturnType<typeof readPost>>
         >,
         "initialData"
       >;
@@ -616,21 +520,15 @@ export function useReadPostApiV1CGuildIdPostsPostIdGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadPostApiV1CGuildIdPostsPostIdGet<
-  TData = Awaited<ReturnType<typeof readPostApiV1CGuildIdPostsPostIdGet>>,
+export function useReadPost<
+  TData = Awaited<ReturnType<typeof readPost>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   postId: number,
-  params?: ReadPostApiV1CGuildIdPostsPostIdGetParams,
+  params?: ReadPostParams,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readPostApiV1CGuildIdPostsPostIdGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readPost>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
@@ -639,31 +537,20 @@ export function useReadPostApiV1CGuildIdPostsPostIdGet<
  * @summary Read Post
  */
 
-export function useReadPostApiV1CGuildIdPostsPostIdGet<
-  TData = Awaited<ReturnType<typeof readPostApiV1CGuildIdPostsPostIdGet>>,
+export function useReadPost<
+  TData = Awaited<ReturnType<typeof readPost>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   postId: number,
-  params?: ReadPostApiV1CGuildIdPostsPostIdGetParams,
+  params?: ReadPostParams,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readPostApiV1CGuildIdPostsPostIdGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readPost>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getReadPostApiV1CGuildIdPostsPostIdGetQueryOptions(
-    guildId,
-    postId,
-    params,
-    options
-  );
+  const queryOptions = getReadPostQueryOptions(communityId, postId, params, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -685,8 +572,8 @@ export function useReadPostApiV1CGuildIdPostsPostIdGet<
  * its own route below.
  * @summary Update Post
  */
-export const updatePostApiV1CGuildIdPostsPostIdPatch = (
-  guildId: number,
+export const updatePost = (
+  communityId: number,
   postId: number,
   postUpdate: BodyType<PostUpdate>,
   options?: SecondParameter<typeof apiMutator>,
@@ -694,7 +581,7 @@ export const updatePostApiV1CGuildIdPostsPostIdPatch = (
 ) => {
   return apiMutator<PostRead>(
     {
-      url: `/api/v1/c/${guildId}/posts/${postId}`,
+      url: `/api/v1/c/${communityId}/posts/${postId}`,
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       data: postUpdate,
@@ -704,27 +591,26 @@ export const updatePostApiV1CGuildIdPostsPostIdPatch = (
   );
 };
 
-export const getUpdatePostApiV1CGuildIdPostsPostIdPatchMutationKey = () =>
-  ["updatePostApiV1CGuildIdPostsPostIdPatch"] as const;
+export const getUpdatePostMutationKey = () => ["updatePost"] as const;
 
-export const getUpdatePostApiV1CGuildIdPostsPostIdPatchMutationOptions = <
+export const getUpdatePostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof updatePostApiV1CGuildIdPostsPostIdPatch>>,
+    Awaited<ReturnType<typeof updatePost>>,
     TError,
-    UpdatePostApiV1CGuildIdPostsPostIdPatchMutationVariables,
+    UpdatePostMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof updatePostApiV1CGuildIdPostsPostIdPatch>>,
+  Awaited<ReturnType<typeof updatePost>>,
   TError,
-  UpdatePostApiV1CGuildIdPostsPostIdPatchMutationVariables,
+  UpdatePostMutationVariables,
   TContext
 > => {
-  const mutationKey = getUpdatePostApiV1CGuildIdPostsPostIdPatchMutationKey();
+  const mutationKey = getUpdatePostMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -732,24 +618,22 @@ export const getUpdatePostApiV1CGuildIdPostsPostIdPatchMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof updatePostApiV1CGuildIdPostsPostIdPatch>>,
-    UpdatePostApiV1CGuildIdPostsPostIdPatchMutationVariables
+    Awaited<ReturnType<typeof updatePost>>,
+    UpdatePostMutationVariables
   > = (props) => {
-    const { guildId, postId, data } = props ?? {};
+    const { communityId, postId, data } = props ?? {};
 
-    return updatePostApiV1CGuildIdPostsPostIdPatch(guildId, postId, data, requestOptions);
+    return updatePost(communityId, postId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type UpdatePostApiV1CGuildIdPostsPostIdPatchMutationResult = NonNullable<
-  Awaited<ReturnType<typeof updatePostApiV1CGuildIdPostsPostIdPatch>>
->;
-export type UpdatePostApiV1CGuildIdPostsPostIdPatchMutationBody = BodyType<PostUpdate>;
-export type UpdatePostApiV1CGuildIdPostsPostIdPatchMutationError = ErrorType<HTTPValidationError>;
-export type UpdatePostApiV1CGuildIdPostsPostIdPatchMutationVariables = {
-  guildId: number;
+export type UpdatePostMutationResult = NonNullable<Awaited<ReturnType<typeof updatePost>>>;
+export type UpdatePostMutationBody = BodyType<PostUpdate>;
+export type UpdatePostMutationError = ErrorType<HTTPValidationError>;
+export type UpdatePostMutationVariables = {
+  communityId: number;
   postId: number;
   data: BodyType<PostUpdate>;
 };
@@ -757,30 +641,24 @@ export type UpdatePostApiV1CGuildIdPostsPostIdPatchMutationVariables = {
 /**
  * @summary Update Post
  */
-export const useUpdatePostApiV1CGuildIdPostsPostIdPatch = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
+export const useUpdatePost = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof updatePostApiV1CGuildIdPostsPostIdPatch>>,
+      Awaited<ReturnType<typeof updatePost>>,
       TError,
-      UpdatePostApiV1CGuildIdPostsPostIdPatchMutationVariables,
+      UpdatePostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof updatePostApiV1CGuildIdPostsPostIdPatch>>,
+  Awaited<ReturnType<typeof updatePost>>,
   TError,
-  UpdatePostApiV1CGuildIdPostsPostIdPatchMutationVariables,
+  UpdatePostMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getUpdatePostApiV1CGuildIdPostsPostIdPatchMutationOptions(options),
-    queryClient
-  );
+  return useMutation(getUpdatePostMutationOptions(options), queryClient);
 };
 /**
  * Move it to the trash with everything inside it. Restoring it brings
@@ -788,39 +666,38 @@ export const useUpdatePostApiV1CGuildIdPostsPostIdPatch = <
  * Requires the delete right on it: its owner, or a guild admin.
  * @summary Delete Post
  */
-export const deletePostApiV1CGuildIdPostsPostIdDelete = (
-  guildId: number,
+export const deletePost = (
+  communityId: number,
   postId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<void>(
-    { url: `/api/v1/c/${guildId}/posts/${postId}`, method: "DELETE", signal },
+    { url: `/api/v1/c/${communityId}/posts/${postId}`, method: "DELETE", signal },
     options
   );
 };
 
-export const getDeletePostApiV1CGuildIdPostsPostIdDeleteMutationKey = () =>
-  ["deletePostApiV1CGuildIdPostsPostIdDelete"] as const;
+export const getDeletePostMutationKey = () => ["deletePost"] as const;
 
-export const getDeletePostApiV1CGuildIdPostsPostIdDeleteMutationOptions = <
+export const getDeletePostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof deletePostApiV1CGuildIdPostsPostIdDelete>>,
+    Awaited<ReturnType<typeof deletePost>>,
     TError,
-    DeletePostApiV1CGuildIdPostsPostIdDeleteMutationVariables,
+    DeletePostMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof deletePostApiV1CGuildIdPostsPostIdDelete>>,
+  Awaited<ReturnType<typeof deletePost>>,
   TError,
-  DeletePostApiV1CGuildIdPostsPostIdDeleteMutationVariables,
+  DeletePostMutationVariables,
   TContext
 > => {
-  const mutationKey = getDeletePostApiV1CGuildIdPostsPostIdDeleteMutationKey();
+  const mutationKey = getDeletePostMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -828,54 +705,43 @@ export const getDeletePostApiV1CGuildIdPostsPostIdDeleteMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof deletePostApiV1CGuildIdPostsPostIdDelete>>,
-    DeletePostApiV1CGuildIdPostsPostIdDeleteMutationVariables
+    Awaited<ReturnType<typeof deletePost>>,
+    DeletePostMutationVariables
   > = (props) => {
-    const { guildId, postId } = props ?? {};
+    const { communityId, postId } = props ?? {};
 
-    return deletePostApiV1CGuildIdPostsPostIdDelete(guildId, postId, requestOptions);
+    return deletePost(communityId, postId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type DeletePostApiV1CGuildIdPostsPostIdDeleteMutationResult = NonNullable<
-  Awaited<ReturnType<typeof deletePostApiV1CGuildIdPostsPostIdDelete>>
->;
+export type DeletePostMutationResult = NonNullable<Awaited<ReturnType<typeof deletePost>>>;
 
-export type DeletePostApiV1CGuildIdPostsPostIdDeleteMutationError = ErrorType<HTTPValidationError>;
-export type DeletePostApiV1CGuildIdPostsPostIdDeleteMutationVariables = {
-  guildId: number;
-  postId: number;
-};
+export type DeletePostMutationError = ErrorType<HTTPValidationError>;
+export type DeletePostMutationVariables = { communityId: number; postId: number };
 
 /**
  * @summary Delete Post
  */
-export const useDeletePostApiV1CGuildIdPostsPostIdDelete = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
+export const useDeletePost = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof deletePostApiV1CGuildIdPostsPostIdDelete>>,
+      Awaited<ReturnType<typeof deletePost>>,
       TError,
-      DeletePostApiV1CGuildIdPostsPostIdDeleteMutationVariables,
+      DeletePostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof deletePostApiV1CGuildIdPostsPostIdDelete>>,
+  Awaited<ReturnType<typeof deletePost>>,
   TError,
-  DeletePostApiV1CGuildIdPostsPostIdDeleteMutationVariables,
+  DeletePostMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getDeletePostApiV1CGuildIdPostsPostIdDeleteMutationOptions(options),
-    queryClient
-  );
+  return useMutation(getDeletePostMutationOptions(options), queryClient);
 };
 /**
  * Pin a notice to the top of the board, or take it back down.
@@ -898,8 +764,8 @@ export const useDeletePostApiV1CGuildIdPostsPostIdDelete = <
  * write: its own, and the ones shared with it at write.
  * @summary Set Post Pin
  */
-export const setPostPinApiV1CGuildIdPostsPostIdPinPut = (
-  guildId: number,
+export const setPostPin = (
+  communityId: number,
   postId: number,
   postPinUpdate: BodyType<PostPinUpdate>,
   options?: SecondParameter<typeof apiMutator>,
@@ -907,7 +773,7 @@ export const setPostPinApiV1CGuildIdPostsPostIdPinPut = (
 ) => {
   return apiMutator<PostRead>(
     {
-      url: `/api/v1/c/${guildId}/posts/${postId}/pin`,
+      url: `/api/v1/c/${communityId}/posts/${postId}/pin`,
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       data: postPinUpdate,
@@ -917,27 +783,26 @@ export const setPostPinApiV1CGuildIdPostsPostIdPinPut = (
   );
 };
 
-export const getSetPostPinApiV1CGuildIdPostsPostIdPinPutMutationKey = () =>
-  ["setPostPinApiV1CGuildIdPostsPostIdPinPut"] as const;
+export const getSetPostPinMutationKey = () => ["setPostPin"] as const;
 
-export const getSetPostPinApiV1CGuildIdPostsPostIdPinPutMutationOptions = <
+export const getSetPostPinMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof setPostPinApiV1CGuildIdPostsPostIdPinPut>>,
+    Awaited<ReturnType<typeof setPostPin>>,
     TError,
-    SetPostPinApiV1CGuildIdPostsPostIdPinPutMutationVariables,
+    SetPostPinMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof setPostPinApiV1CGuildIdPostsPostIdPinPut>>,
+  Awaited<ReturnType<typeof setPostPin>>,
   TError,
-  SetPostPinApiV1CGuildIdPostsPostIdPinPutMutationVariables,
+  SetPostPinMutationVariables,
   TContext
 > => {
-  const mutationKey = getSetPostPinApiV1CGuildIdPostsPostIdPinPutMutationKey();
+  const mutationKey = getSetPostPinMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -945,24 +810,22 @@ export const getSetPostPinApiV1CGuildIdPostsPostIdPinPutMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof setPostPinApiV1CGuildIdPostsPostIdPinPut>>,
-    SetPostPinApiV1CGuildIdPostsPostIdPinPutMutationVariables
+    Awaited<ReturnType<typeof setPostPin>>,
+    SetPostPinMutationVariables
   > = (props) => {
-    const { guildId, postId, data } = props ?? {};
+    const { communityId, postId, data } = props ?? {};
 
-    return setPostPinApiV1CGuildIdPostsPostIdPinPut(guildId, postId, data, requestOptions);
+    return setPostPin(communityId, postId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type SetPostPinApiV1CGuildIdPostsPostIdPinPutMutationResult = NonNullable<
-  Awaited<ReturnType<typeof setPostPinApiV1CGuildIdPostsPostIdPinPut>>
->;
-export type SetPostPinApiV1CGuildIdPostsPostIdPinPutMutationBody = BodyType<PostPinUpdate>;
-export type SetPostPinApiV1CGuildIdPostsPostIdPinPutMutationError = ErrorType<HTTPValidationError>;
-export type SetPostPinApiV1CGuildIdPostsPostIdPinPutMutationVariables = {
-  guildId: number;
+export type SetPostPinMutationResult = NonNullable<Awaited<ReturnType<typeof setPostPin>>>;
+export type SetPostPinMutationBody = BodyType<PostPinUpdate>;
+export type SetPostPinMutationError = ErrorType<HTTPValidationError>;
+export type SetPostPinMutationVariables = {
+  communityId: number;
   postId: number;
   data: BodyType<PostPinUpdate>;
 };
@@ -970,30 +833,24 @@ export type SetPostPinApiV1CGuildIdPostsPostIdPinPutMutationVariables = {
 /**
  * @summary Set Post Pin
  */
-export const useSetPostPinApiV1CGuildIdPostsPostIdPinPut = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
+export const useSetPostPin = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof setPostPinApiV1CGuildIdPostsPostIdPinPut>>,
+      Awaited<ReturnType<typeof setPostPin>>,
       TError,
-      SetPostPinApiV1CGuildIdPostsPostIdPinPutMutationVariables,
+      SetPostPinMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof setPostPinApiV1CGuildIdPostsPostIdPinPut>>,
+  Awaited<ReturnType<typeof setPostPin>>,
   TError,
-  SetPostPinApiV1CGuildIdPostsPostIdPinPutMutationVariables,
+  SetPostPinMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getSetPostPinApiV1CGuildIdPostsPostIdPinPutMutationOptions(options),
-    queryClient
-  );
+  return useMutation(getSetPostPinMutationOptions(options), queryClient);
 };
 /**
  * Turn reactions on a notice on or off.
@@ -1009,8 +866,8 @@ export const useSetPostPinApiV1CGuildIdPostsPostIdPinPut = <
  * stops serving or adding to it until the switch goes back on.
  * @summary Set Post Reaction Settings
  */
-export const setPostReactionSettingsApiV1CGuildIdPostsPostIdReactionsPut = (
-  guildId: number,
+export const setPostReactionSettings = (
+  communityId: number,
   postId: number,
   postReactionSettings: BodyType<PostReactionSettings>,
   options?: SecondParameter<typeof apiMutator>,
@@ -1018,7 +875,7 @@ export const setPostReactionSettingsApiV1CGuildIdPostsPostIdReactionsPut = (
 ) => {
   return apiMutator<PostReactionSettings>(
     {
-      url: `/api/v1/c/${guildId}/posts/${postId}/reactions`,
+      url: `/api/v1/c/${communityId}/posts/${postId}/reactions`,
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       data: postReactionSettings,
@@ -1028,27 +885,26 @@ export const setPostReactionSettingsApiV1CGuildIdPostsPostIdReactionsPut = (
   );
 };
 
-export const getSetPostReactionSettingsApiV1CGuildIdPostsPostIdReactionsPutMutationKey = () =>
-  ["setPostReactionSettingsApiV1CGuildIdPostsPostIdReactionsPut"] as const;
+export const getSetPostReactionSettingsMutationKey = () => ["setPostReactionSettings"] as const;
 
-export const getSetPostReactionSettingsApiV1CGuildIdPostsPostIdReactionsPutMutationOptions = <
+export const getSetPostReactionSettingsMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof setPostReactionSettingsApiV1CGuildIdPostsPostIdReactionsPut>>,
+    Awaited<ReturnType<typeof setPostReactionSettings>>,
     TError,
-    SetPostReactionSettingsApiV1CGuildIdPostsPostIdReactionsPutMutationVariables,
+    SetPostReactionSettingsMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof setPostReactionSettingsApiV1CGuildIdPostsPostIdReactionsPut>>,
+  Awaited<ReturnType<typeof setPostReactionSettings>>,
   TError,
-  SetPostReactionSettingsApiV1CGuildIdPostsPostIdReactionsPutMutationVariables,
+  SetPostReactionSettingsMutationVariables,
   TContext
 > => {
-  const mutationKey = getSetPostReactionSettingsApiV1CGuildIdPostsPostIdReactionsPutMutationKey();
+  const mutationKey = getSetPostReactionSettingsMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1056,31 +912,24 @@ export const getSetPostReactionSettingsApiV1CGuildIdPostsPostIdReactionsPutMutat
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof setPostReactionSettingsApiV1CGuildIdPostsPostIdReactionsPut>>,
-    SetPostReactionSettingsApiV1CGuildIdPostsPostIdReactionsPutMutationVariables
+    Awaited<ReturnType<typeof setPostReactionSettings>>,
+    SetPostReactionSettingsMutationVariables
   > = (props) => {
-    const { guildId, postId, data } = props ?? {};
+    const { communityId, postId, data } = props ?? {};
 
-    return setPostReactionSettingsApiV1CGuildIdPostsPostIdReactionsPut(
-      guildId,
-      postId,
-      data,
-      requestOptions
-    );
+    return setPostReactionSettings(communityId, postId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type SetPostReactionSettingsApiV1CGuildIdPostsPostIdReactionsPutMutationResult = NonNullable<
-  Awaited<ReturnType<typeof setPostReactionSettingsApiV1CGuildIdPostsPostIdReactionsPut>>
+export type SetPostReactionSettingsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof setPostReactionSettings>>
 >;
-export type SetPostReactionSettingsApiV1CGuildIdPostsPostIdReactionsPutMutationBody =
-  BodyType<PostReactionSettings>;
-export type SetPostReactionSettingsApiV1CGuildIdPostsPostIdReactionsPutMutationError =
-  ErrorType<HTTPValidationError>;
-export type SetPostReactionSettingsApiV1CGuildIdPostsPostIdReactionsPutMutationVariables = {
-  guildId: number;
+export type SetPostReactionSettingsMutationBody = BodyType<PostReactionSettings>;
+export type SetPostReactionSettingsMutationError = ErrorType<HTTPValidationError>;
+export type SetPostReactionSettingsMutationVariables = {
+  communityId: number;
   postId: number;
   data: BodyType<PostReactionSettings>;
 };
@@ -1088,30 +937,27 @@ export type SetPostReactionSettingsApiV1CGuildIdPostsPostIdReactionsPutMutationV
 /**
  * @summary Set Post Reaction Settings
  */
-export const useSetPostReactionSettingsApiV1CGuildIdPostsPostIdReactionsPut = <
+export const useSetPostReactionSettings = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof setPostReactionSettingsApiV1CGuildIdPostsPostIdReactionsPut>>,
+      Awaited<ReturnType<typeof setPostReactionSettings>>,
       TError,
-      SetPostReactionSettingsApiV1CGuildIdPostsPostIdReactionsPutMutationVariables,
+      SetPostReactionSettingsMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof setPostReactionSettingsApiV1CGuildIdPostsPostIdReactionsPut>>,
+  Awaited<ReturnType<typeof setPostReactionSettings>>,
   TError,
-  SetPostReactionSettingsApiV1CGuildIdPostsPostIdReactionsPutMutationVariables,
+  SetPostReactionSettingsMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getSetPostReactionSettingsApiV1CGuildIdPostsPostIdReactionsPutMutationOptions(options),
-    queryClient
-  );
+  return useMutation(getSetPostReactionSettingsMutationOptions(options), queryClient);
 };
 /**
  * Record that the caller has read these notices.
@@ -1126,15 +972,15 @@ export const useSetPostReactionSettingsApiV1CGuildIdPostsPostIdReactionsPut = <
  * decide which those are.
  * @summary Mark Posts Read
  */
-export const markPostsReadApiV1CGuildIdPostsReadPost = (
-  guildId: number,
+export const markPostsRead = (
+  communityId: number,
   postReadMarks: BodyType<PostReadMarks>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<PostReadReceipt>(
     {
-      url: `/api/v1/c/${guildId}/posts/read`,
+      url: `/api/v1/c/${communityId}/posts/read`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
       data: postReadMarks,
@@ -1144,27 +990,26 @@ export const markPostsReadApiV1CGuildIdPostsReadPost = (
   );
 };
 
-export const getMarkPostsReadApiV1CGuildIdPostsReadPostMutationKey = () =>
-  ["markPostsReadApiV1CGuildIdPostsReadPost"] as const;
+export const getMarkPostsReadMutationKey = () => ["markPostsRead"] as const;
 
-export const getMarkPostsReadApiV1CGuildIdPostsReadPostMutationOptions = <
+export const getMarkPostsReadMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof markPostsReadApiV1CGuildIdPostsReadPost>>,
+    Awaited<ReturnType<typeof markPostsRead>>,
     TError,
-    MarkPostsReadApiV1CGuildIdPostsReadPostMutationVariables,
+    MarkPostsReadMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof markPostsReadApiV1CGuildIdPostsReadPost>>,
+  Awaited<ReturnType<typeof markPostsRead>>,
   TError,
-  MarkPostsReadApiV1CGuildIdPostsReadPostMutationVariables,
+  MarkPostsReadMutationVariables,
   TContext
 > => {
-  const mutationKey = getMarkPostsReadApiV1CGuildIdPostsReadPostMutationKey();
+  const mutationKey = getMarkPostsReadMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1172,54 +1017,43 @@ export const getMarkPostsReadApiV1CGuildIdPostsReadPostMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof markPostsReadApiV1CGuildIdPostsReadPost>>,
-    MarkPostsReadApiV1CGuildIdPostsReadPostMutationVariables
+    Awaited<ReturnType<typeof markPostsRead>>,
+    MarkPostsReadMutationVariables
   > = (props) => {
-    const { guildId, data } = props ?? {};
+    const { communityId, data } = props ?? {};
 
-    return markPostsReadApiV1CGuildIdPostsReadPost(guildId, data, requestOptions);
+    return markPostsRead(communityId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type MarkPostsReadApiV1CGuildIdPostsReadPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof markPostsReadApiV1CGuildIdPostsReadPost>>
->;
-export type MarkPostsReadApiV1CGuildIdPostsReadPostMutationBody = BodyType<PostReadMarks>;
-export type MarkPostsReadApiV1CGuildIdPostsReadPostMutationError = ErrorType<HTTPValidationError>;
-export type MarkPostsReadApiV1CGuildIdPostsReadPostMutationVariables = {
-  guildId: number;
-  data: BodyType<PostReadMarks>;
-};
+export type MarkPostsReadMutationResult = NonNullable<Awaited<ReturnType<typeof markPostsRead>>>;
+export type MarkPostsReadMutationBody = BodyType<PostReadMarks>;
+export type MarkPostsReadMutationError = ErrorType<HTTPValidationError>;
+export type MarkPostsReadMutationVariables = { communityId: number; data: BodyType<PostReadMarks> };
 
 /**
  * @summary Mark Posts Read
  */
-export const useMarkPostsReadApiV1CGuildIdPostsReadPost = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
+export const useMarkPostsRead = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof markPostsReadApiV1CGuildIdPostsReadPost>>,
+      Awaited<ReturnType<typeof markPostsRead>>,
       TError,
-      MarkPostsReadApiV1CGuildIdPostsReadPostMutationVariables,
+      MarkPostsReadMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof markPostsReadApiV1CGuildIdPostsReadPost>>,
+  Awaited<ReturnType<typeof markPostsRead>>,
   TError,
-  MarkPostsReadApiV1CGuildIdPostsReadPostMutationVariables,
+  MarkPostsReadMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getMarkPostsReadApiV1CGuildIdPostsReadPostMutationOptions(options),
-    queryClient
-  );
+  return useMutation(getMarkPostsReadMutationOptions(options), queryClient);
 };
 /**
  * Put one notice back to unread for the caller.
@@ -1229,39 +1063,38 @@ export const useMarkPostsReadApiV1CGuildIdPostsReadPost = <
  * thing is already in is not an error.
  * @summary Mark Post Unread
  */
-export const markPostUnreadApiV1CGuildIdPostsPostIdReadDelete = (
-  guildId: number,
+export const markPostUnread = (
+  communityId: number,
   postId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<void>(
-    { url: `/api/v1/c/${guildId}/posts/${postId}/read`, method: "DELETE", signal },
+    { url: `/api/v1/c/${communityId}/posts/${postId}/read`, method: "DELETE", signal },
     options
   );
 };
 
-export const getMarkPostUnreadApiV1CGuildIdPostsPostIdReadDeleteMutationKey = () =>
-  ["markPostUnreadApiV1CGuildIdPostsPostIdReadDelete"] as const;
+export const getMarkPostUnreadMutationKey = () => ["markPostUnread"] as const;
 
-export const getMarkPostUnreadApiV1CGuildIdPostsPostIdReadDeleteMutationOptions = <
+export const getMarkPostUnreadMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof markPostUnreadApiV1CGuildIdPostsPostIdReadDelete>>,
+    Awaited<ReturnType<typeof markPostUnread>>,
     TError,
-    MarkPostUnreadApiV1CGuildIdPostsPostIdReadDeleteMutationVariables,
+    MarkPostUnreadMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof markPostUnreadApiV1CGuildIdPostsPostIdReadDelete>>,
+  Awaited<ReturnType<typeof markPostUnread>>,
   TError,
-  MarkPostUnreadApiV1CGuildIdPostsPostIdReadDeleteMutationVariables,
+  MarkPostUnreadMutationVariables,
   TContext
 > => {
-  const mutationKey = getMarkPostUnreadApiV1CGuildIdPostsPostIdReadDeleteMutationKey();
+  const mutationKey = getMarkPostUnreadMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1269,55 +1102,43 @@ export const getMarkPostUnreadApiV1CGuildIdPostsPostIdReadDeleteMutationOptions 
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof markPostUnreadApiV1CGuildIdPostsPostIdReadDelete>>,
-    MarkPostUnreadApiV1CGuildIdPostsPostIdReadDeleteMutationVariables
+    Awaited<ReturnType<typeof markPostUnread>>,
+    MarkPostUnreadMutationVariables
   > = (props) => {
-    const { guildId, postId } = props ?? {};
+    const { communityId, postId } = props ?? {};
 
-    return markPostUnreadApiV1CGuildIdPostsPostIdReadDelete(guildId, postId, requestOptions);
+    return markPostUnread(communityId, postId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type MarkPostUnreadApiV1CGuildIdPostsPostIdReadDeleteMutationResult = NonNullable<
-  Awaited<ReturnType<typeof markPostUnreadApiV1CGuildIdPostsPostIdReadDelete>>
->;
+export type MarkPostUnreadMutationResult = NonNullable<Awaited<ReturnType<typeof markPostUnread>>>;
 
-export type MarkPostUnreadApiV1CGuildIdPostsPostIdReadDeleteMutationError =
-  ErrorType<HTTPValidationError>;
-export type MarkPostUnreadApiV1CGuildIdPostsPostIdReadDeleteMutationVariables = {
-  guildId: number;
-  postId: number;
-};
+export type MarkPostUnreadMutationError = ErrorType<HTTPValidationError>;
+export type MarkPostUnreadMutationVariables = { communityId: number; postId: number };
 
 /**
  * @summary Mark Post Unread
  */
-export const useMarkPostUnreadApiV1CGuildIdPostsPostIdReadDelete = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
+export const useMarkPostUnread = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof markPostUnreadApiV1CGuildIdPostsPostIdReadDelete>>,
+      Awaited<ReturnType<typeof markPostUnread>>,
       TError,
-      MarkPostUnreadApiV1CGuildIdPostsPostIdReadDeleteMutationVariables,
+      MarkPostUnreadMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof markPostUnreadApiV1CGuildIdPostsPostIdReadDelete>>,
+  Awaited<ReturnType<typeof markPostUnread>>,
   TError,
-  MarkPostUnreadApiV1CGuildIdPostsPostIdReadDeleteMutationVariables,
+  MarkPostUnreadMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getMarkPostUnreadApiV1CGuildIdPostsPostIdReadDeleteMutationOptions(options),
-    queryClient
-  );
+  return useMutation(getMarkPostUnreadMutationOptions(options), queryClient);
 };
 /**
  * Who has read this notice, and who it is still waiting on.
@@ -1329,90 +1150,67 @@ export const useMarkPostUnreadApiV1CGuildIdPostsPostIdReadDelete = <
  * through the initiative they share.
  * @summary List Post Readers
  */
-export const listPostReadersApiV1CGuildIdPostsPostIdReadsGet = (
-  guildId: number,
+export const listPostReaders = (
+  communityId: number,
   postId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<PostReaders>(
-    { url: `/api/v1/c/${guildId}/posts/${postId}/reads`, method: "GET", signal },
+    { url: `/api/v1/c/${communityId}/posts/${postId}/reads`, method: "GET", signal },
     options
   );
 };
 
-export const getListPostReadersApiV1CGuildIdPostsPostIdReadsGetQueryKey = (
-  guildId: number,
-  postId: number
-) => {
-  return [`/api/v1/c/${guildId}/posts/${postId}/reads`] as const;
+export const getListPostReadersQueryKey = (communityId: number, postId: number) => {
+  return [`/api/v1/c/${communityId}/posts/${postId}/reads`] as const;
 };
 
-export const getListPostReadersApiV1CGuildIdPostsPostIdReadsGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof listPostReadersApiV1CGuildIdPostsPostIdReadsGet>>,
+export const getListPostReadersQueryOptions = <
+  TData = Awaited<ReturnType<typeof listPostReaders>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   postId: number,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listPostReadersApiV1CGuildIdPostsPostIdReadsGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listPostReaders>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   }
 ) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey =
-    queryOptions?.queryKey ??
-    getListPostReadersApiV1CGuildIdPostsPostIdReadsGetQueryKey(guildId, postId);
+  const queryKey = queryOptions?.queryKey ?? getListPostReadersQueryKey(communityId, postId);
 
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof listPostReadersApiV1CGuildIdPostsPostIdReadsGet>>
-  > = ({ signal }) =>
-    listPostReadersApiV1CGuildIdPostsPostIdReadsGet(guildId, postId, requestOptions, signal);
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listPostReaders>>> = ({ signal }) =>
+    listPostReaders(communityId, postId, requestOptions, signal);
 
   return {
     queryKey,
     queryFn,
-    enabled: guildId !== null && guildId !== undefined && postId !== null && postId !== undefined,
+    enabled:
+      communityId !== null && communityId !== undefined && postId !== null && postId !== undefined,
     ...queryOptions,
-  } as UseQueryOptions<
-    Awaited<ReturnType<typeof listPostReadersApiV1CGuildIdPostsPostIdReadsGet>>,
-    TError,
-    TData
-  > & { queryKey: DataTag<QueryKey, TData, TError> };
+  } as UseQueryOptions<Awaited<ReturnType<typeof listPostReaders>>, TError, TData> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 };
 
-export type ListPostReadersApiV1CGuildIdPostsPostIdReadsGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof listPostReadersApiV1CGuildIdPostsPostIdReadsGet>>
->;
-export type ListPostReadersApiV1CGuildIdPostsPostIdReadsGetQueryError =
-  ErrorType<HTTPValidationError>;
+export type ListPostReadersQueryResult = NonNullable<Awaited<ReturnType<typeof listPostReaders>>>;
+export type ListPostReadersQueryError = ErrorType<HTTPValidationError>;
 
-export function useListPostReadersApiV1CGuildIdPostsPostIdReadsGet<
-  TData = Awaited<ReturnType<typeof listPostReadersApiV1CGuildIdPostsPostIdReadsGet>>,
+export function useListPostReaders<
+  TData = Awaited<ReturnType<typeof listPostReaders>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   postId: number,
   options: {
-    query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listPostReadersApiV1CGuildIdPostsPostIdReadsGet>>,
-        TError,
-        TData
-      >
-    > &
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof listPostReaders>>, TError, TData>> &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listPostReadersApiV1CGuildIdPostsPostIdReadsGet>>,
+          Awaited<ReturnType<typeof listPostReaders>>,
           TError,
-          Awaited<ReturnType<typeof listPostReadersApiV1CGuildIdPostsPostIdReadsGet>>
+          Awaited<ReturnType<typeof listPostReaders>>
         >,
         "initialData"
       >;
@@ -1420,25 +1218,19 @@ export function useListPostReadersApiV1CGuildIdPostsPostIdReadsGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListPostReadersApiV1CGuildIdPostsPostIdReadsGet<
-  TData = Awaited<ReturnType<typeof listPostReadersApiV1CGuildIdPostsPostIdReadsGet>>,
+export function useListPostReaders<
+  TData = Awaited<ReturnType<typeof listPostReaders>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   postId: number,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listPostReadersApiV1CGuildIdPostsPostIdReadsGet>>,
-        TError,
-        TData
-      >
-    > &
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listPostReaders>>, TError, TData>> &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listPostReadersApiV1CGuildIdPostsPostIdReadsGet>>,
+          Awaited<ReturnType<typeof listPostReaders>>,
           TError,
-          Awaited<ReturnType<typeof listPostReadersApiV1CGuildIdPostsPostIdReadsGet>>
+          Awaited<ReturnType<typeof listPostReaders>>
         >,
         "initialData"
       >;
@@ -1446,20 +1238,14 @@ export function useListPostReadersApiV1CGuildIdPostsPostIdReadsGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListPostReadersApiV1CGuildIdPostsPostIdReadsGet<
-  TData = Awaited<ReturnType<typeof listPostReadersApiV1CGuildIdPostsPostIdReadsGet>>,
+export function useListPostReaders<
+  TData = Awaited<ReturnType<typeof listPostReaders>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   postId: number,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listPostReadersApiV1CGuildIdPostsPostIdReadsGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listPostReaders>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
@@ -1468,29 +1254,19 @@ export function useListPostReadersApiV1CGuildIdPostsPostIdReadsGet<
  * @summary List Post Readers
  */
 
-export function useListPostReadersApiV1CGuildIdPostsPostIdReadsGet<
-  TData = Awaited<ReturnType<typeof listPostReadersApiV1CGuildIdPostsPostIdReadsGet>>,
+export function useListPostReaders<
+  TData = Awaited<ReturnType<typeof listPostReaders>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   postId: number,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listPostReadersApiV1CGuildIdPostsPostIdReadsGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listPostReaders>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListPostReadersApiV1CGuildIdPostsPostIdReadsGetQueryOptions(
-    guildId,
-    postId,
-    options
-  );
+  const queryOptions = getListPostReadersQueryOptions(communityId, postId, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -1527,8 +1303,8 @@ export function useListPostReadersApiV1CGuildIdPostsPostIdReadsGet<
  * are one step.
  * @summary Set Post Poll
  */
-export const setPostPollApiV1CGuildIdPostsPostIdPollPut = (
-  guildId: number,
+export const setPostPoll = (
+  communityId: number,
   postId: number,
   pollWrite: BodyType<PollWrite>,
   options?: SecondParameter<typeof apiMutator>,
@@ -1536,7 +1312,7 @@ export const setPostPollApiV1CGuildIdPostsPostIdPollPut = (
 ) => {
   return apiMutator<PostRead>(
     {
-      url: `/api/v1/c/${guildId}/posts/${postId}/poll`,
+      url: `/api/v1/c/${communityId}/posts/${postId}/poll`,
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       data: pollWrite,
@@ -1546,27 +1322,26 @@ export const setPostPollApiV1CGuildIdPostsPostIdPollPut = (
   );
 };
 
-export const getSetPostPollApiV1CGuildIdPostsPostIdPollPutMutationKey = () =>
-  ["setPostPollApiV1CGuildIdPostsPostIdPollPut"] as const;
+export const getSetPostPollMutationKey = () => ["setPostPoll"] as const;
 
-export const getSetPostPollApiV1CGuildIdPostsPostIdPollPutMutationOptions = <
+export const getSetPostPollMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof setPostPollApiV1CGuildIdPostsPostIdPollPut>>,
+    Awaited<ReturnType<typeof setPostPoll>>,
     TError,
-    SetPostPollApiV1CGuildIdPostsPostIdPollPutMutationVariables,
+    SetPostPollMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof setPostPollApiV1CGuildIdPostsPostIdPollPut>>,
+  Awaited<ReturnType<typeof setPostPoll>>,
   TError,
-  SetPostPollApiV1CGuildIdPostsPostIdPollPutMutationVariables,
+  SetPostPollMutationVariables,
   TContext
 > => {
-  const mutationKey = getSetPostPollApiV1CGuildIdPostsPostIdPollPutMutationKey();
+  const mutationKey = getSetPostPollMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1574,25 +1349,22 @@ export const getSetPostPollApiV1CGuildIdPostsPostIdPollPutMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof setPostPollApiV1CGuildIdPostsPostIdPollPut>>,
-    SetPostPollApiV1CGuildIdPostsPostIdPollPutMutationVariables
+    Awaited<ReturnType<typeof setPostPoll>>,
+    SetPostPollMutationVariables
   > = (props) => {
-    const { guildId, postId, data } = props ?? {};
+    const { communityId, postId, data } = props ?? {};
 
-    return setPostPollApiV1CGuildIdPostsPostIdPollPut(guildId, postId, data, requestOptions);
+    return setPostPoll(communityId, postId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type SetPostPollApiV1CGuildIdPostsPostIdPollPutMutationResult = NonNullable<
-  Awaited<ReturnType<typeof setPostPollApiV1CGuildIdPostsPostIdPollPut>>
->;
-export type SetPostPollApiV1CGuildIdPostsPostIdPollPutMutationBody = BodyType<PollWrite>;
-export type SetPostPollApiV1CGuildIdPostsPostIdPollPutMutationError =
-  ErrorType<HTTPValidationError>;
-export type SetPostPollApiV1CGuildIdPostsPostIdPollPutMutationVariables = {
-  guildId: number;
+export type SetPostPollMutationResult = NonNullable<Awaited<ReturnType<typeof setPostPoll>>>;
+export type SetPostPollMutationBody = BodyType<PollWrite>;
+export type SetPostPollMutationError = ErrorType<HTTPValidationError>;
+export type SetPostPollMutationVariables = {
+  communityId: number;
   postId: number;
   data: BodyType<PollWrite>;
 };
@@ -1600,30 +1372,24 @@ export type SetPostPollApiV1CGuildIdPostsPostIdPollPutMutationVariables = {
 /**
  * @summary Set Post Poll
  */
-export const useSetPostPollApiV1CGuildIdPostsPostIdPollPut = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
+export const useSetPostPoll = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof setPostPollApiV1CGuildIdPostsPostIdPollPut>>,
+      Awaited<ReturnType<typeof setPostPoll>>,
       TError,
-      SetPostPollApiV1CGuildIdPostsPostIdPollPutMutationVariables,
+      SetPostPollMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof setPostPollApiV1CGuildIdPostsPostIdPollPut>>,
+  Awaited<ReturnType<typeof setPostPoll>>,
   TError,
-  SetPostPollApiV1CGuildIdPostsPostIdPollPutMutationVariables,
+  SetPostPollMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getSetPostPollApiV1CGuildIdPostsPostIdPollPutMutationOptions(options),
-    queryClient
-  );
+  return useMutation(getSetPostPollMutationOptions(options), queryClient);
 };
 /**
  * Take the question off a notice.
@@ -1633,39 +1399,38 @@ export const useSetPostPollApiV1CGuildIdPostsPostIdPollPut = <
  * notice itself stays; only the question goes.
  * @summary Delete Post Poll
  */
-export const deletePostPollApiV1CGuildIdPostsPostIdPollDelete = (
-  guildId: number,
+export const deletePostPoll = (
+  communityId: number,
   postId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<PostRead>(
-    { url: `/api/v1/c/${guildId}/posts/${postId}/poll`, method: "DELETE", signal },
+    { url: `/api/v1/c/${communityId}/posts/${postId}/poll`, method: "DELETE", signal },
     options
   );
 };
 
-export const getDeletePostPollApiV1CGuildIdPostsPostIdPollDeleteMutationKey = () =>
-  ["deletePostPollApiV1CGuildIdPostsPostIdPollDelete"] as const;
+export const getDeletePostPollMutationKey = () => ["deletePostPoll"] as const;
 
-export const getDeletePostPollApiV1CGuildIdPostsPostIdPollDeleteMutationOptions = <
+export const getDeletePostPollMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof deletePostPollApiV1CGuildIdPostsPostIdPollDelete>>,
+    Awaited<ReturnType<typeof deletePostPoll>>,
     TError,
-    DeletePostPollApiV1CGuildIdPostsPostIdPollDeleteMutationVariables,
+    DeletePostPollMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof deletePostPollApiV1CGuildIdPostsPostIdPollDelete>>,
+  Awaited<ReturnType<typeof deletePostPoll>>,
   TError,
-  DeletePostPollApiV1CGuildIdPostsPostIdPollDeleteMutationVariables,
+  DeletePostPollMutationVariables,
   TContext
 > => {
-  const mutationKey = getDeletePostPollApiV1CGuildIdPostsPostIdPollDeleteMutationKey();
+  const mutationKey = getDeletePostPollMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1673,55 +1438,43 @@ export const getDeletePostPollApiV1CGuildIdPostsPostIdPollDeleteMutationOptions 
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof deletePostPollApiV1CGuildIdPostsPostIdPollDelete>>,
-    DeletePostPollApiV1CGuildIdPostsPostIdPollDeleteMutationVariables
+    Awaited<ReturnType<typeof deletePostPoll>>,
+    DeletePostPollMutationVariables
   > = (props) => {
-    const { guildId, postId } = props ?? {};
+    const { communityId, postId } = props ?? {};
 
-    return deletePostPollApiV1CGuildIdPostsPostIdPollDelete(guildId, postId, requestOptions);
+    return deletePostPoll(communityId, postId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type DeletePostPollApiV1CGuildIdPostsPostIdPollDeleteMutationResult = NonNullable<
-  Awaited<ReturnType<typeof deletePostPollApiV1CGuildIdPostsPostIdPollDelete>>
->;
+export type DeletePostPollMutationResult = NonNullable<Awaited<ReturnType<typeof deletePostPoll>>>;
 
-export type DeletePostPollApiV1CGuildIdPostsPostIdPollDeleteMutationError =
-  ErrorType<HTTPValidationError>;
-export type DeletePostPollApiV1CGuildIdPostsPostIdPollDeleteMutationVariables = {
-  guildId: number;
-  postId: number;
-};
+export type DeletePostPollMutationError = ErrorType<HTTPValidationError>;
+export type DeletePostPollMutationVariables = { communityId: number; postId: number };
 
 /**
  * @summary Delete Post Poll
  */
-export const useDeletePostPollApiV1CGuildIdPostsPostIdPollDelete = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
+export const useDeletePostPoll = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof deletePostPollApiV1CGuildIdPostsPostIdPollDelete>>,
+      Awaited<ReturnType<typeof deletePostPoll>>,
       TError,
-      DeletePostPollApiV1CGuildIdPostsPostIdPollDeleteMutationVariables,
+      DeletePostPollMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof deletePostPollApiV1CGuildIdPostsPostIdPollDelete>>,
+  Awaited<ReturnType<typeof deletePostPoll>>,
   TError,
-  DeletePostPollApiV1CGuildIdPostsPostIdPollDeleteMutationVariables,
+  DeletePostPollMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getDeletePostPollApiV1CGuildIdPostsPostIdPollDeleteMutationOptions(options),
-    queryClient
-  );
+  return useMutation(getDeletePostPollMutationOptions(options), queryClient);
 };
 /**
  * Answer a notice's question.
@@ -1735,8 +1488,8 @@ export const useDeletePostPollApiV1CGuildIdPostsPostIdPollDelete = <
  * response with the new tallies in it.
  * @summary Vote On Post Poll
  */
-export const voteOnPostPollApiV1CGuildIdPostsPostIdPollVotePut = (
-  guildId: number,
+export const voteOnPostPoll = (
+  communityId: number,
   postId: number,
   pollVoteWrite: BodyType<PollVoteWrite>,
   options?: SecondParameter<typeof apiMutator>,
@@ -1744,7 +1497,7 @@ export const voteOnPostPollApiV1CGuildIdPostsPostIdPollVotePut = (
 ) => {
   return apiMutator<PostRead>(
     {
-      url: `/api/v1/c/${guildId}/posts/${postId}/poll/vote`,
+      url: `/api/v1/c/${communityId}/posts/${postId}/poll/vote`,
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       data: pollVoteWrite,
@@ -1754,27 +1507,26 @@ export const voteOnPostPollApiV1CGuildIdPostsPostIdPollVotePut = (
   );
 };
 
-export const getVoteOnPostPollApiV1CGuildIdPostsPostIdPollVotePutMutationKey = () =>
-  ["voteOnPostPollApiV1CGuildIdPostsPostIdPollVotePut"] as const;
+export const getVoteOnPostPollMutationKey = () => ["voteOnPostPoll"] as const;
 
-export const getVoteOnPostPollApiV1CGuildIdPostsPostIdPollVotePutMutationOptions = <
+export const getVoteOnPostPollMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof voteOnPostPollApiV1CGuildIdPostsPostIdPollVotePut>>,
+    Awaited<ReturnType<typeof voteOnPostPoll>>,
     TError,
-    VoteOnPostPollApiV1CGuildIdPostsPostIdPollVotePutMutationVariables,
+    VoteOnPostPollMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof voteOnPostPollApiV1CGuildIdPostsPostIdPollVotePut>>,
+  Awaited<ReturnType<typeof voteOnPostPoll>>,
   TError,
-  VoteOnPostPollApiV1CGuildIdPostsPostIdPollVotePutMutationVariables,
+  VoteOnPostPollMutationVariables,
   TContext
 > => {
-  const mutationKey = getVoteOnPostPollApiV1CGuildIdPostsPostIdPollVotePutMutationKey();
+  const mutationKey = getVoteOnPostPollMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1782,25 +1534,22 @@ export const getVoteOnPostPollApiV1CGuildIdPostsPostIdPollVotePutMutationOptions
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof voteOnPostPollApiV1CGuildIdPostsPostIdPollVotePut>>,
-    VoteOnPostPollApiV1CGuildIdPostsPostIdPollVotePutMutationVariables
+    Awaited<ReturnType<typeof voteOnPostPoll>>,
+    VoteOnPostPollMutationVariables
   > = (props) => {
-    const { guildId, postId, data } = props ?? {};
+    const { communityId, postId, data } = props ?? {};
 
-    return voteOnPostPollApiV1CGuildIdPostsPostIdPollVotePut(guildId, postId, data, requestOptions);
+    return voteOnPostPoll(communityId, postId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type VoteOnPostPollApiV1CGuildIdPostsPostIdPollVotePutMutationResult = NonNullable<
-  Awaited<ReturnType<typeof voteOnPostPollApiV1CGuildIdPostsPostIdPollVotePut>>
->;
-export type VoteOnPostPollApiV1CGuildIdPostsPostIdPollVotePutMutationBody = BodyType<PollVoteWrite>;
-export type VoteOnPostPollApiV1CGuildIdPostsPostIdPollVotePutMutationError =
-  ErrorType<HTTPValidationError>;
-export type VoteOnPostPollApiV1CGuildIdPostsPostIdPollVotePutMutationVariables = {
-  guildId: number;
+export type VoteOnPostPollMutationResult = NonNullable<Awaited<ReturnType<typeof voteOnPostPoll>>>;
+export type VoteOnPostPollMutationBody = BodyType<PollVoteWrite>;
+export type VoteOnPostPollMutationError = ErrorType<HTTPValidationError>;
+export type VoteOnPostPollMutationVariables = {
+  communityId: number;
   postId: number;
   data: BodyType<PollVoteWrite>;
 };
@@ -1808,30 +1557,24 @@ export type VoteOnPostPollApiV1CGuildIdPostsPostIdPollVotePutMutationVariables =
 /**
  * @summary Vote On Post Poll
  */
-export const useVoteOnPostPollApiV1CGuildIdPostsPostIdPollVotePut = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
+export const useVoteOnPostPoll = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof voteOnPostPollApiV1CGuildIdPostsPostIdPollVotePut>>,
+      Awaited<ReturnType<typeof voteOnPostPoll>>,
       TError,
-      VoteOnPostPollApiV1CGuildIdPostsPostIdPollVotePutMutationVariables,
+      VoteOnPostPollMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof voteOnPostPollApiV1CGuildIdPostsPostIdPollVotePut>>,
+  Awaited<ReturnType<typeof voteOnPostPoll>>,
   TError,
-  VoteOnPostPollApiV1CGuildIdPostsPostIdPollVotePutMutationVariables,
+  VoteOnPostPollMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getVoteOnPostPollApiV1CGuildIdPostsPostIdPollVotePutMutationOptions(options),
-    queryClient
-  );
+  return useMutation(getVoteOnPostPollMutationOptions(options), queryClient);
 };
 /**
  * Take back this reader's answer.
@@ -1841,39 +1584,38 @@ export const useVoteOnPostPollApiV1CGuildIdPostsPostIdPollVotePut = <
  * there was none.
  * @summary Retract Post Poll Vote
  */
-export const retractPostPollVoteApiV1CGuildIdPostsPostIdPollVoteDelete = (
-  guildId: number,
+export const retractPostPollVote = (
+  communityId: number,
   postId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<PostRead>(
-    { url: `/api/v1/c/${guildId}/posts/${postId}/poll/vote`, method: "DELETE", signal },
+    { url: `/api/v1/c/${communityId}/posts/${postId}/poll/vote`, method: "DELETE", signal },
     options
   );
 };
 
-export const getRetractPostPollVoteApiV1CGuildIdPostsPostIdPollVoteDeleteMutationKey = () =>
-  ["retractPostPollVoteApiV1CGuildIdPostsPostIdPollVoteDelete"] as const;
+export const getRetractPostPollVoteMutationKey = () => ["retractPostPollVote"] as const;
 
-export const getRetractPostPollVoteApiV1CGuildIdPostsPostIdPollVoteDeleteMutationOptions = <
+export const getRetractPostPollVoteMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof retractPostPollVoteApiV1CGuildIdPostsPostIdPollVoteDelete>>,
+    Awaited<ReturnType<typeof retractPostPollVote>>,
     TError,
-    RetractPostPollVoteApiV1CGuildIdPostsPostIdPollVoteDeleteMutationVariables,
+    RetractPostPollVoteMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof retractPostPollVoteApiV1CGuildIdPostsPostIdPollVoteDelete>>,
+  Awaited<ReturnType<typeof retractPostPollVote>>,
   TError,
-  RetractPostPollVoteApiV1CGuildIdPostsPostIdPollVoteDeleteMutationVariables,
+  RetractPostPollVoteMutationVariables,
   TContext
 > => {
-  const mutationKey = getRetractPostPollVoteApiV1CGuildIdPostsPostIdPollVoteDeleteMutationKey();
+  const mutationKey = getRetractPostPollVoteMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1881,59 +1623,45 @@ export const getRetractPostPollVoteApiV1CGuildIdPostsPostIdPollVoteDeleteMutatio
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof retractPostPollVoteApiV1CGuildIdPostsPostIdPollVoteDelete>>,
-    RetractPostPollVoteApiV1CGuildIdPostsPostIdPollVoteDeleteMutationVariables
+    Awaited<ReturnType<typeof retractPostPollVote>>,
+    RetractPostPollVoteMutationVariables
   > = (props) => {
-    const { guildId, postId } = props ?? {};
+    const { communityId, postId } = props ?? {};
 
-    return retractPostPollVoteApiV1CGuildIdPostsPostIdPollVoteDelete(
-      guildId,
-      postId,
-      requestOptions
-    );
+    return retractPostPollVote(communityId, postId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type RetractPostPollVoteApiV1CGuildIdPostsPostIdPollVoteDeleteMutationResult = NonNullable<
-  Awaited<ReturnType<typeof retractPostPollVoteApiV1CGuildIdPostsPostIdPollVoteDelete>>
+export type RetractPostPollVoteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof retractPostPollVote>>
 >;
 
-export type RetractPostPollVoteApiV1CGuildIdPostsPostIdPollVoteDeleteMutationError =
-  ErrorType<HTTPValidationError>;
-export type RetractPostPollVoteApiV1CGuildIdPostsPostIdPollVoteDeleteMutationVariables = {
-  guildId: number;
-  postId: number;
-};
+export type RetractPostPollVoteMutationError = ErrorType<HTTPValidationError>;
+export type RetractPostPollVoteMutationVariables = { communityId: number; postId: number };
 
 /**
  * @summary Retract Post Poll Vote
  */
-export const useRetractPostPollVoteApiV1CGuildIdPostsPostIdPollVoteDelete = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
+export const useRetractPostPollVote = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof retractPostPollVoteApiV1CGuildIdPostsPostIdPollVoteDelete>>,
+      Awaited<ReturnType<typeof retractPostPollVote>>,
       TError,
-      RetractPostPollVoteApiV1CGuildIdPostsPostIdPollVoteDeleteMutationVariables,
+      RetractPostPollVoteMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof retractPostPollVoteApiV1CGuildIdPostsPostIdPollVoteDelete>>,
+  Awaited<ReturnType<typeof retractPostPollVote>>,
   TError,
-  RetractPostPollVoteApiV1CGuildIdPostsPostIdPollVoteDeleteMutationVariables,
+  RetractPostPollVoteMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getRetractPostPollVoteApiV1CGuildIdPostsPostIdPollVoteDeleteMutationOptions(options),
-    queryClient
-  );
+  return useMutation(getRetractPostPollVoteMutationOptions(options), queryClient);
 };
 /**
  * Who chose what, and who has not answered.
@@ -1947,95 +1675,69 @@ export const useRetractPostPollVoteApiV1CGuildIdPostsPostIdPollVoteDelete = <
  * withheld from this reader.
  * @summary List Post Poll Voters
  */
-export const listPostPollVotersApiV1CGuildIdPostsPostIdPollVotersGet = (
-  guildId: number,
+export const listPostPollVoters = (
+  communityId: number,
   postId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<PollVoters>(
-    { url: `/api/v1/c/${guildId}/posts/${postId}/poll/voters`, method: "GET", signal },
+    { url: `/api/v1/c/${communityId}/posts/${postId}/poll/voters`, method: "GET", signal },
     options
   );
 };
 
-export const getListPostPollVotersApiV1CGuildIdPostsPostIdPollVotersGetQueryKey = (
-  guildId: number,
-  postId: number
-) => {
-  return [`/api/v1/c/${guildId}/posts/${postId}/poll/voters`] as const;
+export const getListPostPollVotersQueryKey = (communityId: number, postId: number) => {
+  return [`/api/v1/c/${communityId}/posts/${postId}/poll/voters`] as const;
 };
 
-export const getListPostPollVotersApiV1CGuildIdPostsPostIdPollVotersGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof listPostPollVotersApiV1CGuildIdPostsPostIdPollVotersGet>>,
+export const getListPostPollVotersQueryOptions = <
+  TData = Awaited<ReturnType<typeof listPostPollVoters>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   postId: number,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listPostPollVotersApiV1CGuildIdPostsPostIdPollVotersGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listPostPollVoters>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   }
 ) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey =
-    queryOptions?.queryKey ??
-    getListPostPollVotersApiV1CGuildIdPostsPostIdPollVotersGetQueryKey(guildId, postId);
+  const queryKey = queryOptions?.queryKey ?? getListPostPollVotersQueryKey(communityId, postId);
 
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof listPostPollVotersApiV1CGuildIdPostsPostIdPollVotersGet>>
-  > = ({ signal }) =>
-    listPostPollVotersApiV1CGuildIdPostsPostIdPollVotersGet(
-      guildId,
-      postId,
-      requestOptions,
-      signal
-    );
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listPostPollVoters>>> = ({ signal }) =>
+    listPostPollVoters(communityId, postId, requestOptions, signal);
 
   return {
     queryKey,
     queryFn,
-    enabled: guildId !== null && guildId !== undefined && postId !== null && postId !== undefined,
+    enabled:
+      communityId !== null && communityId !== undefined && postId !== null && postId !== undefined,
     ...queryOptions,
-  } as UseQueryOptions<
-    Awaited<ReturnType<typeof listPostPollVotersApiV1CGuildIdPostsPostIdPollVotersGet>>,
-    TError,
-    TData
-  > & { queryKey: DataTag<QueryKey, TData, TError> };
+  } as UseQueryOptions<Awaited<ReturnType<typeof listPostPollVoters>>, TError, TData> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 };
 
-export type ListPostPollVotersApiV1CGuildIdPostsPostIdPollVotersGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof listPostPollVotersApiV1CGuildIdPostsPostIdPollVotersGet>>
+export type ListPostPollVotersQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listPostPollVoters>>
 >;
-export type ListPostPollVotersApiV1CGuildIdPostsPostIdPollVotersGetQueryError =
-  ErrorType<HTTPValidationError>;
+export type ListPostPollVotersQueryError = ErrorType<HTTPValidationError>;
 
-export function useListPostPollVotersApiV1CGuildIdPostsPostIdPollVotersGet<
-  TData = Awaited<ReturnType<typeof listPostPollVotersApiV1CGuildIdPostsPostIdPollVotersGet>>,
+export function useListPostPollVoters<
+  TData = Awaited<ReturnType<typeof listPostPollVoters>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   postId: number,
   options: {
-    query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listPostPollVotersApiV1CGuildIdPostsPostIdPollVotersGet>>,
-        TError,
-        TData
-      >
-    > &
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof listPostPollVoters>>, TError, TData>> &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listPostPollVotersApiV1CGuildIdPostsPostIdPollVotersGet>>,
+          Awaited<ReturnType<typeof listPostPollVoters>>,
           TError,
-          Awaited<ReturnType<typeof listPostPollVotersApiV1CGuildIdPostsPostIdPollVotersGet>>
+          Awaited<ReturnType<typeof listPostPollVoters>>
         >,
         "initialData"
       >;
@@ -2043,25 +1745,21 @@ export function useListPostPollVotersApiV1CGuildIdPostsPostIdPollVotersGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListPostPollVotersApiV1CGuildIdPostsPostIdPollVotersGet<
-  TData = Awaited<ReturnType<typeof listPostPollVotersApiV1CGuildIdPostsPostIdPollVotersGet>>,
+export function useListPostPollVoters<
+  TData = Awaited<ReturnType<typeof listPostPollVoters>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   postId: number,
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listPostPollVotersApiV1CGuildIdPostsPostIdPollVotersGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof listPostPollVoters>>, TError, TData>
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listPostPollVotersApiV1CGuildIdPostsPostIdPollVotersGet>>,
+          Awaited<ReturnType<typeof listPostPollVoters>>,
           TError,
-          Awaited<ReturnType<typeof listPostPollVotersApiV1CGuildIdPostsPostIdPollVotersGet>>
+          Awaited<ReturnType<typeof listPostPollVoters>>
         >,
         "initialData"
       >;
@@ -2069,20 +1767,14 @@ export function useListPostPollVotersApiV1CGuildIdPostsPostIdPollVotersGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListPostPollVotersApiV1CGuildIdPostsPostIdPollVotersGet<
-  TData = Awaited<ReturnType<typeof listPostPollVotersApiV1CGuildIdPostsPostIdPollVotersGet>>,
+export function useListPostPollVoters<
+  TData = Awaited<ReturnType<typeof listPostPollVoters>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   postId: number,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listPostPollVotersApiV1CGuildIdPostsPostIdPollVotersGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listPostPollVoters>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
@@ -2091,29 +1783,19 @@ export function useListPostPollVotersApiV1CGuildIdPostsPostIdPollVotersGet<
  * @summary List Post Poll Voters
  */
 
-export function useListPostPollVotersApiV1CGuildIdPostsPostIdPollVotersGet<
-  TData = Awaited<ReturnType<typeof listPostPollVotersApiV1CGuildIdPostsPostIdPollVotersGet>>,
+export function useListPostPollVoters<
+  TData = Awaited<ReturnType<typeof listPostPollVoters>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   postId: number,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listPostPollVotersApiV1CGuildIdPostsPostIdPollVotersGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listPostPollVoters>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListPostPollVotersApiV1CGuildIdPostsPostIdPollVotersGetQueryOptions(
-    guildId,
-    postId,
-    options
-  );
+  const queryOptions = getListPostPollVotersQueryOptions(communityId, postId, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -2128,8 +1810,8 @@ export function useListPostPollVotersApiV1CGuildIdPostsPostIdPollVotersGet<
  * non-owner grant is rebuilt from it; the owner is always preserved.
  * @summary Set Post Grants
  */
-export const setPostGrantsApiV1CGuildIdPostsPostIdGrantsPut = (
-  guildId: number,
+export const setPostGrants = (
+  communityId: number,
   postId: number,
   resourceGrantSchema: BodyType<ResourceGrantSchema[]>,
   options?: SecondParameter<typeof apiMutator>,
@@ -2137,7 +1819,7 @@ export const setPostGrantsApiV1CGuildIdPostsPostIdGrantsPut = (
 ) => {
   return apiMutator<PostRead>(
     {
-      url: `/api/v1/c/${guildId}/posts/${postId}/grants`,
+      url: `/api/v1/c/${communityId}/posts/${postId}/grants`,
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       data: resourceGrantSchema,
@@ -2147,27 +1829,26 @@ export const setPostGrantsApiV1CGuildIdPostsPostIdGrantsPut = (
   );
 };
 
-export const getSetPostGrantsApiV1CGuildIdPostsPostIdGrantsPutMutationKey = () =>
-  ["setPostGrantsApiV1CGuildIdPostsPostIdGrantsPut"] as const;
+export const getSetPostGrantsMutationKey = () => ["setPostGrants"] as const;
 
-export const getSetPostGrantsApiV1CGuildIdPostsPostIdGrantsPutMutationOptions = <
+export const getSetPostGrantsMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof setPostGrantsApiV1CGuildIdPostsPostIdGrantsPut>>,
+    Awaited<ReturnType<typeof setPostGrants>>,
     TError,
-    SetPostGrantsApiV1CGuildIdPostsPostIdGrantsPutMutationVariables,
+    SetPostGrantsMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof setPostGrantsApiV1CGuildIdPostsPostIdGrantsPut>>,
+  Awaited<ReturnType<typeof setPostGrants>>,
   TError,
-  SetPostGrantsApiV1CGuildIdPostsPostIdGrantsPutMutationVariables,
+  SetPostGrantsMutationVariables,
   TContext
 > => {
-  const mutationKey = getSetPostGrantsApiV1CGuildIdPostsPostIdGrantsPutMutationKey();
+  const mutationKey = getSetPostGrantsMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -2175,27 +1856,22 @@ export const getSetPostGrantsApiV1CGuildIdPostsPostIdGrantsPutMutationOptions = 
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof setPostGrantsApiV1CGuildIdPostsPostIdGrantsPut>>,
-    SetPostGrantsApiV1CGuildIdPostsPostIdGrantsPutMutationVariables
+    Awaited<ReturnType<typeof setPostGrants>>,
+    SetPostGrantsMutationVariables
   > = (props) => {
-    const { guildId, postId, data } = props ?? {};
+    const { communityId, postId, data } = props ?? {};
 
-    return setPostGrantsApiV1CGuildIdPostsPostIdGrantsPut(guildId, postId, data, requestOptions);
+    return setPostGrants(communityId, postId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type SetPostGrantsApiV1CGuildIdPostsPostIdGrantsPutMutationResult = NonNullable<
-  Awaited<ReturnType<typeof setPostGrantsApiV1CGuildIdPostsPostIdGrantsPut>>
->;
-export type SetPostGrantsApiV1CGuildIdPostsPostIdGrantsPutMutationBody = BodyType<
-  ResourceGrantSchema[]
->;
-export type SetPostGrantsApiV1CGuildIdPostsPostIdGrantsPutMutationError =
-  ErrorType<HTTPValidationError>;
-export type SetPostGrantsApiV1CGuildIdPostsPostIdGrantsPutMutationVariables = {
-  guildId: number;
+export type SetPostGrantsMutationResult = NonNullable<Awaited<ReturnType<typeof setPostGrants>>>;
+export type SetPostGrantsMutationBody = BodyType<ResourceGrantSchema[]>;
+export type SetPostGrantsMutationError = ErrorType<HTTPValidationError>;
+export type SetPostGrantsMutationVariables = {
+  communityId: number;
   postId: number;
   data: BodyType<ResourceGrantSchema[]>;
 };
@@ -2203,28 +1879,114 @@ export type SetPostGrantsApiV1CGuildIdPostsPostIdGrantsPutMutationVariables = {
 /**
  * @summary Set Post Grants
  */
-export const useSetPostGrantsApiV1CGuildIdPostsPostIdGrantsPut = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
+export const useSetPostGrants = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof setPostGrantsApiV1CGuildIdPostsPostIdGrantsPut>>,
+      Awaited<ReturnType<typeof setPostGrants>>,
       TError,
-      SetPostGrantsApiV1CGuildIdPostsPostIdGrantsPutMutationVariables,
+      SetPostGrantsMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof setPostGrantsApiV1CGuildIdPostsPostIdGrantsPut>>,
+  Awaited<ReturnType<typeof setPostGrants>>,
   TError,
-  SetPostGrantsApiV1CGuildIdPostsPostIdGrantsPutMutationVariables,
+  SetPostGrantsMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getSetPostGrantsApiV1CGuildIdPostsPostIdGrantsPutMutationOptions(options),
-    queryClient
+  return useMutation(getSetPostGrantsMutationOptions(options), queryClient);
+};
+/**
+ * Copy it, with everything inside it, into an initiative: its own unless the body names another. Read is enough to copy a template; anything else needs write. The copy is shared as its source is while it stays in the same initiative, and carries the tags its maker may set: an installed app's copy carries them only when it holds the scope to tag.
+ * @summary Duplicate Post
+ */
+export const duplicatePost = (
+  communityId: number,
+  postId: number,
+  toolDuplicateRequestNull?: BodyType<ToolDuplicateRequest | null> | null,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<PostRead>(
+    {
+      url: `/api/v1/c/${communityId}/posts/${postId}/duplicate`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: toolDuplicateRequestNull,
+      signal,
+    },
+    options
   );
+};
+
+export const getDuplicatePostMutationKey = () => ["duplicatePost"] as const;
+
+export const getDuplicatePostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof duplicatePost>>,
+    TError,
+    DuplicatePostMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof duplicatePost>>,
+  TError,
+  DuplicatePostMutationVariables,
+  TContext
+> => {
+  const mutationKey = getDuplicatePostMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof duplicatePost>>,
+    DuplicatePostMutationVariables
+  > = (props) => {
+    const { communityId, postId, data } = props ?? {};
+
+    return duplicatePost(communityId, postId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DuplicatePostMutationResult = NonNullable<Awaited<ReturnType<typeof duplicatePost>>>;
+export type DuplicatePostMutationBody = BodyType<ToolDuplicateRequest | null> | undefined;
+export type DuplicatePostMutationError = ErrorType<HTTPValidationError>;
+export type DuplicatePostMutationVariables = {
+  communityId: number;
+  postId: number;
+  data?: BodyType<ToolDuplicateRequest | null>;
+};
+
+/**
+ * @summary Duplicate Post
+ */
+export const useDuplicatePost = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof duplicatePost>>,
+      TError,
+      DuplicatePostMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof duplicatePost>>,
+  TError,
+  DuplicatePostMutationVariables,
+  TContext
+> => {
+  return useMutation(getDuplicatePostMutationOptions(options), queryClient);
 };

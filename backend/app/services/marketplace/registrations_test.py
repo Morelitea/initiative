@@ -7,6 +7,7 @@ the operator.
 
 import json
 
+import httpx
 import pytest
 from fastapi import HTTPException
 from sqlmodel import select
@@ -23,10 +24,12 @@ from app.services.marketplace.catalog import (
     CatalogSourceConflict,
     upsert_listing,
 )
+from app.services.marketplace.app_keys import jwk_thumbprint
 from app.services.marketplace.vendor_values import load_vendor_values
 from app.services.marketplace import registrations as service
 from app.services.marketplace.registration_lookup import load_registrations
 from app.testing import create_app_service_registration, sample_app_jwks
+from app.testing.fake_vendor import declarative_app
 from app.testing.tuf_repository import service_app_definition
 
 
@@ -307,6 +310,152 @@ async def test_keys_are_provisioned_and_cleared(session):
     assert cleared.jwks is None
 
 
+# --- connect -----------------------------------------------------------------
+
+
+def _serving(*documents: dict):
+    """A transport answering each fetch with the next document, the last one
+    from then on."""
+    fetched: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        fetched.append(str(request.url))
+        return httpx.Response(
+            200, json=documents[min(len(fetched), len(documents)) - 1]
+        )
+
+    return fetched, httpx.MockTransport(handler)
+
+
+async def test_connect_shows_the_fingerprints_of_the_set_the_app_serves(session):
+    key = _rsa_jwk("acme.widgets-1")
+    fetched, transport = _serving({"keys": [key]})
+    row = await _create(session)
+
+    keys = await service.published_keys(session, row.id, transport=transport)
+
+    assert keys == [
+        service.PublishedKey(kid="acme.widgets-1", fingerprint=jwk_thumbprint(key))
+    ]
+    assert fetched == [f"{BASE_URL}/.well-known/jwks.json"]
+    # Nothing is stored until it is confirmed.
+    await session.refresh(row)
+    assert row.jwks is None
+
+
+async def test_connect_pins_the_confirmed_set_in_place_of_a_key_set_address(
+    session,
+):
+    base_url = "https://127.0.0.1:9443"
+    key_set = {"keys": [_rsa_jwk("acme.widgets-1")]}
+    _fetched, transport = _serving(key_set)
+    row = await _create(
+        session, base_url=base_url, jwks_uri=f"{base_url}/.well-known/jwks.json"
+    )
+    (shown,) = await service.published_keys(session, row.id, transport=transport)
+
+    connected = await service.connect_registration(
+        session, row.id, keys=[shown], transport=transport
+    )
+
+    assert connected.jwks == key_set
+    # Verified against the pinned set alone, with nothing fetched for a kid
+    # it does not hold.
+    assert connected.jwks_uri is None
+
+
+def _renamed(key_set: dict, kid: str) -> dict:
+    return {"keys": [{**key_set["keys"][0], "kid": kid}]}
+
+
+@pytest.mark.parametrize(
+    "now_served",
+    [
+        # Another key under the same kid.
+        lambda shown: {"keys": [_rsa_jwk("acme.widgets-1")]},
+        # The same key under another kid.
+        lambda shown: _renamed(shown, "acme.widgets-2"),
+    ],
+)
+async def test_connect_refuses_a_set_that_changed_since_it_was_shown(
+    session, now_served
+):
+    shown = {"keys": [_rsa_jwk("acme.widgets-1")]}
+    _fetched, transport = _serving(shown, now_served(shown))
+    row = await _create(session, jwks={"keys": [_rsa_jwk("acme.widgets-0")]})
+    confirmed = await service.published_keys(session, row.id, transport=transport)
+
+    with pytest.raises(HTTPException) as excinfo:
+        await service.connect_registration(
+            session, row.id, keys=confirmed, transport=transport
+        )
+
+    assert excinfo.value.status_code == 409
+    assert excinfo.value.detail == AppServiceMessages.KEYS_CHANGED
+    await session.refresh(row)
+    assert row.jwks["keys"][0]["kid"] == "acme.widgets-0"
+
+
+async def test_connect_refuses_when_the_base_url_moved_during_the_read(
+    session, monkeypatch
+):
+    key_set = {"keys": [_rsa_jwk("acme.widgets-1")]}
+    row = await _create(session)
+    registration_id = row.id
+    (shown,) = await service.published_keys(
+        session, registration_id, transport=_serving(key_set)[1]
+    )
+
+    async def read_while_the_operator_repoints_it(url, *, transport=None):
+        await service.update_registration(
+            session, registration_id, base_url="http://127.0.0.2:9100"
+        )
+        return key_set
+
+    monkeypatch.setattr(service, "read_key_set", read_while_the_operator_repoints_it)
+
+    with pytest.raises(HTTPException) as excinfo:
+        await service.connect_registration(session, registration_id, keys=[shown])
+
+    assert excinfo.value.detail == AppServiceMessages.KEYS_CHANGED
+    stored = await service.get_registration(session, registration_id)
+    assert (stored.base_url, stored.jwks) == ("http://127.0.0.2:9100", None)
+
+
+@pytest.mark.parametrize(
+    ("answer", "status", "code"),
+    [
+        (httpx.Response(404), 502, AppServiceMessages.KEYS_UNREADABLE),
+        (
+            httpx.Response(200, content=b"<html>"),
+            502,
+            AppServiceMessages.KEYS_UNREADABLE,
+        ),
+        (httpx.Response(200, json={"keys": []}), 400, AppServiceMessages.INVALID_JWKS),
+    ],
+)
+async def test_connect_refuses_what_is_not_a_key_set(session, answer, status, code):
+    row = await _create(session)
+
+    with pytest.raises(HTTPException) as excinfo:
+        await service.published_keys(
+            session, row.id, transport=httpx.MockTransport(lambda request: answer)
+        )
+
+    assert (excinfo.value.status_code, excinfo.value.detail) == (status, code)
+
+
+async def test_connect_needs_a_base_url(session):
+    row = await create_app_service_registration(
+        session, public_id="acme.waiting", base_url=None
+    )
+
+    with pytest.raises(HTTPException) as excinfo:
+        await service.published_keys(session, row.id)
+
+    assert excinfo.value.detail == AppServiceMessages.CONNECT_NEEDS_BASE_URL
+
+
 # --- addresses ---------------------------------------------------------------
 
 
@@ -367,6 +516,12 @@ def _app_listing(registration, *, uid=LISTING_UID, public_id="acme.widgets") -> 
 
 
 CONTAINER = {"kind": "container", "scope_ceiling": ["projects:write", "comments:read"]}
+IMAGE = "ghcr.io/acme/widgets@sha256:" + "0" * 64
+COMPOSE = {
+    "service": "widgets:\n  image: ${IMAGE}\n  environment:\n"
+    "    INITIATIVE_URL: ${INITIATIVE_URL}\n    PRICE: $$5\n",
+    "base_url": "http://widgets:8080",
+}
 
 
 async def _registration(session, public_id="acme.widgets") -> AppServiceRegistration:
@@ -396,6 +551,22 @@ async def test_a_listing_from_any_source_writes_the_app_facts(session, source):
     # Where it runs and its keys are the deployment's to give.
     assert (row.base_url, row.jwks) == (None, None)
     assert (await load_registrations(force=True))["acme.widgets"].live is False
+
+
+async def test_a_listing_carries_the_compose_service_its_publisher_wrote(session):
+    await upsert_listing(
+        session,
+        _app_listing({**CONTAINER, "image": IMAGE, "compose": COMPOSE}),
+        source="local",
+    )
+    await session.commit()
+
+    row = await _registration(session)
+    assert row.compose == COMPOSE
+    assert service.filled_compose(row) == (
+        f"widgets:\n  image: {IMAGE}\n  environment:\n"
+        f"    INITIATIVE_URL: {settings.APP_URL.rstrip('/')}\n    PRICE: $$5\n"
+    )
 
 
 async def test_a_listing_fills_in_the_registration_set_up_before_it(session):
@@ -436,10 +607,38 @@ async def test_a_listing_republished_without_a_scope_takes_it_away(session):
         {**CONTAINER, "base_url": BASE_URL},
         {**CONTAINER, "jwks": {"keys": []}},
         {**CONTAINER, "image": "ghcr.io/acme/widgets:latest"},
+        *(
+            {**CONTAINER, "image": IMAGE, "compose": {**COMPOSE, **change}}
+            for change in (
+                {"service": "widgets:\n  image: ${IMAGES}\n"},
+                {"service": "widgets:\n  image: ${IMAGE\n"},
+                {"service": "x" * 4097},
+                {"base_url": "ftp://widgets"},
+                {"base_url": "http://widgets:8080/a b"},
+                {"base_url": f"http://{'w' * 506}"},
+                {"base_url": "http://["},
+                {"ports": []},
+            )
+        ),
+        {**CONTAINER, "compose": COMPOSE},
     ],
-    ids=["hosted", "location", "keys", "unpinned-image"],
+    ids=[
+        "hosted",
+        "location",
+        "keys",
+        "unpinned-image",
+        "unknown-placeholder",
+        "unclosed-placeholder",
+        "long-service",
+        "not-http",
+        "space",
+        "long-url",
+        "malformed-authority",
+        "unknown-term",
+        "image-placeholder-without-image",
+    ],
 )
-async def test_a_listing_block_is_a_container_with_no_location_or_keys(session, block):
+async def test_a_listing_block_with_a_fact_it_cannot_state_is_refused(session, block):
     with pytest.raises(CatalogError):
         await upsert_listing(session, _app_listing(block), source="local")
 
@@ -461,6 +660,67 @@ async def test_a_registration_another_listing_holds_is_refused(session):
 
     with pytest.raises(CatalogSourceConflict):
         await upsert_listing(session, _app_listing(CONTAINER), source="local")
+
+
+DECLARATIVE = {"kind": "declarative", "scope_ceiling": []}
+
+
+def _declarative_listing(registration) -> dict:
+    return {**_app_listing(registration), "definition": declarative_app("acme.widgets")}
+
+
+async def test_a_declarative_app_is_live_with_its_vendor_values_and_no_location(
+    session,
+):
+    """It runs nowhere and signs nothing: its registration is live once it is
+    on and its vendor values are set, and takes no address or keys."""
+    await upsert_listing(session, _declarative_listing(DECLARATIVE), source="local")
+    await session.commit()
+
+    row = await _registration(session)
+    assert (row.kind, row.base_url, row.jwks) == ("declarative", None, None)
+    assert (await load_registrations(force=True))["acme.widgets"].live is False
+
+    await service.update_registration(
+        session, row.id, vendor_values={"client_id": "abc"}
+    )
+    snapshot = (await load_registrations(force=True))["acme.widgets"]
+    assert (snapshot.live, snapshot.declarative) == (True, True)
+
+    with pytest.raises(HTTPException) as refused:
+        await service.update_registration(session, row.id, base_url=BASE_URL)
+    assert refused.value.detail == AppServiceMessages.DECLARATIVE_NOT_PLACED
+
+
+async def test_a_container_republished_as_declarative_leaves_its_location(session):
+    """What only a container has goes in the same write as the kind."""
+    await _create(session, jwks=sample_app_jwks())
+    await upsert_listing(session, _app_listing(CONTAINER), source="local")
+    await upsert_listing(
+        session,
+        {**_declarative_listing(DECLARATIVE), "version": "2.0.0"},
+        source="local",
+    )
+    await session.commit()
+
+    row = await _registration(session)
+    assert row.kind == "declarative"
+    assert (row.base_url, row.embed_origin, row.jwks, row.jwks_uri) == (None,) * 4
+    assert row.allowed_origins == []
+
+
+@pytest.mark.parametrize(
+    "listing",
+    [
+        _declarative_listing(CONTAINER),
+        _app_listing(DECLARATIVE),
+        _declarative_listing({**DECLARATIVE, "image": IMAGE}),
+    ],
+    ids=["declarative-app-container-block", "container-app-declarative-block", "image"],
+)
+async def test_a_registration_block_says_the_apps_own_kind(session, listing):
+    with pytest.raises(CatalogError):
+        await upsert_listing(session, listing, source="local")
 
 
 # --- boot reconciliation -----------------------------------------------------

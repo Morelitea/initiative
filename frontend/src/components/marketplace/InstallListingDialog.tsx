@@ -41,9 +41,9 @@ import {
 } from "@/components/ui/select";
 import { useCreateDashboard } from "@/hooks/useDashboards";
 import { useToolCreateAccess } from "@/hooks/useInitiativeAccess";
-import { toast } from "@/lib/chesterToast";
+import { useCommunityPath } from "@/lib/communityUrl";
 import { getErrorMessage } from "@/lib/errorMessage";
-import { useGuildPath } from "@/lib/guildUrl";
+import { toast } from "@/lib/mascotToast";
 import { toolDetailRoute } from "@/lib/tools";
 import type { DialogProps } from "@/types/dialog";
 
@@ -61,7 +61,7 @@ export function InstallListingDialog({
 }: InstallListingDialogProps) {
   const { t } = useTranslation(["marketplace", "common"]);
   const navigate = useNavigate();
-  const gp = useGuildPath();
+  const gp = useCommunityPath();
 
   const { creatableInitiatives } = useToolCreateAccess(ToolEnum.dashboard as Tool);
   const [initiativeId, setInitiativeId] = useState<string>("");

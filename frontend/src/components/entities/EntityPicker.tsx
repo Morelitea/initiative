@@ -7,7 +7,7 @@ import {
   type SearchSuggestion,
 } from "@/api/generated/initiativeAPI.schemas";
 import { AsyncCombobox } from "@/components/ui/async-combobox";
-import { useGuildPickerSuggestions } from "@/hooks/useSearch";
+import { useCommunityPickerSuggestions } from "@/hooks/useSearch";
 import { hitIcon } from "@/lib/searchResults";
 
 /**
@@ -83,7 +83,7 @@ export const EntityPicker = ({
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
 
-  const suggestions = useGuildPickerSuggestions(query, {
+  const suggestions = useCommunityPickerSuggestions(query, {
     types: types ?? LINKABLE_TYPES,
     initiative_id: initiativeId ?? undefined,
     // A template's contents are not what somebody is reaching for here.

@@ -2,8 +2,8 @@
 Real-time collaboration service using Yjs (via pycrdt).
 
 A room is the Yjs document plus its persistence, for ANY body several people
-can write at once — a native document, a wiki page. Which row a room is a body
-of, and whose sharing decides who may open it, is declared once in
+can write at once — a document with an editor, a wiki page. Which row a room is
+a body of, and whose sharing decides who may open it, is declared once in
 :mod:`app.services.tenant.collaborative_resources`; nothing here knows about
 documents in particular.
 
@@ -16,21 +16,26 @@ the sockets that actually exist.
 """
 
 import asyncio
+import hashlib
 import json
 import logging
 from contextlib import suppress
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional, Tuple
 
-from pycrdt import Decoder, Doc
+from pycrdt import Doc
+from sqlalchemy import func
 from sqlalchemy import update as sa_update
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlmodel import select
 
 from app.db import cohorts
 from app.db.session import set_rls_context
+from app.services import editor_engine
 from app.services.content_sockets import resource_room, sockets
 from app.services.tenant import attachments as attachments_service
+from app.services.tenant import body_states
+from app.services.tenant.body_states import BodyState
 from app.services.tenant.collaborative_resources import (
     YJS_STATE_COLUMN,
     YJS_UPDATED_COLUMN,
@@ -41,22 +46,11 @@ from app.db.request_context import SystemGuild
 logger = logging.getLogger(__name__)
 
 
-def _clocks(state_vector: bytes) -> dict[int, int]:
-    """A Yjs state vector as ``{client: clock}``: a count, then that many
-    ``(client, clock)`` pairs, all variable-length unsigned integers."""
-    decoder = Decoder(state_vector)
-    return {
-        decoder.read_var_uint(): decoder.read_var_uint()
-        for _ in range(decoder.read_var_uint())
-    }
-
-
 class CollaborationRoom:
     """The live Yjs state of one body, and what it owes the database.
 
-    Holds the merged ``Doc`` every connection reads and writes, the JSON
-    ``content`` an editor last reported for it, and enough bookkeeping to know
-    whether either has moved since it was last written down.
+    Holds the merged ``Doc`` every connection reads and writes, and enough
+    bookkeeping to know whether it has moved since it was last written down.
     """
 
     def __init__(self, guild_id: int, resource_type: str, resource_id: int):
@@ -77,15 +71,18 @@ class CollaborationRoom:
         # room together, and the row must end up holding the newer of the two
         # snapshots rather than whichever commits last.
         self._write_lock = asyncio.Lock()
+        # One versioned write at a time, so two naming the same version cannot
+        # both find it current.
+        self._edit_lock = asyncio.Lock()
         # Connections that have been handed this room but have not yet reached
         # the register. They are on their way in, so the room is not idle.
         self._holds = 0
-        # The connection whose update the document currently reflects. A
-        # rendering of the document is only current if it came from the tab
-        # that last moved it.
-        self._last_writer: Any = None
         #: Everyone who has changed the document in this room.
         self.writers: set[int] = set()
+        #: The digest of the stored state this room last read or wrote. A row
+        #: holding another one was written since — by a room in another
+        #: process, or a write outside any room — and that is merged in.
+        self.stored_digest: Optional[str] = None
         # A room dropped from the registry. Nothing should reach one — the
         # registry only drops rooms with no connections — but a write that does
         # would go nowhere, so it says so instead of swallowing it.
@@ -94,11 +91,14 @@ class CollaborationRoom:
         # commits, and an edit landing in between must not be marked saved.
         self._revision = 0
         self._persisted_revision = 0
-        self._content: Optional[dict] = None
-        # The revision the held rendering was made from. Below ``_revision``
-        # means the document has moved since, and a live tab has a newer
-        # rendering on the way.
-        self._content_revision = -1
+        #: How the body moves between its views, for a body with a live
+        #: editor: the server makes its Yjs state and renders its content.
+        self.body: Optional[BodyState] = None
+
+    @property
+    def renders_content(self) -> bool:
+        """Whether the server renders this body's content from its state."""
+        return self.body is not None
 
     @property
     def is_loaded(self) -> bool:
@@ -125,7 +125,8 @@ class CollaborationRoom:
         return self.connection_count() == 0 and self._holds == 0
 
     def hold(self) -> None:
-        """Claim this room for a connection that is joining."""
+        """Claim this room for a connection that is joining, or a write that is
+        on its way in."""
         self._holds += 1
 
     def release(self) -> None:
@@ -151,20 +152,26 @@ class CollaborationRoom:
                 return
             spec = resource_for(self.resource_type)
             statement = select(
-                spec.model.id, getattr(spec.model, YJS_STATE_COLUMN)
+                getattr(spec.model, YJS_STATE_COLUMN), spec.body_kind()
             ).where(spec.model.id == self.resource_id)
             row = (await session.exec(statement)).one_or_none()
             if row:
-                await self.initialize_from_db(yjs_state=row[1])
+                state, self.body = row[0], body_states.for_kind(row[1])
+                if self.body is not None and (
+                    state is None or not self.body.holds_body(state)
+                ):
+                    state = await _bootstrapped(
+                        self.guild_id, self.resource_type, self.resource_id, self.body
+                    )
+                self.stored_digest = _digest(state)
+                await self.initialize_from_db(yjs_state=state)
             self._loaded = True
 
     async def initialize_from_db(self, yjs_state: Optional[bytes]) -> None:
         """Initialize the Y.Doc from database state.
 
-        Note: We don't try to convert Lexical content to Yjs here because Lexical's
-        Yjs binding uses a specific structure that's complex to recreate server-side.
-        Instead, the frontend handles migration via CollaborationPlugin's shouldBootstrap
-        and initialEditorState props.
+        An editor body arrives with a state the server made; any other body
+        with none yet starts empty, and the first browser editing it fills it.
         """
         async with self._lock:
             if self._initialized:
@@ -183,11 +190,9 @@ class CollaborationRoom:
                         f"failed to restore Yjs state: {e}"
                     )
             else:
-                # First time collaborative edit - Yjs doc starts empty
-                # Frontend will bootstrap with existing Lexical content via initialEditorState
                 logger.info(
                     f"{self.resource_type} {self.resource_id}: no Yjs state, "
-                    "frontend will bootstrap"
+                    "the first editor will fill it"
                 )
 
             self._initialized = True
@@ -217,65 +222,61 @@ class CollaborationRoom:
         """
         return bytes(self.doc.get_state())
 
-    def known_to(self, state_vector: bytes) -> bool:
-        """Whether a client at ``state_vector`` has everything this room has.
-
-        Only then is that client's rendering a rendering of this room: one that
-        is missing somebody else's edits describes an older document.
-        """
-        theirs = _clocks(state_vector)
-        return all(
-            clock <= theirs.get(client, 0)
-            for client, clock in _clocks(self.state_vector()).items()
-        )
-
-    def apply_update(
-        self, update: bytes, connection: Any = None, user_id: int | None = None
-    ) -> None:
+    def apply_update(self, update: bytes, user_id: int | None = None) -> None:
         """Apply a Yjs update from a client, sent by ``user_id``."""
         self.doc.apply_update(update)
         self._revision += 1
-        self._last_writer = connection
         if user_id is not None:
             self.writers.add(user_id)
 
-    def offer_content(self, content: dict, connection: Any = None) -> bool:
-        """Record the JSON an editor says this document now reads as.
+    async def rendering(self) -> Optional[dict]:
+        """What this body reads as now, rendered from its live document."""
+        assert self.body is not None
+        return await self.body.render(self.get_state())
 
-        ``content`` and ``yjs_state`` are two views of one document, and a row
-        whose two views disagree is a document that loads as something other
-        than what was edited. The room writes both together, from one
-        snapshot, and takes the rendering from the connection that last moved
-        the document — that is the tab whose view of it is current. Another
-        tab's rendering is of the document as it stood before, and its own
-        next offer will carry the merged state.
+    async def write(self, content: dict, version: str, user_id: Optional[int]) -> bool:
+        """Write ``content`` into this body's live document, as its editor
+        makes it read, if the body still reads as ``version``,
+        and hand the change to everyone in the room. It is saved as their
+        edits are.
 
-        Returns whether the offer was taken.
+        Returns whether it was written. The room is held until the write is in
+        it, so it stays registered for the save; one the last editor left in
+        the meantime is saved and retired here.
         """
-        if self._last_writer is not None and connection is not self._last_writer:
-            return False
-        self._content = content
-        self._revision += 1
-        self._content_revision = self._revision
-        return True
+        self.hold()
+        try:
+            async with self._edit_lock:
+                assert self.body is not None
+                current = await self.rendering()
+                if current is None or content_version(current) != version:
+                    return False
+                update = await self.body.apply(self.get_state(), content)
+                self.apply_update(update, user_id=user_id)
+                sockets.emit_bytes(
+                    resource_room(self.guild_id, self.resource_type, self.resource_id),
+                    bytes([MSG_UPDATE]) + update,
+                )
+                return True
+        finally:
+            self.release()
+            await collaboration_manager.leave(
+                self.guild_id, self.resource_type, self.resource_id
+            )
 
-    def snapshot(self) -> Tuple[int, bytes, Optional[dict]]:
-        """The revision being written, and the views of it that are current.
+    def take_stored(self, stored: bytes) -> None:
+        """Merge a stored state written since this room read it, and hand
+        what it adds to everyone here."""
+        before = self.doc.get_state()
+        self.apply_update(stored)
+        sockets.emit_bytes(
+            resource_room(self.guild_id, self.resource_type, self.resource_id),
+            bytes([MSG_UPDATE]) + bytes(self.doc.get_update(before)),
+        )
 
-        A rendering older than the document is held back while editors are
-        here: the one that moved the document reports a fresh rendering on its
-        next pass, and that is the one worth pairing with this state. Once the
-        room is empty no fresher rendering is coming, so the best one held is
-        written.
-        """
-        content = self._content
-        if (
-            content is not None
-            and self._content_revision < self._revision
-            and not self.is_empty()
-        ):
-            content = None
-        return self._revision, self.get_state(), content
+    def snapshot(self) -> Tuple[int, bytes]:
+        """The revision being written, and the state it is."""
+        return self._revision, self.get_state()
 
     def mark_persisted(self, revision: int) -> None:
         """Record that ``revision`` reached the database.
@@ -285,6 +286,113 @@ class CollaborationRoom:
         """
         if revision > self._persisted_revision:
             self._persisted_revision = revision
+
+
+def _digest(state: Optional[bytes]) -> Optional[str]:
+    """A stored state's digest, as Postgres's ``md5`` gives it."""
+    return hashlib.md5(state, usedforsecurity=False).hexdigest() if state else None
+
+
+def _merged(state: bytes, update: bytes) -> bytes:
+    doc = Doc()
+    doc.apply_update(state)
+    doc.apply_update(update)
+    return bytes(doc.get_update())
+
+
+async def _bootstrapped(
+    guild_id: int, resource_type: str, resource_id: int, body: BodyState
+) -> Optional[bytes]:
+    """A body's Yjs state, made from its content by the server when the row
+    has none, or has one that holds no body.
+
+    Taken under the row's lock on a system session, so rooms opening the same
+    row together make it once, and a reader opening it can still have it made.
+    """
+    spec = resource_for(resource_type)
+    async with cohorts.system_session(guild_id) as session:
+        await set_rls_context(session, SystemGuild(guild_id))
+        row = (
+            await session.exec(
+                select(
+                    getattr(spec.model, YJS_STATE_COLUMN),
+                    getattr(spec.model, spec.content_column),
+                )
+                .where(spec.model.id == resource_id)
+                .with_for_update()
+            )
+        ).one_or_none()
+        if row is None:
+            return None
+        state, content = row
+        if state is None or not body.holds_body(state):
+            made = await body.bootstrap(content)
+            # A state a browser saved before writing anything into it keeps
+            # what it has, and gains the body beside it.
+            state = made if state is None else _merged(state, made)
+            await session.exec(
+                sa_update(spec.model)
+                .where(spec.model.id == resource_id)
+                .values(
+                    {
+                        YJS_STATE_COLUMN: state,
+                        YJS_UPDATED_COLUMN: datetime.now(timezone.utc),
+                    }
+                )
+            )
+            await session.commit()
+        return state
+
+
+async def written_into(
+    body: BodyState, state: Optional[bytes], content: dict
+) -> Optional[bytes]:
+    """A body's stored Yjs state with ``content`` written into it.
+
+    Only what changed is rewritten, so the state keeps the history its editors
+    made and a session reopening it starts from this content. A body with no
+    state keeps none: the room makes it when it opens. Content the editor
+    refuses leaves no state either, and the room makes one from the content in
+    the same way.
+    """
+    if state is None:
+        return None
+    try:
+        update = await body.apply(state, content)
+    except editor_engine.EditorError:
+        logger.exception("The editor could not write content into a stored state")
+        return None
+    return _merged(state, update)
+
+
+#: The socket frame that carries a Yjs update.
+MSG_UPDATE = 2
+
+
+def content_version(content: dict) -> str:
+    """A body's version, as a write names the one it read: a digest of the
+    content, so it moves exactly when what the body reads as does."""
+    canonical = json.dumps(content, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(canonical.encode()).hexdigest()[:32]
+
+
+async def current_content(
+    guild_id: int, resource_type: str, resource_id: int, stored: dict
+) -> dict:
+    """What a body reads as now: an open editor room's rendering of its live
+    document, or ``stored`` while no room is open."""
+    room = collaboration_manager.live_room(guild_id, resource_type, resource_id)
+    if room is None or not room.renders_content:
+        return stored
+    return await room.rendering() or stored
+
+
+async def versioned(read: Any, guild_id: int, resource_type: str) -> Any:
+    """``read`` with the content its body reads as now and that content's
+    version, for the next write to name."""
+    read.content = await current_content(guild_id, resource_type, read.id, read.content)
+    read.content_version = content_version(read.content)
+    return read
 
 
 # A room is identified by (guild_id, resource_type, resource_id). The guild_id
@@ -445,11 +553,17 @@ class CollaborationManager:
         await self.remove_room(guild_id, resource_type, resource_id)
 
     async def _write_room(self, room: CollaborationRoom, session: AsyncSession) -> None:
-        """Write both views of one room in a single statement.
+        """Bring one room and its row together: merge into the room what was
+        stored since it last looked, then write both views of it in a single
+        statement if it has edits of its own.
 
-        ``content`` only joins the write once an editor in the room has
-        reported one; a room nobody has offered content for leaves the column
-        as it stands rather than blanking it.
+        Several processes can each hold a room for one body. Each merges what
+        the others saved before writing, under the row's lock, so a save keeps
+        every process's edits rather than the last one's.
+
+        ``content`` is the server's rendering of the state. A state that
+        renders no body leaves the column as it stands rather than blanking
+        it.
         """
         async with room._write_lock:
             await self._write_room_locked(room, session)
@@ -458,11 +572,38 @@ class CollaborationManager:
         self, room: CollaborationRoom, session: AsyncSession
     ) -> None:
         spec = resource_for(room.resource_type)
-        revision, state, content = room.snapshot()
-        values: Dict[str, Any] = {
-            YJS_STATE_COLUMN: state,
-            YJS_UPDATED_COLUMN: datetime.now(timezone.utc),
-        }
+        state_column = getattr(spec.model, YJS_STATE_COLUMN)
+        this_row = spec.model.id == room.resource_id
+        # Where the room stood before this save waits on the database: an edit
+        # arriving meanwhile is the room's own, and is written.
+        before = room.snapshot()[0]
+        own_edits = room.is_dirty
+        stored = (
+            await session.exec(
+                select(spec.model.id, func.md5(state_column))
+                .where(this_row)
+                .with_for_update()
+            )
+        ).one_or_none()
+        digest = stored[1] if stored is not None else None
+        newer = None
+        if digest is not None and digest != room.stored_digest:
+            newer = (await session.exec(select(state_column).where(this_row))).one()
+        own_edits = own_edits or room.snapshot()[0] != before
+        if newer is not None:
+            room.take_stored(newer)
+            room.stored_digest = digest
+        if not own_edits and not (stored is not None and digest is None):
+            # Everything the room holds is stored. A row whose state was
+            # cleared is written again: the room's is the document its editors
+            # hold.
+            room.mark_persisted(room.snapshot()[0])
+            await session.commit()
+            return
+        revision, state = room.snapshot()
+        content = await room.body.render(state) if room.body is not None else None
+        now = datetime.now(timezone.utc)
+        values: Dict[str, Any] = {YJS_STATE_COLUMN: state, YJS_UPDATED_COLUMN: now}
         if content is not None:
             # Imported here rather than at module scope: the sync reaches back
             # into this registry to retire idle rooms.
@@ -483,6 +624,10 @@ class CollaborationManager:
                 )
                 fixed = None
             values[spec.content_column] = fixed if fixed else content
+            # The body changed, as much as a PATCH of it would have changed
+            # it: a reader judging what it holds against the row's age (a
+            # device's unsaved scene, a list sorted by recent edits) sees it.
+            values["updated_at"] = now
         try:
             result = await session.exec(
                 sa_update(spec.model)
@@ -491,8 +636,8 @@ class CollaborationManager:
             )
             if content is not None and result.rowcount:
                 # The files its writers uploaded are claimed. Nothing is copied:
-                # the content is the editors' rendering of the room's document,
-                # which the next save writes again as they hold it.
+                # the content is the rendering of the room's document, which
+                # the next save writes again as they hold it.
                 await attachments_service.claim_uploads(
                     session,
                     await session.get(spec.model, room.resource_id),
@@ -501,6 +646,7 @@ class CollaborationManager:
             await session.commit()
             if result.rowcount:
                 room.mark_persisted(revision)
+                room.stored_digest = _digest(state)
                 logger.debug(
                     f"Persisted Yjs state for {room.resource_type} {room.resource_id}"
                 )
@@ -521,16 +667,22 @@ class CollaborationManager:
             await session.rollback()
 
     async def persist_dirty_rooms(self) -> int:
-        """Write every room that has changed since it was last written, then
-        retire the ones nobody is in.
+        """Write every room that has changed since it was last written, bring
+        every room somebody is in up to date with what is stored, then retire
+        the ones nobody is in.
 
-        Returns how many were written. A room nobody has touched costs nothing
-        to keep open, and one nobody is in any more — its last save failed, or
-        the connection that left could not finish — is retired here once it is
-        saved, rather than held for the life of the process.
+        Returns how many rooms it saved or brought up to date. A room somebody
+        is in takes what another process saved within one sweep. One nobody is
+        in any more — its last save failed, or the connection that left could
+        not finish — is retired here once it is saved, rather than held for the
+        life of the process.
         """
         async with self._lock:
-            targets = [room for room in self._rooms.values() if room.is_dirty]
+            targets = [
+                room
+                for room in self._rooms.values()
+                if room.is_dirty or not room.is_empty()
+            ]
         for room in targets:
             try:
                 await self.save(room)
@@ -584,8 +736,14 @@ class CollaborationManager:
         self, guild_id: int, resource_type: str, resource_id: int
     ) -> bool:
         """Check if a document has any live connection."""
+        return self.live_room(guild_id, resource_type, resource_id) is not None
+
+    def live_room(
+        self, guild_id: int, resource_type: str, resource_id: int
+    ) -> Optional[CollaborationRoom]:
+        """The room a body is being edited in, if anyone is connected to it."""
         room = self._rooms.get((guild_id, resource_type, resource_id))
-        return room is not None and not room.is_empty()
+        return room if room is not None and not room.is_empty() else None
 
 
 def room_roster(guild_id: int, resource_type: str, resource_id: int) -> list[dict]:

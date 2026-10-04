@@ -35,7 +35,7 @@
       },
       "analytics": {
         "name": "Analytics",
-        "description": "Which pages get used and where people get stuck, counted in aggregate to work out what to fix."
+        "description": "Which pages get used, the errors people run into and how fast pages load, with the browser and device they happen on. Grouped by a random id for each visit, never by your account."
       },
       "marketing": {
         "name": "Marketing",

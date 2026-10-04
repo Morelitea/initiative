@@ -11,21 +11,21 @@ import { useQueries, useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 
 import {
-  readDmPermissionsApiV1MeDmPermissionsPost,
-  useAcceptConnectionApiV1MeConnectionsUserIdAcceptPost,
-  useAcceptMessageRequestApiV1MeMessageRequestsUserIdAcceptPost,
-  useIgnoreAccountApiV1MeIgnoredUserIdPut,
-  useIgnoreAccountByHandleApiV1MeIgnoredPost,
-  useListConnectionsApiV1MeConnectionsGet,
-  useListIgnoredAccountsApiV1MeIgnoredGet,
-  useListMessageRequestsApiV1MeMessageRequestsGet,
-  useReadDmSettingsApiV1MeDmSettingsGet,
-  useRemoveConnectionApiV1MeConnectionsUserIdDelete,
-  useRemoveMessageRequestApiV1MeMessageRequestsUserIdDelete,
-  useRequestConnectionApiV1MeConnectionsPost,
-  useRequestMessageApiV1MeMessageRequestsPost,
-  useStopIgnoringAccountApiV1MeIgnoredUserIdDelete,
-  useUpdateDmSettingsApiV1MeDmSettingsPatch,
+  readDmPermissions,
+  useAcceptConnection as useAcceptConnectionMutation,
+  useAcceptMessageRequest as useAcceptMessageRequestMutation,
+  useIgnoreAccountByHandle as useIgnoreAccountByHandleMutation,
+  useIgnoreAccount as useIgnoreAccountMutation,
+  useListConnections,
+  useListIgnoredAccounts,
+  useListMessageRequests,
+  useReadDmSettings,
+  useRemoveConnection as useRemoveConnectionMutation,
+  useRemoveMessageRequest as useRemoveMessageRequestMutation,
+  useRequestConnection as useRequestConnectionMutation,
+  useRequestMessage as useRequestMessageMutation,
+  useStopIgnoringAccount,
+  useUpdateDmSettings as useUpdateDmSettingsMutation,
 } from "@/api/generated/direct-messages/direct-messages";
 import type {
   DirectMessagePermissionRead,
@@ -33,8 +33,8 @@ import type {
 } from "@/api/generated/initiativeAPI.schemas";
 import { invalidate, q } from "@/api/query-keys";
 import { useAppConfig } from "@/hooks/useAppConfig";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 
 /** Everything a change to one of these lists can affect. */
 export const refreshContactLists = () => {
@@ -79,7 +79,7 @@ export const useDirectMessagesEnabled = (): boolean => useAppConfig().directMess
 // ── Reads ───────────────────────────────────────────────────────────────────
 
 export const useDmSettings = () =>
-  useReadDmSettingsApiV1MeDmSettingsGet({
+  useReadDmSettings({
     query: { enabled: useDirectMessagesEnabled() },
   });
 
@@ -97,7 +97,7 @@ export const useDmPermission = (userId: number | undefined) => {
     // Keyed like the bulk read's page of one, so whatever makes those stale
     // reaches this too.
     queryKey: ["dm", "permissions", [userId]],
-    queryFn: () => readDmPermissionsApiV1MeDmPermissionsPost({ user_ids: [userId as number] }),
+    queryFn: () => readDmPermissions({ user_ids: [userId as number] }),
     // Your own account is left out of the answer: every action on it is refused.
     select: (data): DirectMessagePermissionRead =>
       data.permissions[String(userId)] ?? { permission: "denied", may_connect: false },
@@ -162,7 +162,7 @@ export const useDmPermissions = (userIds: number[]) => {
   return useQueries({
     queries: batches.map((ids) => ({
       queryKey: ["dm", "permissions", ids],
-      queryFn: () => readDmPermissionsApiV1MeDmPermissionsPost({ user_ids: ids }),
+      queryFn: () => readDmPermissions({ user_ids: ids }),
       staleTime: 30_000,
       enabled: dmEnabled,
     })),
@@ -171,42 +171,34 @@ export const useDmPermissions = (userIds: number[]) => {
 };
 
 export const useConnections = () =>
-  useListConnectionsApiV1MeConnectionsGet({
+  useListConnections({
     query: { enabled: useDirectMessagesEnabled() },
   });
 export const useMessageRequests = () =>
-  useListMessageRequestsApiV1MeMessageRequestsGet({
+  useListMessageRequests({
     query: { enabled: useDirectMessagesEnabled() },
   });
 export const useIgnoredAccounts = () =>
   // Paged, so the options are the second argument: the whole list, gated.
-  useListIgnoredAccountsApiV1MeIgnoredGet(undefined, {
+  useListIgnoredAccounts(undefined, {
     query: { enabled: useDirectMessagesEnabled() },
   });
 
 // ── Writes ──────────────────────────────────────────────────────────────────
 
-export const useUpdateDmSettings = () =>
-  useUpdateDmSettingsApiV1MeDmSettingsPatch(reportAndRefresh);
+export const useUpdateDmSettings = () => useUpdateDmSettingsMutation(reportAndRefresh);
 
-export const useRequestConnection = () => useRequestConnectionApiV1MeConnectionsPost(refreshOnly);
-export const useAcceptConnection = () =>
-  useAcceptConnectionApiV1MeConnectionsUserIdAcceptPost(reportAndRefresh);
-export const useRemoveConnection = () =>
-  useRemoveConnectionApiV1MeConnectionsUserIdDelete(reportAndRefresh);
+export const useRequestConnection = () => useRequestConnectionMutation(refreshOnly);
+export const useAcceptConnection = () => useAcceptConnectionMutation(reportAndRefresh);
+export const useRemoveConnection = () => useRemoveConnectionMutation(reportAndRefresh);
 
-export const useRequestMessage = () =>
-  useRequestMessageApiV1MeMessageRequestsPost(reportAndRefresh);
-export const useAcceptMessageRequest = () =>
-  useAcceptMessageRequestApiV1MeMessageRequestsUserIdAcceptPost(reportAndRefresh);
-export const useRemoveMessageRequest = () =>
-  useRemoveMessageRequestApiV1MeMessageRequestsUserIdDelete(reportAndRefresh);
+export const useRequestMessage = () => useRequestMessageMutation(reportAndRefresh);
+export const useAcceptMessageRequest = () => useAcceptMessageRequestMutation(reportAndRefresh);
+export const useRemoveMessageRequest = () => useRemoveMessageRequestMutation(reportAndRefresh);
 
-export const useIgnoreAccount = () => useIgnoreAccountApiV1MeIgnoredUserIdPut(reportAndRefresh);
-export const useIgnoreAccountByHandle = () =>
-  useIgnoreAccountByHandleApiV1MeIgnoredPost(refreshOnly);
-export const useStopIgnoring = () =>
-  useStopIgnoringAccountApiV1MeIgnoredUserIdDelete(reportAndRefresh);
+export const useIgnoreAccount = () => useIgnoreAccountMutation(reportAndRefresh);
+export const useIgnoreAccountByHandle = () => useIgnoreAccountByHandleMutation(refreshOnly);
+export const useStopIgnoring = () => useStopIgnoringAccount(reportAndRefresh);
 
 /**
  * A handle typed as `name#1234`, split for the connection and ignore endpoints.

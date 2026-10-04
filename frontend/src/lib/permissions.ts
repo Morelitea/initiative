@@ -9,7 +9,7 @@
  * generated enum).
  */
 
-import { GuildRole, type ToolCan, type UserRead } from "@/api/generated/initiativeAPI.schemas";
+import { CommunityRole, type ToolCan, type UserRead } from "@/api/generated/initiativeAPI.schemas";
 
 export const Capability = {
   usersRead: "users.read",
@@ -17,7 +17,7 @@ export const Capability = {
   usersManage: "users.manage",
   usersDelete: "users.delete",
   rolesAssign: "roles.assign",
-  guildsManage: "guilds.manage",
+  communitiesManage: "communities.manage",
   announcementsManage: "announcements.manage",
   contentModerate: "content.moderate",
   dataBypass: "data.bypass",
@@ -56,7 +56,7 @@ const OPERATOR_DASHBOARD_CAPABILITIES: Capability[] = [
   Capability.usersRead,
   Capability.usersAgeUnblock,
   Capability.usersManage,
-  Capability.guildsManage,
+  Capability.communitiesManage,
   Capability.announcementsManage,
   Capability.contentModerate,
   Capability.accessRequest,
@@ -74,7 +74,7 @@ export function canAccessOperatorDashboard(user: WithCapabilities): boolean {
 }
 
 /** True iff the user can access *either* platform area — used for coarse
- * gating (no-guild layout choice, route guards). */
+ * gating (no-community layout choice, route guards). */
 export function canAccessPlatformAreas(user: WithCapabilities): boolean {
   return canManagePlatformConfig(user) || canAccessOperatorDashboard(user);
 }
@@ -84,8 +84,8 @@ export function canAccessPlatformAreas(user: WithCapabilities): boolean {
  * place in it, as the roster reports it. What the viewer may do there is the
  * community's own `can`.
  */
-export const isAdminRole = (guildRole: string | null | undefined): boolean =>
-  guildRole === GuildRole.admin || guildRole === GuildRole.superadmin;
+export const isAdminRole = (communityRole: string | null | undefined): boolean =>
+  communityRole === CommunityRole.admin || communityRole === CommunityRole.superadmin;
 
 /** Whether the viewer may take `action` on every one of `items` — a selection
  *  read against each row's server-computed `can`. */

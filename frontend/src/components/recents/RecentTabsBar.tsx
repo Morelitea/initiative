@@ -27,7 +27,7 @@ interface RecentTabsBarProps {
 }
 
 /**
- * Sticky-header tabs bar for the most-recently-opened guild-scoped items
+ * Sticky-header tabs bar for the most-recently-opened community-scoped items
  * (projects, documents, queues, counter groups), capped per user by their
  * ``recent_tabs_limit`` interface setting. Replaces the projects-only
  * ``ProjectTabsBar``.
@@ -60,7 +60,7 @@ export const RecentTabsBar = ({
           items?.map((item) => {
             const isActive = recentKeyMatches(activeKey ?? null, item);
             return (
-              <ContextMenu key={`${item.guild_id}-${item.entity_type}-${item.entity_id}`}>
+              <ContextMenu key={`${item.community_id}-${item.entity_type}-${item.entity_id}`}>
                 <ContextMenuTrigger asChild>
                   <div className="flex items-center">
                     <Link

@@ -6,10 +6,10 @@ they already have — matching a support ticket to a row, telling one pending
 invite from another — and drops the rest.
 
 Masking is applied by the response shapes (``OperatorUserRead``,
-``GuildInviteRead``, ``AccessGrantRead``) rather than by each endpoint, so a
+``CommunityInviteRead``, ``AccessGrantRead``) rather than by each endpoint, so a
 new route serving one of those shapes gets it without doing anything. The
 stored address is read in full only where the reader is its owner
-(``/users/me``) and by the code that sends mail.
+(``/me``) and by the code that sends mail.
 """
 
 from __future__ import annotations

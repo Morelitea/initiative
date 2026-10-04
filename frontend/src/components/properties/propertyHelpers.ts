@@ -98,7 +98,7 @@ export const nonEmptyPropertySummaries = (
 };
 
 /** The person a ``user_reference`` value carries (the server reads it back as
- *  ``{id, full_name, …}``), so a picker can render them without a search. */
+ *  ``{id, display_name, …}``), so a picker can render them without a search. */
 export const userReferenceValue = (property: PropertySummary): MemberLike | null => {
   if (property.type !== PropertyType.user_reference) return null;
   const raw = property.value;

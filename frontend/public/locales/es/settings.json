@@ -1,35 +1,30 @@
 {
   "layout": {
     "title": "Mi configuración",
-    "subtitle": "Administra tu perfil, preferencias de interfaz y notificaciones.",
     "tabs": {
       "profile": "Perfil",
       "account": "Cuenta",
-      "interface": "Interfaz",
+      "interface": "Preferencias",
       "notifications": "Notificaciones",
       "ai": "IA",
-      "import": "Importar",
       "security": "Seguridad",
       "trash": "Papelera",
-      "danger": "Zona de peligro",
       "privacy": "Privacidad"
     },
     "loginRequired": "Necesitas iniciar sesión para administrar tu perfil.",
     "goToLogin": "Ir a inicio de sesión"
   },
-  "guildLayout": {
+  "communityLayout": {
     "title": "Configuración de la comunidad",
-    "subtitle": "Administra la membresía del espacio de trabajo y los detalles de la comunidad.",
     "permissionDenied": "Necesitas permisos adicionales para ver esta página.",
     "viewOnly": "Estás viendo esta configuración con una concesión de acceso. Para cambiarla hace falta además una concesión de lectura y escritura.",
     "restricted": {
       "read_only": {
-        "label": "Solo lectura",
         "message": "Esta comunidad es de solo lectura. Ponte en contacto con quien gestiona este servidor para restaurar el acceso completo."
       }
     },
     "tabs": {
-      "guild": "Comunidad",
+      "community": "Comunidad",
       "users": "Usuarios",
       "initiatives": "Iniciativas",
       "trash": "Papelera",
@@ -48,14 +43,10 @@
     }
   },
   "profile": {
-    "fullNameLabel": "Nombre completo",
-    "fullNamePlaceholder": "Tu nombre",
     "currentPasswordLabel": "Contraseña actual",
-    "currentPasswordPlaceholder": "Introduce tu contraseña actual",
     "currentPasswordRequired": "Introduce tu contraseña actual para establecer una nueva.",
     "newPasswordLabel": "Nueva contraseña",
     "confirmPasswordLabel": "Confirmar contraseña",
-    "passwordPlaceholder": "••••••••",
     "avatarLabel": "Avatar",
     "avatarUploadTab": "Subir",
     "avatarUrlTab": "URL",
@@ -64,8 +55,6 @@
     "passwordsMismatch": "Las contraseñas no coinciden",
     "saveChanges": "Guardar cambios",
     "saving": "Guardando…",
-    "reset": "Restablecer",
-    "updateSuccess": "Perfil actualizado",
     "updateError": "No se pudo actualizar el perfil",
     "avatarUploadHelp": "Cualquier imagen. La recortamos en cuadrado y la redimensionamos por ti.",
     "avatar": {
@@ -104,14 +93,34 @@
     "primaryFailed": "No se pudo cambiar la dirección principal.",
     "removeDialogTitle": "¿Quitar esta dirección?",
     "removeDialogDescription": "<strong>{{email}}</strong> dejará de servir para entrar y de recibir el correo de tu cuenta.",
-    "removeCancel": "Cancelar",
-    "removeConfirm": "Quitar"
+    "removeConfirm": "Quitar",
+    "passwordLabel": "Contraseña actual",
+    "addDialogTitle": "¿Añadir esta dirección?",
+    "addDialogDescription": "Enviaremos un enlace a <strong>{{email}}</strong> para confirmarla.",
+    "addConfirm": "Añadir",
+    "primaryDialogTitle": "¿Hacer principal esta dirección?",
+    "primaryDialogDescription": "Los restablecimientos de contraseña y los códigos de inicio de sesión irán primero a <strong>{{email}}</strong>.",
+    "primaryConfirm": "Hacer principal"
+  },
+  "heldChange": {
+    "title": "Hay un cambio pendiente",
+    "primary": "{{subject}} pasa a ser tu dirección principal el {{date}}.",
+    "removeAddress": "{{subject}} se quitará de tu cuenta el {{date}}.",
+    "secondFactorOff": "La verificación en dos pasos se desactivará el {{date}}.",
+    "lastPasskey": "Tu última clave de acceso, {{subject}}, se quitará el {{date}}.",
+    "description": "Espera dos días, y todas las direcciones de tu cuenta han recibido un correo sobre ello. Hasta entonces no cambia nada.",
+    "cancel": "Cancelar el cambio",
+    "applyNow": "Hacerlo ahora con una clave de acceso",
+    "cancelled": "El cambio se ha cancelado.",
+    "applied": "El cambio se ha hecho.",
+    "cancelFailed": "No se pudo cancelar el cambio. Inténtalo de nuevo.",
+    "applyFailed": "No se pudo hacer el cambio ahora. Inténtalo de nuevo.",
+    "waits": "Este cambio espera hasta el {{date}}. Todas las direcciones de tu cuenta han recibido un correo sobre ello."
   },
   "security": {
     "loadingDevices": "Cargando dispositivos…",
     "devicesError": "No se pudieron cargar los dispositivos.",
     "unknownDevice": "Dispositivo desconocido",
-    "loggedIn": "Conectado {{date}}",
     "revokeDialogCancel": "Cancelar",
     "revoking": "Revocando…",
     "revokeError": "No se pudo revocar el acceso del dispositivo",
@@ -125,36 +134,24 @@
     "keyNamePlaceholder": "ej. script-de-reportes",
     "expirationLabel": "Expiración (opcional)",
     "neverExpires": "Nunca expira",
-    "expirationHelp": "Deja en blanco para una clave que nunca expire.",
     "readOnlyLabel": "Solo lectura",
     "readOnlyHelp": "La clave puede leer datos, pero nunca crear, cambiar ni eliminar nada. Recomendado para automatizaciones e integraciones.",
-    "guildLabel": "Acceso a la comunidad",
-    "guildAllGuilds": "Todos mis comunidades",
-    "guildHelp": "Limita la clave a una sola comunidad. No podrá acceder a los datos de ningún otra comunidad.",
+    "communityLabel": "Acceso a la comunidad",
+    "communityAllCommunities": "Todos mis comunidades",
+    "communityHelp": "Limita la clave a una sola comunidad. No podrá acceder a los datos de ningún otra comunidad.",
     "generateButton": "Generar clave API",
     "generating": "Generando…",
     "nameRequired": "El nombre es obligatorio",
     "createSuccess": "Clave API creada",
     "createError": "No se pudo crear la clave API",
-    "existingTitle": "Claves existentes",
-    "existingDescription": "Solo se muestran los últimos caracteres. Rota las claves regularmente.",
     "loadingKeys": "Cargando claves API…",
     "keysError": "No se pudieron cargar las claves API.",
     "noKeys": "Aún no hay claves API.",
-    "columnName": "Nombre",
-    "columnPrefix": "Prefijo",
-    "columnStatus": "Estado",
-    "columnScope": "Alcance",
-    "columnLastUsed": "Último uso",
-    "columnExpires": "Expira",
-    "columnActions": "Acciones",
-    "statusActive": "Activa",
     "statusExpired": "Expirada",
     "statusDisabled": "Deshabilitada",
     "scopeReadOnly": "Solo lectura",
-    "scopeGuild": "Comunidad: {{guild}}",
+    "scopeCommunity": "Comunidad: {{community}}",
     "scopeFull": "Acceso completo",
-    "never": "Nunca",
     "deleteButton": "Eliminar",
     "deleting": "Eliminando…",
     "deleteSuccess": "Clave API eliminada",
@@ -169,13 +166,28 @@
     "signOutDialogTitle": "¿Cerrar la sesión de este dispositivo?",
     "signOutDialogDescription": "Esto termina la sesión en <bold>{{deviceName}}</bold>. Tendrá que iniciar sesión de nuevo.",
     "signOutConfirm": "Cerrar sesión",
+    "removeDevice": "Quitar dispositivo",
+    "notSignedIn": "sin sesión iniciada",
+    "removeDeviceDialogTitle": "¿Quitar este dispositivo?",
+    "removeDeviceDialogDescription": "Se cierra la sesión de <bold>{{deviceName}}</bold> y no se le envía nada más. Si alguna vez se vuelve a iniciar sesión en él, se borran de él los mensajes que solo tenía él.",
+    "removeDeviceConfirm": "Quitar dispositivo",
+    "removedDevice": "Dispositivo quitado",
     "signedOutOne": "Sesión cerrada",
     "signOutOthers": "Cerrar sesión en todo lo demás",
     "signOutOthersDialogTitle": "¿Cerrar sesión en todo lo demás?",
     "signOutOthersDialogDescription_one": "Esto termina {{count}} sesión más. Aquí seguirás con la sesión iniciada.",
     "signOutOthersDialogDescription_other": "Esto termina las {{count}} sesiones restantes. Aquí seguirás con la sesión iniciada.",
     "signOutOthersConfirm": "Cerrar sesión en todo lo demás",
-    "signedOutOthers": "Sesión cerrada en todo lo demás"
+    "signedOutOthers": "Sesión cerrada en todo lo demás",
+    "apiKeysTitle": "Claves de API",
+    "apiKeysDescription": "Para scripts e integraciones. El secreto de una clave se muestra una sola vez, al crearla.",
+    "newKeyButton": "Nueva clave de API",
+    "keyCreated": "Creada {{date}}",
+    "keyLastUsed": "Último uso {{date}}",
+    "keyNeverUsed": "Nunca usada",
+    "keyExpires": "Caduca {{date}}",
+    "deleteDialogTitle": "¿Eliminar esta clave de API?",
+    "deleteDialogDescription": "Todo lo que use {{name}} dejará de funcionar de inmediato."
   },
   "ai": {
     "loading": "Cargando la configuración de IA…",
@@ -193,7 +205,7 @@
     "testError": "No se pudo probar la conexión",
     "httpWarning": "Se está usando un endpoint HTTP sin cifrar. Configura TLS/HTTPS para entornos de producción."
   },
-  "guildAI": {
+  "communityAI": {
     "title": "IA de la comunidad",
     "adminOnly": "Solo los administradores de la comunidad pueden gestionar las conexiones de IA. Para configurar tu propia clave, abre «IA» en la configuración de tu perfil.",
     "connectionsTitle": "Conexiones de la comunidad",
@@ -210,8 +222,8 @@
     "mode_disabled_description": "Las funciones de IA están desactivadas para todos.",
     "mode_platform": "Gestionado por la plataforma",
     "mode_platform_description": "Tú defines las conexiones de IA que usa cada comunidad.",
-    "mode_guild": "Gestionado por la comunidad",
-    "mode_guild_description": "Cada administrador de comunidad define sus propias conexiones de IA.",
+    "mode_community": "Gestionado por la comunidad",
+    "mode_community_description": "Cada administrador de comunidad define sus propias conexiones de IA.",
     "saveMode": "Guardar",
     "savingMode": "Guardando…",
     "modeSaved": "Configuración de IA actualizada",
@@ -254,8 +266,6 @@
     "bundleError": "No se pudo aplicar el paquete."
   },
   "interface": {
-    "title": "Configuración de interfaz",
-    "description": "Personaliza tus preferencias de interfaz.",
     "colorTheme": "Tema de color",
     "colorThemeDescription": "Elige un tema de color para la aplicación.",
     "weekStartsOn": "La semana comienza el",
@@ -275,7 +285,6 @@
     "languageDescription": "Elige tu idioma preferido para la interfaz.",
     "updateSuccess": "Preferencias de interfaz actualizadas",
     "updateError": "No se pudieron actualizar las preferencias de interfaz",
-    "themePreview": "Vista previa del tema",
     "themeDescriptions": {
       "kobold": "El tema clásico de Initiative, en tonos índigo intensos.",
       "displacer": "Tema pastel relajante inspirado en Catppuccin (Latte/Macchiato).",
@@ -285,8 +294,6 @@
       "orc": "Tema verde terroso con acentos del verde intenso de la piel de orco. ¡ORCO ORCO ORCO!",
       "aboleth": "Guarida oscura inspirada en Monokai, con vivos acentos bioluminiscentes."
     },
-    "lightMode": "Claro",
-    "darkMode": "Oscuro",
     "taskCompletionVisualFeedback": {
       "label": "Comentarios al completar tarea",
       "description": "Un toque de diversión cuando terminas una tarea asignada a ti.",
@@ -312,11 +319,27 @@
     },
     "keepScreenAwake": {
       "label": "Mantener pantalla activa",
-      "description": "Evita que la pantalla de este dispositivo se atenúe o se bloquee mientras la aplicación está abierta. Esta preferencia se guarda solo en este dispositivo.",
+      "description": "Evita que la pantalla de este dispositivo se atenúe o se bloquee mientras la aplicación está abierta.",
       "unsupported": "Tu navegador no admite mantener la pantalla activa."
     },
+    "desktopKeepRunning": {
+      "label": "Seguir en marcha al cerrar la ventana",
+      "description": "Se queda en la bandeja para que las notificaciones sigan llegando. Sal desde el icono de la bandeja."
+    },
+    "desktopOpenAtLogin": {
+      "label": "Abrir al iniciar el ordenador",
+      "description": "Inicia Initiative cuando entras en este ordenador."
+    },
+    "desktopAutoUpdate": {
+      "label": "Actualizar la aplicación automáticamente",
+      "description": "Cuando tu servidor necesite una aplicación de escritorio más reciente, se descarga y se instala al reiniciar."
+    },
     "completionTitle": "Cuando terminas una tarea",
-    "completionDescription": "Lo que hace la app en cuanto marcas una tarea. Prueba cada opción antes de quedártela."
+    "completionDescription": "Lo que hace la app en cuanto marcas una tarea. Prueba cada opción antes de quedártela.",
+    "appearanceTitle": "Apariencia",
+    "regionTitle": "Idioma y hora",
+    "deviceTitle": "Este dispositivo",
+    "deviceDescription": "Se guarda solo en este dispositivo, no en tu cuenta."
   },
   "notifications": {
     "title": "Configuración de notificaciones",
@@ -326,11 +349,7 @@
     "pushBlocked": "Bloqueadas",
     "pushNotEnabled": "No habilitadas",
     "enablePush": "Habilitar notificaciones push",
-    "pushBlockedTitle": "Las notificaciones push están bloqueadas",
     "pushBlockedDescription": "Para habilitar las notificaciones push, abre la configuración de tu dispositivo, busca esta aplicación y habilita las notificaciones.",
-    "timezone": "Zona horaria",
-    "timezonePlaceholder": "Seleccionar zona horaria",
-    "timezoneEmpty": "No se encontró zona horaria.",
     "toggleError": "No se pudo actualizar la configuración de notificaciones",
     "categoryHeader": "Categoría",
     "categories": {
@@ -366,7 +385,8 @@
     "channels": {
       "in_app": "Campana",
       "email": "Correo",
-      "push": "Móvil"
+      "push": "Móvil",
+      "desktop": "Escritorio"
     },
     "groups": {
       "addressed_to_me": "Dirigido a mí",
@@ -393,14 +413,14 @@
     },
     "quietHours": {
       "title": "Horas de silencio",
-      "description": "Retiene correo y móvil durante la noche. La campana sigue recogiendo, y al terminar sale un resumen.",
+      "description": "Retiene correo, móvil y escritorio durante la noche. La campana sigue recogiendo, y al terminar sale un resumen.",
       "from": "Desde",
       "to": "Hasta"
     },
     "communities": {
       "title": "Por comunidad",
       "description": "Un control por comunidad. Haz que una hable menos sin cambiar nada más.",
-      "levelLabel": "Cuánto dice {{guild}}",
+      "levelLabel": "Cuánto dice {{community}}",
       "mutedHelp": "Esta comunidad no dice nada — ni siquiera si alguien te nombra directamente.",
       "levels": {
         "everything": "Todo",
@@ -428,7 +448,7 @@
       "respectPresenceHelp": "Si ya estás aquí, la campana te lo ha dicho. El correo espera unos minutos y el móvil se queda callado.",
       "pause": {
         "title": "Pausar notificaciones",
-        "description": "El correo y el móvil se detienen los días que elijas. La campana sigue recogiendo, y al volver recibes un resumen de todo.",
+        "description": "El correo, el móvil y el escritorio se detienen los días que elijas. La campana sigue recogiendo, y al volver recibes un resumen de todo.",
         "active": "En pausa hasta el {{until}}",
         "scheduled": "Pausa del {{from}} al {{until}}",
         "resume": "Reanudar",
@@ -443,7 +463,9 @@
         "note": "Los restablecimientos de contraseña y los correos de inicio de sesión siguen llegando. Esos no son notificaciones."
       },
       "saved": "Guardado",
-      "saveError": "No se pudo actualizar cuándo te enteras"
+      "saveError": "No se pudo actualizar cuándo te enteras",
+      "zone": "Las horas están en {{timezone}}.",
+      "changeZone": "Cambiar zona horaria"
     },
     "weekdays": {
       "1": "lunes",
@@ -453,7 +475,8 @@
       "5": "viernes",
       "6": "sábado",
       "7": "domingo"
-    }
+    },
+    "quietTitle": "No molestar"
   },
   "dangerZone": {
     "serverConnection": "Conexión al servidor",
@@ -466,7 +489,8 @@
     "permanentDeleteDescriptionText": "Tu cuenta desaparece de inmediato para los demás. Por ahora no se borra nada: si vuelves a iniciar sesión antes de que acabe el plazo, la eliminación se cancela, con tus comunidades y tu trabajo tal y como los dejaste. Después, los proyectos pasan a otras personas, y los comentarios y documentos se quedan pero muestran «[Usuario eliminado]».",
     "cannotBeUndone": "Iniciar sesión es lo que la detiene.",
     "deactivateButton": "Desactivar cuenta",
-    "deleteButton": "Eliminar cuenta"
+    "deleteButton": "Eliminar cuenta",
+    "title": "Cerrar tu cuenta"
   },
   "deleteAccount": {
     "title": "Eliminar cuenta",
@@ -518,9 +542,9 @@
     "saveInterface": "Guardar configuración de interfaz",
     "savingInterface": "Guardando…",
     "interfaceSuccess": "Configuración de interfaz actualizada",
-    "chesterPlayground": {
-      "title": "Banco de pruebas de Chester",
-      "description": "Activa cada tipo de notificación para previsualizar la variante de Chester y su animación.",
+    "yonderPlayground": {
+      "title": "Banco de pruebas de Yonder",
+      "description": "Activa cada tipo de notificación para previsualizar la variante de Yonder y su animación.",
       "default": {
         "label": "predeterminado (inactivo)",
         "message": "Solo una notificación"
@@ -584,7 +608,6 @@
   "email": {
     "platformOnly": "Solo el propietario de la plataforma puede gestionar la configuración de email.",
     "title": "Email SMTP",
-    "description": "Configura el servidor SMTP usado para emails transaccionales.",
     "loading": "Cargando configuración de email…",
     "loadError": "No se pudo cargar la configuración de email.",
     "hostLabel": "Servidor",
@@ -696,8 +719,8 @@
       "confirmAction": "Retirar",
       "saved": "Formas de entrar actualizadas.",
       "saveError": "No se pudieron cambiar las formas de entrar.",
-      "guildsRequire_one": "{{count}} comunidad exige iniciar sesión mediante un proveedor propio.",
-      "guildsRequire_other": "{{count}} comunidades exigen iniciar sesión mediante un proveedor propio.",
+      "communitiesRequire_one": "{{count}} comunidad exige iniciar sesión mediante un proveedor propio.",
+      "communitiesRequire_other": "{{count}} comunidades exigen iniciar sesión mediante un proveedor propio.",
       "totp": {
         "label": "Activar la autenticación en dos pasos",
         "help": "Permite que la gente proteja su cuenta con un código de una aplicación de autenticación. Cada persona la activa por su cuenta; esto decide si el servidor la ofrece siquiera."
@@ -762,8 +785,6 @@
     }
   },
   "platformUsers": {
-    "title": "Usuarios de la plataforma",
-    "description": "Administra todos los usuarios en la plataforma.",
     "loading": "Cargando usuarios…",
     "loadError": "No se pudieron cargar los usuarios.",
     "filterPlaceholder": "Filtrar por identificador…",
@@ -837,6 +858,14 @@
       "avatarRemoved": "Foto de perfil eliminada.",
       "avatarConfirmTitle": "¿Quitar esta foto de perfil?",
       "avatarConfirmBody": "Se retira la foto de {{handle}} y se le avisa. Puede subir otra.",
+      "apiKeysLabel": "Claves de API",
+      "apiKeysHelp_one": "{{count}} clave sigue funcionando. Al revocarla se desactiva ya; puede crear otra.",
+      "apiKeysHelp_other": "{{count}} claves siguen funcionando. Al revocarlas se desactivan ya; puede crear otras.",
+      "apiKeysRevoke": "Revocar",
+      "apiKeysRevoked": "Claves de API revocadas.",
+      "apiKeysConfirmTitle": "¿Revocar estas claves de API?",
+      "apiKeysConfirmBody_one": "La clave de {{handle}} deja de funcionar al momento. Sigue en su lista marcada como deshabilitada, y puede crear otra.",
+      "apiKeysConfirmBody_other": "Las {{count}} claves de {{handle}} dejan de funcionar al momento. Siguen en su lista marcadas como deshabilitadas, y puede crear otras.",
       "access": "Acceso",
       "suspendLabel": "Suspendida",
       "suspendHelp": "Una cuenta suspendida puede iniciar sesión y leer el motivo, y no accede a nada más.",
@@ -866,8 +895,8 @@
     "hardDeleteDescription": "El usuario será eliminado permanentemente. Sus proyectos deben ser transferidos. Los comentarios mostrarán \"[Usuario eliminado]\".",
     "blockersTitle": "Bloqueos",
     "blockersDescription": "Los siguientes problemas deben resolverse antes de que este usuario pueda ser eliminado:",
-    "guildBlockerTitle": "Único superadministrador de la comunidad: {{guildName}}",
-    "guildBlockerDescription": "El titular de la cuenta puede nombrar superadministrador a otro miembro, o puedes usar el acceso de emergencia a la comunidad y, desde sus ajustes, nombrar uno o eliminar la comunidad.",
+    "communityBlockerTitle": "Único superadministrador de la comunidad: {{communityName}}",
+    "communityBlockerDescription": "El titular de la cuenta puede nombrar superadministrador a otro miembro, o puedes usar el acceso de emergencia a la comunidad y, desde sus ajustes, nombrar uno o eliminar la comunidad.",
     "checkAgain": "Comprobar de nuevo",
     "confirmTitle": "Confirmar eliminación",
     "confirmDescription": "Esta acción no se puede deshacer.",
@@ -888,7 +917,6 @@
     "preferWindowHelp": "La cuenta conserva todo y desaparece para los demás. Se borra al terminar el plazo, salvo que alguien la recupere."
   },
   "accessGrants": {
-    "title": "Solicitudes de acceso",
     "description": "Solicita y aprueba acceso temporal a una comunidad del que no eres miembro.",
     "requestTitle": "Solicitar acceso",
     "requestDescription": "Pide acceso temporal y limitado a una comunidad. Los aprobadores lo conceden y caduca automáticamente.",
@@ -908,8 +936,8 @@
     },
     "queueTitle": "Aprobaciones",
     "queueDescription": "Concede, deniega o revoca solicitudes de acceso temporal.",
-    "guildIdLabel": "ID de la comunidad",
-    "guildIdPlaceholder": "p. ej. 42",
+    "communityIdLabel": "ID de la comunidad",
+    "communityIdPlaceholder": "p. ej. 42",
     "levelNone": "Ninguno",
     "nothingAsked": "Elige acceso al contenido, a los ajustes, o ambos.",
     "levelRead": "Solo lectura",
@@ -955,7 +983,6 @@
   },
   "platformLayout": {
     "title": "Configuración de la plataforma",
-    "subtitle": "Inicio de sesión, seguridad, marca, correo, notificaciones push, el directorio de comunidades, integraciones, almacenamiento y entrada para toda la instalación.",
     "tabs": {
       "auth": "Autenticación",
       "branding": "Personalización",
@@ -986,6 +1013,7 @@
     "notLiveBadge": "No activa",
     "registryBadge": "Del registro",
     "imageSummary": "Imagen de contenedor: {{image}}",
+    "declarativeSummary": "Initiative hace las llamadas de esta aplicación por sí mismo. No necesita dirección ni claves, solo sus valores del proveedor.",
     "needsAddress": "Se ejecuta como contenedor. Edítala e indica la dirección donde la ejecutas para activarla.",
     "publisherSummary": "Editor: {{name}}",
     "listingSummary": "Ficha:",
@@ -1002,20 +1030,49 @@
     "keysTitle": "Claves de firma",
     "keysHelp": "Las claves públicas con las que esta aplicación firma sus aserciones para tokens de acceso. La aplicación solo está activa cuando tiene un conjunto de claves pegado o una dirección del conjunto de claves. Puede tener ambos.",
     "jwksLabel": "Conjunto de claves pegado (JWKS)",
-    "jwksHelp": "Pega el conjunto de claves que publica la aplicación. Dos entradas indican que hay una rotación en curso. Vaciar el campo lo elimina.",
+    "jwksHelp": "Pega el conjunto de claves que publica la aplicación, o pulsa Conectar en una aplicación guardada para leerlo de la aplicación. Dos entradas indican que hay una rotación en curso. Vaciar el campo lo elimina.",
     "jwksInvalid": "Eso no es JSON válido.",
     "jwksUriLabel": "Dirección del conjunto de claves",
     "jwksUriPlaceholder": "https://github-app.example.com/.well-known/jwks.json",
     "jwksUriHelp": "Dónde publica la aplicación su conjunto de claves, para que una rotación de claves no requiera cambios aquí. Debe ser https y estar en el mismo origen que la URL base; el servidor rechaza cualquier otra dirección. Vaciar el campo la elimina.",
+    "connect": "Conectar",
+    "connectReading": "Leyendo claves…",
+    "connectHelp": "Lee el conjunto de claves que la aplicación sirve en su URL base guardada y, cuando confirmes sus huellas, lo fija en lugar de cualquier dirección del conjunto de claves.",
+    "connectSaveFirst": "Guarda la nueva URL base y luego conecta.",
+    "connectKeysTitle": "Claves que sirve la aplicación",
+    "connectKeysHelp": "Compara cada huella con la que el contenedor de la aplicación registra al arrancar (app key fingerprint: …). Fíjalas solo si coinciden.",
+    "connectKid": "ID de clave: {{kid}}",
+    "connectConfirm": "Fijar estas claves",
+    "connectPinning": "Fijando…",
+    "connectDismiss": "No fijar",
+    "connected": "Claves fijadas. Un nuevo conjunto de claves de la aplicación solo se usa cuando vuelvas a conectar.",
+    "connectError": "No se pudieron leer las claves de la aplicación.",
     "vendorTitle": "Cliente del proveedor",
     "vendorHelp": "Lo que el proveedor de esta app emitió para este servidor. Initiative lo usa para conectar comunidades y miembros con el proveedor. Un secreto no se vuelve a mostrar después de guardarlo; escribe uno nuevo para reemplazarlo.",
     "vendorSecretSet": "Configurado. Escribe para reemplazarlo.",
     "vendorEmpty": "Sin configurar",
     "vendorMissingHelp": "No está activa hasta que tenga su cliente del proveedor. Edítala para rellenar los valores que pide la app.",
     "redirectTitle": "Direcciones para registrar en el proveedor",
-    "redirectHelp": "Añádelas en la configuración de este cliente en el proveedor para que pueda devolver a las personas aquí.",
+    "redirectHelp": "Añádelas en la configuración de este cliente en el proveedor. Devuelve a las personas a las direcciones de retorno y de configuración, y envía sus webhooks a la dirección de webhooks.",
     "callbackUrlLabel": "Dirección de retorno",
     "setupUrlLabel": "Dirección de configuración",
+    "webhookUrlLabel": "Dirección de webhooks",
+    "composeLabel": "Servicio de Compose",
+    "composeCopy": "Copiar",
+    "composeCopied": "Servicio de Compose copiado.",
+    "composeHelp": "Añade este servicio al docker-compose.yml con el que se ejecuta Initiative y luego ejecuta docker compose up -d. La URL base de abajo es donde responde en la red de Compose.",
+    "vendorSetupTitle": "Crear la GitHub App",
+    "vendorSetupHelp": "GitHub se abre con los permisos y eventos de esta aplicación y las direcciones de Initiative ya rellenados. Confírmalo allí y GitHub enviará aquí los valores de la nueva aplicación, así que no tienes que escribir ni copiar ninguno.",
+    "vendorSetupOrganizationLabel": "Organización de GitHub",
+    "vendorSetupOrganizationPlaceholder": "Opcional",
+    "vendorSetupOrganizationHelp": "La organización a la que pertenece la nueva aplicación. Déjalo en blanco para crearla en tu propia cuenta de GitHub.",
+    "vendorSetupCreate": "Crear la GitHub App",
+    "vendorSetupStarting": "Abriendo GitHub…",
+    "vendorSetupError": "No se pudo iniciar la configuración en GitHub.",
+    "vendorSetupFinishing": "Guardando los valores de la GitHub App…",
+    "vendorSetupDone": "GitHub App creada. Sus valores están guardados.",
+    "vendorSetupFailed": "No se pudieron guardar los valores de la GitHub App.",
+    "vendorSetupBack": "Volver a los servicios de aplicaciones",
     "createTitle": "Añadir servicio de aplicación",
     "editTitle": "Editar servicio de aplicación",
     "createDescription": "Da a una aplicación su dirección y sus claves antes de que llegue su ficha. Qué es y qué puede hacer viene de su ficha. Queda activa en cuanto tiene claves de firma.",
@@ -1053,17 +1110,15 @@
   },
   "operatorDashboard": {
     "title": "Panel de operador",
-    "subtitle": "Administra los usuarios de la plataforma y los accesos temporales.",
     "tabs": {
       "users": "Usuarios",
       "access": "Acceso",
-      "guilds": "Comunidades",
+      "communities": "Comunidades",
       "placement": "Asignación al iniciar sesión",
       "announcements": "Anuncios"
     }
   },
   "providerPlacement": {
-    "title": "Asignación al iniciar sesión",
     "description": "Asigna a las personas que inicia sesión un proveedor —según el grupo o el directorio que indique— a una comunidad, y a una iniciativa de ella si nombras una.",
     "loading": "Cargando reglas de asignación…",
     "loadError": "No se pudieron cargar las reglas de asignación. Inténtalo de nuevo.",
@@ -1131,10 +1186,10 @@
       "agreed": "Aceptado para {{community}}"
     }
   },
-  "guilds": {
+  "communities": {
     "title": "Límites por comunidad",
     "description": "Establece límites por comunidad para el almacenamiento y el número de usuarios. Bajar un límite por debajo del uso actual bloquea las nuevas subidas o miembros, pero nunca elimina los archivos ni los miembros existentes.",
-    "platformOnly": "Necesitas el rol de propietario de la plataforma para gestionar los límites de las comunidades.",
+    "platformOnly": "Necesitas el rol de operador o de propietario para gestionar los límites de las comunidades.",
     "loading": "Cargando comunidades…",
     "loadError": "No se pudieron cargar las comunidades. Inténtalo de nuevo.",
     "filterByName": "Filtrar comunidades por nombre",
@@ -1165,7 +1220,7 @@
     },
     "columns": {
       "id": "ID",
-      "guild": "Comunidad",
+      "community": "Comunidad",
       "users": "Usuarios",
       "storageLimit": "Límite de almacenamiento",
       "status": "Estado",
@@ -1292,7 +1347,7 @@
       "failed": "Fallido"
     }
   },
-  "guildAuth": {
+  "communityAuth": {
     "shareUrl": {
       "title": "Enlace de inicio de sesión para miembros",
       "description": "Comparte este enlace con los miembros: ofrece los proveedores de inicio de sesión de esta comunidad y los lleva directamente a la comunidad.",
@@ -1323,15 +1378,6 @@
       "requirePasskey": "Exigir también una clave de acceso",
       "requirePasskeyHelp": "Los miembros deben haber iniciado sesión con una clave de acceso, o haber presentado una, en esta sesión. Pueden añadirla sin cerrar sesión.",
       "factorRequiredByPlatform": "Tu servidor ya pide un segundo factor a todo el mundo, así que aquí no hay nada que añadir."
-    },
-    "apiAccess": {
-      "title": "Acceso por API",
-      "description": "Si se puede usar una clave de API personal en esta comunidad.",
-      "allowLabel": "Permitir claves de API personales",
-      "allowHelp": "Los miembros pueden crear una clave y usarla aquí: para scripts, integraciones y clientes MCP.",
-      "blockedHelp": "No se puede crear ninguna clave para esta comunidad, y una ya creada deja de alcanzarla. Los miembros conservan sus claves para otras comunidades.",
-      "saved": "Acceso por API guardado",
-      "error": "No se pudo guardar el acceso por API"
     },
     "sessionLimit": {
       "title": "Duración de la sesión",
@@ -1576,7 +1622,7 @@
     "newTitle": "Nueva conexión",
     "editTitle": "Editar conexión",
     "platformDialogDescription": "Todas las comunidades pueden usar esta conexión.",
-    "guildDialogDescription": "Los miembros de esta comunidad pueden usar esta conexión.",
+    "communityDialogDescription": "Los miembros de esta comunidad pueden usar esta conexión.",
     "labelLabel": "Etiqueta",
     "labelPlaceholder": "p. ej. OpenAI del equipo",
     "apiKeyPlaceholderExisting": "••••••••",
@@ -1599,10 +1645,9 @@
     "allowMemberKeysDescription": "Los miembros pueden añadir una clave de API personal a esta conexión."
   },
   "memberAI": {
-    "title": "Mi IA",
     "description": "Consulta todas las conexiones de IA disponibles para ti en tus comunidades. Añade tu propia clave de API donde esté permitido y elige la que usas.",
     "noneAvailable": "Aún no tienes conexiones de IA disponibles.",
-    "sharedKeyGuild": "Usa una clave compartida configurada por los administradores de tu comunidad.",
+    "sharedKeyCommunity": "Usa una clave compartida configurada por los administradores de tu comunidad.",
     "sharedKeyPlatform": "Usa una clave compartida configurada por quien gestiona este servidor.",
     "selected": "En uso",
     "requiresKey": "Necesita tu clave",
@@ -1684,12 +1729,9 @@
     }
   },
   "account": {
-    "identityTitle": "Cómo inicias sesión",
-    "identityDescription": "Tu nombre, tu dirección, tu identificador y el reloj con el que vas.",
     "passwordTitle": "Contraseña",
     "passwordDescription": "Cámbiala aquí. Seguirás con la sesión iniciada en este dispositivo.",
     "passwordsOffDescription": "El inicio de sesión con contraseña está desactivado en este servidor, así que aquí no hay contraseña que establecer ni cambiar.",
-    "fullNameHelp": "Solo lo usan las comunidades configuradas para mostrar nombres reales. En el resto eres tu identificador.",
     "setPasswordTitle": "Establecer una contraseña",
     "setPasswordDescription": "Tu cuenta inicia sesión sin contraseña. Establece una aquí para tener otra forma de entrar.",
     "removePassword": "Quitar tu contraseña",
@@ -1698,7 +1740,9 @@
     "removePasswordBody": "A partir de ahora entrarás con tu clave de acceso, y se cerrará tu sesión en los demás dispositivos. Si algún día pierdes tu clave de acceso, un código de recuperación es lo que te permite establecer una contraseña nueva. Si te quedan menos de tres códigos, se te mostrará un juego nuevo: guárdalo.",
     "removePasswordCodes": "Guárdalos en un lugar seguro. Si algún día pierdes tu clave de acceso, un código de recuperación es lo que te permite establecer una contraseña nueva. Cada código sirve una vez y no volverás a verlos. Los códigos que tuvieras antes han dejado de servir.",
     "passwordRemoved": "Se ha quitado tu contraseña.",
-    "removePasswordError": "No se ha podido quitar tu contraseña."
+    "removePasswordError": "No se ha podido quitar tu contraseña.",
+    "passwordSaved": "Contraseña guardada",
+    "changePassword": "Cambiar contraseña"
   },
   "privacy": {
     "dm": {
@@ -1718,7 +1762,6 @@
       "platformDisabled": "Esta instalación no ofrece mensajes directos, así que aquí no hay nada que configurar. Si se vuelven a activar, recuperarás la política y las listas que tenías."
     },
     "receipts": {
-      "title": "Confirmaciones de lectura",
       "label": "Mostrar a los demás cuándo llegan sus mensajes",
       "help": "Verán cuándo llegó un mensaje a uno de tus dispositivos y cuándo lo leíste. Si lo desactivas no verán ninguna de las dos cosas, igual que con alguien que no ha abierto la app. Tú sigues viendo las suyas."
     },
@@ -1866,7 +1909,6 @@
     "valuesHint": "Separad varios con comas. La conexión propia de una comunidad sustituye esto por completo; nada de aquí se combina con lo que ella diga."
   },
   "platformSecurity": {
-    "title": "Seguridad",
     "description": "Cuánto tiempo puede alguien seguir con la sesión iniciada, el captcha que se pide a quien llega por primera vez y qué lleva una notificación al salir de la aplicación."
   },
   "notificationDelivery": {
@@ -1875,9 +1917,9 @@
     "saved": "Ajustes de notificaciones guardados",
     "error": "No se pudieron guardar los ajustes de notificaciones",
     "push": {
-      "label": "Notificaciones móviles",
-      "onHelp": "Las notificaciones llegan a los teléfonos a través de Apple y Google.",
-      "offHelp": "Este servidor no envía nada a un teléfono y no guarda registros de dispositivos."
+      "label": "Notificaciones en teléfono y escritorio",
+      "onHelp": "Las notificaciones llegan a los teléfonos a través de Apple y Google, y a la aplicación de escritorio directamente.",
+      "offHelp": "Este servidor no envía nada a un teléfono ni a la aplicación de escritorio, y no guarda registros de dispositivos."
     },
     "email": {
       "label": "Notificaciones por correo",
@@ -1890,16 +1932,16 @@
       "offHelp": "Una notificación que sale de la aplicación dice de qué trata: quién actuó y sobre qué."
     }
   },
-  "guildNotifications": {
+  "communityNotifications": {
     "title": "Notificaciones que salen de la aplicación",
     "description": "Qué llevan las notificaciones de esta comunidad al salir. El servidor responde las mismas tres preguntas para todos, y rige la respuesta más estricta.",
     "saved": "Ajustes de notificaciones guardados",
     "error": "No se pudieron guardar los ajustes de notificaciones",
     "push": {
-      "label": "Notificaciones móviles",
-      "onHelp": "Las notificaciones de esta comunidad llegan a los teléfonos de los miembros.",
-      "offHelp": "No se envía nada de esta comunidad a un teléfono. Los miembros conservan la campana, y el correo si está activo.",
-      "platformHelp": "Este servidor no envía nada a un teléfono, así que aquí no hay nada que decidir."
+      "label": "Notificaciones en teléfono y escritorio",
+      "onHelp": "Las notificaciones de esta comunidad llegan a los teléfonos y a las aplicaciones de escritorio de los miembros.",
+      "offHelp": "No se envía nada de esta comunidad a un teléfono ni a la aplicación de escritorio. Los miembros conservan la campana, y el correo si está activo.",
+      "platformHelp": "Este servidor no envía nada a un teléfono ni a la aplicación de escritorio, así que aquí no hay nada que decidir."
     },
     "email": {
       "label": "Notificaciones por correo",

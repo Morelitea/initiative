@@ -7,7 +7,7 @@ import {
   ContentCardSkeleton,
   SkeletonRegion,
 } from "@/components/skeletons/PageSkeletons";
-import { GuildBreakdownChart } from "@/components/stats/GuildBreakdownChart";
+import { CommunityBreakdownChart } from "@/components/stats/CommunityBreakdownChart";
 import { HeatmapChart } from "@/components/stats/HeatmapChart";
 import { StatsMetricCard } from "@/components/stats/StatsMetricCard";
 import { VelocityChart } from "@/components/stats/VelocityChart";
@@ -20,41 +20,39 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useGuilds } from "@/hooks/useGuilds";
+import { useCommunities } from "@/hooks/useCommunities";
 import { useUserStats } from "@/hooks/useUserStats";
 
-const GUILD_FILTER_ALL = "all";
+const COMMUNITY_FILTER_ALL = "all";
 
 export function MyStatsPage() {
   const { t } = useTranslation("stats");
-  const [selectedGuildId, setSelectedGuildId] = useState<string>(GUILD_FILTER_ALL);
-  const { guilds } = useGuilds();
+  const [selectedCommunityId, setSelectedCommunityId] = useState<string>(COMMUNITY_FILTER_ALL);
+  const { communities } = useCommunities();
 
-  const guildIdParam = selectedGuildId === GUILD_FILTER_ALL ? null : Number(selectedGuildId);
-  const { data: stats, isLoading, error } = useUserStats(guildIdParam);
+  const communityIdParam =
+    selectedCommunityId === COMMUNITY_FILTER_ALL ? null : Number(selectedCommunityId);
+  const { data: stats, isLoading, error } = useUserStats(communityIdParam);
 
-  const handleGuildChange = (value: string) => {
-    setSelectedGuildId(value);
+  const handleCommunityChange = (value: string) => {
+    setSelectedCommunityId(value);
   };
 
   return (
     <div className="space-y-6">
-      {/* Header with Guild filter */}
+      {/* Header with Community filter */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="font-bold text-3xl">{t("page.title")}</h1>
-          <p className="mt-1 text-muted-foreground text-sm">{t("page.subtitle")}</p>
-        </div>
+        <h1 className="font-semibold text-3xl tracking-tight">{t("page.title")}</h1>
         <div className="w-full sm:w-[200px]">
-          <Select value={selectedGuildId} onValueChange={handleGuildChange}>
+          <Select value={selectedCommunityId} onValueChange={handleCommunityChange}>
             <SelectTrigger>
-              <SelectValue placeholder={t("page.guildFilterPlaceholder")} />
+              <SelectValue placeholder={t("page.communityFilterPlaceholder")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={GUILD_FILTER_ALL}>{t("page.allGuilds")}</SelectItem>
-              {guilds.map((guild) => (
-                <SelectItem key={guild.id} value={String(guild.id)}>
-                  {guild.name}
+              <SelectItem value={COMMUNITY_FILTER_ALL}>{t("page.allCommunities")}</SelectItem>
+              {communities.map((community) => (
+                <SelectItem key={community.id} value={String(community.id)}>
+                  {community.name}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -151,7 +149,7 @@ export function MyStatsPage() {
           {/* Charts Row */}
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             <VelocityChart data={stats.velocity_data} />
-            <GuildBreakdownChart data={stats.guild_breakdown} />
+            <CommunityBreakdownChart data={stats.community_breakdown} />
           </div>
 
           {/* Heatmap Full Width */}

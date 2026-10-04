@@ -28,28 +28,31 @@ import type {
   ApiKeyCreateRequest,
   ApiKeyCreateResponse,
   ApiKeyListResponse,
-  BodyUploadMyAvatarApiV1UsersMeAvatarPut,
-  CommunityGuildRead,
+  BodyUploadMyAvatar,
+  CommunityRosterResponse,
   CookieConsentRead,
   CookieConsentUpdate,
   DecorationPack,
   DecorationPackListResponse,
   DeletionEligibilityResponse,
-  ExportUsersCsvApiV1CGuildIdUsersExportCsvGetParams,
-  GetUserStatsApiV1MeStatsGetParams,
-  GuildRosterResponse,
+  DirectoryCommunityRead,
+  ExportUsersCsvParams,
+  GetUserStatsParams,
   HTTPValidationError,
-  ListRosterApiV1CGuildIdUsersRosterGetParams,
-  ListUsersApiV1CGuildIdUsersGetParams,
+  HeldChangeOutcome,
+  HeldChangeRead,
+  ListRosterParams,
+  ListUsersParams,
   OwnedContentResponse,
   OwnedDecorationsResponse,
   OwnershipTransferRequest,
   OwnershipTransferResponse,
-  SearchUsersApiV1CGuildIdUsersSearchGetParams,
+  SearchUsersParams,
+  UserCommunityMemberListResponse,
+  UserEmailChange,
   UserEmailCreate,
   UserEmailListResponse,
   UserEmailRead,
-  UserGuildMemberListResponse,
   UserProfile,
   UserRead,
   UserSelfUpdate,
@@ -61,6 +64,7 @@ import type {
 
 import { apiMutator } from "../../mutator";
 import type { ErrorType, BodyType } from "../../mutator";
+import { toFormData } from "../../formData";
 
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
@@ -80,855 +84,6 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
 };
 
 /**
- * What a suspended account is told on its time-out screen: why, where a
- * reason was given, and whom to contact.
- *
- * Answers for an active account too — nobody to contact, since there is
- * nothing to lift — so the screen can ask without first knowing the status.
- * @summary Read My Time Out
- */
-export const readMyTimeOutApiV1UsersMeTimeOutGet = (
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<AccountTimeOutRead>(
-    { url: `/api/v1/users/me/time-out`, method: "GET", signal },
-    options
-  );
-};
-
-export const getReadMyTimeOutApiV1UsersMeTimeOutGetQueryKey = () => {
-  return [`/api/v1/users/me/time-out`] as const;
-};
-
-export const getReadMyTimeOutApiV1UsersMeTimeOutGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof readMyTimeOutApiV1UsersMeTimeOutGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(options?: {
-  query?: Partial<
-    UseQueryOptions<Awaited<ReturnType<typeof readMyTimeOutApiV1UsersMeTimeOutGet>>, TError, TData>
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}) => {
-  const { query: queryOptions, request: requestOptions } = options ?? {};
-
-  const queryKey = queryOptions?.queryKey ?? getReadMyTimeOutApiV1UsersMeTimeOutGetQueryKey();
-
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof readMyTimeOutApiV1UsersMeTimeOutGet>>> = ({
-    signal,
-  }) => readMyTimeOutApiV1UsersMeTimeOutGet(requestOptions, signal);
-
-  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof readMyTimeOutApiV1UsersMeTimeOutGet>>,
-    TError,
-    TData
-  > & { queryKey: DataTag<QueryKey, TData, TError> };
-};
-
-export type ReadMyTimeOutApiV1UsersMeTimeOutGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof readMyTimeOutApiV1UsersMeTimeOutGet>>
->;
-export type ReadMyTimeOutApiV1UsersMeTimeOutGetQueryError = ErrorType<HTTPValidationError>;
-
-export function useReadMyTimeOutApiV1UsersMeTimeOutGet<
-  TData = Awaited<ReturnType<typeof readMyTimeOutApiV1UsersMeTimeOutGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  options: {
-    query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readMyTimeOutApiV1UsersMeTimeOutGet>>,
-        TError,
-        TData
-      >
-    > &
-      Pick<
-        DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readMyTimeOutApiV1UsersMeTimeOutGet>>,
-          TError,
-          Awaited<ReturnType<typeof readMyTimeOutApiV1UsersMeTimeOutGet>>
-        >,
-        "initialData"
-      >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadMyTimeOutApiV1UsersMeTimeOutGet<
-  TData = Awaited<ReturnType<typeof readMyTimeOutApiV1UsersMeTimeOutGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readMyTimeOutApiV1UsersMeTimeOutGet>>,
-        TError,
-        TData
-      >
-    > &
-      Pick<
-        UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readMyTimeOutApiV1UsersMeTimeOutGet>>,
-          TError,
-          Awaited<ReturnType<typeof readMyTimeOutApiV1UsersMeTimeOutGet>>
-        >,
-        "initialData"
-      >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadMyTimeOutApiV1UsersMeTimeOutGet<
-  TData = Awaited<ReturnType<typeof readMyTimeOutApiV1UsersMeTimeOutGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readMyTimeOutApiV1UsersMeTimeOutGet>>,
-        TError,
-        TData
-      >
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-/**
- * @summary Read My Time Out
- */
-
-export function useReadMyTimeOutApiV1UsersMeTimeOutGet<
-  TData = Awaited<ReturnType<typeof readMyTimeOutApiV1UsersMeTimeOutGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readMyTimeOutApiV1UsersMeTimeOutGet>>,
-        TError,
-        TData
-      >
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getReadMyTimeOutApiV1UsersMeTimeOutGetQueryOptions(options);
-
-  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
-    queryKey: DataTag<QueryKey, TData, TError>;
-  };
-
-  return withQueryKey(query, queryOptions.queryKey);
-}
-
-/**
- * Who you are. Reachable while the deployment's second-factor rule is
- * unmet, because every screen that could answer it is drawn from this.
- * @summary Read Users Me
- */
-export const readUsersMeApiV1UsersMeGet = (
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<UserRead>({ url: `/api/v1/users/me`, method: "GET", signal }, options);
-};
-
-export const getReadUsersMeApiV1UsersMeGetQueryKey = () => {
-  return [`/api/v1/users/me`] as const;
-};
-
-export const getReadUsersMeApiV1UsersMeGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof readUsersMeApiV1UsersMeGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(options?: {
-  query?: Partial<
-    UseQueryOptions<Awaited<ReturnType<typeof readUsersMeApiV1UsersMeGet>>, TError, TData>
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}) => {
-  const { query: queryOptions, request: requestOptions } = options ?? {};
-
-  const queryKey = queryOptions?.queryKey ?? getReadUsersMeApiV1UsersMeGetQueryKey();
-
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof readUsersMeApiV1UsersMeGet>>> = ({
-    signal,
-  }) => readUsersMeApiV1UsersMeGet(requestOptions, signal);
-
-  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof readUsersMeApiV1UsersMeGet>>,
-    TError,
-    TData
-  > & { queryKey: DataTag<QueryKey, TData, TError> };
-};
-
-export type ReadUsersMeApiV1UsersMeGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof readUsersMeApiV1UsersMeGet>>
->;
-export type ReadUsersMeApiV1UsersMeGetQueryError = ErrorType<HTTPValidationError>;
-
-export function useReadUsersMeApiV1UsersMeGet<
-  TData = Awaited<ReturnType<typeof readUsersMeApiV1UsersMeGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  options: {
-    query: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof readUsersMeApiV1UsersMeGet>>, TError, TData>
-    > &
-      Pick<
-        DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readUsersMeApiV1UsersMeGet>>,
-          TError,
-          Awaited<ReturnType<typeof readUsersMeApiV1UsersMeGet>>
-        >,
-        "initialData"
-      >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadUsersMeApiV1UsersMeGet<
-  TData = Awaited<ReturnType<typeof readUsersMeApiV1UsersMeGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  options?: {
-    query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof readUsersMeApiV1UsersMeGet>>, TError, TData>
-    > &
-      Pick<
-        UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readUsersMeApiV1UsersMeGet>>,
-          TError,
-          Awaited<ReturnType<typeof readUsersMeApiV1UsersMeGet>>
-        >,
-        "initialData"
-      >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadUsersMeApiV1UsersMeGet<
-  TData = Awaited<ReturnType<typeof readUsersMeApiV1UsersMeGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  options?: {
-    query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof readUsersMeApiV1UsersMeGet>>, TError, TData>
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-/**
- * @summary Read Users Me
- */
-
-export function useReadUsersMeApiV1UsersMeGet<
-  TData = Awaited<ReturnType<typeof readUsersMeApiV1UsersMeGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  options?: {
-    query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof readUsersMeApiV1UsersMeGet>>, TError, TData>
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getReadUsersMeApiV1UsersMeGetQueryOptions(options);
-
-  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
-    queryKey: DataTag<QueryKey, TData, TError>;
-  };
-
-  return withQueryKey(query, queryOptions.queryKey);
-}
-
-/**
- * @summary Update Users Me
- */
-export const updateUsersMeApiV1UsersMePatch = (
-  userSelfUpdate: BodyType<UserSelfUpdate>,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<UserRead>(
-    {
-      url: `/api/v1/users/me`,
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      data: userSelfUpdate,
-      signal,
-    },
-    options
-  );
-};
-
-export const getUpdateUsersMeApiV1UsersMePatchMutationKey = () =>
-  ["updateUsersMeApiV1UsersMePatch"] as const;
-
-export const getUpdateUsersMeApiV1UsersMePatchMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof updateUsersMeApiV1UsersMePatch>>,
-    TError,
-    UpdateUsersMeApiV1UsersMePatchMutationVariables,
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof updateUsersMeApiV1UsersMePatch>>,
-  TError,
-  UpdateUsersMeApiV1UsersMePatchMutationVariables,
-  TContext
-> => {
-  const mutationKey = getUpdateUsersMeApiV1UsersMePatchMutationKey();
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof updateUsersMeApiV1UsersMePatch>>,
-    UpdateUsersMeApiV1UsersMePatchMutationVariables
-  > = (props) => {
-    const { data } = props ?? {};
-
-    return updateUsersMeApiV1UsersMePatch(data, requestOptions);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type UpdateUsersMeApiV1UsersMePatchMutationResult = NonNullable<
-  Awaited<ReturnType<typeof updateUsersMeApiV1UsersMePatch>>
->;
-export type UpdateUsersMeApiV1UsersMePatchMutationBody = BodyType<UserSelfUpdate>;
-export type UpdateUsersMeApiV1UsersMePatchMutationError = ErrorType<HTTPValidationError>;
-export type UpdateUsersMeApiV1UsersMePatchMutationVariables = { data: BodyType<UserSelfUpdate> };
-
-/**
- * @summary Update Users Me
- */
-export const useUpdateUsersMeApiV1UsersMePatch = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof updateUsersMeApiV1UsersMePatch>>,
-      TError,
-      UpdateUsersMeApiV1UsersMePatchMutationVariables,
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof updateUsersMeApiV1UsersMePatch>>,
-  TError,
-  UpdateUsersMeApiV1UsersMePatchMutationVariables,
-  TContext
-> => {
-  return useMutation(getUpdateUsersMeApiV1UsersMePatchMutationOptions(options), queryClient);
-};
-/**
- * Everything the caller may dress their profile in.
- *
- * What ships with the app plus what this account acquired, which is what the
- * pickers on Settings > Profile offer and exactly what the write path
- * accepts. Own-row: ``public.user_decorations`` is readable only by the
- * account whose library it is.
- * @summary List My Decorations
- */
-export const listMyDecorationsApiV1UsersMeDecorationsGet = (
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<OwnedDecorationsResponse>(
-    { url: `/api/v1/users/me/decorations`, method: "GET", signal },
-    options
-  );
-};
-
-export const getListMyDecorationsApiV1UsersMeDecorationsGetQueryKey = () => {
-  return [`/api/v1/users/me/decorations`] as const;
-};
-
-export const getListMyDecorationsApiV1UsersMeDecorationsGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof listMyDecorationsApiV1UsersMeDecorationsGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(options?: {
-  query?: Partial<
-    UseQueryOptions<
-      Awaited<ReturnType<typeof listMyDecorationsApiV1UsersMeDecorationsGet>>,
-      TError,
-      TData
-    >
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}) => {
-  const { query: queryOptions, request: requestOptions } = options ?? {};
-
-  const queryKey =
-    queryOptions?.queryKey ?? getListMyDecorationsApiV1UsersMeDecorationsGetQueryKey();
-
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof listMyDecorationsApiV1UsersMeDecorationsGet>>
-  > = ({ signal }) => listMyDecorationsApiV1UsersMeDecorationsGet(requestOptions, signal);
-
-  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof listMyDecorationsApiV1UsersMeDecorationsGet>>,
-    TError,
-    TData
-  > & { queryKey: DataTag<QueryKey, TData, TError> };
-};
-
-export type ListMyDecorationsApiV1UsersMeDecorationsGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof listMyDecorationsApiV1UsersMeDecorationsGet>>
->;
-export type ListMyDecorationsApiV1UsersMeDecorationsGetQueryError = ErrorType<HTTPValidationError>;
-
-export function useListMyDecorationsApiV1UsersMeDecorationsGet<
-  TData = Awaited<ReturnType<typeof listMyDecorationsApiV1UsersMeDecorationsGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  options: {
-    query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listMyDecorationsApiV1UsersMeDecorationsGet>>,
-        TError,
-        TData
-      >
-    > &
-      Pick<
-        DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listMyDecorationsApiV1UsersMeDecorationsGet>>,
-          TError,
-          Awaited<ReturnType<typeof listMyDecorationsApiV1UsersMeDecorationsGet>>
-        >,
-        "initialData"
-      >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListMyDecorationsApiV1UsersMeDecorationsGet<
-  TData = Awaited<ReturnType<typeof listMyDecorationsApiV1UsersMeDecorationsGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listMyDecorationsApiV1UsersMeDecorationsGet>>,
-        TError,
-        TData
-      >
-    > &
-      Pick<
-        UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listMyDecorationsApiV1UsersMeDecorationsGet>>,
-          TError,
-          Awaited<ReturnType<typeof listMyDecorationsApiV1UsersMeDecorationsGet>>
-        >,
-        "initialData"
-      >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListMyDecorationsApiV1UsersMeDecorationsGet<
-  TData = Awaited<ReturnType<typeof listMyDecorationsApiV1UsersMeDecorationsGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listMyDecorationsApiV1UsersMeDecorationsGet>>,
-        TError,
-        TData
-      >
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-/**
- * @summary List My Decorations
- */
-
-export function useListMyDecorationsApiV1UsersMeDecorationsGet<
-  TData = Awaited<ReturnType<typeof listMyDecorationsApiV1UsersMeDecorationsGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listMyDecorationsApiV1UsersMeDecorationsGet>>,
-        TError,
-        TData
-      >
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListMyDecorationsApiV1UsersMeDecorationsGetQueryOptions(options);
-
-  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
-    queryKey: DataTag<QueryKey, TData, TError>;
-  };
-
-  return withQueryKey(query, queryOptions.queryKey);
-}
-
-/**
- * The store: every profile pack this deployment offers, and which you have.
- *
- * The shelf is the marketplace catalog, so a pack that ships with the build
- * and one published to it read the same here.
- * @summary List Decoration Packs
- */
-export const listDecorationPacksApiV1UsersMeDecorationPacksGet = (
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<DecorationPackListResponse>(
-    { url: `/api/v1/users/me/decoration-packs`, method: "GET", signal },
-    options
-  );
-};
-
-export const getListDecorationPacksApiV1UsersMeDecorationPacksGetQueryKey = () => {
-  return [`/api/v1/users/me/decoration-packs`] as const;
-};
-
-export const getListDecorationPacksApiV1UsersMeDecorationPacksGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof listDecorationPacksApiV1UsersMeDecorationPacksGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(options?: {
-  query?: Partial<
-    UseQueryOptions<
-      Awaited<ReturnType<typeof listDecorationPacksApiV1UsersMeDecorationPacksGet>>,
-      TError,
-      TData
-    >
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}) => {
-  const { query: queryOptions, request: requestOptions } = options ?? {};
-
-  const queryKey =
-    queryOptions?.queryKey ?? getListDecorationPacksApiV1UsersMeDecorationPacksGetQueryKey();
-
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof listDecorationPacksApiV1UsersMeDecorationPacksGet>>
-  > = ({ signal }) => listDecorationPacksApiV1UsersMeDecorationPacksGet(requestOptions, signal);
-
-  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof listDecorationPacksApiV1UsersMeDecorationPacksGet>>,
-    TError,
-    TData
-  > & { queryKey: DataTag<QueryKey, TData, TError> };
-};
-
-export type ListDecorationPacksApiV1UsersMeDecorationPacksGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof listDecorationPacksApiV1UsersMeDecorationPacksGet>>
->;
-export type ListDecorationPacksApiV1UsersMeDecorationPacksGetQueryError =
-  ErrorType<HTTPValidationError>;
-
-export function useListDecorationPacksApiV1UsersMeDecorationPacksGet<
-  TData = Awaited<ReturnType<typeof listDecorationPacksApiV1UsersMeDecorationPacksGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  options: {
-    query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listDecorationPacksApiV1UsersMeDecorationPacksGet>>,
-        TError,
-        TData
-      >
-    > &
-      Pick<
-        DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listDecorationPacksApiV1UsersMeDecorationPacksGet>>,
-          TError,
-          Awaited<ReturnType<typeof listDecorationPacksApiV1UsersMeDecorationPacksGet>>
-        >,
-        "initialData"
-      >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListDecorationPacksApiV1UsersMeDecorationPacksGet<
-  TData = Awaited<ReturnType<typeof listDecorationPacksApiV1UsersMeDecorationPacksGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listDecorationPacksApiV1UsersMeDecorationPacksGet>>,
-        TError,
-        TData
-      >
-    > &
-      Pick<
-        UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listDecorationPacksApiV1UsersMeDecorationPacksGet>>,
-          TError,
-          Awaited<ReturnType<typeof listDecorationPacksApiV1UsersMeDecorationPacksGet>>
-        >,
-        "initialData"
-      >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListDecorationPacksApiV1UsersMeDecorationPacksGet<
-  TData = Awaited<ReturnType<typeof listDecorationPacksApiV1UsersMeDecorationPacksGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listDecorationPacksApiV1UsersMeDecorationPacksGet>>,
-        TError,
-        TData
-      >
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-/**
- * @summary List Decoration Packs
- */
-
-export function useListDecorationPacksApiV1UsersMeDecorationPacksGet<
-  TData = Awaited<ReturnType<typeof listDecorationPacksApiV1UsersMeDecorationPacksGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listDecorationPacksApiV1UsersMeDecorationPacksGet>>,
-        TError,
-        TData
-      >
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListDecorationPacksApiV1UsersMeDecorationPacksGetQueryOptions(options);
-
-  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
-    queryKey: DataTag<QueryKey, TData, TError>;
-  };
-
-  return withQueryKey(query, queryOptions.queryKey);
-}
-
-/**
- * Take a pack, putting its decorations in your library.
- *
- * The catalog is read on the request path; the grant is written on the system
- * engine, because a grant is issued rather than self-served — the request path
- * holds no write verb on ``public.user_decorations``. What makes it the
- * caller's own is that the only account it ever names is theirs.
- * @summary Install Decoration Pack
- */
-export const installDecorationPackApiV1UsersMeDecorationPacksUidPost = (
-  uid: string,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<DecorationPack>(
-    { url: `/api/v1/users/me/decoration-packs/${uid}`, method: "POST", signal },
-    options
-  );
-};
-
-export const getInstallDecorationPackApiV1UsersMeDecorationPacksUidPostMutationKey = () =>
-  ["installDecorationPackApiV1UsersMeDecorationPacksUidPost"] as const;
-
-export const getInstallDecorationPackApiV1UsersMeDecorationPacksUidPostMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof installDecorationPackApiV1UsersMeDecorationPacksUidPost>>,
-    TError,
-    InstallDecorationPackApiV1UsersMeDecorationPacksUidPostMutationVariables,
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof installDecorationPackApiV1UsersMeDecorationPacksUidPost>>,
-  TError,
-  InstallDecorationPackApiV1UsersMeDecorationPacksUidPostMutationVariables,
-  TContext
-> => {
-  const mutationKey = getInstallDecorationPackApiV1UsersMeDecorationPacksUidPostMutationKey();
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof installDecorationPackApiV1UsersMeDecorationPacksUidPost>>,
-    InstallDecorationPackApiV1UsersMeDecorationPacksUidPostMutationVariables
-  > = (props) => {
-    const { uid } = props ?? {};
-
-    return installDecorationPackApiV1UsersMeDecorationPacksUidPost(uid, requestOptions);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type InstallDecorationPackApiV1UsersMeDecorationPacksUidPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof installDecorationPackApiV1UsersMeDecorationPacksUidPost>>
->;
-
-export type InstallDecorationPackApiV1UsersMeDecorationPacksUidPostMutationError =
-  ErrorType<HTTPValidationError>;
-export type InstallDecorationPackApiV1UsersMeDecorationPacksUidPostMutationVariables = {
-  uid: string;
-};
-
-/**
- * @summary Install Decoration Pack
- */
-export const useInstallDecorationPackApiV1UsersMeDecorationPacksUidPost = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof installDecorationPackApiV1UsersMeDecorationPacksUidPost>>,
-      TError,
-      InstallDecorationPackApiV1UsersMeDecorationPacksUidPostMutationVariables,
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof installDecorationPackApiV1UsersMeDecorationPacksUidPost>>,
-  TError,
-  InstallDecorationPackApiV1UsersMeDecorationPacksUidPostMutationVariables,
-  TContext
-> => {
-  return useMutation(
-    getInstallDecorationPackApiV1UsersMeDecorationPacksUidPostMutationOptions(options),
-    queryClient
-  );
-};
-/**
- * Give a pack back, taking its decorations out of your library.
- *
- * Anything from it that was being worn comes off in the same transaction —
- * a profile must not be left wearing what the account no longer has, and
- * two commits would leave a window where it was.
- * @summary Remove Decoration Pack
- */
-export const removeDecorationPackApiV1UsersMeDecorationPacksUidDelete = (
-  uid: string,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<DecorationPack>(
-    { url: `/api/v1/users/me/decoration-packs/${uid}`, method: "DELETE", signal },
-    options
-  );
-};
-
-export const getRemoveDecorationPackApiV1UsersMeDecorationPacksUidDeleteMutationKey = () =>
-  ["removeDecorationPackApiV1UsersMeDecorationPacksUidDelete"] as const;
-
-export const getRemoveDecorationPackApiV1UsersMeDecorationPacksUidDeleteMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof removeDecorationPackApiV1UsersMeDecorationPacksUidDelete>>,
-    TError,
-    RemoveDecorationPackApiV1UsersMeDecorationPacksUidDeleteMutationVariables,
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof removeDecorationPackApiV1UsersMeDecorationPacksUidDelete>>,
-  TError,
-  RemoveDecorationPackApiV1UsersMeDecorationPacksUidDeleteMutationVariables,
-  TContext
-> => {
-  const mutationKey = getRemoveDecorationPackApiV1UsersMeDecorationPacksUidDeleteMutationKey();
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof removeDecorationPackApiV1UsersMeDecorationPacksUidDelete>>,
-    RemoveDecorationPackApiV1UsersMeDecorationPacksUidDeleteMutationVariables
-  > = (props) => {
-    const { uid } = props ?? {};
-
-    return removeDecorationPackApiV1UsersMeDecorationPacksUidDelete(uid, requestOptions);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type RemoveDecorationPackApiV1UsersMeDecorationPacksUidDeleteMutationResult = NonNullable<
-  Awaited<ReturnType<typeof removeDecorationPackApiV1UsersMeDecorationPacksUidDelete>>
->;
-
-export type RemoveDecorationPackApiV1UsersMeDecorationPacksUidDeleteMutationError =
-  ErrorType<HTTPValidationError>;
-export type RemoveDecorationPackApiV1UsersMeDecorationPacksUidDeleteMutationVariables = {
-  uid: string;
-};
-
-/**
- * @summary Remove Decoration Pack
- */
-export const useRemoveDecorationPackApiV1UsersMeDecorationPacksUidDelete = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof removeDecorationPackApiV1UsersMeDecorationPacksUidDelete>>,
-      TError,
-      RemoveDecorationPackApiV1UsersMeDecorationPacksUidDeleteMutationVariables,
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof removeDecorationPackApiV1UsersMeDecorationPacksUidDelete>>,
-  TError,
-  RemoveDecorationPackApiV1UsersMeDecorationPacksUidDeleteMutationVariables,
-  TContext
-> => {
-  return useMutation(
-    getRemoveDecorationPackApiV1UsersMeDecorationPacksUidDeleteMutationOptions(options),
-    queryClient
-  );
-};
-/**
  * One person's profile, addressed by their handle.
  *
  * ``jordan1234`` — the name and the number it is always written with, run
@@ -946,7 +101,7 @@ export const useRemoveDecorationPackApiV1UsersMeDecorationPacksUidDelete = <
  * session, RLS enforced. A suspended account has no profile.
  * @summary Read User Profile
  */
-export const readUserProfileApiV1UsersHandleProfileGet = (
+export const readUserProfile = (
   handle: string,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
@@ -957,70 +112,52 @@ export const readUserProfileApiV1UsersHandleProfileGet = (
   );
 };
 
-export const getReadUserProfileApiV1UsersHandleProfileGetQueryKey = (handle: string) => {
+export const getReadUserProfileQueryKey = (handle: string) => {
   return [`/api/v1/users/${handle}/profile`] as const;
 };
 
-export const getReadUserProfileApiV1UsersHandleProfileGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof readUserProfileApiV1UsersHandleProfileGet>>,
+export const getReadUserProfileQueryOptions = <
+  TData = Awaited<ReturnType<typeof readUserProfile>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   handle: string,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readUserProfileApiV1UsersHandleProfileGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readUserProfile>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   }
 ) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey =
-    queryOptions?.queryKey ?? getReadUserProfileApiV1UsersHandleProfileGetQueryKey(handle);
+  const queryKey = queryOptions?.queryKey ?? getReadUserProfileQueryKey(handle);
 
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof readUserProfileApiV1UsersHandleProfileGet>>
-  > = ({ signal }) => readUserProfileApiV1UsersHandleProfileGet(handle, requestOptions, signal);
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof readUserProfile>>> = ({ signal }) =>
+    readUserProfile(handle, requestOptions, signal);
 
   return {
     queryKey,
     queryFn,
     enabled: handle !== null && handle !== undefined,
     ...queryOptions,
-  } as UseQueryOptions<
-    Awaited<ReturnType<typeof readUserProfileApiV1UsersHandleProfileGet>>,
-    TError,
-    TData
-  > & { queryKey: DataTag<QueryKey, TData, TError> };
+  } as UseQueryOptions<Awaited<ReturnType<typeof readUserProfile>>, TError, TData> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 };
 
-export type ReadUserProfileApiV1UsersHandleProfileGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof readUserProfileApiV1UsersHandleProfileGet>>
->;
-export type ReadUserProfileApiV1UsersHandleProfileGetQueryError = ErrorType<HTTPValidationError>;
+export type ReadUserProfileQueryResult = NonNullable<Awaited<ReturnType<typeof readUserProfile>>>;
+export type ReadUserProfileQueryError = ErrorType<HTTPValidationError>;
 
-export function useReadUserProfileApiV1UsersHandleProfileGet<
-  TData = Awaited<ReturnType<typeof readUserProfileApiV1UsersHandleProfileGet>>,
+export function useReadUserProfile<
+  TData = Awaited<ReturnType<typeof readUserProfile>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   handle: string,
   options: {
-    query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readUserProfileApiV1UsersHandleProfileGet>>,
-        TError,
-        TData
-      >
-    > &
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof readUserProfile>>, TError, TData>> &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readUserProfileApiV1UsersHandleProfileGet>>,
+          Awaited<ReturnType<typeof readUserProfile>>,
           TError,
-          Awaited<ReturnType<typeof readUserProfileApiV1UsersHandleProfileGet>>
+          Awaited<ReturnType<typeof readUserProfile>>
         >,
         "initialData"
       >;
@@ -1028,24 +165,18 @@ export function useReadUserProfileApiV1UsersHandleProfileGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadUserProfileApiV1UsersHandleProfileGet<
-  TData = Awaited<ReturnType<typeof readUserProfileApiV1UsersHandleProfileGet>>,
+export function useReadUserProfile<
+  TData = Awaited<ReturnType<typeof readUserProfile>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   handle: string,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readUserProfileApiV1UsersHandleProfileGet>>,
-        TError,
-        TData
-      >
-    > &
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readUserProfile>>, TError, TData>> &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readUserProfileApiV1UsersHandleProfileGet>>,
+          Awaited<ReturnType<typeof readUserProfile>>,
           TError,
-          Awaited<ReturnType<typeof readUserProfileApiV1UsersHandleProfileGet>>
+          Awaited<ReturnType<typeof readUserProfile>>
         >,
         "initialData"
       >;
@@ -1053,19 +184,13 @@ export function useReadUserProfileApiV1UsersHandleProfileGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadUserProfileApiV1UsersHandleProfileGet<
-  TData = Awaited<ReturnType<typeof readUserProfileApiV1UsersHandleProfileGet>>,
+export function useReadUserProfile<
+  TData = Awaited<ReturnType<typeof readUserProfile>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   handle: string,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readUserProfileApiV1UsersHandleProfileGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readUserProfile>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
@@ -1074,24 +199,18 @@ export function useReadUserProfileApiV1UsersHandleProfileGet<
  * @summary Read User Profile
  */
 
-export function useReadUserProfileApiV1UsersHandleProfileGet<
-  TData = Awaited<ReturnType<typeof readUserProfileApiV1UsersHandleProfileGet>>,
+export function useReadUserProfile<
+  TData = Awaited<ReturnType<typeof readUserProfile>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   handle: string,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readUserProfileApiV1UsersHandleProfileGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readUserProfile>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getReadUserProfileApiV1UsersHandleProfileGetQueryOptions(handle, options);
+  const queryOptions = getReadUserProfileQueryOptions(handle, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -1114,83 +233,69 @@ export function useReadUserProfileApiV1UsersHandleProfileGet<
  * is nobody else's business, and does not appear here for anyone.
  * @summary Read User Communities
  */
-export const readUserCommunitiesApiV1UsersHandleCommunitiesGet = (
+export const readUserCommunities = (
   handle: string,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<CommunityGuildRead[]>(
+  return apiMutator<DirectoryCommunityRead[]>(
     { url: `/api/v1/users/${handle}/communities`, method: "GET", signal },
     options
   );
 };
 
-export const getReadUserCommunitiesApiV1UsersHandleCommunitiesGetQueryKey = (handle: string) => {
+export const getReadUserCommunitiesQueryKey = (handle: string) => {
   return [`/api/v1/users/${handle}/communities`] as const;
 };
 
-export const getReadUserCommunitiesApiV1UsersHandleCommunitiesGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof readUserCommunitiesApiV1UsersHandleCommunitiesGet>>,
+export const getReadUserCommunitiesQueryOptions = <
+  TData = Awaited<ReturnType<typeof readUserCommunities>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   handle: string,
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readUserCommunitiesApiV1UsersHandleCommunitiesGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof readUserCommunities>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   }
 ) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey =
-    queryOptions?.queryKey ?? getReadUserCommunitiesApiV1UsersHandleCommunitiesGetQueryKey(handle);
+  const queryKey = queryOptions?.queryKey ?? getReadUserCommunitiesQueryKey(handle);
 
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof readUserCommunitiesApiV1UsersHandleCommunitiesGet>>
-  > = ({ signal }) =>
-    readUserCommunitiesApiV1UsersHandleCommunitiesGet(handle, requestOptions, signal);
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof readUserCommunities>>> = ({ signal }) =>
+    readUserCommunities(handle, requestOptions, signal);
 
   return {
     queryKey,
     queryFn,
     enabled: handle !== null && handle !== undefined,
     ...queryOptions,
-  } as UseQueryOptions<
-    Awaited<ReturnType<typeof readUserCommunitiesApiV1UsersHandleCommunitiesGet>>,
-    TError,
-    TData
-  > & { queryKey: DataTag<QueryKey, TData, TError> };
+  } as UseQueryOptions<Awaited<ReturnType<typeof readUserCommunities>>, TError, TData> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 };
 
-export type ReadUserCommunitiesApiV1UsersHandleCommunitiesGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof readUserCommunitiesApiV1UsersHandleCommunitiesGet>>
+export type ReadUserCommunitiesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof readUserCommunities>>
 >;
-export type ReadUserCommunitiesApiV1UsersHandleCommunitiesGetQueryError =
-  ErrorType<HTTPValidationError>;
+export type ReadUserCommunitiesQueryError = ErrorType<HTTPValidationError>;
 
-export function useReadUserCommunitiesApiV1UsersHandleCommunitiesGet<
-  TData = Awaited<ReturnType<typeof readUserCommunitiesApiV1UsersHandleCommunitiesGet>>,
+export function useReadUserCommunities<
+  TData = Awaited<ReturnType<typeof readUserCommunities>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   handle: string,
   options: {
     query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readUserCommunitiesApiV1UsersHandleCommunitiesGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof readUserCommunities>>, TError, TData>
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readUserCommunitiesApiV1UsersHandleCommunitiesGet>>,
+          Awaited<ReturnType<typeof readUserCommunities>>,
           TError,
-          Awaited<ReturnType<typeof readUserCommunitiesApiV1UsersHandleCommunitiesGet>>
+          Awaited<ReturnType<typeof readUserCommunities>>
         >,
         "initialData"
       >;
@@ -1198,24 +303,20 @@ export function useReadUserCommunitiesApiV1UsersHandleCommunitiesGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadUserCommunitiesApiV1UsersHandleCommunitiesGet<
-  TData = Awaited<ReturnType<typeof readUserCommunitiesApiV1UsersHandleCommunitiesGet>>,
+export function useReadUserCommunities<
+  TData = Awaited<ReturnType<typeof readUserCommunities>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   handle: string,
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readUserCommunitiesApiV1UsersHandleCommunitiesGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof readUserCommunities>>, TError, TData>
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readUserCommunitiesApiV1UsersHandleCommunitiesGet>>,
+          Awaited<ReturnType<typeof readUserCommunities>>,
           TError,
-          Awaited<ReturnType<typeof readUserCommunitiesApiV1UsersHandleCommunitiesGet>>
+          Awaited<ReturnType<typeof readUserCommunities>>
         >,
         "initialData"
       >;
@@ -1223,18 +324,14 @@ export function useReadUserCommunitiesApiV1UsersHandleCommunitiesGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadUserCommunitiesApiV1UsersHandleCommunitiesGet<
-  TData = Awaited<ReturnType<typeof readUserCommunitiesApiV1UsersHandleCommunitiesGet>>,
+export function useReadUserCommunities<
+  TData = Awaited<ReturnType<typeof readUserCommunities>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   handle: string,
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readUserCommunitiesApiV1UsersHandleCommunitiesGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof readUserCommunities>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
@@ -1244,27 +341,20 @@ export function useReadUserCommunitiesApiV1UsersHandleCommunitiesGet<
  * @summary Read User Communities
  */
 
-export function useReadUserCommunitiesApiV1UsersHandleCommunitiesGet<
-  TData = Awaited<ReturnType<typeof readUserCommunitiesApiV1UsersHandleCommunitiesGet>>,
+export function useReadUserCommunities<
+  TData = Awaited<ReturnType<typeof readUserCommunities>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   handle: string,
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readUserCommunitiesApiV1UsersHandleCommunitiesGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof readUserCommunities>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getReadUserCommunitiesApiV1UsersHandleCommunitiesGetQueryOptions(
-    handle,
-    options
-  );
+  const queryOptions = getReadUserCommunitiesQueryOptions(handle, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -1274,6 +364,2088 @@ export function useReadUserCommunitiesApiV1UsersHandleCommunitiesGet<
 }
 
 /**
+ * The community's roster, a page at a time.
+ *
+ * On the configuration session rather than the content one: who is in a
+ * community is part of running it, which is what a settings grant reaches
+ * and what an administrator keeps while its content is closed.
+ *
+ * Ordered like ``/search``: nearest first while searching, otherwise by name
+ * where the guild shows names, then by handle.
+ * @summary List Users
+ */
+export const listUsers = (
+  communityId: number,
+  params?: ListUsersParams,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<UserCommunityMemberListResponse>(
+    { url: `/api/v1/c/${communityId}/users/`, method: "GET", params, signal },
+    options
+  );
+};
+
+export const getListUsersQueryKey = (communityId: number, params?: ListUsersParams) => {
+  return [`/api/v1/c/${communityId}/users/`, ...(params ? [params] : [])] as const;
+};
+
+export const getListUsersQueryOptions = <
+  TData = Awaited<ReturnType<typeof listUsers>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  communityId: number,
+  params?: ListUsersParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listUsers>>, TError, TData>>;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListUsersQueryKey(communityId, params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listUsers>>> = ({ signal }) =>
+    listUsers(communityId, params, requestOptions, signal);
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: communityId !== null && communityId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<Awaited<ReturnType<typeof listUsers>>, TError, TData> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+};
+
+export type ListUsersQueryResult = NonNullable<Awaited<ReturnType<typeof listUsers>>>;
+export type ListUsersQueryError = ErrorType<HTTPValidationError>;
+
+export function useListUsers<
+  TData = Awaited<ReturnType<typeof listUsers>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  communityId: number,
+  params: undefined | ListUsersParams,
+  options: {
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof listUsers>>, TError, TData>> &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listUsers>>,
+          TError,
+          Awaited<ReturnType<typeof listUsers>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListUsers<
+  TData = Awaited<ReturnType<typeof listUsers>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  communityId: number,
+  params?: ListUsersParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listUsers>>, TError, TData>> &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listUsers>>,
+          TError,
+          Awaited<ReturnType<typeof listUsers>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListUsers<
+  TData = Awaited<ReturnType<typeof listUsers>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  communityId: number,
+  params?: ListUsersParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listUsers>>, TError, TData>>;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary List Users
+ */
+
+export function useListUsers<
+  TData = Awaited<ReturnType<typeof listUsers>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  communityId: number,
+  params?: ListUsersParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listUsers>>, TError, TData>>;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getListUsersQueryOptions(communityId, params, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * Slim, searchable, paginated roster for typeahead/pickers.
+ *
+ * Same authorization as the full member list (``RLSSessionDep`` +
+ * ``GuildContextDep``, membership re-validated per request): the params
+ * are additive filters on an already-RLS-gated query, so they only ever
+ * narrow the row set. Returns :class:`UserSummary` (no email, roles, or
+ * ``initiative_roles`` enrichment) instead of the heavy ``UserCommunityMember``.
+ *
+ * Pass ``user_id`` one or more times to resolve a known selection (a picker
+ * rehydrating stored ids into names/avatars) rather than searching.
+ *
+ * An installed app (``members:read``) names members by its own references
+ * and reads each as an :class:`AppPerson`: the reference, the handle and the
+ * display name set in the community.
+ * @summary Search Users
+ */
+export const searchUsers = (
+  communityId: number,
+  params?: SearchUsersParams,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<UserSummaryListResponse>(
+    { url: `/api/v1/c/${communityId}/users/search`, method: "GET", params, signal },
+    options
+  );
+};
+
+export const getSearchUsersQueryKey = (communityId: number, params?: SearchUsersParams) => {
+  return [`/api/v1/c/${communityId}/users/search`, ...(params ? [params] : [])] as const;
+};
+
+export const getSearchUsersQueryOptions = <
+  TData = Awaited<ReturnType<typeof searchUsers>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  communityId: number,
+  params?: SearchUsersParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof searchUsers>>, TError, TData>>;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getSearchUsersQueryKey(communityId, params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof searchUsers>>> = ({ signal }) =>
+    searchUsers(communityId, params, requestOptions, signal);
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: communityId !== null && communityId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<Awaited<ReturnType<typeof searchUsers>>, TError, TData> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+};
+
+export type SearchUsersQueryResult = NonNullable<Awaited<ReturnType<typeof searchUsers>>>;
+export type SearchUsersQueryError = ErrorType<HTTPValidationError>;
+
+export function useSearchUsers<
+  TData = Awaited<ReturnType<typeof searchUsers>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  communityId: number,
+  params: undefined | SearchUsersParams,
+  options: {
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof searchUsers>>, TError, TData>> &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof searchUsers>>,
+          TError,
+          Awaited<ReturnType<typeof searchUsers>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useSearchUsers<
+  TData = Awaited<ReturnType<typeof searchUsers>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  communityId: number,
+  params?: SearchUsersParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof searchUsers>>, TError, TData>> &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof searchUsers>>,
+          TError,
+          Awaited<ReturnType<typeof searchUsers>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useSearchUsers<
+  TData = Awaited<ReturnType<typeof searchUsers>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  communityId: number,
+  params?: SearchUsersParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof searchUsers>>, TError, TData>>;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Search Users
+ */
+
+export function useSearchUsers<
+  TData = Awaited<ReturnType<typeof searchUsers>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  communityId: number,
+  params?: SearchUsersParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof searchUsers>>, TError, TData>>;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getSearchUsersQueryOptions(communityId, params, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * The people in this community, as the sidebar lists them.
+ *
+ * Grouped by presence (online, idle, busy, then everyone else) and
+ * alphabetical within a group. ``presence_counts`` sizes each group across
+ * every page.
+ *
+ * Nobody whose direct message policy is private is listed, the reader
+ * included. Where the deployment offers no direct messages there is no policy
+ * to keep, and everyone is listed.
+ * @summary List Roster
+ */
+export const listRoster = (
+  communityId: number,
+  params?: ListRosterParams,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<CommunityRosterResponse>(
+    { url: `/api/v1/c/${communityId}/users/roster`, method: "GET", params, signal },
+    options
+  );
+};
+
+export const getListRosterQueryKey = (communityId: number, params?: ListRosterParams) => {
+  return [`/api/v1/c/${communityId}/users/roster`, ...(params ? [params] : [])] as const;
+};
+
+export const getListRosterQueryOptions = <
+  TData = Awaited<ReturnType<typeof listRoster>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  communityId: number,
+  params?: ListRosterParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listRoster>>, TError, TData>>;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListRosterQueryKey(communityId, params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listRoster>>> = ({ signal }) =>
+    listRoster(communityId, params, requestOptions, signal);
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: communityId !== null && communityId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<Awaited<ReturnType<typeof listRoster>>, TError, TData> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+};
+
+export type ListRosterQueryResult = NonNullable<Awaited<ReturnType<typeof listRoster>>>;
+export type ListRosterQueryError = ErrorType<HTTPValidationError>;
+
+export function useListRoster<
+  TData = Awaited<ReturnType<typeof listRoster>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  communityId: number,
+  params: undefined | ListRosterParams,
+  options: {
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof listRoster>>, TError, TData>> &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listRoster>>,
+          TError,
+          Awaited<ReturnType<typeof listRoster>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListRoster<
+  TData = Awaited<ReturnType<typeof listRoster>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  communityId: number,
+  params?: ListRosterParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listRoster>>, TError, TData>> &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listRoster>>,
+          TError,
+          Awaited<ReturnType<typeof listRoster>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListRoster<
+  TData = Awaited<ReturnType<typeof listRoster>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  communityId: number,
+  params?: ListRosterParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listRoster>>, TError, TData>>;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary List Roster
+ */
+
+export function useListRoster<
+  TData = Awaited<ReturnType<typeof listRoster>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  communityId: number,
+  params?: ListRosterParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listRoster>>, TError, TData>>;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getListRosterQueryOptions(communityId, params, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * Export guild members as a CSV file. Pass `user_id` one or more times to
+ * restrict the export to a subset. Without `user_id`, all visible members are
+ * included. Guild-admin only.
+ * @summary Export Users Csv
+ */
+export const exportUsersCsv = (
+  communityId: number,
+  params?: ExportUsersCsvParams,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<unknown>(
+    { url: `/api/v1/c/${communityId}/users/export.csv`, method: "GET", params, signal },
+    options
+  );
+};
+
+export const getExportUsersCsvQueryKey = (communityId: number, params?: ExportUsersCsvParams) => {
+  return [`/api/v1/c/${communityId}/users/export.csv`, ...(params ? [params] : [])] as const;
+};
+
+export const getExportUsersCsvQueryOptions = <
+  TData = Awaited<ReturnType<typeof exportUsersCsv>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  communityId: number,
+  params?: ExportUsersCsvParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof exportUsersCsv>>, TError, TData>>;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getExportUsersCsvQueryKey(communityId, params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof exportUsersCsv>>> = ({ signal }) =>
+    exportUsersCsv(communityId, params, requestOptions, signal);
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: communityId !== null && communityId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<Awaited<ReturnType<typeof exportUsersCsv>>, TError, TData> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+};
+
+export type ExportUsersCsvQueryResult = NonNullable<Awaited<ReturnType<typeof exportUsersCsv>>>;
+export type ExportUsersCsvQueryError = ErrorType<HTTPValidationError>;
+
+export function useExportUsersCsv<
+  TData = Awaited<ReturnType<typeof exportUsersCsv>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  communityId: number,
+  params: undefined | ExportUsersCsvParams,
+  options: {
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof exportUsersCsv>>, TError, TData>> &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof exportUsersCsv>>,
+          TError,
+          Awaited<ReturnType<typeof exportUsersCsv>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useExportUsersCsv<
+  TData = Awaited<ReturnType<typeof exportUsersCsv>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  communityId: number,
+  params?: ExportUsersCsvParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof exportUsersCsv>>, TError, TData>> &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof exportUsersCsv>>,
+          TError,
+          Awaited<ReturnType<typeof exportUsersCsv>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useExportUsersCsv<
+  TData = Awaited<ReturnType<typeof exportUsersCsv>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  communityId: number,
+  params?: ExportUsersCsvParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof exportUsersCsv>>, TError, TData>>;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Export Users Csv
+ */
+
+export function useExportUsersCsv<
+  TData = Awaited<ReturnType<typeof exportUsersCsv>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  communityId: number,
+  params?: ExportUsersCsvParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof exportUsersCsv>>, TError, TData>>;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getExportUsersCsvQueryOptions(communityId, params, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * Everything in this guild that no current member or live app owns, and
+ * the apps that may own all of it.
+ *
+ * Both the content released when someone left and anything orphaned before
+ * that — either way nobody who can act on it owns it.
+ * @summary List Unowned Content
+ */
+export const listUnownedContent = (
+  communityId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<OwnedContentResponse>(
+    { url: `/api/v1/c/${communityId}/users/unowned-content`, method: "GET", signal },
+    options
+  );
+};
+
+export const getListUnownedContentQueryKey = (communityId: number) => {
+  return [`/api/v1/c/${communityId}/users/unowned-content`] as const;
+};
+
+export const getListUnownedContentQueryOptions = <
+  TData = Awaited<ReturnType<typeof listUnownedContent>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  communityId: number,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listUnownedContent>>, TError, TData>>;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListUnownedContentQueryKey(communityId);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listUnownedContent>>> = ({ signal }) =>
+    listUnownedContent(communityId, requestOptions, signal);
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: communityId !== null && communityId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<Awaited<ReturnType<typeof listUnownedContent>>, TError, TData> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+};
+
+export type ListUnownedContentQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listUnownedContent>>
+>;
+export type ListUnownedContentQueryError = ErrorType<HTTPValidationError>;
+
+export function useListUnownedContent<
+  TData = Awaited<ReturnType<typeof listUnownedContent>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  communityId: number,
+  options: {
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof listUnownedContent>>, TError, TData>> &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listUnownedContent>>,
+          TError,
+          Awaited<ReturnType<typeof listUnownedContent>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListUnownedContent<
+  TData = Awaited<ReturnType<typeof listUnownedContent>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  communityId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listUnownedContent>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listUnownedContent>>,
+          TError,
+          Awaited<ReturnType<typeof listUnownedContent>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListUnownedContent<
+  TData = Awaited<ReturnType<typeof listUnownedContent>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  communityId: number,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listUnownedContent>>, TError, TData>>;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary List Unowned Content
+ */
+
+export function useListUnownedContent<
+  TData = Awaited<ReturnType<typeof listUnownedContent>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  communityId: number,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listUnownedContent>>, TError, TData>>;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getListUnownedContentQueryOptions(communityId, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * Give everything nobody owns to one guild admin, or to an app that may
+ * own all of it (422 ``OWNER_APP_NOT_ELIGIBLE`` otherwise).
+ * @summary Claim Unowned Content
+ */
+export const claimUnownedContent = (
+  communityId: number,
+  ownershipTransferRequest: BodyType<OwnershipTransferRequest>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<OwnershipTransferResponse>(
+    {
+      url: `/api/v1/c/${communityId}/users/unowned-content/claim`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: ownershipTransferRequest,
+      signal,
+    },
+    options
+  );
+};
+
+export const getClaimUnownedContentMutationKey = () => ["claimUnownedContent"] as const;
+
+export const getClaimUnownedContentMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof claimUnownedContent>>,
+    TError,
+    ClaimUnownedContentMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof claimUnownedContent>>,
+  TError,
+  ClaimUnownedContentMutationVariables,
+  TContext
+> => {
+  const mutationKey = getClaimUnownedContentMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof claimUnownedContent>>,
+    ClaimUnownedContentMutationVariables
+  > = (props) => {
+    const { communityId, data } = props ?? {};
+
+    return claimUnownedContent(communityId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ClaimUnownedContentMutationResult = NonNullable<
+  Awaited<ReturnType<typeof claimUnownedContent>>
+>;
+export type ClaimUnownedContentMutationBody = BodyType<OwnershipTransferRequest>;
+export type ClaimUnownedContentMutationError = ErrorType<HTTPValidationError>;
+export type ClaimUnownedContentMutationVariables = {
+  communityId: number;
+  data: BodyType<OwnershipTransferRequest>;
+};
+
+/**
+ * @summary Claim Unowned Content
+ */
+export const useClaimUnownedContent = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof claimUnownedContent>>,
+      TError,
+      ClaimUnownedContentMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof claimUnownedContent>>,
+  TError,
+  ClaimUnownedContentMutationVariables,
+  TContext
+> => {
+  return useMutation(getClaimUnownedContentMutationOptions(options), queryClient);
+};
+/**
+ * What this user owns in this guild, for the transfer dialog to list,
+ * and the apps that may own all of it.
+ *
+ * Works for anyone the grants still name, member or not — accounts get
+ * abandoned as often as they get closed.
+ * @summary List Owned Content
+ */
+export const listOwnedContent = (
+  communityId: number,
+  userId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<OwnedContentResponse>(
+    { url: `/api/v1/c/${communityId}/users/${userId}/owned-content`, method: "GET", signal },
+    options
+  );
+};
+
+export const getListOwnedContentQueryKey = (communityId: number, userId: number) => {
+  return [`/api/v1/c/${communityId}/users/${userId}/owned-content`] as const;
+};
+
+export const getListOwnedContentQueryOptions = <
+  TData = Awaited<ReturnType<typeof listOwnedContent>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  communityId: number,
+  userId: number,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listOwnedContent>>, TError, TData>>;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListOwnedContentQueryKey(communityId, userId);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listOwnedContent>>> = ({ signal }) =>
+    listOwnedContent(communityId, userId, requestOptions, signal);
+
+  return {
+    queryKey,
+    queryFn,
+    enabled:
+      communityId !== null && communityId !== undefined && userId !== null && userId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<Awaited<ReturnType<typeof listOwnedContent>>, TError, TData> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+};
+
+export type ListOwnedContentQueryResult = NonNullable<Awaited<ReturnType<typeof listOwnedContent>>>;
+export type ListOwnedContentQueryError = ErrorType<HTTPValidationError>;
+
+export function useListOwnedContent<
+  TData = Awaited<ReturnType<typeof listOwnedContent>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  communityId: number,
+  userId: number,
+  options: {
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof listOwnedContent>>, TError, TData>> &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listOwnedContent>>,
+          TError,
+          Awaited<ReturnType<typeof listOwnedContent>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListOwnedContent<
+  TData = Awaited<ReturnType<typeof listOwnedContent>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  communityId: number,
+  userId: number,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listOwnedContent>>, TError, TData>> &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listOwnedContent>>,
+          TError,
+          Awaited<ReturnType<typeof listOwnedContent>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListOwnedContent<
+  TData = Awaited<ReturnType<typeof listOwnedContent>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  communityId: number,
+  userId: number,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listOwnedContent>>, TError, TData>>;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary List Owned Content
+ */
+
+export function useListOwnedContent<
+  TData = Awaited<ReturnType<typeof listOwnedContent>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  communityId: number,
+  userId: number,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listOwnedContent>>, TError, TData>>;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getListOwnedContentQueryOptions(communityId, userId, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * Move everything ``user_id`` owns in this guild to a guild admin, or to
+ * an app that may own all of it (422 ``OWNER_APP_NOT_ELIGIBLE`` otherwise).
+ *
+ * The only place ownership is moved by hand, and guild-admin only.
+ * @summary Transfer Ownership
+ */
+export const transferOwnership = (
+  communityId: number,
+  userId: number,
+  ownershipTransferRequest: BodyType<OwnershipTransferRequest>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<OwnershipTransferResponse>(
+    {
+      url: `/api/v1/c/${communityId}/users/${userId}/transfer-ownership`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: ownershipTransferRequest,
+      signal,
+    },
+    options
+  );
+};
+
+export const getTransferOwnershipMutationKey = () => ["transferOwnership"] as const;
+
+export const getTransferOwnershipMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof transferOwnership>>,
+    TError,
+    TransferOwnershipMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof transferOwnership>>,
+  TError,
+  TransferOwnershipMutationVariables,
+  TContext
+> => {
+  const mutationKey = getTransferOwnershipMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof transferOwnership>>,
+    TransferOwnershipMutationVariables
+  > = (props) => {
+    const { communityId, userId, data } = props ?? {};
+
+    return transferOwnership(communityId, userId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type TransferOwnershipMutationResult = NonNullable<
+  Awaited<ReturnType<typeof transferOwnership>>
+>;
+export type TransferOwnershipMutationBody = BodyType<OwnershipTransferRequest>;
+export type TransferOwnershipMutationError = ErrorType<HTTPValidationError>;
+export type TransferOwnershipMutationVariables = {
+  communityId: number;
+  userId: number;
+  data: BodyType<OwnershipTransferRequest>;
+};
+
+/**
+ * @summary Transfer Ownership
+ */
+export const useTransferOwnership = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof transferOwnership>>,
+      TError,
+      TransferOwnershipMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof transferOwnership>>,
+  TError,
+  TransferOwnershipMutationVariables,
+  TContext
+> => {
+  return useMutation(getTransferOwnershipMutationOptions(options), queryClient);
+};
+/**
+ * Remove a member from this guild.
+ *
+ * Ends their memberships and the access those carried. It does not move
+ * ownership: content they own stays recorded as theirs and stops being
+ * reachable by them, until an admin re-homes it through
+ * ``POST /{user_id}/transfer-ownership``.
+ * @summary Remove Member
+ */
+export const removeMember = (
+  communityId: number,
+  userId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<void>(
+    { url: `/api/v1/c/${communityId}/users/${userId}`, method: "DELETE", signal },
+    options
+  );
+};
+
+export const getRemoveMemberMutationKey = () => ["removeMember"] as const;
+
+export const getRemoveMemberMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof removeMember>>,
+    TError,
+    RemoveMemberMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof removeMember>>,
+  TError,
+  RemoveMemberMutationVariables,
+  TContext
+> => {
+  const mutationKey = getRemoveMemberMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof removeMember>>,
+    RemoveMemberMutationVariables
+  > = (props) => {
+    const { communityId, userId } = props ?? {};
+
+    return removeMember(communityId, userId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RemoveMemberMutationResult = NonNullable<Awaited<ReturnType<typeof removeMember>>>;
+
+export type RemoveMemberMutationError = ErrorType<HTTPValidationError>;
+export type RemoveMemberMutationVariables = { communityId: number; userId: number };
+
+/**
+ * @summary Remove Member
+ */
+export const useRemoveMember = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof removeMember>>,
+      TError,
+      RemoveMemberMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof removeMember>>,
+  TError,
+  RemoveMemberMutationVariables,
+  TContext
+> => {
+  return useMutation(getRemoveMemberMutationOptions(options), queryClient);
+};
+/**
+ * Serve the picture a member of this community uploaded.
+ *
+ * Where an installed app's ``avatar_url`` for a person points: the person is
+ * named by the app's reference for them. The same bytes and caching as the
+ * profile picture route, and a 404 for a digest that is not the member's
+ * current picture, or for somebody who is not a member here.
+ * @summary Read Member Avatar
+ */
+export const readMemberAvatar = (
+  communityId: number,
+  person: number,
+  digest: string,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<Blob>(
+    {
+      url: `/api/v1/c/${communityId}/members/${person}/avatar/${digest}`,
+      method: "GET",
+      responseType: "blob",
+      signal,
+    },
+    options
+  );
+};
+
+export const getReadMemberAvatarQueryKey = (
+  communityId: number,
+  person: number,
+  digest: string
+) => {
+  return [`/api/v1/c/${communityId}/members/${person}/avatar/${digest}`] as const;
+};
+
+export const getReadMemberAvatarQueryOptions = <
+  TData = Awaited<ReturnType<typeof readMemberAvatar>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  communityId: number,
+  person: number,
+  digest: string,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readMemberAvatar>>, TError, TData>>;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getReadMemberAvatarQueryKey(communityId, person, digest);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof readMemberAvatar>>> = ({ signal }) =>
+    readMemberAvatar(communityId, person, digest, requestOptions, signal);
+
+  return {
+    queryKey,
+    queryFn,
+    enabled:
+      communityId !== null &&
+      communityId !== undefined &&
+      person !== null &&
+      person !== undefined &&
+      digest !== null &&
+      digest !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<Awaited<ReturnType<typeof readMemberAvatar>>, TError, TData> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+};
+
+export type ReadMemberAvatarQueryResult = NonNullable<Awaited<ReturnType<typeof readMemberAvatar>>>;
+export type ReadMemberAvatarQueryError = ErrorType<HTTPValidationError>;
+
+export function useReadMemberAvatar<
+  TData = Awaited<ReturnType<typeof readMemberAvatar>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  communityId: number,
+  person: number,
+  digest: string,
+  options: {
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof readMemberAvatar>>, TError, TData>> &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof readMemberAvatar>>,
+          TError,
+          Awaited<ReturnType<typeof readMemberAvatar>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadMemberAvatar<
+  TData = Awaited<ReturnType<typeof readMemberAvatar>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  communityId: number,
+  person: number,
+  digest: string,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readMemberAvatar>>, TError, TData>> &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof readMemberAvatar>>,
+          TError,
+          Awaited<ReturnType<typeof readMemberAvatar>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadMemberAvatar<
+  TData = Awaited<ReturnType<typeof readMemberAvatar>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  communityId: number,
+  person: number,
+  digest: string,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readMemberAvatar>>, TError, TData>>;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Read Member Avatar
+ */
+
+export function useReadMemberAvatar<
+  TData = Awaited<ReturnType<typeof readMemberAvatar>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  communityId: number,
+  person: number,
+  digest: string,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readMemberAvatar>>, TError, TData>>;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getReadMemberAvatarQueryOptions(communityId, person, digest, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * What a suspended account is told on its time-out screen: why, where a
+ * reason was given, and whom to contact.
+ *
+ * Answers for an active account too — nobody to contact, since there is
+ * nothing to lift — so the screen can ask without first knowing the status.
+ * @summary Read My Time Out
+ */
+export const readMyTimeOut = (
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<AccountTimeOutRead>(
+    { url: `/api/v1/me/time-out`, method: "GET", signal },
+    options
+  );
+};
+
+export const getReadMyTimeOutQueryKey = () => {
+  return [`/api/v1/me/time-out`] as const;
+};
+
+export const getReadMyTimeOutQueryOptions = <
+  TData = Awaited<ReturnType<typeof readMyTimeOut>>,
+  TError = ErrorType<HTTPValidationError>,
+>(options?: {
+  query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readMyTimeOut>>, TError, TData>>;
+  request?: SecondParameter<typeof apiMutator>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getReadMyTimeOutQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof readMyTimeOut>>> = ({ signal }) =>
+    readMyTimeOut(requestOptions, signal);
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof readMyTimeOut>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ReadMyTimeOutQueryResult = NonNullable<Awaited<ReturnType<typeof readMyTimeOut>>>;
+export type ReadMyTimeOutQueryError = ErrorType<HTTPValidationError>;
+
+export function useReadMyTimeOut<
+  TData = Awaited<ReturnType<typeof readMyTimeOut>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options: {
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof readMyTimeOut>>, TError, TData>> &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof readMyTimeOut>>,
+          TError,
+          Awaited<ReturnType<typeof readMyTimeOut>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadMyTimeOut<
+  TData = Awaited<ReturnType<typeof readMyTimeOut>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readMyTimeOut>>, TError, TData>> &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof readMyTimeOut>>,
+          TError,
+          Awaited<ReturnType<typeof readMyTimeOut>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadMyTimeOut<
+  TData = Awaited<ReturnType<typeof readMyTimeOut>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readMyTimeOut>>, TError, TData>>;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Read My Time Out
+ */
+
+export function useReadMyTimeOut<
+  TData = Awaited<ReturnType<typeof readMyTimeOut>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readMyTimeOut>>, TError, TData>>;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getReadMyTimeOutQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * Who you are. Reachable while the deployment's second-factor rule is
+ * unmet, because every screen that could answer it is drawn from this.
+ * @summary Read Me
+ */
+export const readMe = (options?: SecondParameter<typeof apiMutator>, signal?: AbortSignal) => {
+  return apiMutator<UserRead>({ url: `/api/v1/me`, method: "GET", signal }, options);
+};
+
+export const getReadMeQueryKey = () => {
+  return [`/api/v1/me`] as const;
+};
+
+export const getReadMeQueryOptions = <
+  TData = Awaited<ReturnType<typeof readMe>>,
+  TError = ErrorType<HTTPValidationError>,
+>(options?: {
+  query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readMe>>, TError, TData>>;
+  request?: SecondParameter<typeof apiMutator>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getReadMeQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof readMe>>> = ({ signal }) =>
+    readMe(requestOptions, signal);
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof readMe>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ReadMeQueryResult = NonNullable<Awaited<ReturnType<typeof readMe>>>;
+export type ReadMeQueryError = ErrorType<HTTPValidationError>;
+
+export function useReadMe<
+  TData = Awaited<ReturnType<typeof readMe>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options: {
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof readMe>>, TError, TData>> &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof readMe>>,
+          TError,
+          Awaited<ReturnType<typeof readMe>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadMe<
+  TData = Awaited<ReturnType<typeof readMe>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readMe>>, TError, TData>> &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof readMe>>,
+          TError,
+          Awaited<ReturnType<typeof readMe>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadMe<
+  TData = Awaited<ReturnType<typeof readMe>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readMe>>, TError, TData>>;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Read Me
+ */
+
+export function useReadMe<
+  TData = Awaited<ReturnType<typeof readMe>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readMe>>, TError, TData>>;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getReadMeQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * @summary Update Me
+ */
+export const updateMe = (
+  userSelfUpdate: BodyType<UserSelfUpdate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<UserRead>(
+    {
+      url: `/api/v1/me`,
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      data: userSelfUpdate,
+      signal,
+    },
+    options
+  );
+};
+
+export const getUpdateMeMutationKey = () => ["updateMe"] as const;
+
+export const getUpdateMeMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateMe>>,
+    TError,
+    UpdateMeMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateMe>>,
+  TError,
+  UpdateMeMutationVariables,
+  TContext
+> => {
+  const mutationKey = getUpdateMeMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateMe>>,
+    UpdateMeMutationVariables
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return updateMe(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateMeMutationResult = NonNullable<Awaited<ReturnType<typeof updateMe>>>;
+export type UpdateMeMutationBody = BodyType<UserSelfUpdate>;
+export type UpdateMeMutationError = ErrorType<HTTPValidationError>;
+export type UpdateMeMutationVariables = { data: BodyType<UserSelfUpdate> };
+
+/**
+ * @summary Update Me
+ */
+export const useUpdateMe = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof updateMe>>,
+      TError,
+      UpdateMeMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof updateMe>>,
+  TError,
+  UpdateMeMutationVariables,
+  TContext
+> => {
+  return useMutation(getUpdateMeMutationOptions(options), queryClient);
+};
+/**
+ * Get comprehensive statistics for the current user.
+ * @summary Get User Stats
+ */
+export const getUserStats = (
+  params?: GetUserStatsParams,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<UserStatsResponse>(
+    { url: `/api/v1/me/stats`, method: "GET", params, signal },
+    options
+  );
+};
+
+export const getGetUserStatsQueryKey = (params?: GetUserStatsParams) => {
+  return [`/api/v1/me/stats`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetUserStatsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getUserStats>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetUserStatsParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getUserStats>>, TError, TData>>;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetUserStatsQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getUserStats>>> = ({ signal }) =>
+    getUserStats(params, requestOptions, signal);
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getUserStats>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type GetUserStatsQueryResult = NonNullable<Awaited<ReturnType<typeof getUserStats>>>;
+export type GetUserStatsQueryError = ErrorType<HTTPValidationError>;
+
+export function useGetUserStats<
+  TData = Awaited<ReturnType<typeof getUserStats>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: undefined | GetUserStatsParams,
+  options: {
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getUserStats>>, TError, TData>> &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getUserStats>>,
+          TError,
+          Awaited<ReturnType<typeof getUserStats>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetUserStats<
+  TData = Awaited<ReturnType<typeof getUserStats>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetUserStatsParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getUserStats>>, TError, TData>> &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getUserStats>>,
+          TError,
+          Awaited<ReturnType<typeof getUserStats>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetUserStats<
+  TData = Awaited<ReturnType<typeof getUserStats>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetUserStatsParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getUserStats>>, TError, TData>>;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Get User Stats
+ */
+
+export function useGetUserStats<
+  TData = Awaited<ReturnType<typeof getUserStats>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetUserStatsParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getUserStats>>, TError, TData>>;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetUserStatsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * Everything the caller may dress their profile in.
+ *
+ * What ships with the app plus what this account acquired, which is what the
+ * pickers on Settings > Profile offer and exactly what the write path
+ * accepts. Own-row: ``public.user_decorations`` is readable only by the
+ * account whose library it is.
+ * @summary List My Decorations
+ */
+export const listMyDecorations = (
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<OwnedDecorationsResponse>(
+    { url: `/api/v1/me/decorations`, method: "GET", signal },
+    options
+  );
+};
+
+export const getListMyDecorationsQueryKey = () => {
+  return [`/api/v1/me/decorations`] as const;
+};
+
+export const getListMyDecorationsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listMyDecorations>>,
+  TError = ErrorType<HTTPValidationError>,
+>(options?: {
+  query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyDecorations>>, TError, TData>>;
+  request?: SecondParameter<typeof apiMutator>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListMyDecorationsQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listMyDecorations>>> = ({ signal }) =>
+    listMyDecorations(requestOptions, signal);
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listMyDecorations>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ListMyDecorationsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listMyDecorations>>
+>;
+export type ListMyDecorationsQueryError = ErrorType<HTTPValidationError>;
+
+export function useListMyDecorations<
+  TData = Awaited<ReturnType<typeof listMyDecorations>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options: {
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyDecorations>>, TError, TData>> &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listMyDecorations>>,
+          TError,
+          Awaited<ReturnType<typeof listMyDecorations>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListMyDecorations<
+  TData = Awaited<ReturnType<typeof listMyDecorations>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyDecorations>>, TError, TData>> &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listMyDecorations>>,
+          TError,
+          Awaited<ReturnType<typeof listMyDecorations>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListMyDecorations<
+  TData = Awaited<ReturnType<typeof listMyDecorations>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyDecorations>>, TError, TData>>;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary List My Decorations
+ */
+
+export function useListMyDecorations<
+  TData = Awaited<ReturnType<typeof listMyDecorations>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyDecorations>>, TError, TData>>;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getListMyDecorationsQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * The store: every profile pack this deployment offers, and which you have.
+ *
+ * The shelf is the marketplace catalog, so a pack that ships with the build
+ * and one published to it read the same here.
+ * @summary List Decoration Packs
+ */
+export const listDecorationPacks = (
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<DecorationPackListResponse>(
+    { url: `/api/v1/me/decoration-packs`, method: "GET", signal },
+    options
+  );
+};
+
+export const getListDecorationPacksQueryKey = () => {
+  return [`/api/v1/me/decoration-packs`] as const;
+};
+
+export const getListDecorationPacksQueryOptions = <
+  TData = Awaited<ReturnType<typeof listDecorationPacks>>,
+  TError = ErrorType<HTTPValidationError>,
+>(options?: {
+  query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listDecorationPacks>>, TError, TData>>;
+  request?: SecondParameter<typeof apiMutator>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListDecorationPacksQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listDecorationPacks>>> = ({ signal }) =>
+    listDecorationPacks(requestOptions, signal);
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listDecorationPacks>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ListDecorationPacksQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listDecorationPacks>>
+>;
+export type ListDecorationPacksQueryError = ErrorType<HTTPValidationError>;
+
+export function useListDecorationPacks<
+  TData = Awaited<ReturnType<typeof listDecorationPacks>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listDecorationPacks>>, TError, TData>
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listDecorationPacks>>,
+          TError,
+          Awaited<ReturnType<typeof listDecorationPacks>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListDecorationPacks<
+  TData = Awaited<ReturnType<typeof listDecorationPacks>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listDecorationPacks>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listDecorationPacks>>,
+          TError,
+          Awaited<ReturnType<typeof listDecorationPacks>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListDecorationPacks<
+  TData = Awaited<ReturnType<typeof listDecorationPacks>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listDecorationPacks>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary List Decoration Packs
+ */
+
+export function useListDecorationPacks<
+  TData = Awaited<ReturnType<typeof listDecorationPacks>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listDecorationPacks>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getListDecorationPacksQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * Take a pack, putting its decorations in your library.
+ *
+ * The catalog is read on the request path; the grant is written on the system
+ * engine, because a grant is issued rather than self-served — the request path
+ * holds no write verb on ``public.user_decorations``. What makes it the
+ * caller's own is that the only account it ever names is theirs.
+ * @summary Install Decoration Pack
+ */
+export const installDecorationPack = (
+  uid: string,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<DecorationPack>(
+    { url: `/api/v1/me/decoration-packs/${uid}`, method: "POST", signal },
+    options
+  );
+};
+
+export const getInstallDecorationPackMutationKey = () => ["installDecorationPack"] as const;
+
+export const getInstallDecorationPackMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof installDecorationPack>>,
+    TError,
+    InstallDecorationPackMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof installDecorationPack>>,
+  TError,
+  InstallDecorationPackMutationVariables,
+  TContext
+> => {
+  const mutationKey = getInstallDecorationPackMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof installDecorationPack>>,
+    InstallDecorationPackMutationVariables
+  > = (props) => {
+    const { uid } = props ?? {};
+
+    return installDecorationPack(uid, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type InstallDecorationPackMutationResult = NonNullable<
+  Awaited<ReturnType<typeof installDecorationPack>>
+>;
+
+export type InstallDecorationPackMutationError = ErrorType<HTTPValidationError>;
+export type InstallDecorationPackMutationVariables = { uid: string };
+
+/**
+ * @summary Install Decoration Pack
+ */
+export const useInstallDecorationPack = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof installDecorationPack>>,
+      TError,
+      InstallDecorationPackMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof installDecorationPack>>,
+  TError,
+  InstallDecorationPackMutationVariables,
+  TContext
+> => {
+  return useMutation(getInstallDecorationPackMutationOptions(options), queryClient);
+};
+/**
+ * Give a pack back, taking its decorations out of your library.
+ *
+ * Anything from it that was being worn comes off in the same transaction —
+ * a profile must not be left wearing what the account no longer has, and
+ * two commits would leave a window where it was.
+ * @summary Remove Decoration Pack
+ */
+export const removeDecorationPack = (
+  uid: string,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<DecorationPack>(
+    { url: `/api/v1/me/decoration-packs/${uid}`, method: "DELETE", signal },
+    options
+  );
+};
+
+export const getRemoveDecorationPackMutationKey = () => ["removeDecorationPack"] as const;
+
+export const getRemoveDecorationPackMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof removeDecorationPack>>,
+    TError,
+    RemoveDecorationPackMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof removeDecorationPack>>,
+  TError,
+  RemoveDecorationPackMutationVariables,
+  TContext
+> => {
+  const mutationKey = getRemoveDecorationPackMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof removeDecorationPack>>,
+    RemoveDecorationPackMutationVariables
+  > = (props) => {
+    const { uid } = props ?? {};
+
+    return removeDecorationPack(uid, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RemoveDecorationPackMutationResult = NonNullable<
+  Awaited<ReturnType<typeof removeDecorationPack>>
+>;
+
+export type RemoveDecorationPackMutationError = ErrorType<HTTPValidationError>;
+export type RemoveDecorationPackMutationVariables = { uid: string };
+
+/**
+ * @summary Remove Decoration Pack
+ */
+export const useRemoveDecorationPack = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof removeDecorationPack>>,
+      TError,
+      RemoveDecorationPackMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof removeDecorationPack>>,
+  TError,
+  RemoveDecorationPackMutationVariables,
+  TContext
+> => {
+  return useMutation(getRemoveDecorationPackMutationOptions(options), queryClient);
+};
+/**
  * Pick the handle for an account that was assigned one.
  *
  * Every account created without a form — provisioned from SSO claims, or
@@ -1282,14 +2454,14 @@ export function useReadUserCommunitiesApiV1UsersHandleCommunitiesGet<
  * a moderator.
  * @summary Claim My Username
  */
-export const claimMyUsernameApiV1UsersMeUsernamePatch = (
+export const claimMyUsername = (
   usernameClaim: BodyType<UsernameClaim>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<UserRead>(
     {
-      url: `/api/v1/users/me/username`,
+      url: `/api/v1/me/username`,
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       data: usernameClaim,
@@ -1299,27 +2471,26 @@ export const claimMyUsernameApiV1UsersMeUsernamePatch = (
   );
 };
 
-export const getClaimMyUsernameApiV1UsersMeUsernamePatchMutationKey = () =>
-  ["claimMyUsernameApiV1UsersMeUsernamePatch"] as const;
+export const getClaimMyUsernameMutationKey = () => ["claimMyUsername"] as const;
 
-export const getClaimMyUsernameApiV1UsersMeUsernamePatchMutationOptions = <
+export const getClaimMyUsernameMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof claimMyUsernameApiV1UsersMeUsernamePatch>>,
+    Awaited<ReturnType<typeof claimMyUsername>>,
     TError,
-    ClaimMyUsernameApiV1UsersMeUsernamePatchMutationVariables,
+    ClaimMyUsernameMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof claimMyUsernameApiV1UsersMeUsernamePatch>>,
+  Awaited<ReturnType<typeof claimMyUsername>>,
   TError,
-  ClaimMyUsernameApiV1UsersMeUsernamePatchMutationVariables,
+  ClaimMyUsernameMutationVariables,
   TContext
 > => {
-  const mutationKey = getClaimMyUsernameApiV1UsersMeUsernamePatchMutationKey();
+  const mutationKey = getClaimMyUsernameMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1327,53 +2498,45 @@ export const getClaimMyUsernameApiV1UsersMeUsernamePatchMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof claimMyUsernameApiV1UsersMeUsernamePatch>>,
-    ClaimMyUsernameApiV1UsersMeUsernamePatchMutationVariables
+    Awaited<ReturnType<typeof claimMyUsername>>,
+    ClaimMyUsernameMutationVariables
   > = (props) => {
     const { data } = props ?? {};
 
-    return claimMyUsernameApiV1UsersMeUsernamePatch(data, requestOptions);
+    return claimMyUsername(data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type ClaimMyUsernameApiV1UsersMeUsernamePatchMutationResult = NonNullable<
-  Awaited<ReturnType<typeof claimMyUsernameApiV1UsersMeUsernamePatch>>
+export type ClaimMyUsernameMutationResult = NonNullable<
+  Awaited<ReturnType<typeof claimMyUsername>>
 >;
-export type ClaimMyUsernameApiV1UsersMeUsernamePatchMutationBody = BodyType<UsernameClaim>;
-export type ClaimMyUsernameApiV1UsersMeUsernamePatchMutationError = ErrorType<HTTPValidationError>;
-export type ClaimMyUsernameApiV1UsersMeUsernamePatchMutationVariables = {
-  data: BodyType<UsernameClaim>;
-};
+export type ClaimMyUsernameMutationBody = BodyType<UsernameClaim>;
+export type ClaimMyUsernameMutationError = ErrorType<HTTPValidationError>;
+export type ClaimMyUsernameMutationVariables = { data: BodyType<UsernameClaim> };
 
 /**
  * @summary Claim My Username
  */
-export const useClaimMyUsernameApiV1UsersMeUsernamePatch = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
+export const useClaimMyUsername = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof claimMyUsernameApiV1UsersMeUsernamePatch>>,
+      Awaited<ReturnType<typeof claimMyUsername>>,
       TError,
-      ClaimMyUsernameApiV1UsersMeUsernamePatchMutationVariables,
+      ClaimMyUsernameMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof claimMyUsernameApiV1UsersMeUsernamePatch>>,
+  Awaited<ReturnType<typeof claimMyUsername>>,
   TError,
-  ClaimMyUsernameApiV1UsersMeUsernamePatchMutationVariables,
+  ClaimMyUsernameMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getClaimMyUsernameApiV1UsersMeUsernamePatchMutationOptions(options),
-    queryClient
-  );
+  return useMutation(getClaimMyUsernameMutationOptions(options), queryClient);
 };
 /**
  * Answer, once, whether this account is old enough for the open parts.
@@ -1407,14 +2570,14 @@ export const useClaimMyUsernameApiV1UsersMeUsernamePatch = <
  * an appeal to the same form.
  * @summary Confirm My Age
  */
-export const confirmMyAgeApiV1UsersMeAgeConfirmationPost = (
+export const confirmMyAge = (
   ageConfirmation: BodyType<AgeConfirmation>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<UserRead>(
     {
-      url: `/api/v1/users/me/age-confirmation`,
+      url: `/api/v1/me/age-confirmation`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
       data: ageConfirmation,
@@ -1424,27 +2587,26 @@ export const confirmMyAgeApiV1UsersMeAgeConfirmationPost = (
   );
 };
 
-export const getConfirmMyAgeApiV1UsersMeAgeConfirmationPostMutationKey = () =>
-  ["confirmMyAgeApiV1UsersMeAgeConfirmationPost"] as const;
+export const getConfirmMyAgeMutationKey = () => ["confirmMyAge"] as const;
 
-export const getConfirmMyAgeApiV1UsersMeAgeConfirmationPostMutationOptions = <
+export const getConfirmMyAgeMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof confirmMyAgeApiV1UsersMeAgeConfirmationPost>>,
+    Awaited<ReturnType<typeof confirmMyAge>>,
     TError,
-    ConfirmMyAgeApiV1UsersMeAgeConfirmationPostMutationVariables,
+    ConfirmMyAgeMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof confirmMyAgeApiV1UsersMeAgeConfirmationPost>>,
+  Awaited<ReturnType<typeof confirmMyAge>>,
   TError,
-  ConfirmMyAgeApiV1UsersMeAgeConfirmationPostMutationVariables,
+  ConfirmMyAgeMutationVariables,
   TContext
 > => {
-  const mutationKey = getConfirmMyAgeApiV1UsersMeAgeConfirmationPostMutationKey();
+  const mutationKey = getConfirmMyAgeMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1452,54 +2614,43 @@ export const getConfirmMyAgeApiV1UsersMeAgeConfirmationPostMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof confirmMyAgeApiV1UsersMeAgeConfirmationPost>>,
-    ConfirmMyAgeApiV1UsersMeAgeConfirmationPostMutationVariables
+    Awaited<ReturnType<typeof confirmMyAge>>,
+    ConfirmMyAgeMutationVariables
   > = (props) => {
     const { data } = props ?? {};
 
-    return confirmMyAgeApiV1UsersMeAgeConfirmationPost(data, requestOptions);
+    return confirmMyAge(data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type ConfirmMyAgeApiV1UsersMeAgeConfirmationPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof confirmMyAgeApiV1UsersMeAgeConfirmationPost>>
->;
-export type ConfirmMyAgeApiV1UsersMeAgeConfirmationPostMutationBody = BodyType<AgeConfirmation>;
-export type ConfirmMyAgeApiV1UsersMeAgeConfirmationPostMutationError =
-  ErrorType<HTTPValidationError>;
-export type ConfirmMyAgeApiV1UsersMeAgeConfirmationPostMutationVariables = {
-  data: BodyType<AgeConfirmation>;
-};
+export type ConfirmMyAgeMutationResult = NonNullable<Awaited<ReturnType<typeof confirmMyAge>>>;
+export type ConfirmMyAgeMutationBody = BodyType<AgeConfirmation>;
+export type ConfirmMyAgeMutationError = ErrorType<HTTPValidationError>;
+export type ConfirmMyAgeMutationVariables = { data: BodyType<AgeConfirmation> };
 
 /**
  * @summary Confirm My Age
  */
-export const useConfirmMyAgeApiV1UsersMeAgeConfirmationPost = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
+export const useConfirmMyAge = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof confirmMyAgeApiV1UsersMeAgeConfirmationPost>>,
+      Awaited<ReturnType<typeof confirmMyAge>>,
       TError,
-      ConfirmMyAgeApiV1UsersMeAgeConfirmationPostMutationVariables,
+      ConfirmMyAgeMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof confirmMyAgeApiV1UsersMeAgeConfirmationPost>>,
+  Awaited<ReturnType<typeof confirmMyAge>>,
   TError,
-  ConfirmMyAgeApiV1UsersMeAgeConfirmationPostMutationVariables,
+  ConfirmMyAgeMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getConfirmMyAgeApiV1UsersMeAgeConfirmationPostMutationOptions(options),
-    queryClient
-  );
+  return useMutation(getConfirmMyAgeMutationOptions(options), queryClient);
 };
 /**
  * Record what this account allows to be kept in a browser.
@@ -1514,14 +2665,14 @@ export const useConfirmMyAgeApiV1UsersMeAgeConfirmationPost = <
  * two browsers compare to tell whose answer is the later one.
  * @summary Set Cookie Consent
  */
-export const setCookieConsentApiV1UsersMeCookieConsentPut = (
+export const setCookieConsent = (
   cookieConsentUpdate: BodyType<CookieConsentUpdate>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<CookieConsentRead>(
     {
-      url: `/api/v1/users/me/cookie-consent`,
+      url: `/api/v1/me/cookie-consent`,
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       data: cookieConsentUpdate,
@@ -1531,27 +2682,26 @@ export const setCookieConsentApiV1UsersMeCookieConsentPut = (
   );
 };
 
-export const getSetCookieConsentApiV1UsersMeCookieConsentPutMutationKey = () =>
-  ["setCookieConsentApiV1UsersMeCookieConsentPut"] as const;
+export const getSetCookieConsentMutationKey = () => ["setCookieConsent"] as const;
 
-export const getSetCookieConsentApiV1UsersMeCookieConsentPutMutationOptions = <
+export const getSetCookieConsentMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof setCookieConsentApiV1UsersMeCookieConsentPut>>,
+    Awaited<ReturnType<typeof setCookieConsent>>,
     TError,
-    SetCookieConsentApiV1UsersMeCookieConsentPutMutationVariables,
+    SetCookieConsentMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof setCookieConsentApiV1UsersMeCookieConsentPut>>,
+  Awaited<ReturnType<typeof setCookieConsent>>,
   TError,
-  SetCookieConsentApiV1UsersMeCookieConsentPutMutationVariables,
+  SetCookieConsentMutationVariables,
   TContext
 > => {
-  const mutationKey = getSetCookieConsentApiV1UsersMeCookieConsentPutMutationKey();
+  const mutationKey = getSetCookieConsentMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1559,55 +2709,45 @@ export const getSetCookieConsentApiV1UsersMeCookieConsentPutMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof setCookieConsentApiV1UsersMeCookieConsentPut>>,
-    SetCookieConsentApiV1UsersMeCookieConsentPutMutationVariables
+    Awaited<ReturnType<typeof setCookieConsent>>,
+    SetCookieConsentMutationVariables
   > = (props) => {
     const { data } = props ?? {};
 
-    return setCookieConsentApiV1UsersMeCookieConsentPut(data, requestOptions);
+    return setCookieConsent(data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type SetCookieConsentApiV1UsersMeCookieConsentPutMutationResult = NonNullable<
-  Awaited<ReturnType<typeof setCookieConsentApiV1UsersMeCookieConsentPut>>
+export type SetCookieConsentMutationResult = NonNullable<
+  Awaited<ReturnType<typeof setCookieConsent>>
 >;
-export type SetCookieConsentApiV1UsersMeCookieConsentPutMutationBody =
-  BodyType<CookieConsentUpdate>;
-export type SetCookieConsentApiV1UsersMeCookieConsentPutMutationError =
-  ErrorType<HTTPValidationError>;
-export type SetCookieConsentApiV1UsersMeCookieConsentPutMutationVariables = {
-  data: BodyType<CookieConsentUpdate>;
-};
+export type SetCookieConsentMutationBody = BodyType<CookieConsentUpdate>;
+export type SetCookieConsentMutationError = ErrorType<HTTPValidationError>;
+export type SetCookieConsentMutationVariables = { data: BodyType<CookieConsentUpdate> };
 
 /**
  * @summary Set Cookie Consent
  */
-export const useSetCookieConsentApiV1UsersMeCookieConsentPut = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
+export const useSetCookieConsent = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof setCookieConsentApiV1UsersMeCookieConsentPut>>,
+      Awaited<ReturnType<typeof setCookieConsent>>,
       TError,
-      SetCookieConsentApiV1UsersMeCookieConsentPutMutationVariables,
+      SetCookieConsentMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof setCookieConsentApiV1UsersMeCookieConsentPut>>,
+  Awaited<ReturnType<typeof setCookieConsent>>,
   TError,
-  SetCookieConsentApiV1UsersMeCookieConsentPutMutationVariables,
+  SetCookieConsentMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getSetCookieConsentApiV1UsersMeCookieConsentPutMutationOptions(options),
-    queryClient
-  );
+  return useMutation(getSetCookieConsentMutationOptions(options), queryClient);
 };
 /**
  * Agree to this deployment's terms and privacy policy.
@@ -1625,37 +2765,36 @@ export const useSetCookieConsentApiV1UsersMeCookieConsentPut = <
  * answers 404 rather than writing an empty record.
  * @summary Accept Legal Documents
  */
-export const acceptLegalDocumentsApiV1UsersMeLegalAcceptancePost = (
+export const acceptLegalDocuments = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<UserRead>(
-    { url: `/api/v1/users/me/legal-acceptance`, method: "POST", signal },
+    { url: `/api/v1/me/legal-acceptance`, method: "POST", signal },
     options
   );
 };
 
-export const getAcceptLegalDocumentsApiV1UsersMeLegalAcceptancePostMutationKey = () =>
-  ["acceptLegalDocumentsApiV1UsersMeLegalAcceptancePost"] as const;
+export const getAcceptLegalDocumentsMutationKey = () => ["acceptLegalDocuments"] as const;
 
-export const getAcceptLegalDocumentsApiV1UsersMeLegalAcceptancePostMutationOptions = <
+export const getAcceptLegalDocumentsMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof acceptLegalDocumentsApiV1UsersMeLegalAcceptancePost>>,
+    Awaited<ReturnType<typeof acceptLegalDocuments>>,
     TError,
     void,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof acceptLegalDocumentsApiV1UsersMeLegalAcceptancePost>>,
+  Awaited<ReturnType<typeof acceptLegalDocuments>>,
   TError,
   void,
   TContext
 > => {
-  const mutationKey = getAcceptLegalDocumentsApiV1UsersMeLegalAcceptancePostMutationKey();
+  const mutationKey = getAcceptLegalDocumentsMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1663,32 +2802,31 @@ export const getAcceptLegalDocumentsApiV1UsersMeLegalAcceptancePostMutationOptio
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof acceptLegalDocumentsApiV1UsersMeLegalAcceptancePost>>,
+    Awaited<ReturnType<typeof acceptLegalDocuments>>,
     void
   > = () => {
-    return acceptLegalDocumentsApiV1UsersMeLegalAcceptancePost(requestOptions);
+    return acceptLegalDocuments(requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type AcceptLegalDocumentsApiV1UsersMeLegalAcceptancePostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof acceptLegalDocumentsApiV1UsersMeLegalAcceptancePost>>
+export type AcceptLegalDocumentsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof acceptLegalDocuments>>
 >;
 
-export type AcceptLegalDocumentsApiV1UsersMeLegalAcceptancePostMutationError =
-  ErrorType<HTTPValidationError>;
+export type AcceptLegalDocumentsMutationError = ErrorType<HTTPValidationError>;
 
 /**
  * @summary Accept Legal Documents
  */
-export const useAcceptLegalDocumentsApiV1UsersMeLegalAcceptancePost = <
+export const useAcceptLegalDocuments = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof acceptLegalDocumentsApiV1UsersMeLegalAcceptancePost>>,
+      Awaited<ReturnType<typeof acceptLegalDocuments>>,
       TError,
       void,
       TContext
@@ -1696,16 +2834,8 @@ export const useAcceptLegalDocumentsApiV1UsersMeLegalAcceptancePost = <
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof acceptLegalDocumentsApiV1UsersMeLegalAcceptancePost>>,
-  TError,
-  void,
-  TContext
-> => {
-  return useMutation(
-    getAcceptLegalDocumentsApiV1UsersMeLegalAcceptancePostMutationOptions(options),
-    queryClient
-  );
+): UseMutationResult<Awaited<ReturnType<typeof acceptLegalDocuments>>, TError, void, TContext> => {
+  return useMutation(getAcceptLegalDocumentsMutationOptions(options), queryClient);
 };
 /**
  * Every address this account holds.
@@ -1714,66 +2844,55 @@ export const useAcceptLegalDocumentsApiV1UsersMeLegalAcceptancePost = <
  * because resolving an address happens before anybody is authenticated.
  * @summary List My Addresses
  */
-export const listMyAddressesApiV1UsersMeEmailsGet = (
+export const listMyAddresses = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<UserEmailListResponse>(
-    { url: `/api/v1/users/me/emails`, method: "GET", signal },
+    { url: `/api/v1/me/emails`, method: "GET", signal },
     options
   );
 };
 
-export const getListMyAddressesApiV1UsersMeEmailsGetQueryKey = () => {
-  return [`/api/v1/users/me/emails`] as const;
+export const getListMyAddressesQueryKey = () => {
+  return [`/api/v1/me/emails`] as const;
 };
 
-export const getListMyAddressesApiV1UsersMeEmailsGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof listMyAddressesApiV1UsersMeEmailsGet>>,
+export const getListMyAddressesQueryOptions = <
+  TData = Awaited<ReturnType<typeof listMyAddresses>>,
   TError = ErrorType<HTTPValidationError>,
 >(options?: {
-  query?: Partial<
-    UseQueryOptions<Awaited<ReturnType<typeof listMyAddressesApiV1UsersMeEmailsGet>>, TError, TData>
-  >;
+  query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyAddresses>>, TError, TData>>;
   request?: SecondParameter<typeof apiMutator>;
 }) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey = queryOptions?.queryKey ?? getListMyAddressesApiV1UsersMeEmailsGetQueryKey();
+  const queryKey = queryOptions?.queryKey ?? getListMyAddressesQueryKey();
 
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof listMyAddressesApiV1UsersMeEmailsGet>>
-  > = ({ signal }) => listMyAddressesApiV1UsersMeEmailsGet(requestOptions, signal);
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listMyAddresses>>> = ({ signal }) =>
+    listMyAddresses(requestOptions, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof listMyAddressesApiV1UsersMeEmailsGet>>,
+    Awaited<ReturnType<typeof listMyAddresses>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ListMyAddressesApiV1UsersMeEmailsGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof listMyAddressesApiV1UsersMeEmailsGet>>
->;
-export type ListMyAddressesApiV1UsersMeEmailsGetQueryError = ErrorType<HTTPValidationError>;
+export type ListMyAddressesQueryResult = NonNullable<Awaited<ReturnType<typeof listMyAddresses>>>;
+export type ListMyAddressesQueryError = ErrorType<HTTPValidationError>;
 
-export function useListMyAddressesApiV1UsersMeEmailsGet<
-  TData = Awaited<ReturnType<typeof listMyAddressesApiV1UsersMeEmailsGet>>,
+export function useListMyAddresses<
+  TData = Awaited<ReturnType<typeof listMyAddresses>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options: {
-    query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listMyAddressesApiV1UsersMeEmailsGet>>,
-        TError,
-        TData
-      >
-    > &
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyAddresses>>, TError, TData>> &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listMyAddressesApiV1UsersMeEmailsGet>>,
+          Awaited<ReturnType<typeof listMyAddresses>>,
           TError,
-          Awaited<ReturnType<typeof listMyAddressesApiV1UsersMeEmailsGet>>
+          Awaited<ReturnType<typeof listMyAddresses>>
         >,
         "initialData"
       >;
@@ -1781,23 +2900,17 @@ export function useListMyAddressesApiV1UsersMeEmailsGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListMyAddressesApiV1UsersMeEmailsGet<
-  TData = Awaited<ReturnType<typeof listMyAddressesApiV1UsersMeEmailsGet>>,
+export function useListMyAddresses<
+  TData = Awaited<ReturnType<typeof listMyAddresses>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listMyAddressesApiV1UsersMeEmailsGet>>,
-        TError,
-        TData
-      >
-    > &
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyAddresses>>, TError, TData>> &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listMyAddressesApiV1UsersMeEmailsGet>>,
+          Awaited<ReturnType<typeof listMyAddresses>>,
           TError,
-          Awaited<ReturnType<typeof listMyAddressesApiV1UsersMeEmailsGet>>
+          Awaited<ReturnType<typeof listMyAddresses>>
         >,
         "initialData"
       >;
@@ -1805,18 +2918,12 @@ export function useListMyAddressesApiV1UsersMeEmailsGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListMyAddressesApiV1UsersMeEmailsGet<
-  TData = Awaited<ReturnType<typeof listMyAddressesApiV1UsersMeEmailsGet>>,
+export function useListMyAddresses<
+  TData = Awaited<ReturnType<typeof listMyAddresses>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listMyAddressesApiV1UsersMeEmailsGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyAddresses>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
@@ -1825,23 +2932,17 @@ export function useListMyAddressesApiV1UsersMeEmailsGet<
  * @summary List My Addresses
  */
 
-export function useListMyAddressesApiV1UsersMeEmailsGet<
-  TData = Awaited<ReturnType<typeof listMyAddressesApiV1UsersMeEmailsGet>>,
+export function useListMyAddresses<
+  TData = Awaited<ReturnType<typeof listMyAddresses>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listMyAddressesApiV1UsersMeEmailsGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyAddresses>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListMyAddressesApiV1UsersMeEmailsGetQueryOptions(options);
+  const queryOptions = getListMyAddressesQueryOptions(options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -1853,19 +2954,22 @@ export function useListMyAddressesApiV1UsersMeEmailsGet<
 /**
  * Start holding another address, and write to it to prove it.
  *
+ * The password is asked for first, where there is one, and a recent sign-in
+ * otherwise, as for every change to how the account is signed into.
+ *
  * The answer is the same whoever holds the address already. What differs is
  * where the mail goes: a free address gets a link to confirm it, and one that
  * is taken gets nothing.
  * @summary Add My Address
  */
-export const addMyAddressApiV1UsersMeEmailsPost = (
+export const addMyAddress = (
   userEmailCreate: BodyType<UserEmailCreate>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<VerificationSendResponse>(
     {
-      url: `/api/v1/users/me/emails`,
+      url: `/api/v1/me/emails`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
       data: userEmailCreate,
@@ -1875,27 +2979,26 @@ export const addMyAddressApiV1UsersMeEmailsPost = (
   );
 };
 
-export const getAddMyAddressApiV1UsersMeEmailsPostMutationKey = () =>
-  ["addMyAddressApiV1UsersMeEmailsPost"] as const;
+export const getAddMyAddressMutationKey = () => ["addMyAddress"] as const;
 
-export const getAddMyAddressApiV1UsersMeEmailsPostMutationOptions = <
+export const getAddMyAddressMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof addMyAddressApiV1UsersMeEmailsPost>>,
+    Awaited<ReturnType<typeof addMyAddress>>,
     TError,
-    AddMyAddressApiV1UsersMeEmailsPostMutationVariables,
+    AddMyAddressMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof addMyAddressApiV1UsersMeEmailsPost>>,
+  Awaited<ReturnType<typeof addMyAddress>>,
   TError,
-  AddMyAddressApiV1UsersMeEmailsPostMutationVariables,
+  AddMyAddressMutationVariables,
   TContext
 > => {
-  const mutationKey = getAddMyAddressApiV1UsersMeEmailsPostMutationKey();
+  const mutationKey = getAddMyAddressMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1903,86 +3006,88 @@ export const getAddMyAddressApiV1UsersMeEmailsPostMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof addMyAddressApiV1UsersMeEmailsPost>>,
-    AddMyAddressApiV1UsersMeEmailsPostMutationVariables
+    Awaited<ReturnType<typeof addMyAddress>>,
+    AddMyAddressMutationVariables
   > = (props) => {
     const { data } = props ?? {};
 
-    return addMyAddressApiV1UsersMeEmailsPost(data, requestOptions);
+    return addMyAddress(data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type AddMyAddressApiV1UsersMeEmailsPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof addMyAddressApiV1UsersMeEmailsPost>>
->;
-export type AddMyAddressApiV1UsersMeEmailsPostMutationBody = BodyType<UserEmailCreate>;
-export type AddMyAddressApiV1UsersMeEmailsPostMutationError = ErrorType<HTTPValidationError>;
-export type AddMyAddressApiV1UsersMeEmailsPostMutationVariables = {
-  data: BodyType<UserEmailCreate>;
-};
+export type AddMyAddressMutationResult = NonNullable<Awaited<ReturnType<typeof addMyAddress>>>;
+export type AddMyAddressMutationBody = BodyType<UserEmailCreate>;
+export type AddMyAddressMutationError = ErrorType<HTTPValidationError>;
+export type AddMyAddressMutationVariables = { data: BodyType<UserEmailCreate> };
 
 /**
  * @summary Add My Address
  */
-export const useAddMyAddressApiV1UsersMeEmailsPost = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
+export const useAddMyAddress = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof addMyAddressApiV1UsersMeEmailsPost>>,
+      Awaited<ReturnType<typeof addMyAddress>>,
       TError,
-      AddMyAddressApiV1UsersMeEmailsPostMutationVariables,
+      AddMyAddressMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof addMyAddressApiV1UsersMeEmailsPost>>,
+  Awaited<ReturnType<typeof addMyAddress>>,
   TError,
-  AddMyAddressApiV1UsersMeEmailsPostMutationVariables,
+  AddMyAddressMutationVariables,
   TContext
 > => {
-  return useMutation(getAddMyAddressApiV1UsersMeEmailsPostMutationOptions(options), queryClient);
+  return useMutation(getAddMyAddressMutationOptions(options), queryClient);
 };
 /**
+ * Stop holding one address. The password is asked for again, as it is for
+ * a password change. A proved address removed from somewhere the account
+ * does not yet know waits two days (``202``).
  * @summary Remove My Address
  */
-export const removeMyAddressApiV1UsersMeEmailsAddressIdDelete = (
+export const removeMyAddress = (
   addressId: number,
+  userEmailChange: BodyType<UserEmailChange>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<void>(
-    { url: `/api/v1/users/me/emails/${addressId}`, method: "DELETE", signal },
+  return apiMutator<HeldChangeOutcome>(
+    {
+      url: `/api/v1/me/emails/${addressId}/remove`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: userEmailChange,
+      signal,
+    },
     options
   );
 };
 
-export const getRemoveMyAddressApiV1UsersMeEmailsAddressIdDeleteMutationKey = () =>
-  ["removeMyAddressApiV1UsersMeEmailsAddressIdDelete"] as const;
+export const getRemoveMyAddressMutationKey = () => ["removeMyAddress"] as const;
 
-export const getRemoveMyAddressApiV1UsersMeEmailsAddressIdDeleteMutationOptions = <
+export const getRemoveMyAddressMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof removeMyAddressApiV1UsersMeEmailsAddressIdDelete>>,
+    Awaited<ReturnType<typeof removeMyAddress>>,
     TError,
-    RemoveMyAddressApiV1UsersMeEmailsAddressIdDeleteMutationVariables,
+    RemoveMyAddressMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof removeMyAddressApiV1UsersMeEmailsAddressIdDelete>>,
+  Awaited<ReturnType<typeof removeMyAddress>>,
   TError,
-  RemoveMyAddressApiV1UsersMeEmailsAddressIdDeleteMutationVariables,
+  RemoveMyAddressMutationVariables,
   TContext
 > => {
-  const mutationKey = getRemoveMyAddressApiV1UsersMeEmailsAddressIdDeleteMutationKey();
+  const mutationKey = getRemoveMyAddressMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1990,91 +3095,94 @@ export const getRemoveMyAddressApiV1UsersMeEmailsAddressIdDeleteMutationOptions 
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof removeMyAddressApiV1UsersMeEmailsAddressIdDelete>>,
-    RemoveMyAddressApiV1UsersMeEmailsAddressIdDeleteMutationVariables
+    Awaited<ReturnType<typeof removeMyAddress>>,
+    RemoveMyAddressMutationVariables
   > = (props) => {
-    const { addressId } = props ?? {};
+    const { addressId, data } = props ?? {};
 
-    return removeMyAddressApiV1UsersMeEmailsAddressIdDelete(addressId, requestOptions);
+    return removeMyAddress(addressId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type RemoveMyAddressApiV1UsersMeEmailsAddressIdDeleteMutationResult = NonNullable<
-  Awaited<ReturnType<typeof removeMyAddressApiV1UsersMeEmailsAddressIdDelete>>
+export type RemoveMyAddressMutationResult = NonNullable<
+  Awaited<ReturnType<typeof removeMyAddress>>
 >;
-
-export type RemoveMyAddressApiV1UsersMeEmailsAddressIdDeleteMutationError =
-  ErrorType<HTTPValidationError>;
-export type RemoveMyAddressApiV1UsersMeEmailsAddressIdDeleteMutationVariables = {
+export type RemoveMyAddressMutationBody = BodyType<UserEmailChange>;
+export type RemoveMyAddressMutationError = ErrorType<HTTPValidationError>;
+export type RemoveMyAddressMutationVariables = {
   addressId: number;
+  data: BodyType<UserEmailChange>;
 };
 
 /**
  * @summary Remove My Address
  */
-export const useRemoveMyAddressApiV1UsersMeEmailsAddressIdDelete = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
+export const useRemoveMyAddress = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof removeMyAddressApiV1UsersMeEmailsAddressIdDelete>>,
+      Awaited<ReturnType<typeof removeMyAddress>>,
       TError,
-      RemoveMyAddressApiV1UsersMeEmailsAddressIdDeleteMutationVariables,
+      RemoveMyAddressMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof removeMyAddressApiV1UsersMeEmailsAddressIdDelete>>,
+  Awaited<ReturnType<typeof removeMyAddress>>,
   TError,
-  RemoveMyAddressApiV1UsersMeEmailsAddressIdDeleteMutationVariables,
+  RemoveMyAddressMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getRemoveMyAddressApiV1UsersMeEmailsAddressIdDeleteMutationOptions(options),
-    queryClient
-  );
+  return useMutation(getRemoveMyAddressMutationOptions(options), queryClient);
 };
 /**
- * Move where account mail goes.
+ * Move where account mail goes. The password is asked for again, and every
+ * address the account has proved is told, the one that was primary among
+ * them. Asked for from somewhere the account does not yet know, the move
+ * waits two days (``202``).
  * @summary Make My Address Primary
  */
-export const makeMyAddressPrimaryApiV1UsersMeEmailsAddressIdPrimaryPut = (
+export const makeMyAddressPrimary = (
   addressId: number,
+  userEmailChange: BodyType<UserEmailChange>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<UserEmailRead>(
-    { url: `/api/v1/users/me/emails/${addressId}/primary`, method: "PUT", signal },
+  return apiMutator<UserEmailRead | HeldChangeRead>(
+    {
+      url: `/api/v1/me/emails/${addressId}/primary`,
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      data: userEmailChange,
+      signal,
+    },
     options
   );
 };
 
-export const getMakeMyAddressPrimaryApiV1UsersMeEmailsAddressIdPrimaryPutMutationKey = () =>
-  ["makeMyAddressPrimaryApiV1UsersMeEmailsAddressIdPrimaryPut"] as const;
+export const getMakeMyAddressPrimaryMutationKey = () => ["makeMyAddressPrimary"] as const;
 
-export const getMakeMyAddressPrimaryApiV1UsersMeEmailsAddressIdPrimaryPutMutationOptions = <
+export const getMakeMyAddressPrimaryMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof makeMyAddressPrimaryApiV1UsersMeEmailsAddressIdPrimaryPut>>,
+    Awaited<ReturnType<typeof makeMyAddressPrimary>>,
     TError,
-    MakeMyAddressPrimaryApiV1UsersMeEmailsAddressIdPrimaryPutMutationVariables,
+    MakeMyAddressPrimaryMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof makeMyAddressPrimaryApiV1UsersMeEmailsAddressIdPrimaryPut>>,
+  Awaited<ReturnType<typeof makeMyAddressPrimary>>,
   TError,
-  MakeMyAddressPrimaryApiV1UsersMeEmailsAddressIdPrimaryPutMutationVariables,
+  MakeMyAddressPrimaryMutationVariables,
   TContext
 > => {
-  const mutationKey = getMakeMyAddressPrimaryApiV1UsersMeEmailsAddressIdPrimaryPutMutationKey();
+  const mutationKey = getMakeMyAddressPrimaryMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -2082,127 +3190,112 @@ export const getMakeMyAddressPrimaryApiV1UsersMeEmailsAddressIdPrimaryPutMutatio
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof makeMyAddressPrimaryApiV1UsersMeEmailsAddressIdPrimaryPut>>,
-    MakeMyAddressPrimaryApiV1UsersMeEmailsAddressIdPrimaryPutMutationVariables
+    Awaited<ReturnType<typeof makeMyAddressPrimary>>,
+    MakeMyAddressPrimaryMutationVariables
   > = (props) => {
-    const { addressId } = props ?? {};
+    const { addressId, data } = props ?? {};
 
-    return makeMyAddressPrimaryApiV1UsersMeEmailsAddressIdPrimaryPut(addressId, requestOptions);
+    return makeMyAddressPrimary(addressId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type MakeMyAddressPrimaryApiV1UsersMeEmailsAddressIdPrimaryPutMutationResult = NonNullable<
-  Awaited<ReturnType<typeof makeMyAddressPrimaryApiV1UsersMeEmailsAddressIdPrimaryPut>>
+export type MakeMyAddressPrimaryMutationResult = NonNullable<
+  Awaited<ReturnType<typeof makeMyAddressPrimary>>
 >;
-
-export type MakeMyAddressPrimaryApiV1UsersMeEmailsAddressIdPrimaryPutMutationError =
-  ErrorType<HTTPValidationError>;
-export type MakeMyAddressPrimaryApiV1UsersMeEmailsAddressIdPrimaryPutMutationVariables = {
+export type MakeMyAddressPrimaryMutationBody = BodyType<UserEmailChange>;
+export type MakeMyAddressPrimaryMutationError = ErrorType<HTTPValidationError>;
+export type MakeMyAddressPrimaryMutationVariables = {
   addressId: number;
+  data: BodyType<UserEmailChange>;
 };
 
 /**
  * @summary Make My Address Primary
  */
-export const useMakeMyAddressPrimaryApiV1UsersMeEmailsAddressIdPrimaryPut = <
+export const useMakeMyAddressPrimary = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof makeMyAddressPrimaryApiV1UsersMeEmailsAddressIdPrimaryPut>>,
+      Awaited<ReturnType<typeof makeMyAddressPrimary>>,
       TError,
-      MakeMyAddressPrimaryApiV1UsersMeEmailsAddressIdPrimaryPutMutationVariables,
+      MakeMyAddressPrimaryMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof makeMyAddressPrimaryApiV1UsersMeEmailsAddressIdPrimaryPut>>,
+  Awaited<ReturnType<typeof makeMyAddressPrimary>>,
   TError,
-  MakeMyAddressPrimaryApiV1UsersMeEmailsAddressIdPrimaryPutMutationVariables,
+  MakeMyAddressPrimaryMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getMakeMyAddressPrimaryApiV1UsersMeEmailsAddressIdPrimaryPutMutationOptions(options),
-    queryClient
-  );
+  return useMutation(getMakeMyAddressPrimaryMutationOptions(options), queryClient);
 };
 /**
  * Check if the current user can be deleted and what blockers exist.
  * @summary Check Deletion Eligibility
  */
-export const checkDeletionEligibilityApiV1UsersMeDeletionEligibilityGet = (
+export const checkDeletionEligibility = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<DeletionEligibilityResponse>(
-    { url: `/api/v1/users/me/deletion-eligibility`, method: "GET", signal },
+    { url: `/api/v1/me/deletion-eligibility`, method: "GET", signal },
     options
   );
 };
 
-export const getCheckDeletionEligibilityApiV1UsersMeDeletionEligibilityGetQueryKey = () => {
-  return [`/api/v1/users/me/deletion-eligibility`] as const;
+export const getCheckDeletionEligibilityQueryKey = () => {
+  return [`/api/v1/me/deletion-eligibility`] as const;
 };
 
-export const getCheckDeletionEligibilityApiV1UsersMeDeletionEligibilityGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof checkDeletionEligibilityApiV1UsersMeDeletionEligibilityGet>>,
+export const getCheckDeletionEligibilityQueryOptions = <
+  TData = Awaited<ReturnType<typeof checkDeletionEligibility>>,
   TError = ErrorType<HTTPValidationError>,
 >(options?: {
   query?: Partial<
-    UseQueryOptions<
-      Awaited<ReturnType<typeof checkDeletionEligibilityApiV1UsersMeDeletionEligibilityGet>>,
-      TError,
-      TData
-    >
+    UseQueryOptions<Awaited<ReturnType<typeof checkDeletionEligibility>>, TError, TData>
   >;
   request?: SecondParameter<typeof apiMutator>;
 }) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey =
-    queryOptions?.queryKey ??
-    getCheckDeletionEligibilityApiV1UsersMeDeletionEligibilityGetQueryKey();
+  const queryKey = queryOptions?.queryKey ?? getCheckDeletionEligibilityQueryKey();
 
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof checkDeletionEligibilityApiV1UsersMeDeletionEligibilityGet>>
-  > = ({ signal }) =>
-    checkDeletionEligibilityApiV1UsersMeDeletionEligibilityGet(requestOptions, signal);
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof checkDeletionEligibility>>> = ({
+    signal,
+  }) => checkDeletionEligibility(requestOptions, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof checkDeletionEligibilityApiV1UsersMeDeletionEligibilityGet>>,
+    Awaited<ReturnType<typeof checkDeletionEligibility>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type CheckDeletionEligibilityApiV1UsersMeDeletionEligibilityGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof checkDeletionEligibilityApiV1UsersMeDeletionEligibilityGet>>
+export type CheckDeletionEligibilityQueryResult = NonNullable<
+  Awaited<ReturnType<typeof checkDeletionEligibility>>
 >;
-export type CheckDeletionEligibilityApiV1UsersMeDeletionEligibilityGetQueryError =
-  ErrorType<HTTPValidationError>;
+export type CheckDeletionEligibilityQueryError = ErrorType<HTTPValidationError>;
 
-export function useCheckDeletionEligibilityApiV1UsersMeDeletionEligibilityGet<
-  TData = Awaited<ReturnType<typeof checkDeletionEligibilityApiV1UsersMeDeletionEligibilityGet>>,
+export function useCheckDeletionEligibility<
+  TData = Awaited<ReturnType<typeof checkDeletionEligibility>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options: {
     query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof checkDeletionEligibilityApiV1UsersMeDeletionEligibilityGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof checkDeletionEligibility>>, TError, TData>
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof checkDeletionEligibilityApiV1UsersMeDeletionEligibilityGet>>,
+          Awaited<ReturnType<typeof checkDeletionEligibility>>,
           TError,
-          Awaited<ReturnType<typeof checkDeletionEligibilityApiV1UsersMeDeletionEligibilityGet>>
+          Awaited<ReturnType<typeof checkDeletionEligibility>>
         >,
         "initialData"
       >;
@@ -2210,23 +3303,19 @@ export function useCheckDeletionEligibilityApiV1UsersMeDeletionEligibilityGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useCheckDeletionEligibilityApiV1UsersMeDeletionEligibilityGet<
-  TData = Awaited<ReturnType<typeof checkDeletionEligibilityApiV1UsersMeDeletionEligibilityGet>>,
+export function useCheckDeletionEligibility<
+  TData = Awaited<ReturnType<typeof checkDeletionEligibility>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof checkDeletionEligibilityApiV1UsersMeDeletionEligibilityGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof checkDeletionEligibility>>, TError, TData>
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof checkDeletionEligibilityApiV1UsersMeDeletionEligibilityGet>>,
+          Awaited<ReturnType<typeof checkDeletionEligibility>>,
           TError,
-          Awaited<ReturnType<typeof checkDeletionEligibilityApiV1UsersMeDeletionEligibilityGet>>
+          Awaited<ReturnType<typeof checkDeletionEligibility>>
         >,
         "initialData"
       >;
@@ -2234,17 +3323,13 @@ export function useCheckDeletionEligibilityApiV1UsersMeDeletionEligibilityGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useCheckDeletionEligibilityApiV1UsersMeDeletionEligibilityGet<
-  TData = Awaited<ReturnType<typeof checkDeletionEligibilityApiV1UsersMeDeletionEligibilityGet>>,
+export function useCheckDeletionEligibility<
+  TData = Awaited<ReturnType<typeof checkDeletionEligibility>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof checkDeletionEligibilityApiV1UsersMeDeletionEligibilityGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof checkDeletionEligibility>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
@@ -2254,24 +3339,19 @@ export function useCheckDeletionEligibilityApiV1UsersMeDeletionEligibilityGet<
  * @summary Check Deletion Eligibility
  */
 
-export function useCheckDeletionEligibilityApiV1UsersMeDeletionEligibilityGet<
-  TData = Awaited<ReturnType<typeof checkDeletionEligibilityApiV1UsersMeDeletionEligibilityGet>>,
+export function useCheckDeletionEligibility<
+  TData = Awaited<ReturnType<typeof checkDeletionEligibility>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof checkDeletionEligibilityApiV1UsersMeDeletionEligibilityGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof checkDeletionEligibility>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions =
-    getCheckDeletionEligibilityApiV1UsersMeDeletionEligibilityGetQueryOptions(options);
+  const queryOptions = getCheckDeletionEligibilityQueryOptions(options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -2284,14 +3364,14 @@ export function useCheckDeletionEligibilityApiV1UsersMeDeletionEligibilityGet<
  * Delete or deactivate the current user's account.
  * @summary Delete Own Account
  */
-export const deleteOwnAccountApiV1UsersMeDeleteAccountPost = (
+export const deleteOwnAccount = (
   accountDeletionRequest: BodyType<AccountDeletionRequest>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<AccountDeletionResponse>(
     {
-      url: `/api/v1/users/me/delete-account`,
+      url: `/api/v1/me/delete-account`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
       data: accountDeletionRequest,
@@ -2301,27 +3381,26 @@ export const deleteOwnAccountApiV1UsersMeDeleteAccountPost = (
   );
 };
 
-export const getDeleteOwnAccountApiV1UsersMeDeleteAccountPostMutationKey = () =>
-  ["deleteOwnAccountApiV1UsersMeDeleteAccountPost"] as const;
+export const getDeleteOwnAccountMutationKey = () => ["deleteOwnAccount"] as const;
 
-export const getDeleteOwnAccountApiV1UsersMeDeleteAccountPostMutationOptions = <
+export const getDeleteOwnAccountMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof deleteOwnAccountApiV1UsersMeDeleteAccountPost>>,
+    Awaited<ReturnType<typeof deleteOwnAccount>>,
     TError,
-    DeleteOwnAccountApiV1UsersMeDeleteAccountPostMutationVariables,
+    DeleteOwnAccountMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof deleteOwnAccountApiV1UsersMeDeleteAccountPost>>,
+  Awaited<ReturnType<typeof deleteOwnAccount>>,
   TError,
-  DeleteOwnAccountApiV1UsersMeDeleteAccountPostMutationVariables,
+  DeleteOwnAccountMutationVariables,
   TContext
 > => {
-  const mutationKey = getDeleteOwnAccountApiV1UsersMeDeleteAccountPostMutationKey();
+  const mutationKey = getDeleteOwnAccountMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -2329,120 +3408,99 @@ export const getDeleteOwnAccountApiV1UsersMeDeleteAccountPostMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof deleteOwnAccountApiV1UsersMeDeleteAccountPost>>,
-    DeleteOwnAccountApiV1UsersMeDeleteAccountPostMutationVariables
+    Awaited<ReturnType<typeof deleteOwnAccount>>,
+    DeleteOwnAccountMutationVariables
   > = (props) => {
     const { data } = props ?? {};
 
-    return deleteOwnAccountApiV1UsersMeDeleteAccountPost(data, requestOptions);
+    return deleteOwnAccount(data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type DeleteOwnAccountApiV1UsersMeDeleteAccountPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof deleteOwnAccountApiV1UsersMeDeleteAccountPost>>
+export type DeleteOwnAccountMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteOwnAccount>>
 >;
-export type DeleteOwnAccountApiV1UsersMeDeleteAccountPostMutationBody =
-  BodyType<AccountDeletionRequest>;
-export type DeleteOwnAccountApiV1UsersMeDeleteAccountPostMutationError =
-  ErrorType<HTTPValidationError>;
-export type DeleteOwnAccountApiV1UsersMeDeleteAccountPostMutationVariables = {
-  data: BodyType<AccountDeletionRequest>;
-};
+export type DeleteOwnAccountMutationBody = BodyType<AccountDeletionRequest>;
+export type DeleteOwnAccountMutationError = ErrorType<HTTPValidationError>;
+export type DeleteOwnAccountMutationVariables = { data: BodyType<AccountDeletionRequest> };
 
 /**
  * @summary Delete Own Account
  */
-export const useDeleteOwnAccountApiV1UsersMeDeleteAccountPost = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
+export const useDeleteOwnAccount = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof deleteOwnAccountApiV1UsersMeDeleteAccountPost>>,
+      Awaited<ReturnType<typeof deleteOwnAccount>>,
       TError,
-      DeleteOwnAccountApiV1UsersMeDeleteAccountPostMutationVariables,
+      DeleteOwnAccountMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof deleteOwnAccountApiV1UsersMeDeleteAccountPost>>,
+  Awaited<ReturnType<typeof deleteOwnAccount>>,
   TError,
-  DeleteOwnAccountApiV1UsersMeDeleteAccountPostMutationVariables,
+  DeleteOwnAccountMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getDeleteOwnAccountApiV1UsersMeDeleteAccountPostMutationOptions(options),
-    queryClient
-  );
+  return useMutation(getDeleteOwnAccountMutationOptions(options), queryClient);
 };
 /**
  * List all API keys for the current user.
  * @summary List My Api Keys
  */
-export const listMyApiKeysApiV1UsersMeApiKeysGet = (
+export const listMyApiKeys = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<ApiKeyListResponse>(
-    { url: `/api/v1/users/me/api-keys`, method: "GET", signal },
+    { url: `/api/v1/me/api-keys`, method: "GET", signal },
     options
   );
 };
 
-export const getListMyApiKeysApiV1UsersMeApiKeysGetQueryKey = () => {
-  return [`/api/v1/users/me/api-keys`] as const;
+export const getListMyApiKeysQueryKey = () => {
+  return [`/api/v1/me/api-keys`] as const;
 };
 
-export const getListMyApiKeysApiV1UsersMeApiKeysGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof listMyApiKeysApiV1UsersMeApiKeysGet>>,
+export const getListMyApiKeysQueryOptions = <
+  TData = Awaited<ReturnType<typeof listMyApiKeys>>,
   TError = ErrorType<HTTPValidationError>,
 >(options?: {
-  query?: Partial<
-    UseQueryOptions<Awaited<ReturnType<typeof listMyApiKeysApiV1UsersMeApiKeysGet>>, TError, TData>
-  >;
+  query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyApiKeys>>, TError, TData>>;
   request?: SecondParameter<typeof apiMutator>;
 }) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey = queryOptions?.queryKey ?? getListMyApiKeysApiV1UsersMeApiKeysGetQueryKey();
+  const queryKey = queryOptions?.queryKey ?? getListMyApiKeysQueryKey();
 
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof listMyApiKeysApiV1UsersMeApiKeysGet>>> = ({
-    signal,
-  }) => listMyApiKeysApiV1UsersMeApiKeysGet(requestOptions, signal);
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listMyApiKeys>>> = ({ signal }) =>
+    listMyApiKeys(requestOptions, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof listMyApiKeysApiV1UsersMeApiKeysGet>>,
+    Awaited<ReturnType<typeof listMyApiKeys>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ListMyApiKeysApiV1UsersMeApiKeysGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof listMyApiKeysApiV1UsersMeApiKeysGet>>
->;
-export type ListMyApiKeysApiV1UsersMeApiKeysGetQueryError = ErrorType<HTTPValidationError>;
+export type ListMyApiKeysQueryResult = NonNullable<Awaited<ReturnType<typeof listMyApiKeys>>>;
+export type ListMyApiKeysQueryError = ErrorType<HTTPValidationError>;
 
-export function useListMyApiKeysApiV1UsersMeApiKeysGet<
-  TData = Awaited<ReturnType<typeof listMyApiKeysApiV1UsersMeApiKeysGet>>,
+export function useListMyApiKeys<
+  TData = Awaited<ReturnType<typeof listMyApiKeys>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options: {
-    query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listMyApiKeysApiV1UsersMeApiKeysGet>>,
-        TError,
-        TData
-      >
-    > &
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyApiKeys>>, TError, TData>> &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listMyApiKeysApiV1UsersMeApiKeysGet>>,
+          Awaited<ReturnType<typeof listMyApiKeys>>,
           TError,
-          Awaited<ReturnType<typeof listMyApiKeysApiV1UsersMeApiKeysGet>>
+          Awaited<ReturnType<typeof listMyApiKeys>>
         >,
         "initialData"
       >;
@@ -2450,23 +3508,17 @@ export function useListMyApiKeysApiV1UsersMeApiKeysGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListMyApiKeysApiV1UsersMeApiKeysGet<
-  TData = Awaited<ReturnType<typeof listMyApiKeysApiV1UsersMeApiKeysGet>>,
+export function useListMyApiKeys<
+  TData = Awaited<ReturnType<typeof listMyApiKeys>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listMyApiKeysApiV1UsersMeApiKeysGet>>,
-        TError,
-        TData
-      >
-    > &
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyApiKeys>>, TError, TData>> &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listMyApiKeysApiV1UsersMeApiKeysGet>>,
+          Awaited<ReturnType<typeof listMyApiKeys>>,
           TError,
-          Awaited<ReturnType<typeof listMyApiKeysApiV1UsersMeApiKeysGet>>
+          Awaited<ReturnType<typeof listMyApiKeys>>
         >,
         "initialData"
       >;
@@ -2474,18 +3526,12 @@ export function useListMyApiKeysApiV1UsersMeApiKeysGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListMyApiKeysApiV1UsersMeApiKeysGet<
-  TData = Awaited<ReturnType<typeof listMyApiKeysApiV1UsersMeApiKeysGet>>,
+export function useListMyApiKeys<
+  TData = Awaited<ReturnType<typeof listMyApiKeys>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listMyApiKeysApiV1UsersMeApiKeysGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyApiKeys>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
@@ -2494,23 +3540,17 @@ export function useListMyApiKeysApiV1UsersMeApiKeysGet<
  * @summary List My Api Keys
  */
 
-export function useListMyApiKeysApiV1UsersMeApiKeysGet<
-  TData = Awaited<ReturnType<typeof listMyApiKeysApiV1UsersMeApiKeysGet>>,
+export function useListMyApiKeys<
+  TData = Awaited<ReturnType<typeof listMyApiKeys>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listMyApiKeysApiV1UsersMeApiKeysGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyApiKeys>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListMyApiKeysApiV1UsersMeApiKeysGetQueryOptions(options);
+  const queryOptions = getListMyApiKeysQueryOptions(options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -2523,14 +3563,14 @@ export function useListMyApiKeysApiV1UsersMeApiKeysGet<
  * Create a new API key for the current user.
  * @summary Create My Api Key
  */
-export const createMyApiKeyApiV1UsersMeApiKeysPost = (
+export const createMyApiKey = (
   apiKeyCreateRequest: BodyType<ApiKeyCreateRequest>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<ApiKeyCreateResponse>(
     {
-      url: `/api/v1/users/me/api-keys`,
+      url: `/api/v1/me/api-keys`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
       data: apiKeyCreateRequest,
@@ -2540,27 +3580,26 @@ export const createMyApiKeyApiV1UsersMeApiKeysPost = (
   );
 };
 
-export const getCreateMyApiKeyApiV1UsersMeApiKeysPostMutationKey = () =>
-  ["createMyApiKeyApiV1UsersMeApiKeysPost"] as const;
+export const getCreateMyApiKeyMutationKey = () => ["createMyApiKey"] as const;
 
-export const getCreateMyApiKeyApiV1UsersMeApiKeysPostMutationOptions = <
+export const getCreateMyApiKeyMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof createMyApiKeyApiV1UsersMeApiKeysPost>>,
+    Awaited<ReturnType<typeof createMyApiKey>>,
     TError,
-    CreateMyApiKeyApiV1UsersMeApiKeysPostMutationVariables,
+    CreateMyApiKeyMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof createMyApiKeyApiV1UsersMeApiKeysPost>>,
+  Awaited<ReturnType<typeof createMyApiKey>>,
   TError,
-  CreateMyApiKeyApiV1UsersMeApiKeysPostMutationVariables,
+  CreateMyApiKeyMutationVariables,
   TContext
 > => {
-  const mutationKey = getCreateMyApiKeyApiV1UsersMeApiKeysPostMutationKey();
+  const mutationKey = getCreateMyApiKeyMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -2568,87 +3607,79 @@ export const getCreateMyApiKeyApiV1UsersMeApiKeysPostMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof createMyApiKeyApiV1UsersMeApiKeysPost>>,
-    CreateMyApiKeyApiV1UsersMeApiKeysPostMutationVariables
+    Awaited<ReturnType<typeof createMyApiKey>>,
+    CreateMyApiKeyMutationVariables
   > = (props) => {
     const { data } = props ?? {};
 
-    return createMyApiKeyApiV1UsersMeApiKeysPost(data, requestOptions);
+    return createMyApiKey(data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type CreateMyApiKeyApiV1UsersMeApiKeysPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof createMyApiKeyApiV1UsersMeApiKeysPost>>
->;
-export type CreateMyApiKeyApiV1UsersMeApiKeysPostMutationBody = BodyType<ApiKeyCreateRequest>;
-export type CreateMyApiKeyApiV1UsersMeApiKeysPostMutationError = ErrorType<HTTPValidationError>;
-export type CreateMyApiKeyApiV1UsersMeApiKeysPostMutationVariables = {
-  data: BodyType<ApiKeyCreateRequest>;
-};
+export type CreateMyApiKeyMutationResult = NonNullable<Awaited<ReturnType<typeof createMyApiKey>>>;
+export type CreateMyApiKeyMutationBody = BodyType<ApiKeyCreateRequest>;
+export type CreateMyApiKeyMutationError = ErrorType<HTTPValidationError>;
+export type CreateMyApiKeyMutationVariables = { data: BodyType<ApiKeyCreateRequest> };
 
 /**
  * @summary Create My Api Key
  */
-export const useCreateMyApiKeyApiV1UsersMeApiKeysPost = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
+export const useCreateMyApiKey = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof createMyApiKeyApiV1UsersMeApiKeysPost>>,
+      Awaited<ReturnType<typeof createMyApiKey>>,
       TError,
-      CreateMyApiKeyApiV1UsersMeApiKeysPostMutationVariables,
+      CreateMyApiKeyMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof createMyApiKeyApiV1UsersMeApiKeysPost>>,
+  Awaited<ReturnType<typeof createMyApiKey>>,
   TError,
-  CreateMyApiKeyApiV1UsersMeApiKeysPostMutationVariables,
+  CreateMyApiKeyMutationVariables,
   TContext
 > => {
-  return useMutation(getCreateMyApiKeyApiV1UsersMeApiKeysPostMutationOptions(options), queryClient);
+  return useMutation(getCreateMyApiKeyMutationOptions(options), queryClient);
 };
 /**
  * Delete an API key for the current user.
  * @summary Delete My Api Key
  */
-export const deleteMyApiKeyApiV1UsersMeApiKeysApiKeyIdDelete = (
+export const deleteMyApiKey = (
   apiKeyId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<void>(
-    { url: `/api/v1/users/me/api-keys/${apiKeyId}`, method: "DELETE", signal },
+    { url: `/api/v1/me/api-keys/${apiKeyId}`, method: "DELETE", signal },
     options
   );
 };
 
-export const getDeleteMyApiKeyApiV1UsersMeApiKeysApiKeyIdDeleteMutationKey = () =>
-  ["deleteMyApiKeyApiV1UsersMeApiKeysApiKeyIdDelete"] as const;
+export const getDeleteMyApiKeyMutationKey = () => ["deleteMyApiKey"] as const;
 
-export const getDeleteMyApiKeyApiV1UsersMeApiKeysApiKeyIdDeleteMutationOptions = <
+export const getDeleteMyApiKeyMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof deleteMyApiKeyApiV1UsersMeApiKeysApiKeyIdDelete>>,
+    Awaited<ReturnType<typeof deleteMyApiKey>>,
     TError,
-    DeleteMyApiKeyApiV1UsersMeApiKeysApiKeyIdDeleteMutationVariables,
+    DeleteMyApiKeyMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof deleteMyApiKeyApiV1UsersMeApiKeysApiKeyIdDelete>>,
+  Awaited<ReturnType<typeof deleteMyApiKey>>,
   TError,
-  DeleteMyApiKeyApiV1UsersMeApiKeysApiKeyIdDeleteMutationVariables,
+  DeleteMyApiKeyMutationVariables,
   TContext
 > => {
-  const mutationKey = getDeleteMyApiKeyApiV1UsersMeApiKeysApiKeyIdDeleteMutationKey();
+  const mutationKey = getDeleteMyApiKeyMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -2656,57 +3687,48 @@ export const getDeleteMyApiKeyApiV1UsersMeApiKeysApiKeyIdDeleteMutationOptions =
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof deleteMyApiKeyApiV1UsersMeApiKeysApiKeyIdDelete>>,
-    DeleteMyApiKeyApiV1UsersMeApiKeysApiKeyIdDeleteMutationVariables
+    Awaited<ReturnType<typeof deleteMyApiKey>>,
+    DeleteMyApiKeyMutationVariables
   > = (props) => {
     const { apiKeyId } = props ?? {};
 
-    return deleteMyApiKeyApiV1UsersMeApiKeysApiKeyIdDelete(apiKeyId, requestOptions);
+    return deleteMyApiKey(apiKeyId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type DeleteMyApiKeyApiV1UsersMeApiKeysApiKeyIdDeleteMutationResult = NonNullable<
-  Awaited<ReturnType<typeof deleteMyApiKeyApiV1UsersMeApiKeysApiKeyIdDelete>>
->;
+export type DeleteMyApiKeyMutationResult = NonNullable<Awaited<ReturnType<typeof deleteMyApiKey>>>;
 
-export type DeleteMyApiKeyApiV1UsersMeApiKeysApiKeyIdDeleteMutationError =
-  ErrorType<HTTPValidationError>;
-export type DeleteMyApiKeyApiV1UsersMeApiKeysApiKeyIdDeleteMutationVariables = { apiKeyId: number };
+export type DeleteMyApiKeyMutationError = ErrorType<HTTPValidationError>;
+export type DeleteMyApiKeyMutationVariables = { apiKeyId: number };
 
 /**
  * @summary Delete My Api Key
  */
-export const useDeleteMyApiKeyApiV1UsersMeApiKeysApiKeyIdDelete = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
+export const useDeleteMyApiKey = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof deleteMyApiKeyApiV1UsersMeApiKeysApiKeyIdDelete>>,
+      Awaited<ReturnType<typeof deleteMyApiKey>>,
       TError,
-      DeleteMyApiKeyApiV1UsersMeApiKeysApiKeyIdDeleteMutationVariables,
+      DeleteMyApiKeyMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof deleteMyApiKeyApiV1UsersMeApiKeysApiKeyIdDelete>>,
+  Awaited<ReturnType<typeof deleteMyApiKey>>,
   TError,
-  DeleteMyApiKeyApiV1UsersMeApiKeysApiKeyIdDeleteMutationVariables,
+  DeleteMyApiKeyMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getDeleteMyApiKeyApiV1UsersMeApiKeysApiKeyIdDeleteMutationOptions(options),
-    queryClient
-  );
+  return useMutation(getDeleteMyApiKeyMutationOptions(options), queryClient);
 };
 /**
  * Replace the caller's profile picture.
  *
- * Multipart rather than a base64 field on ``PATCH /users/me``: sending the
+ * Multipart rather than a base64 field on ``PATCH /me``: sending the
  * image inside JSON is the thing this endpoint exists to stop. The body is
  * read under the cap so an oversized upload is refused rather than buffered
  * whole, and the format and dimensions are read from the header — nothing
@@ -2716,17 +3738,15 @@ export const useDeleteMyApiKeyApiV1UsersMeApiKeysApiKeyIdDelete = <
  * to write their own avatar and no other.
  * @summary Upload My Avatar
  */
-export const uploadMyAvatarApiV1UsersMeAvatarPut = (
-  bodyUploadMyAvatarApiV1UsersMeAvatarPut: BodyType<BodyUploadMyAvatarApiV1UsersMeAvatarPut>,
+export const uploadMyAvatar = (
+  bodyUploadMyAvatar: BodyType<BodyUploadMyAvatar>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  const formData = new FormData();
-  formData.append(`file`, bodyUploadMyAvatarApiV1UsersMeAvatarPut.file);
-
+  const formData = toFormData(bodyUploadMyAvatar);
   return apiMutator<UserRead>(
     {
-      url: `/api/v1/users/me/avatar`,
+      url: `/api/v1/me/avatar`,
       method: "PUT",
       headers: { "Content-Type": "multipart/form-data" },
       data: formData,
@@ -2736,27 +3756,26 @@ export const uploadMyAvatarApiV1UsersMeAvatarPut = (
   );
 };
 
-export const getUploadMyAvatarApiV1UsersMeAvatarPutMutationKey = () =>
-  ["uploadMyAvatarApiV1UsersMeAvatarPut"] as const;
+export const getUploadMyAvatarMutationKey = () => ["uploadMyAvatar"] as const;
 
-export const getUploadMyAvatarApiV1UsersMeAvatarPutMutationOptions = <
+export const getUploadMyAvatarMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof uploadMyAvatarApiV1UsersMeAvatarPut>>,
+    Awaited<ReturnType<typeof uploadMyAvatar>>,
     TError,
-    UploadMyAvatarApiV1UsersMeAvatarPutMutationVariables,
+    UploadMyAvatarMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof uploadMyAvatarApiV1UsersMeAvatarPut>>,
+  Awaited<ReturnType<typeof uploadMyAvatar>>,
   TError,
-  UploadMyAvatarApiV1UsersMeAvatarPutMutationVariables,
+  UploadMyAvatarMutationVariables,
   TContext
 > => {
-  const mutationKey = getUploadMyAvatarApiV1UsersMeAvatarPutMutationKey();
+  const mutationKey = getUploadMyAvatarMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -2764,116 +3783,89 @@ export const getUploadMyAvatarApiV1UsersMeAvatarPutMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof uploadMyAvatarApiV1UsersMeAvatarPut>>,
-    UploadMyAvatarApiV1UsersMeAvatarPutMutationVariables
+    Awaited<ReturnType<typeof uploadMyAvatar>>,
+    UploadMyAvatarMutationVariables
   > = (props) => {
     const { data } = props ?? {};
 
-    return uploadMyAvatarApiV1UsersMeAvatarPut(data, requestOptions);
+    return uploadMyAvatar(data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type UploadMyAvatarApiV1UsersMeAvatarPutMutationResult = NonNullable<
-  Awaited<ReturnType<typeof uploadMyAvatarApiV1UsersMeAvatarPut>>
->;
-export type UploadMyAvatarApiV1UsersMeAvatarPutMutationBody =
-  BodyType<BodyUploadMyAvatarApiV1UsersMeAvatarPut>;
-export type UploadMyAvatarApiV1UsersMeAvatarPutMutationError = ErrorType<HTTPValidationError>;
-export type UploadMyAvatarApiV1UsersMeAvatarPutMutationVariables = {
-  data: BodyType<BodyUploadMyAvatarApiV1UsersMeAvatarPut>;
-};
+export type UploadMyAvatarMutationResult = NonNullable<Awaited<ReturnType<typeof uploadMyAvatar>>>;
+export type UploadMyAvatarMutationBody = BodyType<BodyUploadMyAvatar>;
+export type UploadMyAvatarMutationError = ErrorType<HTTPValidationError>;
+export type UploadMyAvatarMutationVariables = { data: BodyType<BodyUploadMyAvatar> };
 
 /**
  * @summary Upload My Avatar
  */
-export const useUploadMyAvatarApiV1UsersMeAvatarPut = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
+export const useUploadMyAvatar = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof uploadMyAvatarApiV1UsersMeAvatarPut>>,
+      Awaited<ReturnType<typeof uploadMyAvatar>>,
       TError,
-      UploadMyAvatarApiV1UsersMeAvatarPutMutationVariables,
+      UploadMyAvatarMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof uploadMyAvatarApiV1UsersMeAvatarPut>>,
+  Awaited<ReturnType<typeof uploadMyAvatar>>,
   TError,
-  UploadMyAvatarApiV1UsersMeAvatarPutMutationVariables,
+  UploadMyAvatarMutationVariables,
   TContext
 > => {
-  return useMutation(getUploadMyAvatarApiV1UsersMeAvatarPutMutationOptions(options), queryClient);
+  return useMutation(getUploadMyAvatarMutationOptions(options), queryClient);
 };
 /**
  * Remove the caller's profile picture.
  * @summary Delete My Avatar
  */
-export const deleteMyAvatarApiV1UsersMeAvatarDelete = (
+export const deleteMyAvatar = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<void>({ url: `/api/v1/users/me/avatar`, method: "DELETE", signal }, options);
+  return apiMutator<void>({ url: `/api/v1/me/avatar`, method: "DELETE", signal }, options);
 };
 
-export const getDeleteMyAvatarApiV1UsersMeAvatarDeleteMutationKey = () =>
-  ["deleteMyAvatarApiV1UsersMeAvatarDelete"] as const;
+export const getDeleteMyAvatarMutationKey = () => ["deleteMyAvatar"] as const;
 
-export const getDeleteMyAvatarApiV1UsersMeAvatarDeleteMutationOptions = <
+export const getDeleteMyAvatarMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof deleteMyAvatarApiV1UsersMeAvatarDelete>>,
-    TError,
-    void,
-    TContext
-  >;
+  mutation?: UseMutationOptions<Awaited<ReturnType<typeof deleteMyAvatar>>, TError, void, TContext>;
   request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof deleteMyAvatarApiV1UsersMeAvatarDelete>>,
-  TError,
-  void,
-  TContext
-> => {
-  const mutationKey = getDeleteMyAvatarApiV1UsersMeAvatarDeleteMutationKey();
+}): UseMutationOptions<Awaited<ReturnType<typeof deleteMyAvatar>>, TError, void, TContext> => {
+  const mutationKey = getDeleteMyAvatarMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
       : { ...options, mutation: { ...options.mutation, mutationKey } }
     : { mutation: { mutationKey }, request: undefined };
 
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof deleteMyAvatarApiV1UsersMeAvatarDelete>>,
-    void
-  > = () => {
-    return deleteMyAvatarApiV1UsersMeAvatarDelete(requestOptions);
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteMyAvatar>>, void> = () => {
+    return deleteMyAvatar(requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type DeleteMyAvatarApiV1UsersMeAvatarDeleteMutationResult = NonNullable<
-  Awaited<ReturnType<typeof deleteMyAvatarApiV1UsersMeAvatarDelete>>
->;
+export type DeleteMyAvatarMutationResult = NonNullable<Awaited<ReturnType<typeof deleteMyAvatar>>>;
 
-export type DeleteMyAvatarApiV1UsersMeAvatarDeleteMutationError = ErrorType<HTTPValidationError>;
+export type DeleteMyAvatarMutationError = ErrorType<HTTPValidationError>;
 
 /**
  * @summary Delete My Avatar
  */
-export const useDeleteMyAvatarApiV1UsersMeAvatarDelete = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
+export const useDeleteMyAvatar = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof deleteMyAvatarApiV1UsersMeAvatarDelete>>,
+      Awaited<ReturnType<typeof deleteMyAvatar>>,
       TError,
       void,
       TContext
@@ -2881,1085 +3873,62 @@ export const useDeleteMyAvatarApiV1UsersMeAvatarDelete = <
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof deleteMyAvatarApiV1UsersMeAvatarDelete>>,
-  TError,
-  void,
-  TContext
-> => {
-  return useMutation(
-    getDeleteMyAvatarApiV1UsersMeAvatarDeleteMutationOptions(options),
-    queryClient
-  );
+): UseMutationResult<Awaited<ReturnType<typeof deleteMyAvatar>>, TError, void, TContext> => {
+  return useMutation(getDeleteMyAvatarMutationOptions(options), queryClient);
 };
 /**
- * The community's roster, a page at a time.
- *
- * On the configuration session rather than the content one: who is in a
- * community is part of running it, which is what a settings grant reaches
- * and what an administrator keeps while its content is closed.
- *
- * Ordered like ``/search``: nearest first while searching, otherwise by name
- * where the guild shows names, then by handle.
- * @summary List Users
+ * The change this account has waiting, or nothing.
+ * @summary Read Held Change
  */
-export const listUsersApiV1CGuildIdUsersGet = (
-  guildId: number,
-  params?: ListUsersApiV1CGuildIdUsersGetParams,
+export const readHeldChange = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<UserGuildMemberListResponse>(
-    { url: `/api/v1/c/${guildId}/users/`, method: "GET", params, signal },
+  return apiMutator<HeldChangeRead | null>(
+    { url: `/api/v1/me/held-change`, method: "GET", signal },
     options
   );
 };
 
-export const getListUsersApiV1CGuildIdUsersGetQueryKey = (
-  guildId: number,
-  params?: ListUsersApiV1CGuildIdUsersGetParams
-) => {
-  return [`/api/v1/c/${guildId}/users/`, ...(params ? [params] : [])] as const;
+export const getReadHeldChangeQueryKey = () => {
+  return [`/api/v1/me/held-change`] as const;
 };
 
-export const getListUsersApiV1CGuildIdUsersGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof listUsersApiV1CGuildIdUsersGet>>,
+export const getReadHeldChangeQueryOptions = <
+  TData = Awaited<ReturnType<typeof readHeldChange>>,
   TError = ErrorType<HTTPValidationError>,
->(
-  guildId: number,
-  params?: ListUsersApiV1CGuildIdUsersGetParams,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listUsersApiV1CGuildIdUsersGet>>, TError, TData>
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  }
-) => {
-  const { query: queryOptions, request: requestOptions } = options ?? {};
-
-  const queryKey =
-    queryOptions?.queryKey ?? getListUsersApiV1CGuildIdUsersGetQueryKey(guildId, params);
-
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof listUsersApiV1CGuildIdUsersGet>>> = ({
-    signal,
-  }) => listUsersApiV1CGuildIdUsersGet(guildId, params, requestOptions, signal);
-
-  return {
-    queryKey,
-    queryFn,
-    enabled: guildId !== null && guildId !== undefined,
-    ...queryOptions,
-  } as UseQueryOptions<
-    Awaited<ReturnType<typeof listUsersApiV1CGuildIdUsersGet>>,
-    TError,
-    TData
-  > & { queryKey: DataTag<QueryKey, TData, TError> };
-};
-
-export type ListUsersApiV1CGuildIdUsersGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof listUsersApiV1CGuildIdUsersGet>>
->;
-export type ListUsersApiV1CGuildIdUsersGetQueryError = ErrorType<HTTPValidationError>;
-
-export function useListUsersApiV1CGuildIdUsersGet<
-  TData = Awaited<ReturnType<typeof listUsersApiV1CGuildIdUsersGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  guildId: number,
-  params: undefined | ListUsersApiV1CGuildIdUsersGetParams,
-  options: {
-    query: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listUsersApiV1CGuildIdUsersGet>>, TError, TData>
-    > &
-      Pick<
-        DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listUsersApiV1CGuildIdUsersGet>>,
-          TError,
-          Awaited<ReturnType<typeof listUsersApiV1CGuildIdUsersGet>>
-        >,
-        "initialData"
-      >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListUsersApiV1CGuildIdUsersGet<
-  TData = Awaited<ReturnType<typeof listUsersApiV1CGuildIdUsersGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  guildId: number,
-  params?: ListUsersApiV1CGuildIdUsersGetParams,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listUsersApiV1CGuildIdUsersGet>>, TError, TData>
-    > &
-      Pick<
-        UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listUsersApiV1CGuildIdUsersGet>>,
-          TError,
-          Awaited<ReturnType<typeof listUsersApiV1CGuildIdUsersGet>>
-        >,
-        "initialData"
-      >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListUsersApiV1CGuildIdUsersGet<
-  TData = Awaited<ReturnType<typeof listUsersApiV1CGuildIdUsersGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  guildId: number,
-  params?: ListUsersApiV1CGuildIdUsersGetParams,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listUsersApiV1CGuildIdUsersGet>>, TError, TData>
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-/**
- * @summary List Users
- */
-
-export function useListUsersApiV1CGuildIdUsersGet<
-  TData = Awaited<ReturnType<typeof listUsersApiV1CGuildIdUsersGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  guildId: number,
-  params?: ListUsersApiV1CGuildIdUsersGetParams,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listUsersApiV1CGuildIdUsersGet>>, TError, TData>
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListUsersApiV1CGuildIdUsersGetQueryOptions(guildId, params, options);
-
-  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
-    queryKey: DataTag<QueryKey, TData, TError>;
-  };
-
-  return withQueryKey(query, queryOptions.queryKey);
-}
-
-/**
- * Slim, searchable, paginated roster for typeahead/pickers.
- *
- * Same authorization as the full member list (``RLSSessionDep`` +
- * ``GuildContextDep``, membership re-validated per request): the params
- * are additive filters on an already-RLS-gated query, so they only ever
- * narrow the row set. Returns :class:`UserSummary` (no email, roles, or
- * ``initiative_roles`` enrichment) instead of the heavy ``UserGuildMember``.
- *
- * Pass ``user_id`` one or more times to resolve a known selection (a picker
- * rehydrating stored ids into names/avatars) rather than searching.
- *
- * An installed app (``members:read``) names members by its own references
- * and reads what :class:`AppMemberRead` carries: the reference, the handle,
- * the name where the guild shows names, and a picture hosted elsewhere.
- * @summary Search Users
- */
-export const searchUsersApiV1CGuildIdUsersSearchGet = (
-  guildId: number,
-  params?: SearchUsersApiV1CGuildIdUsersSearchGetParams,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<UserSummaryListResponse>(
-    { url: `/api/v1/c/${guildId}/users/search`, method: "GET", params, signal },
-    options
-  );
-};
-
-export const getSearchUsersApiV1CGuildIdUsersSearchGetQueryKey = (
-  guildId: number,
-  params?: SearchUsersApiV1CGuildIdUsersSearchGetParams
-) => {
-  return [`/api/v1/c/${guildId}/users/search`, ...(params ? [params] : [])] as const;
-};
-
-export const getSearchUsersApiV1CGuildIdUsersSearchGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof searchUsersApiV1CGuildIdUsersSearchGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  guildId: number,
-  params?: SearchUsersApiV1CGuildIdUsersSearchGetParams,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof searchUsersApiV1CGuildIdUsersSearchGet>>,
-        TError,
-        TData
-      >
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  }
-) => {
-  const { query: queryOptions, request: requestOptions } = options ?? {};
-
-  const queryKey =
-    queryOptions?.queryKey ?? getSearchUsersApiV1CGuildIdUsersSearchGetQueryKey(guildId, params);
-
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof searchUsersApiV1CGuildIdUsersSearchGet>>
-  > = ({ signal }) =>
-    searchUsersApiV1CGuildIdUsersSearchGet(guildId, params, requestOptions, signal);
-
-  return {
-    queryKey,
-    queryFn,
-    enabled: guildId !== null && guildId !== undefined,
-    ...queryOptions,
-  } as UseQueryOptions<
-    Awaited<ReturnType<typeof searchUsersApiV1CGuildIdUsersSearchGet>>,
-    TError,
-    TData
-  > & { queryKey: DataTag<QueryKey, TData, TError> };
-};
-
-export type SearchUsersApiV1CGuildIdUsersSearchGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof searchUsersApiV1CGuildIdUsersSearchGet>>
->;
-export type SearchUsersApiV1CGuildIdUsersSearchGetQueryError = ErrorType<HTTPValidationError>;
-
-export function useSearchUsersApiV1CGuildIdUsersSearchGet<
-  TData = Awaited<ReturnType<typeof searchUsersApiV1CGuildIdUsersSearchGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  guildId: number,
-  params: undefined | SearchUsersApiV1CGuildIdUsersSearchGetParams,
-  options: {
-    query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof searchUsersApiV1CGuildIdUsersSearchGet>>,
-        TError,
-        TData
-      >
-    > &
-      Pick<
-        DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof searchUsersApiV1CGuildIdUsersSearchGet>>,
-          TError,
-          Awaited<ReturnType<typeof searchUsersApiV1CGuildIdUsersSearchGet>>
-        >,
-        "initialData"
-      >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useSearchUsersApiV1CGuildIdUsersSearchGet<
-  TData = Awaited<ReturnType<typeof searchUsersApiV1CGuildIdUsersSearchGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  guildId: number,
-  params?: SearchUsersApiV1CGuildIdUsersSearchGetParams,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof searchUsersApiV1CGuildIdUsersSearchGet>>,
-        TError,
-        TData
-      >
-    > &
-      Pick<
-        UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof searchUsersApiV1CGuildIdUsersSearchGet>>,
-          TError,
-          Awaited<ReturnType<typeof searchUsersApiV1CGuildIdUsersSearchGet>>
-        >,
-        "initialData"
-      >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useSearchUsersApiV1CGuildIdUsersSearchGet<
-  TData = Awaited<ReturnType<typeof searchUsersApiV1CGuildIdUsersSearchGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  guildId: number,
-  params?: SearchUsersApiV1CGuildIdUsersSearchGetParams,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof searchUsersApiV1CGuildIdUsersSearchGet>>,
-        TError,
-        TData
-      >
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-/**
- * @summary Search Users
- */
-
-export function useSearchUsersApiV1CGuildIdUsersSearchGet<
-  TData = Awaited<ReturnType<typeof searchUsersApiV1CGuildIdUsersSearchGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  guildId: number,
-  params?: SearchUsersApiV1CGuildIdUsersSearchGetParams,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof searchUsersApiV1CGuildIdUsersSearchGet>>,
-        TError,
-        TData
-      >
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getSearchUsersApiV1CGuildIdUsersSearchGetQueryOptions(
-    guildId,
-    params,
-    options
-  );
-
-  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
-    queryKey: DataTag<QueryKey, TData, TError>;
-  };
-
-  return withQueryKey(query, queryOptions.queryKey);
-}
-
-/**
- * The people in this community, as the sidebar lists them.
- *
- * Grouped by presence (online, idle, busy, then everyone else) and
- * alphabetical within a group. ``presence_counts`` sizes each group across
- * every page.
- *
- * Nobody whose direct message policy is private is listed, the reader
- * included. Where the deployment offers no direct messages there is no policy
- * to keep, and everyone is listed.
- * @summary List Roster
- */
-export const listRosterApiV1CGuildIdUsersRosterGet = (
-  guildId: number,
-  params?: ListRosterApiV1CGuildIdUsersRosterGetParams,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<GuildRosterResponse>(
-    { url: `/api/v1/c/${guildId}/users/roster`, method: "GET", params, signal },
-    options
-  );
-};
-
-export const getListRosterApiV1CGuildIdUsersRosterGetQueryKey = (
-  guildId: number,
-  params?: ListRosterApiV1CGuildIdUsersRosterGetParams
-) => {
-  return [`/api/v1/c/${guildId}/users/roster`, ...(params ? [params] : [])] as const;
-};
-
-export const getListRosterApiV1CGuildIdUsersRosterGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof listRosterApiV1CGuildIdUsersRosterGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  guildId: number,
-  params?: ListRosterApiV1CGuildIdUsersRosterGetParams,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listRosterApiV1CGuildIdUsersRosterGet>>,
-        TError,
-        TData
-      >
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  }
-) => {
-  const { query: queryOptions, request: requestOptions } = options ?? {};
-
-  const queryKey =
-    queryOptions?.queryKey ?? getListRosterApiV1CGuildIdUsersRosterGetQueryKey(guildId, params);
-
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof listRosterApiV1CGuildIdUsersRosterGet>>
-  > = ({ signal }) =>
-    listRosterApiV1CGuildIdUsersRosterGet(guildId, params, requestOptions, signal);
-
-  return {
-    queryKey,
-    queryFn,
-    enabled: guildId !== null && guildId !== undefined,
-    ...queryOptions,
-  } as UseQueryOptions<
-    Awaited<ReturnType<typeof listRosterApiV1CGuildIdUsersRosterGet>>,
-    TError,
-    TData
-  > & { queryKey: DataTag<QueryKey, TData, TError> };
-};
-
-export type ListRosterApiV1CGuildIdUsersRosterGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof listRosterApiV1CGuildIdUsersRosterGet>>
->;
-export type ListRosterApiV1CGuildIdUsersRosterGetQueryError = ErrorType<HTTPValidationError>;
-
-export function useListRosterApiV1CGuildIdUsersRosterGet<
-  TData = Awaited<ReturnType<typeof listRosterApiV1CGuildIdUsersRosterGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  guildId: number,
-  params: undefined | ListRosterApiV1CGuildIdUsersRosterGetParams,
-  options: {
-    query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listRosterApiV1CGuildIdUsersRosterGet>>,
-        TError,
-        TData
-      >
-    > &
-      Pick<
-        DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listRosterApiV1CGuildIdUsersRosterGet>>,
-          TError,
-          Awaited<ReturnType<typeof listRosterApiV1CGuildIdUsersRosterGet>>
-        >,
-        "initialData"
-      >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListRosterApiV1CGuildIdUsersRosterGet<
-  TData = Awaited<ReturnType<typeof listRosterApiV1CGuildIdUsersRosterGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  guildId: number,
-  params?: ListRosterApiV1CGuildIdUsersRosterGetParams,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listRosterApiV1CGuildIdUsersRosterGet>>,
-        TError,
-        TData
-      >
-    > &
-      Pick<
-        UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listRosterApiV1CGuildIdUsersRosterGet>>,
-          TError,
-          Awaited<ReturnType<typeof listRosterApiV1CGuildIdUsersRosterGet>>
-        >,
-        "initialData"
-      >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListRosterApiV1CGuildIdUsersRosterGet<
-  TData = Awaited<ReturnType<typeof listRosterApiV1CGuildIdUsersRosterGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  guildId: number,
-  params?: ListRosterApiV1CGuildIdUsersRosterGetParams,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listRosterApiV1CGuildIdUsersRosterGet>>,
-        TError,
-        TData
-      >
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-/**
- * @summary List Roster
- */
-
-export function useListRosterApiV1CGuildIdUsersRosterGet<
-  TData = Awaited<ReturnType<typeof listRosterApiV1CGuildIdUsersRosterGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  guildId: number,
-  params?: ListRosterApiV1CGuildIdUsersRosterGetParams,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listRosterApiV1CGuildIdUsersRosterGet>>,
-        TError,
-        TData
-      >
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListRosterApiV1CGuildIdUsersRosterGetQueryOptions(
-    guildId,
-    params,
-    options
-  );
-
-  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
-    queryKey: DataTag<QueryKey, TData, TError>;
-  };
-
-  return withQueryKey(query, queryOptions.queryKey);
-}
-
-/**
- * Export guild members as a CSV file. Pass `user_id` one or more times to
- * restrict the export to a subset. Without `user_id`, all visible members are
- * included. Guild-admin only.
- * @summary Export Users Csv
- */
-export const exportUsersCsvApiV1CGuildIdUsersExportCsvGet = (
-  guildId: number,
-  params?: ExportUsersCsvApiV1CGuildIdUsersExportCsvGetParams,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<unknown>(
-    { url: `/api/v1/c/${guildId}/users/export.csv`, method: "GET", params, signal },
-    options
-  );
-};
-
-export const getExportUsersCsvApiV1CGuildIdUsersExportCsvGetQueryKey = (
-  guildId: number,
-  params?: ExportUsersCsvApiV1CGuildIdUsersExportCsvGetParams
-) => {
-  return [`/api/v1/c/${guildId}/users/export.csv`, ...(params ? [params] : [])] as const;
-};
-
-export const getExportUsersCsvApiV1CGuildIdUsersExportCsvGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof exportUsersCsvApiV1CGuildIdUsersExportCsvGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  guildId: number,
-  params?: ExportUsersCsvApiV1CGuildIdUsersExportCsvGetParams,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof exportUsersCsvApiV1CGuildIdUsersExportCsvGet>>,
-        TError,
-        TData
-      >
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  }
-) => {
-  const { query: queryOptions, request: requestOptions } = options ?? {};
-
-  const queryKey =
-    queryOptions?.queryKey ??
-    getExportUsersCsvApiV1CGuildIdUsersExportCsvGetQueryKey(guildId, params);
-
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof exportUsersCsvApiV1CGuildIdUsersExportCsvGet>>
-  > = ({ signal }) =>
-    exportUsersCsvApiV1CGuildIdUsersExportCsvGet(guildId, params, requestOptions, signal);
-
-  return {
-    queryKey,
-    queryFn,
-    enabled: guildId !== null && guildId !== undefined,
-    ...queryOptions,
-  } as UseQueryOptions<
-    Awaited<ReturnType<typeof exportUsersCsvApiV1CGuildIdUsersExportCsvGet>>,
-    TError,
-    TData
-  > & { queryKey: DataTag<QueryKey, TData, TError> };
-};
-
-export type ExportUsersCsvApiV1CGuildIdUsersExportCsvGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof exportUsersCsvApiV1CGuildIdUsersExportCsvGet>>
->;
-export type ExportUsersCsvApiV1CGuildIdUsersExportCsvGetQueryError = ErrorType<HTTPValidationError>;
-
-export function useExportUsersCsvApiV1CGuildIdUsersExportCsvGet<
-  TData = Awaited<ReturnType<typeof exportUsersCsvApiV1CGuildIdUsersExportCsvGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  guildId: number,
-  params: undefined | ExportUsersCsvApiV1CGuildIdUsersExportCsvGetParams,
-  options: {
-    query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof exportUsersCsvApiV1CGuildIdUsersExportCsvGet>>,
-        TError,
-        TData
-      >
-    > &
-      Pick<
-        DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof exportUsersCsvApiV1CGuildIdUsersExportCsvGet>>,
-          TError,
-          Awaited<ReturnType<typeof exportUsersCsvApiV1CGuildIdUsersExportCsvGet>>
-        >,
-        "initialData"
-      >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useExportUsersCsvApiV1CGuildIdUsersExportCsvGet<
-  TData = Awaited<ReturnType<typeof exportUsersCsvApiV1CGuildIdUsersExportCsvGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  guildId: number,
-  params?: ExportUsersCsvApiV1CGuildIdUsersExportCsvGetParams,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof exportUsersCsvApiV1CGuildIdUsersExportCsvGet>>,
-        TError,
-        TData
-      >
-    > &
-      Pick<
-        UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof exportUsersCsvApiV1CGuildIdUsersExportCsvGet>>,
-          TError,
-          Awaited<ReturnType<typeof exportUsersCsvApiV1CGuildIdUsersExportCsvGet>>
-        >,
-        "initialData"
-      >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useExportUsersCsvApiV1CGuildIdUsersExportCsvGet<
-  TData = Awaited<ReturnType<typeof exportUsersCsvApiV1CGuildIdUsersExportCsvGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  guildId: number,
-  params?: ExportUsersCsvApiV1CGuildIdUsersExportCsvGetParams,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof exportUsersCsvApiV1CGuildIdUsersExportCsvGet>>,
-        TError,
-        TData
-      >
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-/**
- * @summary Export Users Csv
- */
-
-export function useExportUsersCsvApiV1CGuildIdUsersExportCsvGet<
-  TData = Awaited<ReturnType<typeof exportUsersCsvApiV1CGuildIdUsersExportCsvGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  guildId: number,
-  params?: ExportUsersCsvApiV1CGuildIdUsersExportCsvGetParams,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof exportUsersCsvApiV1CGuildIdUsersExportCsvGet>>,
-        TError,
-        TData
-      >
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getExportUsersCsvApiV1CGuildIdUsersExportCsvGetQueryOptions(
-    guildId,
-    params,
-    options
-  );
-
-  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
-    queryKey: DataTag<QueryKey, TData, TError>;
-  };
-
-  return withQueryKey(query, queryOptions.queryKey);
-}
-
-/**
- * Everything in this guild that no current member or live app owns, and
- * the apps that may own all of it.
- *
- * Both the content released when someone left and anything orphaned before
- * that — either way nobody who can act on it owns it.
- * @summary List Unowned Content
- */
-export const listUnownedContentApiV1CGuildIdUsersUnownedContentGet = (
-  guildId: number,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<OwnedContentResponse>(
-    { url: `/api/v1/c/${guildId}/users/unowned-content`, method: "GET", signal },
-    options
-  );
-};
-
-export const getListUnownedContentApiV1CGuildIdUsersUnownedContentGetQueryKey = (
-  guildId: number
-) => {
-  return [`/api/v1/c/${guildId}/users/unowned-content`] as const;
-};
-
-export const getListUnownedContentApiV1CGuildIdUsersUnownedContentGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof listUnownedContentApiV1CGuildIdUsersUnownedContentGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  guildId: number,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listUnownedContentApiV1CGuildIdUsersUnownedContentGet>>,
-        TError,
-        TData
-      >
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  }
-) => {
-  const { query: queryOptions, request: requestOptions } = options ?? {};
-
-  const queryKey =
-    queryOptions?.queryKey ??
-    getListUnownedContentApiV1CGuildIdUsersUnownedContentGetQueryKey(guildId);
-
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof listUnownedContentApiV1CGuildIdUsersUnownedContentGet>>
-  > = ({ signal }) =>
-    listUnownedContentApiV1CGuildIdUsersUnownedContentGet(guildId, requestOptions, signal);
-
-  return {
-    queryKey,
-    queryFn,
-    enabled: guildId !== null && guildId !== undefined,
-    ...queryOptions,
-  } as UseQueryOptions<
-    Awaited<ReturnType<typeof listUnownedContentApiV1CGuildIdUsersUnownedContentGet>>,
-    TError,
-    TData
-  > & { queryKey: DataTag<QueryKey, TData, TError> };
-};
-
-export type ListUnownedContentApiV1CGuildIdUsersUnownedContentGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof listUnownedContentApiV1CGuildIdUsersUnownedContentGet>>
->;
-export type ListUnownedContentApiV1CGuildIdUsersUnownedContentGetQueryError =
-  ErrorType<HTTPValidationError>;
-
-export function useListUnownedContentApiV1CGuildIdUsersUnownedContentGet<
-  TData = Awaited<ReturnType<typeof listUnownedContentApiV1CGuildIdUsersUnownedContentGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  guildId: number,
-  options: {
-    query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listUnownedContentApiV1CGuildIdUsersUnownedContentGet>>,
-        TError,
-        TData
-      >
-    > &
-      Pick<
-        DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listUnownedContentApiV1CGuildIdUsersUnownedContentGet>>,
-          TError,
-          Awaited<ReturnType<typeof listUnownedContentApiV1CGuildIdUsersUnownedContentGet>>
-        >,
-        "initialData"
-      >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListUnownedContentApiV1CGuildIdUsersUnownedContentGet<
-  TData = Awaited<ReturnType<typeof listUnownedContentApiV1CGuildIdUsersUnownedContentGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  guildId: number,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listUnownedContentApiV1CGuildIdUsersUnownedContentGet>>,
-        TError,
-        TData
-      >
-    > &
-      Pick<
-        UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listUnownedContentApiV1CGuildIdUsersUnownedContentGet>>,
-          TError,
-          Awaited<ReturnType<typeof listUnownedContentApiV1CGuildIdUsersUnownedContentGet>>
-        >,
-        "initialData"
-      >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListUnownedContentApiV1CGuildIdUsersUnownedContentGet<
-  TData = Awaited<ReturnType<typeof listUnownedContentApiV1CGuildIdUsersUnownedContentGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  guildId: number,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listUnownedContentApiV1CGuildIdUsersUnownedContentGet>>,
-        TError,
-        TData
-      >
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-/**
- * @summary List Unowned Content
- */
-
-export function useListUnownedContentApiV1CGuildIdUsersUnownedContentGet<
-  TData = Awaited<ReturnType<typeof listUnownedContentApiV1CGuildIdUsersUnownedContentGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  guildId: number,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listUnownedContentApiV1CGuildIdUsersUnownedContentGet>>,
-        TError,
-        TData
-      >
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListUnownedContentApiV1CGuildIdUsersUnownedContentGetQueryOptions(
-    guildId,
-    options
-  );
-
-  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
-    queryKey: DataTag<QueryKey, TData, TError>;
-  };
-
-  return withQueryKey(query, queryOptions.queryKey);
-}
-
-/**
- * Give everything nobody owns to one guild admin, or to an app that may
- * own all of it (422 ``OWNER_APP_NOT_ELIGIBLE`` otherwise).
- * @summary Claim Unowned Content
- */
-export const claimUnownedContentApiV1CGuildIdUsersUnownedContentClaimPost = (
-  guildId: number,
-  ownershipTransferRequest: BodyType<OwnershipTransferRequest>,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<OwnershipTransferResponse>(
-    {
-      url: `/api/v1/c/${guildId}/users/unowned-content/claim`,
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      data: ownershipTransferRequest,
-      signal,
-    },
-    options
-  );
-};
-
-export const getClaimUnownedContentApiV1CGuildIdUsersUnownedContentClaimPostMutationKey = () =>
-  ["claimUnownedContentApiV1CGuildIdUsersUnownedContentClaimPost"] as const;
-
-export const getClaimUnownedContentApiV1CGuildIdUsersUnownedContentClaimPostMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
 >(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof claimUnownedContentApiV1CGuildIdUsersUnownedContentClaimPost>>,
-    TError,
-    ClaimUnownedContentApiV1CGuildIdUsersUnownedContentClaimPostMutationVariables,
-    TContext
-  >;
+  query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readHeldChange>>, TError, TData>>;
   request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof claimUnownedContentApiV1CGuildIdUsersUnownedContentClaimPost>>,
-  TError,
-  ClaimUnownedContentApiV1CGuildIdUsersUnownedContentClaimPostMutationVariables,
-  TContext
-> => {
-  const mutationKey = getClaimUnownedContentApiV1CGuildIdUsersUnownedContentClaimPostMutationKey();
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof claimUnownedContentApiV1CGuildIdUsersUnownedContentClaimPost>>,
-    ClaimUnownedContentApiV1CGuildIdUsersUnownedContentClaimPostMutationVariables
-  > = (props) => {
-    const { guildId, data } = props ?? {};
-
-    return claimUnownedContentApiV1CGuildIdUsersUnownedContentClaimPost(
-      guildId,
-      data,
-      requestOptions
-    );
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type ClaimUnownedContentApiV1CGuildIdUsersUnownedContentClaimPostMutationResult =
-  NonNullable<
-    Awaited<ReturnType<typeof claimUnownedContentApiV1CGuildIdUsersUnownedContentClaimPost>>
-  >;
-export type ClaimUnownedContentApiV1CGuildIdUsersUnownedContentClaimPostMutationBody =
-  BodyType<OwnershipTransferRequest>;
-export type ClaimUnownedContentApiV1CGuildIdUsersUnownedContentClaimPostMutationError =
-  ErrorType<HTTPValidationError>;
-export type ClaimUnownedContentApiV1CGuildIdUsersUnownedContentClaimPostMutationVariables = {
-  guildId: number;
-  data: BodyType<OwnershipTransferRequest>;
-};
-
-/**
- * @summary Claim Unowned Content
- */
-export const useClaimUnownedContentApiV1CGuildIdUsersUnownedContentClaimPost = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof claimUnownedContentApiV1CGuildIdUsersUnownedContentClaimPost>>,
-      TError,
-      ClaimUnownedContentApiV1CGuildIdUsersUnownedContentClaimPostMutationVariables,
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof claimUnownedContentApiV1CGuildIdUsersUnownedContentClaimPost>>,
-  TError,
-  ClaimUnownedContentApiV1CGuildIdUsersUnownedContentClaimPostMutationVariables,
-  TContext
-> => {
-  return useMutation(
-    getClaimUnownedContentApiV1CGuildIdUsersUnownedContentClaimPostMutationOptions(options),
-    queryClient
-  );
-};
-/**
- * What this user owns in this guild, for the transfer dialog to list,
- * and the apps that may own all of it.
- *
- * Works for anyone the grants still name, member or not — accounts get
- * abandoned as often as they get closed.
- * @summary List Owned Content
- */
-export const listOwnedContentApiV1CGuildIdUsersUserIdOwnedContentGet = (
-  guildId: number,
-  userId: number,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<OwnedContentResponse>(
-    { url: `/api/v1/c/${guildId}/users/${userId}/owned-content`, method: "GET", signal },
-    options
-  );
-};
-
-export const getListOwnedContentApiV1CGuildIdUsersUserIdOwnedContentGetQueryKey = (
-  guildId: number,
-  userId: number
-) => {
-  return [`/api/v1/c/${guildId}/users/${userId}/owned-content`] as const;
-};
-
-export const getListOwnedContentApiV1CGuildIdUsersUserIdOwnedContentGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof listOwnedContentApiV1CGuildIdUsersUserIdOwnedContentGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  guildId: number,
-  userId: number,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listOwnedContentApiV1CGuildIdUsersUserIdOwnedContentGet>>,
-        TError,
-        TData
-      >
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  }
-) => {
+}) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey =
-    queryOptions?.queryKey ??
-    getListOwnedContentApiV1CGuildIdUsersUserIdOwnedContentGetQueryKey(guildId, userId);
+  const queryKey = queryOptions?.queryKey ?? getReadHeldChangeQueryKey();
 
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof listOwnedContentApiV1CGuildIdUsersUserIdOwnedContentGet>>
-  > = ({ signal }) =>
-    listOwnedContentApiV1CGuildIdUsersUserIdOwnedContentGet(
-      guildId,
-      userId,
-      requestOptions,
-      signal
-    );
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof readHeldChange>>> = ({ signal }) =>
+    readHeldChange(requestOptions, signal);
 
-  return {
-    queryKey,
-    queryFn,
-    enabled: guildId !== null && guildId !== undefined && userId !== null && userId !== undefined,
-    ...queryOptions,
-  } as UseQueryOptions<
-    Awaited<ReturnType<typeof listOwnedContentApiV1CGuildIdUsersUserIdOwnedContentGet>>,
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof readHeldChange>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ListOwnedContentApiV1CGuildIdUsersUserIdOwnedContentGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof listOwnedContentApiV1CGuildIdUsersUserIdOwnedContentGet>>
->;
-export type ListOwnedContentApiV1CGuildIdUsersUserIdOwnedContentGetQueryError =
-  ErrorType<HTTPValidationError>;
+export type ReadHeldChangeQueryResult = NonNullable<Awaited<ReturnType<typeof readHeldChange>>>;
+export type ReadHeldChangeQueryError = ErrorType<HTTPValidationError>;
 
-export function useListOwnedContentApiV1CGuildIdUsersUserIdOwnedContentGet<
-  TData = Awaited<ReturnType<typeof listOwnedContentApiV1CGuildIdUsersUserIdOwnedContentGet>>,
+export function useReadHeldChange<
+  TData = Awaited<ReturnType<typeof readHeldChange>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
-  userId: number,
   options: {
-    query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listOwnedContentApiV1CGuildIdUsersUserIdOwnedContentGet>>,
-        TError,
-        TData
-      >
-    > &
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof readHeldChange>>, TError, TData>> &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listOwnedContentApiV1CGuildIdUsersUserIdOwnedContentGet>>,
+          Awaited<ReturnType<typeof readHeldChange>>,
           TError,
-          Awaited<ReturnType<typeof listOwnedContentApiV1CGuildIdUsersUserIdOwnedContentGet>>
+          Awaited<ReturnType<typeof readHeldChange>>
         >,
         "initialData"
       >;
@@ -3967,25 +3936,17 @@ export function useListOwnedContentApiV1CGuildIdUsersUserIdOwnedContentGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListOwnedContentApiV1CGuildIdUsersUserIdOwnedContentGet<
-  TData = Awaited<ReturnType<typeof listOwnedContentApiV1CGuildIdUsersUserIdOwnedContentGet>>,
+export function useReadHeldChange<
+  TData = Awaited<ReturnType<typeof readHeldChange>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
-  userId: number,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listOwnedContentApiV1CGuildIdUsersUserIdOwnedContentGet>>,
-        TError,
-        TData
-      >
-    > &
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readHeldChange>>, TError, TData>> &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listOwnedContentApiV1CGuildIdUsersUserIdOwnedContentGet>>,
+          Awaited<ReturnType<typeof readHeldChange>>,
           TError,
-          Awaited<ReturnType<typeof listOwnedContentApiV1CGuildIdUsersUserIdOwnedContentGet>>
+          Awaited<ReturnType<typeof readHeldChange>>
         >,
         "initialData"
       >;
@@ -3993,51 +3954,31 @@ export function useListOwnedContentApiV1CGuildIdUsersUserIdOwnedContentGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListOwnedContentApiV1CGuildIdUsersUserIdOwnedContentGet<
-  TData = Awaited<ReturnType<typeof listOwnedContentApiV1CGuildIdUsersUserIdOwnedContentGet>>,
+export function useReadHeldChange<
+  TData = Awaited<ReturnType<typeof readHeldChange>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
-  userId: number,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listOwnedContentApiV1CGuildIdUsersUserIdOwnedContentGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readHeldChange>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
- * @summary List Owned Content
+ * @summary Read Held Change
  */
 
-export function useListOwnedContentApiV1CGuildIdUsersUserIdOwnedContentGet<
-  TData = Awaited<ReturnType<typeof listOwnedContentApiV1CGuildIdUsersUserIdOwnedContentGet>>,
+export function useReadHeldChange<
+  TData = Awaited<ReturnType<typeof readHeldChange>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
-  userId: number,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listOwnedContentApiV1CGuildIdUsersUserIdOwnedContentGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readHeldChange>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListOwnedContentApiV1CGuildIdUsersUserIdOwnedContentGetQueryOptions(
-    guildId,
-    userId,
-    options
-  );
+  const queryOptions = getReadHeldChangeQueryOptions(options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -4047,160 +3988,40 @@ export function useListOwnedContentApiV1CGuildIdUsersUserIdOwnedContentGet<
 }
 
 /**
- * Move everything ``user_id`` owns in this guild to a guild admin, or to
- * an app that may own all of it (422 ``OWNER_APP_NOT_ELIGIBLE`` otherwise).
- *
- * The only place ownership is moved by hand, and guild-admin only.
- * @summary Transfer Ownership
+ * Cancel the waiting change. Nothing about the account changes.
+ * @summary Cancel Held Change
  */
-export const transferOwnershipApiV1CGuildIdUsersUserIdTransferOwnershipPost = (
-  guildId: number,
-  userId: number,
-  ownershipTransferRequest: BodyType<OwnershipTransferRequest>,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<OwnershipTransferResponse>(
-    {
-      url: `/api/v1/c/${guildId}/users/${userId}/transfer-ownership`,
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      data: ownershipTransferRequest,
-      signal,
-    },
-    options
-  );
-};
-
-export const getTransferOwnershipApiV1CGuildIdUsersUserIdTransferOwnershipPostMutationKey = () =>
-  ["transferOwnershipApiV1CGuildIdUsersUserIdTransferOwnershipPost"] as const;
-
-export const getTransferOwnershipApiV1CGuildIdUsersUserIdTransferOwnershipPostMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof transferOwnershipApiV1CGuildIdUsersUserIdTransferOwnershipPost>>,
-    TError,
-    TransferOwnershipApiV1CGuildIdUsersUserIdTransferOwnershipPostMutationVariables,
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof transferOwnershipApiV1CGuildIdUsersUserIdTransferOwnershipPost>>,
-  TError,
-  TransferOwnershipApiV1CGuildIdUsersUserIdTransferOwnershipPostMutationVariables,
-  TContext
-> => {
-  const mutationKey =
-    getTransferOwnershipApiV1CGuildIdUsersUserIdTransferOwnershipPostMutationKey();
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof transferOwnershipApiV1CGuildIdUsersUserIdTransferOwnershipPost>>,
-    TransferOwnershipApiV1CGuildIdUsersUserIdTransferOwnershipPostMutationVariables
-  > = (props) => {
-    const { guildId, userId, data } = props ?? {};
-
-    return transferOwnershipApiV1CGuildIdUsersUserIdTransferOwnershipPost(
-      guildId,
-      userId,
-      data,
-      requestOptions
-    );
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type TransferOwnershipApiV1CGuildIdUsersUserIdTransferOwnershipPostMutationResult =
-  NonNullable<
-    Awaited<ReturnType<typeof transferOwnershipApiV1CGuildIdUsersUserIdTransferOwnershipPost>>
-  >;
-export type TransferOwnershipApiV1CGuildIdUsersUserIdTransferOwnershipPostMutationBody =
-  BodyType<OwnershipTransferRequest>;
-export type TransferOwnershipApiV1CGuildIdUsersUserIdTransferOwnershipPostMutationError =
-  ErrorType<HTTPValidationError>;
-export type TransferOwnershipApiV1CGuildIdUsersUserIdTransferOwnershipPostMutationVariables = {
-  guildId: number;
-  userId: number;
-  data: BodyType<OwnershipTransferRequest>;
-};
-
-/**
- * @summary Transfer Ownership
- */
-export const useTransferOwnershipApiV1CGuildIdUsersUserIdTransferOwnershipPost = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof transferOwnershipApiV1CGuildIdUsersUserIdTransferOwnershipPost>>,
-      TError,
-      TransferOwnershipApiV1CGuildIdUsersUserIdTransferOwnershipPostMutationVariables,
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof transferOwnershipApiV1CGuildIdUsersUserIdTransferOwnershipPost>>,
-  TError,
-  TransferOwnershipApiV1CGuildIdUsersUserIdTransferOwnershipPostMutationVariables,
-  TContext
-> => {
-  return useMutation(
-    getTransferOwnershipApiV1CGuildIdUsersUserIdTransferOwnershipPostMutationOptions(options),
-    queryClient
-  );
-};
-/**
- * Remove a member from this guild.
- *
- * Ends their memberships and the access those carried. It does not move
- * ownership: content they own stays recorded as theirs and stops being
- * reachable by them, until an admin re-homes it through
- * ``POST /{user_id}/transfer-ownership``.
- * @summary Delete User
- */
-export const deleteUserApiV1CGuildIdUsersUserIdDelete = (
-  guildId: number,
-  userId: number,
+export const cancelHeldChange = (
+  holdId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<void>(
-    { url: `/api/v1/c/${guildId}/users/${userId}`, method: "DELETE", signal },
+    { url: `/api/v1/me/held-change/${holdId}/cancel`, method: "POST", signal },
     options
   );
 };
 
-export const getDeleteUserApiV1CGuildIdUsersUserIdDeleteMutationKey = () =>
-  ["deleteUserApiV1CGuildIdUsersUserIdDelete"] as const;
+export const getCancelHeldChangeMutationKey = () => ["cancelHeldChange"] as const;
 
-export const getDeleteUserApiV1CGuildIdUsersUserIdDeleteMutationOptions = <
+export const getCancelHeldChangeMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof deleteUserApiV1CGuildIdUsersUserIdDelete>>,
+    Awaited<ReturnType<typeof cancelHeldChange>>,
     TError,
-    DeleteUserApiV1CGuildIdUsersUserIdDeleteMutationVariables,
+    CancelHeldChangeMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof deleteUserApiV1CGuildIdUsersUserIdDelete>>,
+  Awaited<ReturnType<typeof cancelHeldChange>>,
   TError,
-  DeleteUserApiV1CGuildIdUsersUserIdDeleteMutationVariables,
+  CancelHeldChangeMutationVariables,
   TContext
 > => {
-  const mutationKey = getDeleteUserApiV1CGuildIdUsersUserIdDeleteMutationKey();
+  const mutationKey = getCancelHeldChangeMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -4208,185 +4029,127 @@ export const getDeleteUserApiV1CGuildIdUsersUserIdDeleteMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof deleteUserApiV1CGuildIdUsersUserIdDelete>>,
-    DeleteUserApiV1CGuildIdUsersUserIdDeleteMutationVariables
+    Awaited<ReturnType<typeof cancelHeldChange>>,
+    CancelHeldChangeMutationVariables
   > = (props) => {
-    const { guildId, userId } = props ?? {};
+    const { holdId } = props ?? {};
 
-    return deleteUserApiV1CGuildIdUsersUserIdDelete(guildId, userId, requestOptions);
+    return cancelHeldChange(holdId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type DeleteUserApiV1CGuildIdUsersUserIdDeleteMutationResult = NonNullable<
-  Awaited<ReturnType<typeof deleteUserApiV1CGuildIdUsersUserIdDelete>>
+export type CancelHeldChangeMutationResult = NonNullable<
+  Awaited<ReturnType<typeof cancelHeldChange>>
 >;
 
-export type DeleteUserApiV1CGuildIdUsersUserIdDeleteMutationError = ErrorType<HTTPValidationError>;
-export type DeleteUserApiV1CGuildIdUsersUserIdDeleteMutationVariables = {
-  guildId: number;
-  userId: number;
-};
+export type CancelHeldChangeMutationError = ErrorType<HTTPValidationError>;
+export type CancelHeldChangeMutationVariables = { holdId: number };
 
 /**
- * @summary Delete User
+ * @summary Cancel Held Change
  */
-export const useDeleteUserApiV1CGuildIdUsersUserIdDelete = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
+export const useCancelHeldChange = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof deleteUserApiV1CGuildIdUsersUserIdDelete>>,
+      Awaited<ReturnType<typeof cancelHeldChange>>,
       TError,
-      DeleteUserApiV1CGuildIdUsersUserIdDeleteMutationVariables,
+      CancelHeldChangeMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof deleteUserApiV1CGuildIdUsersUserIdDelete>>,
+  Awaited<ReturnType<typeof cancelHeldChange>>,
   TError,
-  DeleteUserApiV1CGuildIdUsersUserIdDeleteMutationVariables,
+  CancelHeldChangeMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getDeleteUserApiV1CGuildIdUsersUserIdDeleteMutationOptions(options),
-    queryClient
-  );
+  return useMutation(getCancelHeldChangeMutationOptions(options), queryClient);
 };
 /**
- * Get comprehensive statistics for the current user.
- * @summary Get User Stats
+ * Make the waiting change now. Asks for a session proved with a passkey,
+ * which the passkey step-up gives; the account is told as it would be when
+ * the wait ends.
+ * @summary Apply Held Change
  */
-export const getUserStatsApiV1MeStatsGet = (
-  params?: GetUserStatsApiV1MeStatsGetParams,
+export const applyHeldChange = (
+  holdId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<UserStatsResponse>(
-    { url: `/api/v1/me/stats`, method: "GET", params, signal },
+  return apiMutator<void>(
+    { url: `/api/v1/me/held-change/${holdId}/apply`, method: "POST", signal },
     options
   );
 };
 
-export const getGetUserStatsApiV1MeStatsGetQueryKey = (
-  params?: GetUserStatsApiV1MeStatsGetParams
-) => {
-  return [`/api/v1/me/stats`, ...(params ? [params] : [])] as const;
-};
+export const getApplyHeldChangeMutationKey = () => ["applyHeldChange"] as const;
 
-export const getGetUserStatsApiV1MeStatsGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof getUserStatsApiV1MeStatsGet>>,
+export const getApplyHeldChangeMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
->(
-  params?: GetUserStatsApiV1MeStatsGetParams,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof getUserStatsApiV1MeStatsGet>>, TError, TData>
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  }
-) => {
-  const { query: queryOptions, request: requestOptions } = options ?? {};
-
-  const queryKey = queryOptions?.queryKey ?? getGetUserStatsApiV1MeStatsGetQueryKey(params);
-
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof getUserStatsApiV1MeStatsGet>>> = ({
-    signal,
-  }) => getUserStatsApiV1MeStatsGet(params, requestOptions, signal);
-
-  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof getUserStatsApiV1MeStatsGet>>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof applyHeldChange>>,
     TError,
-    TData
-  > & { queryKey: DataTag<QueryKey, TData, TError> };
-};
+    ApplyHeldChangeMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof applyHeldChange>>,
+  TError,
+  ApplyHeldChangeMutationVariables,
+  TContext
+> => {
+  const mutationKey = getApplyHeldChangeMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
 
-export type GetUserStatsApiV1MeStatsGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof getUserStatsApiV1MeStatsGet>>
->;
-export type GetUserStatsApiV1MeStatsGetQueryError = ErrorType<HTTPValidationError>;
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof applyHeldChange>>,
+    ApplyHeldChangeMutationVariables
+  > = (props) => {
+    const { holdId } = props ?? {};
 
-export function useGetUserStatsApiV1MeStatsGet<
-  TData = Awaited<ReturnType<typeof getUserStatsApiV1MeStatsGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  params: undefined | GetUserStatsApiV1MeStatsGetParams,
-  options: {
-    query: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof getUserStatsApiV1MeStatsGet>>, TError, TData>
-    > &
-      Pick<
-        DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getUserStatsApiV1MeStatsGet>>,
-          TError,
-          Awaited<ReturnType<typeof getUserStatsApiV1MeStatsGet>>
-        >,
-        "initialData"
-      >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetUserStatsApiV1MeStatsGet<
-  TData = Awaited<ReturnType<typeof getUserStatsApiV1MeStatsGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  params?: GetUserStatsApiV1MeStatsGetParams,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof getUserStatsApiV1MeStatsGet>>, TError, TData>
-    > &
-      Pick<
-        UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getUserStatsApiV1MeStatsGet>>,
-          TError,
-          Awaited<ReturnType<typeof getUserStatsApiV1MeStatsGet>>
-        >,
-        "initialData"
-      >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetUserStatsApiV1MeStatsGet<
-  TData = Awaited<ReturnType<typeof getUserStatsApiV1MeStatsGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  params?: GetUserStatsApiV1MeStatsGetParams,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof getUserStatsApiV1MeStatsGet>>, TError, TData>
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-/**
- * @summary Get User Stats
- */
-
-export function useGetUserStatsApiV1MeStatsGet<
-  TData = Awaited<ReturnType<typeof getUserStatsApiV1MeStatsGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  params?: GetUserStatsApiV1MeStatsGetParams,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof getUserStatsApiV1MeStatsGet>>, TError, TData>
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getGetUserStatsApiV1MeStatsGetQueryOptions(params, options);
-
-  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
-    queryKey: DataTag<QueryKey, TData, TError>;
+    return applyHeldChange(holdId, requestOptions);
   };
 
-  return withQueryKey(query, queryOptions.queryKey);
-}
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ApplyHeldChangeMutationResult = NonNullable<
+  Awaited<ReturnType<typeof applyHeldChange>>
+>;
+
+export type ApplyHeldChangeMutationError = ErrorType<HTTPValidationError>;
+export type ApplyHeldChangeMutationVariables = { holdId: number };
+
+/**
+ * @summary Apply Held Change
+ */
+export const useApplyHeldChange = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof applyHeldChange>>,
+      TError,
+      ApplyHeldChangeMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof applyHeldChange>>,
+  TError,
+  ApplyHeldChangeMutationVariables,
+  TContext
+> => {
+  return useMutation(getApplyHeldChangeMutationOptions(options), queryClient);
+};

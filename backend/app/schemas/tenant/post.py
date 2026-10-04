@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+import re
+
 from datetime import datetime
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import Any, List, Optional, TYPE_CHECKING
 
 from pydantic import ConfigDict, Field, model_validator
 
-from app.core.identity_boundary import PersonId
-from app.schemas.base import SanitizedBaseModel, TitleStr
+from app.core.identity_boundary import PersonId, with_mention_markup
+from app.schemas.base import MentionStr, SanitizedBaseModel, TitleStr
+from app.schemas.tenant.document import LexicalState
 from app.schemas.tenant.property import PropertiesOnCreate
 from app.schemas.query import PageMeta
 from app.schemas.platform.user import ProfileDecorations
@@ -48,7 +51,7 @@ class PostCreate(PostBase, PropertiesOnCreate):
     # A Lexical editor state, the same shape a native document stores — which
     # is what lets a post carry inline images and smart chips. Empty is
     # allowed: a headline with a picture under it is a legitimate notice.
-    body: Dict[str, Any] = Field(default_factory=dict)
+    body: LexicalState = Field(default_factory=dict)
     tag_ids: Optional[List[int]] = None
     # Initial sharing — the same grant list the PUT /grants endpoint takes.
     # A board notice defaults to readable by the whole initiative, which is the
@@ -66,7 +69,7 @@ class PostCreate(PostBase, PropertiesOnCreate):
 
 class PostUpdate(SanitizedBaseModel):
     name: Optional[TitleStr] = Field(default=None, min_length=1, max_length=255)
-    body: Optional[Dict[str, Any]] = None
+    body: Optional[LexicalState] = None
     #: Move or clear a *pending* schedule. ``null`` publishes the draft now; a
     #: new instant moves it. Meaningless once the notice is up — a published
     #: post cannot be unpublished, because the people it was announced to have
@@ -121,7 +124,7 @@ class PostSummary(PostBase, ToolSummaryBase):
     #: The first line or so of the body as plain text. Derived on the way out,
     #: never stored — the body is the truth, and a stored copy would go stale
     #: the first time somebody edited it.
-    excerpt: str = ""
+    excerpt: MentionStr = ""
     pinned_at: Optional[datetime] = None
     pinned_by: Optional[PersonId] = None
     pin_expires_at: Optional[datetime] = None
@@ -184,7 +187,7 @@ class PostRead(PostSummary):
     #: The Lexical editor state. Present on the board list too, because a board
     #: renders its notices rather than a table of headlines — which is why that
     #: list pages small.
-    body: Dict[str, Any] = Field(default_factory=dict)
+    body: LexicalState = Field(default_factory=dict)
     #: The question this notice asks, if it asks one — tallies, this reader's
     #: own ballot and all. Carried with the post rather than fetched per card:
     #: a board renders its polls, and five cards must not be five more requests.
@@ -225,15 +228,14 @@ class PostReadReceipt(SanitizedBaseModel):
 
 
 class PostReader(SanitizedBaseModel):
-    """One person on a notice's roster, named the way reactors are named — so a
-    guild that renders handles rather than real names does so here too."""
+    """One person on a notice's roster, named the way reactors are named."""
 
     model_config = ConfigDict(from_attributes=True)
 
     id: int
     username: str
     discriminator: int
-    full_name: Optional[str] = None
+    display_name: Optional[str] = None
     avatar_url: Optional[str] = None
     #: What they have put around their picture. Carried on the person rather
     #: than fetched per row, so the roster dresses its avatars the way every
@@ -265,7 +267,7 @@ def post_reader(profile: Any, *, read_at: Optional[datetime] = None) -> PostRead
         id=profile.id,
         username=profile.username,
         discriminator=profile.discriminator,
-        full_name=getattr(profile, "full_name", None),
+        display_name=getattr(profile, "display_name", None),
         avatar_url=getattr(profile, "avatar_url", None),
         profile_decorations=ProfileDecorations.model_validate(
             getattr(profile, "profile_decorations", None) or {}
@@ -330,16 +332,21 @@ def post_body_too_long(body: Any) -> bool:
     return len(json.dumps(clean).encode("utf-8")) > MAX_POST_BODY_BYTES
 
 
+#: A mention the excerpt's cut goes through.
+_CUT_MENTION = re.compile(r"@\[\]\(\d*$")
+
+
 def post_excerpt(body: Any, *, limit: int = EXCERPT_CHARS) -> str:
     """The first line or so of a post, for the surfaces that show one in a
-    line — recents, search, the guild table."""
-    joined = post_text(body)
+    line — recents, search, the guild table. A mention reads as its markdown,
+    ``@[](42)``, which the client names."""
+    joined = post_text(with_mention_markup(body))
     if len(joined) <= limit:
         return joined
     # Cut on a word boundary where there is one nearby, so the excerpt does not
-    # end mid-word.
+    # end mid-word, and leave out a mention the cut goes through.
     cut = joined[: limit - 1]
     space = cut.rfind(" ")
     if space > limit // 2:
         cut = cut[:space]
-    return cut + "…"
+    return _CUT_MENTION.sub("", cut) + "…"

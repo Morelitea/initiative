@@ -255,7 +255,7 @@
     "iosTitle": "Initiative for iPhone and iPad",
     "iosBody": "Tap Share, then Add to Home Screen. It's the same Initiative, but iPhones don't get push notifications yet.",
     "desktopTitle": "Initiative for your computer",
-    "desktopBody": "Its own window and its own icon in the dock or taskbar. It installs straight from the browser.",
+    "desktopBody": "Its own window and its own icon in the dock or taskbar, signed in as one of your devices.",
     "androidButton": "Download for Android",
     "iosButton": "Add to your iPhone",
     "windowsButton": "Download for Windows",
@@ -265,6 +265,7 @@
     "version": "Version {{version}}, the one this server runs",
     "releases": "See every release",
     "desktopMeta": "Windows, Mac and Linux",
+    "browserInstall": "Or install it from the browser",
     "cardsAria": "Every way to get Initiative",
     "android": {
       "title": "Android",
@@ -284,8 +285,7 @@
     "desktop": {
       "title": "Computer",
       "sub": "Windows, Mac, Linux",
-      "body": "Chrome and Edge install it in one click. In Safari it's File, then Add to Dock.",
-      "button": "Install Initiative"
+      "body": "An installer for Windows, Mac or Linux. Chrome and Edge can also install it straight from the browser, and Safari from File, then Add to Dock."
     },
     "browser": {
       "title": "Browser",
@@ -312,6 +312,7 @@
     "support": "Support",
     "loading": "Fetching the price book…",
     "tierListAria": "Plans",
+    "regularPrice": "Regular price {{price}}",
     "selfHostBody": "Rather run it on your own server? It's free and open source.",
     "everyPlanAria": "Every plan",
     "sameTitle": "Same Initiative either way",

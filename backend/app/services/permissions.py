@@ -29,6 +29,7 @@ from typing import Any
 
 from fastapi import HTTPException, status
 from sqlalchemy import ColumnElement, false, func, inspect, true
+from sqlalchemy.orm import joinedload, undefer
 from sqlmodel import select
 
 from app.core.audit_events import AuditEventType
@@ -44,6 +45,7 @@ from app.db.authorization import standing_arg
 from app.core.messages import (
     CommonMessages,
     ExportMessages,
+    InitiativeMessages,
     SharingMessages,
     ProjectMessages,
 )
@@ -583,6 +585,15 @@ def actions_of(row: Any) -> frozenset[str]:
     return frozenset(row.actions or ())
 
 
+def with_tool(relation: Any) -> Any:
+    """The load option for a row's tool, ``relation``, as authorizing it
+    reads it: its initiative and its ``actions``."""
+    tool = relation.property.mapper.class_
+    return joinedload(relation).options(
+        joinedload(tool.initiative), undefer(tool.actions)
+    )
+
+
 def allows(row: Any, action: Action) -> bool:
     """Whether the request may take ``action`` on ``row``."""
     return action.value in actions_of(row)
@@ -594,9 +605,18 @@ def _refusal(
     """Which refusal a missing ``action`` is. Only names it: the database
     already decided."""
     if action is Action.export:
+        initiative = (
+            None
+            if "initiative" in inspect(row).unloaded
+            else getattr(row, "initiative", None)
+        )
         return HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=ExportMessages.EXPORT_OWNER_REQUIRED,
+            detail=(
+                InitiativeMessages.CONTENT_KEPT_IN
+                if initiative is not None and initiative.keep_content_in
+                else ExportMessages.EXPORT_OWNER_REQUIRED
+            ),
         )
     if context is not None and context.content_read_only:
         return HTTPException(

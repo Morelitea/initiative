@@ -11,7 +11,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sqlmodel import select
 
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.tenant.initiative import InitiativeMember, InitiativeRoleModel
 from app.models.tenant.task import Task, TaskStatusCategory
 from app.db.soft_delete_filter import select_including_deleted
@@ -187,7 +187,9 @@ async def test_default_seeded_statuses_have_category_colors(
 async def test_initiative_statuses_collapse_across_projects(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     second = await create_project(session, a.initiative, a.user, name="Second")
     for project in (a.project, second):
         await create_task_status(
@@ -237,7 +239,9 @@ async def test_initiative_statuses_collapse_across_projects(
 async def test_initiative_statuses_separate_same_name_by_category(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     await create_task_status(
         session, a.project, name="Review", category=TaskStatusCategory.todo, position=0
     )
@@ -265,13 +269,13 @@ async def test_initiative_statuses_only_cover_readable_projects(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     owner = await acting_user(
-        guild_role=GuildRole.member, initiative=True, project=True
+        guild_role=CommunityRole.member, initiative=True, project=True
     )
     await create_task_status(
         session, owner.project, name="Unshared", category=TaskStatusCategory.todo
     )
     member = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=owner.guild,
         initiative=owner.initiative,
         initiative_role="member",
@@ -297,7 +301,9 @@ async def test_initiative_statuses_only_cover_readable_projects(
 async def test_initiative_statuses_skip_archived_and_template_projects(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     await create_task_status(
         session, a.project, name="Active", category=TaskStatusCategory.todo
     )
@@ -331,7 +337,7 @@ async def test_initiative_statuses_skip_archived_and_template_projects(
 async def test_initiative_statuses_empty_when_no_readable_projects(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
 
     response = await client.get(
         a.g(f"/initiatives/{a.initiative.id}/task-statuses/"), headers=a.headers
@@ -345,12 +351,12 @@ async def test_initiative_statuses_cover_the_guild_for_an_admin(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     owner = await acting_user(
-        guild_role=GuildRole.member, initiative=True, project=True
+        guild_role=CommunityRole.member, initiative=True, project=True
     )
     await create_task_status(
         session, owner.project, name="Unshared", category=TaskStatusCategory.todo
     )
-    admin = await acting_user(guild_role=GuildRole.admin, guild=owner.guild)
+    admin = await acting_user(guild_role=CommunityRole.admin, guild=owner.guild)
 
     response = await client.get(
         admin.g(f"/initiatives/{owner.initiative.id}/task-statuses/"),
@@ -385,13 +391,13 @@ async def test_initiative_statuses_cover_the_initiative_on_full_access(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     owner = await acting_user(
-        guild_role=GuildRole.member, initiative=True, project=True
+        guild_role=CommunityRole.member, initiative=True, project=True
     )
     await create_task_status(
         session, owner.project, name="Unshared", category=TaskStatusCategory.todo
     )
     manager = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=owner.guild,
         initiative=owner.initiative,
         initiative_role="project_manager",
@@ -416,12 +422,12 @@ async def test_initiative_statuses_refused_to_a_non_member(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     owner = await acting_user(
-        guild_role=GuildRole.member, initiative=True, project=True
+        guild_role=CommunityRole.member, initiative=True, project=True
     )
     await create_task_status(
         session, owner.project, name="Unshared", category=TaskStatusCategory.todo
     )
-    outsider = await acting_user(guild_role=GuildRole.member, guild=owner.guild)
+    outsider = await acting_user(guild_role=CommunityRole.member, guild=owner.guild)
 
     response = await client.get(
         outsider.g(f"/initiatives/{owner.initiative.id}/task-statuses/"),
@@ -435,7 +441,7 @@ async def test_initiative_statuses_refused_to_a_non_member(
 async def test_initiative_statuses_404_for_an_unknown_initiative(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
 
     response = await client.get(
         a.g("/initiatives/999999/task-statuses/"), headers=a.headers
@@ -455,7 +461,9 @@ async def test_delete_moves_tasks_to_the_default_without_a_fallback(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """The case a legacy Blocked column was stuck in: no todo sibling to name."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     statuses = await task_statuses_service.ensure_default_statuses(
         session, a.project.id
     )
@@ -490,7 +498,9 @@ async def test_delete_moves_tasks_to_the_default_without_a_fallback(
 async def test_delete_accepts_a_fallback_in_another_category(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     statuses = await task_statuses_service.ensure_default_statuses(
         session, a.project.id
     )
@@ -528,7 +538,9 @@ async def test_delete_into_done_completes_the_tasks_it_moves(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """Crossing the done boundary stamps ``completed_at``, as a task move would."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     statuses = await task_statuses_service.ensure_default_statuses(
         session, a.project.id
     )
@@ -562,7 +574,9 @@ async def test_delete_into_done_completes_the_tasks_it_moves(
 async def test_delete_into_done_advances_a_recurring_task(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     statuses = await task_statuses_service.ensure_default_statuses(
         session, a.project.id
     )
@@ -618,7 +632,9 @@ async def test_delete_into_done_advances_a_recurring_task(
 async def test_delete_can_remove_the_last_status_of_a_category(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     statuses = await task_statuses_service.ensure_default_statuses(
         session, a.project.id
     )
@@ -642,7 +658,9 @@ async def test_delete_can_remove_the_last_status_of_a_category(
 async def test_delete_refuses_the_projects_only_status(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     only = await create_task_status(
         session, a.project, name="Everything", category=TaskStatusCategory.todo
     )
@@ -661,7 +679,9 @@ async def test_delete_refuses_the_projects_only_status(
 async def test_deleting_the_default_promotes_the_next_entry_column(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     statuses = await task_statuses_service.ensure_default_statuses(
         session, a.project.id
     )
@@ -698,7 +718,9 @@ async def test_a_legacy_projects_entry_column_is_its_backlog_not_its_blocked(
     Its Blocked column is ``todo``, so a preference that reached for ``todo``
     first would start every task in it.
     """
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     for name, category, position in (
         ("Backlog", TaskStatusCategory.backlog, 0),
         ("In Progress", TaskStatusCategory.in_progress, 1),
@@ -764,7 +786,9 @@ async def _tasks_by_title(session: AsyncSession, project_id: int) -> dict[str, T
 async def test_delete_moves_archived_and_trashed_tasks_with_the_live_ones(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     statuses, blocked, *_ = await _seed_column_with_frozen_tasks(session, a)
     in_progress = next(
         s for s in statuses if s.category == TaskStatusCategory.in_progress
@@ -789,7 +813,9 @@ async def test_delete_retires_a_column_holding_only_trashed_tasks(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """The trash filter hides them from a count, but not from the foreign key."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     statuses = await task_statuses_service.ensure_default_statuses(
         session, a.project.id
     )
@@ -823,7 +849,9 @@ async def test_delete_into_done_completes_frozen_tasks_without_recurring_them(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """A finished recurring task moved into Done is not started over."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     statuses = await task_statuses_service.ensure_default_statuses(
         session, a.project.id
     )
@@ -864,7 +892,9 @@ async def test_delete_into_done_completes_frozen_tasks_without_recurring_them(
 async def test_patch_category_realigns_archived_and_trashed_tasks(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     _statuses, blocked, *_ = await _seed_column_with_frozen_tasks(session, a)
 
     response = await client.patch(

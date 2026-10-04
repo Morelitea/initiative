@@ -26,7 +26,10 @@ from app.schemas.tenant.webhook_subscription import (
 )
 from app.services import audit as audit_service
 from app.services import guild_work
-from app.services.marketplace.registration_lookup import service_public_id
+from app.services.marketplace.registration_lookup import (
+    load_registrations,
+    service_public_id,
+)
 from app.services.marketplace.service_apps import ENDPOINT_ID_PREFIX
 from app.db.request_context import SystemGuild
 
@@ -62,7 +65,8 @@ async def app_event_emitters(
     """The installed app that emits each ``app.<public_id>.<event>`` type
     named, by its ``public_id``: an install in this community whose pinned
     definition declares the event as ``emit``. A type no install declares is
-    absent.
+    absent. A declarative app is named by its listing, as the registration
+    that listing applied names it.
 
     Read on a system session from the community's cohort, routed into it: an installed app's
     own request does not reach ``guild_apps``.
@@ -72,14 +76,23 @@ async def app_event_emitters(
         return {}
     async with cohorts.system_session(guild_id) as session:
         await set_rls_context(session, SystemGuild(guild_id, read_only=True))
-        definitions = (
+        installs = (
             await session.exec(
-                select(GuildApp.definition).where(GuildApp.app_kind == "service")
+                select(GuildApp.definition, GuildApp.listing_uid).where(
+                    GuildApp.app_kind == "service"
+                )
             )
         ).all()
+    listed = {
+        registration.listing_uid: registration.public_id
+        for registration in (await load_registrations()).values()
+        if registration.declarative and registration.listing_uid
+    }
     emitters: dict[str, str] = {}
-    for definition in definitions:
-        public_id = service_public_id(definition)
+    for definition, listing_uid in installs:
+        public_id = service_public_id(
+            definition, listing_public_id=listed.get(listing_uid or "")
+        )
         for endpoint in (definition or {}).get("endpoints") or []:
             event_type = endpoint.get("id") if isinstance(endpoint, dict) else None
             if (

@@ -1,17 +1,19 @@
 from datetime import date, datetime
-from typing import Annotated, List, Literal, Optional
+from typing import Any, List, Literal, Optional
 
 from pydantic import (
+    AliasChoices,
     ConfigDict,
     EmailStr,
     Field,
-    PlainSerializer,
+    SerializerFunctionWrapHandler,
     computed_field,
     field_validator,
+    model_serializer,
     model_validator,
 )
 
-from app.schemas.base import RawTextStr, SanitizedBaseModel, TitleStr
+from app.schemas.base import RawTextStr, SanitizedBaseModel
 from app.schemas.platform.guild import NewCommunity
 from app.schemas.query import PageMeta
 
@@ -19,6 +21,7 @@ from app.core.capabilities import Capability, standing_capabilities
 from app.core.cookie_categories import CookieCategory
 from app.core.email_masking import mask_email
 from app.core.emoji import validate_emoji
+from app.models.platform.account_change_hold import HeldChangeKind
 from app.core.profile_decorations import (
     DATED_DECORATIONS,
     MAX_FRAME_TINTS,
@@ -31,14 +34,18 @@ from app.core.profile_decorations import (
     validate_decoration_id,
     validate_tint,
 )
-from app.core.identity_boundary import PersonId, responding_to_install
+from app.core.identity_boundary import (
+    PersonId,
+    names_withheld,
+    responding_to_install,
+)
 from app.models.platform.user import Presence, UserRole, UserStatus
-from app.services.platform.user_avatars import is_avatar_url
+from app.services.platform import user_avatars
 from app.core.config import settings
 
 # ``avatar_url`` is where a user's picture is: either a path this API serves
 # (``/api/v1/users/{id}/avatar/{sha256}`` — the bytes live in ``user_avatars``
-# and are uploaded through ``PUT /users/me/avatar``) or a URL somewhere else,
+# and are uploaded through ``PUT /me/avatar``) or a URL somewhere else,
 # from an OIDC ``picture`` claim. The two are alternatives, and one field holds
 # whichever applies.
 #
@@ -56,11 +63,10 @@ from app.core.config import settings
 #   ``OperatorUserRead``, which is ``UserRead`` with the address
 #   shortened (``app.core.email_masking``) — enough to recognise one you
 #   already have.
-# * A real name is shown only where a guild has asked for it.
-#   ``GuildNameVisibility`` drops ``full_name`` unless the request's guild has
-#   ``show_member_names`` set, which a community-listed guild cannot. Only the
-#   shapes that draw a person carry it; ``UserIdentity`` — what everything else
-#   is built from — has no name field to drop.
+# * An account has no name. In a guild, ``display_name`` is the name the
+#   member set there (``guild_memberships.display_name``, read through the
+#   guild projection). Only the shapes that draw a person carry it;
+#   ``UserIdentity`` — what everything else is built from — has no name field.
 #
 # What is always present is the handle: ``username`` plus ``discriminator``,
 # rendered ``foobar#1234`` with the number muted. They are two fields rather
@@ -69,7 +75,6 @@ from app.core.config import settings
 
 class UserBase(SanitizedBaseModel):
     email: EmailStr
-    full_name: Optional[str] = None
     role: UserRole = UserRole.member
 
 
@@ -87,7 +92,6 @@ class UserCreate(SanitizedBaseModel):
     # The name part of the handle. The number behind it is drawn server-side —
     # it is never anyone's to choose.
     username: str = Field(max_length=64)
-    full_name: Optional[TitleStr] = None
     # ``max_length`` is a cheap bound so we don't argon2-hash a
     # multi-megabyte payload. The min length and breach checks live in
     # ``app.core.password_policy`` and are invoked from the endpoint,
@@ -114,18 +118,63 @@ class UserCreate(SanitizedBaseModel):
     birthdate: Optional[date] = None
 
 
-def _avatar_out(value: Optional[str]) -> Optional[str]:
-    if value is not None and responding_to_install() and is_avatar_url(value):
-        return None
-    return value
+class AppPerson(SanitizedBaseModel):
+    """A person, as an installed app receives them wherever one appears.
+
+    ``id`` is the install's own reference for them. Their handle (``username``
+    and ``discriminator``), the name they set in the community
+    (``display_name``) and the picture they uploaded (``avatar_url``) come only
+    to an install holding ``members:read``. A field without a value is left
+    out, so without that scope a person is their ``id`` alone.
+    """
+
+    id: PersonId
+    username: Optional[str] = None
+    discriminator: Optional[int] = None
+    display_name: Optional[str] = None
+    avatar_url: Optional[str] = Field(
+        default=None,
+        description=(
+            "Where the app reads the picture this member uploaded: "
+            "`/api/v1/c/0/members/{id}/avatar/{sha256}`, a path on Initiative "
+            "served under `members:read`. Absent when they have not uploaded one."
+        ),
+    )
+
+    def for_install(self) -> dict[str, Any]:
+        """This person, as the installed app being answered may know them."""
+        if names_withheld():
+            return self.model_dump(mode="json", include={"id"})
+        person = self.model_dump(mode="json", exclude={"avatar_url"}, exclude_none=True)
+        digest = user_avatars.uploaded_digest(self.id, self.avatar_url)
+        if digest is not None:
+            # ``id`` is the response's marker for the person by now, which the
+            # route class writes the reference over, in the path as well.
+            person["avatar_url"] = user_avatars.member_avatar_url(person["id"], digest)
+        return person
 
 
-#: A person's picture. One this API serves is addressed by the person's row id,
-#: so an installed app's response leaves it out; a picture hosted elsewhere
-#: comes along.
-AvatarUrl = Annotated[
-    Optional[str], PlainSerializer(_avatar_out, return_type=Optional[str])
-]
+class PersonShape(SanitizedBaseModel):
+    """A shape that draws a person.
+
+    Served as itself to a person. To an installed app it is the
+    :class:`AppPerson` it names, which is how the app API's document types it
+    (``x-person``, read by ``app.api.app_openapi``).
+    """
+
+    model_config = ConfigDict(json_schema_extra={"x-person": True})
+
+    def app_person(self) -> AppPerson:
+        """Who this shape draws, read off its own fields. A shape that names
+        the person under other fields says so."""
+        return AppPerson.model_validate(self, from_attributes=True)
+
+    # Left unannotated, so the shape's published schema stays its own.
+    @model_serializer(mode="wrap")
+    def _as_app_person(self, handler: SerializerFunctionWrapHandler):
+        if responding_to_install():
+            return self.app_person().for_install()
+        return handler(self)
 
 
 class UserIdentity(SanitizedBaseModel):
@@ -137,9 +186,8 @@ class UserIdentity(SanitizedBaseModel):
     identifier that keeps an old thread legible.
 
     Every shape below is this plus something, and the name is never part of the
-    "this": a shape that shows one declares ``full_name`` itself and takes
-    ``GuildNameVisibility`` along with it, so the field and the rule that
-    governs it always arrive together.
+    "this": a shape that draws a person in a guild declares ``display_name``
+    itself.
     """
 
     model_config = ConfigDict(
@@ -149,48 +197,18 @@ class UserIdentity(SanitizedBaseModel):
     id: PersonId
     username: str
     discriminator: int
-    avatar_url: AvatarUrl = None
+    avatar_url: Optional[str] = None
     status: UserStatus = UserStatus.active
 
 
-class UserPublic(UserIdentity):
-    """A person, as everyone else sees them — the handle, and the name where
-    the guild being read renders one."""
+class UserPublic(UserIdentity, PersonShape):
+    """A person, as everyone else sees them — the handle, and the name they
+    set in the guild being read."""
 
-    full_name: Optional[str] = None
-
-
-class AppMemberRead(SanitizedBaseModel):
-    """A member, as an installed app reads them under ``members:read``.
-
-    What its install calls them (``id``, a :data:`PersonId`), their handle,
-    the name where the guild renders one, and their picture. Built from the
-    shape the guild's own roster serves, so it carries no address to drop.
-    A picture this API serves is addressed by the member's row id, so only a
-    picture hosted elsewhere comes along.
-    """
-
-    id: PersonId
-    username: str
-    discriminator: int
-    full_name: Optional[str] = None
-    avatar_url: Optional[str] = None
-
-    @classmethod
-    def from_public(cls, user: UserIdentity) -> "AppMemberRead":
-        avatar = user.avatar_url
-        if avatar is not None and is_avatar_url(avatar):
-            avatar = None
-        return cls(
-            id=user.id,
-            username=user.username,
-            discriminator=user.discriminator,
-            full_name=getattr(user, "full_name", None),
-            avatar_url=avatar,
-        )
+    display_name: Optional[str] = None
 
 
-class UserGuildRead(UserIdentity):
+class UserCommunityRead(UserIdentity):
     """One account, as the guild administering its membership reads it back.
 
     The membership surfaces ask one thing about somebody and this is the
@@ -199,11 +217,8 @@ class UserGuildRead(UserIdentity):
     own business comes with it — no address, no platform tier, no word on
     whether the address was ever confirmed, no preferences.
 
-    Nor does the name, and it is absent here rather than blanked on the way
-    out. A real name is rendered on the surfaces that draw people — a roster, a
-    picker, a byline — and only in a guild that asked for names; those shapes
-    say so by carrying ``GuildNameVisibility``. Reading back an account is not
-    one of them, so the field is not in the shape at all.
+    Nor does the member's name: that belongs to the surfaces that draw people
+    — a roster, a picker, a byline — and reading back an account is not one.
     """
 
     status: UserStatus
@@ -211,30 +226,36 @@ class UserGuildRead(UserIdentity):
     initiative_roles: List["UserInitiativeRole"] = Field(default_factory=list)
 
 
-class UserGuildMember(UserGuildRead):
+class UserCommunityMember(UserCommunityRead):
     """A member, for the guild's own member-management surface.
 
-    :class:`UserGuildRead` plus the membership facts a guild admin manages —
-    guild role, whether the membership is OIDC-managed — and a name, where the
-    guild shows names. Two members are told apart by their handle, which is
-    unique.
+    :class:`UserCommunityRead` plus the membership facts a guild admin manages —
+    guild role, whether the membership is OIDC-managed — and the name they go
+    by here. Two members are told apart by their handle, which is unique.
     """
 
-    full_name: Optional[str] = None
     #: The rung this member holds in the guild, set by the endpoint. Shown as
     #: it stands, and asked of the ladder where a surface needs to know
     #: whether it administers the place.
-    guild_role: Optional[str] = None
+    community_role: Optional[str] = Field(
+        default=None, validation_alias=AliasChoices("community_role", "guild_role")
+    )
     oidc_managed: bool = False  # Whether membership is managed via OIDC claim mappings
+    #: The name set for this member in this guild. ``None`` when nobody set
+    #: one, and the handle renders.
+    display_name: Optional[str] = None
+    #: SEAT-ONLY. Whether this member's personal API keys reach the guild.
+    #: ``None`` for anyone who does not hold the superadmin seat.
+    api_keys_allowed: Optional[bool] = None
 
 
-class UserGuildMemberListResponse(PageMeta):
+class UserCommunityMemberListResponse(PageMeta):
     """One page of the guild's roster."""
 
-    items: List[UserGuildMember]
+    items: List[UserCommunityMember]
 
 
-class UserSummary(UserIdentity):
+class UserSummary(UserIdentity, PersonShape):
     """Slim user projection for typeahead and picker surfaces.
 
     What it keeps is what it takes to *draw* a person and say where they stand
@@ -252,12 +273,14 @@ class UserSummary(UserIdentity):
     catalog shape it names is declared further down this file.
     """
 
-    full_name: Optional[str] = None
+    display_name: Optional[str] = None
     profile_decorations: Optional["ProfileDecorations"] = None
     #: The rung this member holds in the guild this was read under. Absent
     #: where the caller asked outside a guild, which is why it is optional
     #: rather than defaulted to the quietest of them.
-    guild_role: Optional[str] = None
+    community_role: Optional[str] = Field(
+        default=None, validation_alias=AliasChoices("community_role", "guild_role")
+    )
 
 
 class UserSummaryListResponse(PageMeta):
@@ -490,9 +513,8 @@ class UserProfile(SanitizedBaseModel):
 
     A profile is public. It carries the handle — which is the name in this
     product, unique and never withheld — the face, the line they wrote, the
-    look they picked, how they appear right now, and when they joined. It never
-    carries a real name: ``full_name`` is a guild's business (a guild decides
-    whether it renders names at all), and this shape has no guild in it.
+    look they picked, how they appear right now, and when they joined. The name
+    a member goes by is a guild's business, and this shape has no guild in it.
 
     Nothing here is private to a guild, so nothing here is reached through
     one. What it does not carry is the whole point of it being its own shape:
@@ -518,7 +540,7 @@ class UserProfile(SanitizedBaseModel):
     joined_at: datetime
 
 
-class GuildRosterMember(UserSummary):
+class CommunityRosterMember(UserSummary):
     """One person on a community's people roster.
 
     ``UserSummary`` plus what a roster row draws beside the name: how they
@@ -534,11 +556,11 @@ class GuildRosterMember(UserSummary):
     custom_status: CustomStatus = Field(default_factory=CustomStatus)
 
 
-class GuildRosterResponse(PageMeta):
+class CommunityRosterResponse(PageMeta):
     """A page of the roster, and how many people are in each presence group
     across every page, so a group's heading can count people not yet loaded."""
 
-    items: List[GuildRosterMember]
+    items: List[CommunityRosterMember]
     presence_counts: dict[Presence, int]
 
 
@@ -562,11 +584,44 @@ class UserEmailRead(SanitizedBaseModel):
 
 
 class UserEmailCreate(SanitizedBaseModel):
+    """Adding an address asks for the password, where there is one."""
+
     email: EmailStr
+    current_password: Optional[str] = None
+
+
+class UserEmailChange(SanitizedBaseModel):
+    """Removing an address or making one primary asks for the password, where
+    there is one."""
+
+    current_password: Optional[str] = None
+
+
+class HeldChangeRead(SanitizedBaseModel):
+    """A change to how the account is signed into that waits until
+    ``applies_at``. ``subject`` is the address or passkey it acts on."""
+
+    id: int
+    kind: HeldChangeKind
+    subject: Optional[str] = None
+    requested_at: datetime
+    applies_at: datetime
+
+
+class HeldChangeOutcome(SanitizedBaseModel):
+    """What a change that may be held answers, made or not: ``held`` is the
+    change waiting (``202``), or null where it was made at once (``200``)."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    held: Optional[HeldChangeRead] = None
 
 
 class UserEmailListResponse(SanitizedBaseModel):
     items: List[UserEmailRead]
+    #: Whether changing the list asks for the password. Where it does not, a
+    #: recent sign-in answers instead.
+    password_required: bool
 
 
 class CookieConsentRead(SanitizedBaseModel):
@@ -631,12 +686,12 @@ class UserRead(UserBase):
     #: the signup form agreed there and never sees this; one provisioned by an
     #: identity provider met no form, so true blocks the app on the acceptance
     #: screen the way ``username_chosen`` false routes to the handle screen.
-    #: Populated by ``/users/me``; defaults false elsewhere.
+    #: Populated by ``/me``; defaults false elsewhere.
     legal_acceptance_required: bool = False
     #: This account's cookie answer, so a browser it has never been asked in
     #: can adopt it instead of asking again. Null where it has never answered,
     #: which is different from having answered and allowed nothing. Populated
-    #: by ``/users/me``; null elsewhere.
+    #: by ``/me``; null elsewhere.
     cookie_consent: Optional["CookieConsentRead"] = None
     status: UserStatus
     #: Both resolved from ``user_emails`` by whoever builds this shape (see
@@ -667,7 +722,7 @@ class UserRead(UserBase):
     # True when the account has a linked external identity (SSO). Consumed by
     # the profile/deletion UI to hide the password confirmation, since SSO-only
     # accounts have no usable password to type in. Populated by the self
-    # endpoints (/users/me and PATCH /users/me); defaults False elsewhere.
+    # endpoints (/me and PATCH /me); defaults False elsewhere.
     has_federated_identity: bool = False
     # True when the account holds a password it can be asked for. Read from
     # the stored hash rather than from the identity link above: an account can
@@ -683,13 +738,15 @@ class UserRead(UserBase):
 
     @computed_field(return_type=bool)  # type: ignore[misc]
     @property
-    def can_create_guilds(self) -> bool:
+    def can_create_communities(self) -> bool:
         if self.status == UserStatus.suspended:
             return False
         if not settings.DISABLE_GUILD_CREATION:
             return True
         # When disabled, only platform roles that manage guilds can create them.
-        return Capability.GUILDS_MANAGE in standing_capabilities(self.role, self.status)
+        return Capability.COMMUNITIES_MANAGE in standing_capabilities(
+            self.role, self.status
+        )
 
     @computed_field(return_type=List[Capability])  # type: ignore[misc]
     @property
@@ -715,7 +772,7 @@ class OperatorUserRead(UserRead):
     somebody has quoted at you, which is what the column is read for.
 
     Masking lives on the shape rather than in each operator route: subclassing
-    keeps ``/users/me`` — where the reader is the address's owner — on plain
+    keeps ``/me`` — where the reader is the address's owner — on plain
     ``UserRead``, while every operator route that returns an account gets the
     masked form without opting in.
     """
@@ -746,6 +803,10 @@ class OperatorUserRead(UserRead):
     #: Whether the account holds an authenticator it has proved — what the
     #: roster offers to clear when its holder has lost it.
     second_factor_enrolled: bool = False
+
+    #: How many of the account's API keys still work — what the sheet offers
+    #: to revoke.
+    api_key_count: int = 0
 
     @field_validator("email", mode="after")
     @classmethod
@@ -798,7 +859,6 @@ class UserInitiativeRole(SanitizedBaseModel):
 
 
 class UserSelfUpdate(SanitizedBaseModel):
-    full_name: Optional[TitleStr] = None
     password: Optional[RawTextStr] = Field(default=None, max_length=256)
     # Required to set a new ``password`` (verified server-side). Exempt for
     # OIDC-only accounts, which have no local password to confirm.
@@ -851,7 +911,12 @@ class DeletionEligibilityResponse(SanitizedBaseModel):
     blockers: List[str] = Field(default_factory=list)
     #: Communities this account holds the only superadmin seat of — the one
     #: thing that blocks deletion, and what the dialog offers to delete.
-    sole_superadmin_guilds: List[str] = Field(default_factory=list)
+    sole_superadmin_communities: List[str] = Field(
+        default_factory=list,
+        validation_alias=AliasChoices(
+            "sole_superadmin_communities", "sole_superadmin_guilds"
+        ),
+    )
 
 
 class AccountDeletionResponse(SanitizedBaseModel):

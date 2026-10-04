@@ -17,7 +17,6 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import (
-    CREDENTIAL_DEVICE_TOKEN,
     require_first_party_session,
     SystemSessionDep,
     CurrentUser,
@@ -32,15 +31,11 @@ from app.api.v1.platform_endpoints.session_opening import (
     require_login_method,
 )
 from app.core.audit_events import AuditEventType
+from app.core.config import is_device
 from app.core.login_methods import LoginMethod
 from app.core.messages import AuthMessages
 from app.core.password_policy import enforce_password_policy
-from app.core.rate_limit import (
-    count_sign_in_failure,
-    get_user_or_ip_key,
-    limiter,
-    sign_in_allowance_left,
-)
+from app.core.rate_limit import SIGN_IN_FAILURES, limiter
 from app.core.security import get_password_hash, has_usable_password
 from app.db.session import get_session
 from app.models.platform.auth_session import AuthSession
@@ -98,7 +93,7 @@ async def _record_recovery_refusal(
 
 
 @router.post("/password/remove", response_model=RecoveryCodes)
-@limiter.limit("5/15minutes", key_func=get_user_or_ip_key)
+@limiter.limit("5/15minutes")
 async def remove_password(
     request: Request,
     response: Response,
@@ -118,7 +113,7 @@ async def remove_password(
     and hands this caller a replacement session in cookies, which is not what
     the native app carries, so the app is told to do this on the web instead.
     """
-    if _first_party == CREDENTIAL_DEVICE_TOKEN:
+    if is_device(request):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=AuthMessages.SESSION_REQUIRED,
@@ -180,7 +175,7 @@ async def remove_password(
         event_type=AuditEventType.AUTH_PASSWORD_REMOVED,
         actor_user_id=account.id,
     )
-    # Bump token_version and retire the device tokens, API keys, refresh
+    # Bump token_version and retire the API keys, refresh
     # sessions and half-finished sign-ins that rested on the password.
     #
     # Staged, not committed: the replacement session below joins them in one
@@ -230,7 +225,6 @@ async def remove_password(
 
 
 @router.post("/password/recover", response_model=VerificationSendResponse)
-@limiter.limit("5/15minutes")
 async def recover_with_code(
     request: Request,
     session: SessionDep,
@@ -253,24 +247,24 @@ async def recover_with_code(
     # Counted by the address typed in as well as by the account, the same way
     # a password is, so an address nobody holds runs out like one somebody does.
     address = payload.email.lower().strip()
-    if not await sign_in_allowance_left(address):
+    if not await SIGN_IN_FAILURES.left(address):
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail=AuthMessages.SIGN_IN_LOCKED,
         )
     user = await addresses.find_user_by_address(system_session, payload.email)
     if user is None:
-        await count_sign_in_failure(address)
+        await SIGN_IN_FAILURES.take(address)
         raise _recovery_code_invalid()
     await refuse_if_locked(system_session, user.id)
     if user.status != UserStatus.active or has_usable_password(user.hashed_password):
-        await count_sign_in_failure(address)
+        await SIGN_IN_FAILURES.take(address)
         await _record_recovery_refusal(system_session, user_id=user.id)
         raise _recovery_code_invalid()
     if not await totp_service.consume_recovery_code(
         system_session, user_id=user.id, code=payload.recovery_code
     ):
-        await count_sign_in_failure(address)
+        await SIGN_IN_FAILURES.take(address)
         await _record_recovery_refusal(system_session, user_id=user.id)
         await count_wrong_answer(system_session, user.id)
         raise _recovery_code_invalid()
@@ -296,7 +290,7 @@ async def recover_with_code(
         actor_user_id=user.id,
         detail={"via": "recovery_code"},
     )
-    # Bump token_version and retire the device tokens, API keys and refresh
+    # Bump token_version and retire the API keys and refresh
     # sessions the account held before it was recovered.
     #
     # ``user`` is staged on ``system_session``, so its id is read here rather

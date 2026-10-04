@@ -24,17 +24,17 @@ import { useTranslation } from "react-i18next";
 
 import type { InitiativeRead } from "@/api/generated/initiativeAPI.schemas";
 import {
-  getListInitiativesApiV1CGuildIdInitiativesGetQueryKey,
-  listInitiativesApiV1CGuildIdInitiativesGet,
+  getListInitiativesQueryKey,
+  listInitiatives,
 } from "@/api/generated/initiatives/initiatives";
 import { SkeletonRegion, TableSkeleton } from "@/components/skeletons/PageSkeletons";
 import { TOOL_TRAY_SURFACE, ToolRail } from "@/components/toolBrowser/ToolRail";
-import { CROSS_GUILD_TOOL_SORT_FIELDS, ToolTable } from "@/components/toolBrowser/ToolTable";
+import { CROSS_COMMUNITY_TOOL_SORT_FIELDS, ToolTable } from "@/components/toolBrowser/ToolTable";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { useGuilds } from "@/hooks/useGuilds";
+import { useCommunities } from "@/hooks/useCommunities";
 import { toolsWithContent, useMyToolCounts, useMyToolRows } from "@/hooks/useMyTools";
 import { useToolBrowserSearch } from "@/hooks/useToolBrowserSearch";
 import { cn } from "@/lib/utils";
@@ -50,16 +50,19 @@ const parseCommunities = (raw: string | undefined): number[] =>
 
 export function MyToolsPage() {
   const { t } = useTranslation("myTools");
-  const { guilds } = useGuilds();
+  const { communities } = useCommunities();
   const { search, setSearch, selectTool, query, table } = useToolBrowserSearch<{
     made?: string;
     communities?: string;
-  }>(CROSS_GUILD_TOOL_SORT_FIELDS);
+  }>(CROSS_COMMUNITY_TOOL_SORT_FIELDS);
 
   // "Made by me" is the narrower of the two views, so it is the one the address
   // has to say; a bare /my-tools is everything.
   const createdByMe = search.made === "me";
-  const guildFilters = useMemo(() => parseCommunities(search.communities), [search.communities]);
+  const communityFilters = useMemo(
+    () => parseCommunities(search.communities),
+    [search.communities]
+  );
 
   // Which tabs exist. The counts follow the view — the made-by-me list of a
   // tool you have never authored is empty, and a tab onto an empty table is
@@ -75,7 +78,7 @@ export function MyToolsPage() {
     table.page,
     table.pageSize,
     {
-      guildIds: guildFilters,
+      communityIds: communityFilters,
       search: query || undefined,
       createdByMe,
       sortBy: table.sortBy,
@@ -83,23 +86,23 @@ export function MyToolsPage() {
     }
   );
 
-  const communities = useMemo(
-    () => new Map(guilds.map((guild) => [guild.id, guild.name])),
-    [guilds]
+  const communityNames = useMemo(
+    () => new Map(communities.map((community) => [community.id, community.name])),
+    [communities]
   );
 
   // The initiative column names a row's initiative, and each community answers
   // for its own. Only the communities on this page of rows are asked, and the
   // answers are the same cache entries the sidebar and the community pages
   // already fill.
-  const rowGuildIds = useMemo(
-    () => [...new Set(rows.map((row) => row.guildId))].sort((a, b) => a - b),
+  const rowCommunityIds = useMemo(
+    () => [...new Set(rows.map((row) => row.communityId))].sort((a, b) => a - b),
     [rows]
   );
   const initiatives = useQueries({
-    queries: rowGuildIds.map((guildId) => ({
-      queryKey: getListInitiativesApiV1CGuildIdInitiativesGetQueryKey(guildId),
-      queryFn: () => listInitiativesApiV1CGuildIdInitiativesGet(guildId),
+    queries: rowCommunityIds.map((communityId) => ({
+      queryKey: getListInitiativesQueryKey(communityId),
+      queryFn: () => listInitiatives(communityId),
       staleTime: 60_000,
     })),
     // `combine` rather than a `useMemo` over the results: the results array is
@@ -113,16 +116,13 @@ export function MyToolsPage() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
-        <div>
-          <h1 className="font-semibold text-3xl tracking-tight">{t("title")}</h1>
-          <p className="text-muted-foreground">{t("subtitle")}</p>
-        </div>
+        <h1 className="font-semibold text-3xl tracking-tight">{t("title")}</h1>
 
         <div className="flex flex-wrap items-end gap-4">
           {/* Only worth offering to somebody who is in more than one community
               — with a single one, the filter can only say what the page
               already says. */}
-          {guilds.length > 1 ? (
+          {communities.length > 1 ? (
             <div className="w-full sm:w-56">
               <Label
                 htmlFor="my-tools-communities"
@@ -131,8 +131,11 @@ export function MyToolsPage() {
                 {t("communities.label")}
               </Label>
               <MultiSelect
-                selectedValues={guildFilters.map(String)}
-                options={guilds.map((guild) => ({ value: String(guild.id), label: guild.name }))}
+                selectedValues={communityFilters.map(String)}
+                options={communities.map((community) => ({
+                  value: String(community.id),
+                  label: community.name,
+                }))}
                 onChange={(values) => {
                   const ids = values.map(Number).filter(Number.isFinite);
                   setSearch({
@@ -205,7 +208,7 @@ export function MyToolsPage() {
                 tool={selected}
                 rows={rows}
                 initiatives={initiatives}
-                communities={communities}
+                communities={communityNames}
                 totalCount={totalCount}
                 {...table}
               />

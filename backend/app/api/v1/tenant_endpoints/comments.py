@@ -48,6 +48,7 @@ async def create_comment(
             guild_id=guild_context.guild_id,
             content=comment_in.content,
             parent_comment_id=comment_in.parent_comment_id,
+            audience=comment_in.audience,
             **comment_in.target_ids(),
         )
     except comments_service.CommentNotFoundError as exc:
@@ -231,7 +232,6 @@ async def delete_comment(
             comment_id=comment_id,
             user=current_user,
             guild_id=guild_context.guild_id,
-            guild_role=guild_context.role,
         )
     except comments_service.CommentNotFoundError as exc:
         raise HTTPException(

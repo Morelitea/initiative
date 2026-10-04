@@ -27,6 +27,7 @@ from app.db.session import require_guild_context
 from app.models.platform.user import User
 from app.models.tenant.calendar import Calendar
 from app.models.tenant.calendar_event import CalendarEvent
+from app.services.export.adapters._common import require_may_leave
 from app.services.export.contract import RenderItem, RenderRequest
 from app.services.export.engine import ExportError
 from app.services.tenant.ical_service import documents_for_events, event_export_dict
@@ -64,6 +65,7 @@ class CalendarEventsAdapter:
         format: str,
     ) -> RenderRequest:
         events = await _query(session, user, params)
+        reach = await require_may_leave(session, await _reach(session, events))
         documents = await documents_for_events(session, events)
         dicts = [
             event_export_dict(event, documents.get(event.id, [])) for event in events
@@ -73,7 +75,7 @@ class CalendarEventsAdapter:
             template_id=self.template_id,
             format=format,
             batch=(RenderItem(key="events", data={"layout": "ical", "events": dicts}),),
-            initiative_ids=await _reach(session, events),
+            initiative_ids=reach,
         )
 
 
@@ -95,7 +97,7 @@ def _filters(params: dict[str, Any]) -> dict[str, Any]:
     """The calendar page's selector, as the shared event query takes it."""
     return dict(
         initiative_id=params.get("initiative_id"),
-        guild_scope=params.get("scope") == "guild",
+        guild_scope=params.get("scope") == "community",
         calendar_ids=params.get("calendar_ids"),
         exclude_calendar_ids=params.get("exclude_calendar_ids"),
         property_filters=params.get("property_filters"),

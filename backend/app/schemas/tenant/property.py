@@ -12,10 +12,10 @@ from pydantic import (
     model_validator,
 )
 
-from app.core.identity_boundary import responding_to_install, serialize_person_id
+from app.core.identity_boundary import responding_to_install
 from app.core.tools import PROPERTY_TARGETS
 from app.schemas.base import SanitizedBaseModel
-from app.services.platform.user_avatars import is_avatar_url
+from app.schemas.platform.user import AppPerson
 
 from app.models.tenant.property import PropertyType
 
@@ -177,7 +177,7 @@ class PropertySummary(SanitizedBaseModel):
 
     ``value`` is rehydrated from the correct typed column by the service
     layer. For ``user_reference`` properties the service attaches a
-    minimal ``{id, full_name}`` dict.
+    minimal person dict (``id``, the handle, ``display_name``, ``avatar_url``).
     """
 
     model_config = ConfigDict(
@@ -188,26 +188,26 @@ class PropertySummary(SanitizedBaseModel):
     name: str
     type: PropertyType
     options: Optional[List[PropertyOption]] = None
-    value: Any = None
+    value: Any = Field(
+        default=None,
+        description=(
+            "Shaped by the property's type. For user_reference, a person: id, "
+            "username, discriminator, display_name and avatar_url, or an "
+            "AppPerson when the reader is an installed app."
+        ),
+    )
 
     @field_serializer("value")
     def _value_out(self, value: Any) -> Any:
         """A person a ``user_reference`` value names, as the response's reader
-        knows them: an installed app gets its own reference, and no picture
-        this API serves (it is addressed by the person's row id)."""
+        knows them: an installed app gets an :class:`AppPerson`."""
         if (
             self.type is not PropertyType.user_reference
             or not isinstance(value, dict)
             or not responding_to_install()
         ):
             return value
-        person = dict(value)
-        if isinstance(person.get("id"), int):
-            person["id"] = serialize_person_id(person["id"])
-        avatar = person.get("avatar_url")
-        if isinstance(avatar, str) and is_avatar_url(avatar):
-            person["avatar_url"] = None
-        return person
+        return AppPerson.model_validate(value).for_install()
 
 
 def annotated_properties(entity: Any) -> List[PropertySummary]:

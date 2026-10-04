@@ -31,7 +31,7 @@
   },
   "wizard": {
     "titleInitiative": "Export initiative",
-    "titleGuild": "Export community",
+    "titleCommunity": "Export community",
     "titleEntities_one": "Export {{count}} item",
     "titleEntities_other": "Export {{count}} items",
     "back": "Back",
@@ -124,9 +124,8 @@
     }
   },
   "entry": {
-    "guildTitle": "Export this community",
-    "guildDescription": "Download every initiative's data as an importable backup or an à-la-carte report. Sharing rules apply: the export contains what you can see.",
-    "initiativeTitle": "Export this initiative",
+    "communityTitle": "Export this community",
+    "communityDescription": "Download every initiative's data as an importable backup or an à-la-carte report. Sharing rules apply: the export contains what you can see.",
     "initiativeDescription": "Download this initiative's data as an importable backup or an à-la-carte report. Sharing rules apply: the export contains what you can see.",
     "open": "Export…"
   },
@@ -168,7 +167,7 @@
       "post": "Post",
       "wiki": "Wiki",
       "initiative": "Initiative",
-      "guild": "Community",
+      "community": "Community",
       "gallery": "Gallery",
       "counter-group": "Counter group",
       "dashboard": "Dashboard"

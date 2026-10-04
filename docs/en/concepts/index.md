@@ -30,11 +30,11 @@ Biggest to smallest:
 
 1. **Community** — the whole workspace for one group of people.
 2. **Initiative** — a folder inside it for one big effort.
-3. **Tools** — the eight kinds of thing that hold the work, kept inside an initiative.
+3. **Tools** — the nine kinds of thing that hold the work, kept inside an initiative.
 4. **Tasks** — the individual to-dos on a project's board.
 
 !!! tip "You do not have to build all of this"
-    Making a community hands you an initiative and somewhere to put your first project. That's the setup. Done. Plenty of groups run happily on exactly that for years and never touch anything else on this page.
+    One initiative with one project in it. That's the setup. Done. Plenty of groups run happily on exactly that for years and never touch anything else on this page.
 
     This diagram is a map of what's *available*. It is not a checklist, and you are not behind.
 
@@ -46,7 +46,7 @@ Communities don't mix. Nothing in one is visible from another — not to other p
 
 The one thing that spans them is **you**. The Initiative logo above the rail opens [your space](../guides/your-space.md), which gathers your own tasks, events and messages out of every community at once — because you belong to all of them. It shows you nothing you couldn't already reach. It just saves you opening four communities to find out what you agreed to.
 
-Inside a community there are exactly two levels of person: **admin** (runs the place) and **member** (is in the place). That's the whole hierarchy. Nobody has to be promoted to Senior Member. See [Working with communities](../guides/communities.md).
+Inside a community there are three levels of person: **member** (is in the place), **admin** (runs the place), and **superadmin** (runs it, and also holds the keys: sign-in, AI and apps). That's the whole hierarchy. Nobody has to be promoted to Senior Member. See [Working with communities](../guides/communities.md).
 
 !!! example "A running example"
     *Riverside Players* is a community theatre group. They make one community for everything they do together. Inside it, one initiative per production.
@@ -62,13 +62,13 @@ Why is there a middle layer at all? Because real groups have four things on the 
 
     Only the spring play people are in it. The summer show crew never see it, never scroll past it, and are never once tempted to have an opinion about it.
 
-A new community has no initiatives — you make the first one and name it after the work it holds. Add as many more as you need.
+A new community has no initiatives — you make the first one and name it after the work it holds. (Sign up with **For a group** or **Just for me** and the first one is made for you.) Add as many more as you need.
 
 People are added as **members**, each with a **role** — "Director", "Cast" — that decides which tools they can use. See [Initiative roles](../sharing/initiative-roles.md).
 
 ## Tools — the things that hold the work
 
-Everything inside an initiative is a **tool**. There are eight kinds, and they all behave the same way: they're shared the same way, they take tags, they have comment threads, and you can point at any of them with `#` from anywhere you write.
+Everything inside an initiative is a **tool**. There are nine kinds, and they all behave the same way: they're shared the same way, they take tags, they have comment threads, and you can point at any of them with `#` from anywhere you write.
 
 Learn how one works and you've learned how the next one works. That's the whole idea.
 

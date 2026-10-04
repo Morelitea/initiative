@@ -30,7 +30,7 @@ def _stamped(format: str, template_id: str, data: dict) -> RenderRequest:
         format=format,
         batch=(RenderItem(key="item", data=data),),
     )
-    return stamp_export(request, User(username="ada", discriminator=1, full_name="Ada"))
+    return stamp_export(request, User(username="ada", discriminator=1))
 
 
 async def _render(format: str, template_id: str, data: dict) -> bytes:
@@ -58,15 +58,15 @@ async def test_pdf_carries_author_and_date_in_its_metadata(template_id, data):
 
     reader = PdfReader(io.BytesIO(await _render("pdf", template_id, data)))
     assert reader.metadata is not None
-    assert reader.metadata.author == "Ada"
+    assert reader.metadata.author == "ada#0001"
     assert reader.metadata.creation_date is not None
-    assert "Ada" not in reader.pages[0].extract_text()
+    assert "ada#0001" not in reader.pages[0].extract_text()
 
 
 @pytest.mark.parametrize("data", [_TABLE, _DOCUMENT])
 async def test_markdown_carries_the_stamp_as_a_comment(data):
     first = (await _render("md", "task-table", data)).decode().splitlines()[0]
-    assert first.startswith("<!-- exported: ") and first.endswith("; by: Ada -->")
+    assert first.startswith("<!-- exported: ") and first.endswith("; by: ada#0001 -->")
 
 
 def test_markdown_comment_survives_a_name_that_would_close_it():
@@ -79,7 +79,7 @@ def test_markdown_comment_survives_a_name_that_would_close_it():
             format="md",
             batch=(RenderItem(key="item", data={}),),
         ),
-        User(username="x", discriminator=1, full_name="a--->b"),
+        User(username="a--->b", discriminator=1),
     )
     comment = markdown_stamp(request.batch[0].data)[0]
     assert comment.count("--") == 2
@@ -92,5 +92,5 @@ def test_markdown_comment_survives_a_name_that_would_close_it():
 async def test_office_files_carry_the_stamp_in_core_properties(data, format):
     content = await _render(format, "task-table", data)
     core = zipfile.ZipFile(io.BytesIO(content)).read("docProps/core.xml").decode()
-    assert re.search(r"<dc:creator[^>]*>Ada</dc:creator>", core)
+    assert re.search(r"<dc:creator[^>]*>ada#0001</dc:creator>", core)
     assert "dcterms:created" in core

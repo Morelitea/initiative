@@ -39,7 +39,7 @@ export function DayView({
               key={entry.id}
               type="button"
               className={cn(
-                "flex w-full items-center gap-1.5 rounded px-2 py-1 text-left font-medium text-[11px] text-white transition-colors",
+                "flex w-full items-center gap-1.5 rounded px-2 py-1 text-left font-medium text-2xs text-white transition-colors",
                 onEntryClick ? "cursor-pointer hover:brightness-90" : "cursor-default"
               )}
               style={{
@@ -48,7 +48,7 @@ export function DayView({
               onClick={() => onEntryClick?.(entry)}
             >
               {entry.kind && (
-                <span className="shrink-0 rounded-sm bg-white/25 px-1 font-semibold text-[9px] uppercase">
+                <span className="shrink-0 rounded-sm bg-white/25 px-1 font-semibold text-3xs uppercase">
                   {t(`common:${kindLabelKey(entry.kind)}`)}
                 </span>
               )}

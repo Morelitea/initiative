@@ -212,7 +212,7 @@ export function SqlEditor({
                   <Icon className="h-3 w-3 shrink-0 text-muted-foreground" aria-hidden />
                   <span className="truncate font-mono">{completion.name}</span>
                   {completion.detail && (
-                    <span className="ml-auto shrink-0 truncate text-[10px] text-muted-foreground">
+                    <span className="ml-auto shrink-0 truncate text-3xs text-muted-foreground">
                       {completion.detail}
                     </span>
                   )}

@@ -5,9 +5,10 @@ A marketplace **listing** says what an app is and what it declares. A
 splits the same way, whatever published its listing:
 
 * **App facts** come from the app's listing, and only a listing apply writes
-  them: ``listing_uid``, ``scope_ceiling``, ``image_digest`` and
-  ``reference_sectors``. Every source reads the same ``registration`` block
-  (the registry, a local upload, the operator's catalog directory, the build).
+  them: ``listing_uid``, ``scope_ceiling``, ``image_digest``,
+  ``reference_sectors`` and ``compose``. Every source reads the same
+  ``registration`` block (the registry, a local upload, the operator's catalog
+  directory, the build).
 * **Deployment facts** come from the operator, through ``APP_SERVICES_CONFIG``
   or the settings form: where the app runs, the public keys its container signs
   with, its vendor values, the switch, the mandatory flag and the origins.
@@ -37,9 +38,14 @@ Some columns exist only because of that split:
   ciphertext per field. ``vendor_ready`` is whether every field the manifest
   requires (``vendor_required``) holds one, computed by the database.
 
+* ``kind`` — ``container`` for an app Initiative calls, ``declarative`` for
+  one whose calls Initiative makes itself from its manifest. A declarative
+  app's registration has no location and no keys.
+
 **Live** is one rule, stated once in :func:`registration_live_sql`: the
-registration is enabled, its publisher is enabled, it has a location, it
-has a key set to verify against, and its required vendor values are set.
+registration is enabled, its publisher is enabled, its required vendor values
+are set and, for a container, it has a location and a key set to verify
+against.
 The install standing, the registration snapshot and every channel that reads
 a single row ask it in that form.
 
@@ -78,6 +84,7 @@ __all__ = [
     "MAX_APP_ID_LENGTH",
     "REFERENCE_SECTORS",
     "AppServiceRegistration",
+    "RegistrationKind",
     "BrowserAddressed",
     "RegistrationSource",
     "browser_base",
@@ -100,12 +107,23 @@ REFERENCE_SECTORS: frozenset[str] = frozenset({IdentityPurpose.billing.value})
 #: settings request naming one is refused: it gives deployment facts only.
 LISTING_STATED_FIELDS: tuple[str, ...] = (
     "listing_uid",
+    "kind",
     "scope_ceiling",
     "image",
     "image_digest",
     "reference_sectors",
     "registry",
+    "compose",
 )
+
+
+class RegistrationKind:
+    """Which kind of app a registration is for, as its listing says."""
+
+    #: Initiative calls the app's container.
+    CONTAINER = "container"
+    #: Initiative makes the app's calls itself, from its manifest.
+    DECLARATIVE = "declarative"
 
 
 class RegistrationSource:
@@ -123,21 +141,22 @@ def registration_live_sql(
     """Whether a registration is live, as a SQL boolean over one registration
     row and its publisher's row, named by ``registration`` and ``publisher``.
 
-    Enabled, its publisher enabled, a location, a key set to verify against
-    (a pasted set with at least one key, or a key set address), and every
-    required vendor value set. ``-> 0`` reads the first key and is null for an
-    empty or absent set.
+    Enabled, its publisher enabled, and every required vendor value set; and
+    for a container, a location and a key set to verify against (a pasted set
+    with at least one key, or a key set address). ``-> 0`` reads the first key
+    and is null for an empty or absent set.
 
-    A registration lacks both until the operator gives them: its listing
-    names the app, and the operator says where it runs and which keys it
-    signs with.
+    A container's registration lacks both until the operator gives them: its
+    listing names the app, and the operator says where it runs and which keys
+    it signs with. A declarative app runs nowhere and signs nothing.
     """
     return (
         f"({registration}.enabled AND {publisher}.enabled"
-        f" AND {registration}.base_url IS NOT NULL"
         f" AND {registration}.vendor_ready"
+        f" AND ({registration}.kind = '{RegistrationKind.DECLARATIVE}'"
+        f" OR ({registration}.base_url IS NOT NULL"
         f" AND ({registration}.jwks_uri IS NOT NULL"
-        f" OR {registration}.jwks -> 'keys' -> 0 IS NOT NULL))"
+        f" OR {registration}.jwks -> 'keys' -> 0 IS NOT NULL))))"
     )
 
 
@@ -218,6 +237,11 @@ class AppServiceRegistration(SQLModel, table=True):
         default=True,
         sa_column=Column(Boolean, nullable=False, server_default="true"),
     )
+    # Which kind of app it is for (``RegistrationKind``), from its listing.
+    kind: str = Field(
+        default=RegistrationKind.CONTAINER,
+        sa_column=Column(String(16), nullable=False, server_default="container"),
+    )
     # Where its app facts came from (``RegistrationSource``).
     source: str = Field(
         default=RegistrationSource.OPERATOR,
@@ -234,6 +258,13 @@ class AppServiceRegistration(SQLModel, table=True):
     reference_sectors: List[str] = Field(
         default_factory=list,
         sa_column=Column(ARRAY(Text), nullable=False, server_default=text("'{}'")),
+    )
+    # The Compose service its listing's publisher wrote for running the app
+    # beside Initiative: ``{"service": <YAML text>, "base_url": <address on
+    # the Compose network>}``, its placeholders unfilled. NULL when the listing
+    # carries none.
+    compose: Optional[dict] = Field(
+        default=None, sa_column=Column(JSONB, nullable=True)
     )
     # Whether the registry listing behind this row was verified under the root
     # shipped in the image. Reference sectors are honoured only when it was.

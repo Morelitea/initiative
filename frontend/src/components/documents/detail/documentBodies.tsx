@@ -4,7 +4,7 @@ import { ExternalLink, Loader2 } from "lucide-react";
 import { type ComponentType, lazy, useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { importSpreadsheetFileApiV1CGuildIdDocumentsDocumentIdSpreadsheetImportPost } from "@/api/generated/documents/documents";
+import { importSpreadsheetFile } from "@/api/generated/documents/documents";
 import type { DocumentRead, DocumentType } from "@/api/generated/initiativeAPI.schemas";
 import { SearchEntityType, Tool } from "@/api/generated/initiativeAPI.schemas";
 import type { SmartLinkContent } from "@/components/documents/SmartLinkDocumentViewer";
@@ -19,9 +19,9 @@ import { CreateReferencedThingDialog } from "@/components/references/CreateRefer
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import type { UseCollaborationResult } from "@/hooks/useCollaboration";
-import { useGuilds } from "@/hooks/useGuilds";
+import { useCommunities } from "@/hooks/useCommunities";
+import { useCommunityPath } from "@/lib/communityUrl";
 import { normalizeEditorState } from "@/lib/editorState";
-import { useGuildPath } from "@/lib/guildUrl";
 import { supportsEntityMentions } from "@/lib/mentions";
 import { referenceRef } from "@/lib/smartChips";
 import type { SpreadsheetSheetContent } from "@/lib/spreadsheet/content";
@@ -83,11 +83,9 @@ export interface DocumentBody {
   /** Edited on this page, so the frame carries the save bar. */
   editable?: boolean;
   /**
-   * Joins the document's live room, sending it this tab's rendering this
-   * often so the content column stays current for readers outside it. Prose
-   * waits longer — people type many characters a second — while a drawing
-   * action or a cell edit fits in the window, and a longer one would only
-   * leave the column stale.
+   * Joins the document's live room, which renders the content column from its
+   * Yjs state. This paces the rest of a save while it is live: the name and
+   * the featured image.
    */
   roomSyncMs?: number;
   /** Prose: headings to navigate and an AI summary. */
@@ -129,7 +127,7 @@ const NativeBody = ({
   onChange,
 }: DocumentBodyProps) => {
   const navigate = useNavigate();
-  const gp = useGuildPath();
+  const gp = useCommunityPath();
   // `[[ ]]` found nothing and offered to make it. The dialog owns which kind
   // and whether this writer may; the reference it answers with goes straight
   // into the sentence, so making something never costs the writer their place.
@@ -267,22 +265,17 @@ const SpreadsheetBody = ({
 }: DocumentBodyProps) => {
   const room = useRoomProvider(collaboration, live);
   const currentUser = usePresenceUser();
-  const { activeGuildId } = useGuilds();
-  // Reading a file is the host's job — it knows which document and guild the
+  const { activeCommunityId } = useCommunities();
+  // Reading a file is the host's job — it knows which document and community the
   // editor is showing. What comes back is sheets; the editor adds them to its
   // live workbook itself, in one transaction.
   const importSheets = useCallback(
     async (file: File) => {
-      if (!activeGuildId) return [];
-      const result =
-        await importSpreadsheetFileApiV1CGuildIdDocumentsDocumentIdSpreadsheetImportPost(
-          activeGuildId,
-          document.id,
-          { file }
-        );
+      if (!activeCommunityId) return [];
+      const result = await importSpreadsheetFile(activeCommunityId, document.id, { file });
       return result.sheets as unknown as SpreadsheetSheetContent[];
     },
-    [activeGuildId, document.id]
+    [activeCommunityId, document.id]
   );
 
   return (
@@ -327,7 +320,7 @@ const FileBody = ({ document, canEdit }: DocumentBodyProps) =>
   document.file_url ? (
     <FileDocumentViewer
       documentId={document.id}
-      guildId={document.guild_id}
+      communityId={document.community_id}
       fileUrl={document.file_url}
       contentType={document.file_content_type}
       originalFilename={document.original_filename}

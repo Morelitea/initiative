@@ -53,7 +53,7 @@ export const ToolRelationsPanel = ({
   // panel does.
   if (!entity) return null;
 
-  // A guild-level entity — an app-installed calendar — belongs to no
+  // A community-level entity — an app-installed calendar — belongs to no
   // initiative, and a link is only ever made inside one. Offering the panel
   // there would offer links the server refuses, so it is not offered.
   const initiativeId = entity.initiative_id ?? null;

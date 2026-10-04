@@ -14,6 +14,8 @@ Four seconds, give or take.
 
 You land on your home screen. Initiative keeps you signed in on that device, so you aren't logging in again every single morning like it's your bank.
 
+The card says which server you're signing in to — **Sign in to** and its address — with a small **Self-hosted** badge beside it. That's the kind of server you're on: one somebody runs for your group, at the address you just opened.
+
 ![Signing in with email and password](../images/getting-started/login-form.png)
 
 ## A code by email
@@ -49,20 +51,19 @@ No password to forget, because you sign in with a [passkey](../account/passkeys.
 
 ## The mobile app
 
-Haven't got it yet? [Installing the app](install-the-app.md) covers both the Android app and the home-screen version for everything else.
+Haven't got it yet? [Installing the app](install-the-app.md) covers the Android and desktop apps, and the home-screen version for everything else. The desktop app signs in the same way.
 
 The app needs one extra step the first time, because it has to be told *which* Initiative it's talking to. There are a lot of them out there and it has no way of guessing which one is yours.
 
-1. Open the app. You'll get a **Connect to Server** screen.
-2. Type in your group's Initiative address — the same one you use in a browser.
-3. Sign in with your email and password, single sign-on, or a passkey — that last one opens your browser for a moment and hands you back.
+1. Open the app. Under the title it says **Sign in to**, followed by a server. Tap that, choose **Your own server**, type in your group's Initiative address — the same one you use in a browser — and tap **Connect**.
+2. Sign in with your email and password, single sign-on, or a passkey — that last one opens your browser for a moment and hands you back.
 
-After that it remembers, and stays signed in.
+After that it remembers, and stays signed in. Moving to a different server works the same way, from the sign-in or sign-up card: tap the server's name, then a new address and another **Connect**. The app keeps the last address you used, in case you want to go back.
 
 !!! tip "One account, as many devices as you like"
     Laptop and phone at the same time is completely fine, and so is the tablet you'd forgotten about.
 
-    To see everywhere you're currently signed in — and boot off anything you don't recognise — open **User settings → Security → Logged in devices**. Worth a glance every so often, in roughly the same spirit as testing the smoke alarm.
+    To see everywhere you're currently signed in — and boot off anything you don't recognise — open **My Settings → Security → Where you're signed in**. Worth a glance every so often, in roughly the same spirit as testing the smoke alarm.
 
 ## Signing out
 

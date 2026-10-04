@@ -1,12 +1,13 @@
-import type { ReactNode } from "react";
+import { Capacitor } from "@capacitor/core";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { UserRead } from "@/api/generated/initiativeAPI.schemas";
 import { invalidate, q } from "@/api/query-keys";
-import { SettingsSection } from "@/components/settings/SettingsSection";
+import { SettingsRow, SettingsSection } from "@/components/settings/SettingsSection";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { SearchableCombobox } from "@/components/ui/searchable-combobox";
 import {
   Select,
   SelectContent,
@@ -17,7 +18,8 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { useKeepScreenAwake } from "@/hooks/useKeepScreenAwake";
 import { useUpdateCurrentUser } from "@/hooks/useUsers";
-import { toast } from "@/lib/chesterToast";
+import { autoUpdateConsented, desktopCanUpdate, setAutoUpdateConsent } from "@/lib/desktopUpdates";
+import { toast } from "@/lib/mascotToast";
 import {
   dispatchTaskCompletionVisualFeedback,
   parseTaskCompletionVisualFeedback,
@@ -27,12 +29,15 @@ import {
   triggerTaskCompletionHaptic,
 } from "@/lib/taskCompletionFeedback";
 import type { ThemeColors } from "@/lib/themes";
-import { getTheme, getThemeList } from "@/lib/themes";
+import { getThemeList } from "@/lib/themes";
 import {
   parseTimeFormat,
   TIME_FORMAT_PREFERENCES,
   type TimeFormatPreference,
 } from "@/lib/timeFormat";
+import { TIMEZONE_OPTIONS } from "@/lib/timezones";
+import { cn } from "@/lib/utils";
+import Desktop from "@/plugins/desktop";
 
 const WEEK_START_OPTIONS = [
   { labelKey: "dates:weekdays.sunday", value: 0 },
@@ -68,7 +73,7 @@ function MiniMockup({ colors }: { colors: ThemeColors }) {
     <div
       className="flex overflow-hidden rounded-lg border"
       style={{
-        height: 130,
+        height: 88,
         borderColor: c(colors.border),
         backgroundColor: c(colors.background),
       }}
@@ -146,57 +151,52 @@ function MiniMockup({ colors }: { colors: ThemeColors }) {
   );
 }
 
-function ThemeColorPreview({ themeId }: { themeId: string }) {
-  const { t } = useTranslation("settings");
-  const theme = getTheme(themeId);
-
-  if (!theme) {
-    return null;
-  }
-
-  return (
-    <SettingsSection
-      title={t("interface.themePreview")}
-      description={t(`interface.themeDescriptions.${theme.id}` as never)}
-    >
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-1.5">
-          <p className="font-medium text-muted-foreground text-xs">{t("interface.lightMode")}</p>
-          <MiniMockup colors={theme.light} />
-        </div>
-        <div className="space-y-1.5">
-          <p className="font-medium text-muted-foreground text-xs">{t("interface.darkMode")}</p>
-          <MiniMockup colors={theme.dark} />
-        </div>
-      </div>
-    </SettingsSection>
-  );
-}
-
-/**
- * One preference: what it is, what it does, and the control that sets it.
- *
- * A settings tab is a column of these, and they only read as a column if the
- * label, the explanation and the control land in the same place every time —
- * so the arrangement is settled here rather than in each of the eight rows
- * that used to carry their own copy of it.
- */
-function Preference({
-  label,
-  description,
-  children,
+/** Every theme as a tile showing it in light and dark; the chosen one is ringed. */
+function ThemePicker({
+  value,
+  onChange,
+  disabled,
 }: {
-  label: string;
-  description: string;
-  children: ReactNode;
+  value: string;
+  onChange: (themeId: string) => void;
+  disabled?: boolean;
 }) {
+  const { t } = useTranslation("settings");
   return (
-    <div className="flex flex-col gap-2 border-b pb-4 last:border-b-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-      <div className="min-w-0">
-        <p className="font-medium">{label}</p>
-        <p className="text-muted-foreground text-sm">{description}</p>
-      </div>
-      <div className="flex shrink-0 items-center gap-2">{children}</div>
+    <div
+      role="radiogroup"
+      aria-label={t("interface.colorTheme")}
+      className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
+    >
+      {getThemeList().map((theme) => {
+        const selected = theme.id === value;
+        return (
+          // biome-ignore lint/a11y/useSemanticElements: a tile of previews, not a bare radio input
+          <button
+            key={theme.id}
+            type="button"
+            role="radio"
+            aria-checked={selected}
+            disabled={disabled}
+            onClick={() => onChange(theme.id)}
+            className={cn(
+              "space-y-2 rounded-lg border p-2 text-left transition-colors hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60",
+              selected && "border-primary ring-2 ring-primary"
+            )}
+          >
+            <div className="grid grid-cols-2 gap-1.5">
+              <MiniMockup colors={theme.light} />
+              <MiniMockup colors={theme.dark} />
+            </div>
+            <div className="px-1 pb-1">
+              <p className="font-medium text-sm">{theme.name}</p>
+              <p className="text-muted-foreground text-xs">
+                {t(`interface.themeDescriptions.${theme.id}` as never)}
+              </p>
+            </div>
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -220,6 +220,7 @@ export const UserSettingsInterfacePage = ({
   );
   const [colorTheme, setColorTheme] = useState(user.color_theme ?? "kobold");
   const [locale, setLocale] = useState(user.locale ?? "en");
+  const [timezone, setTimezone] = useState(user.timezone ?? "UTC");
   const [visualFeedback, setVisualFeedback] = useState<TaskCompletionVisualFeedback>(() =>
     parseTaskCompletionVisualFeedback(user.task_completion_visual_feedback)
   );
@@ -234,6 +235,32 @@ export const UserSettingsInterfacePage = ({
     setEnabled: setKeepAwake,
     supported: keepAwakeSupported,
   } = useKeepScreenAwake();
+  const [canAutoUpdate, setCanAutoUpdate] = useState(false);
+  const [autoUpdate, setAutoUpdate] = useState(autoUpdateConsented);
+
+  // The desktop app's own settings, kept on this computer; null elsewhere.
+  const [desktopShell, setDesktopShell] = useState<Awaited<
+    ReturnType<typeof Desktop.getSettings>
+  > | null>(null);
+
+  // A write the computer refused shows what is actually set, not what was asked.
+  const saveDesktopShell = (write: Promise<void>) => {
+    void write.catch(() => {
+      toast.error(t("interface.updateError"));
+      void Desktop.getSettings()
+        .then(setDesktopShell)
+        .catch(() => {});
+    });
+  };
+
+  useEffect(() => {
+    void desktopCanUpdate().then(setCanAutoUpdate);
+    if (Capacitor.getPlatform() === "electron") {
+      void Desktop.getSettings()
+        .then(setDesktopShell)
+        .catch(() => {});
+    }
+  }, []);
 
   useEffect(() => {
     setWeekStartsOn(user.week_starts_on ?? 0);
@@ -241,6 +268,7 @@ export const UserSettingsInterfacePage = ({
     setRecentTabsLimit(user.recent_tabs_limit ?? RECENT_TABS_LIMIT_DEFAULT);
     setColorTheme(user.color_theme ?? "kobold");
     setLocale(user.locale ?? "en");
+    setTimezone(user.timezone ?? "UTC");
     setVisualFeedback(parseTaskCompletionVisualFeedback(user.task_completion_visual_feedback));
     setAudioFeedback(user.task_completion_audio_feedback ?? true);
     setHapticFeedback(user.task_completion_haptic_feedback ?? true);
@@ -289,6 +317,7 @@ export const UserSettingsInterfacePage = ({
       setRecentTabsLimit(user.recent_tabs_limit ?? RECENT_TABS_LIMIT_DEFAULT);
       setColorTheme(user.color_theme ?? "kobold");
       setLocale(user.locale ?? "en");
+      setTimezone(user.timezone ?? "UTC");
       setVisualFeedback(parseTaskCompletionVisualFeedback(user.task_completion_visual_feedback));
       setAudioFeedback(user.task_completion_audio_feedback ?? true);
       setHapticFeedback(user.task_completion_haptic_feedback ?? true);
@@ -303,10 +332,45 @@ export const UserSettingsInterfacePage = ({
     }
   };
 
+  const pending = updateInterfacePrefs.isPending;
+
   return (
     <div className="space-y-6">
-      <SettingsSection title={t("interface.title")} description={t("interface.description")}>
-        <Preference
+      <SettingsSection title={t("interface.appearanceTitle")}>
+        <ThemePicker
+          value={colorTheme}
+          disabled={pending}
+          onChange={(next) => {
+            setColorTheme(next);
+            updateInterfacePrefs.mutate({ color_theme: next });
+          }}
+        />
+        <SettingsRow
+          label={t("interface.recentTabsLimit")}
+          description={t("interface.recentTabsLimitDescription")}
+          htmlFor="recent-tabs-limit"
+        >
+          <Input
+            id="recent-tabs-limit"
+            type="number"
+            min={RECENT_TABS_LIMIT_MIN}
+            max={RECENT_TABS_LIMIT_MAX}
+            value={recentTabsLimit}
+            onChange={(event) => setRecentTabsLimit(Number(event.target.value))}
+            onBlur={commitRecentTabsLimit}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.currentTarget.blur();
+              }
+            }}
+            disabled={pending}
+            className="sm:w-24"
+          />
+        </SettingsRow>
+      </SettingsSection>
+
+      <SettingsSection title={t("interface.regionTitle")}>
+        <SettingsRow
           label={t("interface.language")}
           description={t("interface.languageDescription")}
         >
@@ -316,9 +380,9 @@ export const UserSettingsInterfacePage = ({
               setLocale(next);
               updateInterfacePrefs.mutate({ locale: next });
             }}
-            disabled={updateInterfacePrefs.isPending}
+            disabled={pending}
           >
-            <SelectTrigger className="sm:w-52">
+            <SelectTrigger className="sm:w-52" aria-label={t("interface.language")}>
               <SelectValue>
                 {LANGUAGE_OPTIONS.find((l) => l.value === locale)?.label ?? "English"}
               </SelectValue>
@@ -331,36 +395,24 @@ export const UserSettingsInterfacePage = ({
               ))}
             </SelectContent>
           </Select>
-        </Preference>
+        </SettingsRow>
 
-        <Preference
-          label={t("interface.colorTheme")}
-          description={t("interface.colorThemeDescription")}
-        >
-          <Select
-            value={colorTheme}
-            onValueChange={(next) => {
-              setColorTheme(next);
-              updateInterfacePrefs.mutate({ color_theme: next });
-            }}
-            disabled={updateInterfacePrefs.isPending}
-          >
-            <SelectTrigger className="sm:w-52">
-              <SelectValue>
-                {getThemeList().find((theme) => theme.id === colorTheme)?.name ?? "Kobold"}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {getThemeList().map((theme) => (
-                <SelectItem key={theme.id} value={theme.id}>
-                  {theme.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Preference>
+        <SettingsRow label={t("profile.timezoneLabel")} description={t("profile.timezoneHelp")}>
+          <div className="w-full sm:w-52">
+            <SearchableCombobox
+              items={TIMEZONE_OPTIONS.map((tz) => ({ value: tz, label: tz }))}
+              value={timezone}
+              onValueChange={(next) => {
+                setTimezone(next);
+                updateInterfacePrefs.mutate({ timezone: next });
+              }}
+              placeholder={t("profile.timezonePlaceholder")}
+              emptyMessage={t("profile.timezoneEmpty")}
+            />
+          </div>
+        </SettingsRow>
 
-        <Preference
+        <SettingsRow
           label={t("interface.weekStartsOn")}
           description={t("interface.weekStartsOnDescription")}
         >
@@ -371,9 +423,9 @@ export const UserSettingsInterfacePage = ({
               setWeekStartsOn(value);
               updateInterfacePrefs.mutate({ week_starts_on: value });
             }}
-            disabled={updateInterfacePrefs.isPending}
+            disabled={pending}
           >
-            <SelectTrigger className="sm:w-52">
+            <SelectTrigger className="sm:w-52" aria-label={t("interface.weekStartsOn")}>
               <SelectValue>
                 {t(
                   (WEEK_START_OPTIONS.find((option) => option.value === weekStartsOn)?.labelKey ??
@@ -389,9 +441,9 @@ export const UserSettingsInterfacePage = ({
               ))}
             </SelectContent>
           </Select>
-        </Preference>
+        </SettingsRow>
 
-        <Preference
+        <SettingsRow
           label={t("interface.timeFormat.label")}
           description={t("interface.timeFormat.description")}
         >
@@ -402,9 +454,9 @@ export const UserSettingsInterfacePage = ({
               setTimeFormat(value);
               updateInterfacePrefs.mutate({ time_format: value });
             }}
-            disabled={updateInterfacePrefs.isPending}
+            disabled={pending}
           >
-            <SelectTrigger className="sm:w-52">
+            <SelectTrigger className="sm:w-52" aria-label={t("interface.timeFormat.label")}>
               <SelectValue>{t(`interface.timeFormat.options.${timeFormat}` as never)}</SelectValue>
             </SelectTrigger>
             <SelectContent>
@@ -415,56 +467,14 @@ export const UserSettingsInterfacePage = ({
               ))}
             </SelectContent>
           </Select>
-        </Preference>
-
-        <Preference
-          label={t("interface.recentTabsLimit")}
-          description={t("interface.recentTabsLimitDescription")}
-        >
-          <Input
-            type="number"
-            min={RECENT_TABS_LIMIT_MIN}
-            max={RECENT_TABS_LIMIT_MAX}
-            value={recentTabsLimit}
-            onChange={(event) => setRecentTabsLimit(Number(event.target.value))}
-            onBlur={commitRecentTabsLimit}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                event.currentTarget.blur();
-              }
-            }}
-            disabled={updateInterfacePrefs.isPending}
-            aria-label={t("interface.recentTabsLimit")}
-            className="sm:w-52"
-          />
-        </Preference>
-
-        <Preference
-          label={t("interface.keepScreenAwake.label")}
-          description={
-            keepAwakeSupported
-              ? t("interface.keepScreenAwake.description")
-              : t("interface.keepScreenAwake.unsupported")
-          }
-        >
-          <Switch
-            checked={keepAwake}
-            onCheckedChange={setKeepAwake}
-            disabled={!keepAwakeSupported}
-            aria-label={t("interface.keepScreenAwake.label")}
-          />
-        </Preference>
+        </SettingsRow>
       </SettingsSection>
 
-      <ThemeColorPreview themeId={colorTheme} />
-
-      {/* Three settings with one trigger between them, so they are read
-          together rather than found one at a time down a long list. */}
       <SettingsSection
         title={t("interface.completionTitle")}
         description={t("interface.completionDescription")}
       >
-        <Preference
+        <SettingsRow
           label={t("interface.taskCompletionVisualFeedback.label")}
           description={t("interface.taskCompletionVisualFeedback.description")}
         >
@@ -475,9 +485,12 @@ export const UserSettingsInterfacePage = ({
               setVisualFeedback(value);
               updateInterfacePrefs.mutate({ task_completion_visual_feedback: value });
             }}
-            disabled={updateInterfacePrefs.isPending}
+            disabled={pending}
           >
-            <SelectTrigger className="sm:w-52">
+            <SelectTrigger
+              className="sm:w-52"
+              aria-label={t("interface.taskCompletionVisualFeedback.label")}
+            >
               <SelectValue>
                 {t(`interface.taskCompletionVisualFeedback.options.${visualFeedback}` as never)}
               </SelectValue>
@@ -499,21 +512,12 @@ export const UserSettingsInterfacePage = ({
           >
             {t("interface.taskCompletionVisualFeedback.preview")}
           </Button>
-        </Preference>
+        </SettingsRow>
 
-        <Preference
+        <SettingsRow
           label={t("interface.taskCompletionAudioFeedback.label")}
           description={t("interface.taskCompletionAudioFeedback.description")}
         >
-          <Switch
-            checked={audioFeedback}
-            onCheckedChange={(next) => {
-              setAudioFeedback(next);
-              updateInterfacePrefs.mutate({ task_completion_audio_feedback: next });
-            }}
-            disabled={updateInterfacePrefs.isPending}
-            aria-label={t("interface.taskCompletionAudioFeedback.label")}
-          />
           <Button
             type="button"
             variant="outline"
@@ -522,21 +526,21 @@ export const UserSettingsInterfacePage = ({
           >
             {t("interface.taskCompletionAudioFeedback.preview")}
           </Button>
-        </Preference>
+          <Switch
+            checked={audioFeedback}
+            onCheckedChange={(next) => {
+              setAudioFeedback(next);
+              updateInterfacePrefs.mutate({ task_completion_audio_feedback: next });
+            }}
+            disabled={pending}
+            aria-label={t("interface.taskCompletionAudioFeedback.label")}
+          />
+        </SettingsRow>
 
-        <Preference
+        <SettingsRow
           label={t("interface.taskCompletionHapticFeedback.label")}
           description={t("interface.taskCompletionHapticFeedback.description")}
         >
-          <Switch
-            checked={hapticFeedback}
-            onCheckedChange={(next) => {
-              setHapticFeedback(next);
-              updateInterfacePrefs.mutate({ task_completion_haptic_feedback: next });
-            }}
-            disabled={updateInterfacePrefs.isPending}
-            aria-label={t("interface.taskCompletionHapticFeedback.label")}
-          />
           <Button
             type="button"
             variant="outline"
@@ -545,7 +549,86 @@ export const UserSettingsInterfacePage = ({
           >
             {t("interface.taskCompletionHapticFeedback.preview")}
           </Button>
-        </Preference>
+          <Switch
+            checked={hapticFeedback}
+            onCheckedChange={(next) => {
+              setHapticFeedback(next);
+              updateInterfacePrefs.mutate({ task_completion_haptic_feedback: next });
+            }}
+            disabled={pending}
+            aria-label={t("interface.taskCompletionHapticFeedback.label")}
+          />
+        </SettingsRow>
+      </SettingsSection>
+
+      {/* Kept by this browser or this computer rather than the account. */}
+      <SettingsSection
+        title={t("interface.deviceTitle")}
+        description={t("interface.deviceDescription")}
+      >
+        <SettingsRow
+          label={t("interface.keepScreenAwake.label")}
+          description={
+            keepAwakeSupported
+              ? t("interface.keepScreenAwake.description")
+              : t("interface.keepScreenAwake.unsupported")
+          }
+        >
+          <Switch
+            checked={keepAwake}
+            onCheckedChange={setKeepAwake}
+            disabled={!keepAwakeSupported}
+            aria-label={t("interface.keepScreenAwake.label")}
+          />
+        </SettingsRow>
+
+        {canAutoUpdate ? (
+          <SettingsRow
+            label={t("interface.desktopAutoUpdate.label")}
+            description={t("interface.desktopAutoUpdate.description")}
+          >
+            <Switch
+              checked={autoUpdate}
+              onCheckedChange={(next) => {
+                setAutoUpdate(next);
+                setAutoUpdateConsent(next);
+              }}
+              aria-label={t("interface.desktopAutoUpdate.label")}
+            />
+          </SettingsRow>
+        ) : null}
+
+        {desktopShell?.tray ? (
+          <SettingsRow
+            label={t("interface.desktopKeepRunning.label")}
+            description={t("interface.desktopKeepRunning.description")}
+          >
+            <Switch
+              checked={desktopShell.keepRunning}
+              onCheckedChange={(enabled) => {
+                setDesktopShell({ ...desktopShell, keepRunning: enabled });
+                saveDesktopShell(Desktop.setKeepRunning({ enabled }));
+              }}
+              aria-label={t("interface.desktopKeepRunning.label")}
+            />
+          </SettingsRow>
+        ) : null}
+
+        {desktopShell ? (
+          <SettingsRow
+            label={t("interface.desktopOpenAtLogin.label")}
+            description={t("interface.desktopOpenAtLogin.description")}
+          >
+            <Switch
+              checked={desktopShell.openAtLogin}
+              onCheckedChange={(enabled) => {
+                setDesktopShell({ ...desktopShell, openAtLogin: enabled });
+                saveDesktopShell(Desktop.setOpenAtLogin({ enabled }));
+              }}
+              aria-label={t("interface.desktopOpenAtLogin.label")}
+            />
+          </SettingsRow>
+        ) : null}
       </SettingsSection>
     </div>
   );

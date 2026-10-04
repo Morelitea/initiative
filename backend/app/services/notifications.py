@@ -85,6 +85,7 @@ from app.services.platform import (
     notice_outbox,
     notification_policy,
     notification_prefs,
+    notification_stream,
     push_notifications,
     user_notifications,
 )
@@ -152,7 +153,10 @@ class Channels:
     in_app: bool
     email: bool
     push: bool
-    #: The document the three answers above came from. Every notifier needs it
+    #: The desktop app announces the bell line itself, so this applies only
+    #: where one is written.
+    desktop: bool
+    #: The document the answers above came from. Every notifier needs it
     #: twice — once to pick channels, once to decide when the email may go —
     #: so resolving it here saves loading the same row again.
     prefs: Mapping[str, Any]
@@ -187,7 +191,7 @@ async def _channels(
             tz_name=recipient.timezone,
             last_active_at=recipient.last_active_at,
         )
-        for channel in (Channel.in_app, Channel.push)
+        for channel in (Channel.in_app, Channel.push, Channel.desktop)
     }
     allowed[Channel.email] = notification_prefs.wants(
         prefs,
@@ -199,6 +203,7 @@ async def _channels(
         in_app=allowed[Channel.in_app],
         email=allowed[Channel.email],
         push=allowed[Channel.push],
+        desktop=allowed[Channel.desktop],
         prefs=prefs,
     )
 
@@ -358,7 +363,7 @@ async def notify(
             # Nobody to tell, so nothing to look up about what it would say.
             return
     guild_id = routed_guild_id(session)
-    payload: dict[str, Any] = {**(data or {}), "guild_id": guild_id}
+    payload: dict[str, Any] = {**(data or {}), "community_id": guild_id}
     allowed: frozenset[int] = frozenset()
     if about is not None:
         subject = (
@@ -400,9 +405,9 @@ async def notify(
         **{
             name: str(value)
             for name, value in payload.items()
-            if name.endswith("_id") and name != "guild_id" and value is not None
+            if name.endswith("_id") and name != "community_id" and value is not None
         },
-        "guild_id": str(guild_id),
+        "community_id": str(guild_id),
         "target_path": payload["target_path"],
     }
     # A channel the deployment or the community has switched off is not worded
@@ -517,6 +522,8 @@ async def deliver_notices(
             )
         if not opened:
             continue
+        if channels.desktop and line is not None:
+            await user_notifications.announce_on_desktop(session, line)
         if channels.email and notice.email_subject is not None:
             await email_outbox.enqueue(
                 session,
@@ -570,7 +577,7 @@ def _build_smart_link(*, target_path: str, guild_id: int | None) -> str | None:
     normalized = _normalize_target_path(target_path)
     encoded = quote(normalized, safe="")
     base = app_config.APP_URL.rstrip("/") or "http://localhost:5173"
-    return f"{base}/navigate?guild_id={guild_id}&target={encoded}"
+    return f"{base}/navigate?community_id={guild_id}&target={encoded}"
 
 
 # A tool entity's URL names its initiative (/i/{initiative}/projects/{id}), and
@@ -784,6 +791,30 @@ ASSIGNMENT_QUIET_PERIOD = timedelta(minutes=5)
 ASSIGNMENT_MAX_WINDOW = timedelta(minutes=30)
 
 
+async def notify_project_added(
+    session: AsyncSession, project: Project, actor: "User"
+) -> None:
+    """Tell everyone ``project`` is shared with that it now exists, whether it
+    was made from nothing, from a template or as a copy. ``project.initiative``
+    is loaded."""
+    await notify(
+        session,
+        NotificationType.project_added,
+        SHARED_WITH,
+        about=(Tool.project.value, project.id),
+        key="project.added",
+        values={"project": project.name, "initiative": project.initiative.name},
+        data={"project_id": project.id},
+        actor=actor,
+        email=lambda reader: email_service.project_added_pieces(
+            reader,
+            initiative_name=project.initiative.name,
+            project_name=project.name,
+            project_id=project.id,
+        ),
+    )
+
+
 # How long a sent digest's items are kept before the GC sweep drops them. They
 # are only bookkeeping once delivered; the notification itself lives in the
 # bell. Unsent items are dropped at the same age — anything that old is either
@@ -826,7 +857,7 @@ async def notify_assigned(
         "task_id": task.id,
         "project_id": task.project_id,
         "assigned_by_name": actor_name(assigned_by),
-        "guild_id": guild_id,
+        "community_id": guild_id,
         **_place_of(subject),
         "target_path": subject.target_path,
         "smart_link": smart_link,
@@ -949,11 +980,11 @@ def _assignment_push(user: User, assignments: list[dict]) -> push_notifications.
         "count": str(len(assignments)),
         "target_path": MY_TASKS_TARGET_PATH,
     }
-    if len(assignments) == 1 and first.get("guild_id") is not None:
+    if len(assignments) == 1 and first.get("community_id") is not None:
         data["target_path"] = _task_target_path(
             first.get("task_id"), first.get("project_id")
         )
-        data["guild_id"] = str(first["guild_id"])
+        data["community_id"] = str(first["community_id"])
     return push_notifications.Push(
         cast(int, user.id), NotificationType.task_assignment, title, body, data
     )
@@ -1070,11 +1101,11 @@ async def _digest_batch(
     each channel.
     """
     policies = await notification_policy.for_send_many(
-        session, {item.get("guild_id") for item in batch}
+        session, {item.get("community_id") for item in batch}
     )
 
     def prepared(item: dict, channel: str) -> dict | None:
-        policy = policies[item.get("guild_id")]
+        policy = policies[item.get("community_id")]
         if not getattr(policy, channel):
             return None
         return {**item, "redacted": True} if policy.redact else item
@@ -1268,7 +1299,7 @@ def _assignment_row(item, guild_id: int) -> dict:
         # ``link`` per row.
         "task_id": item.task_id,
         "project_id": item.project_id,
-        "guild_id": guild_id,
+        "community_id": guild_id,
     }
 
 
@@ -1381,7 +1412,7 @@ def _reaction_line(
     return {
         "target_type": target_type,
         "target_id": target_id,
-        "guild_id": guild_id,
+        "community_id": guild_id,
         **{key: place.get(key) for key in _REACTION_PLACE},
         "emoji": latest.get("emoji"),
         "reactor_name": latest.get("reactor_name"),
@@ -1536,7 +1567,7 @@ async def _roll_up_reaction(
         user_id=recipient.id,
         notification_type=NotificationType.comment_reaction,
         match={
-            "guild_id": guild_id,
+            "community_id": guild_id,
             "target_type": data["target_type"],
             "target_id": data["target_id"],
         },
@@ -1555,16 +1586,26 @@ async def _roll_up_reaction(
         guild_id=guild_id,
         place=data,
     )
-    if existing is None:
-        await user_notifications.create_notification(
-            session,
-            user_id=recipient.id,
-            notification_type=NotificationType.comment_reaction,
-            data=line,
-            prefs=prefs,
-        )
-    else:
+    if existing is not None:
         await user_notifications.refresh_notification(session, existing, data=line)
+        return
+    opened = await user_notifications.create_notification(
+        session,
+        user_id=recipient.id,
+        notification_type=NotificationType.comment_reaction,
+        data=line,
+        prefs=prefs,
+    )
+    # Phones hear about reactions in a digest; the desktop is told when the
+    # line opens, as for a comment thread, so a flurry is one alert.
+    if opened is not None and notification_prefs.reachable(
+        prefs,
+        notification_type=NotificationType.comment_reaction,
+        channel=Channel.desktop,
+        guild_id=guild_id,
+        tz_name=recipient.timezone,
+    ):
+        await user_notifications.announce_on_desktop(session, opened)
 
 
 async def _take_back_reaction(
@@ -1601,7 +1642,7 @@ async def _take_back_reaction(
         user_id=recipient.id,
         notification_type=NotificationType.comment_reaction,
         match={
-            "guild_id": guild_id,
+            "community_id": guild_id,
             "target_type": target_type,
             "target_id": target_id,
         },
@@ -1685,9 +1726,9 @@ def _reaction_push(user: User, reactions: list[dict]) -> push_notifications.Push
         "count": str(len(reactions)),
         "target_path": MY_TASKS_TARGET_PATH,
     }
-    if len(reactions) == 1 and first.get("guild_id") is not None:
+    if len(reactions) == 1 and first.get("community_id") is not None:
         data["target_path"] = first["target_path"]
-        data["guild_id"] = str(first["guild_id"])
+        data["community_id"] = str(first["community_id"])
     return push_notifications.Push(
         cast(int, user.id), NotificationType.comment_reaction, title, body, data
     )
@@ -1700,7 +1741,7 @@ def _reaction_row(item, guild_id: int) -> dict:
         "context_title": item.context_title,
         "target_path": item.target_path,
         "link": _build_smart_link(target_path=item.target_path, guild_id=guild_id),
-        "guild_id": guild_id,
+        "community_id": guild_id,
     }
 
 
@@ -1847,7 +1888,7 @@ async def _overdue_tasks_for_user(
                 if task.due_date
                 else "N/A",
                 "link": _build_smart_link(target_path=target_path, guild_id=guild_id),
-                "guild_id": guild_id,
+                "community_id": guild_id,
             }
         )
     return tasks
@@ -2105,12 +2146,13 @@ async def _hold_summary_rows(
     ]
 
 
-def _rows_for_push(
+def _rows_for(
+    channel: Channel,
     rows: list[tuple[NotificationCategory, int | None, int]],
     *,
     prefs: Mapping[str, Any],
 ) -> list[tuple[NotificationCategory, int | None, int]]:
-    """The part of a summary the push may carry.
+    """The part of a summary ``channel`` may carry.
 
     Resolved per (category, community) exactly as the live path resolves it, so
     a summary never counts something the account has switched off, and a
@@ -2122,7 +2164,7 @@ def _rows_for_push(
         if notification_prefs.wants(
             prefs,
             notification_type=sample_type(category),
-            channel=Channel.push,
+            channel=channel,
             guild_id=guild_id,
         )
     ]
@@ -2247,12 +2289,18 @@ async def _run_hold_summary_pass(session: AsyncSession, *, now: datetime) -> Non
             continue
         prefs = locked
 
-        rows = _rows_for_push(
-            await _hold_summary_rows(
-                session, user_id=user.id, since=lift.opened, until=lift.closed
-            ),
-            prefs=prefs,
+        held_rows = await _hold_summary_rows(
+            session, user_id=user.id, since=lift.opened, until=lift.closed
         )
+        # Only what each community still lets leave the app is counted.
+        policies = await notification_policy.for_send_many(
+            session, {guild_id for _, guild_id, _ in held_rows}
+        )
+        held_rows = [row for row in held_rows if policies[row[1]].push]
+        if _rows_for(Channel.desktop, held_rows, prefs=prefs):
+            # The desktop app says so from the bell, which already holds it all.
+            notification_stream.queue_summary_alert(session, cast(int, user.id))
+        rows = _rows_for(Channel.push, held_rows, prefs=prefs)
         if not rows:
             # Nothing the push may carry is a covered summary, not one to
             # reconsider on every poll.

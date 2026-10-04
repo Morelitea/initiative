@@ -7,19 +7,19 @@ from app.core.identity_boundary import PersonId
 from app.core.tools import COMMENT_TARGETS
 from pydantic import ConfigDict, Field, computed_field, field_validator, model_validator
 
-from app.schemas.base import RichTextStr, SanitizedBaseModel
+from app.schemas.base import RichMentionStr, RichTextStr, SanitizedBaseModel
 from app.schemas.tenant.reaction import ReactionGroup
 from app.models.platform.user import Presence
-from app.schemas.platform.user import AvatarUrl, ProfileDecorations
+from app.models.tenant.comment import CommentAudience
+from app.schemas.platform.user import PersonShape, ProfileDecorations
 from app.services.platform import presence
 
 
-class CommentAuthor(SanitizedBaseModel):
+class CommentAuthor(PersonShape):
     """Who wrote a comment.
 
     An address never reaches a guild, so there is none here; the handle names
-    the author, and ``full_name`` arrives only from a guild that shows real
-    names.
+    the author, and ``display_name`` is the name they set in this guild.
 
     It carries what a picture needs to be drawn the way it is drawn everywhere
     else — the decorations and how they are appearing — because a comment is
@@ -32,8 +32,8 @@ class CommentAuthor(SanitizedBaseModel):
     id: PersonId
     username: str
     discriminator: int
-    full_name: Optional[str] = None
-    avatar_url: AvatarUrl = None
+    display_name: Optional[str] = None
+    avatar_url: Optional[str] = None
     profile_decorations: ProfileDecorations = Field(default_factory=ProfileDecorations)
 
     @computed_field(return_type=Presence)  # type: ignore[misc]
@@ -51,7 +51,7 @@ class CommentAuthor(SanitizedBaseModel):
 
 
 class CommentBase(SanitizedBaseModel):
-    content: RichTextStr
+    content: RichMentionStr
 
     @field_validator("content")
     @classmethod
@@ -84,6 +84,9 @@ class CommentCreate(CommentBase):
     gallery_id: Optional[int] = Field(default=None, gt=0)
     wiki_id: Optional[int] = Field(default=None, gt=0)
     parent_comment_id: Optional[int] = Field(default=None, gt=0)
+    #: Who it is said to. ``filer`` only on an operations case somebody filed,
+    #: where it is the reply they are shown; ``members`` everywhere else.
+    audience: CommentAudience = CommentAudience.members
 
     @model_validator(mode="after")
     def validate_target(self) -> "CommentCreate":
@@ -150,6 +153,17 @@ class CommentRead(CommentBase):
     # row: a thread renders its chips from one list call. Empty until the
     # loader stamps them (see ``comments_service.attach_reactions``).
     reactions: list[ReactionGroup] = Field(default_factory=list)
+    # Whether the reader may delete this comment: their own, or anybody's
+    # where they administer the community or manage the initiative. Filled by
+    # the service's serializer from the same rule the delete route applies.
+    can_remove: bool = False
+    # Who it is said to. ``filer`` on the part of an operations case that is
+    # said to the person who filed it; ``members`` on everything else.
+    audience: CommentAudience = CommentAudience.members
+    # What the platform posted it as, on a note the platform wrote on an
+    # operations case. Null on everything a person or an app wrote — which
+    # is how a client tells the platform's notes from an app's.
+    system_kind: Optional[str] = None
 
 
 class CommentListResponse(SanitizedBaseModel):

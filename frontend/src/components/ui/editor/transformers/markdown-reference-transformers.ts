@@ -22,15 +22,16 @@ import { isSmartChipKind } from "@/lib/smartChips";
 /*
  * What a document points at, written into markdown so that it comes back.
  *
- * The node itself stores only a reference; the name beside it is what it said
- * when written, for a reader of the raw text. Left to Lexical, each would
- * export as that name alone and return as plain words — the link, the chip and
- * the person lost to a trip through the Markdown view.
+ * The node itself stores only a reference; the name beside a thing is what it
+ * said when written, for a reader of the raw text. A person has none: their
+ * name is only ever read, so it is not written down here either. Left to
+ * Lexical, each would export as its words alone and return as plain words —
+ * the link, the chip and the person lost to a trip through the Markdown view.
  *
  *   [[task:12|Roll call]]               a `#` link, Obsidian's wikilink —
  *                                       the embed is the same with a `!`
  *   [[task:12:status|In Progress]]      a smart chip: the link, plus the fact
- *   @[Ada](4)                           a person, as a comment writes one
+ *   @[](4)                              a person, as a comment writes one
  *
  * None has a `trigger`: these read and write markdown, and typing a reference
  * is the pickers' job.
@@ -75,8 +76,9 @@ export const REFERENCE: TextMatchTransformer = {
 
 const PERSON = /@\[([^\]\n]*)\]\((\d*)\)/;
 
-/** Somebody named: `@[Ada](4)`. A mention from before people had ids writes
- *  an empty one, and reads back the same. */
+/** Somebody named: `@[](4)`. A mention of somebody with no account here
+ *  writes their name and an empty id, `@[Ada]()`, and reads back the same.
+ *  Older text that names an account as well, `@[Ada](4)`, reads as `@[](4)`. */
 export const PERSON_MENTION: TextMatchTransformer = {
   dependencies: [MentionNode],
   type: "text-match",

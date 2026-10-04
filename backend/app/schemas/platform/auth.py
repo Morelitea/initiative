@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from typing import List, Optional
 
-from pydantic import ConfigDict, EmailStr, Field, field_validator
+from pydantic import AliasChoices, ConfigDict, EmailStr, Field, field_validator
 
 from app.core.user_agents import ClientKind
 from app.schemas.base import RawTextStr, SanitizedBaseModel
@@ -31,7 +31,9 @@ class LoginProvidersResponse(SanitizedBaseModel):
     # Guild-addressed listings only: the guild's display name for its login
     # page. Set exactly when the listing is non-empty, so a guild without
     # login-ready providers stays indistinguishable from an unknown id.
-    guild_name: Optional[str] = None
+    community_name: Optional[str] = Field(
+        default=None, validation_alias=AliasChoices("community_name", "guild_name")
+    )
 
 
 class VerificationSendResponse(SanitizedBaseModel):
@@ -42,6 +44,27 @@ class VerificationSendResponse(SanitizedBaseModel):
 
 class VerificationConfirmRequest(SanitizedBaseModel):
     token: str = Field(min_length=10)
+
+
+class AccountChangeToken(SanitizedBaseModel):
+    """The token from the "This wasn't me" link in an account letter."""
+
+    token: str = Field(min_length=10)
+
+
+class AccountChangeRead(SanitizedBaseModel):
+    """What a "This wasn't me" link answers and what it may do."""
+
+    #: The account notice it came in, such as ``address.removed``.
+    notice: str
+    #: Whether it may sign the account out everywhere.
+    sign_out: bool
+    #: What it may undo (``proved``, ``primary``, ``removed`` or ``passkey``),
+    #: or ``None``.
+    undo: Optional[str] = None
+    #: What the undo acts on, as the notice named it: an address or a
+    #: passkey's name.
+    subject: Optional[str] = None
 
 
 class PasswordResetRequest(SanitizedBaseModel):
@@ -56,23 +79,6 @@ class PasswordResetSubmit(SanitizedBaseModel):
     # so all policy failures surface with a flat error code from
     # ``PasswordMessages`` that ``errors.json`` can map.
     password: RawTextStr = Field(max_length=256)
-
-
-# Device token schemas for mobile app authentication
-
-
-class DeviceTokenRequest(SanitizedBaseModel):
-    """Request body for creating a device token."""
-
-    email: EmailStr
-    password: RawTextStr = Field(min_length=1)
-    device_name: str = Field(min_length=1, max_length=255)
-
-
-class DeviceTokenExchangeRequest(SanitizedBaseModel):
-    """A device token offered in return for a session."""
-
-    device_token: str
 
 
 #: RFC 7636 §4.1: a verifier is 43–128 unreserved characters.
@@ -105,55 +111,30 @@ class RefreshRequest(SanitizedBaseModel):
     """
 
     refresh_token: Optional[str] = None
-
-
-class DeviceTokenResponse(SanitizedBaseModel):
-    """What a native sign-in is handed.
-
-    The device token is what older builds read, and it keeps working. Beside it
-    is a session of the ordinary kind — an access token and the refresh token
-    that renews it — so a build that prefers them has them from the first
-    sign-in. A client that does not know the fields ignores them.
-    """
-
-    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
-
-    device_token: str
-    token_type: str = "device_token"
-    #: The session opened alongside. ``expires_in`` is the access token's life
-    #: in seconds; the refresh token belongs in the platform's secure storage.
-    access_token: str | None = None
-    refresh_token: str | None = None
-    expires_in: int | None = None
-
-
-class DeviceTokenInfo(SanitizedBaseModel):
-    """Information about a device token (for listing/management)."""
-
-    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
-
-    id: int
-    device_name: Optional[str]
-    created_at: datetime
+    #: How long ago the person last did something here. The idle window runs
+    #: from then; absent, from now.
+    idle_seconds: Optional[int] = Field(default=None, ge=0, le=1_000_000_000)
 
 
 class SignedInSessionInfo(SanitizedBaseModel):
-    """One browser session, as the account's own "where you're signed in" list
-    shows it.
+    """One place the account is signed in — a browser, the phone app or the
+    desktop app — or one of its message devices that is not signed in, as its
+    own "where you're signed in" list shows it. ``started_at`` is the sign-in,
+    not the last renewal, so a browser left open for a month reads as a month
+    old.
 
-    Beside it in that list sit the account's native devices, which are
-    :class:`DeviceTokenInfo` and a different credential — this is the rotating
-    kind a browser holds. ``started_at`` is the sign-in, not the last renewal,
-    so a browser left open for a month reads as a month old.
-
-    ``label`` is derived from the user agent (``core.user_agents``), because
-    only a native sign-in is handed a name to go by. ``is_current`` marks the
+    ``id`` is the session, ``None`` for a message device with no live sign-in;
+    ``message_device_id`` is the key store, where there is one. ``device`` marks
+    a session the phone or desktop app opened. ``label`` is the name a device
+    signed in with, or else derived from the user agent (``core.user_agents``). ``is_current`` marks the
     session doing the asking, which the list shows rather than offers to end.
     """
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
-    id: uuid.UUID
+    id: Optional[uuid.UUID]
+    message_device_id: Optional[uuid.UUID]
+    device: bool
     label: Optional[str]
     kind: ClientKind
     ip: Optional[str]

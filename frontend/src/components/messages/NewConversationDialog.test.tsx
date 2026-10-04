@@ -28,8 +28,8 @@ vi.mock("@/hooks/useContacts", () => ({
   useContactSections: (search: string) => mocks.sections(search),
   useFavoriteContacts: (search: string) => mocks.favorites(search),
   useToggleFavoriteContact: () => mocks.setFavorite,
-  useMoreCommunityContacts: (guildId: number, search: string, enabled: boolean) =>
-    mocks.more(guildId, search, enabled),
+  useMoreCommunityContacts: (communityId: number, search: string, enabled: boolean) =>
+    mocks.more(communityId, search, enabled),
 }));
 
 // The field's own debounce is not what is on trial, and waiting 250ms of fake
@@ -56,18 +56,18 @@ const person = (id: number, username: string): ContactRead => ({
   id,
   username,
   discriminator: 1234,
-  full_name: null,
+  display_name: null,
   avatar_url: null,
   status: "active",
   profile_decorations: { banner: null, frame: null, frame_tint: [], trophies: [], grad_year: null },
-  guild_role: null,
+  community_role: null,
   presence: "offline",
-  shared_guild_ids: [7],
+  shared_community_ids: [7],
 });
 
 const section = (items: ContactRead[]) => ({
-  guild_id: 7,
-  guild_name: "Beyonders",
+  community_id: 7,
+  community_name: "Beyonders",
   icon_url: null,
   total_count: items.length,
   items,

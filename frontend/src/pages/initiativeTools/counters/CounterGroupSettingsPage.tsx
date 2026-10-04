@@ -1,7 +1,6 @@
 import { useParams } from "@tanstack/react-router";
 
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
-import { DuplicateCounterGroupCard } from "@/components/initiativeTools/counters/DuplicateCounterGroupCard";
 import { ToolSettingsLayout } from "@/components/tools/settings/ToolSettingsLayout";
 import {
   useCounterGroup,
@@ -31,9 +30,6 @@ export const CounterGroupSettingsPage = () => {
       update={update}
       setGrants={setGrants}
       remove={remove}
-      advancedExtra={
-        group ? <DuplicateCounterGroupCard groupId={group.id} groupName={group.name} /> : null
-      }
     />
   );
 };

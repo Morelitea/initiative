@@ -1,13 +1,19 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, List, Mapping, Optional, Sequence, TYPE_CHECKING
+from typing import List, Mapping, Optional, Sequence, TYPE_CHECKING
 
 from pydantic import ConfigDict, Field
 
 from app.core.identity_boundary import PersonId
 from app.core.relationships import Related
-from app.schemas.base import RichTextStr, SanitizedBaseModel, TitleStr
+from app.schemas.base import (
+    MentionStr,
+    RichMentionStr,
+    SanitizedBaseModel,
+    TitleStr,
+    reject_null,
+)
 from app.schemas.query import PageMeta
 
 from app.schemas.tenant.resource_grant import ResourceGrantSchema, initiative_readable
@@ -56,7 +62,7 @@ class QueueItemBase(SanitizedBaseModel):
     label: str = Field(..., min_length=1, max_length=255)
     position: float = 0.0
     color: Optional[str] = None
-    notes: Optional[RichTextStr] = None
+    notes: Optional[RichMentionStr] = None
     is_visible: bool = True
 
 
@@ -73,10 +79,12 @@ class QueueItemUpdate(PropertiesOnUpdate):
     position: Optional[float] = None
     user_id: Optional[PersonId] = None
     color: Optional[str] = None
-    notes: Optional[RichTextStr] = None
+    notes: Optional[RichMentionStr] = None
     is_visible: Optional[bool] = None
     #: Replaces every tag on the item; omitted leaves them as they are.
     tag_ids: Optional[List[int]] = Field(default=None, max_length=100)
+
+    _required = reject_null("label", "position", "is_visible")
 
 
 class QueueItemRead(QueueItemBase):
@@ -122,7 +130,7 @@ class QueueReleaseRequest(SanitizedBaseModel):
 
 class QueueBase(SanitizedBaseModel):
     name: str = Field(..., min_length=1, max_length=255)
-    description: Optional[str] = None
+    description: Optional[MentionStr] = None
 
 
 class QueueCreate(QueueBase, PropertiesOnCreate):
@@ -135,19 +143,26 @@ class QueueCreate(QueueBase, PropertiesOnCreate):
 
 class QueueUpdate(SanitizedBaseModel):
     name: Optional[TitleStr] = None
-    description: Optional[str] = None
+    description: Optional[MentionStr] = None
+
+
+class QueueTurnPreview(SanitizedBaseModel):
+    """One turn as a list's card draws it: who, in what colour, and whether it
+    is theirs now."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    id: int
+    label: str
+    color: Optional[str] = None
+    current: bool = False
 
 
 class QueueSummary(QueueBase, ToolSummaryBase):
     current_round: int
     is_active: bool
-    item_count: int = 0
-
-    @classmethod
-    def derived_fields(
-        cls, row: Any, *, context: ActorContext, user_id: Optional[int]
-    ) -> dict[str, Any]:
-        return {"item_count": len(getattr(row, "items", None) or [])}
+    #: Whose turn it is and who follows, when the list was asked for previews.
+    preview: Optional[List[QueueTurnPreview]] = None
 
 
 class QueueListResponse(PageMeta):

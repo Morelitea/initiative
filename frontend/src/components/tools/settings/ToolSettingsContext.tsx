@@ -37,6 +37,8 @@ export interface ToolSettingsEntity {
   archived_at: string | null;
   /** What this viewer may do to it, as the server answers it. */
   can: ToolCan;
+  /** Projects and documents only: a template, which read is enough to copy. */
+  is_template?: boolean;
   /**
    * Posts only: reactions hang off comments and off posts and off nothing
    * else, so this is the one tool with a switch of its own for them. Absent

@@ -51,7 +51,7 @@ describe("notification target paths", () => {
   it("only ever points at a page this app has", () => {
     const routes = appRoutes();
     const missing = backendTargetPaths().filter((target) => {
-      // Guild-relative targets are resolved against a guild elsewhere; these
+      // Community-relative targets are resolved against a community elsewhere; these
       // are the app-level ones the SPA navigates to verbatim.
       const resolved = normalizeAppTarget(target);
       return !routes.has(resolved);

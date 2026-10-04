@@ -11,7 +11,7 @@ import { iconForPropertyType } from "./propertyTypeIcons";
 
 /**
  * Upper bound on the number of property columns appended to a table. Large
- * guilds could in theory define many more; beyond this the column visibility
+ * communities could in theory define many more; beyond this the column visibility
  * dropdown becomes unmanageable and TanStack has to keep visibility state
  * for every one. Extra definitions are silently dropped with a console
  * warning — the manager page is still the place to see them all.

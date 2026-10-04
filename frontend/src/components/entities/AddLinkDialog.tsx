@@ -32,7 +32,6 @@ import {
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useUploadDocument } from "@/hooks/useDocuments";
 import { type ToolRef, useRelate } from "@/hooks/useRelationships";
-import { toast } from "@/lib/chesterToast";
 import {
   DOCUMENT_UPLOAD_ACCEPT,
   formatBytes,
@@ -41,6 +40,7 @@ import {
   getFileTypeLabel,
   nameWithoutExtension,
 } from "@/lib/fileUtils";
+import { toast } from "@/lib/mascotToast";
 import {
   canAssert,
   defaultGroupFor,
@@ -218,7 +218,7 @@ export const AddLinkDialog = ({
 
   return (
     <Dialog open onOpenChange={(open) => (open ? null : onClose())}>
-      <DialogContent className="max-h-screen w-full overflow-y-auto rounded-2xl border bg-card shadow-2xl sm:max-w-lg">
+      <DialogContent className="w-full rounded-2xl border bg-card shadow-2xl sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{t("dialog.title")}</DialogTitle>
           <DialogDescription>

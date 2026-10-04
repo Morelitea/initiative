@@ -153,7 +153,7 @@ const mount = (which: DefinitionWidget = widget) =>
       onOpenChange={() => {}}
       onSave={onSave}
     />,
-    { guilds: { activeGuildId: 2 } }
+    { communities: { activeCommunityId: 2 } }
   );
 
 describe("configuring an app widget", () => {

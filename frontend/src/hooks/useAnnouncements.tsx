@@ -2,9 +2,9 @@ import { useLocation } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
-  useDismissApiV1AnnouncementsKeyDismissPost,
-  useListAnnouncementsApiV1AnnouncementsGet,
-  useMarkSeenApiV1AnnouncementsKeySeenPost,
+  useDismiss,
+  useListAnnouncements,
+  useMarkSeen,
 } from "@/api/generated/announcements/announcements";
 import type { AnnouncementRead } from "@/api/generated/initiativeAPI.schemas";
 import { invalidate, q } from "@/api/query-keys";
@@ -30,8 +30,7 @@ interface UseAnnouncementsResult {
  * expiry retires it, which is the difference between an end date and letting a
  * notice simply be dismissed.
  */
-export const useAnnouncementArchive = () =>
-  useListAnnouncementsApiV1AnnouncementsGet({ include_dismissed: true });
+export const useAnnouncementArchive = () => useListAnnouncements({ include_dismissed: true });
 
 /**
  * The reader's side of announcements: what to show, and what they did with it.
@@ -52,7 +51,7 @@ export const useAnnouncementArchive = () =>
  */
 export const useAnnouncements = (enabled: boolean): UseAnnouncementsResult => {
   const { pathname } = useLocation();
-  const { data } = useListAnnouncementsApiV1AnnouncementsGet(undefined, {
+  const { data } = useListAnnouncements(undefined, {
     query: {
       enabled,
       refetchInterval: REFETCH_INTERVAL,
@@ -77,8 +76,8 @@ export const useAnnouncements = (enabled: boolean): UseAnnouncementsResult => {
   );
   const current = items[0] ?? null;
 
-  const markSeen = useMarkSeenApiV1AnnouncementsKeySeenPost();
-  const dismissMutation = useDismissApiV1AnnouncementsKeyDismissPost({
+  const markSeen = useMarkSeen();
+  const dismissMutation = useDismiss({
     mutation: {
       onSuccess: () => {
         void invalidate(q.announcements());

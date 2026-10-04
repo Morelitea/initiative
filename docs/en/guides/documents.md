@@ -21,7 +21,7 @@ No emailing versions round. No `final_v3_ACTUAL_final.docx`. No wondering whethe
 | **Upload** | An actual file: PDF, Word, Excel, PowerPoint, images, and more. |
 
 Got the file on your desktop already? Drag it anywhere onto the documents
-page — any view — and **Create Document** opens on the **Upload** tab with it
+page — any view — and **New document** opens on the **Upload file** tab with it
 ready to go. Or drop it on the box in that tab instead of hunting for it in a
 file picker.
 
@@ -30,8 +30,8 @@ file picker.
 
 ## Making one
 
-1. In an initiative, choose **Create Document**.
-2. Pick the **type**.
+1. In an initiative, choose **New document**.
+2. Pick the **type** — or the **Upload file** or **Smart link** tab.
 3. Give it a **title** and confirm which **initiative** it belongs to.
 4. Optionally start from a **template**.
 5. Write. Or upload. Or draw.
@@ -68,6 +68,18 @@ The **Markdown** button at the bottom of the editor shows the whole document as 
 
 !!! note "Drawings in exports"
     A Markdown export keeps each drawing the same way. Word and PDF leave drawings out: a drawing is redrawn by the browser every time it's shown, and a printed page has no browser in it.
+
+A long document has a **Contents** list of its headings, nested the way you wrote them. Pick one and the page scrolls there; it marks where you are as you read. It's closed until you open it, and then it stays open.
+
+Pictures keep their captions. Click a picture to see it full size, and zoom in with a pinch, a double-tap, ++ctrl++ and the scroll wheel, or the buttons along the top.
+
+Files in a document belong to its initiative, and open for anybody in it. Paste a picture from another initiative's document and this one keeps its own copy.
+
+### The featured image
+
+A document can lead with a **featured image**, running across the top. Anyone who can edit the document can **Replace** or **Remove** it, and a document without one has a row at the top to add one with **Upload image**.
+
+Already have the picture in the document? Select it and choose **Make this the featured image**. Uploading a picture with **Insert › Image** offers a box that does the same.
 
 ## Smart chips
 
@@ -124,9 +136,11 @@ An embedded page's own embeds show as names only, so two pages embedding each ot
 
 The everyday essentials, and not much more:
 
-- **Formulas** — `SUM`, `AVERAGE`, `MIN`, `MAX`, `COUNT`, `IF`, `ROUND`.
-- **Formatting** — fonts, colours, alignment, and number formats (plain, number, currency, percent, date).
-- **Freeze** rows or columns so the headers stay put while you scroll.
+- **Formulas** — start a cell with `=`. The usual functions are there: `SUM`, `AVERAGE`, `IF`, `ROUND`, `MEDIAN`, `MATCH`, `TEXTJOIN` and plenty more. Click a cell while you type to point at it.
+- **Several sheets** in one document, as tabs along the bottom. A formula can read another sheet: `=SUM(Data!A1:A20)`.
+- **Formatting** — fonts, colours, borders, alignment, and number formats (number, currency, percent, date).
+- **Freeze** rows or columns so the headers stay put while you scroll, and **hide** a row, column or whole tab you're not looking at.
+- **Find and replace** with ++ctrl+f++.
 - **Import and export** as CSV or Excel.
 
 ## Whiteboards
@@ -153,7 +167,7 @@ Whiteboards autosave like everything else, and are shared, tagged and commented 
 
 Open a document's **Comments** to talk about it without touching the actual content. Reply to build a thread; edit or delete your own.
 
-To pull somebody in, type `@`. To point at a *thing* rather than a person, type `#` and pick any project, task, document, queue, counter, calendar event, dashboard or post in the initiative. See [Mentions & links](mentions-and-links.md).
+To pull somebody in, type `@`. To point at a *thing* rather than a person, type `#` and pick anything in the initiative. See [Mentions & links](mentions-and-links.md).
 
 A screenshot says it faster than three paragraphs. Paste or drag one into a comment, or tap the picture button — on the app it offers your camera. Take it back out and it's gone from storage too. A picture linked from some other website shows up as a link you click, not an image that loads itself.
 
@@ -168,7 +182,7 @@ Every comment gets a row of **reactions** and a button to add one — a way to a
 Anyone who can reply can react. The author gets told — as a periodic summary, not one ping per thumbs-up, because that would be unbearable — and only if they've left that switch on under [Notifications](notifications.md).
 
 !!! tip "Turning comments off"
-    Every tool — documents, projects, posts, queues, counters, calendars, dashboards — has a **Comments** switch under **Settings → Details**, on to begin with. Switch it off and the thread comes off that item's page; nothing is deleted, and it all comes back if you switch it on again.
+    Every [tool](tools.md) has a **Comments** switch under **Settings → Details**, on to begin with. Switch it off and the thread comes off that item's page; nothing is deleted, and it all comes back if you switch it on again.
 
     Tasks are unaffected. A task keeps its own comments whatever its project says.
 
@@ -180,17 +194,17 @@ So you can always get back to the copy from before somebody helpfully reorganise
 
 ## Attaching documents to a project
 
-A document can be **attached** to a project so the relevant reference sits right next to the work. From a project, choose **Attach existing** — or make a new one to attach.
+A document can be **attached** to a project so the relevant reference sits right next to the work. Add it from the project's **Connections** section, where it sits under **Attached** — or drop a file there and it becomes a new document, already attached. See [Mentions & links](mentions-and-links.md#connections).
 
 ## Document settings
 
-- **Details** — tags and metadata.
+- **Details** — tags, properties, the comment switch, and whether it's a template.
 - **Access** — who can view, edit or own it. Levels are **Viewer**, **Editor**, **Owner**. See [Sharing](../sharing/sharing-projects-and-documents.md).
-- **Advanced** — save as a template, duplicate, copy to another initiative, delete.
+- **Advanced** — [duplicate](tools.md#duplicating) it here or into another initiative, export, archive, delete.
 
 ## Templates
 
-Made a layout you'll use again — a meeting-notes format, a project brief? Save it as a **template** and start fresh copies from it whenever.
+Made a layout you'll use again — a meeting-notes format, a project brief? Make it a **template**, from **Status** at the top of the document, and start fresh copies from it whenever.
 
 Templates get copied rather than edited, so the original stays pristine no matter what anyone does to their copy.
 

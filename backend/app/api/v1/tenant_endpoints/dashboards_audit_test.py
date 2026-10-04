@@ -12,7 +12,7 @@ from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.audit_events import AuditEventType
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.testing import create_project, emitted
 
 
@@ -60,7 +60,7 @@ def _published_rows(capfd):
 async def test_publishing_over_a_resource_records_the_dashboard_as_the_grantee(
     client: AsyncClient, session: AsyncSession, acting_user, capfd
 ):
-    author = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    author = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _dashboards_on(session, author.initiative)
     project = await create_project(session, author.initiative, author.user)
     dashboard_id = await _dashboard(client, author)
@@ -89,7 +89,7 @@ async def test_publishing_over_a_resource_records_the_dashboard_as_the_grantee(
 async def test_republishing_the_same_list_records_nothing_further(
     client: AsyncClient, session: AsyncSession, acting_user, capfd
 ):
-    author = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    author = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _dashboards_on(session, author.initiative)
     project = await create_project(session, author.initiative, author.user)
     dashboard_id = await _dashboard(client, author)
@@ -114,7 +114,7 @@ async def test_republishing_the_same_list_records_nothing_further(
 async def test_taking_a_published_view_back_records_the_withdrawal(
     client: AsyncClient, session: AsyncSession, acting_user, capfd
 ):
-    author = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    author = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _dashboards_on(session, author.initiative)
     project = await create_project(session, author.initiative, author.user)
     dashboard_id = await _dashboard(client, author)

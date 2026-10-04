@@ -5,6 +5,7 @@ four decisions it makes — what is due, what has been superseded, what the
 account still wants, and whether one message or several.
 """
 
+import re
 from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock
 
@@ -13,10 +14,13 @@ from sqlalchemy import text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.encryption import hash_email
 from app.core.notification_categories import NotificationCategory
 from app.models.platform.email_outbox import EmailOutboxItem
 from app.models.platform.notification import NotificationType
+from app.models.platform.user_token import UserToken, UserTokenPurpose
 from app.services import email as email_service
+from app.services.auth import account_changes, addresses
 from app.services.platform import email_outbox, user_notifications
 from app.testing import create_guild, create_user, set_notification_prefs
 
@@ -53,7 +57,14 @@ def sent(monkeypatch):
     calls: list[dict] = []
 
     async def _deliver(
-        session, user, *, subject, html_body, text_body, every_address=False
+        session,
+        user,
+        *,
+        subject,
+        html_body,
+        text_body,
+        every_address=False,
+        recipient=None,
     ):
         calls.append(
             {
@@ -62,6 +73,7 @@ def sent(monkeypatch):
                 "html": html_body,
                 "text": text_body,
                 "every_address": every_address,
+                "recipient": recipient,
             }
         )
 
@@ -197,8 +209,7 @@ async def test_a_row_with_no_bell_line_is_never_superseded(
 async def test_a_channel_switched_off_after_writing_is_not_delivered(
     session: AsyncSession, configured, sent
 ):
-    """…while a security letter goes regardless, on its own, to every address
-    the account has proved."""
+    """…while a security letter goes regardless, on its own."""
     user = await create_user(session, email="switched-off@example.com")
     await email_outbox.enqueue(
         session, user, category=NotificationCategory.mentions, pieces=_pieces()
@@ -215,9 +226,72 @@ async def test_a_channel_switched_off_after_writing_is_not_delivered(
 
     await email_outbox._run_pass(session, now=datetime.now(timezone.utc))
     [letter] = sent
-    assert letter["every_address"] is True
+    assert letter["recipient"] == "switched-off@example.com"
     assert "Your password was changed" in letter["html"]
     assert [row.sent_at is not None for row in await _rows(session, user.id)] == [True]
+
+
+async def test_an_account_letter_goes_to_each_address_with_its_own_link(
+    session: AsyncSession, configured, sent
+):
+    """One copy per proved address, each sent alone with a "This wasn't me"
+    link of its own that records where it went. An address named beside them,
+    which the account no longer holds, gets its copy with no link."""
+    user = await create_user(session, email="first@example.com")
+    addresses.record_address(
+        session,
+        user_id=user.id,
+        email="second@example.com",
+        source=addresses.SOURCE_ADDED,
+        verified=True,
+        is_primary=False,
+    )
+    await session.commit()
+    await email_outbox.enqueue_account_letter(
+        user,
+        _pieces(body="A passkey was added"),
+        change={"notice": "passkey.added"},
+        also_to=["gone@example.com"],
+    )
+
+    await email_outbox._run_pass(session, now=datetime.now(timezone.utc))
+    own = ["first@example.com", "second@example.com"]
+    assert sorted(letter["recipient"] for letter in sent) == sorted(
+        [*own, "gone@example.com"]
+    )
+    links = {
+        letter["recipient"]: re.search(
+            r"/account/not-me\?token=([\w-]+)", letter["html"]
+        )
+        for letter in sent
+    }
+    assert links["gone@example.com"] is None
+    assert len({links[address].group(1) for address in own}) == 2
+
+    tokens = (
+        await session.exec(
+            select(UserToken).where(
+                UserToken.user_id == user.id,
+                UserToken.purpose == UserTokenPurpose.account_change,
+            )
+        )
+    ).all()
+    assert sorted(
+        account_changes.recipient_hash(token.change or {}) for token in tokens
+    ) == sorted(hash_email(address) for address in own)
+    assert {(token.change or {})["notice"] for token in tokens} == {"passkey.added"}
+
+
+async def test_an_account_letter_without_a_notice_carries_no_link(
+    session: AsyncSession, configured, sent
+):
+    """A lockout is not a change anybody made, so there is nothing to answer."""
+    user = await create_user(session, email="locked@example.com")
+    await email_outbox.enqueue_account_letter(user, _pieces(body="Locked"))
+
+    await email_outbox._run_pass(session, now=datetime.now(timezone.utc))
+    [letter] = sent
+    assert "/account/not-me" not in letter["html"]
 
 
 async def test_a_failed_send_backs_off_rather_than_vanishing(

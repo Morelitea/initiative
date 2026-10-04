@@ -208,6 +208,13 @@ TOKEN_CLIENT_ID = Guc("app.token_client_id", Kind.TEXT)
 TOKEN_SCOPES = Guc("app.token_scopes", Kind.NAMES)
 TOKEN_PURPOSE = Guc("app.token_purpose", Kind.TEXT)
 
+# --- Somebody who filed a case ------------------------------------------------
+#: The tasks of the cases the routed account filed, read by the filer seam
+#: through the filer role's own row on ``intake_cases``. What the filer
+#: policies on a case's task and its comments admit, so neither has to read
+#: ``intake_cases`` back — whose own policy reads ``tasks``.
+FILER_CASES = Guc("app.filer_cases", Kind.IDS, read_once=True)
+
 # --- The standing -------------------------------------------------------------
 #: The community the standing was computed for.
 STANDING_GUILD_ID = Guc("app.standing_guild_id", Kind.INT, standing=True)
@@ -301,6 +308,7 @@ REQUEST_GUCS: tuple[Guc, ...] = (
     INSTALL_READ,
     INSTALL_WRITE,
     CONTENT_HOLD,
+    FILER_CASES,
 )
 
 STANDING: tuple[Guc, ...] = tuple(g for g in REQUEST_GUCS if g.standing)

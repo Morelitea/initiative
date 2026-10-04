@@ -4,7 +4,7 @@ import type { SerializedEditorState } from "lexical";
 import { HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
 
-import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
 import { Editor } from "@/components/documents/editor/editor";
@@ -44,7 +44,7 @@ const BODIES: Record<string, { title: string; body: object }> = {
 
 const serveBodies = () =>
   server.use(
-    guildHttp.get("/smart-chips/embeds", ({ request }) => {
+    communityHttp.get("/smart-chips/embeds", ({ request }) => {
       const refs = new URL(request.url).searchParams.getAll("ref");
       return HttpResponse.json({
         items: refs.map((ref) => ({

@@ -3,7 +3,7 @@
 Four properties carry the weight, and each is here because losing it quietly
 would be hard to notice from the outside:
 
-* **One guild.** ``guild_ref`` is a claim on a token minted for one call. A token
+* **One guild.** ``community_ref`` is a claim on a token minted for one call. A token
   that named two guilds, or named none, would be a standing key.
 * **About a minute.** Long enough for a round trip, short enough that a captured
   token is spent before it is useful.
@@ -78,7 +78,7 @@ def _claims(token: str) -> dict:
 class TestClaims:
     def test_the_token_is_pinned_to_one_guild_and_one_install(self):
         claims = _claims(_mint(guild_ref="gapp_testguild42", app_install_id=9))
-        assert claims["guild_ref"] == "gapp_testguild42"
+        assert claims["community_ref"] == "gapp_testguild42"
         assert claims["app_install_id"] == 9
         assert claims["scope"] == "endpoint"
 
@@ -120,14 +120,14 @@ class TestClaims:
             "aud",
             "iat",
             "exp",
-            "guild_ref",
+            "community_ref",
             "app_install_id",
             "scope",
             "endpoint_id",
             "connection_refs",
         }
         body = json.dumps(claims)
-        for identity in ("user_id", "email", "full_name", "username", "sub"):
+        for identity in ("user_id", "email", "display_name", "username", "sub"):
             assert identity not in body
 
     def test_connection_refs_travel_only_when_a_member_credential_is_involved(self):
@@ -148,6 +148,9 @@ class TestClaims:
 
     def test_the_key_id_is_stamped_so_a_rotation_can_be_followed(self):
         assert jwt.get_unverified_header(_mint())["kid"] == KEY_ID
+
+    def test_it_is_typed_as_a_context_token(self):
+        assert jwt.get_unverified_header(_mint())["typ"] == "initiative-context+jwt"
 
     @pytest.mark.parametrize("scope", ["endpoint", "lifecycle"])
     def test_the_scope_vocabulary_is_what_it_declares(self, scope):
@@ -179,7 +182,7 @@ class TestJwks:
             algorithms=["RS256"],
             audience=f"initiative-app:{PUBLIC_ID}",
         )
-        assert claims["guild_ref"] == "gapp_testguild7"
+        assert claims["community_ref"] == "gapp_testguild7"
 
     def test_it_publishes_the_kid_the_header_carries(self):
         entry = context_jwt.context_jwks()["keys"][0]

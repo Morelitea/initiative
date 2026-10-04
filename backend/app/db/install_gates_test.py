@@ -27,7 +27,7 @@ from app.db.install_standing_test import (
     _install,
     _route,
 )
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.tenant.calendar import Calendar
 from app.models.tenant.calendar_event import CalendarEvent
 from app.models.tenant.comment import Comment
@@ -137,7 +137,7 @@ def test_the_app_policies_are_restrictive():
 async def _member(acting_user, install):
     """An ordinary member of initiative A."""
     return await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=install.guild,
         initiative=install.a,
         initiative_role="member",
@@ -524,7 +524,7 @@ async def test_an_install_sees_only_its_own_subscriptions(
 async def test_every_tool_table_writes_an_installs_owner_row(session, acting_user):
     """The trigger list is stated in its migration; the catalog is what a new
     tool has to match."""
-    a = await acting_user(guild_role=GuildRole.admin)
+    a = await acting_user(guild_role=CommunityRole.admin)
     rows = await session.exec(
         text(
             "SELECT c.relname FROM pg_trigger t "

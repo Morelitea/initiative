@@ -1,0 +1,7 @@
+# uv for the image build (Dockerfile, backend-deps stage). One hash per Linux
+# wheel, so pip installs only these files, on either architecture.
+uv==0.11.21 \
+    --hash=sha256:00193e4e077c27ee3d66da356744dbf0b3aa59356dfbd9a9efb1dc8469af8ad7 \
+    --hash=sha256:b9ecdefa81db7e966d1655988cad6f840316228381dd69131ebc4ae9362bbccd \
+    --hash=sha256:4ed98ff3165bf7b339692d0df918b87e6d36eb0bed5183466330d27d5730d57b \
+    --hash=sha256:88668a27959df9188ff72b0314f6b14f6acf6090964bb0748974239183ecb51c

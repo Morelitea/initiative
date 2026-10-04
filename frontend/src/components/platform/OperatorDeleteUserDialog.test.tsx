@@ -16,14 +16,15 @@ const targetUser: OperatorUserRead = {
   purge_at: null,
   sign_in_locked_until: null,
   second_factor_enrolled: false,
+  api_key_count: 0,
 };
 
-const eligibilityWithGuildBlocker = {
+const eligibilityWithCommunityBlocker = {
   can_delete: false,
   blockers: ["Only superadmin of community Lone Community"],
   warnings: [],
   owned_projects: [],
-  guild_blockers: [{ guild_id: 77, guild_name: "Lone Community" }],
+  community_blockers: [{ community_id: 77, community_name: "Lone Community" }],
   initiative_blockers: [],
 };
 
@@ -32,7 +33,7 @@ const eligibilityClear = {
   blockers: [],
   warnings: [],
   owned_projects: [],
-  guild_blockers: [],
+  community_blockers: [],
   initiative_blockers: [],
 };
 
@@ -45,7 +46,7 @@ describe("OperatorDeleteUserDialog community blocker resolution", () => {
         // First check: blocked by the community. Once the seat is resolved
         // inside the community, checking again comes back clear.
         return HttpResponse.json(
-          eligibilityCalls === 1 ? eligibilityWithGuildBlocker : eligibilityClear
+          eligibilityCalls === 1 ? eligibilityWithCommunityBlocker : eligibilityClear
         );
       })
     );

@@ -19,14 +19,14 @@ import type {
 
 import type {
   BackupEstimate,
-  EstimateAggregateExportApiV1CGuildIdExportsEstimateGetParams,
-  ExportEventsApiV1CGuildIdExportsEventsGetParams,
-  ExportGuildApiV1CGuildIdExportsCommunityGetParams,
-  ExportInitiativeApiV1CGuildIdExportsInitiativeGetParams,
+  CommunityExportStatus,
+  EstimateAggregateExportParams,
+  ExportCommunityParams,
+  ExportEventsParams,
+  ExportInitiativeParams,
   ExportJobRead,
-  ExportTasksApiV1CGuildIdExportsTasksGetParams,
-  ExportToolApiV1CGuildIdExportsToolGetParams,
-  GuildExportStatus,
+  ExportTasksParams,
+  ExportToolParams,
   HTTPValidationError,
   Tool,
 } from "../initiativeAPI.schemas";
@@ -58,88 +58,66 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
  * and download.
  * @summary Export Tasks
  */
-export const exportTasksApiV1CGuildIdExportsTasksGet = (
-  guildId: number,
-  params?: ExportTasksApiV1CGuildIdExportsTasksGetParams,
+export const exportTasks = (
+  communityId: number,
+  params?: ExportTasksParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<unknown>(
-    { url: `/api/v1/c/${guildId}/exports/tasks`, method: "GET", params, signal },
+    { url: `/api/v1/c/${communityId}/exports/tasks`, method: "GET", params, signal },
     options
   );
 };
 
-export const getExportTasksApiV1CGuildIdExportsTasksGetQueryKey = (
-  guildId: number,
-  params?: ExportTasksApiV1CGuildIdExportsTasksGetParams
-) => {
-  return [`/api/v1/c/${guildId}/exports/tasks`, ...(params ? [params] : [])] as const;
+export const getExportTasksQueryKey = (communityId: number, params?: ExportTasksParams) => {
+  return [`/api/v1/c/${communityId}/exports/tasks`, ...(params ? [params] : [])] as const;
 };
 
-export const getExportTasksApiV1CGuildIdExportsTasksGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof exportTasksApiV1CGuildIdExportsTasksGet>>,
+export const getExportTasksQueryOptions = <
+  TData = Awaited<ReturnType<typeof exportTasks>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
-  params?: ExportTasksApiV1CGuildIdExportsTasksGetParams,
+  communityId: number,
+  params?: ExportTasksParams,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof exportTasksApiV1CGuildIdExportsTasksGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof exportTasks>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   }
 ) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey =
-    queryOptions?.queryKey ?? getExportTasksApiV1CGuildIdExportsTasksGetQueryKey(guildId, params);
+  const queryKey = queryOptions?.queryKey ?? getExportTasksQueryKey(communityId, params);
 
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof exportTasksApiV1CGuildIdExportsTasksGet>>
-  > = ({ signal }) =>
-    exportTasksApiV1CGuildIdExportsTasksGet(guildId, params, requestOptions, signal);
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof exportTasks>>> = ({ signal }) =>
+    exportTasks(communityId, params, requestOptions, signal);
 
   return {
     queryKey,
     queryFn,
-    enabled: guildId !== null && guildId !== undefined,
+    enabled: communityId !== null && communityId !== undefined,
     ...queryOptions,
-  } as UseQueryOptions<
-    Awaited<ReturnType<typeof exportTasksApiV1CGuildIdExportsTasksGet>>,
-    TError,
-    TData
-  > & { queryKey: DataTag<QueryKey, TData, TError> };
+  } as UseQueryOptions<Awaited<ReturnType<typeof exportTasks>>, TError, TData> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 };
 
-export type ExportTasksApiV1CGuildIdExportsTasksGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof exportTasksApiV1CGuildIdExportsTasksGet>>
->;
-export type ExportTasksApiV1CGuildIdExportsTasksGetQueryError = ErrorType<HTTPValidationError>;
+export type ExportTasksQueryResult = NonNullable<Awaited<ReturnType<typeof exportTasks>>>;
+export type ExportTasksQueryError = ErrorType<HTTPValidationError>;
 
-export function useExportTasksApiV1CGuildIdExportsTasksGet<
-  TData = Awaited<ReturnType<typeof exportTasksApiV1CGuildIdExportsTasksGet>>,
+export function useExportTasks<
+  TData = Awaited<ReturnType<typeof exportTasks>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
-  params: undefined | ExportTasksApiV1CGuildIdExportsTasksGetParams,
+  communityId: number,
+  params: undefined | ExportTasksParams,
   options: {
-    query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof exportTasksApiV1CGuildIdExportsTasksGet>>,
-        TError,
-        TData
-      >
-    > &
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof exportTasks>>, TError, TData>> &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof exportTasksApiV1CGuildIdExportsTasksGet>>,
+          Awaited<ReturnType<typeof exportTasks>>,
           TError,
-          Awaited<ReturnType<typeof exportTasksApiV1CGuildIdExportsTasksGet>>
+          Awaited<ReturnType<typeof exportTasks>>
         >,
         "initialData"
       >;
@@ -147,25 +125,19 @@ export function useExportTasksApiV1CGuildIdExportsTasksGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useExportTasksApiV1CGuildIdExportsTasksGet<
-  TData = Awaited<ReturnType<typeof exportTasksApiV1CGuildIdExportsTasksGet>>,
+export function useExportTasks<
+  TData = Awaited<ReturnType<typeof exportTasks>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
-  params?: ExportTasksApiV1CGuildIdExportsTasksGetParams,
+  communityId: number,
+  params?: ExportTasksParams,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof exportTasksApiV1CGuildIdExportsTasksGet>>,
-        TError,
-        TData
-      >
-    > &
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof exportTasks>>, TError, TData>> &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof exportTasksApiV1CGuildIdExportsTasksGet>>,
+          Awaited<ReturnType<typeof exportTasks>>,
           TError,
-          Awaited<ReturnType<typeof exportTasksApiV1CGuildIdExportsTasksGet>>
+          Awaited<ReturnType<typeof exportTasks>>
         >,
         "initialData"
       >;
@@ -173,20 +145,14 @@ export function useExportTasksApiV1CGuildIdExportsTasksGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useExportTasksApiV1CGuildIdExportsTasksGet<
-  TData = Awaited<ReturnType<typeof exportTasksApiV1CGuildIdExportsTasksGet>>,
+export function useExportTasks<
+  TData = Awaited<ReturnType<typeof exportTasks>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
-  params?: ExportTasksApiV1CGuildIdExportsTasksGetParams,
+  communityId: number,
+  params?: ExportTasksParams,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof exportTasksApiV1CGuildIdExportsTasksGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof exportTasks>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
@@ -195,29 +161,19 @@ export function useExportTasksApiV1CGuildIdExportsTasksGet<
  * @summary Export Tasks
  */
 
-export function useExportTasksApiV1CGuildIdExportsTasksGet<
-  TData = Awaited<ReturnType<typeof exportTasksApiV1CGuildIdExportsTasksGet>>,
+export function useExportTasks<
+  TData = Awaited<ReturnType<typeof exportTasks>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
-  params?: ExportTasksApiV1CGuildIdExportsTasksGetParams,
+  communityId: number,
+  params?: ExportTasksParams,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof exportTasksApiV1CGuildIdExportsTasksGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof exportTasks>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getExportTasksApiV1CGuildIdExportsTasksGetQueryOptions(
-    guildId,
-    params,
-    options
-  );
+  const queryOptions = getExportTasksQueryOptions(communityId, params, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -234,88 +190,66 @@ export function useExportTasksApiV1CGuildIdExportsTasksGet<
  * return ``202`` with a queued job to poll and download.
  * @summary Export Events
  */
-export const exportEventsApiV1CGuildIdExportsEventsGet = (
-  guildId: number,
-  params?: ExportEventsApiV1CGuildIdExportsEventsGetParams,
+export const exportEvents = (
+  communityId: number,
+  params?: ExportEventsParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<unknown>(
-    { url: `/api/v1/c/${guildId}/exports/events`, method: "GET", params, signal },
+    { url: `/api/v1/c/${communityId}/exports/events`, method: "GET", params, signal },
     options
   );
 };
 
-export const getExportEventsApiV1CGuildIdExportsEventsGetQueryKey = (
-  guildId: number,
-  params?: ExportEventsApiV1CGuildIdExportsEventsGetParams
-) => {
-  return [`/api/v1/c/${guildId}/exports/events`, ...(params ? [params] : [])] as const;
+export const getExportEventsQueryKey = (communityId: number, params?: ExportEventsParams) => {
+  return [`/api/v1/c/${communityId}/exports/events`, ...(params ? [params] : [])] as const;
 };
 
-export const getExportEventsApiV1CGuildIdExportsEventsGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof exportEventsApiV1CGuildIdExportsEventsGet>>,
+export const getExportEventsQueryOptions = <
+  TData = Awaited<ReturnType<typeof exportEvents>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
-  params?: ExportEventsApiV1CGuildIdExportsEventsGetParams,
+  communityId: number,
+  params?: ExportEventsParams,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof exportEventsApiV1CGuildIdExportsEventsGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof exportEvents>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   }
 ) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey =
-    queryOptions?.queryKey ?? getExportEventsApiV1CGuildIdExportsEventsGetQueryKey(guildId, params);
+  const queryKey = queryOptions?.queryKey ?? getExportEventsQueryKey(communityId, params);
 
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof exportEventsApiV1CGuildIdExportsEventsGet>>
-  > = ({ signal }) =>
-    exportEventsApiV1CGuildIdExportsEventsGet(guildId, params, requestOptions, signal);
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof exportEvents>>> = ({ signal }) =>
+    exportEvents(communityId, params, requestOptions, signal);
 
   return {
     queryKey,
     queryFn,
-    enabled: guildId !== null && guildId !== undefined,
+    enabled: communityId !== null && communityId !== undefined,
     ...queryOptions,
-  } as UseQueryOptions<
-    Awaited<ReturnType<typeof exportEventsApiV1CGuildIdExportsEventsGet>>,
-    TError,
-    TData
-  > & { queryKey: DataTag<QueryKey, TData, TError> };
+  } as UseQueryOptions<Awaited<ReturnType<typeof exportEvents>>, TError, TData> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 };
 
-export type ExportEventsApiV1CGuildIdExportsEventsGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof exportEventsApiV1CGuildIdExportsEventsGet>>
->;
-export type ExportEventsApiV1CGuildIdExportsEventsGetQueryError = ErrorType<HTTPValidationError>;
+export type ExportEventsQueryResult = NonNullable<Awaited<ReturnType<typeof exportEvents>>>;
+export type ExportEventsQueryError = ErrorType<HTTPValidationError>;
 
-export function useExportEventsApiV1CGuildIdExportsEventsGet<
-  TData = Awaited<ReturnType<typeof exportEventsApiV1CGuildIdExportsEventsGet>>,
+export function useExportEvents<
+  TData = Awaited<ReturnType<typeof exportEvents>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
-  params: undefined | ExportEventsApiV1CGuildIdExportsEventsGetParams,
+  communityId: number,
+  params: undefined | ExportEventsParams,
   options: {
-    query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof exportEventsApiV1CGuildIdExportsEventsGet>>,
-        TError,
-        TData
-      >
-    > &
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof exportEvents>>, TError, TData>> &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof exportEventsApiV1CGuildIdExportsEventsGet>>,
+          Awaited<ReturnType<typeof exportEvents>>,
           TError,
-          Awaited<ReturnType<typeof exportEventsApiV1CGuildIdExportsEventsGet>>
+          Awaited<ReturnType<typeof exportEvents>>
         >,
         "initialData"
       >;
@@ -323,25 +257,19 @@ export function useExportEventsApiV1CGuildIdExportsEventsGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useExportEventsApiV1CGuildIdExportsEventsGet<
-  TData = Awaited<ReturnType<typeof exportEventsApiV1CGuildIdExportsEventsGet>>,
+export function useExportEvents<
+  TData = Awaited<ReturnType<typeof exportEvents>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
-  params?: ExportEventsApiV1CGuildIdExportsEventsGetParams,
+  communityId: number,
+  params?: ExportEventsParams,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof exportEventsApiV1CGuildIdExportsEventsGet>>,
-        TError,
-        TData
-      >
-    > &
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof exportEvents>>, TError, TData>> &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof exportEventsApiV1CGuildIdExportsEventsGet>>,
+          Awaited<ReturnType<typeof exportEvents>>,
           TError,
-          Awaited<ReturnType<typeof exportEventsApiV1CGuildIdExportsEventsGet>>
+          Awaited<ReturnType<typeof exportEvents>>
         >,
         "initialData"
       >;
@@ -349,20 +277,14 @@ export function useExportEventsApiV1CGuildIdExportsEventsGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useExportEventsApiV1CGuildIdExportsEventsGet<
-  TData = Awaited<ReturnType<typeof exportEventsApiV1CGuildIdExportsEventsGet>>,
+export function useExportEvents<
+  TData = Awaited<ReturnType<typeof exportEvents>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
-  params?: ExportEventsApiV1CGuildIdExportsEventsGetParams,
+  communityId: number,
+  params?: ExportEventsParams,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof exportEventsApiV1CGuildIdExportsEventsGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof exportEvents>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
@@ -371,29 +293,19 @@ export function useExportEventsApiV1CGuildIdExportsEventsGet<
  * @summary Export Events
  */
 
-export function useExportEventsApiV1CGuildIdExportsEventsGet<
-  TData = Awaited<ReturnType<typeof exportEventsApiV1CGuildIdExportsEventsGet>>,
+export function useExportEvents<
+  TData = Awaited<ReturnType<typeof exportEvents>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
-  params?: ExportEventsApiV1CGuildIdExportsEventsGetParams,
+  communityId: number,
+  params?: ExportEventsParams,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof exportEventsApiV1CGuildIdExportsEventsGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof exportEvents>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getExportEventsApiV1CGuildIdExportsEventsGetQueryOptions(
-    guildId,
-    params,
-    options
-  );
+  const queryOptions = getExportEventsQueryOptions(communityId, params, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -409,38 +321,34 @@ export function useExportEventsApiV1CGuildIdExportsEventsGet<
  * submitting. Guild scope requires the community's seat.
  * @summary Estimate Aggregate Export
  */
-export const estimateAggregateExportApiV1CGuildIdExportsEstimateGet = (
-  guildId: number,
-  params: EstimateAggregateExportApiV1CGuildIdExportsEstimateGetParams,
+export const estimateAggregateExport = (
+  communityId: number,
+  params: EstimateAggregateExportParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<BackupEstimate>(
-    { url: `/api/v1/c/${guildId}/exports/estimate`, method: "GET", params, signal },
+    { url: `/api/v1/c/${communityId}/exports/estimate`, method: "GET", params, signal },
     options
   );
 };
 
-export const getEstimateAggregateExportApiV1CGuildIdExportsEstimateGetQueryKey = (
-  guildId: number,
-  params?: EstimateAggregateExportApiV1CGuildIdExportsEstimateGetParams
+export const getEstimateAggregateExportQueryKey = (
+  communityId: number,
+  params?: EstimateAggregateExportParams
 ) => {
-  return [`/api/v1/c/${guildId}/exports/estimate`, ...(params ? [params] : [])] as const;
+  return [`/api/v1/c/${communityId}/exports/estimate`, ...(params ? [params] : [])] as const;
 };
 
-export const getEstimateAggregateExportApiV1CGuildIdExportsEstimateGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof estimateAggregateExportApiV1CGuildIdExportsEstimateGet>>,
+export const getEstimateAggregateExportQueryOptions = <
+  TData = Awaited<ReturnType<typeof estimateAggregateExport>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
-  params: EstimateAggregateExportApiV1CGuildIdExportsEstimateGetParams,
+  communityId: number,
+  params: EstimateAggregateExportParams,
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof estimateAggregateExportApiV1CGuildIdExportsEstimateGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof estimateAggregateExport>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   }
@@ -448,51 +356,42 @@ export const getEstimateAggregateExportApiV1CGuildIdExportsEstimateGetQueryOptio
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
   const queryKey =
-    queryOptions?.queryKey ??
-    getEstimateAggregateExportApiV1CGuildIdExportsEstimateGetQueryKey(guildId, params);
+    queryOptions?.queryKey ?? getEstimateAggregateExportQueryKey(communityId, params);
 
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof estimateAggregateExportApiV1CGuildIdExportsEstimateGet>>
-  > = ({ signal }) =>
-    estimateAggregateExportApiV1CGuildIdExportsEstimateGet(guildId, params, requestOptions, signal);
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof estimateAggregateExport>>> = ({
+    signal,
+  }) => estimateAggregateExport(communityId, params, requestOptions, signal);
 
   return {
     queryKey,
     queryFn,
-    enabled: guildId !== null && guildId !== undefined,
+    enabled: communityId !== null && communityId !== undefined,
     ...queryOptions,
-  } as UseQueryOptions<
-    Awaited<ReturnType<typeof estimateAggregateExportApiV1CGuildIdExportsEstimateGet>>,
-    TError,
-    TData
-  > & { queryKey: DataTag<QueryKey, TData, TError> };
+  } as UseQueryOptions<Awaited<ReturnType<typeof estimateAggregateExport>>, TError, TData> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 };
 
-export type EstimateAggregateExportApiV1CGuildIdExportsEstimateGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof estimateAggregateExportApiV1CGuildIdExportsEstimateGet>>
+export type EstimateAggregateExportQueryResult = NonNullable<
+  Awaited<ReturnType<typeof estimateAggregateExport>>
 >;
-export type EstimateAggregateExportApiV1CGuildIdExportsEstimateGetQueryError =
-  ErrorType<HTTPValidationError>;
+export type EstimateAggregateExportQueryError = ErrorType<HTTPValidationError>;
 
-export function useEstimateAggregateExportApiV1CGuildIdExportsEstimateGet<
-  TData = Awaited<ReturnType<typeof estimateAggregateExportApiV1CGuildIdExportsEstimateGet>>,
+export function useEstimateAggregateExport<
+  TData = Awaited<ReturnType<typeof estimateAggregateExport>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
-  params: EstimateAggregateExportApiV1CGuildIdExportsEstimateGetParams,
+  communityId: number,
+  params: EstimateAggregateExportParams,
   options: {
     query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof estimateAggregateExportApiV1CGuildIdExportsEstimateGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof estimateAggregateExport>>, TError, TData>
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof estimateAggregateExportApiV1CGuildIdExportsEstimateGet>>,
+          Awaited<ReturnType<typeof estimateAggregateExport>>,
           TError,
-          Awaited<ReturnType<typeof estimateAggregateExportApiV1CGuildIdExportsEstimateGet>>
+          Awaited<ReturnType<typeof estimateAggregateExport>>
         >,
         "initialData"
       >;
@@ -500,25 +399,21 @@ export function useEstimateAggregateExportApiV1CGuildIdExportsEstimateGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useEstimateAggregateExportApiV1CGuildIdExportsEstimateGet<
-  TData = Awaited<ReturnType<typeof estimateAggregateExportApiV1CGuildIdExportsEstimateGet>>,
+export function useEstimateAggregateExport<
+  TData = Awaited<ReturnType<typeof estimateAggregateExport>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
-  params: EstimateAggregateExportApiV1CGuildIdExportsEstimateGetParams,
+  communityId: number,
+  params: EstimateAggregateExportParams,
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof estimateAggregateExportApiV1CGuildIdExportsEstimateGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof estimateAggregateExport>>, TError, TData>
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof estimateAggregateExportApiV1CGuildIdExportsEstimateGet>>,
+          Awaited<ReturnType<typeof estimateAggregateExport>>,
           TError,
-          Awaited<ReturnType<typeof estimateAggregateExportApiV1CGuildIdExportsEstimateGet>>
+          Awaited<ReturnType<typeof estimateAggregateExport>>
         >,
         "initialData"
       >;
@@ -526,19 +421,15 @@ export function useEstimateAggregateExportApiV1CGuildIdExportsEstimateGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useEstimateAggregateExportApiV1CGuildIdExportsEstimateGet<
-  TData = Awaited<ReturnType<typeof estimateAggregateExportApiV1CGuildIdExportsEstimateGet>>,
+export function useEstimateAggregateExport<
+  TData = Awaited<ReturnType<typeof estimateAggregateExport>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
-  params: EstimateAggregateExportApiV1CGuildIdExportsEstimateGetParams,
+  communityId: number,
+  params: EstimateAggregateExportParams,
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof estimateAggregateExportApiV1CGuildIdExportsEstimateGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof estimateAggregateExport>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
@@ -548,29 +439,21 @@ export function useEstimateAggregateExportApiV1CGuildIdExportsEstimateGet<
  * @summary Estimate Aggregate Export
  */
 
-export function useEstimateAggregateExportApiV1CGuildIdExportsEstimateGet<
-  TData = Awaited<ReturnType<typeof estimateAggregateExportApiV1CGuildIdExportsEstimateGet>>,
+export function useEstimateAggregateExport<
+  TData = Awaited<ReturnType<typeof estimateAggregateExport>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
-  params: EstimateAggregateExportApiV1CGuildIdExportsEstimateGetParams,
+  communityId: number,
+  params: EstimateAggregateExportParams,
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof estimateAggregateExportApiV1CGuildIdExportsEstimateGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof estimateAggregateExport>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getEstimateAggregateExportApiV1CGuildIdExportsEstimateGetQueryOptions(
-    guildId,
-    params,
-    options
-  );
+  const queryOptions = getEstimateAggregateExportQueryOptions(communityId, params, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -588,90 +471,69 @@ export function useEstimateAggregateExportApiV1CGuildIdExportsEstimateGet<
  * Always returns ``202`` with a queued job to poll and download.
  * @summary Export Initiative
  */
-export const exportInitiativeApiV1CGuildIdExportsInitiativeGet = (
-  guildId: number,
-  params: ExportInitiativeApiV1CGuildIdExportsInitiativeGetParams,
+export const exportInitiative = (
+  communityId: number,
+  params: ExportInitiativeParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<unknown>(
-    { url: `/api/v1/c/${guildId}/exports/initiative`, method: "GET", params, signal },
+    { url: `/api/v1/c/${communityId}/exports/initiative`, method: "GET", params, signal },
     options
   );
 };
 
-export const getExportInitiativeApiV1CGuildIdExportsInitiativeGetQueryKey = (
-  guildId: number,
-  params?: ExportInitiativeApiV1CGuildIdExportsInitiativeGetParams
+export const getExportInitiativeQueryKey = (
+  communityId: number,
+  params?: ExportInitiativeParams
 ) => {
-  return [`/api/v1/c/${guildId}/exports/initiative`, ...(params ? [params] : [])] as const;
+  return [`/api/v1/c/${communityId}/exports/initiative`, ...(params ? [params] : [])] as const;
 };
 
-export const getExportInitiativeApiV1CGuildIdExportsInitiativeGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof exportInitiativeApiV1CGuildIdExportsInitiativeGet>>,
+export const getExportInitiativeQueryOptions = <
+  TData = Awaited<ReturnType<typeof exportInitiative>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
-  params: ExportInitiativeApiV1CGuildIdExportsInitiativeGetParams,
+  communityId: number,
+  params: ExportInitiativeParams,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof exportInitiativeApiV1CGuildIdExportsInitiativeGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof exportInitiative>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   }
 ) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey =
-    queryOptions?.queryKey ??
-    getExportInitiativeApiV1CGuildIdExportsInitiativeGetQueryKey(guildId, params);
+  const queryKey = queryOptions?.queryKey ?? getExportInitiativeQueryKey(communityId, params);
 
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof exportInitiativeApiV1CGuildIdExportsInitiativeGet>>
-  > = ({ signal }) =>
-    exportInitiativeApiV1CGuildIdExportsInitiativeGet(guildId, params, requestOptions, signal);
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof exportInitiative>>> = ({ signal }) =>
+    exportInitiative(communityId, params, requestOptions, signal);
 
   return {
     queryKey,
     queryFn,
-    enabled: guildId !== null && guildId !== undefined,
+    enabled: communityId !== null && communityId !== undefined,
     ...queryOptions,
-  } as UseQueryOptions<
-    Awaited<ReturnType<typeof exportInitiativeApiV1CGuildIdExportsInitiativeGet>>,
-    TError,
-    TData
-  > & { queryKey: DataTag<QueryKey, TData, TError> };
+  } as UseQueryOptions<Awaited<ReturnType<typeof exportInitiative>>, TError, TData> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 };
 
-export type ExportInitiativeApiV1CGuildIdExportsInitiativeGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof exportInitiativeApiV1CGuildIdExportsInitiativeGet>>
->;
-export type ExportInitiativeApiV1CGuildIdExportsInitiativeGetQueryError =
-  ErrorType<HTTPValidationError>;
+export type ExportInitiativeQueryResult = NonNullable<Awaited<ReturnType<typeof exportInitiative>>>;
+export type ExportInitiativeQueryError = ErrorType<HTTPValidationError>;
 
-export function useExportInitiativeApiV1CGuildIdExportsInitiativeGet<
-  TData = Awaited<ReturnType<typeof exportInitiativeApiV1CGuildIdExportsInitiativeGet>>,
+export function useExportInitiative<
+  TData = Awaited<ReturnType<typeof exportInitiative>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
-  params: ExportInitiativeApiV1CGuildIdExportsInitiativeGetParams,
+  communityId: number,
+  params: ExportInitiativeParams,
   options: {
-    query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof exportInitiativeApiV1CGuildIdExportsInitiativeGet>>,
-        TError,
-        TData
-      >
-    > &
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof exportInitiative>>, TError, TData>> &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof exportInitiativeApiV1CGuildIdExportsInitiativeGet>>,
+          Awaited<ReturnType<typeof exportInitiative>>,
           TError,
-          Awaited<ReturnType<typeof exportInitiativeApiV1CGuildIdExportsInitiativeGet>>
+          Awaited<ReturnType<typeof exportInitiative>>
         >,
         "initialData"
       >;
@@ -679,25 +541,19 @@ export function useExportInitiativeApiV1CGuildIdExportsInitiativeGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useExportInitiativeApiV1CGuildIdExportsInitiativeGet<
-  TData = Awaited<ReturnType<typeof exportInitiativeApiV1CGuildIdExportsInitiativeGet>>,
+export function useExportInitiative<
+  TData = Awaited<ReturnType<typeof exportInitiative>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
-  params: ExportInitiativeApiV1CGuildIdExportsInitiativeGetParams,
+  communityId: number,
+  params: ExportInitiativeParams,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof exportInitiativeApiV1CGuildIdExportsInitiativeGet>>,
-        TError,
-        TData
-      >
-    > &
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof exportInitiative>>, TError, TData>> &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof exportInitiativeApiV1CGuildIdExportsInitiativeGet>>,
+          Awaited<ReturnType<typeof exportInitiative>>,
           TError,
-          Awaited<ReturnType<typeof exportInitiativeApiV1CGuildIdExportsInitiativeGet>>
+          Awaited<ReturnType<typeof exportInitiative>>
         >,
         "initialData"
       >;
@@ -705,20 +561,14 @@ export function useExportInitiativeApiV1CGuildIdExportsInitiativeGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useExportInitiativeApiV1CGuildIdExportsInitiativeGet<
-  TData = Awaited<ReturnType<typeof exportInitiativeApiV1CGuildIdExportsInitiativeGet>>,
+export function useExportInitiative<
+  TData = Awaited<ReturnType<typeof exportInitiative>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
-  params: ExportInitiativeApiV1CGuildIdExportsInitiativeGetParams,
+  communityId: number,
+  params: ExportInitiativeParams,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof exportInitiativeApiV1CGuildIdExportsInitiativeGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof exportInitiative>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
@@ -727,29 +577,19 @@ export function useExportInitiativeApiV1CGuildIdExportsInitiativeGet<
  * @summary Export Initiative
  */
 
-export function useExportInitiativeApiV1CGuildIdExportsInitiativeGet<
-  TData = Awaited<ReturnType<typeof exportInitiativeApiV1CGuildIdExportsInitiativeGet>>,
+export function useExportInitiative<
+  TData = Awaited<ReturnType<typeof exportInitiative>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
-  params: ExportInitiativeApiV1CGuildIdExportsInitiativeGetParams,
+  communityId: number,
+  params: ExportInitiativeParams,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof exportInitiativeApiV1CGuildIdExportsInitiativeGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof exportInitiative>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getExportInitiativeApiV1CGuildIdExportsInitiativeGetQueryOptions(
-    guildId,
-    params,
-    options
-  );
+  const queryOptions = getExportInitiativeQueryOptions(communityId, params, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -764,91 +604,68 @@ export function useExportInitiativeApiV1CGuildIdExportsInitiativeGet<
  * only (held outright; the adapter re-checks at render time so a vacated
  * seat fails the job closed), and once per cooldown window. Always returns
  * ``202`` with a queued job to poll and download.
- * @summary Export Guild
+ * @summary Export Community
  */
-export const exportGuildApiV1CGuildIdExportsCommunityGet = (
-  guildId: number,
-  params?: ExportGuildApiV1CGuildIdExportsCommunityGetParams,
+export const exportCommunity = (
+  communityId: number,
+  params?: ExportCommunityParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<unknown>(
-    { url: `/api/v1/c/${guildId}/exports/community`, method: "GET", params, signal },
+    { url: `/api/v1/c/${communityId}/exports/community`, method: "GET", params, signal },
     options
   );
 };
 
-export const getExportGuildApiV1CGuildIdExportsCommunityGetQueryKey = (
-  guildId: number,
-  params?: ExportGuildApiV1CGuildIdExportsCommunityGetParams
-) => {
-  return [`/api/v1/c/${guildId}/exports/community`, ...(params ? [params] : [])] as const;
+export const getExportCommunityQueryKey = (communityId: number, params?: ExportCommunityParams) => {
+  return [`/api/v1/c/${communityId}/exports/community`, ...(params ? [params] : [])] as const;
 };
 
-export const getExportGuildApiV1CGuildIdExportsCommunityGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof exportGuildApiV1CGuildIdExportsCommunityGet>>,
+export const getExportCommunityQueryOptions = <
+  TData = Awaited<ReturnType<typeof exportCommunity>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
-  params?: ExportGuildApiV1CGuildIdExportsCommunityGetParams,
+  communityId: number,
+  params?: ExportCommunityParams,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof exportGuildApiV1CGuildIdExportsCommunityGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof exportCommunity>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   }
 ) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey =
-    queryOptions?.queryKey ??
-    getExportGuildApiV1CGuildIdExportsCommunityGetQueryKey(guildId, params);
+  const queryKey = queryOptions?.queryKey ?? getExportCommunityQueryKey(communityId, params);
 
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof exportGuildApiV1CGuildIdExportsCommunityGet>>
-  > = ({ signal }) =>
-    exportGuildApiV1CGuildIdExportsCommunityGet(guildId, params, requestOptions, signal);
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof exportCommunity>>> = ({ signal }) =>
+    exportCommunity(communityId, params, requestOptions, signal);
 
   return {
     queryKey,
     queryFn,
-    enabled: guildId !== null && guildId !== undefined,
+    enabled: communityId !== null && communityId !== undefined,
     ...queryOptions,
-  } as UseQueryOptions<
-    Awaited<ReturnType<typeof exportGuildApiV1CGuildIdExportsCommunityGet>>,
-    TError,
-    TData
-  > & { queryKey: DataTag<QueryKey, TData, TError> };
+  } as UseQueryOptions<Awaited<ReturnType<typeof exportCommunity>>, TError, TData> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 };
 
-export type ExportGuildApiV1CGuildIdExportsCommunityGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof exportGuildApiV1CGuildIdExportsCommunityGet>>
->;
-export type ExportGuildApiV1CGuildIdExportsCommunityGetQueryError = ErrorType<HTTPValidationError>;
+export type ExportCommunityQueryResult = NonNullable<Awaited<ReturnType<typeof exportCommunity>>>;
+export type ExportCommunityQueryError = ErrorType<HTTPValidationError>;
 
-export function useExportGuildApiV1CGuildIdExportsCommunityGet<
-  TData = Awaited<ReturnType<typeof exportGuildApiV1CGuildIdExportsCommunityGet>>,
+export function useExportCommunity<
+  TData = Awaited<ReturnType<typeof exportCommunity>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
-  params: undefined | ExportGuildApiV1CGuildIdExportsCommunityGetParams,
+  communityId: number,
+  params: undefined | ExportCommunityParams,
   options: {
-    query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof exportGuildApiV1CGuildIdExportsCommunityGet>>,
-        TError,
-        TData
-      >
-    > &
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof exportCommunity>>, TError, TData>> &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof exportGuildApiV1CGuildIdExportsCommunityGet>>,
+          Awaited<ReturnType<typeof exportCommunity>>,
           TError,
-          Awaited<ReturnType<typeof exportGuildApiV1CGuildIdExportsCommunityGet>>
+          Awaited<ReturnType<typeof exportCommunity>>
         >,
         "initialData"
       >;
@@ -856,25 +673,19 @@ export function useExportGuildApiV1CGuildIdExportsCommunityGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useExportGuildApiV1CGuildIdExportsCommunityGet<
-  TData = Awaited<ReturnType<typeof exportGuildApiV1CGuildIdExportsCommunityGet>>,
+export function useExportCommunity<
+  TData = Awaited<ReturnType<typeof exportCommunity>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
-  params?: ExportGuildApiV1CGuildIdExportsCommunityGetParams,
+  communityId: number,
+  params?: ExportCommunityParams,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof exportGuildApiV1CGuildIdExportsCommunityGet>>,
-        TError,
-        TData
-      >
-    > &
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof exportCommunity>>, TError, TData>> &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof exportGuildApiV1CGuildIdExportsCommunityGet>>,
+          Awaited<ReturnType<typeof exportCommunity>>,
           TError,
-          Awaited<ReturnType<typeof exportGuildApiV1CGuildIdExportsCommunityGet>>
+          Awaited<ReturnType<typeof exportCommunity>>
         >,
         "initialData"
       >;
@@ -882,51 +693,35 @@ export function useExportGuildApiV1CGuildIdExportsCommunityGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useExportGuildApiV1CGuildIdExportsCommunityGet<
-  TData = Awaited<ReturnType<typeof exportGuildApiV1CGuildIdExportsCommunityGet>>,
+export function useExportCommunity<
+  TData = Awaited<ReturnType<typeof exportCommunity>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
-  params?: ExportGuildApiV1CGuildIdExportsCommunityGetParams,
+  communityId: number,
+  params?: ExportCommunityParams,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof exportGuildApiV1CGuildIdExportsCommunityGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof exportCommunity>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
- * @summary Export Guild
+ * @summary Export Community
  */
 
-export function useExportGuildApiV1CGuildIdExportsCommunityGet<
-  TData = Awaited<ReturnType<typeof exportGuildApiV1CGuildIdExportsCommunityGet>>,
+export function useExportCommunity<
+  TData = Awaited<ReturnType<typeof exportCommunity>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
-  params?: ExportGuildApiV1CGuildIdExportsCommunityGetParams,
+  communityId: number,
+  params?: ExportCommunityParams,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof exportGuildApiV1CGuildIdExportsCommunityGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof exportCommunity>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getExportGuildApiV1CGuildIdExportsCommunityGetQueryOptions(
-    guildId,
-    params,
-    options
-  );
+  const queryOptions = getExportCommunityQueryOptions(communityId, params, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -942,88 +737,72 @@ export function useExportGuildApiV1CGuildIdExportsCommunityGet<
  *
  * Seat-only, like the export it describes. Two bounded reads: the newest
  * ``guild`` job, and the cooldown the create route enforces.
- * @summary Read Guild Export Status
+ * @summary Read Community Export Status
  */
-export const readGuildExportStatusApiV1CGuildIdExportsCommunityStatusGet = (
-  guildId: number,
+export const readCommunityExportStatus = (
+  communityId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<GuildExportStatus>(
-    { url: `/api/v1/c/${guildId}/exports/community/status`, method: "GET", signal },
+  return apiMutator<CommunityExportStatus>(
+    { url: `/api/v1/c/${communityId}/exports/community/status`, method: "GET", signal },
     options
   );
 };
 
-export const getReadGuildExportStatusApiV1CGuildIdExportsCommunityStatusGetQueryKey = (
-  guildId: number
-) => {
-  return [`/api/v1/c/${guildId}/exports/community/status`] as const;
+export const getReadCommunityExportStatusQueryKey = (communityId: number) => {
+  return [`/api/v1/c/${communityId}/exports/community/status`] as const;
 };
 
-export const getReadGuildExportStatusApiV1CGuildIdExportsCommunityStatusGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof readGuildExportStatusApiV1CGuildIdExportsCommunityStatusGet>>,
+export const getReadCommunityExportStatusQueryOptions = <
+  TData = Awaited<ReturnType<typeof readCommunityExportStatus>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readGuildExportStatusApiV1CGuildIdExportsCommunityStatusGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof readCommunityExportStatus>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   }
 ) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey =
-    queryOptions?.queryKey ??
-    getReadGuildExportStatusApiV1CGuildIdExportsCommunityStatusGetQueryKey(guildId);
+  const queryKey = queryOptions?.queryKey ?? getReadCommunityExportStatusQueryKey(communityId);
 
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof readGuildExportStatusApiV1CGuildIdExportsCommunityStatusGet>>
-  > = ({ signal }) =>
-    readGuildExportStatusApiV1CGuildIdExportsCommunityStatusGet(guildId, requestOptions, signal);
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof readCommunityExportStatus>>> = ({
+    signal,
+  }) => readCommunityExportStatus(communityId, requestOptions, signal);
 
   return {
     queryKey,
     queryFn,
-    enabled: guildId !== null && guildId !== undefined,
+    enabled: communityId !== null && communityId !== undefined,
     ...queryOptions,
-  } as UseQueryOptions<
-    Awaited<ReturnType<typeof readGuildExportStatusApiV1CGuildIdExportsCommunityStatusGet>>,
-    TError,
-    TData
-  > & { queryKey: DataTag<QueryKey, TData, TError> };
+  } as UseQueryOptions<Awaited<ReturnType<typeof readCommunityExportStatus>>, TError, TData> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 };
 
-export type ReadGuildExportStatusApiV1CGuildIdExportsCommunityStatusGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof readGuildExportStatusApiV1CGuildIdExportsCommunityStatusGet>>
+export type ReadCommunityExportStatusQueryResult = NonNullable<
+  Awaited<ReturnType<typeof readCommunityExportStatus>>
 >;
-export type ReadGuildExportStatusApiV1CGuildIdExportsCommunityStatusGetQueryError =
-  ErrorType<HTTPValidationError>;
+export type ReadCommunityExportStatusQueryError = ErrorType<HTTPValidationError>;
 
-export function useReadGuildExportStatusApiV1CGuildIdExportsCommunityStatusGet<
-  TData = Awaited<ReturnType<typeof readGuildExportStatusApiV1CGuildIdExportsCommunityStatusGet>>,
+export function useReadCommunityExportStatus<
+  TData = Awaited<ReturnType<typeof readCommunityExportStatus>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   options: {
     query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readGuildExportStatusApiV1CGuildIdExportsCommunityStatusGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof readCommunityExportStatus>>, TError, TData>
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readGuildExportStatusApiV1CGuildIdExportsCommunityStatusGet>>,
+          Awaited<ReturnType<typeof readCommunityExportStatus>>,
           TError,
-          Awaited<ReturnType<typeof readGuildExportStatusApiV1CGuildIdExportsCommunityStatusGet>>
+          Awaited<ReturnType<typeof readCommunityExportStatus>>
         >,
         "initialData"
       >;
@@ -1031,24 +810,20 @@ export function useReadGuildExportStatusApiV1CGuildIdExportsCommunityStatusGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadGuildExportStatusApiV1CGuildIdExportsCommunityStatusGet<
-  TData = Awaited<ReturnType<typeof readGuildExportStatusApiV1CGuildIdExportsCommunityStatusGet>>,
+export function useReadCommunityExportStatus<
+  TData = Awaited<ReturnType<typeof readCommunityExportStatus>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readGuildExportStatusApiV1CGuildIdExportsCommunityStatusGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof readCommunityExportStatus>>, TError, TData>
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readGuildExportStatusApiV1CGuildIdExportsCommunityStatusGet>>,
+          Awaited<ReturnType<typeof readCommunityExportStatus>>,
           TError,
-          Awaited<ReturnType<typeof readGuildExportStatusApiV1CGuildIdExportsCommunityStatusGet>>
+          Awaited<ReturnType<typeof readCommunityExportStatus>>
         >,
         "initialData"
       >;
@@ -1056,48 +831,37 @@ export function useReadGuildExportStatusApiV1CGuildIdExportsCommunityStatusGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadGuildExportStatusApiV1CGuildIdExportsCommunityStatusGet<
-  TData = Awaited<ReturnType<typeof readGuildExportStatusApiV1CGuildIdExportsCommunityStatusGet>>,
+export function useReadCommunityExportStatus<
+  TData = Awaited<ReturnType<typeof readCommunityExportStatus>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readGuildExportStatusApiV1CGuildIdExportsCommunityStatusGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof readCommunityExportStatus>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
- * @summary Read Guild Export Status
+ * @summary Read Community Export Status
  */
 
-export function useReadGuildExportStatusApiV1CGuildIdExportsCommunityStatusGet<
-  TData = Awaited<ReturnType<typeof readGuildExportStatusApiV1CGuildIdExportsCommunityStatusGet>>,
+export function useReadCommunityExportStatus<
+  TData = Awaited<ReturnType<typeof readCommunityExportStatus>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readGuildExportStatusApiV1CGuildIdExportsCommunityStatusGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof readCommunityExportStatus>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getReadGuildExportStatusApiV1CGuildIdExportsCommunityStatusGetQueryOptions(
-    guildId,
-    options
-  );
+  const queryOptions = getReadCommunityExportStatusQueryOptions(communityId, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -1111,81 +875,63 @@ export function useReadGuildExportStatusApiV1CGuildIdExportsCommunityStatusGet<
  * or the whole guild for a guild admin).
  * @summary List Export Jobs
  */
-export const listExportJobsApiV1CGuildIdExportsGet = (
-  guildId: number,
+export const listExportJobs = (
+  communityId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<ExportJobRead[]>(
-    { url: `/api/v1/c/${guildId}/exports/`, method: "GET", signal },
+    { url: `/api/v1/c/${communityId}/exports/jobs`, method: "GET", signal },
     options
   );
 };
 
-export const getListExportJobsApiV1CGuildIdExportsGetQueryKey = (guildId: number) => {
-  return [`/api/v1/c/${guildId}/exports/`] as const;
+export const getListExportJobsQueryKey = (communityId: number) => {
+  return [`/api/v1/c/${communityId}/exports/jobs`] as const;
 };
 
-export const getListExportJobsApiV1CGuildIdExportsGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof listExportJobsApiV1CGuildIdExportsGet>>,
+export const getListExportJobsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listExportJobs>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listExportJobsApiV1CGuildIdExportsGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listExportJobs>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   }
 ) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey =
-    queryOptions?.queryKey ?? getListExportJobsApiV1CGuildIdExportsGetQueryKey(guildId);
+  const queryKey = queryOptions?.queryKey ?? getListExportJobsQueryKey(communityId);
 
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof listExportJobsApiV1CGuildIdExportsGet>>
-  > = ({ signal }) => listExportJobsApiV1CGuildIdExportsGet(guildId, requestOptions, signal);
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listExportJobs>>> = ({ signal }) =>
+    listExportJobs(communityId, requestOptions, signal);
 
   return {
     queryKey,
     queryFn,
-    enabled: guildId !== null && guildId !== undefined,
+    enabled: communityId !== null && communityId !== undefined,
     ...queryOptions,
-  } as UseQueryOptions<
-    Awaited<ReturnType<typeof listExportJobsApiV1CGuildIdExportsGet>>,
-    TError,
-    TData
-  > & { queryKey: DataTag<QueryKey, TData, TError> };
+  } as UseQueryOptions<Awaited<ReturnType<typeof listExportJobs>>, TError, TData> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 };
 
-export type ListExportJobsApiV1CGuildIdExportsGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof listExportJobsApiV1CGuildIdExportsGet>>
->;
-export type ListExportJobsApiV1CGuildIdExportsGetQueryError = ErrorType<HTTPValidationError>;
+export type ListExportJobsQueryResult = NonNullable<Awaited<ReturnType<typeof listExportJobs>>>;
+export type ListExportJobsQueryError = ErrorType<HTTPValidationError>;
 
-export function useListExportJobsApiV1CGuildIdExportsGet<
-  TData = Awaited<ReturnType<typeof listExportJobsApiV1CGuildIdExportsGet>>,
+export function useListExportJobs<
+  TData = Awaited<ReturnType<typeof listExportJobs>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   options: {
-    query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listExportJobsApiV1CGuildIdExportsGet>>,
-        TError,
-        TData
-      >
-    > &
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof listExportJobs>>, TError, TData>> &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listExportJobsApiV1CGuildIdExportsGet>>,
+          Awaited<ReturnType<typeof listExportJobs>>,
           TError,
-          Awaited<ReturnType<typeof listExportJobsApiV1CGuildIdExportsGet>>
+          Awaited<ReturnType<typeof listExportJobs>>
         >,
         "initialData"
       >;
@@ -1193,24 +939,18 @@ export function useListExportJobsApiV1CGuildIdExportsGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListExportJobsApiV1CGuildIdExportsGet<
-  TData = Awaited<ReturnType<typeof listExportJobsApiV1CGuildIdExportsGet>>,
+export function useListExportJobs<
+  TData = Awaited<ReturnType<typeof listExportJobs>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listExportJobsApiV1CGuildIdExportsGet>>,
-        TError,
-        TData
-      >
-    > &
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listExportJobs>>, TError, TData>> &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listExportJobsApiV1CGuildIdExportsGet>>,
+          Awaited<ReturnType<typeof listExportJobs>>,
           TError,
-          Awaited<ReturnType<typeof listExportJobsApiV1CGuildIdExportsGet>>
+          Awaited<ReturnType<typeof listExportJobs>>
         >,
         "initialData"
       >;
@@ -1218,19 +958,13 @@ export function useListExportJobsApiV1CGuildIdExportsGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListExportJobsApiV1CGuildIdExportsGet<
-  TData = Awaited<ReturnType<typeof listExportJobsApiV1CGuildIdExportsGet>>,
+export function useListExportJobs<
+  TData = Awaited<ReturnType<typeof listExportJobs>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listExportJobsApiV1CGuildIdExportsGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listExportJobs>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
@@ -1239,24 +973,18 @@ export function useListExportJobsApiV1CGuildIdExportsGet<
  * @summary List Export Jobs
  */
 
-export function useListExportJobsApiV1CGuildIdExportsGet<
-  TData = Awaited<ReturnType<typeof listExportJobsApiV1CGuildIdExportsGet>>,
+export function useListExportJobs<
+  TData = Awaited<ReturnType<typeof listExportJobs>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listExportJobsApiV1CGuildIdExportsGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listExportJobs>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListExportJobsApiV1CGuildIdExportsGetQueryOptions(guildId, options);
+  const queryOptions = getListExportJobsQueryOptions(communityId, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -1268,88 +996,67 @@ export function useListExportJobsApiV1CGuildIdExportsGet<
 /**
  * @summary Get Export Job
  */
-export const getExportJobApiV1CGuildIdExportsJobIdGet = (
-  guildId: number,
+export const getExportJob = (
+  communityId: number,
   jobId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<ExportJobRead>(
-    { url: `/api/v1/c/${guildId}/exports/${jobId}`, method: "GET", signal },
+    { url: `/api/v1/c/${communityId}/exports/jobs/${jobId}`, method: "GET", signal },
     options
   );
 };
 
-export const getGetExportJobApiV1CGuildIdExportsJobIdGetQueryKey = (
-  guildId: number,
-  jobId: number
-) => {
-  return [`/api/v1/c/${guildId}/exports/${jobId}`] as const;
+export const getGetExportJobQueryKey = (communityId: number, jobId: number) => {
+  return [`/api/v1/c/${communityId}/exports/jobs/${jobId}`] as const;
 };
 
-export const getGetExportJobApiV1CGuildIdExportsJobIdGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof getExportJobApiV1CGuildIdExportsJobIdGet>>,
+export const getGetExportJobQueryOptions = <
+  TData = Awaited<ReturnType<typeof getExportJob>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   jobId: number,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getExportJobApiV1CGuildIdExportsJobIdGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getExportJob>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   }
 ) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey =
-    queryOptions?.queryKey ?? getGetExportJobApiV1CGuildIdExportsJobIdGetQueryKey(guildId, jobId);
+  const queryKey = queryOptions?.queryKey ?? getGetExportJobQueryKey(communityId, jobId);
 
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof getExportJobApiV1CGuildIdExportsJobIdGet>>
-  > = ({ signal }) =>
-    getExportJobApiV1CGuildIdExportsJobIdGet(guildId, jobId, requestOptions, signal);
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getExportJob>>> = ({ signal }) =>
+    getExportJob(communityId, jobId, requestOptions, signal);
 
   return {
     queryKey,
     queryFn,
-    enabled: guildId !== null && guildId !== undefined && jobId !== null && jobId !== undefined,
+    enabled:
+      communityId !== null && communityId !== undefined && jobId !== null && jobId !== undefined,
     ...queryOptions,
-  } as UseQueryOptions<
-    Awaited<ReturnType<typeof getExportJobApiV1CGuildIdExportsJobIdGet>>,
-    TError,
-    TData
-  > & { queryKey: DataTag<QueryKey, TData, TError> };
+  } as UseQueryOptions<Awaited<ReturnType<typeof getExportJob>>, TError, TData> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 };
 
-export type GetExportJobApiV1CGuildIdExportsJobIdGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof getExportJobApiV1CGuildIdExportsJobIdGet>>
->;
-export type GetExportJobApiV1CGuildIdExportsJobIdGetQueryError = ErrorType<HTTPValidationError>;
+export type GetExportJobQueryResult = NonNullable<Awaited<ReturnType<typeof getExportJob>>>;
+export type GetExportJobQueryError = ErrorType<HTTPValidationError>;
 
-export function useGetExportJobApiV1CGuildIdExportsJobIdGet<
-  TData = Awaited<ReturnType<typeof getExportJobApiV1CGuildIdExportsJobIdGet>>,
+export function useGetExportJob<
+  TData = Awaited<ReturnType<typeof getExportJob>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   jobId: number,
   options: {
-    query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getExportJobApiV1CGuildIdExportsJobIdGet>>,
-        TError,
-        TData
-      >
-    > &
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getExportJob>>, TError, TData>> &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getExportJobApiV1CGuildIdExportsJobIdGet>>,
+          Awaited<ReturnType<typeof getExportJob>>,
           TError,
-          Awaited<ReturnType<typeof getExportJobApiV1CGuildIdExportsJobIdGet>>
+          Awaited<ReturnType<typeof getExportJob>>
         >,
         "initialData"
       >;
@@ -1357,25 +1064,19 @@ export function useGetExportJobApiV1CGuildIdExportsJobIdGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetExportJobApiV1CGuildIdExportsJobIdGet<
-  TData = Awaited<ReturnType<typeof getExportJobApiV1CGuildIdExportsJobIdGet>>,
+export function useGetExportJob<
+  TData = Awaited<ReturnType<typeof getExportJob>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   jobId: number,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getExportJobApiV1CGuildIdExportsJobIdGet>>,
-        TError,
-        TData
-      >
-    > &
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getExportJob>>, TError, TData>> &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getExportJobApiV1CGuildIdExportsJobIdGet>>,
+          Awaited<ReturnType<typeof getExportJob>>,
           TError,
-          Awaited<ReturnType<typeof getExportJobApiV1CGuildIdExportsJobIdGet>>
+          Awaited<ReturnType<typeof getExportJob>>
         >,
         "initialData"
       >;
@@ -1383,20 +1084,14 @@ export function useGetExportJobApiV1CGuildIdExportsJobIdGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetExportJobApiV1CGuildIdExportsJobIdGet<
-  TData = Awaited<ReturnType<typeof getExportJobApiV1CGuildIdExportsJobIdGet>>,
+export function useGetExportJob<
+  TData = Awaited<ReturnType<typeof getExportJob>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   jobId: number,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getExportJobApiV1CGuildIdExportsJobIdGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getExportJob>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
@@ -1405,29 +1100,19 @@ export function useGetExportJobApiV1CGuildIdExportsJobIdGet<
  * @summary Get Export Job
  */
 
-export function useGetExportJobApiV1CGuildIdExportsJobIdGet<
-  TData = Awaited<ReturnType<typeof getExportJobApiV1CGuildIdExportsJobIdGet>>,
+export function useGetExportJob<
+  TData = Awaited<ReturnType<typeof getExportJob>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   jobId: number,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getExportJobApiV1CGuildIdExportsJobIdGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getExportJob>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getGetExportJobApiV1CGuildIdExportsJobIdGetQueryOptions(
-    guildId,
-    jobId,
-    options
-  );
+  const queryOptions = getGetExportJobQueryOptions(communityId, jobId, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -1442,95 +1127,73 @@ export function useGetExportJobApiV1CGuildIdExportsJobIdGet<
  * than when it was rendered; storage is touched only after both pass.
  * @summary Download Export Artifact
  */
-export const downloadExportArtifactApiV1CGuildIdExportsJobIdDownloadGet = (
-  guildId: number,
+export const downloadExportArtifact = (
+  communityId: number,
   jobId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<unknown>(
-    { url: `/api/v1/c/${guildId}/exports/${jobId}/download`, method: "GET", signal },
+    { url: `/api/v1/c/${communityId}/exports/jobs/${jobId}/download`, method: "GET", signal },
     options
   );
 };
 
-export const getDownloadExportArtifactApiV1CGuildIdExportsJobIdDownloadGetQueryKey = (
-  guildId: number,
-  jobId: number
-) => {
-  return [`/api/v1/c/${guildId}/exports/${jobId}/download`] as const;
+export const getDownloadExportArtifactQueryKey = (communityId: number, jobId: number) => {
+  return [`/api/v1/c/${communityId}/exports/jobs/${jobId}/download`] as const;
 };
 
-export const getDownloadExportArtifactApiV1CGuildIdExportsJobIdDownloadGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof downloadExportArtifactApiV1CGuildIdExportsJobIdDownloadGet>>,
+export const getDownloadExportArtifactQueryOptions = <
+  TData = Awaited<ReturnType<typeof downloadExportArtifact>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   jobId: number,
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof downloadExportArtifactApiV1CGuildIdExportsJobIdDownloadGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof downloadExportArtifact>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   }
 ) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey =
-    queryOptions?.queryKey ??
-    getDownloadExportArtifactApiV1CGuildIdExportsJobIdDownloadGetQueryKey(guildId, jobId);
+  const queryKey = queryOptions?.queryKey ?? getDownloadExportArtifactQueryKey(communityId, jobId);
 
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof downloadExportArtifactApiV1CGuildIdExportsJobIdDownloadGet>>
-  > = ({ signal }) =>
-    downloadExportArtifactApiV1CGuildIdExportsJobIdDownloadGet(
-      guildId,
-      jobId,
-      requestOptions,
-      signal
-    );
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof downloadExportArtifact>>> = ({ signal }) =>
+    downloadExportArtifact(communityId, jobId, requestOptions, signal);
 
   return {
     queryKey,
     queryFn,
-    enabled: guildId !== null && guildId !== undefined && jobId !== null && jobId !== undefined,
+    enabled:
+      communityId !== null && communityId !== undefined && jobId !== null && jobId !== undefined,
     ...queryOptions,
-  } as UseQueryOptions<
-    Awaited<ReturnType<typeof downloadExportArtifactApiV1CGuildIdExportsJobIdDownloadGet>>,
-    TError,
-    TData
-  > & { queryKey: DataTag<QueryKey, TData, TError> };
+  } as UseQueryOptions<Awaited<ReturnType<typeof downloadExportArtifact>>, TError, TData> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 };
 
-export type DownloadExportArtifactApiV1CGuildIdExportsJobIdDownloadGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof downloadExportArtifactApiV1CGuildIdExportsJobIdDownloadGet>>
+export type DownloadExportArtifactQueryResult = NonNullable<
+  Awaited<ReturnType<typeof downloadExportArtifact>>
 >;
-export type DownloadExportArtifactApiV1CGuildIdExportsJobIdDownloadGetQueryError =
-  ErrorType<HTTPValidationError>;
+export type DownloadExportArtifactQueryError = ErrorType<HTTPValidationError>;
 
-export function useDownloadExportArtifactApiV1CGuildIdExportsJobIdDownloadGet<
-  TData = Awaited<ReturnType<typeof downloadExportArtifactApiV1CGuildIdExportsJobIdDownloadGet>>,
+export function useDownloadExportArtifact<
+  TData = Awaited<ReturnType<typeof downloadExportArtifact>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   jobId: number,
   options: {
     query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof downloadExportArtifactApiV1CGuildIdExportsJobIdDownloadGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof downloadExportArtifact>>, TError, TData>
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof downloadExportArtifactApiV1CGuildIdExportsJobIdDownloadGet>>,
+          Awaited<ReturnType<typeof downloadExportArtifact>>,
           TError,
-          Awaited<ReturnType<typeof downloadExportArtifactApiV1CGuildIdExportsJobIdDownloadGet>>
+          Awaited<ReturnType<typeof downloadExportArtifact>>
         >,
         "initialData"
       >;
@@ -1538,25 +1201,21 @@ export function useDownloadExportArtifactApiV1CGuildIdExportsJobIdDownloadGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useDownloadExportArtifactApiV1CGuildIdExportsJobIdDownloadGet<
-  TData = Awaited<ReturnType<typeof downloadExportArtifactApiV1CGuildIdExportsJobIdDownloadGet>>,
+export function useDownloadExportArtifact<
+  TData = Awaited<ReturnType<typeof downloadExportArtifact>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   jobId: number,
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof downloadExportArtifactApiV1CGuildIdExportsJobIdDownloadGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof downloadExportArtifact>>, TError, TData>
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof downloadExportArtifactApiV1CGuildIdExportsJobIdDownloadGet>>,
+          Awaited<ReturnType<typeof downloadExportArtifact>>,
           TError,
-          Awaited<ReturnType<typeof downloadExportArtifactApiV1CGuildIdExportsJobIdDownloadGet>>
+          Awaited<ReturnType<typeof downloadExportArtifact>>
         >,
         "initialData"
       >;
@@ -1564,19 +1223,15 @@ export function useDownloadExportArtifactApiV1CGuildIdExportsJobIdDownloadGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useDownloadExportArtifactApiV1CGuildIdExportsJobIdDownloadGet<
-  TData = Awaited<ReturnType<typeof downloadExportArtifactApiV1CGuildIdExportsJobIdDownloadGet>>,
+export function useDownloadExportArtifact<
+  TData = Awaited<ReturnType<typeof downloadExportArtifact>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   jobId: number,
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof downloadExportArtifactApiV1CGuildIdExportsJobIdDownloadGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof downloadExportArtifact>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
@@ -1586,29 +1241,21 @@ export function useDownloadExportArtifactApiV1CGuildIdExportsJobIdDownloadGet<
  * @summary Download Export Artifact
  */
 
-export function useDownloadExportArtifactApiV1CGuildIdExportsJobIdDownloadGet<
-  TData = Awaited<ReturnType<typeof downloadExportArtifactApiV1CGuildIdExportsJobIdDownloadGet>>,
+export function useDownloadExportArtifact<
+  TData = Awaited<ReturnType<typeof downloadExportArtifact>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   jobId: number,
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof downloadExportArtifactApiV1CGuildIdExportsJobIdDownloadGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof downloadExportArtifact>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getDownloadExportArtifactApiV1CGuildIdExportsJobIdDownloadGetQueryOptions(
-    guildId,
-    jobId,
-    options
-  );
+  const queryOptions = getDownloadExportArtifactQueryOptions(communityId, jobId, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -1623,93 +1270,74 @@ export function useDownloadExportArtifactApiV1CGuildIdExportsJobIdDownloadGet<
  * a queued job to poll and download.
  * @summary Export Tool
  */
-export const exportToolApiV1CGuildIdExportsToolGet = (
-  guildId: number,
+export const exportTool = (
+  communityId: number,
   tool: Tool,
-  params?: ExportToolApiV1CGuildIdExportsToolGetParams,
+  params?: ExportToolParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<unknown>(
-    { url: `/api/v1/c/${guildId}/exports/${tool}`, method: "GET", params, signal },
+    { url: `/api/v1/c/${communityId}/exports/${tool}`, method: "GET", params, signal },
     options
   );
 };
 
-export const getExportToolApiV1CGuildIdExportsToolGetQueryKey = (
-  guildId: number,
+export const getExportToolQueryKey = (
+  communityId: number,
   tool: Tool,
-  params?: ExportToolApiV1CGuildIdExportsToolGetParams
+  params?: ExportToolParams
 ) => {
-  return [`/api/v1/c/${guildId}/exports/${tool}`, ...(params ? [params] : [])] as const;
+  return [`/api/v1/c/${communityId}/exports/${tool}`, ...(params ? [params] : [])] as const;
 };
 
-export const getExportToolApiV1CGuildIdExportsToolGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof exportToolApiV1CGuildIdExportsToolGet>>,
+export const getExportToolQueryOptions = <
+  TData = Awaited<ReturnType<typeof exportTool>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   tool: Tool,
-  params?: ExportToolApiV1CGuildIdExportsToolGetParams,
+  params?: ExportToolParams,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof exportToolApiV1CGuildIdExportsToolGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof exportTool>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   }
 ) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey =
-    queryOptions?.queryKey ??
-    getExportToolApiV1CGuildIdExportsToolGetQueryKey(guildId, tool, params);
+  const queryKey = queryOptions?.queryKey ?? getExportToolQueryKey(communityId, tool, params);
 
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof exportToolApiV1CGuildIdExportsToolGet>>
-  > = ({ signal }) =>
-    exportToolApiV1CGuildIdExportsToolGet(guildId, tool, params, requestOptions, signal);
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof exportTool>>> = ({ signal }) =>
+    exportTool(communityId, tool, params, requestOptions, signal);
 
   return {
     queryKey,
     queryFn,
-    enabled: guildId !== null && guildId !== undefined && tool !== null && tool !== undefined,
+    enabled:
+      communityId !== null && communityId !== undefined && tool !== null && tool !== undefined,
     ...queryOptions,
-  } as UseQueryOptions<
-    Awaited<ReturnType<typeof exportToolApiV1CGuildIdExportsToolGet>>,
-    TError,
-    TData
-  > & { queryKey: DataTag<QueryKey, TData, TError> };
+  } as UseQueryOptions<Awaited<ReturnType<typeof exportTool>>, TError, TData> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 };
 
-export type ExportToolApiV1CGuildIdExportsToolGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof exportToolApiV1CGuildIdExportsToolGet>>
->;
-export type ExportToolApiV1CGuildIdExportsToolGetQueryError = ErrorType<HTTPValidationError>;
+export type ExportToolQueryResult = NonNullable<Awaited<ReturnType<typeof exportTool>>>;
+export type ExportToolQueryError = ErrorType<HTTPValidationError>;
 
-export function useExportToolApiV1CGuildIdExportsToolGet<
-  TData = Awaited<ReturnType<typeof exportToolApiV1CGuildIdExportsToolGet>>,
+export function useExportTool<
+  TData = Awaited<ReturnType<typeof exportTool>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   tool: Tool,
-  params: undefined | ExportToolApiV1CGuildIdExportsToolGetParams,
+  params: undefined | ExportToolParams,
   options: {
-    query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof exportToolApiV1CGuildIdExportsToolGet>>,
-        TError,
-        TData
-      >
-    > &
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof exportTool>>, TError, TData>> &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof exportToolApiV1CGuildIdExportsToolGet>>,
+          Awaited<ReturnType<typeof exportTool>>,
           TError,
-          Awaited<ReturnType<typeof exportToolApiV1CGuildIdExportsToolGet>>
+          Awaited<ReturnType<typeof exportTool>>
         >,
         "initialData"
       >;
@@ -1717,26 +1345,20 @@ export function useExportToolApiV1CGuildIdExportsToolGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useExportToolApiV1CGuildIdExportsToolGet<
-  TData = Awaited<ReturnType<typeof exportToolApiV1CGuildIdExportsToolGet>>,
+export function useExportTool<
+  TData = Awaited<ReturnType<typeof exportTool>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   tool: Tool,
-  params?: ExportToolApiV1CGuildIdExportsToolGetParams,
+  params?: ExportToolParams,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof exportToolApiV1CGuildIdExportsToolGet>>,
-        TError,
-        TData
-      >
-    > &
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof exportTool>>, TError, TData>> &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof exportToolApiV1CGuildIdExportsToolGet>>,
+          Awaited<ReturnType<typeof exportTool>>,
           TError,
-          Awaited<ReturnType<typeof exportToolApiV1CGuildIdExportsToolGet>>
+          Awaited<ReturnType<typeof exportTool>>
         >,
         "initialData"
       >;
@@ -1744,21 +1366,15 @@ export function useExportToolApiV1CGuildIdExportsToolGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useExportToolApiV1CGuildIdExportsToolGet<
-  TData = Awaited<ReturnType<typeof exportToolApiV1CGuildIdExportsToolGet>>,
+export function useExportTool<
+  TData = Awaited<ReturnType<typeof exportTool>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   tool: Tool,
-  params?: ExportToolApiV1CGuildIdExportsToolGetParams,
+  params?: ExportToolParams,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof exportToolApiV1CGuildIdExportsToolGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof exportTool>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
@@ -1767,31 +1383,20 @@ export function useExportToolApiV1CGuildIdExportsToolGet<
  * @summary Export Tool
  */
 
-export function useExportToolApiV1CGuildIdExportsToolGet<
-  TData = Awaited<ReturnType<typeof exportToolApiV1CGuildIdExportsToolGet>>,
+export function useExportTool<
+  TData = Awaited<ReturnType<typeof exportTool>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   tool: Tool,
-  params?: ExportToolApiV1CGuildIdExportsToolGetParams,
+  params?: ExportToolParams,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof exportToolApiV1CGuildIdExportsToolGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof exportTool>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getExportToolApiV1CGuildIdExportsToolGetQueryOptions(
-    guildId,
-    tool,
-    params,
-    options
-  );
+  const queryOptions = getExportToolQueryOptions(communityId, tool, params, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;

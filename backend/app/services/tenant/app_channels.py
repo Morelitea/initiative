@@ -43,13 +43,16 @@ from app.db.session import routed_guild_id
 from app.core.messages import AppChannelMessages
 from app.db.event_capture import OUTBOX_CHANNEL
 from app.db.session import set_rls_context
-from app.models.platform.guild import LIVE_STATUS_VALUES, Guild, GuildStatus
+from app.models.platform.guild import LIVE_STATUS_VALUES, Guild, CommunityStatus
 from app.models.tenant.app_event_outbox import AppEventOutbox
 from app.models.tenant.guild_app import GuildApp
 from app.models.tenant.guild_app_user_connection import GuildAppUserConnection
 from app.services.marketplace.app_refs import ensure_app_guild_ref
 from app.services.marketplace.registration_lookup import service_public_id
-from app.services.marketplace.service_apps import ENDPOINT_ID_PREFIX
+from app.services.marketplace.service_apps import (
+    CONNECTION_STATES,
+    ENDPOINT_ID_PREFIX,
+)
 from app.services.tenant import app_config as app_config_service
 from app.services.tenant import app_connection_flows as flows
 from app.services.tenant import guild_apps as guild_apps_service
@@ -64,8 +67,10 @@ __all__ = [
     "connection_payload",
     "connection_token",
     "emit_event",
+    "keep_event",
     "load_install",
     "report_config_state",
+    "set_connection_state",
 ]
 
 #: What one event body may carry. An event is a notification that something
@@ -110,13 +115,18 @@ def owns_install(app: GuildApp, registration: RegisteredApp) -> bool:
     listing this registration speaks for, and the definition the guild pinned
     names this same app as its service. Either alone would be enough in the
     ordinary case; requiring both means a registration re-pointed at another
-    listing still cannot reach installs it was not wired for.
+    listing still cannot reach installs it was not wired for. A declarative
+    app names no service: it is its listing's, so the listing is the one
+    statement there is.
     """
     if app.app_kind != "service":
         return False
     if not registration.listing_uid or app.listing_uid != registration.listing_uid:
         return False
-    return service_public_id(app.definition) == registration.public_id
+    return (
+        service_public_id(app.definition, listing_public_id=registration.public_id)
+        == registration.public_id
+    )
 
 
 async def _route(session: AsyncSession, guild_id: int, *, read_only: bool) -> None:
@@ -176,7 +186,7 @@ async def load_install(
     if guild is None or guild.status not in LIVE_STATUS_VALUES:
         raise AppChannelError(AppChannelMessages.INSTALL_NOT_FOUND, status_code=404)
 
-    frozen = guild.status == GuildStatus.read_only.value
+    frozen = guild.status == CommunityStatus.read_only.value
     if for_write and frozen:
         raise AppChannelError(AppChannelMessages.GUILD_READ_ONLY, status_code=409)
 
@@ -257,7 +267,7 @@ async def config_payload(session: AsyncSession, app: GuildApp) -> dict[str, Any]
 
     state = app_config_service.config_state(app)
     return {
-        "guild_ref": await _install_guild_ref(session, app),
+        "community_ref": await _install_guild_ref(session, app),
         "install_id": app.id,
         "listing_uid": app.listing_uid,
         "listing_version": app.listing_version,
@@ -392,11 +402,35 @@ async def report_config_state(
     await session.commit()
     await session.refresh(app)
     return {
-        "guild_ref": await _install_guild_ref(session, app),
+        "community_ref": await _install_guild_ref(session, app),
         "install_id": app.id,
         "config_state": app.config_state,
         "config_state_detail": app.config_state_detail,
     }
+
+
+def set_connection_state(app: GuildApp, connection_id: str, state: str) -> bool:
+    """Record what a declarative app learned of one connection at the vendor
+    (a delivery's ``status``, or its health check) as the install's
+    configuration state, where a container's verdict is shown. Answers whether
+    it moved; the caller writes it.
+
+    A state other than ``ok`` is ``invalid``, its detail the connection and
+    the state (``workspace_suspended``). ``ok`` clears a verdict about this
+    connection and leaves one about another as it is.
+    """
+    about = {f"{connection_id}_{other}" for other in CONNECTION_STATES if other != "ok"}
+    if state == "ok":
+        if app.config_state == "invalid" and app.config_state_detail not in about:
+            return False
+        verdict: tuple[str, Optional[str]] = ("ok", None)
+    else:
+        verdict = ("invalid", f"{connection_id}_{state}")
+    if (app.config_state, app.config_state_detail) == verdict:
+        return False
+    app.config_state, app.config_state_detail = verdict
+    app.updated_at = datetime.now(timezone.utc)
+    return True
 
 
 # --- events in --------------------------------------------------------------
@@ -420,19 +454,43 @@ async def emit_event(
     initiative_id: Optional[int],
     token_initiative_id: Optional[int],
 ) -> None:
-    """Keep one event the app emits, for the outbox poller to deliver.
+    """Keep one event the app emits (:func:`keep_event`), and commit it."""
+    await keep_event(
+        session,
+        app,
+        registration,
+        event_type=event_type,
+        payload=payload,
+        initiative_id=initiative_id,
+        token_initiative_id=token_initiative_id,
+    )
+    await session.commit()
+
+
+async def keep_event(
+    session: AsyncSession,
+    app: GuildApp,
+    registration: RegisteredApp,
+    *,
+    event_type: str,
+    payload: dict[str, Any],
+    initiative_id: Optional[int],
+    token_initiative_id: Optional[int] = None,
+) -> None:
+    """Keep one event an app emits, for the outbox poller to deliver: a
+    container's, or one a declarative app's webhook mapping emits.
 
     The type is an ``emit`` endpoint the *pinned* definition declares,
-    namespaced under the calling app. `emit` and not merely declared: reads
+    namespaced under the emitting app. `emit` and not merely declared: reads
     and writes share the id space, and an app that could announce under a
     read's id would be emitting something a subscriber has no way to have
     asked for.
 
     An event about an initiative names one the install is placed in; a token
     narrowed to an initiative emits in that one. The row is written in the
-    request's transaction, which wakes the outbox drain as a captured change
-    does, and the poller delivers it to the community's subscriptions with the
-    change log, retrying until each accepts it.
+    caller's transaction, which wakes the outbox drain as a captured change
+    does once it commits, and the poller delivers it to the community's
+    subscriptions with the change log, retrying until each accepts it.
     """
     definition = app.definition if isinstance(app.definition, dict) else {}
     declared = definition.get("endpoints")
@@ -475,4 +533,3 @@ async def emit_event(
             "SELECT pg_notify(:channel, current_schema() || ':' || txid_current())"
         ).bindparams(channel=OUTBOX_CHANNEL)
     )
-    await session.commit()

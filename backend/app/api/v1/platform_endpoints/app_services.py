@@ -2,9 +2,10 @@
 and its publishers (``publishers``).
 
 A listing declares what an app is, and gives its registration the app facts:
-which listing it is, its image and its scope ceiling. The operator gives the
-deployment facts here: its addresses, its public keys, its vendor values, the
-switch and the reach (``mandatory``) it confers. A publisher is the prefix of
+which listing it is, its image, its scope ceiling and its Compose service. The
+operator gives the deployment facts here: its addresses, its public keys, its
+vendor values, the switch and the reach (``mandatory``) it confers. Vendor
+values may also come from the vendor's own setup flow, run from here. A publisher is the prefix of
 an app's ``public_id``, with a switch that stops every app under it. The whole
 surface is gated on ``apps.manage`` (owner tier).
 
@@ -28,13 +29,19 @@ from app.schemas.platform.app_service import (
     AppPublisherCreate,
     AppPublisherRead,
     AppPublisherUpdate,
+    AppServiceConnect,
+    AppServicePublishedKey,
     AppServiceRegistrationCreate,
     AppServiceRegistrationRead,
     AppServiceRegistrationUpdate,
+    AppServiceVendorSetup,
+    AppServiceVendorSetupComplete,
+    AppServiceVendorSetupStart,
     AppVendorFieldRead,
 )
 from app.services.marketplace import publishers as publishers_service
 from app.services.marketplace import registrations as registrations_service
+from app.services.marketplace import vendor_setup as vendor_setup_service
 from app.services.marketplace import vendor_values as vendor_values_service
 from app.services.tenant import app_connection_flows as flows_service
 
@@ -51,13 +58,13 @@ def _to_read(
     definitions: dict[str, dict],
 ) -> AppServiceRegistrationRead:
     row = view.row
-    vendor = vendor_values_service.vendor_view(
-        row, definitions.get(row.listing_uid or "")
-    )
+    definition = definitions.get(row.listing_uid or "")
+    vendor = vendor_values_service.vendor_view(row, definition)
     return AppServiceRegistrationRead(
         id=row.id,
         public_id=row.public_id,
         listing_uid=row.listing_uid,
+        kind=row.kind,
         publisher_id=view.publisher.id,
         publisher_prefix=view.publisher.prefix,
         publisher_name=view.publisher.display_name,
@@ -72,12 +79,16 @@ def _to_read(
         enabled=row.enabled,
         source=row.source,
         image_digest=row.image_digest,
+        compose_service=registrations_service.filled_compose(row),
+        compose_base_url=(row.compose or {}).get("base_url"),
         vendor_fields=[AppVendorFieldRead(**field) for field in vendor.fields],
         vendor_values=vendor.values,
         vendor_set=vendor.set_keys,
         vendor_ready=bool(row.vendor_ready),
+        vendor_setup=vendor_setup_service.setup_kind(definition),
         connection_callback_url=flows_service.callback_url(),
         connection_setup_url=flows_service.setup_url(),
+        webhook_url=flows_service.webhook_url(row.public_id),
         live=view.live,
         created_at=row.created_at,
         updated_at=row.updated_at,
@@ -166,6 +177,85 @@ async def update_app_service(
         mandatory=payload.mandatory,
         enabled=payload.enabled,
         vendor_values=payload.vendor_values,
+        actor_user_id=owner.id,
+    )
+    return await _read_one(session, row.id)
+
+
+@router.get("/{registration_id}/connect", response_model=List[AppServicePublishedKey])
+async def read_app_service_keys(
+    registration_id: int,
+    session: SystemSessionDep,
+    _owner: AppsManageDep,
+) -> List[AppServicePublishedKey]:
+    """The keys the app serves at ``{base_url}/.well-known/jwks.json``, each
+    with its fingerprint, for the operator to confirm. Stores nothing."""
+    keys = await registrations_service.published_keys(session, registration_id)
+    return [
+        AppServicePublishedKey(kid=key.kid, fingerprint=key.fingerprint) for key in keys
+    ]
+
+
+@router.post("/{registration_id}/connect", response_model=AppServiceRegistrationRead)
+async def connect_app_service(
+    registration_id: int,
+    payload: AppServiceConnect,
+    session: SystemSessionDep,
+    owner: AppsManageDep,
+) -> AppServiceRegistrationRead:
+    """Store the key set the app serves as the registration's pasted set, in
+    place of any key set address, when its keys are the ones confirmed and
+    its base URL has not moved (409 otherwise)."""
+    row = await registrations_service.connect_registration(
+        session,
+        registration_id,
+        keys=[
+            registrations_service.PublishedKey(kid=key.kid, fingerprint=key.fingerprint)
+            for key in payload.keys
+        ],
+        actor_user_id=owner.id,
+    )
+    return await _read_one(session, row.id)
+
+
+@router.post("/{registration_id}/vendor-setup", response_model=AppServiceVendorSetup)
+async def start_app_service_vendor_setup(
+    registration_id: int,
+    payload: AppServiceVendorSetupStart,
+    session: SystemSessionDep,
+    owner: AppsManageDep,
+) -> AppServiceVendorSetup:
+    """Start the vendor's own setup of the app's client: the manifest the
+    operator's browser posts to the vendor, where, and the state that brings
+    them back (409 when the listing declares no such setup)."""
+    started = await vendor_setup_service.start(
+        session,
+        registration_id,
+        organization=payload.organization,
+        actor_user_id=owner.id,
+    )
+    return AppServiceVendorSetup(
+        action=started.action, manifest=started.manifest, state=started.state
+    )
+
+
+@router.post(
+    "/{registration_id}/vendor-setup/complete",
+    response_model=AppServiceRegistrationRead,
+)
+async def complete_app_service_vendor_setup(
+    registration_id: int,
+    payload: AppServiceVendorSetupComplete,
+    session: SystemSessionDep,
+    owner: AppsManageDep,
+) -> AppServiceRegistrationRead:
+    """Finish the setup the vendor sent the operator back from, writing the
+    new client's values into the registration's vendor values."""
+    row = await vendor_setup_service.complete(
+        session,
+        registration_id,
+        code=payload.code,
+        state=payload.state,
         actor_user_id=owner.id,
     )
     return await _read_one(session, row.id)

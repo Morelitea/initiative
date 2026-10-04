@@ -10,7 +10,12 @@ from app.db.schema_provisioning import provision_guild
 from app.db.request_context import SystemGuild, Unattributed
 from app.db.session import set_rls_context
 from app.db.tenancy import GUILD_SCOPED_TABLES
-from app.models.platform.guild import Guild, GuildCategory, GuildMembership, GuildRole
+from app.models.platform.guild import (
+    Guild,
+    CommunityCategory,
+    GuildMembership,
+    CommunityRole,
+)
 from app.models.platform.guild_image import GuildImageVariant
 from app.models.platform.user import User
 from app.services.platform import guild_images
@@ -168,7 +173,7 @@ async def add_members(
     await set_rls_context(session, Unattributed())
     admin_ids = {u.id for u in admins or []}
     for user in users:
-        role = GuildRole.admin if user.id in admin_ids else GuildRole.member
+        role = CommunityRole.admin if user.id in admin_ids else CommunityRole.member
         session.add(GuildMembership(guild_id=guild.id, user_id=user.id, role=role))
     await session.flush()
 
@@ -225,7 +230,7 @@ async def enable_directory(session: AsyncSession) -> None:
 
 
 async def list_in_directory(
-    session: AsyncSession, guild: Guild, *, categories: list[GuildCategory]
+    session: AsyncSession, guild: Guild, *, categories: list[CommunityCategory]
 ) -> None:
     """Opt a community into the directory.
 
@@ -239,7 +244,6 @@ async def list_in_directory(
         [c.value for c in categories]
     )
     guild.has_adult_content = False
-    guild.show_member_names = False
     session.add(guild)
     await session.flush()
 
@@ -265,13 +269,13 @@ async def seat_superadmin(session: AsyncSession, user: User) -> int:
             )
         ).first()
         if existing is not None:
-            if existing.role != GuildRole.superadmin:
-                existing.role = GuildRole.superadmin
+            if existing.role != CommunityRole.superadmin:
+                existing.role = CommunityRole.superadmin
                 session.add(existing)
             continue
         session.add(
             GuildMembership(
-                guild_id=guild_id, user_id=user.id, role=GuildRole.superadmin
+                guild_id=guild_id, user_id=user.id, role=CommunityRole.superadmin
             )
         )
         seated += 1

@@ -6,7 +6,7 @@ import { getOpenCommandCenter } from "@/components/CommandCenter";
 
 interface SidebarSearchButtonProps {
   /** Name of the community being searched; shown in the placeholder. */
-  guildName?: string | null;
+  communityName?: string | null;
 }
 
 /**
@@ -16,7 +16,7 @@ interface SidebarSearchButtonProps {
  * command palette is still reachable with ctrl/cmd-K, which the trailing hint
  * spells out.
  */
-export const SidebarSearchButton = ({ guildName }: SidebarSearchButtonProps) => {
+export const SidebarSearchButton = ({ communityName }: SidebarSearchButtonProps) => {
   const { t } = useTranslation(["search", "command"]);
 
   const shortcutLabel = useMemo(
@@ -28,7 +28,7 @@ export const SidebarSearchButton = ({ guildName }: SidebarSearchButtonProps) => 
   );
 
   // Same sentence the search page puts in its own input, from the same key.
-  const label = guildName ? t("search:placeholder", { guildName }) : t("search:title");
+  const label = communityName ? t("search:placeholder", { communityName }) : t("search:title");
 
   return (
     <button
@@ -39,7 +39,7 @@ export const SidebarSearchButton = ({ guildName }: SidebarSearchButtonProps) => 
     >
       <Search className="h-4 w-4 shrink-0" />
       <span className="min-w-0 flex-1 truncate">{label}</span>
-      <kbd className="pointer-events-none inline-flex shrink-0 select-none items-center rounded border bg-muted px-1.5 py-0.5 font-medium font-mono text-[10px] text-muted-foreground">
+      <kbd className="pointer-events-none inline-flex shrink-0 select-none items-center rounded border bg-muted px-1.5 py-0.5 font-medium font-mono text-3xs text-muted-foreground">
         {shortcutLabel}
       </kbd>
     </button>

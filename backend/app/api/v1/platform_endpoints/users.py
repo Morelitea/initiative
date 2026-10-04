@@ -14,6 +14,7 @@ from fastapi import (
     UploadFile,
     status,
 )
+from fastapi.responses import JSONResponse
 from sqlalchemy import case, func, literal
 from sqlmodel import select
 
@@ -40,10 +41,18 @@ from app.api.v1.platform_endpoints.password_recheck import (
     password_confirms,
     require_password_or_recent_proof,
 )
+from app.api.v1.platform_endpoints.change_assessment import is_risky
+from app.api.v1.platform_endpoints.held_changes import (
+    HELD,
+    HELD_OUTCOME,
+    held_response,
+    hold_change,
+)
 from app.api.v1.platform_endpoints.session_opening import replace_session
 from app.core.password_policy import enforce_password_policy
 from app.core.identity_boundary import PersonId
 from app.core.user_display import handle_of
+from app.db import cohorts
 from app.db.guild_standing import InstallContext
 from app.core import usernames
 from app.core.capabilities import Capability
@@ -63,9 +72,8 @@ from app.core.user_input_validators import (
 from sqlmodel.ext.asyncio.session import AsyncSession
 from app.models.platform.guild import (
     GUILD_ADMIN_ROLES,
-    Guild,
     GuildMembership,
-    GuildRole,
+    CommunityRole,
 )
 from app.models.platform.guild_image import GuildImageVariant
 from app.core.intake import IntakeStream
@@ -74,15 +82,16 @@ from app.models.tenant.initiative import InitiativeMember
 from app.services.platform import intake as intake_service
 from app.models.platform.user_cookie_consent import UserCookieConsent
 from app.schemas.platform.guild import (
-    CommunityGuildRead,
-    GuildBannerRead,
-    GuildCategory,
+    DirectoryCommunityRead,
+    CommunityBannerRead,
+    CommunityCategory,
 )
 from app.schemas.platform.user import (
+    HeldChangeOutcome,
     AccountTimeOutRead,
-    AppMemberRead,
     CookieConsentRead,
     CookieConsentUpdate,
+    UserEmailChange,
     UserEmailCreate,
     UserEmailListResponse,
     UserEmailRead,
@@ -93,10 +102,10 @@ from app.schemas.platform.user import (
     OwnedDecorationsResponse,
     ProfileDecorations,
     UsernameClaim,
-    GuildRosterMember,
-    GuildRosterResponse,
-    UserGuildMember,
-    UserGuildMemberListResponse,
+    CommunityRosterMember,
+    CommunityRosterResponse,
+    UserCommunityMember,
+    UserCommunityMemberListResponse,
     UserProfile,
     UserRead,
     UserSelfUpdate,
@@ -128,7 +137,8 @@ from app.core.messages import (
     LegalMessages,
     UserMessages,
 )
-from app.services.auth import addresses
+from app.models.platform.account_change_hold import HeldChangeKind
+from app.services.auth import addresses, held_changes
 
 from app.core.audit_events import AuditEventType
 from app.services import audit as audit_service
@@ -149,7 +159,7 @@ from app.services.platform import legal as legal_service
 from app.services.content_sockets import sockets as content_sockets
 from app.services.platform import presence
 from app.services.platform import usernames as username_service
-from app.models.platform.user_avatar import AVATAR_MAX_BYTES
+from app.models.platform.user_avatar import AVATAR_CONTENT_TYPES, AVATAR_MAX_BYTES
 from app.models.platform.user_profile_view import (
     GuildMember,
     MemberProfile,
@@ -184,21 +194,24 @@ TASK_COMPLETION_VISUAL_FEEDBACK_VALUES: frozenset[str] = frozenset(
 
 logger = logging.getLogger(__name__)
 
+# Other people's public profiles. Mounted under /api/v1/users.
 router = APIRouter()
-# Cross-guild "my" aggregate (user stats). Mounted under /api/v1/me; user-scoped
-# (no guild context), with an optional guild_id filter.
+# The signed-in account: its profile, settings and stats. Mounted under
+# /api/v1/me; user-scoped (no guild context).
 me_router = APIRouter()
 # Guild-scoped member management (guild-admin lists/creates/approves/removes
-# members of one guild). Mounted under /c/{guild_id}/users — the /me/* and
-# platform user endpoints stay on ``router`` (top-level /users). The member
+# members of one guild). Mounted under /c/{community_id}/users. The member
 # search is also what an installed app reads people through, under
 # ``members:read``.
 guild_router = APIRouter(route_class=ActorRoute)
+# A member's picture, by the reference an installed app knows them by. Mounted
+# under /c/{community_id}/members.
+members_router = APIRouter(route_class=ActorRoute)
 
 MembersRead = Annotated[ActorContext, Depends(app_scope("members:read"))]
 
 
-@router.get("/me/time-out", response_model=AccountTimeOutRead)
+@me_router.get("/time-out", response_model=AccountTimeOutRead)
 async def read_my_time_out(
     session: FactorExemptAccountHolderSessionDep,
     current_user: FactorExemptAccountHolder,
@@ -220,8 +233,8 @@ async def read_my_time_out(
     )
 
 
-@router.get("/me", response_model=UserRead)
-async def read_users_me(
+@me_router.get("", response_model=UserRead)
+async def read_me(
     session: FactorExemptAccountHolderSessionDep,
     current_user: FactorExemptAccountHolder,
 ) -> UserRead:
@@ -229,7 +242,7 @@ async def read_users_me(
     unmet, because every screen that could answer it is drawn from this."""
     # No initiative_roles enrichment: initiative membership is guild-schema
     # content, which a platform-path request cannot (and must not) read.
-    # Guild-scoped rosters (/c/{guild_id}/users/) still serve it; clients
+    # Guild-scoped rosters (/c/{community_id}/users/) still serve it; clients
     # derive per-guild manager state from guild-scoped initiative data.
     payload = await users_service.to_self_read(current_user)
     # Own-row read on the platform-tier session: whether any external identity
@@ -258,7 +271,9 @@ async def get_user_stats(
     session: UserSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_id: Optional[int] = Query(
-        default=None, description="Optional guild ID to filter stats"
+        default=None,
+        description="Optional guild ID to filter stats",
+        alias="community_id",
     ),
     days: int = Query(
         default=90, ge=1, le=365, description="Number of days to analyze"
@@ -274,7 +289,7 @@ async def get_user_stats(
     return stats
 
 
-@guild_router.get("/", response_model=UserGuildMemberListResponse)
+@guild_router.get("/", response_model=UserCommunityMemberListResponse)
 async def list_users(
     session: SettingsRLSSessionDep,
     _current_user: Annotated[User, Depends(get_current_active_user)],
@@ -283,13 +298,13 @@ async def list_users(
         default=None,
         description=(
             "Matches members the way ``/search`` does: the handle, a whole "
-            "handle pinning one member, and real names in a guild that shows "
-            "them."
+            "handle pinning one member, and the display names members set "
+            "here."
         ),
     ),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=100),
-) -> UserGuildMemberListResponse:
+) -> UserCommunityMemberListResponse:
     """The community's roster, a page at a time.
 
     On the configuration session rather than the content one: who is in a
@@ -300,22 +315,27 @@ async def list_users(
     where the guild shows names, then by handle.
     """
     base = (
-        select(MemberProfile, GuildMembership.role, GuildMembership.oidc_provider_id)
+        select(
+            MemberProfile,
+            GuildMembership.role,
+            GuildMembership.oidc_provider_id,
+            GuildMembership.display_name,
+            GuildMembership.api_keys_allowed,
+        )
         .join(GuildMembership, GuildMembership.user_id == MemberProfile.id)
         .where(
             GuildMembership.guild_id == guild_context.guild_id,
             users_service.visible_to_other_people(),
         )
     )
-    shows_names = bool(guild_context.guild.show_member_names)
     closest = None
     if search and (term := search.strip()):
-        matches, closest = users_service.member_match(term, shows_names=shows_names)
+        matches, closest = users_service.member_match(term)
         base = base.where(matches)
 
     count_stmt = select(func.count()).select_from(base.subquery())
     data_stmt = base.order_by(
-        *users_service.member_order(closest, shows_names=shows_names),
+        *users_service.member_order(closest),
         MemberProfile.username.asc(),
         MemberProfile.discriminator.asc(),
         MemberProfile.id.asc(),
@@ -327,15 +347,19 @@ async def list_users(
     await initiatives_service.load_user_initiative_roles(session, users)
 
     # ``oidc_managed`` stays a yes/no on the wire: a roster wants to know that
-    # SSO placed somebody, not which provider did.
+    # SSO placed somebody, not which provider did. API access is the seat's to
+    # set, so only the seat is told it.
+    seat = guild_context.guild_seat
     items = []
-    for user, guild_role, oidc_provider_id in rows:
-        member = UserGuildMember.model_validate(user)
-        member.guild_role = guild_role.value
+    for user, guild_role, oidc_provider_id, display_name, api_keys_allowed in rows:
+        member = UserCommunityMember.model_validate(user)
+        member.community_role = guild_role.value
         member.oidc_managed = oidc_provider_id is not None
+        member.display_name = display_name
+        member.api_keys_allowed = api_keys_allowed if seat else None
         member.initiative_roles = getattr(user, "initiative_roles", [])
         items.append(member)
-    return UserGuildMemberListResponse(
+    return UserCommunityMemberListResponse(
         **build_paginated_response(items, total_count, actual_page, page_size)
     )
 
@@ -374,14 +398,14 @@ async def _search_members_for_app(
         base = base.where(_in_initiative(initiative_id))
     closest = None
     if search and (term := search.strip()):
-        matches, closest = users_service.member_match(term, shows_names=False)
+        matches, closest = users_service.member_match(term, match_names=False)
         base = base.where(matches)
     if user_id:
         base = base.where(MemberProfile.id.in_(user_id))
 
     count_stmt = select(func.count()).select_from(base.subquery())
     data_stmt = base.order_by(
-        *users_service.member_order(closest, shows_names=False),
+        *users_service.member_order(closest, match_names=False),
         MemberProfile.username.asc(),
         MemberProfile.discriminator.asc(),
         MemberProfile.id.asc(),
@@ -389,21 +413,16 @@ async def _search_members_for_app(
     users, total_count, actual_page = await paginated_query(
         session, data_stmt, count_stmt, page=page, page_size=page_size
     )
-    items = [
-        UserSummary(
-            **AppMemberRead.from_public(UserSummary.model_validate(user)).model_dump()
-        )
-        for user in users
-    ]
+    items = [UserSummary.model_validate(user) for user in users]
     return UserSummaryListResponse(
         **build_paginated_response(items, total_count, actual_page, page_size)
     )
 
 
-def _membership_standing(role: GuildRole | None) -> dict[str, object]:
+def _membership_standing(role: CommunityRole | None) -> dict[str, object]:
     """The membership field a picker row carries: the rung, which is both what
     a row shows and what a surface asks the ladder about."""
-    return {"guild_role": role.value if role is not None else None}
+    return {"community_role": role.value if role is not None else None}
 
 
 @guild_router.get("/search", response_model=UserSummaryListResponse)
@@ -415,8 +434,8 @@ async def search_users(
         description=(
             "Matches the handle's name part. Type the whole handle "
             "(`foobar#1234`) to pin one member; a partial number after `#` is a "
-            "prefix of the four digits as rendered. Real names are matched only "
-            "in a guild that shows them."
+            "prefix of the four digits as rendered. Display names members set "
+            "here are matched too."
         ),
     ),
     user_id: Annotated[
@@ -439,6 +458,14 @@ async def search_users(
         ),
     ),
     resource_id: Optional[int] = Query(default=None),
+    self_first: bool = Query(
+        default=False,
+        description=(
+            "List the caller first, wherever the rest of the order would put "
+            "them. For the community's members page, where your own row is "
+            "where you set your name."
+        ),
+    ),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=0, le=100),
 ) -> UserSummaryListResponse:
@@ -448,14 +475,14 @@ async def search_users(
     ``GuildContextDep``, membership re-validated per request): the params
     are additive filters on an already-RLS-gated query, so they only ever
     narrow the row set. Returns :class:`UserSummary` (no email, roles, or
-    ``initiative_roles`` enrichment) instead of the heavy ``UserGuildMember``.
+    ``initiative_roles`` enrichment) instead of the heavy ``UserCommunityMember``.
 
     Pass ``user_id`` one or more times to resolve a known selection (a picker
     rehydrating stored ids into names/avatars) rather than searching.
 
     An installed app (``members:read``) names members by its own references
-    and reads what :class:`AppMemberRead` carries: the reference, the handle,
-    the name where the guild shows names, and a picture hosted elsewhere.
+    and reads each as an :class:`AppPerson`: the reference, the handle and the
+    display name set in the community.
     """
     if initiative_id is not None and not (
         initiative_id in guild_context.member_initiatives
@@ -499,20 +526,20 @@ async def search_users(
             )
         )
     #: Set while searching by name, and then what the page is ordered by.
-    # Both calls take the guild's own setting: a name is searchable and
-    # sortable only where the guild shows names, and a default here would
-    # decide that for it.
-    shows_names = bool(guild_context.guild.show_member_names)
     closest = None
     if search and (term := search.strip()):
-        matches, closest = users_service.member_match(term, shows_names=shows_names)
+        matches, closest = users_service.member_match(term)
         base = base.where(matches)
     if user_id:
         base = base.where(MemberProfile.id.in_(user_id))
 
     count_stmt = select(func.count()).select_from(base.subquery())
+    you_first = (
+        ((MemberProfile.id == guild_context.user_id).desc(),) if self_first else ()
+    )
     data_stmt = base.order_by(
-        *users_service.member_order(closest, shows_names=shows_names),
+        *you_first,
+        *users_service.member_order(closest),
         MemberProfile.username.asc(),
         MemberProfile.discriminator.asc(),
         MemberProfile.id.asc(),
@@ -560,13 +587,13 @@ ROSTER_PRESENCE_ORDER = (
 )
 
 
-@guild_router.get("/roster", response_model=GuildRosterResponse)
+@guild_router.get("/roster", response_model=CommunityRosterResponse)
 async def list_roster(
     session: RLSSessionDep,
     guild_context: GuildContextDep,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=100),
-) -> GuildRosterResponse:
+) -> CommunityRosterResponse:
     """The people in this community, as the sidebar lists them.
 
     Grouped by presence (online, idle, busy, then everyone else) and
@@ -614,7 +641,6 @@ async def list_roster(
         for rank, appears in enumerate(ROSTER_PRESENCE_ORDER)
     }
 
-    shows_names = bool(guild_context.guild.show_member_names)
     rows = (
         await session.exec(
             apply_pagination(
@@ -623,7 +649,7 @@ async def list_roster(
                 .where(*where)
                 .order_by(
                     group,
-                    *users_service.member_order(None, shows_names=shows_names),
+                    *users_service.member_order(None),
                     MemberProfile.username.asc(),
                     MemberProfile.discriminator.asc(),
                     MemberProfile.id.asc(),
@@ -635,7 +661,7 @@ async def list_roster(
     ).all()
 
     items = [
-        GuildRosterMember.model_validate(user).model_copy(
+        CommunityRosterMember.model_validate(user).model_copy(
             update={
                 **_membership_standing(role),
                 "presence": shown.get(user.id, Presence.offline),
@@ -643,7 +669,7 @@ async def list_roster(
         )
         for user, role in rows
     ]
-    return GuildRosterResponse(
+    return CommunityRosterResponse(
         **build_paginated_response(
             items,
             sum(presence_counts.values()),
@@ -654,7 +680,7 @@ async def list_roster(
     )
 
 
-@router.get("/me/decorations", response_model=OwnedDecorationsResponse)
+@me_router.get("/decorations", response_model=OwnedDecorationsResponse)
 async def list_my_decorations(
     session: UserSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
@@ -710,7 +736,7 @@ def _pack_entry(
     )
 
 
-@router.get("/me/decoration-packs", response_model=DecorationPackListResponse)
+@me_router.get("/decoration-packs", response_model=DecorationPackListResponse)
 async def list_decoration_packs(
     session: UserSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
@@ -729,7 +755,7 @@ async def list_decoration_packs(
     )
 
 
-@router.post("/me/decoration-packs/{uid}", response_model=DecorationPack)
+@me_router.post("/decoration-packs/{uid}", response_model=DecorationPack)
 async def install_decoration_pack(
     uid: str,
     session: UserSessionDep,
@@ -760,7 +786,7 @@ async def install_decoration_pack(
     return _pack_entry(pack, installed=True)
 
 
-@router.delete("/me/decoration-packs/{uid}", response_model=DecorationPack)
+@me_router.delete("/decoration-packs/{uid}", response_model=DecorationPack)
 async def remove_decoration_pack(
     uid: str,
     session: UserSessionDep,
@@ -845,12 +871,12 @@ async def read_user_profile(
     )
 
 
-@router.get("/{handle}/communities", response_model=List[CommunityGuildRead])
+@router.get("/{handle}/communities", response_model=List[DirectoryCommunityRead])
 async def read_user_communities(
     handle: str,
     system_session: SystemSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
-) -> List[CommunityGuildRead]:
+) -> List[DirectoryCommunityRead]:
     """The listed communities one person belongs to.
 
     A separate read from the profile on purpose: the profile is the public
@@ -912,16 +938,16 @@ async def read_user_communities(
         GuildImageVariant.card,
     )
     return [
-        CommunityGuildRead(
+        DirectoryCommunityRead(
             id=guild.id,
             name=guild.name,
             description=guild.description,
             icon_url=images.get(guild.id, {}).get(GuildImageVariant.icon),
-            banner=GuildBannerRead(
+            banner=CommunityBannerRead(
                 image_url=images.get(guild.id, {}).get(GuildImageVariant.card),
                 **guild.banner,
             ),
-            categories=[GuildCategory(value) for value in guild.categories],
+            categories=[CommunityCategory(value) for value in guild.categories],
             member_count=members.get(guild.id, 0),
             online_count=online.get(guild.id, 0),
             already_member=guild.id in mine,
@@ -936,8 +962,8 @@ async def read_user_communities(
 _GUILD_CSV_HEADERS = [
     "user_id",
     "handle",
-    "full_name",
-    "guild_role",
+    "display_name",
+    "community_role",
     "oidc_managed",
     "status",
     "created_at",
@@ -976,14 +1002,13 @@ async def export_users_csv(
     users = [row[0] for row in rows]
     await initiatives_service.load_user_initiative_roles(session, users)
 
-    shows_names = bool(guild_context.guild.show_member_names)
     csv_rows = []
     for user, guild_role, oidc_provider_id in rows:
         csv_rows.append(
             [
                 user.id,
                 handle_of(user),
-                (user.full_name or "") if shows_names else "",
+                user.display_name or "",
                 guild_role.value,
                 oidc_provider_id is not None,
                 user.status.value if hasattr(user.status, "value") else user.status,
@@ -1027,7 +1052,7 @@ async def export_users_csv(
     )
 
 
-@router.patch("/me/username", response_model=UserRead)
+@me_router.patch("/username", response_model=UserRead)
 async def claim_my_username(
     payload: UsernameClaim,
     session: UserSessionDep,
@@ -1065,7 +1090,7 @@ async def claim_my_username(
     return await users_service.to_self_read(current_user)
 
 
-@router.post("/me/age-confirmation", response_model=UserRead)
+@me_router.post("/age-confirmation", response_model=UserRead)
 async def confirm_my_age(
     payload: AgeConfirmation,
     session: UserSessionDep,
@@ -1133,7 +1158,7 @@ def _cookie_consent_read(row: UserCookieConsent | None) -> CookieConsentRead | N
     return None if row is None else CookieConsentRead.model_validate(row)
 
 
-@router.put("/me/cookie-consent", response_model=CookieConsentRead)
+@me_router.put("/cookie-consent", response_model=CookieConsentRead)
 async def set_cookie_consent(
     payload: CookieConsentUpdate,
     session: UserSessionDep,
@@ -1161,7 +1186,7 @@ async def set_cookie_consent(
     return CookieConsentRead.model_validate(row)
 
 
-@router.post("/me/legal-acceptance", response_model=UserRead)
+@me_router.post("/legal-acceptance", response_model=UserRead)
 async def accept_legal_documents(
     session: UserSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
@@ -1206,7 +1231,7 @@ def _address_read(row) -> UserEmailRead:
     )
 
 
-@router.get("/me/emails", response_model=UserEmailListResponse)
+@me_router.get("/emails", response_model=UserEmailListResponse)
 async def list_my_addresses(
     system_session: SystemSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
@@ -1217,11 +1242,14 @@ async def list_my_addresses(
     because resolving an address happens before anybody is authenticated.
     """
     rows = await addresses.list_for_user(system_session, user_id=current_user.id)
-    return UserEmailListResponse(items=[_address_read(row) for row in rows])
+    return UserEmailListResponse(
+        items=[_address_read(row) for row in rows],
+        password_required=await password_confirms(system_session, current_user),
+    )
 
 
-@router.post(
-    "/me/emails",
+@me_router.post(
+    "/emails",
     response_model=VerificationSendResponse,
     status_code=status.HTTP_202_ACCEPTED,
 )
@@ -1236,10 +1264,16 @@ async def add_my_address(
 ) -> VerificationSendResponse:
     """Start holding another address, and write to it to prove it.
 
+    The password is asked for first, where there is one, and a recent sign-in
+    otherwise, as for every change to how the account is signed into.
+
     The answer is the same whoever holds the address already. What differs is
     where the mail goes: a free address gets a link to confirm it, and one that
     is taken gets nothing.
     """
+    await require_password_or_recent_proof(
+        request, system_session, current_user, payload.current_password
+    )
     # Whether this deployment can send at all is settled before the address is
     # looked at, so the refusal is about the server rather than about who holds
     # what. Everything after this point answers identically.
@@ -1269,6 +1303,9 @@ async def add_my_address(
             user_id=current_user.id,
             purpose=UserTokenPurpose.email_verification,
             user_email_id=added.id,
+            # Whether the change was risky is a fact about this request, and
+            # the address is proved by a link that carries no session.
+            change={"risky": await is_risky(request, system_session, current_user)},
         )
         try:
             await email_service.send_address_verification_email(
@@ -1284,58 +1321,105 @@ async def add_my_address(
     return VerificationSendResponse(status="sent")
 
 
-@router.delete("/me/emails/{address_id}", status_code=status.HTTP_204_NO_CONTENT)
+def _address_refused(exc: addresses.AddressError) -> HTTPException:
+    return HTTPException(
+        status_code=(
+            status.HTTP_404_NOT_FOUND
+            if exc.code == AddressMessages.ADDRESS_NOT_FOUND
+            else status.HTTP_400_BAD_REQUEST
+        ),
+        detail=exc.code,
+    )
+
+
+@me_router.post(
+    "/emails/{address_id}/remove",
+    response_model=HeldChangeOutcome,
+    responses=HELD_OUTCOME,
+)
+@limiter.limit("10/15minutes")
 async def remove_my_address(
+    request: Request,
     address_id: int,
+    payload: UserEmailChange,
     system_session: SystemSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     _first_party: Annotated[str, Depends(require_first_party_session)],
-) -> Response:
+) -> HeldChangeOutcome | JSONResponse:
+    """Stop holding one address. The password is asked for again, as it is for
+    a password change. A proved address removed from somewhere the account
+    does not yet know waits two days (``202``)."""
+    await require_password_or_recent_proof(
+        request, system_session, current_user, payload.current_password
+    )
     try:
-        await addresses.remove_for_user(
+        target = await addresses.removable(
             system_session, user_id=current_user.id, address_id=address_id
         )
+        if target.verified_at is not None and await is_risky(
+            request, system_session, current_user
+        ):
+            held = await hold_change(
+                request,
+                system_session,
+                current_user,
+                kind=HeldChangeKind.remove_address,
+                address_id=address_id,
+            )
+            return held_response(HeldChangeOutcome(held=held))
+        await held_changes.remove_address(
+            system_session, current_user, address_id=address_id, risky=False
+        )
     except addresses.AddressError as exc:
-        raise HTTPException(
-            status_code=(
-                status.HTTP_404_NOT_FOUND
-                if exc.code == AddressMessages.ADDRESS_NOT_FOUND
-                else status.HTTP_400_BAD_REQUEST
-            ),
-            detail=exc.code,
-        ) from exc
-    await system_session.commit()
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
+        raise _address_refused(exc) from exc
+    return HeldChangeOutcome()
 
 
-@router.put("/me/emails/{address_id}/primary", response_model=UserEmailRead)
+@me_router.put(
+    "/emails/{address_id}/primary", response_model=UserEmailRead, responses=HELD
+)
+@limiter.limit("10/15minutes")
 async def make_my_address_primary(
+    request: Request,
     address_id: int,
+    payload: UserEmailChange,
     system_session: SystemSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     _first_party: Annotated[str, Depends(require_first_party_session)],
-) -> UserEmailRead:
-    """Move where account mail goes."""
+) -> UserEmailRead | JSONResponse:
+    """Move where account mail goes. The password is asked for again, and every
+    address the account has proved is told, the one that was primary among
+    them. Asked for from somewhere the account does not yet know, the move
+    waits two days (``202``)."""
+    await require_password_or_recent_proof(
+        request, system_session, current_user, payload.current_password
+    )
     try:
-        row = await addresses.set_primary_for_user(
+        target = await addresses.primary_candidate(
             system_session, user_id=current_user.id, address_id=address_id
         )
+        if not target.is_primary and await is_risky(
+            request, system_session, current_user
+        ):
+            return held_response(
+                await hold_change(
+                    request,
+                    system_session,
+                    current_user,
+                    kind=HeldChangeKind.primary,
+                    address_id=address_id,
+                )
+            )
+        row = await held_changes.make_primary(
+            system_session, current_user, address_id=address_id, risky=False
+        )
     except addresses.AddressError as exc:
-        raise HTTPException(
-            status_code=(
-                status.HTTP_404_NOT_FOUND
-                if exc.code == AddressMessages.ADDRESS_NOT_FOUND
-                else status.HTTP_400_BAD_REQUEST
-            ),
-            detail=exc.code,
-        ) from exc
-    await system_session.commit()
-    await system_session.refresh(row)
+        raise _address_refused(exc) from exc
     return _address_read(row)
 
 
-@router.patch("/me", response_model=UserRead)
-async def update_users_me(
+@me_router.patch("", response_model=UserRead)
+async def update_me(
     request: Request,
     user_in: UserSelfUpdate,
     session: UserSessionDep,
@@ -1355,10 +1439,6 @@ async def update_users_me(
         payload.password_required = await password_confirms(session, current_user)
         return payload
 
-    new_full_name = update_data.get("full_name")
-    if new_full_name is not None:
-        current_user.full_name = new_full_name or None
-
     password = update_data.get("password")
     if password:
         # Read before the hash below replaces it: what the account held going
@@ -1376,7 +1456,7 @@ async def update_users_me(
         await enforce_password_policy(password)
         current_user.hashed_password = get_password_hash(password)
         current_user.password_set_at = datetime.now(timezone.utc)
-        # Bump token_version and revoke device tokens + API keys + refresh
+        # Bump token_version and revoke API keys + refresh
         # sessions so no stale credential can survive the password change.
         #
         # Staged, not committed: the replacement session below joins them in
@@ -1509,9 +1589,9 @@ async def update_users_me(
         # rather than at the next reconnect. Told after the commit, so nothing
         # is shown on the strength of a write that did not land.
         presence.online.chose(current_user.id, current_user.presence)
-    # Platform path — no initiative_roles enrichment (see read_users_me).
+    # Platform path — no initiative_roles enrichment (see read_me).
     # The SPA replaces its auth state with this response, so carry the same
-    # linked-identity signal /users/me serves.
+    # linked-identity signal /me serves.
     payload = await users_service.to_self_read(current_user)
     payload.has_federated_identity = is_sso_account
     payload.has_password = has_usable_password(current_user.hashed_password)
@@ -1519,7 +1599,7 @@ async def update_users_me(
     return payload
 
 
-@router.get("/me/deletion-eligibility", response_model=DeletionEligibilityResponse)
+@me_router.get("/deletion-eligibility", response_model=DeletionEligibilityResponse)
 async def check_deletion_eligibility(
     session: SystemSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
@@ -1532,13 +1612,13 @@ async def check_deletion_eligibility(
     return DeletionEligibilityResponse(
         can_delete=can_delete,
         blockers=blockers,
-        sole_superadmin_guilds=await users_service.is_last_guild_superadmin(
+        sole_superadmin_communities=await users_service.is_last_guild_superadmin(
             session, current_user.id
         ),
     )
 
 
-@router.post("/me/delete-account", response_model=AccountDeletionResponse)
+@me_router.post("/delete-account", response_model=AccountDeletionResponse)
 async def delete_own_account(
     http_request: Request,
     request: AccountDeletionRequest,
@@ -1631,7 +1711,7 @@ async def delete_own_account(
     )
 
 
-@router.get("/me/api-keys", response_model=ApiKeyListResponse)
+@me_router.get("/api-keys", response_model=ApiKeyListResponse)
 async def list_my_api_keys(
     session: SystemSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
@@ -1644,8 +1724,8 @@ async def list_my_api_keys(
     return ApiKeyListResponse(keys=keys)
 
 
-@router.post(
-    "/me/api-keys",
+@me_router.post(
+    "/api-keys",
     response_model=ApiKeyCreateResponse,
     status_code=status.HTTP_201_CREATED,
 )
@@ -1659,26 +1739,26 @@ async def create_my_api_key(
     # Runs on the system engine (user_api_keys has no request-path grant, see
     # list_my_api_keys); the current_user scoping below and in the service is
     # the ownership boundary.
-    if payload.guild_id is not None:
+    if payload.community_id is not None:
         # A guild-bound key must target a guild the caller belongs to. Membership
         # is in the public guild_memberships table (readable on the system
         # engine); the explicit user_id filter is the scope. Validating here also
         # turns an unknown guild into a 403 instead of a 500 (FK violation).
         membership = await guilds_service.get_membership(
-            session, guild_id=payload.guild_id, user_id=current_user.id
+            session, guild_id=payload.community_id, user_id=current_user.id
         )
         if membership is None:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=UserMessages.API_KEY_GUILD_FORBIDDEN,
             )
-        # And the guild has to accept the credential at all. Asked here as well
-        # as at the gate so a key that could never be used is never handed over.
-        guild = await session.get(Guild, payload.guild_id)
-        if guild is not None and await refuses_api_keys(session, guild):
+        # And the guild has to accept this member's keys at all. Asked here as
+        # well as at the gate so a key that could never be used is never handed
+        # over.
+        if await refuses_api_keys(session, membership):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=GuildMessages.GUILD_API_KEYS_REFUSED,
+                detail=GuildMessages.COMMUNITY_API_KEYS_REFUSED,
             )
     secret, api_key = await api_keys_service.create_api_key(
         session,
@@ -1686,12 +1766,12 @@ async def create_my_api_key(
         name=payload.name,
         expires_at=payload.expires_at,
         read_only=payload.read_only,
-        guild_id=payload.guild_id,
+        guild_id=payload.community_id,
     )
     return ApiKeyCreateResponse(api_key=api_key, secret=secret)
 
 
-@router.delete("/me/api-keys/{api_key_id}", status_code=status.HTTP_204_NO_CONTENT)
+@me_router.delete("/api-keys/{api_key_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_my_api_key(
     api_key_id: int,
     session: SystemSessionDep,
@@ -1739,7 +1819,7 @@ async def _require_receiving_admin(
     if recipient is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=UserMessages.OWNER_MUST_BE_GUILD_ADMIN,
+            detail=UserMessages.OWNER_MUST_BE_COMMUNITY_ADMIN,
         )
 
 
@@ -1773,7 +1853,7 @@ async def _recipient(
         # The schema requires one of the two; nobody named is nobody eligible.
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=UserMessages.OWNER_MUST_BE_GUILD_ADMIN,
+            detail=UserMessages.OWNER_MUST_BE_COMMUNITY_ADMIN,
         )
     await _require_receiving_admin(session, guild_id=guild_id, new_owner_id=person_id)
     return ownership_service.Owner(user_id=person_id)
@@ -1880,7 +1960,7 @@ async def transfer_ownership(
 
 
 @guild_router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_user(
+async def remove_member(
     user_id: int,
     session: SessionDep,
     system_session: SystemSessionDep,
@@ -1927,12 +2007,12 @@ async def delete_user(
     # Removing the seat-holder ends the seat exactly as demoting them does, so
     # it answers to the same authority: only the seat passes the seat on.
     if (
-        membership.role == GuildRole.superadmin
-        and guild_context.role != GuildRole.superadmin
+        membership.role == CommunityRole.superadmin
+        and guild_context.role != CommunityRole.superadmin
     ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=GuildMessages.GUILD_ROLE_NOT_ASSIGNABLE,
+            detail=GuildMessages.COMMUNITY_ROLE_NOT_ASSIGNABLE,
         )
     await guilds_service.lock_guild_seats(system_session, guild_context.guild_id)
     # And the seat stays filled for as long as the guild requires a sign-in:
@@ -1981,6 +2061,32 @@ async def delete_user(
 # --- profile pictures --------------------------------------------------------
 
 
+def _image_not_found() -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail=GuildMessages.IMAGE_NOT_FOUND,
+    )
+
+
+async def _avatar_response(
+    session: AsyncSession, user_id: int, digest: str
+) -> Response:
+    """``user_id``'s picture when ``digest`` is its current one, or a 404."""
+    if not user_avatars_service.is_valid_digest(digest):
+        raise _image_not_found()
+    avatar = await user_avatars_service.get_avatar(session, user_id=user_id)
+    if avatar is None or avatar.sha256 != digest:
+        raise _image_not_found()
+    return Response(
+        content=avatar.data,
+        media_type=avatar.content_type,
+        headers={
+            "Cache-Control": "public, max-age=31536000, immutable",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
+
+
 @router.get("/{user_id}/avatar/{digest}", include_in_schema=False)
 async def read_user_avatar(user_id: int, digest: str, session: SessionDep) -> Response:
     """Serve one user's profile picture.
@@ -1995,28 +2101,48 @@ async def read_user_avatar(user_id: int, digest: str, session: SessionDep) -> Re
     than a redirect to whatever is current, because the response is cached
     under the URL that was asked for.
     """
-    if not user_avatars_service.is_valid_digest(digest):
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=GuildMessages.IMAGE_NOT_FOUND,
-        )
-    avatar = await user_avatars_service.get_avatar(session, user_id=user_id)
-    if avatar is None or avatar.sha256 != digest:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=GuildMessages.IMAGE_NOT_FOUND,
-        )
-    return Response(
-        content=avatar.data,
-        media_type=avatar.content_type,
-        headers={
-            "Cache-Control": "public, max-age=31536000, immutable",
-            "X-Content-Type-Options": "nosniff",
-        },
-    )
+    return await _avatar_response(session, user_id, digest)
 
 
-@router.put("/me/avatar", response_model=UserRead)
+@members_router.get(
+    "/{person}/avatar/{digest}",
+    response_class=Response,
+    responses={
+        200: {
+            "description": "The picture.",
+            "content": {media: {} for media in sorted(AVATAR_CONTENT_TYPES)},
+        }
+    },
+)
+async def read_member_avatar(
+    person: PersonId,
+    digest: str,
+    session: ActorSessionDep,
+    guild_context: MembersRead,
+) -> Response:
+    """Serve the picture a member of this community uploaded.
+
+    Where an installed app's ``avatar_url`` for a person points: the person is
+    named by the app's reference for them. The same bytes and caching as the
+    profile picture route, and a 404 for a digest that is not the member's
+    current picture, or for somebody who is not a member here.
+    """
+    current = (
+        await session.exec(
+            select(GuildMember.avatar_url).where(GuildMember.id == person)
+        )
+    ).first()
+    if user_avatars_service.uploaded_digest(person, current) != digest:
+        raise _image_not_found()
+    # Membership is settled. The picture is read the way the profile picture
+    # route reads it, on a session of its own, once this one's connection is
+    # back in the pool.
+    await session.close()
+    async with cohorts.community_session(session, guild_context.guild_id) as reader:
+        return await _avatar_response(reader, person, digest)
+
+
+@me_router.put("/avatar", response_model=UserRead)
 async def upload_my_avatar(
     file: Annotated[UploadFile, File()],
     session: UserSessionDep,
@@ -2024,7 +2150,7 @@ async def upload_my_avatar(
 ) -> UserRead:
     """Replace the caller's profile picture.
 
-    Multipart rather than a base64 field on ``PATCH /users/me``: sending the
+    Multipart rather than a base64 field on ``PATCH /me``: sending the
     image inside JSON is the thing this endpoint exists to stop. The body is
     read under the cap so an oversized upload is refused rather than buffered
     whole, and the format and dimensions are read from the header — nothing
@@ -2051,7 +2177,7 @@ async def upload_my_avatar(
     return await users_service.to_self_read(current_user)
 
 
-@router.delete("/me/avatar", status_code=status.HTTP_204_NO_CONTENT)
+@me_router.delete("/avatar", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_my_avatar(
     session: UserSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],

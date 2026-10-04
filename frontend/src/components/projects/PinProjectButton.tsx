@@ -34,7 +34,7 @@ export const PinProjectButton = ({
   const pending = pinMutation.isPending && pinMutation.variables?.projectId === projectId;
   const sizeClasses = iconSize === "sm" ? "h-7 w-7" : "h-9 w-9";
   const baseClasses =
-    "bg-background text-muted-foreground focus-visible:ring-ring inline-flex items-center justify-center rounded-full border transition focus-visible:ring-2 focus-visible:outline-none";
+    "text-muted-foreground hover:bg-accent focus-visible:ring-ring inline-flex items-center justify-center rounded-md transition focus-visible:ring-2 focus-visible:outline-none";
 
   const handleClick = (event: MouseEvent<HTMLButtonElement>) => {
     if (!canPin) {

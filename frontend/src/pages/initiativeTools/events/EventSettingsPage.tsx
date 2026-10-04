@@ -21,7 +21,7 @@ import {
   SkeletonRegion,
 } from "@/components/skeletons/PageSkeletons";
 import { TagPicker } from "@/components/tags";
-import { ToolBreadcrumb } from "@/components/tools/ToolBreadcrumb";
+import { ToolPageHeader } from "@/components/tools/ToolPageHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -38,16 +38,16 @@ import {
 } from "@/hooks/useCalendarEvents";
 import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
 import { useServerForm } from "@/hooks/useServerForm";
-import { toast } from "@/lib/chesterToast";
+import { useCommunityPath } from "@/lib/communityUrl";
 import { formatDate, formatDateTime } from "@/lib/formatDate";
-import { useGuildPath } from "@/lib/guildUrl";
+import { toast } from "@/lib/mascotToast";
 import { allDayReference, fromStored, rulePayload } from "@/lib/recurrence";
 import { eventRoute, eventSettingsRoute, toolDetailRoute, toolListRoute } from "@/lib/tools";
 
 export function EventSettingsPage() {
   const { t } = useTranslation(["calendars", "common", "access"]);
   const router = useRouter();
-  const gp = useGuildPath();
+  const gp = useCommunityPath();
   const { eventId: eventIdParam, calendarId: calendarIdParam } = useParams({ strict: false }) as {
     eventId?: string;
     calendarId?: string;
@@ -61,7 +61,7 @@ export function EventSettingsPage() {
 
   const { data: event, isLoading } = useCalendarEvent(Number.isFinite(eventId) ? eventId : null);
   // The path supplies the initiative while this loads; the event is the
-  // authority once it arrives, and null is a guild-level calendar's address.
+  // authority once it arrives, and null is a community-level calendar's address.
   const initiativeId = useCanonicalInitiativeId(event?.initiative_id);
 
   // Two cards, each with its own Save button — so two forms. One shared form
@@ -126,7 +126,7 @@ export function EventSettingsPage() {
 
   // Attendee candidates come from whatever the event's calendar belongs to
   // (MemberMultiSelect below): every member of its initiative, or every member
-  // of the guild when the calendar belongs to no initiative. Event DAC (the
+  // of the community when the calendar belongs to no initiative. Event DAC (the
   // ShareControl below) is a separate concern tracked in #948. The current
   // attendees carry their own user summaries, so the chips render immediately.
   const attendeeUsers = useMemo(
@@ -281,7 +281,7 @@ export function EventSettingsPage() {
 
   if (!event) {
     return (
-      <div className="p-8 text-center">
+      <div className="py-8 text-center">
         <p className="text-muted-foreground">{t("notFound")}</p>
         <Button variant="link" asChild className="mt-2">
           <Link to={gp(toolListRoute(Tool.calendar, initiativeId))}>{t("backToEvents")}</Link>
@@ -292,13 +292,11 @@ export function EventSettingsPage() {
 
   return (
     <div className="space-y-6">
-      <ToolBreadcrumb
+      <ToolPageHeader
         tool={Tool.calendar}
         initiativeId={initiativeId}
-        trail={[
-          { label: event.title, to: eventRoute(initiativeId, event.calendar_id, eventId) },
-          { label: t("common:toolSettings.title") },
-        ]}
+        trail={[{ label: event.title, to: eventRoute(initiativeId, event.calendar_id, eventId) }]}
+        title={t("common:toolSettings.title")}
       />
 
       {/* Details */}
@@ -423,7 +421,7 @@ export function EventSettingsPage() {
           {event.recurrence ? (
             <div className="flex flex-wrap items-end gap-2">
               <div className="space-y-2">
-                <Label>{t("occurrence.addDate")}</Label>
+                <Label className="sr-only">{t("occurrence.addDate")}</Label>
                 <DateTimePicker
                   value={extraDate}
                   onChange={setExtraDate}
@@ -486,7 +484,7 @@ export function EventSettingsPage() {
       </Card>
 
       {/* Custom Properties — defined per initiative, so an event on a
-          guild-level calendar has none to offer. */}
+          community-level calendar has none to offer. */}
       {event.initiative_id !== null && (
         <Card>
           <CardHeader>

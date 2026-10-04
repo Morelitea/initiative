@@ -12,9 +12,9 @@ from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.tools import COMMENT_TARGETS, Tool
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.platform.notification import NotificationType
-from app.services.platform import user_notifications
+from app.services.platform import notification_policy, user_notifications
 from app.testing.factories import (
     create_guild,
     create_task,
@@ -55,7 +55,14 @@ async def test_list_notifications(client: AsyncClient, session: AsyncSession):
 
 #: A place naming nothing at any level.
 _NOWHERE = dict.fromkeys(
-    ("guild_id", "initiative_id", "tool", "resource_id", "subject_type", "subject_id")
+    (
+        "community_id",
+        "initiative_id",
+        "tool",
+        "resource_id",
+        "subject_type",
+        "subject_id",
+    )
 )
 
 
@@ -82,7 +89,7 @@ async def test_unread_places_carries_the_whole_tree(
         user_id=user.id,
         notification_type=NotificationType.comment_on_task,
         data={
-            "guild_id": guild.id,
+            "community_id": guild.id,
             "initiative_id": 9,
             "entity_type": "project",
             "resource_id": 4,
@@ -97,7 +104,7 @@ async def test_unread_places_carries_the_whole_tree(
     )
     assert response.json()["places"] == [
         {
-            "guild_id": guild.id,
+            "community_id": guild.id,
             "initiative_id": 9,
             "tool": "project",
             "resource_id": 4,
@@ -195,7 +202,7 @@ async def test_read_all_can_clear_one_community(
             session,
             user_id=user.id,
             notification_type=NotificationType.comment_on_task,
-            data={"guild_id": guild.id},
+            data={"community_id": guild.id},
         )
     await session.commit()
     headers = get_auth_headers(user)
@@ -203,13 +210,13 @@ async def test_read_all_can_clear_one_community(
     await client.post(
         "/api/v1/notifications/read-all",
         headers=headers,
-        params={"guild_id": cleared.id},
+        params={"community_id": cleared.id},
     )
 
     places = (await client.get("/api/v1/notifications/unread", headers=headers)).json()[
         "places"
     ]
-    assert places == [{**_NOWHERE, "guild_id": kept.id}]
+    assert places == [{**_NOWHERE, "community_id": kept.id}]
 
 
 async def test_the_bell_can_be_switched_off_for_a_category(
@@ -269,11 +276,44 @@ async def test_cannot_read_other_users_notification(
     other = await create_user(session)
     notification_id = await _seed_notification(session, owner.id)
 
-    response = await client.post(
-        f"/api/v1/notifications/{notification_id}/read",
-        headers=get_auth_headers(other),
+    for request in (
+        client.post(
+            f"/api/v1/notifications/{notification_id}/read",
+            headers=get_auth_headers(other),
+        ),
+        client.get(
+            f"/api/v1/notifications/{notification_id}/alert",
+            headers=get_auth_headers(other),
+        ),
+    ):
+        assert (await request).status_code == 404
+
+
+async def test_the_desktop_alert_is_the_line_unless_its_community_redacts(
+    client: AsyncClient, session: AsyncSession
+):
+    user = await create_user(session)
+    guild = await create_guild(session, creator=user)
+    line = await user_notifications.create_notification(
+        session,
+        user_id=user.id,
+        notification_type=NotificationType.mention,
+        data={"community_id": guild.id, "context": "Q3 budget"},
     )
-    assert response.status_code == 404
+    await session.commit()
+    assert line is not None
+    url = f"/api/v1/notifications/{line.id}/alert"
+
+    body = (await client.get(url, headers=get_auth_headers(user))).json()
+    assert body["notification"]["id"] == line.id
+    assert body["redacted"] is None
+
+    guild.redact_notification_content = True
+    session.add(guild)
+    await session.commit()
+    body = (await client.get(url, headers=get_auth_headers(user))).json()
+    title, text = notification_policy.redacted_push(NotificationType.mention, "en")
+    assert body["redacted"] == {"title": title, "body": text}
 
 
 async def test_the_bell_reads_the_title_back_from_the_community(
@@ -285,7 +325,7 @@ async def test_the_bell_reads_the_title_back_from_the_community(
     title is not kept on the line.
     """
     actor = await acting_user(
-        guild_role=GuildRole.member, initiative=True, project=True
+        guild_role=CommunityRole.member, initiative=True, project=True
     )
     task = await create_task(session, actor.project)
     await user_notifications.create_notification(
@@ -294,7 +334,7 @@ async def test_the_bell_reads_the_title_back_from_the_community(
         notification_type=NotificationType.task_assignment,
         data={
             "task_id": task.id,
-            "guild_id": actor.guild.id,
+            "community_id": actor.guild.id,
             "initiative_id": actor.initiative.id,
         },
     )
@@ -335,7 +375,7 @@ async def test_the_bell_reads_the_title_back_from_the_community(
             data={
                 "entity_type": kind,
                 "entity_id": entity.id,
-                "guild_id": actor.guild.id,
+                "community_id": actor.guild.id,
             },
         )
     await session.commit()

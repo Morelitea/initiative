@@ -60,6 +60,7 @@
     "start": "Beginn"
   },
   "fallback": {
-    "untitled": "(ohne Titel)"
+    "untitled": "(ohne Titel)",
+    "formerMember": "Ehemaliges Mitglied"
   }
 }

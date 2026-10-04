@@ -9,7 +9,7 @@ count only them.
 
 from __future__ import annotations
 
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.services.tenant.published_views_test import (
     dashboards_on,
     make_dashboard,
@@ -39,7 +39,7 @@ async def count_tasks(client, actor, where: list) -> list:
 async def an_initiative(session, acting_user):
     """One live project with two tasks, a template with one, and a project
     that will be archived with one."""
-    actor = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    actor = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await dashboards_on(session, actor.initiative)
     live = await create_project(session, actor.initiative, actor.user)
     first = await create_task(session, live)

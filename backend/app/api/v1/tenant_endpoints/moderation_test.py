@@ -9,10 +9,11 @@ from sqlmodel import select
 from app.core.moderation import ReportOutcome, ReportVenue
 from app.core.tools import Tool
 from app.db.session import set_rls_context
-from app.models.platform.guild import GuildRole
-from app.core.intake import IntakeStream
+from app.models.platform.guild import CommunityRole
+from app.core.intake import CaseField, IntakeStream
 from app.models.platform.app_setting import AppSetting
 from app.models.tenant.intake import IntakeBinding, IntakeCase
+from app.models.tenant.property import PropertyDefinition, PropertyValue
 from app.models.tenant.comment import Comment
 from app.models.tenant.moderation import ModerationReport, ModerationReportReporter
 from app.models.tenant.task import Task
@@ -34,7 +35,12 @@ from app.db.request_context import SystemGuild, Unattributed
 
 
 async def _report(client: AsyncClient, actor, **body) -> Response:
-    return await client.post("/api/v1/me/reports", json=body, headers=actor.headers)
+    """File a report the way every surface does: as a moderation ticket."""
+    return await client.post(
+        "/api/v1/me/tickets",
+        json={"stream": "moderation", **body},
+        headers=actor.headers,
+    )
 
 
 def _reports_url(scene: dict) -> str:
@@ -61,7 +67,7 @@ async def _report_comment(client: AsyncClient, scene: dict, **body) -> Response:
             "target_type": "comment",
             "target_id": scene["comment"].id,
             "reason": "spam",
-            "guild_id": scene["guild"].id,
+            "community_id": scene["guild"].id,
             **body,
         },
     )
@@ -75,6 +81,7 @@ async def _report_and_read(client: AsyncClient, scene: dict, **body) -> dict:
     listed = await client.get(_reports_url(scene), headers=scene["mod"].headers)
     assert listed.status_code == 200, listed.text
     (item,) = listed.json()["items"]
+    assert listed.json()["total_count"] == 1
     return item
 
 
@@ -96,15 +103,17 @@ async def scene(session, acting_user):
     The moderator is not the initiative's creator: the standing that opens this
     surface is the role's "Full access" flag, not having made the place.
     """
-    owner = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    owner = await acting_user(
+        guild_role=CommunityRole.admin, initiative=True, project=True
+    )
     mod = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=owner.guild,
         initiative=owner.initiative,
         initiative_role="moderator",
     )
     member = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=owner.guild,
         initiative=owner.initiative,
         initiative_role="member",
@@ -292,7 +301,7 @@ async def test_settling_closes_it_and_answers_with_the_whole_card(
 async def test_a_second_reporter_joins_the_open_report(client, session, scene):
     another = await create_user(session)
     await create_guild_membership(
-        session, user=another, guild=scene["guild"], role=GuildRole.member
+        session, user=another, guild=scene["guild"], role=CommunityRole.member
     )
     await create_initiative_member(
         session, scene["initiative"], another, role_name="member"
@@ -301,12 +310,13 @@ async def test_a_second_reporter_joins_the_open_report(client, session, scene):
 
     for headers in (scene["member"].headers, get_auth_headers(another)):
         response = await client.post(
-            "/api/v1/me/reports",
+            "/api/v1/me/tickets",
             json={
+                "stream": "moderation",
                 "target_type": "comment",
                 "target_id": scene["comment"].id,
                 "reason": "spam",
-                "guild_id": scene["guild"].id,
+                "community_id": scene["guild"].id,
             },
             headers=headers,
         )
@@ -338,12 +348,13 @@ async def test_a_community_a_reporter_is_not_in_places_nothing_there(
     await set_rls_context(session, Unattributed())
 
     response = await client.post(
-        "/api/v1/me/reports",
+        "/api/v1/me/tickets",
         json={
+            "stream": "moderation",
             "target_type": "comment",
             "target_id": scene["comment"].id,
             "reason": "spam",
-            "guild_id": scene["guild"].id,
+            "community_id": scene["guild"].id,
         },
         headers=get_auth_headers(outsider),
     )
@@ -467,7 +478,9 @@ async def test_escalating_with_nowhere_to_send_leaves_the_report_open(
 
 async def test_escalating_opens_a_platform_case(client, session, scene, operations):
     """The one crossing between the two shapes, carrying the reporters."""
-    report_id = await _filed_report_id(client, session, scene, reason="illegal")
+    report_id = await _filed_report_id(
+        client, session, scene, reason="illegal", detail="They posted my address."
+    )
 
     response = await client.post(
         f"/api/v1/c/{scene['guild'].id}/reports/{report_id}/settle",
@@ -487,6 +500,8 @@ async def test_escalating_opens_a_platform_case(client, session, scene, operatio
     # The reporters travel with an escalation: the platform is where good
     # faith is judged.
     assert str(scene["member"].user.id) in (task.description or "")
+    # And so do their own words, which are what the platform judges.
+    assert "They posted my address." in (task.description or "")
     # Named with its community, since content ids are numbered per community.
     case = (await session.exec(select(IntakeCase))).one()
     assert case.dedupe_key == (
@@ -524,6 +539,41 @@ async def test_any_account_can_be_reported_by_profile(
 
     assert response.status_code == 202
     assert response.json()["venue"] == ReportVenue.platform.value
+
+
+async def test_a_reported_community_is_the_cases_subject(
+    client, session, scene, operations
+):
+    """A community reported from the directory or by name is what its case is
+    about, so the case names it the way a community's content does."""
+    response = await _report(
+        client,
+        scene["member"],
+        target_type="guild",
+        target_id=scene["guild"].id,
+        reason="illegal",
+    )
+    assert response.status_code == 202, response.text
+
+    await set_rls_context(session, SystemGuild(operations["guild"].id))
+    task = (
+        await session.exec(
+            select(Task).where(Task.project_id == operations["project"].id)
+        )
+    ).one()
+    subject_guild = (
+        await session.exec(
+            select(PropertyValue.value_number)
+            .join(
+                PropertyDefinition,
+                PropertyDefinition.id == PropertyValue.property_id,
+            )
+            .where(PropertyValue.entity_type == "task")
+            .where(PropertyValue.entity_id == task.id)
+            .where(PropertyDefinition.name == CaseField.subject_guild.value)
+        )
+    ).one()
+    assert int(subject_guild) == scene["guild"].id
 
 
 async def test_a_community_the_reporter_cannot_see_is_not_reportable(
@@ -581,7 +631,7 @@ async def test_a_guild_admin_reads_it_without_being_in_the_initiative(
 ):
     admin = await create_user(session)
     await create_guild_membership(
-        session, user=admin, guild=scene["guild"], role=GuildRole.admin
+        session, user=admin, guild=scene["guild"], role=CommunityRole.admin
     )
     await set_rls_context(session, Unattributed())
 

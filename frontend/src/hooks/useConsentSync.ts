@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 
 import type { CookieConsentRead } from "@/api/generated/initiativeAPI.schemas";
-import { setCookieConsentApiV1UsersMeCookieConsentPut } from "@/api/generated/users/users";
+import { setCookieConsent } from "@/api/generated/users/users";
 import { useAuth } from "@/hooks/useAuth";
 import {
   adoptConsent,
@@ -71,7 +71,7 @@ export const useConsentSync = () => {
     }
 
     if (local.syncedAt === null || account === null) {
-      void setCookieConsentApiV1UsersMeCookieConsentPut({
+      void setCookieConsent({
         granted: [...local.granted],
         version: CONSENT_VERSION,
       })

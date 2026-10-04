@@ -6,8 +6,8 @@
  */
 
 import {
-  acknowledgeQueueApiV1MeDmQueueAckPost as ackQueue,
-  collectQueueApiV1MeDmQueueGet as collectQueue,
+  acknowledgeQueue as ackQueue,
+  collectQueue,
 } from "@/api/generated/direct-messages/direct-messages";
 
 import { type Context, ensureDeviceContext } from "./device";

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef } from "react";
 
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { discardPastedImage, uploadPastedImage } from "@/lib/attachmentUtils";
 
 /**
@@ -15,7 +15,7 @@ import { discardPastedImage, uploadPastedImage } from "@/lib/attachmentUtils";
  * sweep takes those a day later.
  */
 export function usePastedImages(): (file: File) => Promise<string> {
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   const pasted = useRef(new Set<string>());
 
   useEffect(() => {
@@ -23,18 +23,18 @@ export function usePastedImages(): (file: File) => Promise<string> {
     return () => {
       for (const url of urls) {
         // Nothing to tell anybody if it fails: the sweep is the backstop.
-        discardPastedImage(guildId, url).catch(() => {});
+        discardPastedImage(communityId, url).catch(() => {});
       }
       urls.clear();
     };
-  }, [guildId]);
+  }, [communityId]);
 
   return useCallback(
     async (file: File) => {
-      const url = await uploadPastedImage(guildId, file);
+      const url = await uploadPastedImage(communityId, file);
       pasted.current.add(url);
       return url;
     },
-    [guildId]
+    [communityId]
   );
 }

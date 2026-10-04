@@ -5,6 +5,7 @@ import {
   CheckSquare,
   FilePlus,
   LayoutGrid,
+  LifeBuoy,
   ListTodo,
   MessageSquare,
   Plus,
@@ -29,17 +30,21 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
+import { MentionText } from "@/components/user/MentionText";
 import { useAuth } from "@/hooks/useAuth";
+import { useCommunities } from "@/hooks/useCommunities";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useDirectMessagesEnabled } from "@/hooks/useDirectMessages";
-import { useGuilds } from "@/hooks/useGuilds";
 import { useGlobalCreateAccess } from "@/hooks/useInitiativeAccess";
+import { MentionedPeopleScope, ReportMentionedPeople } from "@/hooks/useMentionedPeople";
 import { useRecents } from "@/hooks/useRecents";
-import { useGuildSearchSuggest } from "@/hooks/useSearch";
+import { useCommunitySearchSuggest } from "@/hooks/useSearch";
 import { useTasks } from "@/hooks/useTasks";
+import { useHasFiledTickets } from "@/hooks/useTickets";
 import { useUserSearch } from "@/hooks/useUsers";
+import { USER_MENTION_PATTERN } from "@/lib/commentReferences";
+import { communityPath, useCommunityPath } from "@/lib/communityUrl";
 import { commandFilter } from "@/lib/fuzzyMatch";
-import { guildPath, useGuildPath } from "@/lib/guildUrl";
 import { canAccessOperatorDashboard, canManagePlatformConfig } from "@/lib/permissions";
 import { renderRecentIcon } from "@/lib/recentIcon";
 import { recentRoute } from "@/lib/recentRoute";
@@ -74,17 +79,17 @@ const PALETTE_MEMBER_LIMIT = 5;
 export function CommandCenter() {
   const [open, setOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  // Which slice of the guild the results are from — the same three the results
+  // Which slice of the community the results are from — the same three the results
   // page is split into, opening on the same one.
   const [scope, setScope] = useState<SearchCategory>(DEFAULT_SEARCH_CATEGORY);
   const { t } = useTranslation(["command", "common", "search"]);
   const router = useRouter();
   const { user } = useAuth();
-  const { activeGuild, activeGuildId } = useGuilds();
+  const { activeCommunity, activeCommunityId } = useCommunities();
   const globalCreate = useGlobalCreateAccess();
-  const getGuildPath = useGuildPath();
+  const getCommunityPath = useCommunityPath();
 
-  // Switch into "guild-wide title search" mode once the debounced query is at
+  // Switch into "community-wide title search" mode once the debounced query is at
   // least 2 characters. Single-character queries fire too noisily and rarely
   // narrow enough to be useful. If the raw input is already empty (e.g.
   // immediately after dialog close) treat the debounced value as empty too,
@@ -158,14 +163,14 @@ export function CommandCenter() {
 
   // Data hooks — all use existing cached data except tasks which fetches when dialog opens
   const recentQuery = useRecents({ staleTime: 30_000 });
-  // Searching asks the guild index one question and gets every kind of thing
+  // Searching asks the community index one question and gets every kind of thing
   // back — tasks, documents, queue items, events, tags — ranked together.
   // `null` for Members, who are not in the index: identity is shared across
   // communities while the index is per-community, so they are read from the
   // roster — the same split the results page makes.
   const scopeTypes = categoryEntityTypes(scope);
   const isMemberScope = scopeTypes === null;
-  const suggestQuery = useGuildSearchSuggest(effectiveSearch, {
+  const suggestQuery = useCommunitySearchSuggest(effectiveSearch, {
     enabled: open && !!user && isSearching && !isMemberScope,
     types: scopeTypes ?? undefined,
     staleTime: 30_000,
@@ -204,16 +209,16 @@ export function CommandCenter() {
   // Suggested = mixed-type recent items, ordered by ``last_viewed_at`` desc
   // (same payload that backs the layout tabs bar).
   const recentItems = recentQuery.data ?? [];
-  // Browse rows carry their own guild_id — a task in this list can come from
-  // any guild the user is in.
+  // Browse rows carry their own community_id — a task in this list can come from
+  // any community the user is in.
   const tasks = useMemo(
     () =>
       (browseTasksQuery.data?.items ?? []).map((task) => ({
         id: task.id,
         title: task.title,
-        guildId: task.guild_id ?? activeGuildId,
+        communityId: task.community_id ?? activeCommunityId,
       })),
-    [browseTasksQuery.data, activeGuildId]
+    [browseTasksQuery.data, activeCommunityId]
   );
 
   // Only what has somewhere to go: an entry that cannot navigate is worse than
@@ -240,8 +245,9 @@ export function CommandCenter() {
     scopeQuery.isSuccess &&
     !scopeQuery.isPlaceholderData;
 
-  const isGuildAdmin = Boolean(activeGuild?.can.administer);
+  const isCommunityAdmin = Boolean(activeCommunity?.can.administer);
   const dmEnabled = useDirectMessagesEnabled();
+  const hasTickets = useHasFiledTickets();
   const showPlatformSettings = canManagePlatformConfig(user);
   const showOperatorDashboard = canAccessOperatorDashboard(user);
 
@@ -256,19 +262,20 @@ export function CommandCenter() {
       ...(dmEnabled
         ? [{ label: t("pages.myMessages"), path: "/messages", icon: MessageSquare }]
         : []),
+      ...(hasTickets ? [{ label: t("pages.myTickets"), path: "/my-tickets", icon: LifeBuoy }] : []),
       { label: t("pages.myStats"), path: "/user-stats", icon: BarChart3 },
       { label: t("pages.mySettings"), path: "/profile", icon: UserCog },
       {
         label: t("pages.allInitiatives"),
-        path: getGuildPath("/"),
+        path: getCommunityPath("/"),
         icon: InitiativeMark,
       },
     ];
 
-    if (isGuildAdmin) {
+    if (isCommunityAdmin) {
       items.push({
-        label: t("pages.guildSettings"),
-        path: getGuildPath("/settings"),
+        label: t("pages.communitySettings"),
+        path: getCommunityPath("/settings"),
         icon: Settings,
       });
     }
@@ -290,7 +297,15 @@ export function CommandCenter() {
     }
 
     return items;
-  }, [t, getGuildPath, dmEnabled, isGuildAdmin, showOperatorDashboard, showPlatformSettings]);
+  }, [
+    t,
+    getCommunityPath,
+    dmEnabled,
+    hasTickets,
+    isCommunityAdmin,
+    showOperatorDashboard,
+    showPlatformSettings,
+  ]);
 
   const handleSelect = (path: string) => {
     setOpen(false);
@@ -303,7 +318,7 @@ export function CommandCenter() {
         value={searchQuery}
         onValueChange={setSearchQuery}
         placeholder={t("placeholder", {
-          activeGuildName: activeGuild?.name ?? t("common:appName"),
+          activeCommunityName: activeCommunity?.name ?? t("common:appName"),
         })}
       />
       {isSearching && (
@@ -338,66 +353,74 @@ export function CommandCenter() {
       <CommandList>
         <CommandEmpty>{t("noResults")}</CommandEmpty>
 
-        {/* What the guild index found — first, so the top hit is what Enter
+        {/* What the community index found — first, so the top hit is what Enter
             opens. The server has already decided these match, so they are
-            keyed on the query itself rather than re-filtered here. */}
+            keyed on the query itself rather than re-filtered here. A comment
+            is found by its opening words, which can mention people. */}
         {isSearching && (
-          <CommandGroup heading={t("groups.results")}>
-            {members.map((member) => (
-              // A profile belongs to the person rather than to the community
-              // the search ran in, so this leaves the community tree.
-              <CommandItem
-                key={`member-${member.id}`}
-                value={`member-${member.id}`}
-                keywords={[effectiveSearch, getUserDisplayName(member)]}
-                onSelect={() => handleSelect(`/u/${getUrlHandle(member)}`)}
-              >
-                <Avatar className="size-4">
-                  <AvatarImage src={getAvatarSrc(member)} alt="" />
-                  <AvatarFallback className="text-[9px]">
-                    {getInitialsForUser(member)}
-                  </AvatarFallback>
-                </Avatar>
-                <span>{getUserDisplayName(member)}</span>
-              </CommandItem>
-            ))}
-            {suggestions.map(({ hit, path }) => {
-              const Icon = hitIcon(hit);
-              return (
+          <MentionedPeopleScope>
+            <ReportMentionedPeople texts={suggestions.map(({ hit }) => hit.title)} />
+            <CommandGroup heading={t("groups.results")}>
+              {members.map((member) => (
+                // A profile belongs to the person rather than to the community
+                // the search ran in, so this leaves the community tree.
                 <CommandItem
-                  key={`result-${hit.entity_type}-${hit.entity_id}`}
-                  value={`result-${hit.entity_type}-${hit.entity_id}`}
-                  keywords={[effectiveSearch, hit.title]}
+                  key={`member-${member.id}`}
+                  value={`member-${member.id}`}
+                  keywords={[effectiveSearch, getUserDisplayName(member)]}
+                  onSelect={() => handleSelect(`/u/${getUrlHandle(member)}`)}
+                >
+                  <Avatar className="size-4">
+                    <AvatarImage src={getAvatarSrc(member)} alt="" />
+                    <AvatarFallback className="text-3xs">
+                      {getInitialsForUser(member)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <span>{getUserDisplayName(member)}</span>
+                </CommandItem>
+              ))}
+              {suggestions.map(({ hit, path }) => {
+                const Icon = hitIcon(hit);
+                return (
+                  <CommandItem
+                    key={`result-${hit.entity_type}-${hit.entity_id}`}
+                    value={`result-${hit.entity_type}-${hit.entity_id}`}
+                    keywords={[effectiveSearch, hit.title.replace(USER_MENTION_PATTERN, " ")]}
+                    onSelect={() =>
+                      handleSelect(
+                        activeCommunityId ? communityPath(activeCommunityId, path) : path
+                      )
+                    }
+                  >
+                    <Icon className="text-muted-foreground" />
+                    <span>
+                      <MentionText text={hit.title} disableLink />
+                    </span>
+                  </CommandItem>
+                );
+              })}
+              {(scopeQuery.isError || scopeIsEmpty) && (
+                <div className="py-3 text-center text-muted-foreground text-sm">
+                  {scopeQuery.isError ? t("search:failed.title") : t("noResults")}
+                </div>
+              )}
+              {activeCommunityId !== null && (
+                <CommandItem
+                  value="result-see-all"
+                  keywords={[effectiveSearch]}
                   onSelect={() =>
-                    handleSelect(activeGuildId ? guildPath(activeGuildId, path) : path)
+                    handleSelect(
+                      `${getCommunityPath("/search")}?q=${encodeURIComponent(effectiveSearch)}` +
+                        (scope === DEFAULT_SEARCH_CATEGORY ? "" : `&tab=${scope}`)
+                    )
                   }
                 >
-                  <Icon className="text-muted-foreground" />
-                  <span>{hit.title}</span>
+                  <Search className="text-muted-foreground" />
+                  <span>{t("seeAllResults", { query: effectiveSearch })}</span>
                 </CommandItem>
-              );
-            })}
-            {(scopeQuery.isError || scopeIsEmpty) && (
-              <div className="py-3 text-center text-muted-foreground text-sm">
-                {scopeQuery.isError ? t("search:failed.title") : t("noResults")}
-              </div>
-            )}
-            {activeGuildId !== null && (
-              <CommandItem
-                value="result-see-all"
-                keywords={[effectiveSearch]}
-                onSelect={() =>
-                  handleSelect(
-                    `${getGuildPath("/search")}?q=${encodeURIComponent(effectiveSearch)}` +
-                      (scope === DEFAULT_SEARCH_CATEGORY ? "" : `&tab=${scope}`)
-                  )
-                }
-              >
-                <Search className="text-muted-foreground" />
-                <span>{t("seeAllResults", { query: effectiveSearch })}</span>
-              </CommandItem>
-            )}
-          </CommandGroup>
+              )}
+            </CommandGroup>
+          </MentionedPeopleScope>
         )}
 
         {/* Actions — each shown only when the user can land its wizard
@@ -435,8 +458,8 @@ export function CommandCenter() {
           <CommandGroup heading={t("groups.suggested")}>
             {recentItems.slice(0, 5).map((item) => (
               <CommandItem
-                key={`suggested-${item.guild_id}-${item.entity_type}-${item.entity_id}`}
-                value={`suggested-${item.guild_id}-${item.entity_type}-${item.entity_id}-${item.name}`}
+                key={`suggested-${item.community_id}-${item.entity_type}-${item.entity_id}`}
+                value={`suggested-${item.community_id}-${item.entity_type}-${item.entity_id}-${item.name}`}
                 keywords={[item.name]}
                 onSelect={() => handleSelect(recentRoute(item))}
               >
@@ -470,7 +493,7 @@ export function CommandCenter() {
               key={tool}
               tool={tool}
               enabled={open && !!user}
-              activeGuildId={activeGuildId}
+              activeCommunityId={activeCommunityId}
               onSelect={handleSelect}
             />
           ))}
@@ -483,10 +506,10 @@ export function CommandCenter() {
                 value={`task-${task.id}-${task.title}`}
                 onSelect={() =>
                   handleSelect(
-                    // Cross-guild rows carry no initiative, so the resolver
+                    // Cross-community rows carry no initiative, so the resolver
                     // works out the address on the way in.
-                    task.guildId
-                      ? guildPath(task.guildId, entityRefRoute("task", task.id))
+                    task.communityId
+                      ? communityPath(task.communityId, entityRefRoute("task", task.id))
                       : entityRefRoute("task", task.id)
                   )
                 }
@@ -511,12 +534,12 @@ export function CommandCenter() {
 function ToolPaletteGroup({
   tool,
   enabled,
-  activeGuildId,
+  activeCommunityId,
   onSelect,
 }: {
   tool: (typeof PALETTE_TOOLS)[number];
   enabled: boolean;
-  activeGuildId: number | null;
+  activeCommunityId: number | null;
   onSelect: (path: string) => void;
 }) {
   const heading = TOOL_PALETTE[tool].useHeading();
@@ -530,7 +553,9 @@ function ToolPaletteGroup({
           key={`${tool}-${item.id}`}
           value={`${tool}-${item.id}-${item.label}`}
           keywords={item.keywords}
-          onSelect={() => onSelect(activeGuildId ? guildPath(activeGuildId, item.path) : item.path)}
+          onSelect={() =>
+            onSelect(activeCommunityId ? communityPath(activeCommunityId, item.path) : item.path)
+          }
         >
           {item.icon ?? <Icon className="text-muted-foreground" />}
           <span>{item.label}</span>

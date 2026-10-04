@@ -1,9 +1,9 @@
 import { HttpResponse } from "msw";
 
-import { guildHttp } from "../guildHttp";
+import { communityHttp } from "../communityHttp";
 
 export const documentHandlers = [
-  guildHttp.get("/documents/", () => {
+  communityHttp.get("/documents/", () => {
     return HttpResponse.json({
       items: [],
       total_count: 0,

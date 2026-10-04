@@ -32,7 +32,7 @@ const member = {
   email: "maya@example.com",
   password: password(),
 };
-const community = "Olive's Guild";
+const community = "Olive's Community";
 
 /** Where the first journey left things, for the second to look for. */
 const made = { communityPath: "", initiativePath: "", projectId: "" };
@@ -138,7 +138,10 @@ test("an invited member sees only what they are let into", async ({ browser }) =
 
   await ownerPage.goto(`${made.communityPath}/settings/users`);
   await ownerPage.getByRole("button", { name: "Generate invite" }).click();
-  const invite = await ownerPage.getByText(/\/invite\//).textContent();
+  // The start flow already made one link; the list is newest first.
+  const links = ownerPage.getByText(/\/invite\//);
+  await expect(links).toHaveCount(2);
+  const invite = await links.first().textContent();
   expect(invite).toBeTruthy();
 
   const page = await freshPage(browser);
@@ -160,7 +163,7 @@ test("an invited member sees only what they are let into", async ({ browser }) =
   // Its address shows them nothing of it, and the API does not have it.
   await page.goto(`${made.initiativePath}/projects/${made.projectId}`);
   await expect(page.getByRole("heading", { name: "Cake stall" })).toHaveCount(0);
-  const guildId = made.communityPath.split("/")[2];
-  const response = await page.request.get(`/api/v1/c/${guildId}/projects/${made.projectId}`);
+  const communityId = made.communityPath.split("/")[2];
+  const response = await page.request.get(`/api/v1/c/${communityId}/projects/${made.projectId}`);
   expect(response.status()).toBe(404);
 });

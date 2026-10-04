@@ -1,15 +1,13 @@
 {
   "title": "Moderation",
   "subtitle": "What people have reported here, and what was done about it.",
-  "open": "Open",
   "tabs": {
     "open": "Open",
     "settled": "Settled"
   },
   "empty": {
     "open": "Nothing has been reported.",
-    "settled": "Nothing has been settled yet.",
-    "noFurther": "Nothing further."
+    "settled": "Nothing has been settled yet."
   },
   "reportedCount_one": "Reported by {{count}} person",
   "reportedCount_other": "Reported by {{count}} people",

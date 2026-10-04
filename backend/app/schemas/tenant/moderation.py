@@ -7,10 +7,11 @@ from typing import List, Optional
 
 from pydantic import Field as PydanticField
 
-from app.core.moderation import ReportOutcome, ReportReason, ReportVenue
+from app.core.moderation import ReportOutcome, ReportReason
 from app.core.search import SearchEntityType
 from app.core.tools import Tool
 from app.schemas.base import SanitizedBaseModel
+from app.schemas.query import PageMeta
 
 
 class ReportCreate(SanitizedBaseModel):
@@ -24,18 +25,7 @@ class ReportCreate(SanitizedBaseModel):
     detail: Optional[str] = PydanticField(default=None, max_length=4000)
     #: Which community the reporter was standing in, when they were in one.
     #: Validated as theirs before it is used, and it decides no venue.
-    guild_id: Optional[int] = None
-
-
-class ReportAccepted(SanitizedBaseModel):
-    """What the reporter is told: that we have it, and nothing else.
-
-    Not who will see it, not whether one already existed, and never an outcome
-    — a report is not a conversation with the person who sent it.
-    """
-
-    accepted: bool = True
-    venue: ReportVenue
+    community_id: Optional[int] = None
 
 
 class ReportTargetLink(SanitizedBaseModel):
@@ -83,11 +73,8 @@ class ModerationReportRead(SanitizedBaseModel):
     target_link: Optional["ReportTargetLink"] = None
 
 
-class ModerationReportList(SanitizedBaseModel):
+class ModerationReportList(PageMeta):
     items: List[ModerationReportRead]
-    #: How many are in this page. Settled reports accumulate without bound, so
-    #: the list is paged and this is not a count of everything there is.
-    total: int
 
 
 class ReportSettle(SanitizedBaseModel):

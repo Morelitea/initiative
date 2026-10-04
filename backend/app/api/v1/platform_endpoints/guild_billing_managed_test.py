@@ -14,7 +14,7 @@ from sqlalchemy import text
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.v1.platform_endpoints.break_glass_test import _enrol_factor, _next_code
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.testing import create_guild, create_guild_membership, create_user
 from app.testing.billing_managed import billing_manages_plans
 
@@ -69,7 +69,7 @@ async def test_the_plan_is_billings_to_set(
         )
 
     assert resp.status_code == 409, resp.text
-    assert resp.json()["detail"] == "GUILD_PLAN_SET_BY_BILLING"
+    assert resp.json()["detail"] == "COMMUNITY_PLAN_SET_BY_BILLING"
 
 
 async def test_the_operator_sets_the_plan_where_billing_does_not(
@@ -116,7 +116,7 @@ async def test_a_suspension_lifts_to_what_billing_last_said(
             patch, json={"status": "active"}, headers=operator.headers
         )
         assert elsewhere.status_code == 409, elsewhere.text
-        assert elsewhere.json()["detail"] == "GUILD_STATUS_SET_BY_BILLING"
+        assert elsewhere.json()["detail"] == "COMMUNITY_STATUS_SET_BY_BILLING"
 
         lifted = await client.patch(
             patch, json={"status": "on_hold"}, headers=operator.headers
@@ -139,7 +139,7 @@ async def test_no_other_status_is_the_operators(
         )
 
     assert resp.status_code == 409, resp.text
-    assert resp.json()["detail"] == "GUILD_STATUS_SET_BY_BILLING"
+    assert resp.json()["detail"] == "COMMUNITY_STATUS_SET_BY_BILLING"
 
 
 @pytest.mark.parametrize("managed", [True, False])
@@ -197,7 +197,7 @@ async def _deleted_at(session: AsyncSession, recorded: str) -> int:
     guild = await create_guild(session, creator=seat)
     assert guild.id is not None
     await create_guild_membership(
-        session, user=seat, guild=guild, role=GuildRole.superadmin
+        session, user=seat, guild=guild, role=CommunityRole.superadmin
     )
     await _record(session, guild.id, recorded)
     await session.exec(
@@ -229,7 +229,7 @@ async def test_a_restore_does_not_lift_what_billing_set(
         )
 
     assert resp.status_code == 409, resp.text
-    assert resp.json()["detail"] == "GUILD_RESTORE_STATUS_SET_BY_BILLING"
+    assert resp.json()["detail"] == "COMMUNITY_RESTORE_STATUS_SET_BY_BILLING"
 
 
 @pytest.mark.parametrize("target", ["read_only", "suspended"])

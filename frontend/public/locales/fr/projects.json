@@ -1,6 +1,5 @@
 {
   "title": "Projets",
-  "subtitle": "Suivez les initiatives et collaborez avec votre communauté.",
   "addProject": "Ajouter un projet",
   "loading": "Chargement des projets…",
   "loadError": "Impossible de charger les projets.",
@@ -66,7 +65,13 @@
     "unassigned": "Non attribuées",
     "archived": "Archivées",
     "statusCategory": "Catégorie de statut",
-    "savePresetDescription": "Tout le monde dans ce projet verra ce préréglage."
+    "savePresetDescription": "Tout le monde dans ce projet verra ce préréglage.",
+    "seededPresets": {
+      "all": "Toutes",
+      "incomplete": "Non terminées",
+      "unassigned": "Non attribuées",
+      "mine": "Les miennes"
+    }
   },
   "templates": {
     "loading": "Chargement des modèles…",
@@ -113,20 +118,17 @@
     "notFound": "Projet introuvable",
     "notFoundDescription": "Ce projet a peut-être été supprimé ou vous avez suivi un lien invalide.",
     "noAccess": "Accès refusé",
-    "noAccessDescription": "Vous n'avez pas la permission de voir ce projet. Demandez à un chef de projet de vous accorder l'accès.",
-    "projectSettings": "Paramètres du projet",
-    "openProjectSettings": "Ouvrir les paramètres du projet"
+    "noAccessDescription": "Vous n'avez pas la permission de voir ce projet. Demandez à un chef de projet de vous accorder l'accès."
   },
   "overview": {
-    "archived": "Archivé",
-    "active": "Actif",
-    "template": "Modèle",
     "templateInfo": "Ce projet est un modèle. Utilisez-le pour créer de nouveaux projets depuis l'onglet Modèles.",
     "archivedInfo": "Ce projet est archivé. Désarchivez-le depuis les paramètres pour ajouter ou mettre à jour des tâches.",
-    "scheduleLabel": "Dates du projet",
     "scheduleRange": "{{start}} – {{end}}",
     "scheduleStartOnly": "Commence le {{start}}",
-    "scheduleEndOnly": "Se termine le {{end}}"
+    "scheduleEndOnly": "Se termine le {{end}}",
+    "progressLabel": "Progression",
+    "progress": "{{completed}} sur {{total}} terminées",
+    "datesLabel": "Dates"
   },
   "schedule": {
     "startLabel": "Date de début",
@@ -165,7 +167,6 @@
     "you": "Vous"
   },
   "statuses": {
-    "title": "Statuts des tâches",
     "description": "Réordonnez, renommez ou changez la catégorie des colonnes de tâches utilisées par ce projet.",
     "noManagePermission": "Seuls les chefs de projet peuvent modifier les statuts des tâches. Contactez un chef de projet si vous avez besoin de modifications.",
     "addStatus": "Ajouter un statut",
@@ -215,7 +216,6 @@
     "breadcrumbSettings": "Paramètres",
     "tabTaskStatuses": "Statuts des tâches",
     "details": {
-      "title": "Détails du projet",
       "description": "Mettez à jour l'icône, le nom et la description affichés dans l'espace de travail.",
       "identityHeading": "Identité",
       "identityDescription": "Donnez au projet un nom et un emoji reconnaissables.",
@@ -248,15 +248,6 @@
       "viewAllTemplates": "Voir tous les modèles",
       "markedAsTemplate": "Projet marqué comme modèle",
       "removedFromTemplates": "Projet retiré des modèles"
-    },
-    "duplicate": {
-      "title": "Dupliquer le projet",
-      "description": "Clonez ce projet, y compris son initiative et ses tâches, pour démarrer rapidement de nouveaux travaux.",
-      "duplicated": "Projet dupliqué",
-      "promptName": "Nom pour le projet dupliqué",
-      "duplicating": "Duplication en cours...",
-      "duplicateButton": "Dupliquer le projet",
-      "noWriteAccess": "Vous avez besoin d'un accès en écriture pour dupliquer ce projet."
     },
     "tabFilterPresets": "Vues",
     "filterPresetsHeading": "Préréglages de filtre",

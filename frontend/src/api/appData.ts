@@ -40,11 +40,13 @@ export type {
   AppWidgetRead,
 };
 
-export const getAppWidgetCatalog = (guildId: number) =>
-  apiClient.get<AppWidgetCatalogResponse>(`/c/${guildId}/apps/widget-catalog`).then((r) => r.data);
+export const getAppWidgetCatalog = (communityId: number) =>
+  apiClient
+    .get<AppWidgetCatalogResponse>(`/c/${communityId}/apps/widget-catalog`)
+    .then((r) => r.data);
 
 export interface AppDataRequest {
-  guildId: number;
+  communityId: number;
   appId: number;
   endpointId: string;
   /** The dashboard the widget sits on. Required: it is the surface whose gates
@@ -57,7 +59,7 @@ export interface AppDataRequest {
 }
 
 export const getAppData = ({
-  guildId,
+  communityId,
   appId,
   endpointId,
   dashboardId,
@@ -66,7 +68,7 @@ export const getAppData = ({
 }: AppDataRequest) =>
   apiClient
     .get<AppDataResponse>(
-      `/c/${guildId}/apps/${appId}/endpoints/${encodeURIComponent(endpointId)}`,
+      `/c/${communityId}/apps/${appId}/endpoints/${encodeURIComponent(endpointId)}`,
       {
         params: {
           dashboard_id: dashboardId,
@@ -80,7 +82,7 @@ export const getAppData = ({
     .then((r) => r.data);
 
 export interface AppParamOptionsRequest {
-  guildId: number;
+  communityId: number;
   appId: number;
   endpointId: string;
   /** Which of the endpoint's parameters to fill a menu for. */
@@ -100,7 +102,7 @@ export interface AppParamOptionsRequest {
  * fetched on the caller's own credentials.
  */
 export const getAppParamOptions = ({
-  guildId,
+  communityId,
   appId,
   endpointId,
   param,
@@ -108,7 +110,7 @@ export const getAppParamOptions = ({
 }: AppParamOptionsRequest) =>
   apiClient
     .get<AppParamOptionsResponse>(
-      `/c/${guildId}/apps/${appId}/endpoints/${encodeURIComponent(endpointId)}/options`,
+      `/c/${communityId}/apps/${appId}/endpoints/${encodeURIComponent(endpointId)}/options`,
       {
         params: {
           param,
@@ -120,7 +122,7 @@ export const getAppParamOptions = ({
 
 /** Find the install backing a binding's `app_uid`, and the widget/endpoint it
  *  names. Returns `undefined` for an app that is not installed here, which is
- *  what an imported definition referencing an app this guild does not have
+ *  what an imported definition referencing an app this community does not have
  *  looks like. */
 export const resolveAppBinding = (
   catalog: AppWidgetCatalogResponse | undefined,
@@ -134,7 +136,7 @@ export const resolveAppBinding = (
 };
 
 /** The install a namespaced widget type belongs to, and that widget's own entry.
- *  `undefined` for a type this guild has no install for — an imported
+ *  `undefined` for a type this community has no install for — an imported
  *  definition naming an app nobody here has. */
 export const appWidgetEntry = (
   catalog: AppWidgetCatalogResponse | undefined,
@@ -184,7 +186,7 @@ const asSample = (raw: unknown): AppSample => {
 /** The sample an app shipped for one of its widgets, in the shape a preview
  *  hands to the sandbox. The catalog has already read it through the endpoint's
  *  returns, exactly as it reads a live answer, so a preview draws the widget a
- *  guild would get. Previews never call the network, so this is the only thing
+ *  community would get. Previews never call the network, so this is the only thing
  *  a marketplace listing's widget is ever drawn with. */
 export const appWidgetSample = (
   catalog: AppWidgetCatalogResponse | undefined,

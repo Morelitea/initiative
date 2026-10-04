@@ -30,13 +30,13 @@ import {
   useUploadDocumentVersion,
 } from "@/hooks/useDocuments";
 import { useRelativeTime } from "@/hooks/useRelativeTime";
-import { toast } from "@/lib/chesterToast";
 import {
   DOCUMENT_UPLOAD_ACCEPT,
   formatBytes,
   getFileExtension,
   getFileTypeLabel,
 } from "@/lib/fileUtils";
+import { toast } from "@/lib/mascotToast";
 import { resolveDocumentDownloadUrl, resolveDocumentVersionDownloadUrl } from "@/lib/uploadUrl";
 import { cn } from "@/lib/utils";
 
@@ -59,9 +59,9 @@ const PDF_OPTIONS = { wasmUrl: __PDFJS_WASM_URL__ };
 
 interface FileDocumentViewerProps {
   documentId: number;
-  /** The document's OWNING guild — downloads are addressed by it, not the
-   * active guild, so cross-guild surfaces (My Tools) resolve correctly. */
-  guildId: number;
+  /** The document's OWNING community — downloads are addressed by it, not the
+   * active community, so cross-community surfaces (My Tools) resolve correctly. */
+  communityId: number;
   fileUrl: string;
   contentType?: string | null;
   originalFilename?: string | null;
@@ -84,7 +84,7 @@ const VersionLabel = ({ number, createdAt }: { number: number; createdAt: string
 
 export const FileDocumentViewer = ({
   documentId,
-  guildId,
+  communityId,
   fileUrl,
   contentType,
   originalFilename,
@@ -121,11 +121,11 @@ export const FileDocumentViewer = ({
   // (The plain /download URL is constant and would otherwise show stale bytes.)
   // Falls back to the document download URL only until the version list loads.
   const resolvedUrl = selectedVersion
-    ? resolveDocumentVersionDownloadUrl(documentId, selectedVersion.id, guildId)
-    : resolveDocumentDownloadUrl(documentId, guildId);
+    ? resolveDocumentVersionDownloadUrl(documentId, selectedVersion.id, communityId)
+    : resolveDocumentDownloadUrl(documentId, communityId);
   const inlineUrl = selectedVersion
-    ? resolveDocumentVersionDownloadUrl(documentId, selectedVersion.id, guildId, true)
-    : resolveDocumentDownloadUrl(documentId, guildId, true);
+    ? resolveDocumentVersionDownloadUrl(documentId, selectedVersion.id, communityId, true)
+    : resolveDocumentDownloadUrl(documentId, communityId, true);
 
   // Header metadata follows the selected version (falls back to props/current).
   const displayFilename = selectedVersion?.original_filename ?? originalFilename;
@@ -608,7 +608,7 @@ export const FileDocumentViewer = ({
             style={{ height: "70vh", minHeight: 500 }}
           >
             <OfficeIcon className={`h-24 w-24 ${iconColor} mb-6`} />
-            <h3 className="mb-2 font-semibold text-xl">
+            <h3 className="mb-2 font-semibold text-xl tracking-tight">
               {originalFilename || t("viewer.document")}
             </h3>
             <p className="mb-6 max-w-md text-center text-muted-foreground">
@@ -640,7 +640,7 @@ export const FileDocumentViewer = ({
             style={{ height: "70vh", minHeight: 500 }}
           >
             <FileText className="mb-6 h-24 w-24 text-muted-foreground" />
-            <h3 className="mb-2 font-semibold text-xl">
+            <h3 className="mb-2 font-semibold text-xl tracking-tight">
               {originalFilename || t("viewer.document")}
             </h3>
             <p className="mb-6 text-muted-foreground">{t("viewer.unknownFileType")}</p>

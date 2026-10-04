@@ -5,9 +5,9 @@ import type { DocumentType } from "@/api/generated/initiativeAPI.schemas";
 import type { WhiteboardScene } from "@/components/documents/WhiteboardDocumentEditor";
 import { DOCUMENT_TYPE_FORMATS } from "@/components/exports/formats";
 import type { ToolExportOptions } from "@/components/tools/settings/ToolSettingsContext";
-import { toast } from "@/lib/chesterToast";
 import { downloadBlob } from "@/lib/csv";
 import { exportFilenameStem } from "@/lib/exportDownload";
+import { toast } from "@/lib/mascotToast";
 
 /**
  * What a document's export card offers: the engine formats its type has, and

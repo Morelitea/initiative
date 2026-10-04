@@ -18,19 +18,19 @@ from app.models.platform.guild import (
     GUILD_STORED_ROLES,
     Guild,
     GuildMembership,
-    GuildRole,
+    CommunityRole,
     assignable_roles,
 )
 
 
 def test_a_superadmin_carries_an_admins_authority():
-    assert GuildRole.superadmin.reaches(GuildRole.admin)
-    assert GuildRole.superadmin in GUILD_ADMIN_ROLES
+    assert CommunityRole.superadmin.reaches(CommunityRole.admin)
+    assert CommunityRole.superadmin in GUILD_ADMIN_ROLES
 
 
 def test_a_member_still_does_not():
-    assert not GuildRole.member.reaches(GuildRole.admin)
-    assert GuildRole.member not in GUILD_ADMIN_ROLES
+    assert not CommunityRole.member.reaches(CommunityRole.admin)
+    assert CommunityRole.member not in GUILD_ADMIN_ROLES
 
 
 def test_the_gate_asks_one_question_about_three_roles():
@@ -41,39 +41,39 @@ def test_the_gate_asks_one_question_about_three_roles():
     two admin rungs named there, so the seat reaches what an admin reaches
     without any leg being rewritten.
     """
-    assert GUILD_ADMIN_ROLES == {GuildRole.admin, GuildRole.superadmin}
-    assert GuildRole.superadmin in GUILD_STORED_ROLES
-    assert GuildRole.member not in GUILD_ADMIN_ROLES
+    assert GUILD_ADMIN_ROLES == {CommunityRole.admin, CommunityRole.superadmin}
+    assert CommunityRole.superadmin in GUILD_STORED_ROLES
+    assert CommunityRole.member not in GUILD_ADMIN_ROLES
 
 
 def test_support_is_not_a_stored_role():
     """It is the identity a grant carries for the length of its request, so no
     membership row holds it and no routing can be asked for it."""
-    assert GuildRole.support not in GUILD_STORED_ROLES
-    assert GUILD_STORED_ROLES == frozenset(GuildRole) - {GuildRole.support}
+    assert CommunityRole.support not in GUILD_STORED_ROLES
+    assert GUILD_STORED_ROLES == frozenset(CommunityRole) - {CommunityRole.support}
 
 
 def test_an_ordinary_admin_cannot_hand_out_the_seat():
     """The separation: administering a community is not deciding who enters."""
-    assert GuildRole.superadmin not in assignable_roles(GuildRole.admin)
-    assert assignable_roles(GuildRole.admin) == GUILD_ASSIGNABLE_ROLES
+    assert CommunityRole.superadmin not in assignable_roles(CommunityRole.admin)
+    assert assignable_roles(CommunityRole.admin) == GUILD_ASSIGNABLE_ROLES
 
 
 def test_the_seat_is_passed_on_by_whoever_holds_it():
     """A superadmin seats another, so the guild carries on without going back
     to the platform for every change."""
-    allowed = assignable_roles(GuildRole.superadmin)
-    assert GuildRole.superadmin in allowed
-    assert {GuildRole.admin, GuildRole.member} <= allowed
+    allowed = assignable_roles(CommunityRole.superadmin)
+    assert CommunityRole.superadmin in allowed
+    assert {CommunityRole.admin, CommunityRole.member} <= allowed
 
 
 def test_support_is_never_assignable_by_anybody():
     """A synthesized PAM identity, not a stored membership role."""
-    for by in (GuildRole.admin, GuildRole.superadmin, GuildRole.member):
-        assert GuildRole.support not in assignable_roles(by)
+    for by in (CommunityRole.admin, CommunityRole.superadmin, CommunityRole.member):
+        assert CommunityRole.support not in assignable_roles(by)
 
 
-def _context(role: GuildRole) -> GuildContext:
+def _context(role: CommunityRole) -> GuildContext:
     """A context shaped as the seam would have built it for this row.
 
     The admin fact is what the standing statement computed from the membership
@@ -87,14 +87,14 @@ def _context(role: GuildRole) -> GuildContext:
         guild_role=role.value,
         standing_guild_id=1,
         guild_admin=role in GUILD_ADMIN_ROLES,
-        guild_seat=role is GuildRole.superadmin,
+        guild_seat=role is CommunityRole.superadmin,
     )
 
 
 def test_the_context_answers_admin_or_above():
-    assert _context(GuildRole.admin).is_admin
-    assert _context(GuildRole.superadmin).is_admin
-    assert not _context(GuildRole.member).is_admin
+    assert _context(CommunityRole.admin).is_admin
+    assert _context(CommunityRole.superadmin).is_admin
+    assert not _context(CommunityRole.member).is_admin
 
 
 async def test_a_guard_asking_for_admin_admits_the_seat_above_it():
@@ -103,15 +103,15 @@ async def test_a_guard_asking_for_admin_admits_the_seat_above_it():
     Each of those endpoints names ``admin``; this is the one place that reads
     that as admin-or-above, so the seat reaches all of them at once.
     """
-    guard = deps.require_guild_roles(GuildRole.admin)
-    for role in (GuildRole.admin, GuildRole.superadmin):
+    guard = deps.require_guild_roles(CommunityRole.admin)
+    for role in (CommunityRole.admin, CommunityRole.superadmin):
         assert (await guard(_context(role))).role == role
 
 
 async def test_that_guard_still_turns_a_member_away():
-    guard = deps.require_guild_roles(GuildRole.admin)
+    guard = deps.require_guild_roles(CommunityRole.admin)
     with pytest.raises(HTTPException) as caught:
-        await guard(_context(GuildRole.member))
+        await guard(_context(CommunityRole.member))
     assert caught.value.status_code == 403
 
 
@@ -119,10 +119,10 @@ async def test_a_guard_naming_a_rung_admits_the_rungs_above_it():
     """The ladder answers every guard the same way: a rung asked for is that
     rung or above, and granted access — no membership row — reaches no rung
     of the community's own."""
-    guard = deps.require_guild_roles(GuildRole.member)
-    await guard(_context(GuildRole.superadmin))
+    guard = deps.require_guild_roles(CommunityRole.member)
+    await guard(_context(CommunityRole.superadmin))
     with pytest.raises(HTTPException):
-        await guard(_context(GuildRole.support))
+        await guard(_context(CommunityRole.support))
 
 
 def test_a_claim_rule_cannot_name_the_seat():
@@ -134,6 +134,6 @@ def test_a_claim_rule_cannot_name_the_seat():
     """
     from app.services.auth.guild_claim_rules import MAPPABLE_GUILD_ROLES
 
-    assert GuildRole.superadmin.value not in MAPPABLE_GUILD_ROLES
-    assert GuildRole.support.value not in MAPPABLE_GUILD_ROLES
+    assert CommunityRole.superadmin.value not in MAPPABLE_GUILD_ROLES
+    assert CommunityRole.support.value not in MAPPABLE_GUILD_ROLES
     assert MAPPABLE_GUILD_ROLES == {r.value for r in GUILD_ASSIGNABLE_ROLES}

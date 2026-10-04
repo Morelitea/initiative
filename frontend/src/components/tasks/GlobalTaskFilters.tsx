@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import type {
-  GuildRead,
+  CommunityRead,
   TaskPriority,
   TaskStatusCategory,
 } from "@/api/generated/initiativeAPI.schemas";
@@ -18,13 +18,13 @@ interface GlobalTaskFiltersProps {
   setStatusFilters: (filters: TaskStatusCategory[]) => void;
   priorityFilters: TaskPriority[];
   setPriorityFilters: (filters: TaskPriority[]) => void;
-  guildFilters: number[];
-  setGuildFilters: (filters: number[]) => void;
+  communityFilters: number[];
+  setCommunityFilters: (filters: number[]) => void;
   propertyFilters: PropertyFilterCondition[];
   setPropertyFilters: (filters: PropertyFilterCondition[]) => void;
   filtersOpen: boolean;
   setFiltersOpen: (open: boolean) => void;
-  guilds: GuildRead[];
+  communities: CommunityRead[];
   /** Resets every filter back to this page's baseline selection. */
   onClear?: () => void;
   /** How many filters are currently set — tells "Clear all" whether it has
@@ -37,13 +37,13 @@ export const GlobalTaskFilters = ({
   setStatusFilters,
   priorityFilters,
   setPriorityFilters,
-  guildFilters,
-  setGuildFilters,
+  communityFilters,
+  setCommunityFilters,
   propertyFilters,
   setPropertyFilters,
   filtersOpen,
   setFiltersOpen,
-  guilds,
+  communities,
   onClear,
   activeCount,
 }: GlobalTaskFiltersProps) => {
@@ -106,23 +106,23 @@ export const GlobalTaskFilters = ({
         </div>
         <div className="w-full sm:w-60 lg:flex-1">
           <Label
-            htmlFor="task-guild-filter"
+            htmlFor="task-community-filter"
             className="mb-2 block font-medium text-muted-foreground text-xs"
           >
-            {t("filters.filterByGuild")}
+            {t("filters.filterByCommunity")}
           </Label>
           <MultiSelect
-            selectedValues={guildFilters.map(String)}
-            options={guilds.map((guild) => ({
-              value: String(guild.id),
-              label: guild.name,
+            selectedValues={communityFilters.map(String)}
+            options={communities.map((community) => ({
+              value: String(community.id),
+              label: community.name,
             }))}
             onChange={(values) => {
               const numericValues = values.map(Number).filter(Number.isFinite);
-              setGuildFilters(numericValues);
+              setCommunityFilters(numericValues);
             }}
-            placeholder={t("filters.allGuilds")}
-            emptyMessage={t("filters.noGuilds")}
+            placeholder={t("filters.allCommunities")}
+            emptyMessage={t("filters.noCommunities")}
           />
         </div>
       </div>

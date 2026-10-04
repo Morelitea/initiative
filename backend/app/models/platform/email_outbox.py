@@ -23,7 +23,7 @@ it; what the recipient sees is the email.
 """
 
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Any, Optional
 
 from sqlalchemy import (
     Boolean,
@@ -37,6 +37,7 @@ from sqlalchemy import (
     Text,
     text,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field, SQLModel
 
 
@@ -102,6 +103,16 @@ class EmailOutboxItem(SQLModel, table=True):
     security: bool = Field(
         default=False,
         sa_column=Column(Boolean, nullable=False, server_default=text("false")),
+    )
+    #: The one address a security letter goes to, encrypted like every stored
+    #: address. NULL sends it to every address the account has proved.
+    recipient_encrypted: Optional[str] = Field(
+        default=None, sa_column=Column(Text, nullable=True)
+    )
+    #: The account notice a security letter is, which its "This wasn't me"
+    #: link answers. NULL draws no such link.
+    change: Optional[dict[str, Any]] = Field(
+        default=None, sa_column=Column(JSONB, nullable=True)
     )
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),

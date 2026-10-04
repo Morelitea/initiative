@@ -1,6 +1,8 @@
 {
   "user": "Utilisateur",
   "userWithId": "Utilisateur n° {{id}}",
+  "formerMember": "Ancien membre",
+  "mentionNotLoaded": "Impossible de charger ce nom",
   "save": "Enregistrer",
   "cancel": "Annuler",
   "delete": "Supprimer",
@@ -112,6 +114,11 @@
     "advancedOptions": "Options avancées"
   },
   "deletedUserName": "Utilisateur supprimé #{{id}}",
+  "subToolDuplicate": {
+    "action": "Dupliquer",
+    "duplicating": "Duplication…",
+    "done": "Dupliqué"
+  },
   "toolSettings": {
     "archive": {
       "title": "Archive",
@@ -124,12 +131,22 @@
       "archived": "« {{name}} » archivé",
       "unarchived": "« {{name}} » est de retour"
     },
+    "duplicate": {
+      "title": "Dupliquer",
+      "description": "Faites une copie avec tout ce qu’elle contient, dans cette initiative ou dans une autre où vous pouvez la créer.",
+      "action": "Dupliquer",
+      "dialogTitle": "Dupliquer « {{name}} »",
+      "initiative": "Initiative",
+      "defaultName": "{{name}} (Copie)",
+      "duplicating": "Duplication…",
+      "duplicated": "Copié dans {{initiative}}",
+      "error": "La copie n’a pas pu être créée."
+    },
     "export": {
       "title": "Exporter",
       "description": "Téléchargez une copie : un fichier à importer ici ou sur un autre serveur, ou un rapport à lire. Seule la personne qui peut supprimer ceci peut l’exporter."
     },
     "title": "Paramètres",
-    "description": "Gérez les détails, l'accès et les options avancées.",
     "tabDetails": "Détails",
     "tabAccess": "Accès",
     "tabAdvanced": "Avancé",
@@ -167,6 +184,9 @@
     "moreActions": "Plus d'actions",
     "selectItems": "Sélectionner des éléments",
     "view": "Affichage",
+    "viewGrid": "Grille",
+    "viewList": "Liste",
+    "viewTags": "Étiquettes",
     "details": "Détails"
   },
   "emojiPicker": {
@@ -258,6 +278,18 @@
     "description": "Il n’y a rien à cette adresse. Le lien est peut-être mal saisi, ou la page a été déplacée."
   },
   "nativeUpdate": {
-    "unsigned": "La mise à jour de ce serveur n'a pas été publiée par Initiative, l'application reste donc en version {{version}}."
+    "unsigned": "La mise à jour de ce serveur n'a pas été publiée par Initiative, l'application reste donc en version {{version}}.",
+    "desktopReady": "Initiative a téléchargé sa mise à jour. Redémarrez pour terminer.",
+    "restart": "Redémarrer"
+  },
+  "toolHeader": {
+    "rename": "Renommer"
+  },
+  "toolChest": {
+    "status": "Statut",
+    "active": "Actif",
+    "archived": "Archivé",
+    "none": "Aucun",
+    "template": "Modèle"
   }
 }

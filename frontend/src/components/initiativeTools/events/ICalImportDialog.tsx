@@ -17,7 +17,7 @@ import { WizardDialog } from "@/components/ui/wizard-dialog";
 import { useImportIcalEvents, useParseIcalFile } from "@/hooks/useCalendarEvents";
 import { useCalendarsList } from "@/hooks/useCalendars";
 import { useWizard } from "@/hooks/useWizard";
-import { toast } from "@/lib/chesterToast";
+import { toast } from "@/lib/mascotToast";
 import type { DialogProps } from "@/types/dialog";
 
 type Step = "upload" | "result";

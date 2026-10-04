@@ -19,7 +19,7 @@ import { emptyDataFor } from "@/lib/widgets/normalize";
 
 const useWidgetData = vi.hoisted(() => vi.fn());
 vi.mock("@/hooks/useWidgetData", () => ({ useWidgetData }));
-// The served catalog is a guild-scoped fetch this bare render has no handler
+// The served catalog is a community-scoped fetch this bare render has no handler
 // for; the shapes it would carry are mirrored in `shapes.ts` for exactly the
 // case below — a preview of a listing nobody has installed.
 vi.mock("@/hooks/useDashboards", () => ({ useWidgetCatalog: () => ({ data: undefined }) }));
@@ -67,7 +67,7 @@ describe("DashboardWidget", () => {
     // initiative it fail-closes and issues no request. The dashboard goes the
     // same way: an app source has nothing to address itself to, so a preview
     // cannot reach one either. This is what keeps an uninstalled listing's
-    // preview from touching the guild's data.
+    // preview from touching the community's data.
     render(true);
     expect(useWidgetData).toHaveBeenCalledWith(binding, undefined, undefined, "w1");
   });

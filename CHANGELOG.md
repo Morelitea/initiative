@@ -9,17 +9,70 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **"This wasn't me" in account emails.** Signs your account out everywhere and turns off its API keys. When a change looks out of place, the email to your other addresses can undo it too.
+- **Some sign-in changes wait two days** when made from somewhere your account is new to, with **Cancel the change** in every email and in your settings. Signing in with a passkey skips the wait.
+- **Remove a phone or computer** from **User settings › Security › Where you're signed in**. It is signed out and loses the messages only it held.
+- **A desktop app** for Windows, Mac and Linux, with system notifications, an unread count and a tray icon. Get it from the **Download** page. **Server operators:** nothing to set up; the **Phone and desktop notifications** switches (formerly **Mobile notifications**) cover it.
+- **Duplicate more.** Counters, queue items, events and wiki pages can be duplicated on their own, and any tool but a notice can be copied into another initiative from **Settings › Advanced**. A duplicated task keeps its links.
+- **A display name for each community**, set from its **Members** page.
+- **Keep an initiative's content in**: a switch under **Initiative settings › Export** that stops exporting, sharing or moving content out of it.
+- **Moderators can revoke someone's API keys** from **Operator dashboard › Users**.
+- **Prometheus metrics** for pages opened, tools created and active accounts, and **opt-in browser analytics** through Grafana Faro (`FARO_COLLECTOR_URL`). See **Running a server › Configuration**.
+- **Follow the help requests you've filed** from **My Tickets** in the sidebar: where each stands, what the team said, and your answers, updated as they come. The team replies from a panel on the case, kept apart from its comments. **Server operators:** on the **Intake** page, pick the statuses that wait on the requester and that their answer moves a case to (**Set this up for me** creates both); security and moderation each need an initiative of their own.
 - **Run a dashboard as Individual or Initiative.** Under a dashboard's **Settings → Details**: Individual (the default) shows each person only what they can see; Initiative shows everyone the same numbers, using the access of whoever turned it on. It pauses if that person leaves or loses access, and only they can change its tiles while it's on.
 - **Filters can match all or any.** Choose once at the top, add a group for the other kind, and choose to leave out, include, or count only archived work and templates. Deleted things are never counted.
 - **A timeline can be drawn in years.**
 
 ### Changed
 
+- **App and API integrations may need updating.** See [#2472](https://github.com/Morelitea/initiative/issues/2472). The `route` label of `initiative_page_views_total` now reads `/c/$communityId/…`.
+- **Accounts no longer have a name.** You're your handle, or the display name you set in a community. Saved names are deleted on upgrade. **Server operators:** `FIRST_OWNER_FULL_NAME` is ignored.
+- **Mentions always show the name a person goes by now**, or **Former member** once they've left, and search finds mentions by that name. **Server operators:** the first start rebuilds each community's search index.
+- **The server prepares documents for live editing**, and live editing works across several copies of the server. **Server operators:** the editor helper uses about 90 MB while running; see **Running more than one copy**.
+- **Changing your email addresses asks you to confirm it's you.**
+- **The jackalope mascot is called Yonder now**, not Chester.
+- **The phone and desktop apps stay signed in for ninety days** of not being used, and show as one row each in your sessions. An app last opened before 0.70 asks you to sign in once.
+- **The sign-in page says which server you're signing in to.** In the phone app, tap its name to switch servers.
+- **API access is set per member.** A community's superadmin turns one person's personal API keys on or off from the **API access** column in **Community settings › Users**, which stops keys they already made too. It replaces the community-wide switch on the **Security** tab and, like it, applies only where the server grants the community the security standard. Members of a community that had keys switched off start with them off. Personal API keys never reach a community through an access grant.
+- **Rate limits count per account, not per network**, so people sharing an office address no longer share a limit or lock each other out.
+- **Links in notification emails sent before this release no longer open.** Open the notification in the app instead.
+- **User settings are reorganised.** **Interface** is now **Preferences**, and the **Danger Zone** tab has moved into **Account**.
+- **One header for every tool page**, with status, tags and properties editable in place, and a tidier, more consistent layout throughout.
+- **Every tool list can be shown as cards, a list or by tag**, and dashboard, counter and queue cards preview what's inside.
+- **Connections look the same on every tool and wiki page**, as cards or a list.
+- **A document leads with its featured image**, replacing the **Metadata** section.
+- **An initiative's page is quieter**, with who's online shown as faces.
+- **Expanding the guild rail shows each guild as a card.**
+- **Calendars:** pick which to see from the title, show or hide project tasks from **Filters**, and export from **More actions**.
+- **No initiative is the default any more.** A "Default Initiative" can be renamed, archived or deleted.
+- **The app asks where your Initiative runs** on its first screen, and signed-out pages show which server you're on.
+- **The app opens faster.**
+- **Documentation and Ask for help are separate buttons** at the foot of the sidebar.
 - **Clearer query builder.** Plain names for columns and fields ("Due date", not `due_date`) and shorter, plainer wording throughout.
 - **The per-project "Published figures" card is gone** from dashboard settings; **Run dashboard as** replaces it. Dashboards that already publish keep doing so.
 
 ### Fixed
 
+- **On a phone browser, the sidebar's bottom row is no longer hidden behind the browser's toolbar.**
+- **Image captions in documents and wiki pages are saved.**
+- **`RATE_LIMIT_STORAGE_URI` accepts a `redis://` URL.**
+- **The phone and desktop apps keep your messages when a session times out**, and message notifications reach current phones again.
+- **The twelve-hour session standard no longer signs people out every fifteen minutes** while they're working.
+- **Password managers no longer lock accounts** by submitting the sign-in form several times.
+- **Unlocking an account or resetting its password lets its holder straight back in.**
+- **Built-in dashboard templates update again** after upgrading to 0.74.
+- **Dialogs taller than the screen scroll**, so their buttons stay within reach.
+- **Repeating events keep their dates within the calendar**, and a range with too many occurrences asks for a shorter one.
+- **A post published after its poll's deadline** opens the poll instead of posting it closed.
+- **Comments offer Delete only to people who can delete them**, and ask first.
+- **Reports and help requests:** escalated reports carry what reporters wrote, repeat reports add to the case, the help form hides while the support project is archived, non-owner operators can switch help requests on, and both are limited per account.
+- **Access grants show as expired** when their time runs out.
+- **The operator's Users page no longer offers actions on accounts above your role.**
+- **A community reached through a settings grant shows its icon and banner.**
+- **A document filed in a wiki shows its own connections.**
+- **New queue items and events attach only things from their own initiative.**
+- **Project filter presets show in your language**, and the time zone picker shows UTC.
+- **An account made through a provider with no email address can make a confirmed address its primary.**
 - **Grouping by week, month, quarter or year works in charts.** Dates showed as long raw numbers and came back out of order; they're now labelled by their period and sorted oldest first.
 - **Heatmaps show weekly, monthly, quarterly and yearly data** instead of scattering it over a day calendar.
 
@@ -38,6 +91,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **A new front page and Download page.**
+- **Chester is now a jackalope**, from the Beyonders Studio logo.
 - **Search and filters cover the whole list**, not just what's loaded.
 - **All-day events are the same days for everyone**, whatever their timezone.
 - **Comments open on the newest conversations**, with **Load older comments** for the rest.

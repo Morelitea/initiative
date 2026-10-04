@@ -83,7 +83,6 @@ async def resolve_oidc_identity(
     subject: str,
     email: str | None,
     email_verified: bool,
-    full_name: str | None = None,
     avatar_url: str | None = None,
 ) -> IdentityResolution:
     """Resolve ``(provider, subject)`` to a user.
@@ -162,7 +161,6 @@ async def resolve_oidc_identity(
         subject=subject,
         email=email,
         email_verified=email_verified,
-        full_name=full_name,
         avatar_url=avatar_url,
     )
 
@@ -428,8 +426,8 @@ async def ways_in(session: AsyncSession, *, user_id: int) -> frozenset[LoginMeth
     present.
 
     ``totp`` is never a member: it accompanies a sign-in rather than beginning
-    one (see :data:`PRIMARY_LOGIN_METHODS`). Nor are device tokens and API
-    keys, which are derived from a sign-in that already happened.
+    one (see :data:`PRIMARY_LOGIN_METHODS`). Nor are API keys, which are
+    derived from a sign-in that already happened.
 
     The same predicates the counts are built from, asked of one account: the
     settings row is read once and the credentials in one query, so a caller
@@ -447,6 +445,21 @@ async def ways_in(session: AsyncSession, *, user_id: int) -> frozenset[LoginMeth
     return frozenset(
         method for method, answered in zip(candidates, row[1:]) if answered
     )
+
+
+async def passkey_is_last_way_in(session: AsyncSession, *, user_id: int) -> bool:
+    """Whether the account's one passkey is all that signs it in: nothing else
+    in :func:`ways_in`, and no second passkey."""
+    if await ways_in(session, user_id=user_id) - {LoginMethod.passkey}:
+        return False
+    held = (
+        await session.exec(
+            select(func.count())
+            .select_from(UserPasskey)
+            .where(UserPasskey.user_id == user_id)
+        )
+    ).one()
+    return held == 1
 
 
 async def delete_user_identities(session: AsyncSession, *, user_id: int) -> None:
@@ -531,7 +544,6 @@ async def _provision(
     subject: str,
     email: str | None,
     email_verified: bool,
-    full_name: str | None,
     avatar_url: str | None,
 ) -> IdentityResolution:
     # No email claim: a synthetic address keyed off the IdP-controlled subject,
@@ -555,10 +567,8 @@ async def _provision(
             select(func.pg_advisory_xact_lock(_address_lock_key(normalized)))
         )
 
-    # A random handle, not one built from the claims. The claims feed the
-    # suggestions on the pick screen instead, so an account abandoned partway
-    # through is left holding nothing that identifies its owner — and a
-    # corporate IdP's ``preferred_username`` is offered rather than imposed.
+    # A random handle, not one built from the claims, so an account abandoned
+    # partway through is left holding nothing that identifies its owner.
     handle, discriminator = await username_service.allocate_from_seed(session)
 
     user = User(
@@ -566,9 +576,6 @@ async def _provision(
         discriminator=discriminator,
         # Assigned, not picked: its owner chooses one on their next sign-in.
         username_chosen=False,
-        # An address is not a display name. With no name claim there is simply
-        # no name, and the handle carries the display.
-        full_name=full_name,
         # SSO-only account: no password. Verification treats a NULL hash as
         # never-a-match, so this account signs in only through its provider.
         hashed_password=None,

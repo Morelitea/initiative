@@ -328,6 +328,7 @@ def create_upload_token(
     satisfied_claims: dict | None = None,
     session_amr: Iterable[str] = (),
     expires_in: timedelta = UPLOAD_TOKEN_LIFETIME,
+    not_after: datetime | None = None,
 ) -> tuple[str, int]:
     """Mint a short-lived, uploads-scoped JWT for ``user_id``.
 
@@ -340,8 +341,14 @@ def create_upload_token(
     ``satisfied_claims`` what those providers asserted, so a download or
     keepalive in a guild with a requirement carries the same standing as the
     session that requested it (bounded by this token's short lifetime).
+
+    ``not_after`` is the latest the token may stand, whatever ``expires_in``
+    says: the expiry of the credential that asked for it.
     """
     now = datetime.now(timezone.utc)
+    expires = now + expires_in
+    if not_after is not None:
+        expires = min(expires, not_after)
     payload: dict[str, Any] = {
         "sub": str(user_id),
         "aud": UPLOAD_TOKEN_AUDIENCE,
@@ -353,10 +360,10 @@ def create_upload_token(
         # as from the session that asked for it.
         "amr": sorted(session_amr),
         "iat": int(now.timestamp()),
-        "exp": now + expires_in,
+        "exp": expires,
     }
     token = jwt.encode(payload, settings.jwt_signing_key, algorithm=JWT_ALGORITHM)
-    return token, int(expires_in.total_seconds())
+    return token, max(0, int((expires - now).total_seconds()))
 
 
 def verify_upload_token(
@@ -482,29 +489,12 @@ BILLING_PORTAL_AUDIENCE = "initiative:billing-portal"
 # disagree.
 BILLING_PORTAL_HANDOFF_LIFETIME = timedelta(seconds=60)
 
-BILLING_HANDOFF_GUILD_NAME_MAX = 120
-
-
-def _handoff_display_name(guild_name: str | None) -> str | None:
-    """The community name as a handoff carries it, or ``None`` for no name.
-
-    Trimmed and truncated. This is a label to print, so shortening one is a
-    cosmetic loss; letting it through unbounded is a broken session.
-    """
-    trimmed = (guild_name or "").strip()
-    if not trimmed:
-        return None
-    if len(trimmed) <= BILLING_HANDOFF_GUILD_NAME_MAX:
-        return trimmed
-    return trimmed[: BILLING_HANDOFF_GUILD_NAME_MAX - 1].rstrip() + "…"
-
 
 def create_billing_portal_handoff_token(
     *,
     guild_role: str,
     user_ref: str,
     guild_ref: str,
-    guild_name: str | None = None,
     expires_in: timedelta = BILLING_PORTAL_HANDOFF_LIFETIME,
 ) -> tuple[str, int]:
     """Mint the billing-portal handoff token (RS256; raises if unconfigured).
@@ -523,13 +513,10 @@ def create_billing_portal_handoff_token(
         "iss": "initiative",
         "iat": int(now.timestamp()),
         "exp": now + expires_in,
-        "guild_role": guild_role,
+        "community_role": guild_role,
         "user_ref": user_ref,
-        "guild_ref": guild_ref,
+        "community_ref": guild_ref,
     }
-    display_name = _handoff_display_name(guild_name)
-    if display_name:
-        payload["guild_name"] = display_name
     key, algorithm, kid = _resolve_handoff_signing_material()
     headers: dict[str, Any] | None = {"kid": kid} if kid else None
     token = jwt.encode(payload, key, algorithm=algorithm, headers=headers)
@@ -546,20 +533,42 @@ class AppPlatformSigningNotConfiguredError(RuntimeError):
     """
 
 
+#: The key the deployment generated for the app platform, as
+#: ``(private_pem, kid)``, loaded at startup. Used only while
+#: ``APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM`` is unset.
+_stored_app_platform_key: tuple[str, str] | None = None
+
+
+def use_stored_app_platform_signing_key(private_pem: str, kid: str) -> None:
+    """Sign app-platform tokens with the deployment's stored key."""
+    global _stored_app_platform_key
+    _stored_app_platform_key = (private_pem, kid)
+
+
 def app_platform_signing_enabled() -> bool:
     """True when this deployment can sign for the app platform."""
-    return bool(settings.APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM)
+    return bool(
+        settings.APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM or _stored_app_platform_key
+    )
 
 
 def resolve_app_platform_signing_material() -> tuple[str, str, str | None]:
-    """Return (private_key_pem, "RS256", kid) for app-platform tokens."""
+    """Return (private_key_pem, "RS256", kid) for app-platform tokens.
+
+    ``APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM`` when it is set, with
+    ``APP_PLATFORM_SIGNING_KEY_ID``; otherwise the key the deployment generated
+    and stored, with its RFC 7638 thumbprint as the kid.
+    """
     private_pem = settings.APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM
-    if not private_pem:
-        raise AppPlatformSigningNotConfiguredError(
-            "APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM is required to run the app "
-            "platform; it has no fallback to another service's key"
-        )
-    return private_pem, "RS256", settings.APP_PLATFORM_SIGNING_KEY_ID
+    if private_pem:
+        return private_pem, "RS256", settings.APP_PLATFORM_SIGNING_KEY_ID
+    if _stored_app_platform_key is not None:
+        stored_pem, kid = _stored_app_platform_key
+        return stored_pem, "RS256", kid
+    raise AppPlatformSigningNotConfiguredError(
+        "no app platform signing key is loaded; it has no fallback to another "
+        "service's key"
+    )
 
 
 # Pinned on both sides of the boundary — not deployment knobs.
@@ -568,6 +577,11 @@ APP_PLATFORM_ISSUER = "initiative"
 #: ``aud`` is this prefix plus the registration's public_id, so a token minted
 #: for one app is not accepted by another.
 APP_PLATFORM_AUDIENCE_PREFIX = "initiative-app:"
+#: ``typ`` in the header of each kind of token an app receives (RFC 8725
+#: §3.11): a call to an endpoint or a hook, and a page handoff. An app checks it
+#: to take each kind only where it expects that kind.
+APP_CONTEXT_TOKEN_TYPE = "initiative-context+jwt"
+APP_HANDOFF_TOKEN_TYPE = "initiative-handoff+jwt"
 
 
 def app_platform_audience(public_id: str) -> str:
@@ -622,7 +636,6 @@ def create_billing_support_handoff_token(
     grant_id: int | str,
     user_ref: str,
     guild_ref: str,
-    guild_name: str | None = None,
     approver_ref: str | None = None,
     expires_in: timedelta = BILLING_SUPPORT_HANDOFF_LIFETIME,
     console: str = BILLING_SUPPORT_CONSOLE,
@@ -656,11 +669,8 @@ def create_billing_support_handoff_token(
         "exp": int((now + lifetime).timestamp()),
         "grant_id": str(grant_id),
         "user_ref": user_ref,
-        "guild_ref": guild_ref,
+        "community_ref": guild_ref,
     }
-    display_name = _handoff_display_name(guild_name)
-    if display_name:
-        payload["guild_name"] = display_name
     if approver_ref is not None:
         payload["approver"] = approver_ref
     token = jwt.encode(payload, secret, algorithm="HS256", headers={"kid": kid})

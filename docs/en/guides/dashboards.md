@@ -45,9 +45,9 @@ Three things hold for **Initiative**:
 
 ## Building one
 
-From an initiative's sidebar: **Dashboards → New dashboard**. Add tiles, point each at what it should read, arrange them on the canvas.
+From the initiative's **Dashboards** tab: **New Dashboard**. Add tiles, point each at what it should read, arrange them on the canvas. In the list, each dashboard's card is a small copy of it, so you can pick the right one by its shape.
 
-Or skip the building entirely. The [marketplace](apps-and-marketplace.md) has ready-made dashboards you add in a couple of clicks and then adjust.
+Or skip the building entirely. **Browse the marketplace**, in the list's **More actions** menu — or beside **Create Your First Dashboard** while there are none — has ready-made dashboards you add in a couple of clicks and then adjust. See [Apps & the marketplace](apps-and-marketplace.md).
 
 Usually faster than starting from a blank canvas, and often better, because somebody else has already spent a year discovering which four numbers actually matter and which nine just look impressive.
 
@@ -98,7 +98,7 @@ Some marketplace tiles are custom **widgets**. They run in an isolated sandbox a
 
 ## Where they show up
 
-Dashboards live inside an initiative, next to its projects and documents, and share the same way — **Viewer**, **Editor**, **Owner**, or the whole initiative. Since "look at this" is the entire use case, they're often the one thing a group opens right up.
+Dashboards live inside an initiative, next to its projects and documents, and share the same way — **Viewer**, **Editor**, **Owner**, or the whole initiative. Everything else every tool has, they have too; see [Tools](tools.md). Since "look at this" is the entire use case, they're often the one thing a group opens right up.
 
 Each dashboard has its own comment thread, which is an excellent place to argue about what a number actually means. Switch it off under **Settings → Details** if you'd rather that argument happened somewhere else.
 

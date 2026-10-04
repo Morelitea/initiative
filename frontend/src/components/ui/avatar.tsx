@@ -38,7 +38,7 @@ interface AvatarFallbackProps
    * When set, the fallback's background + foreground are driven by the
    * deterministic ``getUserColorStyle`` hash — the same hue that powers
    * whiteboard cursors and the Lexical editor caret. Leave undefined for
-   * non-user avatars (guild icons, generic placeholders), which keep the
+   * non-user avatars (community icons, generic placeholders), which keep the
    * default ``bg-muted`` look.
    */
   userId?: number | null;

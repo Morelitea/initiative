@@ -29,11 +29,11 @@ with one ``initiatives/`` entry, so ONE import path serves both)::
     initiatives/{id}-{slug}/properties.json         (backup mode)
     assets/{storage_key}                            (include_uploads only)
 
-Authorization: the initiative source requires the creator to reach each
-initiative (``initiative_access`` — member, guild admin, or live PAM grant);
-the guild source additionally requires the creator to be a guild ADMIN,
-re-checked here so the worker's render-time replay fails closed if adminship
-was revoked between request and render. Within an initiative, enumeration is
+Authorization: the initiative source requires the creator to manage the
+initiative (its managers, or a guild admin), as its settings page does;
+the guild source requires the community's seat. Both are re-checked here so
+the worker's render-time replay fails closed if either was lost between
+request and render. Within an initiative, enumeration is
 DAC-visible-only per tool, and every entity still passes its own
 fetch+authorize seam. Projects are included with READ access — the
 deliberate aggregate-export relaxation of the standalone write rule.
@@ -61,7 +61,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.user_display import handle_of
 from app.core.config import settings
-from app.core.messages import ExportMessages
+from app.core.messages import ExportMessages, InitiativeMessages
 from app.models.platform.user import User
 from app.models.tenant.document import DocumentType
 from app.services.export.adapters._common import BuildContext, ToolExportAdapter
@@ -103,6 +103,8 @@ _REFRESH_EVERY = 25
 
 class InitiativeExportAdapter:
     source = "initiative"
+    #: The scope a backup's manifest records, which an import reads back.
+    scope_kind = "initiative"
     template_id = "data-table"  # protocol requirement; items override per se
     formats = ("zip",)
     always_job = True
@@ -114,21 +116,24 @@ class InitiativeExportAdapter:
 
     async def count(self, session, *, user, guild_id, params, format) -> int:
         scope = await _resolve_scope(
-            session, user, guild_id, params, scope_kind=self.source
+            session, user, guild_id, params, scope_kind=self.scope_kind
         )
         return await _count_scope(
-            session, user, guild_id, params, scope, scope_kind=self.source
+            session, user, guild_id, params, scope, scope_kind=self.scope_kind
         )
 
     async def build(self, session, *, user, guild_id, params, format) -> RenderRequest:
         scope = await _resolve_scope(
-            session, user, guild_id, params, scope_kind=self.source
+            session, user, guild_id, params, scope_kind=self.scope_kind
         )
-        return await _build_scope(session, user, guild_id, params, scope, self.source)
+        return await _build_scope(
+            session, user, guild_id, params, scope, self.scope_kind
+        )
 
 
 class GuildExportAdapter(InitiativeExportAdapter):
-    source = "guild"
+    source = "community"
+    scope_kind = "guild"
 
 
 # ---------------------------------------------------------------------------
@@ -143,10 +148,11 @@ async def _resolve_scope(
     demands the community's seat (re-checked on worker replay); initiative
     scope demands the creator reach the requested initiative. Returns the
     Initiative rows (name/flags feed the manifest)."""
+    from sqlalchemy.orm import undefer
     from sqlmodel import select
 
     from app.models.tenant.initiative import Initiative
-    from app.models.platform.guild import GuildRole
+    from app.models.platform.guild import CommunityRole
     from app.services.membership import initiative_scope_clause
     from app.services.platform import guilds as guilds_service
 
@@ -159,7 +165,7 @@ async def _resolve_scope(
         # The seat itself, held outright: the same rule the create endpoint
         # applies, re-asked here so a job outlives the request under the
         # authority it was started with and no other.
-        if membership is None or membership.role is not GuildRole.superadmin:
+        if membership is None or membership.role is not CommunityRole.superadmin:
             raise ExportError(
                 ExportMessages.EXPORT_SUPERADMIN_REQUIRED, status_code=403
             )
@@ -177,14 +183,21 @@ async def _resolve_scope(
         initiative_id = int(initiative_id)
     except (TypeError, ValueError):
         raise ExportError(ExportMessages.EXPORT_INVALID_PARAMS)
-    statement = select(Initiative).where(
-        Initiative.id == initiative_id,
-        initiative_scope_clause(user.id, Initiative.id),
+    statement = (
+        select(Initiative)
+        .options(undefer(Initiative.actions))
+        .where(
+            Initiative.id == initiative_id,
+            initiative_scope_clause(user.id, Initiative.id),
+        )
     )
     initiative = (await session.exec(statement)).one_or_none()
     if initiative is None:
         # Unreachable initiative — indistinguishable from absent.
         raise ExportError(ExportMessages.EXPORT_INVALID_PARAMS, status_code=404)
+    # An initiative's export is its settings' to take: those who manage it.
+    if "manage" not in (initiative.actions or ()):
+        raise ExportError(InitiativeMessages.MANAGER_REQUIRED, status_code=403)
     return [initiative]
 
 
@@ -394,7 +407,7 @@ async def _build_scope(
     from app.schemas.tenant.backup_export import (
         BACKUP_SCHEMA_VERSION,
         BackupManifest,
-        ManifestGuild,
+        ManifestCommunity,
         ManifestInitiative,
     )
 
@@ -425,7 +438,7 @@ async def _build_scope(
             exported_at=datetime.now(timezone.utc),
             exported_by_handle=handle_of(user),
             source_instance_url=settings.APP_URL,
-            guild=ManifestGuild(
+            guild=ManifestCommunity(
                 id=guild_id,
                 name=guild.name if guild else "",
                 description=guild.description if guild else None,
@@ -1025,16 +1038,23 @@ class _ScopeBuilder:
 
     async def _guild_profiles(self) -> dict[int, Any]:
         """The community's member profiles by user id, read once per build.
-        The projection already narrows to this guild's members; an
-        initiative's roster is a subset of it."""
+        Narrowed to this guild's members; an initiative's roster is a subset
+        of it. ``display_name`` is the name the member set, or ``None``."""
         if self._profiles is None:
             from sqlmodel import select
 
-            from app.models.platform.user_profile_view import GuildMember
+            from app.models.platform.user_profile_view import (
+                GuildMember,
+                MemberProfile,
+            )
 
             self._profiles = {
                 profile.id: profile
-                for profile in await self.session.exec(select(GuildMember))
+                for profile in await self.session.exec(
+                    select(MemberProfile).where(
+                        MemberProfile.id.in_(select(GuildMember.id))
+                    )
+                )
             }
         return self._profiles
 
@@ -1122,7 +1142,7 @@ class _ScopeBuilder:
                     "handle": handle_of(profiles[member.user_id])
                     if member.user_id in profiles
                     else None,
-                    "name": getattr(profiles.get(member.user_id), "full_name", None),
+                    "name": getattr(profiles.get(member.user_id), "display_name", None),
                     # By role NAME: role ids are per-initiative and mean
                     # nothing once the archive is opened somewhere else.
                     "role": role_names.get(member.role_id),
@@ -1204,7 +1224,7 @@ class _ScopeBuilder:
         """
         if self.mode != "backup":
             return
-        from app.schemas.tenant.backup_export import ManifestGuildSection
+        from app.schemas.tenant.backup_export import ManifestCommunitySection
         from app.services.export.guild_sections import SectionContext, sections_for
 
         # The manifest's own list, so anything a section leaves out is
@@ -1230,7 +1250,9 @@ class _ScopeBuilder:
                 )
             )
             self.guild_sections.append(
-                ManifestGuildSection(key=section.key, path=section.path, count=count)
+                ManifestCommunitySection(
+                    key=section.key, path=section.path, count=count
+                )
             )
 
     async def add_remaining_uploads(self) -> None:

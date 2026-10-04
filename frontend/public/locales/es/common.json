@@ -1,6 +1,8 @@
 {
   "user": "Usuario",
   "userWithId": "Usuario #{{id}}",
+  "formerMember": "Exmiembro",
+  "mentionNotLoaded": "No se pudo cargar este nombre",
   "save": "Guardar",
   "cancel": "Cancelar",
   "delete": "Eliminar",
@@ -112,6 +114,11 @@
     "advancedOptions": "Opciones avanzadas"
   },
   "deletedUserName": "Usuario eliminado #{{id}}",
+  "subToolDuplicate": {
+    "action": "Duplicar",
+    "duplicating": "Duplicando…",
+    "done": "Duplicado"
+  },
   "toolSettings": {
     "archive": {
       "title": "Archivo",
@@ -124,12 +131,22 @@
       "archived": "«{{name}}» archivado",
       "unarchived": "«{{name}}» ha vuelto"
     },
+    "duplicate": {
+      "title": "Duplicar",
+      "description": "Haz una copia con todo lo que contiene, en esta iniciativa o en otra donde puedas crearlo.",
+      "action": "Duplicar",
+      "dialogTitle": "Duplicar «{{name}}»",
+      "initiative": "Iniciativa",
+      "defaultName": "{{name}} (Copia)",
+      "duplicating": "Duplicando…",
+      "duplicated": "Copiado en {{initiative}}",
+      "error": "No se pudo hacer la copia."
+    },
     "export": {
       "title": "Exportar",
       "description": "Descarga una copia: un archivo que puedes importar aquí o en otro servidor, o un informe para leer. Solo quien puede eliminar esto puede exportarlo."
     },
     "title": "Configuración",
-    "description": "Gestiona los detalles, el acceso y las opciones avanzadas.",
     "tabDetails": "Detalles",
     "tabAccess": "Acceso",
     "tabAdvanced": "Avanzado",
@@ -167,6 +184,9 @@
     "moreActions": "Más acciones",
     "selectItems": "Seleccionar elementos",
     "view": "Vista",
+    "viewGrid": "Cuadrícula",
+    "viewList": "Lista",
+    "viewTags": "Etiquetas",
     "details": "Detalles"
   },
   "emojiPicker": {
@@ -258,6 +278,18 @@
     "description": "No hay nada en esta dirección. Puede que el enlace esté mal escrito o que la página se haya movido."
   },
   "nativeUpdate": {
-    "unsigned": "La actualización de este servidor no la publicó Initiative, así que la app se queda en la versión {{version}}."
+    "unsigned": "La actualización de este servidor no la publicó Initiative, así que la app se queda en la versión {{version}}.",
+    "desktopReady": "Initiative ha descargado su actualización. Reinicia para terminar.",
+    "restart": "Reiniciar"
+  },
+  "toolHeader": {
+    "rename": "Cambiar nombre"
+  },
+  "toolChest": {
+    "status": "Estado",
+    "active": "Activo",
+    "archived": "Archivado",
+    "none": "Ninguna",
+    "template": "Plantilla"
   }
 }

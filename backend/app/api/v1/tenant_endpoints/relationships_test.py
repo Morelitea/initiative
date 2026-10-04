@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from httpx import AsyncClient
 
 from app.core.messages import RelationshipMessages
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.testing.schema_harness import route_session_to_guild
 from app.testing import (
     create_resource_grant,
@@ -54,7 +54,9 @@ def _wikilink_body(document_id: int) -> dict:
 async def test_a_link_is_made_and_read_back_from_either_side(
     client: AsyncClient, acting_user, session
 ):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     doc = await create_document(session, a.initiative, a.user)
 
     created = await client.post(
@@ -87,7 +89,9 @@ async def test_a_link_is_made_and_read_back_from_either_side(
 async def test_the_same_pair_is_refused_twice(
     client: AsyncClient, acting_user, session
 ):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     doc = await create_document(session, a.initiative, a.user)
     payload = {
         "source": {"type": "project", "id": a.project.id},
@@ -105,7 +109,9 @@ async def test_the_same_pair_is_refused_twice(
 async def test_a_thing_cannot_be_linked_to_itself(
     client: AsyncClient, acting_user, session
 ):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     response = await client.post(
         _url(a),
         headers=a.headers,
@@ -124,7 +130,9 @@ async def test_a_picker_does_not_reach_across_initiatives(
 ):
     """The table permits a cross-initiative edge — that is where the graph gets
     its reach — but choosing one in a picker is not how they should arrive."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     elsewhere = await create_initiative(session, a.guild, a.user)
     doc = await create_document(session, elsewhere, a.user)
 
@@ -147,13 +155,13 @@ async def test_an_end_the_caller_cannot_open_is_absent(
     """Not forbidden — absent, which is what every other read here does with
     something out of reach."""
     owner = await acting_user(
-        guild_role=GuildRole.member, initiative=True, project=True
+        guild_role=CommunityRole.member, initiative=True, project=True
     )
     hidden = await create_initiative(session, owner.guild, owner.user)
     doc = await create_document(session, hidden, owner.user)
 
     reader = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=owner.guild,
         initiative=owner.initiative,
         initiative_role="member",
@@ -172,7 +180,9 @@ async def test_an_end_the_caller_cannot_open_is_absent(
 
 
 async def test_a_slice_is_replaced_wholesale(client: AsyncClient, acting_user, session):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     first = await create_document(session, a.initiative, a.user, name="First")
     second = await create_document(session, a.initiative, a.user, name="Second")
 
@@ -197,7 +207,9 @@ async def test_a_slice_is_replaced_wholesale(client: AsyncClient, acting_user, s
 async def test_a_link_you_made_is_yours_to_remove(
     client: AsyncClient, acting_user, session
 ):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     doc = await create_document(session, a.initiative, a.user)
     created = await client.post(
         _url(a),
@@ -224,7 +236,9 @@ async def test_a_task_link_is_addressed_by_the_same_surface(
 ):
     """The point of one router: a queue item's tasks and a project's documents
     are the same request with different kinds in it."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     task = await create_task(session, a.project)
     doc = await create_document(session, a.initiative, a.user)
 
@@ -244,7 +258,9 @@ async def test_a_task_link_is_addressed_by_the_same_surface(
 async def test_a_kind_no_edge_may_name_is_refused(
     client: AsyncClient, acting_user, session
 ):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     response = await client.get(
         _url(a), headers=a.headers, params={"entity": "comment:1"}
     )
@@ -257,9 +273,8 @@ async def test_a_guild_calendars_event_holds_no_initiative_content(
 ):
     """An event takes its initiative from its calendar, and a guild calendar
     has none — so its events are guild-level content and a document is not
-    theirs to link. The per-tool endpoint called this
-    ``GUILD_CALENDAR_NO_DOCUMENTS``; it was never about documents."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    theirs to link."""
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     document = await create_document(session, a.initiative, a.user)
     calendar = await create_guild_calendar(session, a.guild, a.user)
     event = await create_calendar_event(session, calendar, a.user)
@@ -282,7 +297,9 @@ async def test_the_guilds_vocabulary_pairs_with_anything(
 ):
     """A tag belongs to no initiative by its nature rather than by where it
     sits, so it is not the same case as the event above."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     tag = await create_tag(session, a.guild)
     task = await create_task(session, a.project)
 
@@ -307,7 +324,7 @@ async def test_a_replace_cannot_drop_a_link_a_delete_would_refuse(
     may write the row — the right rule for making one and the wrong rule for
     undoing somebody else's."""
     owner = await acting_user(
-        guild_role=GuildRole.member, initiative=True, project=True
+        guild_role=CommunityRole.member, initiative=True, project=True
     )
     doc = await create_document(session, owner.initiative, owner.user)
     made = await client.post(
@@ -326,7 +343,7 @@ async def test_a_replace_cannot_drop_a_link_a_delete_would_refuse(
         await create_resource_grant(session, resource, all_initiative_members=True)
 
     reader = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=owner.guild,
         initiative=owner.initiative,
         initiative_role="member",
@@ -358,7 +375,9 @@ async def test_a_kind_no_edge_may_name_is_refused_as_a_filter(
 ):
     """``other_type`` takes any search kind, and the ones no edge can name have
     to be refused here rather than at the node encoder."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     response = await client.put(
         _url(a),
         headers=a.headers,
@@ -376,7 +395,9 @@ async def test_a_kind_no_edge_may_name_is_refused_as_a_filter(
 async def test_an_archived_project_takes_no_new_links(
     client: AsyncClient, acting_user, session
 ):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     doc = await create_document(session, a.initiative, a.user)
     await route_session_to_guild(session, a.guild.id)
     a.project.archived_at = datetime.now(timezone.utc)
@@ -400,7 +421,7 @@ async def test_a_link_read_out_of_a_body_is_not_one_to_assert_by_hand(
     client: AsyncClient, acting_user, session
 ):
     """Writing the sentence is how you make one."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     doc = await create_document(session, a.initiative, a.user)
     other = await create_document(session, a.initiative, a.user)
 
@@ -420,7 +441,7 @@ async def test_a_link_read_out_of_a_body_is_not_one_to_assert_by_hand(
 async def test_a_slice_of_derived_links_is_not_one_to_restate(
     client: AsyncClient, acting_user, session
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     doc = await create_document(session, a.initiative, a.user)
 
     refused = await client.put(
@@ -445,7 +466,7 @@ async def test_a_link_read_out_of_a_body_is_not_one_to_unlink_by_hand(
     from app.services.tenant import content_references
     from app.services.tenant.relationships import Endpoint
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     doc = await create_document(session, a.initiative, a.user)
     other = await create_document(session, a.initiative, a.user)
 
@@ -481,7 +502,7 @@ async def test_inbound_asks_what_links_here(client: AsyncClient, acting_user, se
     from app.services.tenant import content_references
     from app.services.tenant.relationships import Endpoint
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     doc = await create_document(session, a.initiative, a.user)
     other = await create_document(session, a.initiative, a.user)
 
@@ -547,7 +568,9 @@ async def test_a_far_end_inside_a_tool_carries_the_address_of_that_tool(
     So the pair naming the project comes back with it, the same pair a search hit
     carries. Without it a caller holds `task:12` and cannot build a link at all.
     """
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     other_project = await create_project(session, a.initiative, a.user)
     task = await create_task(session, other_project)
 
@@ -560,7 +583,9 @@ async def test_a_far_end_inside_a_tool_carries_the_address_of_that_tool(
 async def test_a_far_end_that_is_a_tool_names_itself(
     client: AsyncClient, acting_user, session
 ):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     doc = await create_document(session, a.initiative, a.user)
 
     end = await _attach(client, a, "document", doc.id)
@@ -574,7 +599,9 @@ async def test_the_guilds_vocabulary_is_addressed_by_nothing_else(
 ):
     """A tag is not inside a tool — it is the guild's own vocabulary — so it
     reports no governing tool rather than being fitted to one."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     tag = await create_tag(session, a.guild)
 
     end = await _attach(client, a, "tag", tag.id)
@@ -586,7 +613,9 @@ async def test_the_guilds_vocabulary_is_addressed_by_nothing_else(
 async def test_a_document_brings_its_featured_image(
     client: AsyncClient, acting_user, session
 ):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     doc = await create_document(
         session, a.initiative, a.user, featured_image_url="/uploads/3/cover.png"
     )
@@ -604,7 +633,9 @@ async def test_a_picture_brings_its_thumbnail_and_falls_back_to_itself(
     """A thumbnail is absent whenever the source was already small enough not to
     need one, so the full picture is the fallback — decided here rather than by
     every surface that draws one."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     await _galleries_enabled(session, a.initiative)
     gallery = await create_gallery(session, a.initiative, a.user)
     small = await create_gallery_image(session, gallery, a.user)
@@ -624,7 +655,9 @@ async def test_a_gallery_brings_the_cover_somebody_chose(
     client: AsyncClient, acting_user, session
 ):
     """A gallery's picture lives on another row, so it is one hop away."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     await _galleries_enabled(session, a.initiative)
     gallery = await create_gallery(session, a.initiative, a.user)
     cover = await create_gallery_image(
@@ -643,7 +676,9 @@ async def test_a_gallery_brings_the_cover_somebody_chose(
 async def test_a_kind_that_carries_a_colour_reports_it(
     client: AsyncClient, acting_user, session
 ):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     tag = await create_tag(session, a.guild, color="#112233")
 
     end = await _attach(client, a, "tag", tag.id)
@@ -654,7 +689,9 @@ async def test_a_kind_that_carries_a_colour_reports_it(
 
 
 async def test_a_project_reports_its_emoji(client: AsyncClient, acting_user, session):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     other_project = await create_project(session, a.initiative, a.user, icon="🎲")
 
     end = await _attach(client, a, "project", other_project.id)
@@ -668,7 +705,9 @@ async def test_a_kind_with_no_look_of_its_own_says_so(
 ):
     """A task has no picture, emoji or colour. Reporting three nulls is the
     honest answer, and lets the reader draw the kind's own icon instead."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     task = await create_task(session, a.project)
 
     end = await _attach(client, a, "task", task.id)
@@ -683,7 +722,9 @@ async def test_a_document_says_what_sort_of_document_it_is(
 ):
     """A spreadsheet, a whiteboard and a PDF are all documents and none of them
     should be drawn as a scroll, so the far end carries what picks the icon."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     sheet = await create_document(
         session, a.initiative, a.user, document_type="spreadsheet"
     )
@@ -696,7 +737,9 @@ async def test_a_document_says_what_sort_of_document_it_is(
 async def test_a_kind_with_one_fixed_icon_says_nothing_about_its_sort(
     client: AsyncClient, acting_user, session
 ):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     task = await create_task(session, a.project)
 
     end = await _attach(client, a, "task", task.id)
@@ -713,7 +756,9 @@ async def test_a_gallery_nobody_chose_a_cover_for_shows_its_newest(
     """A gallery with no chosen cover is the usual kind, and it is not blank —
     it stands for itself with the newest few pictures, which is what it shows
     everywhere else."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     await _galleries_enabled(session, a.initiative)
     gallery = await create_gallery(session, a.initiative, a.user)
     for n in range(5):
@@ -731,7 +776,9 @@ async def test_a_gallery_nobody_chose_a_cover_for_shows_its_newest(
 async def test_an_empty_gallery_shows_no_pictures_rather_than_a_blank_one(
     client: AsyncClient, acting_user, session
 ):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     await _galleries_enabled(session, a.initiative)
     gallery = await create_gallery(session, a.initiative, a.user)
 
@@ -749,9 +796,11 @@ async def test_asserting_a_link_from_something_you_may_read_but_not_edit(
     So a reader who may open the far end but not change it cannot assert one, and
     has to be told so rather than the refusal arriving as a server error.
     """
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     b = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="member",
@@ -784,9 +833,11 @@ async def test_a_symmetric_link_asks_only_that_both_ends_be_readable(
 ):
     """`attached` describes the pair rather than either end, so it modifies
     neither — and being able to open both is the whole of what it asks."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     b = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="member",
@@ -811,7 +862,9 @@ async def test_a_far_end_says_what_it_lives_in(
 ):
     """A card reading "Do a thing" says nothing when six of them are linked.
     The far end carries its project so the card can say which one."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     task = await create_task(session, a.project, title="Do a thing")
 
     created = await client.post(

@@ -7,7 +7,7 @@ of every test here.
 from __future__ import annotations
 
 from app.core.messages import DashboardMessages
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.platform.user import UserStatus
 from app.services.tenant.published_views_test import (
     COUNT_TASKS,
@@ -22,10 +22,10 @@ from app.testing import create_project, create_task
 async def two_people(session, acting_user):
     """An admin who owns a private project with two tasks, and a member of the
     same initiative who cannot open it."""
-    owner = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    owner = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await dashboards_on(session, owner.initiative)
     reader = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=owner.guild,
         initiative=owner.initiative,
         initiative_role="member",
@@ -200,7 +200,7 @@ class TestItFailsClosedOnTheOwner:
     ):
         owner, reader = await two_people(session, acting_user)
         admin = await acting_user(
-            guild_role=GuildRole.admin,
+            guild_role=CommunityRole.admin,
             guild=owner.guild,
             initiative=owner.initiative,
             initiative_role="member",

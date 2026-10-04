@@ -63,7 +63,7 @@ export function BottomNav() {
       : t("bottomNav.messages");
   const waitingBadge =
     messagesWaiting > 0 ? (
-      <Badge className="absolute -top-0.5 -right-0.5 h-5 min-w-5 justify-center rounded-full px-1 py-0 text-[11px]">
+      <Badge className="absolute -top-0.5 -right-0.5 h-5 min-w-5 justify-center rounded-full px-1 py-0 text-2xs">
         {messagesWaiting > 99 ? "99+" : messagesWaiting}
       </Badge>
     ) : null;
@@ -71,7 +71,7 @@ export function BottomNav() {
   // Hide the add button entirely on a create-context route where the user lacks
   // permission. Non-create routes (no registration) fall back to the global menu,
   // which itself hides when the user can create neither tasks nor documents in
-  // any of their guilds.
+  // any of their communities.
   const canCreateGlobal = globalCreate.document || globalCreate.task;
   const hideAdd = isCreateContext ? action === null : !canCreateGlobal;
 
@@ -92,7 +92,7 @@ export function BottomNav() {
             >
               <Menu className="h-5 w-5" />
               {unreadCount > 0 ? (
-                <Badge className="absolute -top-0.5 -right-0.5 h-5 min-w-5 justify-center rounded-full px-1 py-0 text-[11px]">
+                <Badge className="absolute -top-0.5 -right-0.5 h-5 min-w-5 justify-center rounded-full px-1 py-0 text-2xs">
                   {unreadCount > 99 ? "99+" : unreadCount}
                 </Badge>
               ) : null}

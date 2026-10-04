@@ -13,7 +13,7 @@ from sqlalchemy import update
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.testing import guild_of
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.tenant.task import Task, TaskAssignee, TaskPriority
 from app.testing.factories import (
     create_guild,
@@ -73,7 +73,9 @@ async def _assign(session, task, user_id):
 async def _setup_guild_with_project(session, user, *, guild_name="Test Guild"):
     """Create a guild, membership, initiative, and project for the user."""
     guild = await create_guild(session, creator=user, name=guild_name)
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=user, guild=guild, role=CommunityRole.admin
+    )
     initiative = await create_initiative(session, guild, user, name="Initiative")
     project = await create_project(session, initiative, user, name="Project")
     return guild, initiative, project
@@ -152,10 +154,10 @@ async def test_admin_sees_assigned_task_in_non_member_initiative(
     member = await create_user(session, email="member@example.com")
     guild = await create_guild(session, creator=admin, name="Guild")
     await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
+        session, user=admin, guild=guild, role=CommunityRole.admin
     )
     await create_guild_membership(
-        session, user=member, guild=guild, role=GuildRole.member
+        session, user=member, guild=guild, role=CommunityRole.member
     )
 
     # Initiative + project owned by the member; the admin is NOT a member of it.
@@ -268,10 +270,10 @@ async def test_list_my_tasks_due_date_filter_across_guilds(
 async def test_list_my_tasks_guild_ids_filter(
     client: AsyncClient, session: AsyncSession
 ):
-    """GET /me/tasks with the guild_ids filter restricts to the named guilds.
+    """GET /me/tasks with the community_ids filter restricts to the named guilds.
 
     Regression: the frontend previously sent ``field: "guild_id"`` (singular)
-    but the endpoint extracts ``guild_ids`` (plural, mirroring initiative_ids);
+    but the endpoint extracts ``community_ids`` (plural, mirroring initiative_ids);
     the singular silently no-op'd and tasks from every guild leaked in.
     """
     user = await create_user(session, email="user@example.com")
@@ -291,7 +293,7 @@ async def test_list_my_tasks_guild_ids_filter(
 
     def keyed(resp):
         # Task ids are per-guild (per-schema); key by (guild_id, id).
-        return {(t["guild_id"], t["id"]) for t in resp.json()["items"]}
+        return {(t["community_id"], t["id"]) for t in resp.json()["items"]}
 
     # No filter: assigned tasks from BOTH guilds are aggregated.
     response = await client.get("/api/v1/me/tasks", headers=headers)
@@ -301,7 +303,9 @@ async def test_list_my_tasks_guild_ids_filter(
     assert (guild2.id, task2.id) in found
 
     # Filtered to guild1: only guild1's task.
-    conditions = json.dumps([{"field": "guild_ids", "op": "in_", "value": [guild1.id]}])
+    conditions = json.dumps(
+        [{"field": "community_ids", "op": "in_", "value": [guild1.id]}]
+    )
     response = await client.get(
         f"/api/v1/me/tasks?conditions={conditions}", headers=headers
     )
@@ -436,7 +440,7 @@ async def test_list_my_tasks_paged_page_interleaves_guilds(
     row = second["items"][0]
     assert row["project_id"] == project2.id
     assert row["task_status"]["id"] is not None
-    assert row["guild_name"] == "Guild 2"
+    assert row["community_name"] == "Guild 2"
 
 
 async def test_list_my_tasks_page_from_one_guild_only(
@@ -487,7 +491,7 @@ async def test_list_my_tasks_page_from_one_guild_only(
     assert response.status_code == 200, response.text
     data = response.json()
     assert [t["title"] for t in data["items"]] == ["g1 soon", "g1 next"]
-    assert {t["guild_name"] for t in data["items"]} == {"Guild 1"}
+    assert {t["community_name"] for t in data["items"]} == {"Guild 1"}
     assert data["total_count"] == 4
     assert data["has_next"] is True
 
@@ -704,7 +708,7 @@ async def test_list_my_tasks_property_filter_spans_guilds(
 
     assert response.status_code == 200, response.text
     # Key by (guild_id, id): ids collide across schemas.
-    found = {(t["guild_id"], t["id"]) for t in response.json()["items"]}
+    found = {(t["community_id"], t["id"]) for t in response.json()["items"]}
     assert (guild1.id, g1_empty.id) in found
     assert (guild2.id, g2_empty.id) in found
     assert (guild1.id, g1_has.id) not in found
@@ -725,7 +729,9 @@ async def test_my_tasks_accepts_nested_or_conditions(
     from app.models.tenant.task import TaskStatusCategory
     from app.testing.factories import create_task
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     now = datetime.now(timezone.utc)
 
     due_soon = await create_task(
@@ -823,7 +829,9 @@ async def test_my_tasks_exposes_completed_at(
     from app.models.tenant.task import TaskStatusCategory
     from app.testing.factories import create_task
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     await create_task(
         session,
         a.project,

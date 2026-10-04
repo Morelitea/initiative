@@ -12,7 +12,7 @@
  * sign in) has to be typed.
  *
  * This file holds the order of the steps and what finishing does; each step's
- * form is its own component beside it, and Chester hosts every one.
+ * form is its own component beside it, and Yonder hosts every one.
  */
 
 import { Link, useNavigate } from "@tanstack/react-router";
@@ -20,15 +20,15 @@ import { Loader2 } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { useBootstrapStatusApiV1AuthBootstrapGet } from "@/api/generated/auth/auth";
-import { getInviteStatusApiV1CommunitiesInviteCodeGet } from "@/api/generated/communities/communities";
-import type { GuildInviteStatus, GuildRead } from "@/api/generated/initiativeAPI.schemas";
+import { useBootstrapStatus } from "@/api/generated/auth/auth";
+import { getInviteStatus } from "@/api/generated/communities/communities";
+import type { CommunityInviteStatus, CommunityRead } from "@/api/generated/initiativeAPI.schemas";
 import { EmailOtpCard } from "@/components/auth/EmailOtpCard";
+import { ServerChip, ServerPicker } from "@/components/auth/ServerChoice";
 import { SignInFrame } from "@/components/auth/SignInFrame";
 import { useAgeConfirmation } from "@/components/auth/useAgeConfirmation";
 import { RecoveryCodesPanel } from "@/components/settings/RecoveryCodesPanel";
 import { AccountStep } from "@/components/start/AccountStep";
-import { type ChesterPose, ChesterSays } from "@/components/start/ChesterSays";
 import { ChooseStep } from "@/components/start/ChooseStep";
 import { CommunityStep } from "@/components/start/CommunityStep";
 import { InterestStep } from "@/components/start/InterestStep";
@@ -36,6 +36,7 @@ import { InviteStep } from "@/components/start/InviteStep";
 import { PeopleStep } from "@/components/start/PeopleStep";
 import { PlanStep } from "@/components/start/PlanStep";
 import { ContinueButton } from "@/components/start/stepParts";
+import { type YonderPose, YonderSays } from "@/components/start/YonderSays";
 import { YouStep } from "@/components/start/YouStep";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -44,12 +45,12 @@ import { useAppConfig } from "@/hooks/useAppConfig";
 import { useAuth } from "@/hooks/useAuth";
 import { useBillingCatalog } from "@/hooks/useBillingCatalog";
 import { useBillingPortal } from "@/hooks/useBillingPortal";
+import { useCommunities } from "@/hooks/useCommunities";
 import { useLandOnStarter, useOpenDirectory, useSeedStarter } from "@/hooks/useFinishPendingStart";
-import { useGuilds } from "@/hooks/useGuilds";
 import { useServer } from "@/hooks/useServer";
 import { useWizard } from "@/hooks/useWizard";
-import { toast } from "@/lib/chesterToast";
 import { getErrorCode, getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 import { describePasskeyPromptError, signUpWithPasskey } from "@/lib/passkeys";
 import {
   clearStart,
@@ -100,8 +101,8 @@ export interface StartFlowProps {
 export const StartFlow = (props: StartFlowProps) => {
   const { signedIn = false } = props;
   const { isLoading, communityDirectoryEnabled } = useAppConfig();
-  const { canCreateGuilds } = useGuilds();
-  const bootstrap = useBootstrapStatusApiV1AuthBootstrapGet({
+  const { canCreateCommunities } = useCommunities();
+  const bootstrap = useBootstrapStatus({
     query: { enabled: !signedIn, retry: false },
   });
 
@@ -121,7 +122,7 @@ export const StartFlow = (props: StartFlowProps) => {
     if (path === "invite") return true;
     if (!registrationOpen) return false;
     if (path === "join") return communityDirectoryEnabled;
-    return !signedIn || canCreateGuilds;
+    return !signedIn || canCreateCommunities;
   });
   return <StartSteps {...props} signedIn={signedIn} paths={paths} />;
 };
@@ -133,10 +134,10 @@ const StartSteps = ({
   footer,
   paths,
 }: StartFlowProps & { signedIn: boolean; paths: StartPath[] }) => {
-  const { t } = useTranslation(["auth", "common", "guilds"]);
+  const { t } = useTranslation(["auth", "common", "communities"]);
   const navigate = useNavigate();
   const { user, register, login, applyPasskeySignIn } = useAuth();
-  const { guilds, loading: guildsLoading, createGuild } = useGuilds();
+  const { communities, loading: communitiesLoading, createCommunity } = useCommunities();
   const { captcha, communityAgeGateEnabled } = useAppConfig();
   const { getServerOrigin } = useServer();
   const { billing, canSell, openPortal, reserveTab } = useBillingPortal();
@@ -235,14 +236,14 @@ const StartSteps = ({
   // -- invite --------------------------------------------------------------
   const [invite, setInvite] = useState<{
     code: string;
-    status: GuildInviteStatus | null;
+    status: CommunityInviteStatus | null;
     error: string | null;
     checking: boolean;
   }>({ code: "", status: null, error: null, checking: false });
   const checkInvite = async (code: string): Promise<boolean> => {
     setInvite({ code, status: null, error: null, checking: true });
     try {
-      const status = await getInviteStatusApiV1CommunitiesInviteCodeGet(encodeURIComponent(code));
+      const status = await getInviteStatus(encodeURIComponent(code));
       setInvite({
         code,
         status,
@@ -297,7 +298,7 @@ const StartSteps = ({
   };
 
   /** Signed in: the last question answered, so make what it asked for. */
-  const madeGuild = useRef<GuildRead | null>(null);
+  const madeCommunity = useRef<CommunityRead | null>(null);
   const finishSignedIn = async () => {
     if (answers.path === "join") {
       if (asksAge) await age.confirm();
@@ -309,7 +310,7 @@ const StartSteps = ({
     reservePlanTab();
     onBusy?.(true);
     try {
-      madeGuild.current = await createGuild({
+      madeCommunity.current = await createCommunity({
         name: final.communityName.trim(),
         description: final.description.trim() || undefined,
         plan: pickedPlan,
@@ -322,8 +323,8 @@ const StartSteps = ({
       // phone app may not do; there it only says why.
       setError(
         !canSell && getErrorCode(err) === "FREE_COMMUNITY_ALREADY_HELD"
-          ? t("guilds:freeCommunityHeldInApp")
-          : getErrorMessage(err, "guilds:unableToCreateGuild")
+          ? t("communities:freeCommunityHeldInApp")
+          : getErrorMessage(err, "communities:unableToCreateCommunity")
       );
     } finally {
       setBusy(false);
@@ -341,7 +342,7 @@ const StartSteps = ({
     onBusy?.(false);
   };
   useEffect(() => {
-    if (step !== "finishing" || finishing.current || !user || guildsLoading) return;
+    if (step !== "finishing" || finishing.current || !user || communitiesLoading) return;
     finishing.current = true;
     const final = withDefaults(answers);
     void (async () => {
@@ -352,33 +353,33 @@ const StartSteps = ({
         return;
       }
       if (final.path === "invite") {
-        const guildId = invite.status?.guild_id;
+        const communityId = invite.status?.community_id;
         await leave(() =>
-          guildId
-            ? navigate({ to: "/c/$guildId", params: { guildId: String(guildId) } })
+          communityId
+            ? navigate({ to: "/c/$communityId", params: { communityId: String(communityId) } })
             : navigate({ to: "/" })
         );
         return;
       }
-      const guild = madeGuild.current ?? findStartedCommunity(guilds, final);
-      if (!guild) {
+      const community = madeCommunity.current ?? findStartedCommunity(communities, final);
+      if (!community) {
         dropPlanTab();
         await leave(() => navigate({ to: "/" }));
         return;
       }
-      const starter = await seed(guild.id, final);
+      const starter = await seed(community.id, final);
       if (final.path === "personal") {
-        await leave(() => landOn(guild.id, starter));
+        await leave(() => landOn(community.id, starter));
         return;
       }
       if (planTab.current) {
-        toast.info(t("guilds:billingSetup.opening", { guild: guild.name }));
-        void openPortal(guild.id, "upgrade", planTab.current);
+        toast.info(t("communities:billingSetup.opening", { community: community.name }));
+        void openPortal(community.id, "upgrade", planTab.current);
         planTab.current = null;
       } else if (wantsPlan) {
         setPlanByButton(true);
       }
-      setMade({ id: guild.id, name: guild.name });
+      setMade({ id: community.id, name: community.name });
       commit("people");
     })();
   });
@@ -488,13 +489,13 @@ const StartSteps = ({
   const inviteLine = invite.checking
     ? t("register.checkingInvite")
     : invite.status?.is_valid
-      ? invite.status.guild_name
-        ? t("register.joiningGuild", { guildName: invite.status.guild_name })
-        : t("register.joiningGuildDefault")
+      ? invite.status.community_name
+        ? t("register.joiningCommunity", { communityName: invite.status.community_name })
+        : t("register.joiningCommunityDefault")
       : null;
 
   let title: string;
-  let pose: ChesterPose;
+  let pose: YonderPose;
   let line: string | null = null;
   let body: ReactNode;
   switch (step) {
@@ -557,7 +558,7 @@ const StartSteps = ({
         // Signed in, this step is only ever the age question for joining.
         title = t("confirmAge.title");
         pose = "thinking";
-        line = t("guilds:community.ageGateBody");
+        line = t("communities:community.ageGateBody");
       } else {
         title = t("start.you.title");
         pose = "talking";
@@ -693,7 +694,7 @@ const StartSteps = ({
       body = made ? (
         <>
           <PeopleStep
-            guildId={made.id}
+            communityId={made.id}
             origin={getServerOrigin() ?? window.location.origin}
             planButton={planByButton ? () => void openPortal(made.id, "upgrade") : undefined}
             onDone={() => void leave(() => landOn(made.id, null))}
@@ -707,7 +708,7 @@ const StartSteps = ({
   return (
     <SignInFrame fillPhone>
       <Card className="grid w-full max-w-lg gap-4 p-6 shadow-lg max-sm:min-h-dvh max-sm:max-w-none max-sm:content-start max-sm:rounded-none max-sm:border-0 max-sm:pt-[max(1.5rem,env(safe-area-inset-top))] max-sm:pb-[max(1.5rem,env(safe-area-inset-bottom))]">
-        <ChesterSays key={step} pose={pose} line={line} />
+        <YonderSays key={step} pose={pose} line={line} />
         <WizardFrame
           title={title}
           progress={
@@ -726,6 +727,7 @@ const StartSteps = ({
           ) : null}
           {footer}
         </WizardFrame>
+        {signedIn ? <ServerChip /> : <ServerPicker />}
       </Card>
     </SignInFrame>
   );

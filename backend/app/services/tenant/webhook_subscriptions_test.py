@@ -22,7 +22,7 @@ import pytest
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.tenant.webhook_subscription import WebhookSubscription
 from app.testing.schema_harness import route_session_to_guild
 
@@ -67,7 +67,7 @@ async def test_delivery_outlives_the_account_that_registered_it(
     from app.services.tenant import outbox_poller as poller
     from app.testing import create_task
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     guild_id, user_id, project = a.guild.id, a.user.id, a.project
     await _subscribe(session, guild_id=guild_id, user_id=user_id, initiative_id=None)
 
@@ -90,7 +90,7 @@ async def test_erasure_leaves_the_subscription_alone(
     """And the row is untouched — no account's lifecycle reaches it."""
     from app.services.platform import users as user_service
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     guild_id, user_id = a.guild.id, a.user.id
     await _subscribe(session, guild_id=guild_id, user_id=user_id, initiative_id=None)
 
@@ -113,7 +113,7 @@ async def test_an_initiative_subscription_hears_only_that_initiative(
     from app.testing import create_task
     from app.testing.factories import create_initiative, create_project
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     guild_id = a.guild.id
     other = await create_initiative(session, a.guild, a.user)
     other_project = await create_project(session, other, a.user)
@@ -147,7 +147,7 @@ async def test_a_community_subscription_hears_every_initiative(
     from app.testing import create_task
     from app.testing.factories import create_initiative, create_project
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     guild_id = a.guild.id
     other = await create_initiative(session, a.guild, a.user)
     other_project = await create_project(session, other, a.user)
@@ -548,3 +548,135 @@ async def test_an_apps_event_is_kept_until_the_subscriber_accepts_it(
             "payload": {"number": 12},
         }
     ]
+
+
+async def test_a_declarative_apps_event_reaches_a_subscriber_as_a_containers_does(
+    session: AsyncSession, role_session, acting_user, client, monkeypatch
+):
+    """An app whose deliveries Initiative maps is named by its listing, so an
+    install may subscribe to its event; what reaches the subscriber is what
+    the same app emitting the same event from a container delivers."""
+    from app.core.app_access_token import seal_install_token
+    from app.db.install_standing_test import _install, _route
+    from app.models.platform.app_service_registration import RegistrationKind
+    from app.models.tenant.guild_app import GuildApp
+    from app.schemas.tenant.webhook_subscription import WebhookSubscriptionCreate
+    from app.services.marketplace.registration_lookup import invalidate_registrations
+    from app.services.tenant import outbox_poller as poller
+    from app.services.tenant.webhook_subscriptions import create_install_subscription
+    from app.testing import (
+        create_app_service_registration,
+        create_guild_app,
+        create_marketplace_listing,
+        sealed_vendor_values,
+    )
+    from app.testing.fake_vendor import FakeVendor, declarative_github
+
+    public_id, listing_uid = "tests.ghd", "GHDECXARE00001"
+    event_type = f"app.{public_id}.issue-opened"
+    vendor = FakeVendor()
+    vendor.install(monkeypatch)
+    install = await _install(
+        session, acting_user, role_session, granted=[f"apps:{public_id}"], placed="a"
+    )
+    definition = declarative_github(public_id)
+    registration = await create_app_service_registration(
+        session,
+        public_id=public_id,
+        listing_uid=listing_uid,
+        kind="declarative",
+        vendor_values=sealed_vendor_values(
+            {field["key"]: "x" for field in definition["vendor"]["fields"]}
+            | {"webhook_secret": vendor.webhook_secret}
+        ),
+    )
+    await create_marketplace_listing(
+        session, uid=listing_uid, public_id=public_id, kind="app", definition=definition
+    )
+    emitter = await create_guild_app(
+        session,
+        install.guild,
+        install.seat.user,
+        listing_uid=listing_uid,
+        definition=definition,
+        config={"workspace": {"owner": "acme", "installation_id": "42"}},
+    )
+    s, context = await _route(role_session, install, [f"apps:{public_id}"])
+    await create_install_subscription(
+        s,
+        context=context,
+        payload=WebhookSubscriptionCreate(target_url=_HOOK, event_types=[event_type]),
+    )
+    sent = _collector(monkeypatch, poller)
+    system = await role_session("app_admin")
+
+    body, headers = vendor.webhook(
+        {
+            "action": "opened",
+            "installation": {"id": 42},
+            "repository": {"full_name": "acme/web"},
+            "issue": {"number": 12, "title": "Broken build"},
+        }
+    )
+    response = await client.post(
+        f"/api/v1/app-hooks/{public_id}", content=body, headers=headers
+    )
+    assert response.status_code == 202, response.text
+    await poller.drain_guild(system, install.guild.id, now=datetime.now(timezone.utc))
+    [declared] = sent
+    assert declared["changes"] == [
+        {
+            "event_type": event_type,
+            "initiative_id": None,
+            "app": public_id,
+            "payload": {
+                "repository": "acme/web",
+                "number": 12,
+                "title": "Broken build",
+            },
+        }
+    ]
+
+    # The same app, as a container emitting the same event.
+    registration.kind = RegistrationKind.CONTAINER
+    session.add(registration)
+    await session.commit()
+    invalidate_registrations()
+    await route_session_to_guild(session, install.guild.id)
+    row = (await session.exec(select(GuildApp).where(GuildApp.id == emitter.id))).one()
+    row.definition = {
+        "app_kind": "service",
+        "service": {"public_id": public_id, "protocol": 1},
+        "endpoints": [
+            entry for entry in definition["endpoints"] if entry["id"] == event_type
+        ],
+    }
+    session.add(row)
+    await session.commit()
+    token, _ = seal_install_token(
+        guild_id=install.guild.id,
+        install_id=emitter.id,
+        client_id=public_id,
+        scopes=frozenset(),
+        initiative_id=None,
+        user_id=None,
+        purpose=None,
+    )
+    emitted = await client.post(
+        "/api/v1/app-platform/installation/events",
+        json={"event_type": event_type, "payload": declared["changes"][0]["payload"]},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert emitted.status_code == 202, emitted.text
+    system.expunge_all()
+    await poller.drain_guild(system, install.guild.id, now=datetime.now(timezone.utc))
+    [_, contained] = sent
+
+    def _same(envelope: dict) -> dict:
+        return {
+            key: value
+            for key, value in envelope.items()
+            if key not in ("event_id", "occurred_at")
+        }
+
+    assert _same(declared) == _same(contained)

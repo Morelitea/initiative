@@ -1,0 +1,12 @@
+{
+  "name": "initiative-desktop-plugins",
+  "private": true,
+  "version": "0.0.0",
+  "description": "The desktop app's own implementations of the Capacitor plugins it uses.",
+  "type": "module",
+  "capacitor": {
+    "electron": {
+      "src": "electron"
+    }
+  }
+}

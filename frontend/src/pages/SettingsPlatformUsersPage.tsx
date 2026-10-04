@@ -18,13 +18,14 @@ import { OperatorDeleteUserDialog } from "@/components/platform/OperatorDeleteUs
 import {
   canManageUser,
   UserOperatorSettingsSheet,
+  withinRank,
 } from "@/components/platform/UserOperatorSettingsSheet";
 import { SortHeader } from "@/components/SortIcon";
 import { SkeletonRegion, TableSkeleton } from "@/components/skeletons/PageSkeletons";
 import { UserHandle } from "@/components/UserHandle";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DataTable } from "@/components/ui/data-table";
 import { DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
@@ -43,9 +44,9 @@ import {
   useOperatorTriggerPasswordReset,
   usePlatformUsers,
 } from "@/hooks/useOperatorUsers";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { formatDateTime } from "@/lib/formatDate";
+import { toast } from "@/lib/mascotToast";
 import { Capability, hasCapability } from "@/lib/permissions";
 import type { AppColumnDef } from "@/lib/table";
 import { getUserHandle } from "@/lib/userDisplay";
@@ -92,6 +93,8 @@ export const SettingsPlatformUsersPage = () => {
     canManageUsers: hasCapability(user, Capability.usersManage),
     canManageRoles: hasCapability(user, Capability.rolesAssign),
   };
+  // Every action on an account is refused above the viewer's own rung.
+  const actorRole = (user?.role ?? "member") as UserRole;
 
   // Searched, sorted and paged on the server: the roster is every account on
   // the deployment, so the table only ever holds the page on screen.
@@ -323,7 +326,7 @@ export const SettingsPlatformUsersPage = () => {
         const platformUser = row.original;
         // Nothing to open if this viewer holds none of the capabilities the
         // sheet's controls require against this account.
-        if (!canManageUser(abilities, platformUser, user?.id)) return null;
+        if (!canManageUser(abilities, platformUser, user?.id, actorRole)) return null;
         return (
           <Button
             variant="outline"
@@ -346,12 +349,15 @@ export const SettingsPlatformUsersPage = () => {
         const platformUser = row.original;
         const isResetting = resettingUserId === platformUser.id;
         const isSelf = platformUser.id === user?.id;
+        // Every action below but the export is refused above the viewer's
+        // own rung, so none of them is offered there.
+        const reachable = withinRank(actorRole, platformUser);
         // Reset password is a no-op on non-active accounts (the backend
         // rejects it with OPERATOR_CANNOT_RESET_INACTIVE), so hide it here too.
 
         return (
           <RowActionsMenu subject={getUserHandle(platformUser)}>
-            {canReactivate && platformUser.status === "deactivated" && (
+            {reachable && canReactivate && platformUser.status === "deactivated" && (
               <DropdownMenuItem onSelect={() => reactivateUser.mutate(platformUser.id)}>
                 <UserCheck className="h-4 w-4" />
                 {t("platformUsers.reactivate")}
@@ -360,7 +366,7 @@ export const SettingsPlatformUsersPage = () => {
             {/* Distinct from reactivating: nothing was dropped, so this puts
                 the account back exactly where it was. Its holder can do the
                 same thing by simply signing in. */}
-            {canReactivate && platformUser.status === "deleted" && (
+            {reachable && canReactivate && platformUser.status === "deleted" && (
               <DropdownMenuItem
                 onSelect={() => restoreUser.mutate(platformUser.id)}
                 disabled={restoreUser.isPending}
@@ -371,25 +377,31 @@ export const SettingsPlatformUsersPage = () => {
             )}
             {/* The link it mails ends in a password, which this deployment
                 may not take. */}
-            {canReactivate && platformUser.status === "active" && passwordLoginEnabled && (
-              <DropdownMenuItem
-                onSelect={() => handleResetPassword(platformUser.id, platformUser.username)}
-                disabled={isResetting || resetPassword.isPending}
-              >
-                <Mail className="h-4 w-4" />
-                {isResetting ? t("common:submitting") : t("platformUsers.resetPassword")}
-              </DropdownMenuItem>
-            )}
-            {canReactivate && platformUser.status === "active" && !platformUser.email_verified && (
-              <DropdownMenuItem
-                onSelect={() => resendVerification.mutate(platformUser.id)}
-                disabled={resendVerification.isPending}
-              >
-                <MailCheck className="h-4 w-4" />
-                {t("platformUsers.resendVerification")}
-              </DropdownMenuItem>
-            )}
-            {abilities.canManageUsers && platformUser.sign_in_locked_until && (
+            {reachable &&
+              canReactivate &&
+              platformUser.status === "active" &&
+              passwordLoginEnabled && (
+                <DropdownMenuItem
+                  onSelect={() => handleResetPassword(platformUser.id, platformUser.username)}
+                  disabled={isResetting || resetPassword.isPending}
+                >
+                  <Mail className="h-4 w-4" />
+                  {isResetting ? t("common:submitting") : t("platformUsers.resetPassword")}
+                </DropdownMenuItem>
+              )}
+            {reachable &&
+              canReactivate &&
+              platformUser.status === "active" &&
+              !platformUser.email_verified && (
+                <DropdownMenuItem
+                  onSelect={() => resendVerification.mutate(platformUser.id)}
+                  disabled={resendVerification.isPending}
+                >
+                  <MailCheck className="h-4 w-4" />
+                  {t("platformUsers.resendVerification")}
+                </DropdownMenuItem>
+              )}
+            {reachable && abilities.canManageUsers && platformUser.sign_in_locked_until && (
               <DropdownMenuItem
                 onSelect={() => liftSignInLock.mutate(platformUser.id)}
                 disabled={liftSignInLock.isPending}
@@ -398,7 +410,8 @@ export const SettingsPlatformUsersPage = () => {
                 {t("platformUsers.liftSignInLock")}
               </DropdownMenuItem>
             )}
-            {abilities.canManageUsers &&
+            {reachable &&
+              abilities.canManageUsers &&
               authenticatorAskedAtSignIn &&
               platformUser.second_factor_enrolled && (
                 <DropdownMenuItem onSelect={() => setClearSecondFactorTarget(platformUser)}>
@@ -406,7 +419,7 @@ export const SettingsPlatformUsersPage = () => {
                   {t("platformUsers.clearSecondFactor")}
                 </DropdownMenuItem>
               )}
-            {canUnblockAge && platformUser.age_below_minimum_at && (
+            {reachable && canUnblockAge && platformUser.age_below_minimum_at && (
               <DropdownMenuItem
                 onSelect={() => clearAgeBlock.mutate(platformUser.id)}
                 disabled={clearAgeBlock.isPending}
@@ -419,7 +432,7 @@ export const SettingsPlatformUsersPage = () => {
               <Download className="h-4 w-4" />
               {t("platformUsers.exportUser")}
             </DropdownMenuItem>
-            {canDeleteUsers && !isSelf && (
+            {reachable && canDeleteUsers && !isSelf && (
               <>
                 {/* Deleting an account is the one thing here that cannot be
                     undone, so it sits below a rule rather than in the run. */}
@@ -441,12 +454,8 @@ export const SettingsPlatformUsersPage = () => {
 
   return (
     <div className="space-y-6">
-      <Card className="shadow-sm">
-        <CardHeader className="flex flex-row items-start justify-between gap-4">
-          <div>
-            <CardTitle>{t("platformUsers.title")}</CardTitle>
-            <CardDescription>{t("platformUsers.description")}</CardDescription>
-          </div>
+      <Card>
+        <CardHeader className="flex flex-row justify-end">
           <Button
             type="button"
             variant="outline"
@@ -501,7 +510,7 @@ export const SettingsPlatformUsersPage = () => {
           }}
           abilities={abilities}
           actorId={user?.id}
-          actorRole={(user?.role ?? "member") as UserRole}
+          actorRole={actorRole}
         />
       </Card>
 

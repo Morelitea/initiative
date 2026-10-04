@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
 from app.testing import Actor
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.tenant.initiative import InitiativeRoleModel
 from app.models.tenant.search_entry import SearchEntry
 from app.testing import create_tag, create_task
@@ -40,9 +40,9 @@ async def test_a_member_without_a_grant_is_refused_by_the_database(
 ):
     """In the initiative — so the membership gate admits the row — but holding
     no grant on the project it belongs to."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     b = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="member",
@@ -55,7 +55,7 @@ async def test_a_member_without_a_grant_is_refused_by_the_database(
 async def test_the_owner_is_admitted(
     session: AsyncSession, acting_user: ActingUser, reading_as
 ) -> None:
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     await create_task(session, a.project, title="restricted vendor renewal")
 
     assert await _unfiltered(reading_as, a.guild.id, a) == ["restricted vendor renewal"]
@@ -64,9 +64,9 @@ async def test_the_owner_is_admitted(
 async def test_a_guild_admin_is_admitted(
     session: AsyncSession, acting_user: ActingUser, reading_as
 ) -> None:
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     b = await acting_user(
-        guild_role=GuildRole.admin,
+        guild_role=CommunityRole.admin,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="member",
@@ -82,9 +82,9 @@ async def test_full_access_is_carried_into_the_database(
     """The override is computed in Python per request; the policy reads it from
     a session setting. If that plumbing breaks, a full-access member silently
     loses rows they can reach everywhere else."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     b = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="member",
@@ -121,8 +121,8 @@ async def test_guild_vocabulary_answers_to_no_sharing(
 ) -> None:
     """A tag carries no sharing identity, so the sharing gate has nothing to
     decide and must not filter it out."""
-    a = await acting_user(guild_role=GuildRole.admin)
-    b = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+    a = await acting_user(guild_role=CommunityRole.admin)
+    b = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
     await create_tag(session, a.guild, name="urgent")
 
     reader = await reading_as(b.user.id, a.guild.id)
@@ -137,7 +137,7 @@ async def test_the_override_setting_defaults_to_empty(
 ) -> None:
     """An unset override must read as "no initiatives", not as an error that
     faults the policy for every row."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
     reader = await reading_as(a.user.id, a.guild.id)
     value = (
         await reader.exec(

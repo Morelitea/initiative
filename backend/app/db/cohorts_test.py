@@ -50,8 +50,8 @@ def test_a_database_template_must_name_the_cohort_and_nothing_else(template):
 
 
 def test_the_path_addresses_a_community_only_by_number():
-    assert cohorts.addressed_guild_id({"guild_id": "12"}) == 12
-    assert cohorts.addressed_guild_id({"guild_id": "a-reference"}) is None
+    assert cohorts.addressed_guild_id({"community_id": "12"}) == 12
+    assert cohorts.addressed_guild_id({"community_id": "a-reference"}) is None
     assert cohorts.addressed_guild_id({}) is None
 
 
@@ -71,7 +71,7 @@ async def _bind_for(path_params: dict[str, str]):
 
 
 async def test_a_request_draws_from_the_cohort_its_path_addresses():
-    bind, marked = await _bind_for({"guild_id": "5"})
+    bind, marked = await _bind_for({"community_id": "5"})
     assert bind is cohorts.request_sessionmaker(5).kw["bind"]
     assert bind is not cohorts.request_sessionmaker(4).kw["bind"]
     assert marked

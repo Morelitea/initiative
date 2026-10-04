@@ -4,7 +4,7 @@ import pytest
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.tenant.initiative import Initiative
 from app.services import membership as membership_service
 from app.testing.factories import (
@@ -22,10 +22,10 @@ async def _setup(session: AsyncSession):
     outsider = await create_user(session, email="outsider@example.com")
     guild = await create_guild(session, creator=admin)
     await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
+        session, user=admin, guild=guild, role=CommunityRole.admin
     )
     await create_guild_membership(
-        session, user=member, guild=guild, role=GuildRole.member
+        session, user=member, guild=guild, role=CommunityRole.member
     )
     initiative = await create_initiative(session, guild, admin)
     await create_initiative_member(session, initiative, member)
@@ -38,7 +38,7 @@ async def test_guild_role_map_batch(session: AsyncSession):
     roles = await membership_service.guild_role_map(
         session, guild.id, (admin.id, member.id, outsider.id)
     )
-    assert roles == {admin.id: GuildRole.admin, member.id: GuildRole.member}
+    assert roles == {admin.id: CommunityRole.admin, member.id: CommunityRole.member}
 
 
 async def test_initiative_scope_clause_legs(session: AsyncSession, reading_as):

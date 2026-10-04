@@ -123,9 +123,11 @@ async def _translate(boundary: InstallBoundary, response: Response) -> Response:
         ref = refs.get((entity, int(match.group(2))))
         if ref is None:
             raise RuntimeError("a reference the response names was not resolved")
-        return b'"' + ref.encode() + b'"'
+        return ref.encode()
 
-    marker = re.compile(b'"' + re.escape(boundary.nonce.encode()) + rb':([a-z]):(\d+)"')
+    # A marker is a whole value, or sits inside text: a mention, or the path to
+    # a person's picture.
+    marker = re.compile(re.escape(boundary.nonce.encode()) + rb":([a-z]):(\d+)")
     translated = marker.sub(substitute, bytes(body))
     response.body = translated
     response.headers["content-length"] = str(len(translated))

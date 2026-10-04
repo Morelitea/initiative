@@ -175,7 +175,6 @@ async def test_registering_records_the_address(
         json={
             "email": "registered@example.com",
             "password": "testpassword123",
-            "full_name": "Registered Person",
             "username": "registered",
         },
     )
@@ -231,7 +230,6 @@ async def test_an_address_is_taken_whichever_account_holds_it(
         json={
             "email": "also-theirs@example.com",
             "password": "testpassword123",
-            "full_name": "Someone Else",
             "username": "someoneelse",
         },
     )

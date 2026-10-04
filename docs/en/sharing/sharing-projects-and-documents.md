@@ -40,7 +40,7 @@ Open the **Access** tab in a project's or document's settings whenever you like 
 
 Every settings tab has its own web address too, so you can send somebody a link straight to a tool's sharing options instead of describing which three things to click.
 
-You can also **change access on several things at once**: from a list view, select multiple documents, projects, queues, counters or calendar events and update them in one step. Handy when a new teammate joins a batch of work, and handier when somebody leaves.
+You can also **change access on several things at once**. In a list of documents, projects, queues, counters, dashboards, galleries or wikis, open **More actions**, choose **Select items**, pick what you want, then **Edit access**. Handy when a new teammate joins a batch of work, and handier when somebody leaves. Archived things keep their sharing as it is, so a selection with one in it says so.
 
 You don't have to click each card individually, either. Click the first, hold ++shift++, click the last, and everything between comes with it. Shift-clicking away from a card you just unticked clears that run the same way. (++shift+enter++ or ++shift+space++ does it from the keyboard.)
 
@@ -51,7 +51,7 @@ You don't have to click each card individually, either. Click the first, hold ++
 - **Community admins see everything in their community.** Also by design. Somebody has to be able to administer the place.
 
 ??? techspec "For the technically minded — how item sharing is stored and checked"
-    Per-item sharing is recorded as grants naming a project or document, a person *or* a role, and a level (view / edit / own). On every request the database evaluates whether the current user satisfies the grant — directly, through a role they hold, through the initiative's Manager role, or as a community admin — before any data comes back. Because that check lives in the database alongside the community and initiative boundaries, the link to a project is never the thing that grants access to it. See [How your data is kept separate](../security/how-your-data-is-kept-separate.md).
+    Per-item sharing is recorded as grants naming a project or document, a person *or* a role, and a level (view / edit / own). On every request the database evaluates whether the current user satisfies the grant — directly, through a role they hold, through the initiative's Moderator role, or as a community admin — before any data comes back. Because that check lives in the database alongside the community and initiative boundaries, the link to a project is never the thing that grants access to it. See [How your data is kept separate](../security/how-your-data-is-kept-separate.md).
 
 ## Related
 

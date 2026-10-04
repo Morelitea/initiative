@@ -8,20 +8,20 @@ import { useQuery } from "@tanstack/react-query";
 
 import type { ReactionSummary, ReactionTarget } from "@/api/generated/initiativeAPI.schemas";
 import {
-  getSuggestedReactionsApiV1CGuildIdReactionsSuggestedGetQueryKey,
-  suggestedReactionsApiV1CGuildIdReactionsSuggestedGet,
-  toggleReactionApiV1CGuildIdReactionsTargetTypeTargetIdPut,
+  getSuggestedReactionsQueryKey,
+  suggestedReactions,
+  toggleReaction,
 } from "@/api/generated/reactions/reactions";
 import { invalidate, q } from "@/api/query-keys";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
-import { useGuildMutation } from "@/hooks/useApiMutation";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
+import { useCommunityMutation } from "@/hooks/useApiMutation";
 import type { MutationOpts } from "@/types/mutation";
 import type { QueryOpts } from "@/types/query";
 
 /** What each reaction target invalidates once its reactions move. */
 const INVALIDATE_BY_TARGET: Record<ReactionTarget, () => void> = {
   // The bar draws the reply itself, and the thread hears it as the comment's
-  // own change, so only the guild's feed — which shows the chips too — is left.
+  // own change, so only the community's feed — which shows the chips too — is left.
   comment: () => void invalidate(q.recentComments()),
   // A post's chips ride along with the post, so the board and the post's own
   // page both have to hear it — which is what invalidating the whole list does.
@@ -34,10 +34,10 @@ const INVALIDATE_BY_TARGET: Record<ReactionTarget, () => void> = {
  * whatever each browser happened to pick last.
  */
 export const useSuggestedReactions = (options?: QueryOpts<string[]>) => {
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   return useQuery<string[]>({
-    queryKey: getSuggestedReactionsApiV1CGuildIdReactionsSuggestedGetQueryKey(guildId),
-    queryFn: () => suggestedReactionsApiV1CGuildIdReactionsSuggestedGet(guildId),
+    queryKey: getSuggestedReactionsQueryKey(communityId),
+    queryFn: () => suggestedReactions(communityId),
     // A fixed list; there is no reason to ask again this session.
     staleTime: Number.POSITIVE_INFINITY,
     ...options,
@@ -56,10 +56,10 @@ export interface ToggleReactionVars {
  * while the invalidated queries refetch.
  */
 export const useToggleReaction = (options?: MutationOpts<ReactionSummary, ToggleReactionVars>) =>
-  useGuildMutation<ReactionSummary, ToggleReactionVars>(
+  useCommunityMutation<ReactionSummary, ToggleReactionVars>(
     {
-      mutationFn: (guildId, { targetType, targetId, emoji }) =>
-        toggleReactionApiV1CGuildIdReactionsTargetTypeTargetIdPut(guildId, targetType, targetId, {
+      mutationFn: (communityId, { targetType, targetId, emoji }) =>
+        toggleReaction(communityId, targetType, targetId, {
           emoji,
         }),
       invalidate: (_data, vars) => INVALIDATE_BY_TARGET[vars.targetType]?.(),

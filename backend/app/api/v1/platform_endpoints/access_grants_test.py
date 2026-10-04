@@ -9,7 +9,7 @@ from datetime import datetime, timedelta, timezone
 from app.core.capabilities import ROLE_MAX_GRANT_MINUTES
 from app.core.tools import Tool
 from app.models.platform.access_grant import AccessGrant
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.testing import (
     Actor,
     create_counter_group,
@@ -53,7 +53,7 @@ async def _request_access(client: AsyncClient, actor: Actor, guild, **body) -> o
     """Ask for access to ``guild`` through the request->approve flow."""
     return await client.post(
         GRANTS,
-        json={"guild_id": guild.id, "reason": "debugging a ticket", **body},
+        json={"community_id": guild.id, "reason": "debugging a ticket", **body},
         headers=actor.headers,
     )
 
@@ -77,13 +77,13 @@ async def test_support_requests_owner_approves_and_the_queue_masks_addresses(
     grant = requested.json()
     assert grant["status"] == "pending"
     assert grant["is_live"] is False
-    assert grant["guild_name"] == guild.name
+    assert grant["community_name"] == guild.name
     grant_id = grant["id"]
 
     # The owner sees it in the full queue (which requires access.approve).
     queue = await client.get(f"{GRANTS}queue?status=pending", headers=owner.headers)
     assert queue.status_code == 200
-    row = next(g for g in queue.json() if g["id"] == grant_id)
+    row = next(g for g in queue.json()["items"] if g["id"] == grant_id)
     assert row["user_email"] == "s***t@e***m"
 
     approved = await client.post(
@@ -121,17 +121,18 @@ async def test_my_requests_respects_limit_and_order(
         )
     await session.commit()
 
-    page = await client.get(f"{GRANTS}?mine=true&limit=3", headers=support.headers)
+    page = await client.get(f"{GRANTS}?mine=true&page_size=3", headers=support.headers)
     assert page.status_code == 200, page.text
     # Newest-first: the three most-recently-requested ("old 4/3/2").
-    assert [g["reason"] for g in page.json()] == ["old 4", "old 3", "old 2"]
+    assert [g["reason"] for g in page.json()["items"]] == ["old 4", "old 3", "old 2"]
+    assert page.json()["total_count"] == 5
 
-    # Second page via offset continues where the first left off.
+    # The second page continues where the first left off.
     rest = await client.get(
-        f"{GRANTS}?mine=true&limit=3&offset=3", headers=support.headers
+        f"{GRANTS}?mine=true&page=2&page_size=3", headers=support.headers
     )
     assert rest.status_code == 200, rest.text
-    assert [g["reason"] for g in rest.json()] == ["old 1", "old 0"]
+    assert [g["reason"] for g in rest.json()["items"]] == ["old 1", "old 0"]
 
 
 async def test_queue_live_filter_excludes_expired(
@@ -139,7 +140,7 @@ async def test_queue_live_filter_excludes_expired(
 ):
     """``live=true`` on the approver queue drops approved-but-expired grants so
     the active list pages accurately."""
-    host = await acting_user("owner", guild_role=GuildRole.admin)
+    host = await acting_user("owner", guild_role=CommunityRole.admin)
     support = await acting_user("support")
     await _approved_grant(session, grantee=support, host=host, reason="live one")
     await _approved_grant(
@@ -154,7 +155,7 @@ async def test_queue_live_filter_excludes_expired(
         f"{GRANTS}queue?status=approved&live=true", headers=host.headers
     )
     assert queue.status_code == 200, queue.text
-    assert [g["reason"] for g in queue.json()] == ["live one"]
+    assert [g["reason"] for g in queue.json()["items"]] == ["live one"]
 
 
 async def test_member_cannot_request_access(
@@ -281,7 +282,7 @@ async def test_a_grant_reaches_a_tools_content_not_who_it_is_shared_with(
 ):
     """A read_write grant carries content read/write, so managing a tool's
     members is answered as a plain 403 with the tool's own code."""
-    host = await acting_user("owner", guild_role=GuildRole.admin, initiative=True)
+    host = await acting_user("owner", guild_role=CommunityRole.admin, initiative=True)
     support = await acting_user("support")
     target = await acting_user()
     resource = await make(session, host.initiative, host.user)
@@ -304,7 +305,7 @@ async def test_grantee_sees_guild_content(
     endpoints — not just RLS, but the app-layer membership filters too (the
     'empty guild' bug)."""
     host = await acting_user(
-        "owner", guild_role=GuildRole.admin, initiative=True, project=True
+        "owner", guild_role=CommunityRole.admin, initiative=True, project=True
     )
     support = await acting_user("support")
     await _approved_grant(session, grantee=support, host=host)
@@ -368,7 +369,7 @@ async def test_a_scoped_read_write_grant_cannot_author_tools(
     an operator; a grant reaches existing content, and authoring is not part of
     it whoever holds it.
     """
-    host = await acting_user("owner", guild_role=GuildRole.admin, initiative=True)
+    host = await acting_user("owner", guild_role=CommunityRole.admin, initiative=True)
     grantee = await acting_user(tier)
     await _approved_grant(session, grantee=grantee, host=host, level="read_write")
 
@@ -397,20 +398,20 @@ async def test_grant_read_carries_guild_status(
     operator sees they're acting in a suspended / read-only guild (surfaced in
     the access banner). Not disclosed to plain members — this is operator
     context."""
-    from app.models.platform.guild import GuildStatus
+    from app.models.platform.guild import CommunityStatus
 
-    host = await acting_user("owner", guild_role=GuildRole.admin)
+    host = await acting_user("owner", guild_role=CommunityRole.admin)
     support = await acting_user("support")
     await _approved_grant(session, grantee=support, host=host)
 
-    host.guild.status = GuildStatus.suspended.value
+    host.guild.status = CommunityStatus.suspended.value
     session.add(host.guild)
     await session.commit()
 
     mine = await client.get(f"{GRANTS}?mine=true", headers=support.headers)
     assert mine.status_code == 200, mine.text
-    rows = [g for g in mine.json() if g["guild_id"] == host.guild.id]
-    assert rows and rows[0]["guild_status"] == "suspended"
+    rows = [g for g in mine.json()["items"] if g["community_id"] == host.guild.id]
+    assert rows and rows[0]["community_status"] == "suspended"
 
 
 @pytest.mark.parametrize(
@@ -427,7 +428,7 @@ async def test_the_queue_is_read_by_approvers_on_their_own_tier(
 ):
     """The queue is its own route behind ``access.approve``, read on the
     caller's platform tier: an approver sees somebody else's grant, named."""
-    host = await acting_user("owner", guild_role=GuildRole.admin)
+    host = await acting_user("owner", guild_role=CommunityRole.admin)
     support = await acting_user("support")
     grant = await _approved_grant(session, grantee=support, host=host)
     reader = await acting_user(tier)
@@ -436,8 +437,8 @@ async def test_the_queue_is_read_by_approvers_on_their_own_tier(
 
     assert queue.status_code == expected, queue.text
     if expected == 200:
-        row = next(g for g in queue.json() if g["id"] == grant.id)
-        assert row["guild_name"] == host.guild.name
+        row = next(g for g in queue.json()["items"] if g["id"] == grant.id)
+        assert row["community_name"] == host.guild.name
         assert row["user_email"] is not None
 
 
@@ -446,19 +447,19 @@ async def test_a_grantee_reads_their_own_grant_and_not_somebody_elses(
 ):
     """One grant, read on the caller's tier: its holder lists it with the
     community it names; another requester is not shown it."""
-    host = await acting_user("owner", guild_role=GuildRole.admin)
+    host = await acting_user("owner", guild_role=CommunityRole.admin)
     support = await acting_user("support")
     other = await acting_user("support")
     grant = await _approved_grant(session, grantee=support, host=host)
 
     own = await client.get(GRANTS, headers=support.headers)
     assert own.status_code == 200, own.text
-    row = next(g for g in own.json() if g["id"] == grant.id)
-    assert row["guild_name"] == host.guild.name
+    row = next(g for g in own.json()["items"] if g["id"] == grant.id)
+    assert row["community_name"] == host.guild.name
 
     listed = await client.get(GRANTS, headers=other.headers)
     assert listed.status_code == 200, listed.text
-    assert grant.id not in {g["id"] for g in listed.json()}
+    assert grant.id not in {g["id"] for g in listed.json()["items"]}
 
 
 @pytest.mark.parametrize(
@@ -506,3 +507,65 @@ async def test_break_glass_requirements_carry_the_window(
     assert resp.json()["max_duration_minutes"] == service.break_glass_max_minutes(
         service.UserRole.operator
     )
+
+
+async def test_a_grant_past_its_window_is_marked_expired(
+    session: AsyncSession, acting_user, capfd
+):
+    """Liveness is computed, so nothing breaks while the row still says
+    approved — but nothing records the grant ending either. The sweep marks it
+    and says so, once, and leaves a grant still inside its window alone."""
+    from app.core.audit_events import AuditEventType
+    from app.services.platform import access_grants as service
+    from app.testing.audit import emitted
+
+    host = await acting_user(guild_role=CommunityRole.admin)
+    other_host = await acting_user(guild_role=CommunityRole.admin)
+    grantee = await acting_user("support")
+    lapsed = await _approved_grant(
+        session, grantee=grantee, host=host, expires_in=timedelta(minutes=-5)
+    )
+    live = await _approved_grant(session, grantee=grantee, host=other_host)
+    capfd.readouterr()
+
+    assert await service.expire_due(session) == 1
+    await session.commit()
+    assert await service.expire_due(session) == 0
+    await session.commit()
+
+    await session.refresh(lapsed)
+    await session.refresh(live)
+    assert lapsed.status == "expired"
+    assert live.status == "approved"
+    decided = emitted(capfd, AuditEventType.ACCESS_GRANT_DECIDED)
+    assert [(e["target"]["id"], e["detail"]["decision"]) for e in decided] == [
+        (lapsed.id, "expired")
+    ]
+    assert decided[0]["actor_user_id"] is None
+
+
+async def test_a_revoked_grant_is_not_recorded_as_expiring(
+    session: AsyncSession, acting_user, capfd
+):
+    """A grant that ended some other way already has its ending recorded; the
+    sweep claims only grants still marked approved."""
+    from app.core.audit_events import AuditEventType
+    from app.services.platform import access_grants as service
+    from app.testing.audit import emitted
+
+    host = await acting_user(guild_role=CommunityRole.admin)
+    grantee = await acting_user("support")
+    revoked = await _approved_grant(
+        session, grantee=grantee, host=host, expires_in=timedelta(minutes=-5)
+    )
+    revoked.status = "revoked"
+    session.add(revoked)
+    await session.commit()
+    capfd.readouterr()
+
+    assert await service.expire_due(session) == 0
+    await session.commit()
+
+    await session.refresh(revoked)
+    assert revoked.status == "revoked"
+    assert emitted(capfd, AuditEventType.ACCESS_GRANT_DECIDED) == []

@@ -22,7 +22,7 @@ from typing import Optional
 
 from fastapi import HTTPException, status as http_status
 from sqlalchemy import Table, select as sa_select, text, tuple_
-from sqlmodel import SQLModel, select
+from sqlmodel import SQLModel, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.intake import IntakeStream
@@ -39,6 +39,7 @@ from app.core.moderation import (
 from app.core.search import SearchEntityType
 from app.core.tools import Tool
 from app.db import cohorts
+from app.db.query import paginated_query
 from app.db.session import set_rls_context
 from app.models.platform import user_profile_view
 from app.models.platform.user import User
@@ -269,6 +270,15 @@ _ACCOUNT_TARGETS = frozenset(
     }
 )
 
+#: Identity targets whose id names a community. For these the case is about
+#: that community.
+_GUILD_TARGETS = frozenset(
+    {
+        PlatformReportTarget.guild,
+        PlatformReportTarget.directory_listing,
+    }
+)
+
 
 async def _locate_as_reporter(
     *,
@@ -327,7 +337,7 @@ async def _open_platform_case(
     detail: Optional[str],
     moment: datetime,
     note: Optional[str] = None,
-    reporter_ids: tuple[int, ...] = (),
+    reporters: tuple[tuple[int, Optional[str]], ...] = (),
     guild_id: Optional[int] = None,
 ) -> bool:
     """File the report as an intake case in the operations guild.
@@ -336,23 +346,33 @@ async def _open_platform_case(
     a deployment that has bound no moderation project — which is every fresh
     install — and a report that opened nothing has not been received.
 
-    ``reporter_ids`` are carried only on an escalation, where judging whether a
-    report was made in good faith is the platform's job and the reporters are
-    not somebody's neighbours. An ordinary platform report carries none: who
-    said it adds nothing to a complaint about a username.
+    ``reporters`` — each reporter's id and their own words — are carried only
+    on an escalation, where judging whether a report was made in good faith is
+    the platform's job and the reporters are not somebody's neighbours. An
+    ordinary platform report carries none: who said it adds nothing to a
+    complaint about a username.
     """
     parts = [part for part in (detail, note) if part]
-    if reporter_ids:
-        listed = ", ".join(str(i) for i in reporter_ids)
+    if reporters:
+        listed = ", ".join(str(reporter_id) for reporter_id, _ in reporters)
         parts.append(f"Reported by account(s): {listed}")
+        said = [
+            f"Account {reporter_id}: {words}"
+            for reporter_id, words in reporters
+            if words
+        ]
+        if said:
+            parts.append("What they said:\n\n" + "\n\n".join(said))
     outcome = await open_case(
         IntakeStream.moderation,
         title=f"Reported {target.value} {target_id} ({reason.value})",
         body="\n\n".join(parts) or None,
+        # A second report of an open case brings somebody's own words.
+        detail="\n\n".join(parts) or None,
         refs=CaseRefs(
             # The subject is who or what was reported — never the reporter.
             subject_user=target_id if target in _ACCOUNT_TARGETS else None,
-            subject_guild=guild_id,
+            subject_guild=(target_id if target in _GUILD_TARGETS else guild_id),
             resource_type=target.value,
             resource_id=target_id,
             reported_at=moment,
@@ -417,8 +437,14 @@ async def settle_report(
         # order would risk a closed report whose escalation never left.
         reporters = (
             await session.exec(
-                select(ModerationReportReporter.reporter_id).where(
-                    ModerationReportReporter.report_id == report.id
+                select(
+                    ModerationReportReporter.reporter_id,
+                    ModerationReportReporter.detail,
+                )
+                .where(ModerationReportReporter.report_id == report.id)
+                .order_by(
+                    ModerationReportReporter.reported_at,
+                    ModerationReportReporter.id,
                 )
             )
         ).all()
@@ -429,7 +455,7 @@ async def settle_report(
             detail=None,
             moment=moment,
             note=note,
-            reporter_ids=tuple(reporters),
+            reporters=tuple((reporter_id, words) for reporter_id, words in reporters),
             guild_id=guild_id,
         )
         if not opened:
@@ -644,10 +670,11 @@ async def list_reports(
     *,
     initiative_id: int,
     settled: bool = False,
-    limit: int = 50,
-    offset: int = 0,
-) -> list[tuple[ModerationReport, int, list[str]]]:
-    """Reports for one initiative, with how many people reported each.
+    page: int = 1,
+    page_size: int = 50,
+) -> tuple[list[tuple[ModerationReport, int, list[str]]], int, int]:
+    """One page of an initiative's reports, with how many people reported
+    each. Returns ``(rows, total_count, page)``.
 
     The session must already be routed; RLS decides whether this reader sees
     any of it. Reporter **identities** are deliberately not returned — the
@@ -661,23 +688,26 @@ async def list_reports(
         if settled
         else stmt.where(ModerationReport.outcome.is_(None))
     )
-    reports = (
-        await session.exec(
-            # A second key, because two reports can share a timestamp and an
-            # offset page needs one order to be paged through.
-            stmt.order_by(
-                ModerationReport.reported_at.desc(), ModerationReport.id.desc()
-            )
-            .offset(offset)
-            .limit(limit)
-            .execution_options(populate_existing=True)
-        )
-    ).all()
+    reports, total_count, page = await paginated_query(
+        session,
+        # A second key, because two reports can share a timestamp and a page
+        # needs one order to be paged through.
+        stmt.order_by(
+            ModerationReport.reported_at.desc(), ModerationReport.id.desc()
+        ).execution_options(populate_existing=True),
+        select(func.count()).select_from(stmt.subquery()),
+        page,
+        page_size,
+    )
     if not reports:
-        return []
+        return [], total_count, page
 
     counts, details = await reporters_for(session, [r.id for r in reports])
-    return [
-        (report, counts.get(report.id, 0), details.get(report.id, []))
-        for report in reports
-    ]
+    return (
+        [
+            (report, counts.get(report.id, 0), details.get(report.id, []))
+            for report in reports
+        ],
+        total_count,
+        page,
+    )

@@ -24,7 +24,7 @@ import { useSetPostReactions } from "@/hooks/usePostReactions";
 import { useServerForm } from "@/hooks/useServerForm";
 import { useSetToolComments } from "@/hooks/useToolComments";
 import { useSetToolTags } from "@/hooks/useToolTags";
-import { toast } from "@/lib/chesterToast";
+import { toast } from "@/lib/mascotToast";
 
 export const ToolSettingsDetailsPage = () => {
   const { t } = useTranslation(["common", "properties"]);
@@ -86,10 +86,7 @@ export const ToolSettingsDetailsPage = () => {
     <div className="space-y-6">
       {update && (
         <Card>
-          <CardHeader>
-            <CardTitle>{t("toolSettings.tabDetails")}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-4 pt-6">
             <div className="space-y-2">
               <Label htmlFor="tool-settings-name">{t("name")}</Label>
               <Input
@@ -153,7 +150,7 @@ export const ToolSettingsDetailsPage = () => {
         </CardContent>
       </Card>
 
-      {/* Definitions belong to an initiative, so a guild-level tool has none
+      {/* Definitions belong to an initiative, so a community-level tool has none
           to offer. */}
       {entity.initiative_id !== null && (
         <Card>

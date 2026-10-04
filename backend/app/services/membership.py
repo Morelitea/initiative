@@ -20,7 +20,7 @@ from typing import Iterable
 from sqlalchemy import ColumnElement, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.platform.guild import GuildMembership, GuildRole
+from app.models.platform.guild import GuildMembership, CommunityRole
 from app.db.authorization import standing_arg
 
 
@@ -61,7 +61,7 @@ async def guild_role_map(
     session: AsyncSession,
     guild_id: int,
     user_ids: Iterable[int],
-) -> dict[int, GuildRole]:
+) -> dict[int, CommunityRole]:
     """Guild role per user for a batch of users in one query. Users without a
     membership are absent from the result."""
     ids = tuple(set(user_ids))

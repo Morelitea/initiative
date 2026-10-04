@@ -58,7 +58,7 @@ export function YearView({
             {/* Mini weekday header */}
             <div className="grid grid-cols-7 text-center">
               {weekdayLabelsShort.map((label) => (
-                <div key={label} className="py-0.5 font-medium text-[9px] text-muted-foreground">
+                <div key={label} className="py-0.5 font-medium text-3xs text-muted-foreground">
                   {label}
                 </div>
               ))}
@@ -75,7 +75,7 @@ export function YearView({
                     key={key}
                     type="button"
                     className={cn(
-                      "relative flex h-8 w-full flex-col items-center justify-start gap-0 rounded pt-0.5 text-[10px] transition-colors",
+                      "relative flex h-8 w-full flex-col items-center justify-start gap-0 rounded pt-0.5 text-3xs transition-colors",
                       !inMonth && "text-transparent",
                       inMonth && "hover:bg-accent",
                       isToday(day) && inMonth && "bg-primary font-bold text-primary-foreground"
@@ -101,7 +101,7 @@ export function YearView({
                     )}
                     {inMonth && dayEntries.length > 3 && (
                       <span
-                        className="rounded-full px-1 font-bold text-[7px] text-white leading-tight"
+                        className="rounded-full px-1 font-bold text-3xs text-white leading-tight"
                         style={{ backgroundColor: "var(--primary)" }}
                       >
                         {dayEntries.length}

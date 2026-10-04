@@ -12,7 +12,7 @@
 import { useParams } from "@tanstack/react-router";
 
 import type { InitiativeRead } from "@/api/generated/initiativeAPI.schemas";
-import { useGuilds } from "@/hooks/useGuilds";
+import { useCommunities } from "@/hooks/useCommunities";
 import { useInitiative } from "@/hooks/useInitiatives";
 
 export interface InitiativeSettingsContext {
@@ -22,10 +22,10 @@ export interface InitiativeSettingsContext {
   /** The initiative, once it has landed and it is one the reader may see. */
   initiative: InitiativeRead | null;
   isLoading: boolean;
-  isGuildAdmin: boolean;
+  isCommunityAdmin: boolean;
   /** Manage the roster, roles, details — the standing every section requires. */
   canManageMembers: boolean;
-  /** Deleting is the guild admin's alone, even among managers. */
+  /** Deleting is the community admin's alone, even among managers. */
   canDeleteInitiative: boolean;
 }
 
@@ -37,22 +37,22 @@ export function useInitiativeSettings(): InitiativeSettingsContext {
   const hasValidInitiativeId = Boolean(initiativeIdParam) && Number.isFinite(parsedInitiativeId);
   const initiativeId = hasValidInitiativeId ? parsedInitiativeId : 0;
 
-  const { activeGuild } = useGuilds();
-  // Addressed by id, not picked out of the caller's own list: a guild admin
-  // reaches every initiative in their guild whether or not they have joined it,
+  const { activeCommunity } = useCommunities();
+  // Addressed by id, not picked out of the caller's own list: a community admin
+  // reaches every initiative in their community whether or not they have joined it,
   // and the endpoint answers 404 to anyone the row is not visible to.
   const initiativeQuery = useInitiative(hasValidInitiativeId ? initiativeId : null);
   const initiative = initiativeQuery.data ?? null;
 
-  const isGuildAdmin = Boolean(activeGuild?.can.administer_content);
+  const isCommunityAdmin = Boolean(activeCommunity?.can.administer_content);
 
   return {
     initiativeId,
     hasValidInitiativeId,
     initiative,
     isLoading: initiativeQuery.isLoading,
-    isGuildAdmin,
+    isCommunityAdmin,
     canManageMembers: Boolean(initiative?.can.manage),
-    canDeleteInitiative: Boolean(isGuildAdmin),
+    canDeleteInitiative: Boolean(isCommunityAdmin),
   };
 }

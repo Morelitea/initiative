@@ -253,6 +253,35 @@ async def test_deleting_a_line_pokes_the_recipient(session, account_socket) -> N
     assert [frame["action"] for frame in tab.sent] == ["withdrawn"]
 
 
+async def test_lines_announced_together_share_one_alert(
+    session, account_socket
+) -> None:
+    """The alert names its lines and nothing about them, in its own frame
+    beside the inbox's."""
+    user = await create_user(session)
+    tab = account_socket(user.id)
+
+    lines = [
+        await user_notifications.create_notification(
+            session,
+            user_id=user.id,
+            notification_type=NotificationType.task_assignment,
+            data={"task_id": task_id},
+        )
+        for task_id in (1, 2)
+    ]
+    for line in lines:
+        assert line is not None
+        await user_notifications.announce_on_desktop(session, line)
+    await session.commit()
+    await settle()
+
+    alert = next(frame for frame in tab.sent if frame["resource"] == "alert")
+    assert alert["ids"] == {"notifications": [line.id for line in lines if line]}
+    assert set(alert) == {"resource", "action", "ids", "timestamp"}
+    assert [frame["resource"] for frame in tab.sent].count("notification") == 1
+
+
 async def test_queue_signal_ignores_a_missing_recipient() -> None:
     """Defensive: a caller with no user id queues nothing rather than erroring
     inside someone else's transaction."""

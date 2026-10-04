@@ -26,7 +26,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import { useGuilds } from "@/hooks/useGuilds";
 import {
   useAddInitiativeMember,
   useInitiativeRoster,
@@ -39,30 +38,30 @@ import {
   useInitiativeMemberSearch,
   useUserSearch,
 } from "@/hooks/useUsers";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 import { isAdminRole } from "@/lib/permissions";
 import type { AppColumnDef } from "@/lib/table";
 import { getUserDisplayName } from "@/lib/userDisplay";
 
-const GUILD_SCOPE: MemberSearchScope = { type: "guild" };
+const COMMUNITY_SCOPE: MemberSearchScope = { type: "community" };
 const NONE: never[] = [];
 
 interface InitiativeSettingsMembersTabProps {
   initiativeId: number;
   roles: InitiativeRoleRead[] | undefined;
   canManageMembers: boolean;
-  /** How guild members may join this initiative. */
+  /** How community members may join this initiative. */
   joinPolicy: InitiativeJoinPolicy;
   onChangeJoinPolicy: (value: InitiativeJoinPolicy) => void;
-  /** Whether every new guild member is enrolled here on arrival. */
+  /** Whether every new community member is enrolled here on arrival. */
   autoJoin: boolean;
   onChangeAutoJoin: (next: boolean) => void;
-  /** Auto-join is the guild admin's to set, even among initiative managers. */
+  /** Auto-join is the community admin's to set, even among initiative managers. */
   canManageAutoJoin: boolean;
   /** A policy or auto-join save is in flight. */
   isSavingJoinPolicy: boolean;
-  activeGuildId: number | undefined;
+  activeCommunityId: number | undefined;
   selectedUserId: string;
   setSelectedUserId: (value: string) => void;
   selectedRoleId: string;
@@ -80,7 +79,7 @@ export const InitiativeSettingsMembersTab = ({
   onChangeAutoJoin,
   canManageAutoJoin,
   isSavingJoinPolicy,
-  activeGuildId,
+  activeCommunityId,
   selectedUserId,
   setSelectedUserId,
   selectedRoleId,
@@ -103,14 +102,14 @@ export const InitiativeSettingsMembersTab = ({
   const members = useMemo(() => rosterQuery.data?.items ?? [], [rosterQuery.data]);
   const totalCount = rosterQuery.data?.total_count ?? 0;
 
-  // The add-member picker asks the guild for the people matching what was
+  // The add-member picker asks the community for the people matching what was
   // typed, once it is open, and leaves out the ones already here. Only a
   // members manager is shown it.
   const [pickerOpen, setPickerOpen] = useState(false);
   const [search, setSearch] = useState("");
   const candidatesQuery = useUserSearch({
     search,
-    enabled: canManageMembers && !!activeGuildId && pickerOpen,
+    enabled: canManageMembers && !!activeCommunityId && pickerOpen,
   });
   const candidateIds = useMemo(
     () => (candidatesQuery.data?.items ?? []).map((candidate) => candidate.id),
@@ -133,13 +132,13 @@ export const InitiativeSettingsMembersTab = ({
   const [picked, setPicked] = useState<UserSummary | null>(null);
   const pickedUser = picked && String(picked.id) === selectedUserId ? picked : null;
 
-  // A guild admin's standing already reaches every initiative, so their row
+  // A community admin's standing already reaches every initiative, so their row
   // lands on the moderator role — the server settles that on the way in. The
   // picker says so up front rather than offering a choice that would be
-  // rewritten. Who is an admin is the guild's to say, so the members already
+  // rewritten. Who is an admin is the community's to say, so the members already
   // here are looked up by id.
   const knownMembers = useSeenMembers(
-    GUILD_SCOPE,
+    COMMUNITY_SCOPE,
     canManageMembers ? memberIds : NONE,
     undefined,
     NONE
@@ -148,7 +147,7 @@ export const InitiativeSettingsMembersTab = ({
     () =>
       new Set(
         [...knownMembers.values()]
-          .filter((member) => isAdminRole(member.guild_role))
+          .filter((member) => isAdminRole(member.community_role))
           .map((member) => member.id)
       ),
     [knownMembers]
@@ -158,7 +157,7 @@ export const InitiativeSettingsMembersTab = ({
       roles?.find((role) => role.name === "moderator") ?? roles?.find((role) => role.is_manager),
     [roles]
   );
-  const addingAdmin = isAdminRole(pickedUser?.guild_role);
+  const addingAdmin = isAdminRole(pickedUser?.community_role);
   const effectiveRoleId = addingAdmin && adminRole ? String(adminRole.id) : selectedRoleId;
 
   const addMember = useAddInitiativeMember({
@@ -203,11 +202,9 @@ export const InitiativeSettingsMembersTab = ({
     addMember.mutate({ initiativeId, data: { user_id: userId, role_id: roleId } });
   };
 
-  const { activeGuild } = useGuilds();
-
-  // What this guild calls people, which decides whether a handle column adds
-  // anything to the member column beside it.
-  const showsNames = Boolean(activeGuild?.show_member_names);
+  // A name is only the display name somebody set in this community, so the
+  // name column shows once someone here has one.
+  const showsNames = members.some((member) => member.user.display_name?.trim());
 
   const memberColumns: AppColumnDef<InitiativeMemberRead>[] = useMemo(() => {
     const getRoleDisplayName = (member: InitiativeMemberRead): string => {
@@ -219,7 +216,7 @@ export const InitiativeSettingsMembersTab = ({
     };
 
     return [
-      // The handle leads: every guild has one for every member, and it is the
+      // The handle leads: every community has one for every member, and it is the
       // identifier the rest of the app shows.
       {
         id: "handle",
@@ -227,16 +224,16 @@ export const InitiativeSettingsMembersTab = ({
         header: t("settings.handleColumn"),
         cell: ({ row }) => <UserHandle user={row.original.user} />,
       },
-      // A guild that renders handles sends no names, so this column would be a
-      // full one of em-dashes.
+      // Without a display name on the page this column would be a full one of
+      // em-dashes.
       ...(showsNames
         ? [
             {
               id: "name",
-              accessorKey: "user.full_name",
+              accessorKey: "user.display_name",
               header: t("settings.nameColumn"),
               cell: ({ row }) => (
-                <span className="font-medium">{row.original.user.full_name?.trim() || "—"}</span>
+                <span className="font-medium">{row.original.user.display_name?.trim() || "—"}</span>
               ),
             } satisfies AppColumnDef<InitiativeMemberRead>,
           ]
@@ -333,7 +330,7 @@ export const InitiativeSettingsMembersTab = ({
   ]);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {/* Requests come before the roster: they are the roster's inbox, and
           answering one is the same act as adding a member by hand. Manager-only,
           matching who may answer them. */}
@@ -346,7 +343,7 @@ export const InitiativeSettingsMembersTab = ({
         canManage={canManageMembers}
         isSaving={isSavingJoinPolicy}
         autoJoin={autoJoin}
-        // Absent for a manager who is not a guild admin: the server refuses the
+        // Absent for a manager who is not a community admin: the server refuses the
         // field from them, so the control is not offered rather than shown inert.
         onChangeAutoJoin={canManageAutoJoin ? onChangeAutoJoin : undefined}
       />

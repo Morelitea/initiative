@@ -28,8 +28,8 @@ import {
   useProviderDefault,
   useSetProviderDefault,
 } from "@/hooks/useSettings";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 
 const ProviderDefaultRow = ({ provider }: { provider: AuthProviderOwnerRead }) => {
   const { t } = useTranslation("settings");
@@ -154,7 +154,7 @@ export const ProviderDefaultsSection = () => {
   const providers = providersQuery.data ?? [];
 
   return (
-    <Card className="shadow-sm">
+    <Card>
       <CardHeader>
         <CardTitle>{t("providerDefaults.title")}</CardTitle>
         <CardDescription>{t("providerDefaults.description")}</CardDescription>

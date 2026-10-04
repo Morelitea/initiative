@@ -29,7 +29,7 @@ from app.db.session import (
     StaleAuthorizationContext,
     install_context,
 )
-from app.models.platform.guild import GuildRole, GuildStatus
+from app.models.platform.guild import CommunityRole, CommunityStatus
 from app.models.platform.identity_ref import IdentityEntity, IdentityPurpose
 from app.models.tenant.app_placement import AppPlacement
 from app.models.tenant.initiative import Initiative
@@ -85,7 +85,7 @@ async def _install(
     """An install placed in ``placed`` (of initiatives A and B), granted
     ``granted`` by the community's seat, with a live registration and a pinned
     manifest requesting ``requested``."""
-    seat = await acting_user(guild_role=GuildRole.superadmin, initiative=True)
+    seat = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
     second = await create_initiative(session, seat.guild, seat.user, name="B")
     definition = {
         **_APP_DEFINITION,
@@ -303,7 +303,9 @@ async def _set_registration(session, column: str, value) -> None:
     await session.commit()
 
 
-async def _set_guild_status(session, install: _Install, status: GuildStatus) -> None:
+async def _set_guild_status(
+    session, install: _Install, status: CommunityStatus
+) -> None:
     await session.exec(
         text("UPDATE public.guilds SET status = :s WHERE id = :id").bindparams(
             s=status.value, id=install.guild.id
@@ -349,9 +351,9 @@ async def test_an_install_that_may_not_act_is_refused(
     elif reason == "another_client":
         client = "tests.someone-else"
     elif reason == "guild_suspended":
-        await _set_guild_status(session, install, GuildStatus.suspended)
+        await _set_guild_status(session, install, CommunityStatus.suspended)
     elif reason == "guild_on_hold":
-        await _set_guild_status(session, install, GuildStatus.on_hold)
+        await _set_guild_status(session, install, CommunityStatus.on_hold)
 
     s = await role_session("app_user")
     with pytest.raises(InstallAccessError):
@@ -381,7 +383,7 @@ async def test_a_read_only_community_writes_nothing(session, acting_user, role_s
     install = await _install(
         session, acting_user, role_session, granted=["documents:write"]
     )
-    await _set_guild_status(session, install, GuildStatus.read_only)
+    await _set_guild_status(session, install, CommunityStatus.read_only)
     s, context = await _route(role_session, install, ["documents:write"])
     assert context.live and context.content_hold
     assert set(context.install_read) == {"documents"}
@@ -549,10 +551,10 @@ async def test_a_moderator_scope_does_nothing_on_a_token_naming_no_initiative(
     [
         # The token carries a standing the seat never granted.
         (["documents:read"], ["documents:read", "initiatives:moderate"], True),
-        (["documents:read"], ["documents:read", "guild:admin"], False),
+        (["documents:read"], ["documents:read", "community:admin"], False),
         # The seat granted it and the token did not ask.
         (["documents:read", "initiatives:moderate"], ["documents:read"], True),
-        (["documents:read", "guild:admin"], ["documents:read"], False),
+        (["documents:read", "community:admin"], ["documents:read"], False),
     ],
 )
 async def test_a_standing_needs_the_grant_and_the_token(
@@ -576,7 +578,7 @@ async def test_a_guild_admin_token_administers_the_community(
     session, acting_user, role_session
 ):
     """A guild admin's standing reaches every initiative, placed in or not."""
-    granted = ["documents:read", "guild:admin"]
+    granted = ["documents:read", "community:admin"]
     install = await _install(
         session, acting_user, role_session, granted=granted, placed="a"
     )
@@ -603,7 +605,7 @@ async def test_a_narrowed_guild_admin_token_administers_that_initiative(
 ):
     """The narrowing still confines it: everything in the initiative it names,
     nothing in the other."""
-    granted = ["documents:read", "guild:admin"]
+    granted = ["documents:read", "community:admin"]
     install = await _install(session, acting_user, role_session, granted=granted)
     await _documents(session, install)
 
@@ -617,7 +619,8 @@ async def test_a_narrowed_guild_admin_token_administers_that_initiative(
 
 
 @pytest.mark.parametrize(
-    ("standing", "narrowed"), [("initiatives:moderate", True), ("guild:admin", False)]
+    ("standing", "narrowed"),
+    [("initiatives:moderate", True), ("community:admin", False)],
 )
 async def test_a_standing_reaches_no_tool_its_scopes_do_not(
     session, acting_user, role_session, standing, narrowed
@@ -721,6 +724,9 @@ async def test_a_new_transaction_replays_the_install(
                 "jwks_uri",
                 "base_url",
                 "vendor_ready",
+                # Whether it is a declarative app's, which needs no location
+                # or keys to be live.
+                "kind",
             },
         ),
         # Whether the registration's publisher is on.

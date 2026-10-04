@@ -14,14 +14,14 @@ from sqlalchemy.sql.elements import ColumnElement
 from sqlmodel import func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.guild_auth_options import GuildAuthOption, effective_options
+from app.core.guild_auth_options import CommunityAuthOption, effective_options
 from app.core.messages import GuildMessages
 from app.models.platform.guild_administration import GuildAdministration
 
 
 async def auth_options_for(
     session: AsyncSession, guild_id: int
-) -> frozenset[GuildAuthOption]:
+) -> frozenset[CommunityAuthOption]:
     """The sign-in options this guild holds. Empty when it holds none, and
     empty when it has no administration row at all — a guild nobody has granted
     anything is the same as a guild with nothing granted.
@@ -38,7 +38,7 @@ async def auth_options_for(
     return effective_options(administration.auth_options)
 
 
-def holds_option(guild_id: Any, option: GuildAuthOption) -> ColumnElement[bool]:
+def holds_option(guild_id: Any, option: CommunityAuthOption) -> ColumnElement[bool]:
     """Whether a rule that needs ``option`` applies to the community:
     ``public.guild_holds_option``, the answer the sign-in gate gives. True
     unless the row the session reads shows the option withdrawn."""
@@ -46,13 +46,13 @@ def holds_option(guild_id: Any, option: GuildAuthOption) -> ColumnElement[bool]:
 
 
 async def has_auth_option(
-    session: AsyncSession, guild_id: int, option: GuildAuthOption
+    session: AsyncSession, guild_id: int, option: CommunityAuthOption
 ) -> bool:
     return option in await auth_options_for(session, guild_id)
 
 
 async def require_auth_option(
-    session: AsyncSession, guild_id: int, option: GuildAuthOption
+    session: AsyncSession, guild_id: int, option: CommunityAuthOption
 ) -> None:
     """One operator-granted sign-in option, or 404.
 
@@ -64,5 +64,5 @@ async def require_auth_option(
     if not await has_auth_option(session, guild_id, option):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=GuildMessages.GUILD_AUTH_NOT_ENABLED,
+            detail=GuildMessages.COMMUNITY_AUTH_NOT_ENABLED,
         )

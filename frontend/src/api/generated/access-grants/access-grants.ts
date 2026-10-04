@@ -24,12 +24,13 @@ import type {
   AccessGrantApprove,
   AccessGrantCreate,
   AccessGrantLimits,
+  AccessGrantListResponse,
   AccessGrantRead,
   BreakGlassCreate,
   BreakGlassRequirements,
   HTTPValidationError,
-  ListAccessGrantQueueApiV1AccessGrantsQueueGetParams,
-  ListAccessGrantsApiV1AccessGrantsGetParams,
+  ListAccessGrantQueueParams,
+  ListAccessGrantsParams,
   PasskeyAuthenticationOptions,
 } from "../initiativeAPI.schemas";
 
@@ -61,7 +62,7 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
  * apart. The content one is returned, being the one a caller routes in under.
  * @summary Create Access Request
  */
-export const createAccessRequestApiV1AccessGrantsPost = (
+export const createAccessRequest = (
   accessGrantCreate: BodyType<AccessGrantCreate>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
@@ -78,27 +79,26 @@ export const createAccessRequestApiV1AccessGrantsPost = (
   );
 };
 
-export const getCreateAccessRequestApiV1AccessGrantsPostMutationKey = () =>
-  ["createAccessRequestApiV1AccessGrantsPost"] as const;
+export const getCreateAccessRequestMutationKey = () => ["createAccessRequest"] as const;
 
-export const getCreateAccessRequestApiV1AccessGrantsPostMutationOptions = <
+export const getCreateAccessRequestMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof createAccessRequestApiV1AccessGrantsPost>>,
+    Awaited<ReturnType<typeof createAccessRequest>>,
     TError,
-    CreateAccessRequestApiV1AccessGrantsPostMutationVariables,
+    CreateAccessRequestMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof createAccessRequestApiV1AccessGrantsPost>>,
+  Awaited<ReturnType<typeof createAccessRequest>>,
   TError,
-  CreateAccessRequestApiV1AccessGrantsPostMutationVariables,
+  CreateAccessRequestMutationVariables,
   TContext
 > => {
-  const mutationKey = getCreateAccessRequestApiV1AccessGrantsPostMutationKey();
+  const mutationKey = getCreateAccessRequestMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -106,134 +106,107 @@ export const getCreateAccessRequestApiV1AccessGrantsPostMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof createAccessRequestApiV1AccessGrantsPost>>,
-    CreateAccessRequestApiV1AccessGrantsPostMutationVariables
+    Awaited<ReturnType<typeof createAccessRequest>>,
+    CreateAccessRequestMutationVariables
   > = (props) => {
     const { data } = props ?? {};
 
-    return createAccessRequestApiV1AccessGrantsPost(data, requestOptions);
+    return createAccessRequest(data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type CreateAccessRequestApiV1AccessGrantsPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof createAccessRequestApiV1AccessGrantsPost>>
+export type CreateAccessRequestMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createAccessRequest>>
 >;
-export type CreateAccessRequestApiV1AccessGrantsPostMutationBody = BodyType<AccessGrantCreate>;
-export type CreateAccessRequestApiV1AccessGrantsPostMutationError = ErrorType<HTTPValidationError>;
-export type CreateAccessRequestApiV1AccessGrantsPostMutationVariables = {
-  data: BodyType<AccessGrantCreate>;
-};
+export type CreateAccessRequestMutationBody = BodyType<AccessGrantCreate>;
+export type CreateAccessRequestMutationError = ErrorType<HTTPValidationError>;
+export type CreateAccessRequestMutationVariables = { data: BodyType<AccessGrantCreate> };
 
 /**
  * @summary Create Access Request
  */
-export const useCreateAccessRequestApiV1AccessGrantsPost = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
+export const useCreateAccessRequest = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof createAccessRequestApiV1AccessGrantsPost>>,
+      Awaited<ReturnType<typeof createAccessRequest>>,
       TError,
-      CreateAccessRequestApiV1AccessGrantsPostMutationVariables,
+      CreateAccessRequestMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof createAccessRequestApiV1AccessGrantsPost>>,
+  Awaited<ReturnType<typeof createAccessRequest>>,
   TError,
-  CreateAccessRequestApiV1AccessGrantsPostMutationVariables,
+  CreateAccessRequestMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getCreateAccessRequestApiV1AccessGrantsPostMutationOptions(options),
-    queryClient
-  );
+  return useMutation(getCreateAccessRequestMutationOptions(options), queryClient);
 };
 /**
  * List your own access grants.
  *
- * Ordered newest-first; ``limit``/``offset`` page the result so it can't grow
- * unbounded, and ``live=true`` narrows to grants that are still within their
- * window. The full queue is ``GET /access-grants/queue``.
+ * Newest first, a page at a time; ``live=true`` narrows to grants that are
+ * still within their window. The full queue is ``GET /access-grants/queue``.
  * @summary List Access Grants
  */
-export const listAccessGrantsApiV1AccessGrantsGet = (
-  params?: ListAccessGrantsApiV1AccessGrantsGetParams,
+export const listAccessGrants = (
+  params?: ListAccessGrantsParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<AccessGrantRead[]>(
+  return apiMutator<AccessGrantListResponse>(
     { url: `/api/v1/access-grants/`, method: "GET", params, signal },
     options
   );
 };
 
-export const getListAccessGrantsApiV1AccessGrantsGetQueryKey = (
-  params?: ListAccessGrantsApiV1AccessGrantsGetParams
-) => {
+export const getListAccessGrantsQueryKey = (params?: ListAccessGrantsParams) => {
   return [`/api/v1/access-grants/`, ...(params ? [params] : [])] as const;
 };
 
-export const getListAccessGrantsApiV1AccessGrantsGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof listAccessGrantsApiV1AccessGrantsGet>>,
+export const getListAccessGrantsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listAccessGrants>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params?: ListAccessGrantsApiV1AccessGrantsGetParams,
+  params?: ListAccessGrantsParams,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listAccessGrantsApiV1AccessGrantsGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listAccessGrants>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   }
 ) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey =
-    queryOptions?.queryKey ?? getListAccessGrantsApiV1AccessGrantsGetQueryKey(params);
+  const queryKey = queryOptions?.queryKey ?? getListAccessGrantsQueryKey(params);
 
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof listAccessGrantsApiV1AccessGrantsGet>>
-  > = ({ signal }) => listAccessGrantsApiV1AccessGrantsGet(params, requestOptions, signal);
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listAccessGrants>>> = ({ signal }) =>
+    listAccessGrants(params, requestOptions, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof listAccessGrantsApiV1AccessGrantsGet>>,
+    Awaited<ReturnType<typeof listAccessGrants>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ListAccessGrantsApiV1AccessGrantsGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof listAccessGrantsApiV1AccessGrantsGet>>
->;
-export type ListAccessGrantsApiV1AccessGrantsGetQueryError = ErrorType<HTTPValidationError>;
+export type ListAccessGrantsQueryResult = NonNullable<Awaited<ReturnType<typeof listAccessGrants>>>;
+export type ListAccessGrantsQueryError = ErrorType<HTTPValidationError>;
 
-export function useListAccessGrantsApiV1AccessGrantsGet<
-  TData = Awaited<ReturnType<typeof listAccessGrantsApiV1AccessGrantsGet>>,
+export function useListAccessGrants<
+  TData = Awaited<ReturnType<typeof listAccessGrants>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params: undefined | ListAccessGrantsApiV1AccessGrantsGetParams,
+  params: undefined | ListAccessGrantsParams,
   options: {
-    query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listAccessGrantsApiV1AccessGrantsGet>>,
-        TError,
-        TData
-      >
-    > &
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof listAccessGrants>>, TError, TData>> &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listAccessGrantsApiV1AccessGrantsGet>>,
+          Awaited<ReturnType<typeof listAccessGrants>>,
           TError,
-          Awaited<ReturnType<typeof listAccessGrantsApiV1AccessGrantsGet>>
+          Awaited<ReturnType<typeof listAccessGrants>>
         >,
         "initialData"
       >;
@@ -241,24 +214,18 @@ export function useListAccessGrantsApiV1AccessGrantsGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListAccessGrantsApiV1AccessGrantsGet<
-  TData = Awaited<ReturnType<typeof listAccessGrantsApiV1AccessGrantsGet>>,
+export function useListAccessGrants<
+  TData = Awaited<ReturnType<typeof listAccessGrants>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params?: ListAccessGrantsApiV1AccessGrantsGetParams,
+  params?: ListAccessGrantsParams,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listAccessGrantsApiV1AccessGrantsGet>>,
-        TError,
-        TData
-      >
-    > &
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listAccessGrants>>, TError, TData>> &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listAccessGrantsApiV1AccessGrantsGet>>,
+          Awaited<ReturnType<typeof listAccessGrants>>,
           TError,
-          Awaited<ReturnType<typeof listAccessGrantsApiV1AccessGrantsGet>>
+          Awaited<ReturnType<typeof listAccessGrants>>
         >,
         "initialData"
       >;
@@ -266,19 +233,13 @@ export function useListAccessGrantsApiV1AccessGrantsGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListAccessGrantsApiV1AccessGrantsGet<
-  TData = Awaited<ReturnType<typeof listAccessGrantsApiV1AccessGrantsGet>>,
+export function useListAccessGrants<
+  TData = Awaited<ReturnType<typeof listAccessGrants>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params?: ListAccessGrantsApiV1AccessGrantsGetParams,
+  params?: ListAccessGrantsParams,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listAccessGrantsApiV1AccessGrantsGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listAccessGrants>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
@@ -287,24 +248,18 @@ export function useListAccessGrantsApiV1AccessGrantsGet<
  * @summary List Access Grants
  */
 
-export function useListAccessGrantsApiV1AccessGrantsGet<
-  TData = Awaited<ReturnType<typeof listAccessGrantsApiV1AccessGrantsGet>>,
+export function useListAccessGrants<
+  TData = Awaited<ReturnType<typeof listAccessGrants>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params?: ListAccessGrantsApiV1AccessGrantsGetParams,
+  params?: ListAccessGrantsParams,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listAccessGrantsApiV1AccessGrantsGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listAccessGrants>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListAccessGrantsApiV1AccessGrantsGetQueryOptions(params, options);
+  const queryOptions = getListAccessGrantsQueryOptions(params, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -320,7 +275,7 @@ export function useListAccessGrantsApiV1AccessGrantsGet<
  * caller has a factor to answer with, and the longest window it may ask for.
  * @summary Break Glass Requirements
  */
-export const breakGlassRequirementsApiV1AccessGrantsBreakGlassGet = (
+export const breakGlassRequirements = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
@@ -330,62 +285,51 @@ export const breakGlassRequirementsApiV1AccessGrantsBreakGlassGet = (
   );
 };
 
-export const getBreakGlassRequirementsApiV1AccessGrantsBreakGlassGetQueryKey = () => {
+export const getBreakGlassRequirementsQueryKey = () => {
   return [`/api/v1/access-grants/break-glass`] as const;
 };
 
-export const getBreakGlassRequirementsApiV1AccessGrantsBreakGlassGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof breakGlassRequirementsApiV1AccessGrantsBreakGlassGet>>,
+export const getBreakGlassRequirementsQueryOptions = <
+  TData = Awaited<ReturnType<typeof breakGlassRequirements>>,
   TError = ErrorType<HTTPValidationError>,
 >(options?: {
   query?: Partial<
-    UseQueryOptions<
-      Awaited<ReturnType<typeof breakGlassRequirementsApiV1AccessGrantsBreakGlassGet>>,
-      TError,
-      TData
-    >
+    UseQueryOptions<Awaited<ReturnType<typeof breakGlassRequirements>>, TError, TData>
   >;
   request?: SecondParameter<typeof apiMutator>;
 }) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey =
-    queryOptions?.queryKey ?? getBreakGlassRequirementsApiV1AccessGrantsBreakGlassGetQueryKey();
+  const queryKey = queryOptions?.queryKey ?? getBreakGlassRequirementsQueryKey();
 
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof breakGlassRequirementsApiV1AccessGrantsBreakGlassGet>>
-  > = ({ signal }) => breakGlassRequirementsApiV1AccessGrantsBreakGlassGet(requestOptions, signal);
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof breakGlassRequirements>>> = ({ signal }) =>
+    breakGlassRequirements(requestOptions, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof breakGlassRequirementsApiV1AccessGrantsBreakGlassGet>>,
+    Awaited<ReturnType<typeof breakGlassRequirements>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type BreakGlassRequirementsApiV1AccessGrantsBreakGlassGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof breakGlassRequirementsApiV1AccessGrantsBreakGlassGet>>
+export type BreakGlassRequirementsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof breakGlassRequirements>>
 >;
-export type BreakGlassRequirementsApiV1AccessGrantsBreakGlassGetQueryError =
-  ErrorType<HTTPValidationError>;
+export type BreakGlassRequirementsQueryError = ErrorType<HTTPValidationError>;
 
-export function useBreakGlassRequirementsApiV1AccessGrantsBreakGlassGet<
-  TData = Awaited<ReturnType<typeof breakGlassRequirementsApiV1AccessGrantsBreakGlassGet>>,
+export function useBreakGlassRequirements<
+  TData = Awaited<ReturnType<typeof breakGlassRequirements>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options: {
     query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof breakGlassRequirementsApiV1AccessGrantsBreakGlassGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof breakGlassRequirements>>, TError, TData>
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof breakGlassRequirementsApiV1AccessGrantsBreakGlassGet>>,
+          Awaited<ReturnType<typeof breakGlassRequirements>>,
           TError,
-          Awaited<ReturnType<typeof breakGlassRequirementsApiV1AccessGrantsBreakGlassGet>>
+          Awaited<ReturnType<typeof breakGlassRequirements>>
         >,
         "initialData"
       >;
@@ -393,23 +337,19 @@ export function useBreakGlassRequirementsApiV1AccessGrantsBreakGlassGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useBreakGlassRequirementsApiV1AccessGrantsBreakGlassGet<
-  TData = Awaited<ReturnType<typeof breakGlassRequirementsApiV1AccessGrantsBreakGlassGet>>,
+export function useBreakGlassRequirements<
+  TData = Awaited<ReturnType<typeof breakGlassRequirements>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof breakGlassRequirementsApiV1AccessGrantsBreakGlassGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof breakGlassRequirements>>, TError, TData>
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof breakGlassRequirementsApiV1AccessGrantsBreakGlassGet>>,
+          Awaited<ReturnType<typeof breakGlassRequirements>>,
           TError,
-          Awaited<ReturnType<typeof breakGlassRequirementsApiV1AccessGrantsBreakGlassGet>>
+          Awaited<ReturnType<typeof breakGlassRequirements>>
         >,
         "initialData"
       >;
@@ -417,17 +357,13 @@ export function useBreakGlassRequirementsApiV1AccessGrantsBreakGlassGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useBreakGlassRequirementsApiV1AccessGrantsBreakGlassGet<
-  TData = Awaited<ReturnType<typeof breakGlassRequirementsApiV1AccessGrantsBreakGlassGet>>,
+export function useBreakGlassRequirements<
+  TData = Awaited<ReturnType<typeof breakGlassRequirements>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof breakGlassRequirementsApiV1AccessGrantsBreakGlassGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof breakGlassRequirements>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
@@ -437,23 +373,19 @@ export function useBreakGlassRequirementsApiV1AccessGrantsBreakGlassGet<
  * @summary Break Glass Requirements
  */
 
-export function useBreakGlassRequirementsApiV1AccessGrantsBreakGlassGet<
-  TData = Awaited<ReturnType<typeof breakGlassRequirementsApiV1AccessGrantsBreakGlassGet>>,
+export function useBreakGlassRequirements<
+  TData = Awaited<ReturnType<typeof breakGlassRequirements>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof breakGlassRequirementsApiV1AccessGrantsBreakGlassGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof breakGlassRequirements>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getBreakGlassRequirementsApiV1AccessGrantsBreakGlassGetQueryOptions(options);
+  const queryOptions = getBreakGlassRequirementsQueryOptions(options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -479,7 +411,7 @@ export function useBreakGlassRequirementsApiV1AccessGrantsBreakGlassGet<
  * are in the list.
  * @summary Break Glass Access
  */
-export const breakGlassAccessApiV1AccessGrantsBreakGlassPost = (
+export const breakGlassAccess = (
   breakGlassCreate: BodyType<BreakGlassCreate>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
@@ -496,27 +428,26 @@ export const breakGlassAccessApiV1AccessGrantsBreakGlassPost = (
   );
 };
 
-export const getBreakGlassAccessApiV1AccessGrantsBreakGlassPostMutationKey = () =>
-  ["breakGlassAccessApiV1AccessGrantsBreakGlassPost"] as const;
+export const getBreakGlassAccessMutationKey = () => ["breakGlassAccess"] as const;
 
-export const getBreakGlassAccessApiV1AccessGrantsBreakGlassPostMutationOptions = <
+export const getBreakGlassAccessMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof breakGlassAccessApiV1AccessGrantsBreakGlassPost>>,
+    Awaited<ReturnType<typeof breakGlassAccess>>,
     TError,
-    BreakGlassAccessApiV1AccessGrantsBreakGlassPostMutationVariables,
+    BreakGlassAccessMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof breakGlassAccessApiV1AccessGrantsBreakGlassPost>>,
+  Awaited<ReturnType<typeof breakGlassAccess>>,
   TError,
-  BreakGlassAccessApiV1AccessGrantsBreakGlassPostMutationVariables,
+  BreakGlassAccessMutationVariables,
   TContext
 > => {
-  const mutationKey = getBreakGlassAccessApiV1AccessGrantsBreakGlassPostMutationKey();
+  const mutationKey = getBreakGlassAccessMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -524,55 +455,45 @@ export const getBreakGlassAccessApiV1AccessGrantsBreakGlassPostMutationOptions =
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof breakGlassAccessApiV1AccessGrantsBreakGlassPost>>,
-    BreakGlassAccessApiV1AccessGrantsBreakGlassPostMutationVariables
+    Awaited<ReturnType<typeof breakGlassAccess>>,
+    BreakGlassAccessMutationVariables
   > = (props) => {
     const { data } = props ?? {};
 
-    return breakGlassAccessApiV1AccessGrantsBreakGlassPost(data, requestOptions);
+    return breakGlassAccess(data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type BreakGlassAccessApiV1AccessGrantsBreakGlassPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof breakGlassAccessApiV1AccessGrantsBreakGlassPost>>
+export type BreakGlassAccessMutationResult = NonNullable<
+  Awaited<ReturnType<typeof breakGlassAccess>>
 >;
-export type BreakGlassAccessApiV1AccessGrantsBreakGlassPostMutationBody =
-  BodyType<BreakGlassCreate>;
-export type BreakGlassAccessApiV1AccessGrantsBreakGlassPostMutationError =
-  ErrorType<HTTPValidationError>;
-export type BreakGlassAccessApiV1AccessGrantsBreakGlassPostMutationVariables = {
-  data: BodyType<BreakGlassCreate>;
-};
+export type BreakGlassAccessMutationBody = BodyType<BreakGlassCreate>;
+export type BreakGlassAccessMutationError = ErrorType<HTTPValidationError>;
+export type BreakGlassAccessMutationVariables = { data: BodyType<BreakGlassCreate> };
 
 /**
  * @summary Break Glass Access
  */
-export const useBreakGlassAccessApiV1AccessGrantsBreakGlassPost = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
+export const useBreakGlassAccess = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof breakGlassAccessApiV1AccessGrantsBreakGlassPost>>,
+      Awaited<ReturnType<typeof breakGlassAccess>>,
       TError,
-      BreakGlassAccessApiV1AccessGrantsBreakGlassPostMutationVariables,
+      BreakGlassAccessMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof breakGlassAccessApiV1AccessGrantsBreakGlassPost>>,
+  Awaited<ReturnType<typeof breakGlassAccess>>,
   TError,
-  BreakGlassAccessApiV1AccessGrantsBreakGlassPostMutationVariables,
+  BreakGlassAccessMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getBreakGlassAccessApiV1AccessGrantsBreakGlassPostMutationOptions(options),
-    queryClient
-  );
+  return useMutation(getBreakGlassAccessMutationOptions(options), queryClient);
 };
 /**
  * Options for answering a break-glass request with one of this account's
@@ -583,7 +504,7 @@ export const useBreakGlassAccessApiV1AccessGrantsBreakGlassPost = <
  * the session it was made on: what it answers for is the grant.
  * @summary Begin Break Glass Passkey
  */
-export const beginBreakGlassPasskeyApiV1AccessGrantsBreakGlassPasskeyPost = (
+export const beginBreakGlassPasskey = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
@@ -593,27 +514,26 @@ export const beginBreakGlassPasskeyApiV1AccessGrantsBreakGlassPasskeyPost = (
   );
 };
 
-export const getBeginBreakGlassPasskeyApiV1AccessGrantsBreakGlassPasskeyPostMutationKey = () =>
-  ["beginBreakGlassPasskeyApiV1AccessGrantsBreakGlassPasskeyPost"] as const;
+export const getBeginBreakGlassPasskeyMutationKey = () => ["beginBreakGlassPasskey"] as const;
 
-export const getBeginBreakGlassPasskeyApiV1AccessGrantsBreakGlassPasskeyPostMutationOptions = <
+export const getBeginBreakGlassPasskeyMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof beginBreakGlassPasskeyApiV1AccessGrantsBreakGlassPasskeyPost>>,
+    Awaited<ReturnType<typeof beginBreakGlassPasskey>>,
     TError,
     void,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof beginBreakGlassPasskeyApiV1AccessGrantsBreakGlassPasskeyPost>>,
+  Awaited<ReturnType<typeof beginBreakGlassPasskey>>,
   TError,
   void,
   TContext
 > => {
-  const mutationKey = getBeginBreakGlassPasskeyApiV1AccessGrantsBreakGlassPasskeyPostMutationKey();
+  const mutationKey = getBeginBreakGlassPasskeyMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -621,33 +541,31 @@ export const getBeginBreakGlassPasskeyApiV1AccessGrantsBreakGlassPasskeyPostMuta
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof beginBreakGlassPasskeyApiV1AccessGrantsBreakGlassPasskeyPost>>,
+    Awaited<ReturnType<typeof beginBreakGlassPasskey>>,
     void
   > = () => {
-    return beginBreakGlassPasskeyApiV1AccessGrantsBreakGlassPasskeyPost(requestOptions);
+    return beginBreakGlassPasskey(requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type BeginBreakGlassPasskeyApiV1AccessGrantsBreakGlassPasskeyPostMutationResult =
-  NonNullable<
-    Awaited<ReturnType<typeof beginBreakGlassPasskeyApiV1AccessGrantsBreakGlassPasskeyPost>>
-  >;
+export type BeginBreakGlassPasskeyMutationResult = NonNullable<
+  Awaited<ReturnType<typeof beginBreakGlassPasskey>>
+>;
 
-export type BeginBreakGlassPasskeyApiV1AccessGrantsBreakGlassPasskeyPostMutationError =
-  ErrorType<HTTPValidationError>;
+export type BeginBreakGlassPasskeyMutationError = ErrorType<HTTPValidationError>;
 
 /**
  * @summary Begin Break Glass Passkey
  */
-export const useBeginBreakGlassPasskeyApiV1AccessGrantsBreakGlassPasskeyPost = <
+export const useBeginBreakGlassPasskey = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof beginBreakGlassPasskeyApiV1AccessGrantsBreakGlassPasskeyPost>>,
+      Awaited<ReturnType<typeof beginBreakGlassPasskey>>,
       TError,
       void,
       TContext
@@ -656,15 +574,12 @@ export const useBeginBreakGlassPasskeyApiV1AccessGrantsBreakGlassPasskeyPost = <
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof beginBreakGlassPasskeyApiV1AccessGrantsBreakGlassPasskeyPost>>,
+  Awaited<ReturnType<typeof beginBreakGlassPasskey>>,
   TError,
   void,
   TContext
 > => {
-  return useMutation(
-    getBeginBreakGlassPasskeyApiV1AccessGrantsBreakGlassPasskeyPostMutationOptions(options),
-    queryClient
-  );
+  return useMutation(getBeginBreakGlassPasskeyMutationOptions(options), queryClient);
 };
 /**
  * Every grant on the platform, for approvers (``access.approve``).
@@ -673,79 +588,66 @@ export const useBeginBreakGlassPasskeyApiV1AccessGrantsBreakGlassPasskeyPost = <
  * grants still within their window.
  * @summary List Access Grant Queue
  */
-export const listAccessGrantQueueApiV1AccessGrantsQueueGet = (
-  params?: ListAccessGrantQueueApiV1AccessGrantsQueueGetParams,
+export const listAccessGrantQueue = (
+  params?: ListAccessGrantQueueParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<AccessGrantRead[]>(
+  return apiMutator<AccessGrantListResponse>(
     { url: `/api/v1/access-grants/queue`, method: "GET", params, signal },
     options
   );
 };
 
-export const getListAccessGrantQueueApiV1AccessGrantsQueueGetQueryKey = (
-  params?: ListAccessGrantQueueApiV1AccessGrantsQueueGetParams
-) => {
+export const getListAccessGrantQueueQueryKey = (params?: ListAccessGrantQueueParams) => {
   return [`/api/v1/access-grants/queue`, ...(params ? [params] : [])] as const;
 };
 
-export const getListAccessGrantQueueApiV1AccessGrantsQueueGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof listAccessGrantQueueApiV1AccessGrantsQueueGet>>,
+export const getListAccessGrantQueueQueryOptions = <
+  TData = Awaited<ReturnType<typeof listAccessGrantQueue>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params?: ListAccessGrantQueueApiV1AccessGrantsQueueGetParams,
+  params?: ListAccessGrantQueueParams,
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listAccessGrantQueueApiV1AccessGrantsQueueGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof listAccessGrantQueue>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   }
 ) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey =
-    queryOptions?.queryKey ?? getListAccessGrantQueueApiV1AccessGrantsQueueGetQueryKey(params);
+  const queryKey = queryOptions?.queryKey ?? getListAccessGrantQueueQueryKey(params);
 
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof listAccessGrantQueueApiV1AccessGrantsQueueGet>>
-  > = ({ signal }) => listAccessGrantQueueApiV1AccessGrantsQueueGet(params, requestOptions, signal);
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listAccessGrantQueue>>> = ({ signal }) =>
+    listAccessGrantQueue(params, requestOptions, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof listAccessGrantQueueApiV1AccessGrantsQueueGet>>,
+    Awaited<ReturnType<typeof listAccessGrantQueue>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ListAccessGrantQueueApiV1AccessGrantsQueueGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof listAccessGrantQueueApiV1AccessGrantsQueueGet>>
+export type ListAccessGrantQueueQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listAccessGrantQueue>>
 >;
-export type ListAccessGrantQueueApiV1AccessGrantsQueueGetQueryError =
-  ErrorType<HTTPValidationError>;
+export type ListAccessGrantQueueQueryError = ErrorType<HTTPValidationError>;
 
-export function useListAccessGrantQueueApiV1AccessGrantsQueueGet<
-  TData = Awaited<ReturnType<typeof listAccessGrantQueueApiV1AccessGrantsQueueGet>>,
+export function useListAccessGrantQueue<
+  TData = Awaited<ReturnType<typeof listAccessGrantQueue>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params: undefined | ListAccessGrantQueueApiV1AccessGrantsQueueGetParams,
+  params: undefined | ListAccessGrantQueueParams,
   options: {
     query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listAccessGrantQueueApiV1AccessGrantsQueueGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof listAccessGrantQueue>>, TError, TData>
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listAccessGrantQueueApiV1AccessGrantsQueueGet>>,
+          Awaited<ReturnType<typeof listAccessGrantQueue>>,
           TError,
-          Awaited<ReturnType<typeof listAccessGrantQueueApiV1AccessGrantsQueueGet>>
+          Awaited<ReturnType<typeof listAccessGrantQueue>>
         >,
         "initialData"
       >;
@@ -753,24 +655,20 @@ export function useListAccessGrantQueueApiV1AccessGrantsQueueGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListAccessGrantQueueApiV1AccessGrantsQueueGet<
-  TData = Awaited<ReturnType<typeof listAccessGrantQueueApiV1AccessGrantsQueueGet>>,
+export function useListAccessGrantQueue<
+  TData = Awaited<ReturnType<typeof listAccessGrantQueue>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params?: ListAccessGrantQueueApiV1AccessGrantsQueueGetParams,
+  params?: ListAccessGrantQueueParams,
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listAccessGrantQueueApiV1AccessGrantsQueueGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof listAccessGrantQueue>>, TError, TData>
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listAccessGrantQueueApiV1AccessGrantsQueueGet>>,
+          Awaited<ReturnType<typeof listAccessGrantQueue>>,
           TError,
-          Awaited<ReturnType<typeof listAccessGrantQueueApiV1AccessGrantsQueueGet>>
+          Awaited<ReturnType<typeof listAccessGrantQueue>>
         >,
         "initialData"
       >;
@@ -778,18 +676,14 @@ export function useListAccessGrantQueueApiV1AccessGrantsQueueGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListAccessGrantQueueApiV1AccessGrantsQueueGet<
-  TData = Awaited<ReturnType<typeof listAccessGrantQueueApiV1AccessGrantsQueueGet>>,
+export function useListAccessGrantQueue<
+  TData = Awaited<ReturnType<typeof listAccessGrantQueue>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params?: ListAccessGrantQueueApiV1AccessGrantsQueueGetParams,
+  params?: ListAccessGrantQueueParams,
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listAccessGrantQueueApiV1AccessGrantsQueueGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof listAccessGrantQueue>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
@@ -799,27 +693,20 @@ export function useListAccessGrantQueueApiV1AccessGrantsQueueGet<
  * @summary List Access Grant Queue
  */
 
-export function useListAccessGrantQueueApiV1AccessGrantsQueueGet<
-  TData = Awaited<ReturnType<typeof listAccessGrantQueueApiV1AccessGrantsQueueGet>>,
+export function useListAccessGrantQueue<
+  TData = Awaited<ReturnType<typeof listAccessGrantQueue>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params?: ListAccessGrantQueueApiV1AccessGrantsQueueGetParams,
+  params?: ListAccessGrantQueueParams,
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listAccessGrantQueueApiV1AccessGrantsQueueGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof listAccessGrantQueue>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListAccessGrantQueueApiV1AccessGrantsQueueGetQueryOptions(
-    params,
-    options
-  );
+  const queryOptions = getListAccessGrantQueueQueryOptions(params, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -832,7 +719,7 @@ export function useListAccessGrantQueueApiV1AccessGrantsQueueGet<
  * The longest grant the caller may ask for, as this deployment sets it.
  * @summary Read Access Grant Limits
  */
-export const readAccessGrantLimitsApiV1AccessGrantsLimitsGet = (
+export const readAccessGrantLimits = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
@@ -842,62 +729,51 @@ export const readAccessGrantLimitsApiV1AccessGrantsLimitsGet = (
   );
 };
 
-export const getReadAccessGrantLimitsApiV1AccessGrantsLimitsGetQueryKey = () => {
+export const getReadAccessGrantLimitsQueryKey = () => {
   return [`/api/v1/access-grants/limits`] as const;
 };
 
-export const getReadAccessGrantLimitsApiV1AccessGrantsLimitsGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof readAccessGrantLimitsApiV1AccessGrantsLimitsGet>>,
+export const getReadAccessGrantLimitsQueryOptions = <
+  TData = Awaited<ReturnType<typeof readAccessGrantLimits>>,
   TError = ErrorType<HTTPValidationError>,
 >(options?: {
   query?: Partial<
-    UseQueryOptions<
-      Awaited<ReturnType<typeof readAccessGrantLimitsApiV1AccessGrantsLimitsGet>>,
-      TError,
-      TData
-    >
+    UseQueryOptions<Awaited<ReturnType<typeof readAccessGrantLimits>>, TError, TData>
   >;
   request?: SecondParameter<typeof apiMutator>;
 }) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey =
-    queryOptions?.queryKey ?? getReadAccessGrantLimitsApiV1AccessGrantsLimitsGetQueryKey();
+  const queryKey = queryOptions?.queryKey ?? getReadAccessGrantLimitsQueryKey();
 
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof readAccessGrantLimitsApiV1AccessGrantsLimitsGet>>
-  > = ({ signal }) => readAccessGrantLimitsApiV1AccessGrantsLimitsGet(requestOptions, signal);
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof readAccessGrantLimits>>> = ({ signal }) =>
+    readAccessGrantLimits(requestOptions, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof readAccessGrantLimitsApiV1AccessGrantsLimitsGet>>,
+    Awaited<ReturnType<typeof readAccessGrantLimits>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ReadAccessGrantLimitsApiV1AccessGrantsLimitsGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof readAccessGrantLimitsApiV1AccessGrantsLimitsGet>>
+export type ReadAccessGrantLimitsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof readAccessGrantLimits>>
 >;
-export type ReadAccessGrantLimitsApiV1AccessGrantsLimitsGetQueryError =
-  ErrorType<HTTPValidationError>;
+export type ReadAccessGrantLimitsQueryError = ErrorType<HTTPValidationError>;
 
-export function useReadAccessGrantLimitsApiV1AccessGrantsLimitsGet<
-  TData = Awaited<ReturnType<typeof readAccessGrantLimitsApiV1AccessGrantsLimitsGet>>,
+export function useReadAccessGrantLimits<
+  TData = Awaited<ReturnType<typeof readAccessGrantLimits>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options: {
     query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readAccessGrantLimitsApiV1AccessGrantsLimitsGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof readAccessGrantLimits>>, TError, TData>
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readAccessGrantLimitsApiV1AccessGrantsLimitsGet>>,
+          Awaited<ReturnType<typeof readAccessGrantLimits>>,
           TError,
-          Awaited<ReturnType<typeof readAccessGrantLimitsApiV1AccessGrantsLimitsGet>>
+          Awaited<ReturnType<typeof readAccessGrantLimits>>
         >,
         "initialData"
       >;
@@ -905,23 +781,19 @@ export function useReadAccessGrantLimitsApiV1AccessGrantsLimitsGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadAccessGrantLimitsApiV1AccessGrantsLimitsGet<
-  TData = Awaited<ReturnType<typeof readAccessGrantLimitsApiV1AccessGrantsLimitsGet>>,
+export function useReadAccessGrantLimits<
+  TData = Awaited<ReturnType<typeof readAccessGrantLimits>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readAccessGrantLimitsApiV1AccessGrantsLimitsGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof readAccessGrantLimits>>, TError, TData>
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readAccessGrantLimitsApiV1AccessGrantsLimitsGet>>,
+          Awaited<ReturnType<typeof readAccessGrantLimits>>,
           TError,
-          Awaited<ReturnType<typeof readAccessGrantLimitsApiV1AccessGrantsLimitsGet>>
+          Awaited<ReturnType<typeof readAccessGrantLimits>>
         >,
         "initialData"
       >;
@@ -929,17 +801,13 @@ export function useReadAccessGrantLimitsApiV1AccessGrantsLimitsGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadAccessGrantLimitsApiV1AccessGrantsLimitsGet<
-  TData = Awaited<ReturnType<typeof readAccessGrantLimitsApiV1AccessGrantsLimitsGet>>,
+export function useReadAccessGrantLimits<
+  TData = Awaited<ReturnType<typeof readAccessGrantLimits>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readAccessGrantLimitsApiV1AccessGrantsLimitsGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof readAccessGrantLimits>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
@@ -949,23 +817,19 @@ export function useReadAccessGrantLimitsApiV1AccessGrantsLimitsGet<
  * @summary Read Access Grant Limits
  */
 
-export function useReadAccessGrantLimitsApiV1AccessGrantsLimitsGet<
-  TData = Awaited<ReturnType<typeof readAccessGrantLimitsApiV1AccessGrantsLimitsGet>>,
+export function useReadAccessGrantLimits<
+  TData = Awaited<ReturnType<typeof readAccessGrantLimits>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readAccessGrantLimitsApiV1AccessGrantsLimitsGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof readAccessGrantLimits>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getReadAccessGrantLimitsApiV1AccessGrantsLimitsGetQueryOptions(options);
+  const queryOptions = getReadAccessGrantLimitsQueryOptions(options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -977,7 +841,7 @@ export function useReadAccessGrantLimitsApiV1AccessGrantsLimitsGet<
 /**
  * @summary Approve Access Grant
  */
-export const approveAccessGrantApiV1AccessGrantsGrantIdApprovePost = (
+export const approveAccessGrant = (
   grantId: number,
   accessGrantApprove: BodyType<AccessGrantApprove>,
   options?: SecondParameter<typeof apiMutator>,
@@ -995,27 +859,26 @@ export const approveAccessGrantApiV1AccessGrantsGrantIdApprovePost = (
   );
 };
 
-export const getApproveAccessGrantApiV1AccessGrantsGrantIdApprovePostMutationKey = () =>
-  ["approveAccessGrantApiV1AccessGrantsGrantIdApprovePost"] as const;
+export const getApproveAccessGrantMutationKey = () => ["approveAccessGrant"] as const;
 
-export const getApproveAccessGrantApiV1AccessGrantsGrantIdApprovePostMutationOptions = <
+export const getApproveAccessGrantMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof approveAccessGrantApiV1AccessGrantsGrantIdApprovePost>>,
+    Awaited<ReturnType<typeof approveAccessGrant>>,
     TError,
-    ApproveAccessGrantApiV1AccessGrantsGrantIdApprovePostMutationVariables,
+    ApproveAccessGrantMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof approveAccessGrantApiV1AccessGrantsGrantIdApprovePost>>,
+  Awaited<ReturnType<typeof approveAccessGrant>>,
   TError,
-  ApproveAccessGrantApiV1AccessGrantsGrantIdApprovePostMutationVariables,
+  ApproveAccessGrantMutationVariables,
   TContext
 > => {
-  const mutationKey = getApproveAccessGrantApiV1AccessGrantsGrantIdApprovePostMutationKey();
+  const mutationKey = getApproveAccessGrantMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1023,25 +886,23 @@ export const getApproveAccessGrantApiV1AccessGrantsGrantIdApprovePostMutationOpt
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof approveAccessGrantApiV1AccessGrantsGrantIdApprovePost>>,
-    ApproveAccessGrantApiV1AccessGrantsGrantIdApprovePostMutationVariables
+    Awaited<ReturnType<typeof approveAccessGrant>>,
+    ApproveAccessGrantMutationVariables
   > = (props) => {
     const { grantId, data } = props ?? {};
 
-    return approveAccessGrantApiV1AccessGrantsGrantIdApprovePost(grantId, data, requestOptions);
+    return approveAccessGrant(grantId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type ApproveAccessGrantApiV1AccessGrantsGrantIdApprovePostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof approveAccessGrantApiV1AccessGrantsGrantIdApprovePost>>
+export type ApproveAccessGrantMutationResult = NonNullable<
+  Awaited<ReturnType<typeof approveAccessGrant>>
 >;
-export type ApproveAccessGrantApiV1AccessGrantsGrantIdApprovePostMutationBody =
-  BodyType<AccessGrantApprove>;
-export type ApproveAccessGrantApiV1AccessGrantsGrantIdApprovePostMutationError =
-  ErrorType<HTTPValidationError>;
-export type ApproveAccessGrantApiV1AccessGrantsGrantIdApprovePostMutationVariables = {
+export type ApproveAccessGrantMutationBody = BodyType<AccessGrantApprove>;
+export type ApproveAccessGrantMutationError = ErrorType<HTTPValidationError>;
+export type ApproveAccessGrantMutationVariables = {
   grantId: number;
   data: BodyType<AccessGrantApprove>;
 };
@@ -1049,35 +910,29 @@ export type ApproveAccessGrantApiV1AccessGrantsGrantIdApprovePostMutationVariabl
 /**
  * @summary Approve Access Grant
  */
-export const useApproveAccessGrantApiV1AccessGrantsGrantIdApprovePost = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
+export const useApproveAccessGrant = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof approveAccessGrantApiV1AccessGrantsGrantIdApprovePost>>,
+      Awaited<ReturnType<typeof approveAccessGrant>>,
       TError,
-      ApproveAccessGrantApiV1AccessGrantsGrantIdApprovePostMutationVariables,
+      ApproveAccessGrantMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof approveAccessGrantApiV1AccessGrantsGrantIdApprovePost>>,
+  Awaited<ReturnType<typeof approveAccessGrant>>,
   TError,
-  ApproveAccessGrantApiV1AccessGrantsGrantIdApprovePostMutationVariables,
+  ApproveAccessGrantMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getApproveAccessGrantApiV1AccessGrantsGrantIdApprovePostMutationOptions(options),
-    queryClient
-  );
+  return useMutation(getApproveAccessGrantMutationOptions(options), queryClient);
 };
 /**
  * @summary Deny Access Grant
  */
-export const denyAccessGrantApiV1AccessGrantsGrantIdDenyPost = (
+export const denyAccessGrant = (
   grantId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
@@ -1088,27 +943,26 @@ export const denyAccessGrantApiV1AccessGrantsGrantIdDenyPost = (
   );
 };
 
-export const getDenyAccessGrantApiV1AccessGrantsGrantIdDenyPostMutationKey = () =>
-  ["denyAccessGrantApiV1AccessGrantsGrantIdDenyPost"] as const;
+export const getDenyAccessGrantMutationKey = () => ["denyAccessGrant"] as const;
 
-export const getDenyAccessGrantApiV1AccessGrantsGrantIdDenyPostMutationOptions = <
+export const getDenyAccessGrantMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof denyAccessGrantApiV1AccessGrantsGrantIdDenyPost>>,
+    Awaited<ReturnType<typeof denyAccessGrant>>,
     TError,
-    DenyAccessGrantApiV1AccessGrantsGrantIdDenyPostMutationVariables,
+    DenyAccessGrantMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof denyAccessGrantApiV1AccessGrantsGrantIdDenyPost>>,
+  Awaited<ReturnType<typeof denyAccessGrant>>,
   TError,
-  DenyAccessGrantApiV1AccessGrantsGrantIdDenyPostMutationVariables,
+  DenyAccessGrantMutationVariables,
   TContext
 > => {
-  const mutationKey = getDenyAccessGrantApiV1AccessGrantsGrantIdDenyPostMutationKey();
+  const mutationKey = getDenyAccessGrantMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1116,57 +970,50 @@ export const getDenyAccessGrantApiV1AccessGrantsGrantIdDenyPostMutationOptions =
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof denyAccessGrantApiV1AccessGrantsGrantIdDenyPost>>,
-    DenyAccessGrantApiV1AccessGrantsGrantIdDenyPostMutationVariables
+    Awaited<ReturnType<typeof denyAccessGrant>>,
+    DenyAccessGrantMutationVariables
   > = (props) => {
     const { grantId } = props ?? {};
 
-    return denyAccessGrantApiV1AccessGrantsGrantIdDenyPost(grantId, requestOptions);
+    return denyAccessGrant(grantId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type DenyAccessGrantApiV1AccessGrantsGrantIdDenyPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof denyAccessGrantApiV1AccessGrantsGrantIdDenyPost>>
+export type DenyAccessGrantMutationResult = NonNullable<
+  Awaited<ReturnType<typeof denyAccessGrant>>
 >;
 
-export type DenyAccessGrantApiV1AccessGrantsGrantIdDenyPostMutationError =
-  ErrorType<HTTPValidationError>;
-export type DenyAccessGrantApiV1AccessGrantsGrantIdDenyPostMutationVariables = { grantId: number };
+export type DenyAccessGrantMutationError = ErrorType<HTTPValidationError>;
+export type DenyAccessGrantMutationVariables = { grantId: number };
 
 /**
  * @summary Deny Access Grant
  */
-export const useDenyAccessGrantApiV1AccessGrantsGrantIdDenyPost = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
+export const useDenyAccessGrant = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof denyAccessGrantApiV1AccessGrantsGrantIdDenyPost>>,
+      Awaited<ReturnType<typeof denyAccessGrant>>,
       TError,
-      DenyAccessGrantApiV1AccessGrantsGrantIdDenyPostMutationVariables,
+      DenyAccessGrantMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof denyAccessGrantApiV1AccessGrantsGrantIdDenyPost>>,
+  Awaited<ReturnType<typeof denyAccessGrant>>,
   TError,
-  DenyAccessGrantApiV1AccessGrantsGrantIdDenyPostMutationVariables,
+  DenyAccessGrantMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getDenyAccessGrantApiV1AccessGrantsGrantIdDenyPostMutationOptions(options),
-    queryClient
-  );
+  return useMutation(getDenyAccessGrantMutationOptions(options), queryClient);
 };
 /**
  * @summary Revoke Access Grant
  */
-export const revokeAccessGrantApiV1AccessGrantsGrantIdRevokePost = (
+export const revokeAccessGrant = (
   grantId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
@@ -1177,27 +1024,26 @@ export const revokeAccessGrantApiV1AccessGrantsGrantIdRevokePost = (
   );
 };
 
-export const getRevokeAccessGrantApiV1AccessGrantsGrantIdRevokePostMutationKey = () =>
-  ["revokeAccessGrantApiV1AccessGrantsGrantIdRevokePost"] as const;
+export const getRevokeAccessGrantMutationKey = () => ["revokeAccessGrant"] as const;
 
-export const getRevokeAccessGrantApiV1AccessGrantsGrantIdRevokePostMutationOptions = <
+export const getRevokeAccessGrantMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof revokeAccessGrantApiV1AccessGrantsGrantIdRevokePost>>,
+    Awaited<ReturnType<typeof revokeAccessGrant>>,
     TError,
-    RevokeAccessGrantApiV1AccessGrantsGrantIdRevokePostMutationVariables,
+    RevokeAccessGrantMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof revokeAccessGrantApiV1AccessGrantsGrantIdRevokePost>>,
+  Awaited<ReturnType<typeof revokeAccessGrant>>,
   TError,
-  RevokeAccessGrantApiV1AccessGrantsGrantIdRevokePostMutationVariables,
+  RevokeAccessGrantMutationVariables,
   TContext
 > => {
-  const mutationKey = getRevokeAccessGrantApiV1AccessGrantsGrantIdRevokePostMutationKey();
+  const mutationKey = getRevokeAccessGrantMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1205,60 +1051,51 @@ export const getRevokeAccessGrantApiV1AccessGrantsGrantIdRevokePostMutationOptio
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof revokeAccessGrantApiV1AccessGrantsGrantIdRevokePost>>,
-    RevokeAccessGrantApiV1AccessGrantsGrantIdRevokePostMutationVariables
+    Awaited<ReturnType<typeof revokeAccessGrant>>,
+    RevokeAccessGrantMutationVariables
   > = (props) => {
     const { grantId } = props ?? {};
 
-    return revokeAccessGrantApiV1AccessGrantsGrantIdRevokePost(grantId, requestOptions);
+    return revokeAccessGrant(grantId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type RevokeAccessGrantApiV1AccessGrantsGrantIdRevokePostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof revokeAccessGrantApiV1AccessGrantsGrantIdRevokePost>>
+export type RevokeAccessGrantMutationResult = NonNullable<
+  Awaited<ReturnType<typeof revokeAccessGrant>>
 >;
 
-export type RevokeAccessGrantApiV1AccessGrantsGrantIdRevokePostMutationError =
-  ErrorType<HTTPValidationError>;
-export type RevokeAccessGrantApiV1AccessGrantsGrantIdRevokePostMutationVariables = {
-  grantId: number;
-};
+export type RevokeAccessGrantMutationError = ErrorType<HTTPValidationError>;
+export type RevokeAccessGrantMutationVariables = { grantId: number };
 
 /**
  * @summary Revoke Access Grant
  */
-export const useRevokeAccessGrantApiV1AccessGrantsGrantIdRevokePost = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
+export const useRevokeAccessGrant = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof revokeAccessGrantApiV1AccessGrantsGrantIdRevokePost>>,
+      Awaited<ReturnType<typeof revokeAccessGrant>>,
       TError,
-      RevokeAccessGrantApiV1AccessGrantsGrantIdRevokePostMutationVariables,
+      RevokeAccessGrantMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof revokeAccessGrantApiV1AccessGrantsGrantIdRevokePost>>,
+  Awaited<ReturnType<typeof revokeAccessGrant>>,
   TError,
-  RevokeAccessGrantApiV1AccessGrantsGrantIdRevokePostMutationVariables,
+  RevokeAccessGrantMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getRevokeAccessGrantApiV1AccessGrantsGrantIdRevokePostMutationOptions(options),
-    queryClient
-  );
+  return useMutation(getRevokeAccessGrantMutationOptions(options), queryClient);
 };
 /**
  * Withdraw your own still-pending request.
  * @summary Cancel Access Request
  */
-export const cancelAccessRequestApiV1AccessGrantsGrantIdDelete = (
+export const cancelAccessRequest = (
   grantId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
@@ -1269,27 +1106,26 @@ export const cancelAccessRequestApiV1AccessGrantsGrantIdDelete = (
   );
 };
 
-export const getCancelAccessRequestApiV1AccessGrantsGrantIdDeleteMutationKey = () =>
-  ["cancelAccessRequestApiV1AccessGrantsGrantIdDelete"] as const;
+export const getCancelAccessRequestMutationKey = () => ["cancelAccessRequest"] as const;
 
-export const getCancelAccessRequestApiV1AccessGrantsGrantIdDeleteMutationOptions = <
+export const getCancelAccessRequestMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof cancelAccessRequestApiV1AccessGrantsGrantIdDelete>>,
+    Awaited<ReturnType<typeof cancelAccessRequest>>,
     TError,
-    CancelAccessRequestApiV1AccessGrantsGrantIdDeleteMutationVariables,
+    CancelAccessRequestMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof cancelAccessRequestApiV1AccessGrantsGrantIdDelete>>,
+  Awaited<ReturnType<typeof cancelAccessRequest>>,
   TError,
-  CancelAccessRequestApiV1AccessGrantsGrantIdDeleteMutationVariables,
+  CancelAccessRequestMutationVariables,
   TContext
 > => {
-  const mutationKey = getCancelAccessRequestApiV1AccessGrantsGrantIdDeleteMutationKey();
+  const mutationKey = getCancelAccessRequestMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1297,52 +1133,43 @@ export const getCancelAccessRequestApiV1AccessGrantsGrantIdDeleteMutationOptions
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof cancelAccessRequestApiV1AccessGrantsGrantIdDelete>>,
-    CancelAccessRequestApiV1AccessGrantsGrantIdDeleteMutationVariables
+    Awaited<ReturnType<typeof cancelAccessRequest>>,
+    CancelAccessRequestMutationVariables
   > = (props) => {
     const { grantId } = props ?? {};
 
-    return cancelAccessRequestApiV1AccessGrantsGrantIdDelete(grantId, requestOptions);
+    return cancelAccessRequest(grantId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type CancelAccessRequestApiV1AccessGrantsGrantIdDeleteMutationResult = NonNullable<
-  Awaited<ReturnType<typeof cancelAccessRequestApiV1AccessGrantsGrantIdDelete>>
+export type CancelAccessRequestMutationResult = NonNullable<
+  Awaited<ReturnType<typeof cancelAccessRequest>>
 >;
 
-export type CancelAccessRequestApiV1AccessGrantsGrantIdDeleteMutationError =
-  ErrorType<HTTPValidationError>;
-export type CancelAccessRequestApiV1AccessGrantsGrantIdDeleteMutationVariables = {
-  grantId: number;
-};
+export type CancelAccessRequestMutationError = ErrorType<HTTPValidationError>;
+export type CancelAccessRequestMutationVariables = { grantId: number };
 
 /**
  * @summary Cancel Access Request
  */
-export const useCancelAccessRequestApiV1AccessGrantsGrantIdDelete = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
+export const useCancelAccessRequest = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof cancelAccessRequestApiV1AccessGrantsGrantIdDelete>>,
+      Awaited<ReturnType<typeof cancelAccessRequest>>,
       TError,
-      CancelAccessRequestApiV1AccessGrantsGrantIdDeleteMutationVariables,
+      CancelAccessRequestMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof cancelAccessRequestApiV1AccessGrantsGrantIdDelete>>,
+  Awaited<ReturnType<typeof cancelAccessRequest>>,
   TError,
-  CancelAccessRequestApiV1AccessGrantsGrantIdDeleteMutationVariables,
+  CancelAccessRequestMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getCancelAccessRequestApiV1AccessGrantsGrantIdDeleteMutationOptions(options),
-    queryClient
-  );
+  return useMutation(getCancelAccessRequestMutationOptions(options), queryClient);
 };

@@ -13,18 +13,18 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { buildMarketplaceListingDetail } from "@/__tests__/factories";
 import { renderPage } from "@/__tests__/helpers/render";
 import type {
-  GuildAppInstall,
+  CommunityAppInstall,
   MarketplaceListingDetail,
 } from "@/api/generated/initiativeAPI.schemas";
 
 import { InstallAppDialog } from "./InstallAppDialog";
 
-const sent: GuildAppInstall[] = [];
+const sent: CommunityAppInstall[] = [];
 
-vi.mock("@/hooks/useGuildApps", () => ({
-  useInstallGuildApp: () => ({
+vi.mock("@/hooks/useCommunityApps", () => ({
+  useInstallCommunityApp: () => ({
     isPending: false,
-    mutate: (body: GuildAppInstall) => sent.push(body),
+    mutate: (body: CommunityAppInstall) => sent.push(body),
   }),
 }));
 
@@ -69,7 +69,7 @@ describe("InstallAppDialog", () => {
     open();
 
     expect(await screen.findByLabelText("Read projects")).toBeChecked();
-    expect(screen.getByLabelText("See who is in your community")).toBeChecked();
+    expect(screen.getByLabelText("See who is in your community, by name")).toBeChecked();
 
     expect(await install()).toEqual({
       listing_uid: "WIDGETCO000001",
@@ -92,9 +92,9 @@ describe("InstallAppDialog", () => {
   it("sends what the seat unticked as not granted", async () => {
     open();
 
-    (await screen.findByLabelText("See who is in your community")).click();
+    (await screen.findByLabelText("See who is in your community, by name")).click();
     await waitFor(() =>
-      expect(screen.getByLabelText("See who is in your community")).not.toBeChecked()
+      expect(screen.getByLabelText("See who is in your community, by name")).not.toBeChecked()
     );
 
     expect((await install()).granted_scopes).toEqual(["projects:read"]);
@@ -139,7 +139,7 @@ describe("InstallAppDialog", () => {
   });
 
   it("leaves acting as a moderator or an admin for the seat to tick", async () => {
-    const standings = ["initiatives:moderate", "guild:admin"];
+    const standings = ["initiatives:moderate", "community:admin"];
     open({
       requested_scopes: ["projects:read", ...standings],
       grantable_scopes: ["projects:read", ...standings],

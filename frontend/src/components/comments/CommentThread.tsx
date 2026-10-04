@@ -7,6 +7,7 @@ import { ReportButton } from "@/components/moderation/ReportButton";
 import { UnreadDot } from "@/components/notifications/UnreadDot";
 import { ReactionBar } from "@/components/reactions/ReactionBar";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ProfileAvatar } from "@/components/user/ProfileAvatar";
 import { UserHoverLink } from "@/components/user/UserHoverLink";
 import { useRelativeTime } from "@/hooks/useRelativeTime";
@@ -48,7 +49,6 @@ interface CommentThreadProps {
   onReply: (parentId: number, content: string) => void;
   onDelete: (commentId: number) => void;
   onEdit: (commentId: number, content: string) => Promise<boolean>;
-  canModerate: boolean;
   currentUserId?: number;
   initiativeId: number;
   /** The thing the thread is on, as a reference (`document:12`). Never offered
@@ -72,7 +72,6 @@ export const CommentThread = ({
   onReply,
   onDelete,
   onEdit,
-  canModerate,
   currentUserId,
   initiativeId,
   subject,
@@ -91,6 +90,7 @@ export const CommentThread = ({
   const [replyContent, setReplyContent] = useState("");
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(comment.content);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   // An import that could not match this comment's author to an account
   // carries the source's own name for them. It is a name and not an account:
@@ -99,13 +99,18 @@ export const CommentThread = ({
   // wrote the row rather than whoever said this.
   const importedAuthorName = comment.imported_author_name?.trim() || null;
   const anonymizedAuthor = !importedAuthorName && isAnonymizedUser(comment.author);
-  // A comment an app wrote as its community names no account.
+  // A comment an app wrote as its community names no account, and neither
+  // does a note the platform wrote on an operations case; the platform's
+  // notes say what wrote them.
   const displayName =
     importedAuthorName ??
     (comment.created_by == null
-      ? t("comments:appAuthor")
+      ? comment.system_kind
+        ? t("comments:platformAuthor")
+        : t("comments:appAuthor")
       : getUserDisplayName(comment.author ?? { id: comment.created_by }));
-  const canDelete = currentUserId === comment.created_by || canModerate;
+  // The server says who may delete, from the rule the delete route applies.
+  const canDelete = comment.can_remove;
   const canEdit = currentUserId === comment.created_by;
   const visualDepth = Math.min(depth, MAX_VISUAL_DEPTH);
   const isEdited = Boolean(comment.updated_at);
@@ -208,7 +213,7 @@ export const CommentThread = ({
                       size="sm"
                       className="h-7 px-2 text-destructive text-xs hover:text-destructive"
                       disabled={isSubmitting}
-                      onClick={() => onDelete(comment.id)}
+                      onClick={() => setConfirmingDelete(true)}
                     >
                       <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                       <span className="sr-only">{t("deleteComment")}</span>
@@ -281,6 +286,25 @@ export const CommentThread = ({
       {/* Delete error */}
       {deleteError && <p className="mt-1 text-destructive text-sm">{deleteError}</p>}
 
+      {canDelete && (
+        <ConfirmDialog
+          open={confirmingDelete}
+          onOpenChange={setConfirmingDelete}
+          title={t("deleteConfirmTitle")}
+          description={
+            comment.replies.length > 0
+              ? t("deleteConfirmWithReplies")
+              : t("deleteConfirmDescription")
+          }
+          confirmLabel={t("deleteComment")}
+          destructive
+          onConfirm={() => {
+            setConfirmingDelete(false);
+            onDelete(comment.id);
+          }}
+        />
+      )}
+
       {/* Nested replies */}
       {comment.replies.length > 0 && (
         <div className="mt-3 space-y-3">
@@ -292,7 +316,6 @@ export const CommentThread = ({
               onReply={onReply}
               onDelete={onDelete}
               onEdit={onEdit}
-              canModerate={canModerate}
               currentUserId={currentUserId}
               initiativeId={initiativeId}
               subject={subject}

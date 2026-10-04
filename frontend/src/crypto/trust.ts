@@ -4,7 +4,7 @@
  * and what it returns is the only thing the session openers take.
  */
 
-import { readDirectoryApiV1UsersUserIdDmDevicesGet as readDirectory } from "@/api/generated/direct-messages/direct-messages";
+import { readDirectory } from "@/api/generated/direct-messages/direct-messages";
 import type { DmSessionKey } from "@/api/generated/initiativeAPI.schemas";
 
 import { ratchet } from "./client";

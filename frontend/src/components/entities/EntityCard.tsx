@@ -11,9 +11,9 @@ import { LazyImage } from "@/components/shared/LazyImage";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useRelativeTime } from "@/hooks/useRelativeTime";
+import { useCommunityPath } from "@/lib/communityUrl";
 import { documentIcon } from "@/lib/documentIcon";
 import { entityRefTypeFor } from "@/lib/entityResolver";
-import { useGuildPath } from "@/lib/guildUrl";
 import { relatedTarget } from "@/lib/relationships";
 import { hitIcon, searchHitPath } from "@/lib/searchResults";
 import { CHIP_TONE_CLASSES } from "@/lib/smartChips";
@@ -68,8 +68,8 @@ interface EntityCardProps {
  * most of them. A document picks its mark from what sort of document it is, out
  * of the same helper the document card uses.
  *
- * **`compact`** is a row rather than a tile: the same facts, at the size a
- * sidebar column or a dialog can afford.
+ * **`compact`** is a line in a list rather than a tile: the same facts, at the
+ * size a sidebar column or a dialog can afford.
  */
 export const EntityCard = ({
   end,
@@ -85,7 +85,7 @@ export const EntityCard = ({
   // Both namespaces: the kind names live with search, which is where they are
   // already written down for all fifteen of them.
   const { t } = useTranslation(["relations", "search"]);
-  const gp = useGuildPath();
+  const gp = useCommunityPath();
   const linked = useRelativeTime(linkedAt ?? null);
 
   const target = relatedTarget(end);
@@ -140,19 +140,19 @@ export const EntityCard = ({
       {/* Proportions of the box, not of the window: the card's own width is set
           by the space its section has. */}
       {end.icon ? (
-        <span aria-hidden className={compact ? "text-lg" : "text-4xl"}>
+        <span aria-hidden className={compact ? "text-sm" : "text-4xl"}>
           {end.icon}
         </span>
       ) : end.color ? (
         <span
           aria-hidden
-          className={cn("rounded-full", compact ? "h-4 w-4" : "h-1/4 w-1/4")}
+          className={cn("rounded-full", compact ? "h-2.5 w-2.5" : "h-1/4 w-1/4")}
           style={{ backgroundColor: end.color }}
         />
       ) : (
         <KindIcon
           className={cn(
-            compact ? "h-4 w-4" : "h-1/3 w-1/3",
+            compact ? "h-3.5 w-3.5" : "h-1/3 w-1/3",
             document?.colorClass ?? "text-muted-foreground"
           )}
         />
@@ -165,7 +165,7 @@ export const EntityCard = ({
   const stateChip = state?.text ? (
     <span
       className={cn(
-        "inline-flex shrink-0 items-center rounded-full px-1.5 py-0.5 font-medium text-[11px]",
+        "inline-flex shrink-0 items-center rounded-full px-1.5 py-0.5 font-medium text-2xs",
         CHIP_TONE_CLASSES[state.tone]
       )}
     >
@@ -181,22 +181,27 @@ export const EntityCard = ({
   const where = end.tool_title?.trim();
   const caption = where ? `${where} · ${kindCaption}` : kindCaption;
 
+  // A row is a line in a list of links, the way a wiki lists them: what it is,
+  // where it lives, and its state. What sort of thing it is and when it was
+  // linked are under the pointer rather than a second line.
   const body = compact ? (
-    <div className="flex min-w-0 items-center gap-2.5 px-2.5 py-1.5">
-      <div className="h-8 w-8 shrink-0 overflow-hidden rounded-md bg-muted">{mark}</div>
-      <div className="min-w-0 flex-1">
-        <p
-          className={cn(
-            "truncate font-medium text-sm leading-tight",
-            settled && "text-muted-foreground line-through"
-          )}
-        >
-          {title}
-        </p>
-        <p className="truncate text-muted-foreground text-xs">
-          {badge ? `${badge} · ${caption}` : caption}
-        </p>
+    <div className="flex min-w-0 items-center gap-2 px-2 py-1">
+      <div className="flex h-5 w-5 shrink-0 items-center justify-center overflow-hidden rounded-sm">
+        {mark}
       </div>
+      <span
+        className={cn(
+          "max-w-[75%] shrink-0 truncate text-sm",
+          settled && "text-muted-foreground line-through"
+        )}
+      >
+        {title}
+      </span>
+      {/* Gives way before the title does: the name is the thing being read. */}
+      {where ? (
+        <span className="min-w-0 truncate text-muted-foreground text-xs">{where}</span>
+      ) : null}
+      <span className="flex-1" />
       {stateChip}
     </div>
   ) : (
@@ -206,7 +211,7 @@ export const EntityCard = ({
       <div className="relative aspect-4/3 overflow-hidden border-b bg-muted sm:aspect-square">
         {mark}
         {badge ? (
-          <span className="absolute bottom-1.5 left-1.5 rounded-full bg-background/85 px-2 py-0.5 font-medium text-[11px] text-foreground shadow-sm">
+          <span className="absolute bottom-1.5 left-1.5 rounded-full bg-background/85 px-2 py-0.5 font-medium text-2xs text-foreground shadow-sm">
             {badge}
           </span>
         ) : null}
@@ -238,11 +243,12 @@ export const EntityCard = ({
   );
 
   const shell = compact
-    ? "group block w-full overflow-hidden rounded-lg border bg-card text-card-foreground transition"
+    ? "group block w-full rounded-md transition"
     : "group block w-full overflow-hidden rounded-2xl border bg-card text-card-foreground shadow-sm transition";
+  const rowHint = [badge, title, caption].filter(Boolean).join(" · ");
 
   return (
-    <div className="relative">
+    <div className="group/row relative">
       {path ? (
         <Link
           to={gp(path)}
@@ -250,11 +256,12 @@ export const EntityCard = ({
             shell,
             settled && "opacity-70",
             compact
-              ? "hover:border-primary/50 hover:bg-accent/40"
+              ? "hover:bg-accent/50"
               : "hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-lg",
-            onRemove && compact && "pr-9",
+            onRemove && compact && "pr-8",
             className
           )}
+          title={compact ? rowHint : undefined}
         >
           {body}
         </Link>
@@ -266,7 +273,7 @@ export const EntityCard = ({
           className={cn(
             shell,
             "cursor-default opacity-60",
-            onRemove && compact && "pr-9",
+            onRemove && compact && "pr-8",
             className
           )}
           title={t("card.unreachable")}
@@ -283,7 +290,9 @@ export const EntityCard = ({
           size="icon"
           className={cn(
             "absolute z-10 rounded-full",
-            compact ? "top-1/2 right-1 h-6 w-6 -translate-y-1/2" : "top-2 right-2 h-7 w-7 shadow-sm"
+            compact
+              ? "top-1/2 right-1 h-6 w-6 -translate-y-1/2 focus-visible:opacity-100 md:opacity-0 md:group-hover/row:opacity-100"
+              : "top-2 right-2 h-7 w-7 shadow-sm"
           )}
           onClick={onRemove}
           disabled={removing}

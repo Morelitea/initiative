@@ -16,10 +16,10 @@ import {
   type SearchEntityType,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
-  createRelationshipApiV1CGuildIdRelationshipsPost,
-  listRelationshipsApiV1CGuildIdRelationshipsGet,
-  removeRelationshipApiV1CGuildIdRelationshipsRelationshipIdDelete,
-  replaceRelationshipSliceApiV1CGuildIdRelationshipsPut,
+  createRelationship as createRelationshipRequest,
+  listRelationships,
+  removeRelationship as removeRelationshipRequest,
+  replaceRelationshipSlice,
 } from "@/api/generated/relationships/relationships";
 
 /** A thing, as a reference names it: `task:12`. */
@@ -43,13 +43,13 @@ export type Direction = "inbound" | "outbound" | "both";
  * are seven filters over one answer rather than seven requests.
  */
 export const listRelated = (
-  guildId: number,
+  communityId: number,
   entity: EndpointRef,
   otherType: SearchEntityType | null = null,
   relationshipType: RelationshipType | null = null,
   direction: Direction = "both"
 ): Promise<RelationshipRead[]> =>
-  listRelationshipsApiV1CGuildIdRelationshipsGet(guildId, {
+  listRelationships(communityId, {
     entity: ref(entity),
     relationship_type: relationshipType,
     other_type: otherType,
@@ -58,12 +58,12 @@ export const listRelated = (
 
 /** Link two things. */
 export const relate = async (
-  guildId: number,
+  communityId: number,
   source: EndpointRef,
   target: EndpointRef,
   relationshipType: RelationshipType = RelationshipType.attached
 ): Promise<RelationshipRead> =>
-  createRelationshipApiV1CGuildIdRelationshipsPost(guildId, {
+  createRelationshipRequest(communityId, {
     source,
     relationship_type: relationshipType,
     target,
@@ -77,24 +77,24 @@ export const relate = async (
  * assuming, as {@link relate} does, that the anchor describes the pair.
  */
 export const createRelationship = (
-  guildId: number,
+  communityId: number,
   body: RelationshipCreate
-): Promise<RelationshipRead> => createRelationshipApiV1CGuildIdRelationshipsPost(guildId, body);
+): Promise<RelationshipRead> => createRelationshipRequest(communityId, body);
 
 /** Replace everything of one kind linked to a thing. */
 export const setRelated = (
-  guildId: number,
+  communityId: number,
   entity: EndpointRef,
   otherType: SearchEntityType,
   otherIds: number[],
   relationshipType: RelationshipType = RelationshipType.attached
 ): Promise<RelationshipRead[]> =>
-  replaceRelationshipSliceApiV1CGuildIdRelationshipsPut(guildId, otherIds, {
+  replaceRelationshipSlice(communityId, otherIds, {
     entity: ref(entity),
     relationship_type: relationshipType,
     other_type: otherType,
   });
 
 /** Remove a link by its own id. */
-export const removeRelationship = (guildId: number, relationshipId: number): Promise<void> =>
-  removeRelationshipApiV1CGuildIdRelationshipsRelationshipIdDelete(guildId, relationshipId);
+export const removeRelationship = (communityId: number, relationshipId: number): Promise<void> =>
+  removeRelationshipRequest(communityId, relationshipId);

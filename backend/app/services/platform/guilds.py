@@ -15,7 +15,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.audit_events import AuditEventType
 from app.core.config import settings
-from app.core.guild_auth_options import GuildAuthOption
+from app.core.guild_auth_options import CommunityAuthOption
 from app.core.intake import IntakeStream
 from app.core.encryption import encrypt_field, SALT_EMAIL
 from app.core.messages import GuildMessages
@@ -30,11 +30,11 @@ from app.models.platform.guild import (
     DEFAULT_BANNER,
     DEFAULT_BANNER_TEXT_COLOR,
     Guild,
-    GuildCategory,
+    CommunityCategory,
     GuildInvite,
     GuildMembership,
-    GuildRole,
-    GuildStatus,
+    CommunityRole,
+    CommunityStatus,
     restore_status_choices,
 )
 from app.models.platform.access_grant import AccessGrant, AccessGrantPurpose
@@ -100,10 +100,10 @@ MIN_COMMUNITY_SEATS = 2
 
 
 # Canonical order for a guild's categories: the order they are declared in
-# ``GuildCategory``. Storing them sorted means every card, filter chip, and
+# ``CommunityCategory``. Storing them sorted means every card, filter chip, and
 # assertion sees the same sequence regardless of the order they were checked.
 _CATEGORY_ORDER = {
-    category.value: index for index, category in enumerate(GuildCategory)
+    category.value: index for index, category in enumerate(CommunityCategory)
 }
 
 
@@ -111,7 +111,7 @@ def normalize_categories(categories: Sequence[str] | None) -> list[str]:
     """De-duplicate a category selection and put it in canonical order.
 
     Unknown values are dropped rather than rejected: the schema layer has
-    already validated the request against ``GuildCategory``, and the database
+    already validated the request against ``CommunityCategory``, and the database
     CHECK is the backstop, so anything else reaching here is a value this build
     no longer recognizes and simply has no shelf to sit on.
     """
@@ -223,7 +223,7 @@ async def get_guild(session: AsyncSession, guild_id: int) -> Guild:
     result = await session.exec(stmt)
     guild = result.one_or_none()
     if not guild:
-        raise ValueError(GuildMessages.GUILD_NOT_FOUND)
+        raise ValueError(GuildMessages.COMMUNITY_NOT_FOUND)
     return guild
 
 
@@ -242,7 +242,7 @@ async def get_administration(
     )
     administration = result.one_or_none()
     if not administration:
-        raise ValueError(GuildMessages.GUILD_NOT_FOUND)
+        raise ValueError(GuildMessages.COMMUNITY_NOT_FOUND)
     return administration
 
 
@@ -251,7 +251,7 @@ async def ensure_membership(
     *,
     guild_id: int,
     user_id: int,
-    role: GuildRole = GuildRole.member,
+    role: CommunityRole = CommunityRole.member,
     force_role: bool = False,
     oidc_provider_id: int | None = None,
     actor_user_id: int | None = None,
@@ -345,7 +345,7 @@ def enroll_new_member_in_auto_join_initiatives(
     *,
     guild_id: int,
     user_id: int,
-    role: GuildRole,
+    role: CommunityRole,
 ) -> None:
     """Put a brand-new guild member into the guild's auto-join initiatives once
     ``session`` commits.
@@ -383,7 +383,7 @@ def align_admin_initiative_roles(
     *,
     guild_id: int,
     user_id: int,
-    role: GuildRole,
+    role: CommunityRole,
 ) -> None:
     """Bring a freshly promoted guild admin's initiative rows up to their
     standing once ``session`` commits.
@@ -454,7 +454,7 @@ async def _assert_member_capacity(
             params={"ns": _MEMBER_CAP_LOCK_NAMESPACE, "gid": int(guild_id)},
         )
     if await count_members(session, guild_id=guild_id) >= administration.max_users:
-        raise GuildCapacityError(GuildMessages.GUILD_USER_LIMIT_REACHED)
+        raise GuildCapacityError(GuildMessages.COMMUNITY_USER_LIMIT_REACHED)
 
 
 async def _next_membership_position(session: AsyncSession, *, user_id: int) -> int:
@@ -536,6 +536,22 @@ async def get_membership(
     return result.one_or_none()
 
 
+async def set_member_display_name(
+    session: AsyncSession, *, guild_id: int, user_id: int, display_name: str | None
+) -> bool:
+    """Set what ``user_id`` is called in ``guild_id``, or clear it with
+    ``None``. ``False`` when they are not a member.
+
+    The session decides who may: a member's routed session writes only its own
+    row, and the system engine writes any, behind the admin guard."""
+    membership = await get_membership(session, guild_id=guild_id, user_id=user_id)
+    if membership is None:
+        return False
+    membership.display_name = display_name
+    session.add(membership)
+    return True
+
+
 async def list_memberships(
     session: AsyncSession,
     *,
@@ -550,7 +566,7 @@ async def list_memberships(
       and sign-in entitlement), are shared tables the caller reads on their own
       platform tier: ``guild_administration`` admits a member's own guilds.
       ``administration`` is read only for the guilds the caller administers,
-      since ``GuildRead`` serves those fields to guild admins alone.
+      since ``CommunityRead`` serves those fields to guild admins alone.
     * ``member_count`` is every guild's total, counted in one grouped query on
       the system engine over the guild ids the caller's own read returned. The
       caller's tier reads only its own membership rows, so a count there would
@@ -590,7 +606,7 @@ async def list_memberships(
     listed = [
         (guild, membership)
         for guild, membership in pairs
-        if GuildStatus(guild.status) not in UNLISTED_STATUSES
+        if CommunityStatus(guild.status) not in UNLISTED_STATUSES
         and (guild.status in LIVE_STATUS_VALUES or membership.role in GUILD_ADMIN_ROLES)
     ]
     if not listed:
@@ -741,7 +757,7 @@ async def holds_a_free_guild(session: AsyncSession, *, user_id: int) -> bool:
         )
         .where(
             GuildMembership.user_id == user_id,
-            GuildMembership.role == GuildRole.superadmin,
+            GuildMembership.role == CommunityRole.superadmin,
             or_(
                 GuildAdministration.plan_is_free.is_(None),
                 GuildAdministration.plan_is_free.is_(True),
@@ -806,7 +822,7 @@ async def create_guild(
             session,
             guild_id=guild.id,
             user_id=first.id,
-            role=GuildRole.superadmin,
+            role=CommunityRole.superadmin,
             actor_user_id=actor,
             via="created",
         )
@@ -1013,12 +1029,11 @@ async def update_guild(
     has_adult_content_provided: bool = False,
     banner: Mapping[str, str] | None = None,
     banner_provided: bool = False,
-    show_member_names: bool | None = None,
     max_storage_bytes: int | None = None,
     max_storage_bytes_provided: bool = False,
     max_users: int | None = None,
     max_users_provided: bool = False,
-    auth_options: list[GuildAuthOption] | None = None,
+    auth_options: list[CommunityAuthOption] | None = None,
     banner_image_enabled: bool | None = None,
     support_enabled: bool | None = None,
 ) -> Guild:
@@ -1069,16 +1084,6 @@ async def update_guild(
     # already-listed guild has to fail for the same reason as one that lists a
     # guild with none. Two of the three rules are also database CHECKs; this is
     # what turns them into an error a person can read.
-    if show_member_names is not None and guild.show_member_names != show_member_names:
-        guild.show_member_names = show_member_names
-        updated = True
-    # Members of a listed guild are known by their handle. Listing one turns
-    # names off in the same write rather than refusing the request, so an admin
-    # never has to do it in two steps — ck_guilds_community_member_names is what
-    # makes it impossible to end up with both.
-    if guild.is_community and guild.show_member_names:
-        guild.show_member_names = False
-        updated = True
     if guild.is_community:
         await _assert_listable(session, guild)
     if updated:
@@ -1164,7 +1169,7 @@ async def set_guild_status(
     session: AsyncSession,
     *,
     guild_id: int,
-    status: GuildStatus,
+    status: CommunityStatus,
 ) -> Guild:
     """Set a guild's lifecycle status (operator moderation action).
 
@@ -1414,7 +1419,7 @@ async def _deletion_notice(
         await session.exec(
             select(GuildMembership.user_id).where(
                 GuildMembership.guild_id == guild.id,
-                GuildMembership.role == GuildRole.superadmin,
+                GuildMembership.role == CommunityRole.superadmin,
             )
         )
     ).all()
@@ -1464,7 +1469,7 @@ async def _superadmin_ids(session: AsyncSession, guild_id: int) -> list[int]:
             await session.exec(
                 select(GuildMembership.user_id).where(
                     GuildMembership.guild_id == guild_id,
-                    GuildMembership.role == GuildRole.superadmin,
+                    GuildMembership.role == CommunityRole.superadmin,
                 )
             )
         ).all()
@@ -1493,7 +1498,7 @@ async def announce_on_hold(session: AsyncSession, guild_id: int) -> None:
     guild = (
         await session.exec(select(Guild).where(Guild.id == guild_id))
     ).one_or_none()
-    if guild is None or guild.status != GuildStatus.on_hold.value:
+    if guild is None or guild.status != CommunityStatus.on_hold.value:
         return
     contact = await intake_service.contact_for(session, IntakeStream.support)
     days = await guild_purge.hold_deletion_days(session)
@@ -1510,7 +1515,7 @@ async def announce_on_hold(session: AsyncSession, guild_id: int) -> None:
     await notice_outbox.enqueue(
         session,
         [
-            notice_outbox.row(user_id, None, NotificationType.guild_on_hold, data)
+            notice_outbox.row(user_id, None, NotificationType.community_on_hold, data)
             for user_id in seat_holders
         ],
     )
@@ -1538,8 +1543,8 @@ async def announce_on_hold(session: AsyncSession, guild_id: int) -> None:
 
 #: The bell line each billing trial notice writes.
 _TRIAL_NOTICE_TYPES = {
-    "trial_ending": NotificationType.guild_trial_ending,
-    "trial_ended": NotificationType.guild_trial_ended,
+    "trial_ending": NotificationType.community_trial_ending,
+    "trial_ended": NotificationType.community_trial_ended,
 }
 
 
@@ -1579,8 +1584,8 @@ async def queue_trial_notice(
         await session.exec(select(Guild).where(Guild.id == guild_id))
     ).one_or_none()
     if guild is None or guild.status in (
-        GuildStatus.deleted.value,
-        GuildStatus.suspended.value,
+        CommunityStatus.deleted.value,
+        CommunityStatus.suspended.value,
     ):
         return False
     seats = await _superadmin_ids(session, guild_id)
@@ -1648,7 +1653,7 @@ async def queue_welcome_notice(
         session,
         guild,
         [owner_user_id],
-        NotificationType.guild_welcome,
+        NotificationType.community_welcome,
         # The bell line leads to Plan & usage like the trial ones, not to the
         # portal: in the phone app, which may not sell, that tab shows the plan
         # and offers nothing. The letter is the way straight to the portal.
@@ -1689,7 +1694,7 @@ async def _queue_plan_notice(
                 notification_type,
                 {
                     "community": guild.name,
-                    "guild_id": guild.id,
+                    "community_id": guild.id,
                     "target_path": "/settings/usage",
                     **data,
                 },
@@ -1766,7 +1771,7 @@ async def soft_delete_guild(
         await session.exec(
             delete(GuildMembership).where(GuildMembership.guild_id == guild_id)
         )
-    guild.status = GuildStatus.deleted.value
+    guild.status = CommunityStatus.deleted.value
     guild.status_changed_at = datetime.now(timezone.utc)
     session.add(guild)
     await session.flush()
@@ -1787,7 +1792,7 @@ async def guild_has_seat(session: AsyncSession, *, guild_id: int) -> bool:
             .select_from(GuildMembership)
             .where(
                 GuildMembership.guild_id == guild_id,
-                GuildMembership.role == GuildRole.superadmin,
+                GuildMembership.role == CommunityRole.superadmin,
             )
         )
     ).one()
@@ -1798,7 +1803,7 @@ async def restore_guild(
     session: AsyncSession,
     *,
     guild_id: int,
-    status: GuildStatus,
+    status: CommunityStatus,
     seat_user_id: int | None = None,
     actor_user_id: int,
 ) -> Guild:
@@ -1815,31 +1820,31 @@ async def restore_guild(
     to keep correct for a decision somebody is making anyway.
     """
     guild = await get_guild(session, guild_id=guild_id)
-    if guild.status != GuildStatus.deleted.value:
-        raise ValueError(GuildMessages.GUILD_NOT_DELETED)
-    if status == GuildStatus.deleted:
-        raise ValueError(GuildMessages.GUILD_RESTORE_STATUS_INVALID)
+    if guild.status != CommunityStatus.deleted.value:
+        raise ValueError(GuildMessages.COMMUNITY_NOT_DELETED)
+    if status == CommunityStatus.deleted:
+        raise ValueError(GuildMessages.COMMUNITY_RESTORE_STATUS_INVALID)
     if billing_service.billing_managed():
         recorded = (await get_administration(session, guild_id=guild_id)).billing_status
         if status not in restore_status_choices(
-            billing_status=GuildStatus(recorded) if recorded else None,
+            billing_status=CommunityStatus(recorded) if recorded else None,
             billing_managed=True,
         ):
-            raise ValueError(GuildMessages.GUILD_RESTORE_STATUS_SET_BY_BILLING)
+            raise ValueError(GuildMessages.COMMUNITY_RESTORE_STATUS_SET_BY_BILLING)
 
     await lock_guild_seats(session, guild_id)
     seated: int | None = None
     if not await guild_has_seat(session, guild_id=guild_id):
         if seat_user_id is None:
-            raise ValueError(GuildMessages.GUILD_RESTORE_SEAT_REQUIRED)
+            raise ValueError(GuildMessages.COMMUNITY_RESTORE_SEAT_REQUIRED)
         user = await session.get(User, seat_user_id)
         if user is None:
-            raise ValueError(GuildMessages.GUILD_OWNER_NOT_FOUND)
+            raise ValueError(GuildMessages.COMMUNITY_OWNER_NOT_FOUND)
         await ensure_membership(
             session,
             guild_id=guild_id,
             user_id=seat_user_id,
-            role=GuildRole.superadmin,
+            role=CommunityRole.superadmin,
             force_role=True,
             actor_user_id=actor_user_id,
             via="restored",
@@ -1887,7 +1892,7 @@ async def _live_invite(session: AsyncSession, *, code: str) -> GuildInvite:
     # suspended. Reported as an ordinary expired invite — the guild's
     # lifecycle status is deliberately not disclosed.
     target_guild = await get_guild(session, guild_id=invite.guild_id)
-    if target_guild.status != GuildStatus.active.value:
+    if target_guild.status != CommunityStatus.active.value:
         raise GuildInviteError(GuildMessages.INVITE_EXPIRED_OR_USED)
     return invite
 
@@ -1960,7 +1965,7 @@ async def redeem_invite_for_user(
         session,
         guild_id=invite.guild_id,
         user_id=user.id,
-        role=GuildRole.member,
+        role=CommunityRole.member,
         via="invite",
         invite_id=invite.id,
     )
@@ -2018,17 +2023,19 @@ async def _assert_listable(session: AsyncSession, guild: Guild) -> None:
     - its seat cap leaves room for somebody to join.
     """
     if not guild.categories:
-        raise CommunityListingError(GuildMessages.GUILD_COMMUNITY_REQUIRES_CATEGORY)
+        raise CommunityListingError(GuildMessages.COMMUNITY_COMMUNITY_REQUIRES_CATEGORY)
     if guild.has_adult_content is None:
-        raise CommunityListingError(GuildMessages.GUILD_COMMUNITY_CONTENT_NOT_DECLARED)
+        raise CommunityListingError(
+            GuildMessages.COMMUNITY_COMMUNITY_CONTENT_NOT_DECLARED
+        )
     if guild.has_adult_content:
-        raise CommunityListingError(GuildMessages.GUILD_COMMUNITY_ADULT_CONTENT)
+        raise CommunityListingError(GuildMessages.COMMUNITY_COMMUNITY_ADULT_CONTENT)
     administration = await get_administration(session, guild_id=guild.id)
     if (
         administration.max_users is not None
         and administration.max_users < MIN_COMMUNITY_SEATS
     ):
-        raise CommunityListingError(GuildMessages.GUILD_COMMUNITY_REQUIRES_CAPACITY)
+        raise CommunityListingError(GuildMessages.COMMUNITY_COMMUNITY_REQUIRES_CAPACITY)
 
 
 def community_listing_filters() -> list:
@@ -2047,7 +2054,7 @@ def community_listing_filters() -> list:
     """
     return [
         Guild.is_community.is_(True),
-        Guild.status == GuildStatus.active.value,
+        Guild.status == CommunityStatus.active.value,
         # NULL is unlimited, hence the explicit null leg.
         or_(
             GuildAdministration.max_users.is_(None),
@@ -2129,7 +2136,7 @@ async def assert_may_list_with_members(session: AsyncSession, *, guild_id: int) 
         .limit(1)
     )
     if (await session.exec(statement)).first() is not None:
-        raise CommunityListingError(GuildMessages.GUILD_COMMUNITY_UNDER_AGE_MEMBERS)
+        raise CommunityListingError(GuildMessages.COMMUNITY_COMMUNITY_UNDER_AGE_MEMBERS)
 
 
 async def assert_age_confirmed(session: AsyncSession, *, user: User) -> None:
@@ -2299,11 +2306,11 @@ async def join_community_guild(
     try:
         guild = await get_guild(session, guild_id=guild_id)
     except ValueError as exc:
-        raise CommunityJoinError(GuildMessages.GUILD_NOT_FOUND) from exc
+        raise CommunityJoinError(GuildMessages.COMMUNITY_NOT_FOUND) from exc
     # Exactly what the directory shows, so a guild it does not list cannot be
     # joined by asking for it directly either.
     if not await is_listed_in_directory(session, guild_id=guild_id):
-        raise CommunityJoinError(GuildMessages.GUILD_NOT_A_COMMUNITY)
+        raise CommunityJoinError(GuildMessages.COMMUNITY_NOT_A_COMMUNITY)
     # Asked before the seat is taken, so the box is what joins rather than
     # something checked once they are already in.
     await assert_age_confirmed(session, user=user)
@@ -2313,7 +2320,7 @@ async def join_community_guild(
         session,
         guild_id=guild_id,
         user_id=user.id,
-        role=GuildRole.member,
+        role=CommunityRole.member,
         via="community",
     )
     return guild
@@ -2330,7 +2337,7 @@ async def describe_invite_code(
     guild = await get_guild(session, guild_id=invite.guild_id)
     # A non-active guild accepts no new members; report the invite as plain
     # expired (never the guild's lifecycle status).
-    if guild.status != GuildStatus.active.value:
+    if guild.status != CommunityStatus.active.value:
         return invite, guild, False, GuildMessages.INVITE_EXPIRED
     if invite_is_active(invite):
         return invite, guild, True, None
@@ -2384,12 +2391,12 @@ def _sole_seats(user_id: int):
         .join(mine, mine.guild_id == Guild.id)
         .where(
             mine.user_id == user_id,
-            mine.role == GuildRole.superadmin,
-            Guild.status != GuildStatus.deleted.value,
+            mine.role == CommunityRole.superadmin,
+            Guild.status != CommunityStatus.deleted.value,
             ~exists().where(
                 other_seat.guild_id == Guild.id,
                 other_seat.user_id != user_id,
-                other_seat.role == GuildRole.superadmin,
+                other_seat.role == CommunityRole.superadmin,
                 User.id == other_seat.user_id,
                 User.status != UserStatus.deleted,
             ),

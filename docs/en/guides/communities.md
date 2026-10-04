@@ -17,6 +17,10 @@ Click any icon to switch. Everything follows you over — sidebar, initiatives, 
 !!! tip "Two communities at once"
     Open Initiative in two browser tabs and each one can sit in a different community, quite happily, simultaneously. Useful on the days when the work team and the volunteer thing both want you and neither will be reasoned with.
 
+Want more than an icon? The double arrow at the foot of the rail, **Expand community list**, opens every community as a card — banner, description, categories, and how many members there are and how many are online. **Reorder** there lets you drag them into whatever order makes sense to you, which is rarely alphabetical.
+
+![The community rail expanded into cards](../images/communities/rail-cards.png)
+
 The rail also keeps up with itself. If an admin adds you somewhere, or a group login sync brings you in, or a community you're already in lists itself publicly, the rail updates where you're standing. No reloading.
 
 ## The community front page
@@ -35,7 +39,7 @@ Community admins get the same page. Their authority is unchanged — open any in
 
 Most communities are private, and you get in by invitation. Some list themselves publicly, and those you can find on your own.
 
-Hit the **add-a-community** button on the rail and choose **Join a community**. That opens the **community directory**: a card per listed community, with its description, categories, member count, and how many are online right now.
+**Join a community** is its own dashed button at the foot of the rail, just below the **+** that makes a new one. It opens the **community directory**: a card per listed community, with its description, categories, member count, and how many are online right now.
 
 Search by name, browse by category, and **join straight from the card** — no invite, no waiting, no approval queue, no email that arrives four days later. You're a member the moment you click.
 
@@ -96,7 +100,7 @@ Anyone who opens it joins after signing in or making an account.
 
 Promote and demote from **Community settings → Users**.
 
-Promoting somebody also lifts the **initiative roles they already hold** — every initiative they're in moves them up to project manager, so the app starts treating them as the authority they now actually are. They get told when somebody asks to join, and waiting requests show up on the front page. A membership left behind by an older promotion can be fixed from that initiative's **Members** tab.
+Promoting somebody to admin also lifts the **initiative roles they already hold**: in every initiative they're in, they move to **Moderator**, unless they're a Manager there already. The app then treats them as the authority they actually are — they're told when somebody asks to join, and waiting requests show up on their front page. Demoting somebody leaves their initiative roles exactly where they are.
 
 ### Why superadmin is separate
 
@@ -110,7 +114,7 @@ So the top seat is its own rung, and it's narrow on purpose: the [Security and I
 
 ### What the member list shows
 
-The things a community actually manages: **handle**, **name** (in communities that show real names), **community role**, whether the membership came from a group login sync, the member's standing, and when they joined. **Export all as CSV** gives you the same columns.
+The things a community actually manages: **handle**, **name** (the [display name](#your-name-in-a-community), where there is one), **community role**, whether the membership came from a group login sync, the member's standing, and when they joined. **Export all as CSV** gives you the same columns.
 
 A member's platform role and whether they've confirmed their email address aren't a community's business, so they're in neither the list nor the CSV. Platform-wide user management lives in the [operator dashboard](../running-a-server/platform-roles.md#managing-platform-users).
 
@@ -125,9 +129,9 @@ Open **Community settings** from the sidebar or the rail:
 |---|---|
 | **Usage** | Storage and members against the community's limits. On a hosted server the tab is **Plan & usage** and also shows the plan: a running trial, the next renewal and its amount, a scheduled cancellation, or a failed payment. Every change to the plan, cancelling included, is made in the billing portal the tab links to. Superadmin only, and where community settings opens for them. |
 | **Community** | Name, description, icon and banner (square, up to 512 KB), and the directory listing. |
-| **Users** | Members, roles, invite links. |
+| **Users** | Members, roles, invite links. A superadmin also sees whose personal API keys reach the community, where the server grants it the security standard. |
 | **Initiatives** | Create and manage the community's initiatives. |
-| **Security** | Who gets in and on what terms: the community's own single sign-on, where its people land, whether personal API keys reach it, how long a session lasts, and how much a notification says once it leaves the app. Superadmin only, and only where your server has granted it — most communities never see this tab. See [Your community's sign-in and security](../security/community-security.md). |
+| **Security** | Who gets in and on what terms: the community's own single sign-on, where its people land, how long a session lasts, and how much a notification says once it leaves the app. Superadmin only, and only where your server has granted it — most communities never see this tab. See [Your community's sign-in and security](../security/community-security.md). |
 | **Integrations** | AI settings and installed apps — see [AI features](../account/ai-features.md) and [Apps & the marketplace](apps-and-marketplace.md#adding-an-app). |
 | **Trash** | Recently deleted things, restorable. |
 | **Data** | Export the whole community, restore a backup, bring work in from another tool, and re-download a finished export. Superadmin only. One whole-community export every couple of days — the tab says who took the last one and when the next can start. |
@@ -196,6 +200,33 @@ The friction is entirely deliberate and we're not sorry about it.
 
 ??? techspec "For the technically minded — what community deletion does"
     When the window finally runs out, it removes the community's isolated database area and the database roles tied to it, then cleans up the shared records connecting people to it: memberships, invites, single-sign-on mappings, access grants. Until then all of that is intact, which is what makes a restore a restore rather than a rebuild. If you only want *out* of a community, **leave** it from the rail instead — that removes just you.
+
+## Your name in a community
+
+Everyone is their handle, `jordan#1234`, until they say otherwise. To go by something friendlier in one community, open its **Members** page and choose **Set your display name**, at the top beside the member count. "Jordan from the allotment" in the allotment society, plain `jordan#1234` at the residents' association, and neither one any the wiser.
+
+It shows wherever that community shows people, and people can search for it. Clear the box and you're back to your handle.
+
+Admins can set or clear a member's from the row menu under **Community settings → Users**. Handy when four people are called Sam.
+
+## Reporting something
+
+Something here that shouldn't be? Comments, notices, pictures, profiles and directory listings all carry a small flag: **Report**. Say what's wrong, add a line if you like, and **Send report**. It isn't offered on your own things, because you can already edit or delete those.
+
+| What you report | Who looks at it |
+|---|---|
+| Anything inside an initiative — a comment, a notice, a picture | That initiative's [moderators](initiatives.md#moderation), and the community's admins |
+| A profile, or a community's directory listing | Whoever runs the server |
+
+The people who look see what you wrote. The thing you reported isn't touched until one of them decides it should be.
+
+## Asking for help
+
+The lifebuoy at the foot of the sidebar is **Ask for help**. Where your server takes help requests from this community, it opens a short form — what it's about, what happened — and it goes to the people who run the server, not to the community's own admins.
+
+Where the server takes no requests from here but has said who to write to, the button gives you that address instead. Where there's neither, the button isn't there, and **Documentation**, the question mark beside it, is where to look.
+
+Whoever runs the server decides which communities take help requests. See [Platform roles](../running-a-server/platform-roles.md#what-you-decide-per-community).
 
 ## Leaving a community
 

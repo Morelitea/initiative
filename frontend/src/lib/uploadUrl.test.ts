@@ -23,7 +23,7 @@ const getUploadTokenMock = vi.mocked(getUploadToken);
 // so the default-path tests cover the web (same-origin, cookie-auth) flow.
 
 describe("resolveDocumentVersionDownloadUrl", () => {
-  it("builds the guild-scoped version download path", () => {
+  it("builds the community-scoped version download path", () => {
     expect(resolveDocumentVersionDownloadUrl(5, 3, 7)).toBe(
       "/api/v1/c/7/documents/5/versions/3/download"
     );

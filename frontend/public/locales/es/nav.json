@@ -1,6 +1,6 @@
 {
-  "selectGuild": "Seleccionar una comunidad",
-  "guildSettings": "Configuración de la comunidad",
+  "selectCommunity": "Seleccionar una comunidad",
+  "communitySettings": "Configuración de la comunidad",
   "initiatives": "Iniciativas",
   "tags": "Etiquetas",
   "people": "Personas",
@@ -21,6 +21,7 @@
   "myTools": "Mis herramientas",
   "myMessages": "Mis mensajes",
   "myCalendar": "Mi calendario",
+  "myTickets": "Mis tickets",
   "myStats": "Mis estadísticas",
   "mySettings": "Mi configuración",
   "platformSettings": "Configuración de la plataforma",
@@ -72,7 +73,7 @@
   "navigate": {
     "signInRequired": "Por favor, inicia sesión de nuevo para seguir este enlace.",
     "missingDestination": "Este enlace no tiene detalles de destino.",
-    "invalidGuildId": "ID de comunidad no válido en el enlace.",
+    "invalidCommunityId": "ID de comunidad no válido en el enlace.",
     "noAccess": "No tienes acceso a esta comunidad.",
     "switchError": "No se pudo cambiar de comunidad para este enlace.",
     "redirecting": "Redirigiéndote a la comunidad correcta…",
@@ -85,6 +86,7 @@
   "createExternally": "Se crea en {{name}}",
   "operatorDashboard": "Panel de operador",
   "pastAnnouncements": "Anuncios anteriores",
+  "documentation": "Documentación",
   "requestsWaiting_one": "{{count}} pendiente",
   "requestsWaiting_other": "{{count}} pendientes",
   "posts": "Publicaciones",

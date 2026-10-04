@@ -33,7 +33,6 @@
   "monthly": "Monthly",
   "yearly": "Yearly",
   "permissions": "Permissions",
-  "settings": "Settings",
   "details": "Details",
   "access": "Access",
   "advanced": "Advanced",
@@ -43,7 +42,8 @@
     "heading": "Filters",
     "dates": "Dates",
     "searchLabel": "Name or description",
-    "searchCalendars": "Search calendars..."
+    "searchCalendars": "Search calendars...",
+    "tasks": "Tasks"
   },
   "loading": "Loading...",
   "loadError": "Failed to load events",
@@ -102,15 +102,22 @@
     "projectTasks": "Project tasks",
     "calendarSettings": "Settings for {{name}}"
   },
-  "guildScope": {
-    "title": "Community calendar",
+  "picker": {
+    "all": "All calendars",
+    "none": "No calendars",
+    "some_one": "{{count}} calendar",
+    "some_other": "{{count}} calendars",
+    "label": "Choose which calendars to show"
+  },
+  "communityScope": {
     "empty": "No calendars yet.",
     "emptyHint": "Add one for holidays, for a recurring meetup, or just for yourself."
   },
   "scope": {
     "title": {
       "edit": "Change a repeating event",
-      "delete": "Delete a repeating event"
+      "delete": "Delete a repeating event",
+      "duplicate": "Duplicate a repeating event"
     },
     "description": "This event repeats. Which events is this for?",
     "this": "Just this event",
@@ -118,7 +125,8 @@
     "all": "All events in the series",
     "confirm": {
       "edit": "Save",
-      "delete": "Delete"
+      "delete": "Delete",
+      "duplicate": "Duplicate"
     }
   },
   "occurrence": {

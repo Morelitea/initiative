@@ -8,9 +8,9 @@ import {
   clearOfflineSession,
   isNoAnswerError,
   isSessionRejected,
-  readOfflineGuilds,
+  readOfflineCommunities,
   readOfflineSession,
-  saveOfflineGuilds,
+  saveOfflineCommunities,
   saveOfflineSession,
 } from "./offlineSession";
 
@@ -27,7 +27,7 @@ afterEach(() => {
 
 describe("the session snapshot", () => {
   it("hands back the user it was saved with", () => {
-    const user = buildUser({ full_name: "Alice" });
+    const user = buildUser();
     saveOfflineSession(user, SERVER);
     expect(readOfflineSession(SERVER)?.id).toBe(user.id);
   });
@@ -68,31 +68,31 @@ describe("the session snapshot", () => {
 
 describe("the remembered community list", () => {
   it("hands back what was saved", () => {
-    saveOfflineGuilds([{ id: 3, name: "Beyonders" }], SERVER);
-    expect(readOfflineGuilds<{ id: number }>(SERVER)).toEqual([{ id: 3, name: "Beyonders" }]);
+    saveOfflineCommunities([{ id: 3, name: "Beyonders" }], SERVER);
+    expect(readOfflineCommunities<{ id: number }>(SERVER)).toEqual([{ id: 3, name: "Beyonders" }]);
   });
 
   it("is refused for a different server", () => {
-    saveOfflineGuilds([{ id: 3 }], SERVER);
-    expect(readOfflineGuilds("https://other.example")).toBeNull();
+    saveOfflineCommunities([{ id: 3 }], SERVER);
+    expect(readOfflineCommunities("https://other.example")).toBeNull();
   });
 
   it("expires on the same clock as everything else", () => {
     vi.useFakeTimers();
-    saveOfflineGuilds([{ id: 3 }], SERVER);
+    saveOfflineCommunities([{ id: 3 }], SERVER);
     vi.advanceTimersByTime(OFFLINE_CACHE_MAX_AGE_MS + 1000);
-    expect(readOfflineGuilds(SERVER)).toBeNull();
+    expect(readOfflineCommunities(SERVER)).toBeNull();
   });
 
   it("goes when the session it belongs to goes", () => {
-    saveOfflineGuilds([{ id: 3 }], SERVER);
+    saveOfflineCommunities([{ id: 3 }], SERVER);
     clearOfflineSession();
-    expect(readOfflineGuilds(SERVER)).toBeNull();
+    expect(readOfflineCommunities(SERVER)).toBeNull();
   });
 
   it("discards a list it cannot make sense of", () => {
     setItem("initiative-offline-guilds", "{not json");
-    expect(readOfflineGuilds(SERVER)).toBeNull();
+    expect(readOfflineCommunities(SERVER)).toBeNull();
   });
 });
 

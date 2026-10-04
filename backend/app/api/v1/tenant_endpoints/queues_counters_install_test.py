@@ -99,7 +99,7 @@ async def test_reads_the_queues_open_to_its_initiative(
     assert read.status_code == 200, read.text
     body = read.json()
     assert body["can"]["edit"] is False
-    assert isinstance(body["guild_id"], str)
+    assert isinstance(body["community_id"], str)
     assert isinstance(body["created_by"], str)
     [served] = body["items"]
     # The person the item names is the same reference as the queue's author.
@@ -140,7 +140,7 @@ async def test_a_queue_write_needs_the_write_scope(
     for method, path, payload in (
         ("post", "/queues/", {"name": "No", "initiative_id": installed.placed.id}),
         ("patch", f"/queues/{queue.id}", {"name": "No"}),
-        ("patch", f"/queues/{queue.id}/items/{item.id}", {"label": "No"}),
+        ("patch", f"/queue-items/{item.id}", {"label": "No"}),
         ("post", f"/queues/{queue.id}/next", None),
         ("post", f"/queues/{queue.id}/start", None),
     ):
@@ -274,7 +274,7 @@ async def test_it_names_a_queue_items_person_by_reference(
     assert isinstance(reference, str)
 
     claimed = await client.patch(
-        guild_url(guild_id, f"/queues/{queue.id}/items/{item.id}"),
+        guild_url(guild_id, f"/queue-items/{item.id}"),
         headers=headers,
         json={"user_id": reference},
     )
@@ -286,7 +286,7 @@ async def test_it_names_a_queue_items_person_by_reference(
     assert stored is not None and stored.user_id == seat.user.id
 
     by_row_id = await client.patch(
-        guild_url(guild_id, f"/queues/{queue.id}/items/{item.id}"),
+        guild_url(guild_id, f"/queue-items/{item.id}"),
         headers=headers,
         json={"user_id": seat.user.id},
     )
@@ -334,14 +334,14 @@ async def test_reads_the_counter_groups_open_to_its_initiative(
     assert body["can"]["edit"] is False
     assert isinstance(body["created_by"], str)
     assert [c["name"] for c in body["counters"]] == ["Hit points"]
-    assert isinstance(body["counters"][0]["guild_id"], str)
+    assert isinstance(body["counters"][0]["community_id"], str)
     assert_names_nobody(read.text, [seat.user.id, guild_id])
 
     one = await client.get(
         guild_url(guild_id, f"/counters/{counter.id}"), headers=headers
     )
     assert one.status_code == 200, one.text
-    assert one.json()["guild_id"] == body["guild_id"]
+    assert one.json()["community_id"] == body["community_id"]
     assert_names_nobody(one.text, [seat.user.id, guild_id])
 
     other = await client.get(
@@ -497,3 +497,69 @@ async def test_it_steps_a_counter_shared_for_writing_only(
         json={"direction": "up"},
     )
     assert refused.status_code == 403, refused.text
+
+
+async def test_a_member_tokens_copy_keeps_the_item_naming_its_member(
+    client, session, acting_user, role_session
+):
+    """The copy a member token makes is its member's, so an item naming that
+    member stays theirs once the copy's sharing is committed."""
+    from datetime import datetime, timezone
+
+    from app.core.app_access_token import seal_install_token
+    from app.models.platform.guild import CommunityRole
+    from app.models.tenant.app_member_consent import AppMemberConsent, ConsentAccess
+    from app.testing import grant_role_permission
+    from app.testing.app_clients import CLIENT
+
+    scopes = ["queues:read", "queues:write"]
+    installed = await install_app(session, acting_user, role_session, granted=scopes)
+    await _switch_on(session, installed.placed)
+    member = await acting_user(
+        guild_role=CommunityRole.member,
+        guild=installed.guild,
+        initiative=installed.placed,
+    )
+    await grant_role_permission(session, installed.placed, "create_queues")
+    queue = await create_queue(session, installed.placed, installed.seat.user)
+    await create_resource_grant(
+        session, queue, level=ResourceAccessLevel.write, user=member.user
+    )
+    await create_queue_item(session, queue, label="Mine", user_id=member.user.id)
+    await route_session_to_guild(session, installed.guild.id)
+    now = datetime.now(timezone.utc)
+    session.add(
+        AppMemberConsent(
+            install_id=installed.app.id,
+            user_id=member.user.id,
+            purpose="node-1",
+            label="Act as you",
+            requested_access=ConsentAccess.read_write.value,
+            granted_access=ConsentAccess.read_write.value,
+            granted_at=now,
+        )
+    )
+    await session.commit()
+    token, _exp = seal_install_token(
+        guild_id=installed.guild.id,
+        install_id=installed.app.id,
+        client_id=CLIENT,
+        scopes=frozenset(scopes),
+        initiative_id=None,
+        user_id=member.user.id,
+        purpose="node-1",
+    )
+
+    response = await client.post(
+        guild_url(installed.guild.id, f"/queues/{queue.id}/duplicate"),
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 201, response.text
+    await route_session_to_guild(session, installed.guild.id)
+    named = (
+        await session.exec(
+            select(QueueItem.user_id).where(QueueItem.queue_id == response.json()["id"])
+        )
+    ).all()
+    assert named == [member.user.id]

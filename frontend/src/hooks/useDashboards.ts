@@ -1,13 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
 
 import {
-  getReadDashboardApiV1CGuildIdDashboardsDashboardIdGetQueryKey,
-  getReadInstalledListingsApiV1CGuildIdDashboardsInstalledListingsGetQueryKey,
-  getReadWidgetCatalogApiV1CGuildIdDashboardsWidgetCatalogGetQueryKey,
-  readInstalledListingsApiV1CGuildIdDashboardsInstalledListingsGet,
-  readWidgetCatalogApiV1CGuildIdDashboardsWidgetCatalogGet,
-  setViewAsApiV1CGuildIdDashboardsDashboardIdViewAsPut,
-  upgradeDashboardApiV1CGuildIdDashboardsDashboardIdUpgradePost,
+  getReadDashboardQueryKey,
+  getReadInstalledListingsQueryKey,
+  getReadWidgetCatalogQueryKey,
+  readInstalledListings,
+  readWidgetCatalog,
+  setViewAs,
+  upgradeDashboard,
 } from "@/api/generated/dashboards/dashboards";
 import type {
   DashboardInstalledListings,
@@ -18,8 +18,8 @@ import type {
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { invalidate, q } from "@/api/query-keys";
 import { TOOL_HOOKS } from "@/hooks/toolHooks";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
-import { useGuildMutation } from "@/hooks/useApiMutation";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
+import { useCommunityMutation } from "@/hooks/useApiMutation";
 import { queryClient } from "@/lib/queryClient";
 import type { MutationOpts } from "@/types/mutation";
 import type { QueryOpts } from "@/types/query";
@@ -48,27 +48,27 @@ export const useSetDashboardGrants = dashboards.useSetGrants;
  * life of a deployment, hence the long stale time.
  */
 export const useWidgetCatalog = (options?: QueryOpts<WidgetCatalog>) => {
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   return useQuery<WidgetCatalog>({
-    queryKey: getReadWidgetCatalogApiV1CGuildIdDashboardsWidgetCatalogGetQueryKey(guildId),
-    queryFn: () => readWidgetCatalogApiV1CGuildIdDashboardsWidgetCatalogGet(guildId),
+    queryKey: getReadWidgetCatalogQueryKey(communityId),
+    queryFn: () => readWidgetCatalog(communityId),
     staleTime: Number.POSITIVE_INFINITY,
     ...options,
   });
 };
 
 /**
- * Which marketplace listings this guild has installed, and how many of each.
+ * Which marketplace listings this community has installed, and how many of each.
  *
  * Keyed by the listing uid an install pins. Separate from the dashboards list on
  * purpose: that list is paginated, and deriving "already installed" from one
  * page would mark some installs and miss the rest.
  */
 export const useInstalledListings = (options?: QueryOpts<DashboardInstalledListings>) => {
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   return useQuery<DashboardInstalledListings>({
-    queryKey: getReadInstalledListingsApiV1CGuildIdDashboardsInstalledListingsGetQueryKey(guildId),
-    queryFn: () => readInstalledListingsApiV1CGuildIdDashboardsInstalledListingsGet(guildId),
+    queryKey: getReadInstalledListingsQueryKey(communityId),
+    queryFn: () => readInstalledListings(communityId),
     ...options,
   });
 };
@@ -89,16 +89,12 @@ export const useUpgradeDashboard = (
   dashboardId: number,
   options?: MutationOpts<DashboardRead, void>
 ) => {
-  const guildId = useActiveGuildId();
-  return useGuildMutation<DashboardRead, void>(
+  const communityId = useActiveCommunityId();
+  return useCommunityMutation<DashboardRead, void>(
     {
-      mutationFn: (guildId) =>
-        upgradeDashboardApiV1CGuildIdDashboardsDashboardIdUpgradePost(guildId, dashboardId),
+      mutationFn: (communityId) => upgradeDashboard(communityId, dashboardId),
       invalidate: (updated) => {
-        queryClient.setQueryData(
-          getReadDashboardApiV1CGuildIdDashboardsDashboardIdGetQueryKey(guildId, dashboardId),
-          updated
-        );
+        queryClient.setQueryData(getReadDashboardQueryKey(communityId, dashboardId), updated);
         return invalidateDashboardAndList(dashboardId);
       },
       errorKey: "dashboards:error",
@@ -115,10 +111,9 @@ export const useSetDashboardViewMode = (
   dashboardId: number,
   options?: MutationOpts<DashboardRead, DashboardViewMode>
 ) =>
-  useGuildMutation<DashboardRead, DashboardViewMode>(
+  useCommunityMutation<DashboardRead, DashboardViewMode>(
     {
-      mutationFn: (guildId, mode) =>
-        setViewAsApiV1CGuildIdDashboardsDashboardIdViewAsPut(guildId, dashboardId, { mode }),
+      mutationFn: (communityId, mode) => setViewAs(communityId, dashboardId, { mode }),
       invalidate: () => invalidateDashboardAndList(dashboardId),
       errorKey: "dashboards:error",
     },

@@ -14,7 +14,7 @@ import { useFileDrop } from "@/hooks/useFileDrop";
 import { FileDropArea } from "./file-drop";
 
 const toastError = vi.fn();
-vi.mock("@/lib/chesterToast", () => ({ toast: { error: (m: string) => toastError(m) } }));
+vi.mock("@/lib/mascotToast", () => ({ toast: { error: (m: string) => toastError(m) } }));
 
 const pdf = () => new File(["%PDF"], "brief.pdf", { type: "application/pdf" });
 const binary = () => new File(["MZ"], "setup.exe", { type: "application/octet-stream" });

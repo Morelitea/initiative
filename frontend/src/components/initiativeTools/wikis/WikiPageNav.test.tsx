@@ -10,7 +10,7 @@ import { HttpResponse } from "msw";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { buildWikiPage } from "@/__tests__/factories";
-import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
 
@@ -25,7 +25,7 @@ const items = [
 ];
 
 beforeEach(() => {
-  server.use(guildHttp.get("/wikis/:wikiId/pages", () => HttpResponse.json({ items })));
+  server.use(communityHttp.get("/wikis/:wikiId/pages", () => HttpResponse.json({ items })));
 });
 
 const setup = (currentId: number) =>
@@ -52,7 +52,7 @@ describe("the page after this one", () => {
 
   it("offers nothing at all when a wiki holds one page", async () => {
     server.use(
-      guildHttp.get("/wikis/:wikiId/pages", () => HttpResponse.json({ items: [items[0]] }))
+      communityHttp.get("/wikis/:wikiId/pages", () => HttpResponse.json({ items: [items[0]] }))
     );
     const { container } = setup(11);
 

@@ -48,6 +48,13 @@ def test_normalize_writes_canonical_lines(text, kind, stored):
         ("FREQ=BOGUS", "event"),
         ("DTSTART:20261001T000000Z\nRRULE:FREQ=DAILY", "event"),
         ("", "event"),
+        # Dates a day's shift would move off the calendar.
+        ("FREQ=DAILY\nRDATE:99991231T230000Z", "event"),
+        ("FREQ=DAILY\nEXDATE;VALUE=DATE:00010101", "event"),
+        ("FREQ=DAILY;UNTIL=99991231T235959Z", "event"),
+        ("FREQ=DAILY\nEXDATE:" + ",".join(["20261012T063000Z"] * 250), "event"),
+        # Within the limit as written, past it as stored.
+        ("FREQ=WEEKLY\nRDATE:" + ",".join(["20261012T063000Z"] * 234), "event"),
     ],
 )
 def test_normalize_refuses(text, kind):
@@ -143,6 +150,18 @@ def test_occurrences_come_from_the_stored_rule():
         datetime(2026, 10, 18, 22, 30, tzinfo=UTC),
         datetime(2026, 10, 20, 9, 0, tzinfo=UTC),
     ]
+    weekly = [start + timedelta(weeks=n) for n in range(5)]
+    assert (
+        recurrence.between("RRULE:FREQ=WEEKLY", start, 0, start, weekly[-1], at_most=2)
+        == weekly[:2]
+    )
+    # A stored date at the calendar's end reads at a day's shift either way.
+    edge = "RRULE:FREQ=WEEKLY\nRDATE:99991231T230000Z\nEXDATE;VALUE=DATE:99991231"
+    for shift in (1440, -1440):
+        assert recurrence.between(edge, start, shift, start, weekly[-1]) == weekly
+        assert recurrence.upcoming(edge, start, shift, start) == start
+        assert recurrence.exception_starts(edge, start, shift)[1]
+        assert recurrence.last_start(edge, start, shift) is None
 
 
 def test_a_repeat_moves_with_its_start():
@@ -172,6 +191,9 @@ def test_imports_read_either_shape():
     )
     assert recurrence.imported(
         {"frequency": "hourly"}, kind="event", start=EAST, tz=None
+    ) == (None, 0)
+    assert recurrence.imported(
+        "FREQ=WEEKLY", kind="event", start=EAST, tz=None, shift=1441
     ) == (None, 0)
 
 

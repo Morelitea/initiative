@@ -1,6 +1,6 @@
 """The platform's sign-in placement rules, per provider.
 
-Operators and owners (``guilds.manage``) write the rules; whether they apply
+Operators and owners (``communities.manage``) write the rules; whether they apply
 to every community is an owner's call (``config.manage``). Everything runs on
 the system engine, and the logic lives in
 ``app.services.platform.provider_placement``.
@@ -10,10 +10,10 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Query, status
 
-from app.api.deps import SystemSessionDep
+from app.api.deps import SystemSessionDep, CommunityIdPath
 from app.api.v1.platform_endpoints.operator import ConfigManageDep, GuildsManageDep
 from app.schemas.platform.settings import (
-    GuildNarrowingPending,
+    CommunityNarrowingPending,
     PlacementCommunityRead,
     PlacementEverywhereUpdate,
     PlacementInitiativeRead,
@@ -37,11 +37,11 @@ async def list_provider_placement(
     return await provider_placement.list_rules(session)
 
 
-@router.get("/requests", response_model=List[GuildNarrowingPending])
+@router.get("/requests", response_model=List[CommunityNarrowingPending])
 async def list_placement_requests(
     session: SystemSessionDep,
     _operator: GuildsManageDep,
-) -> List[GuildNarrowingPending]:
+) -> List[CommunityNarrowingPending]:
     """Communities waiting for somebody to agree that the domain or tenant
     they named is theirs. Answered on the community's own narrowing route."""
     return await narrowing_review.unanswered(session)
@@ -66,21 +66,21 @@ async def list_placement_communities(
     session: SystemSessionDep,
     _operator: GuildsManageDep,
     provider_id: int,
-    q: Optional[str] = Query(default=None, max_length=100),
+    search: Optional[str] = Query(default=None, max_length=100),
 ) -> List[PlacementCommunityRead]:
     """Communities a rule for this provider may name, by name."""
     return await provider_placement.list_communities(
-        session, provider_id=provider_id, query=q
+        session, provider_id=provider_id, query=search
     )
 
 
 @router.get(
-    "/providers/{provider_id}/communities/{guild_id}/initiatives",
+    "/providers/{provider_id}/communities/{community_id}/initiatives",
     response_model=List[PlacementInitiativeRead],
 )
 async def list_placement_targets(
     provider_id: int,
-    guild_id: int,
+    guild_id: CommunityIdPath,
     session: SystemSessionDep,
     _operator: GuildsManageDep,
 ) -> List[PlacementInitiativeRead]:

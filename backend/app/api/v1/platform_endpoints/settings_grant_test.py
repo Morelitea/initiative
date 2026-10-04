@@ -7,7 +7,7 @@ from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.platform.user import UserRole
 from app.models.tenant.ai_member_key import GuildAIMemberKey
 from app.models.tenant.ai_member_pref import GuildAIMemberPref
@@ -29,7 +29,7 @@ async def _request_and_approve(client, *, requester, approver, guild, rung):
         "/api/v1/access-grants/",
         headers=get_auth_headers(requester),
         json={
-            "guild_id": guild.id,
+            "community_id": guild.id,
             "settings_level": rung,
             "reason": "billing question from the community",
         },
@@ -61,7 +61,7 @@ async def _request_pair_and_approve(
         "/api/v1/access-grants/",
         headers=get_auth_headers(requester),
         json={
-            "guild_id": guild.id,
+            "community_id": guild.id,
             "access_level": access,
             "settings_level": rung,
             "reason": "the community cannot sign in",
@@ -142,15 +142,15 @@ async def test_settings_grantee_deletion_purges_every_members_reference(
     support = await create_user(session, role=UserRole.support)
     guild = await create_guild(session, creator=owner)
     await create_guild_membership(
-        session, user=owner, guild=guild, role=GuildRole.superadmin
+        session, user=owner, guild=guild, role=CommunityRole.superadmin
     )
     await create_guild_membership(
-        session, user=member, guild=guild, role=GuildRole.member
+        session, user=member, guild=guild, role=CommunityRole.member
     )
     mode = await client.put(
         "/api/v1/settings/ai/platform/mode",
         headers=get_auth_headers(owner),
-        json={"mode": "guild"},
+        json={"mode": "community"},
     )
     assert mode.status_code == 200, mode.text
 
@@ -167,7 +167,7 @@ async def test_settings_grantee_deletion_purges_every_members_reference(
         f"/api/v1/c/{guild.id}/settings/ai/me/key",
         headers=member_headers,
         json={
-            "scope": "guild",
+            "scope": "community",
             "connection_id": connection_id,
             "api_key": "sk-member",
         },
@@ -177,7 +177,7 @@ async def test_settings_grantee_deletion_purges_every_members_reference(
         f"/api/v1/c/{guild.id}/settings/ai/me/pref",
         headers=member_headers,
         json={
-            "scope": "guild",
+            "scope": "community",
             "connection_id": connection_id,
             "enabled": True,
         },
@@ -227,7 +227,6 @@ async def test_the_superadmin_grantee_reads_the_auth_controls(
     guild = await create_guild(
         session,
         creator=owner,
-        allow_api_keys=False,
         enforce_compliance_session=True,
     )
     await _request_and_approve(
@@ -250,7 +249,6 @@ async def test_the_superadmin_grantee_reads_the_auth_controls(
             "require_methods": [],
             "factor_required_by_platform": False,
         },
-        "allow_api_keys": False,
         "enforce_compliance_session": True,
         "require_second_factor": False,
         "allow_email_notifications": True,
@@ -278,7 +276,7 @@ async def test_the_admin_rung_does_not_reach_the_seat(
     refused = await client.patch(
         f"/api/v1/communities/{guild.id}/auth-settings",
         headers=headers,
-        json={"allow_api_keys": False},
+        json={"enforce_compliance_session": True},
     )
     assert refused.status_code == 403, refused.text
 
@@ -298,7 +296,7 @@ async def test_a_bare_request_is_a_content_read(
     response = await client.post(
         "/api/v1/access-grants/",
         headers=get_auth_headers(support),
-        json={"guild_id": guild.id, "reason": "having a look"},
+        json={"community_id": guild.id, "reason": "having a look"},
     )
     assert response.status_code == 201, response.text
     assert response.json()["purpose"] == "content"
@@ -321,14 +319,14 @@ async def test_a_lesser_grant_does_not_stand_in_the_way_of_breaking_glass(
     broken = await client.post(
         "/api/v1/access-grants/break-glass",
         headers=get_auth_headers(operator),
-        json={"guild_id": guild.id, "reason": "incident, and I already had one"},
+        json={"community_id": guild.id, "reason": "incident, and I already had one"},
     )
     assert broken.status_code == 201, broken.text
 
     listed = await client.get(
         "/api/v1/access-grants/?mine=true", headers=get_auth_headers(operator)
     )
-    grants = {g["id"]: g for g in listed.json()}
+    grants = {g["id"]: g for g in listed.json()["items"]}
     # The pair is live...
     live = {(g["purpose"], g["access_level"]) for g in grants.values() if g["is_live"]}
     assert live == {("content", "read_write"), ("settings", "superadmin")}
@@ -349,7 +347,7 @@ async def test_one_request_can_ask_for_both(client: AsyncClient, session: AsyncS
         "/api/v1/access-grants/",
         headers=headers,
         json={
-            "guild_id": guild.id,
+            "community_id": guild.id,
             "access_level": "read_write",
             "settings_level": "admin",
             "reason": "clearing up after the incident",
@@ -360,7 +358,7 @@ async def test_one_request_can_ask_for_both(client: AsyncClient, session: AsyncS
     assert response.json()["purpose"] == "content"
 
     listed = await client.get("/api/v1/access-grants/?mine=true", headers=headers)
-    asked = {(g["purpose"], g["access_level"]) for g in listed.json()}
+    asked = {(g["purpose"], g["access_level"]) for g in listed.json()["items"]}
     assert asked == {("content", "read_write"), ("settings", "admin")}
 
 
@@ -408,7 +406,7 @@ async def test_a_combined_conflict_sends_no_external_notification(
         "/api/v1/access-grants/",
         headers=headers,
         json={
-            "guild_id": guild.id,
+            "community_id": guild.id,
             "settings_level": "admin",
             "reason": "already pending",
         },
@@ -421,7 +419,7 @@ async def test_a_combined_conflict_sends_no_external_notification(
         "/api/v1/access-grants/",
         headers=headers,
         json={
-            "guild_id": guild.id,
+            "community_id": guild.id,
             "access_level": "read",
             "settings_level": "superadmin",
             "reason": "combined request",
@@ -478,6 +476,14 @@ async def test_the_admin_rung_runs_the_community_without_entering_it(
     assert invites.status_code == 403, invites.text
     assert invites.json()["detail"] == "ACCESS_GRANT_WRITE_REQUIRED"
 
+    named = await client.put(
+        f"/api/v1/communities/{guild.id}/members/{owner.id}/display-name",
+        headers=headers,
+        json={"display_name": "Named By Support"},
+    )
+    assert named.status_code == 403, named.text
+    assert named.json()["detail"] == "ACCESS_GRANT_WRITE_REQUIRED"
+
     roster = await client.get(f"/api/v1/c/{guild.id}/users/", headers=headers)
     assert roster.status_code == 200, roster.text
     assert {row["id"] for row in roster.json()["items"]} == {owner.id}
@@ -529,6 +535,15 @@ async def test_the_admin_rung_writes_beside_a_read_write_grant(
 
     content = await client.get(f"/api/v1/c/{guild.id}/initiatives/", headers=headers)
     assert content.status_code == 200, content.text
+
+    named = await client.put(
+        f"/api/v1/communities/{guild.id}/members/{owner.id}/display-name",
+        headers=headers,
+        json={"display_name": "Named By Support"},
+    )
+    assert named.status_code == 204, named.text
+    roster = await client.get(f"/api/v1/c/{guild.id}/users/", headers=headers)
+    assert roster.json()["items"][0]["display_name"] == "Named By Support"
 
     # Running the roster is not joining it: the grant cannot accept an invite
     # into the community it reaches, even one it minted.

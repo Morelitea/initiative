@@ -36,7 +36,7 @@ Not sure how the pieces fit together yet? [How Initiative is organized](../conce
 
 -   :material-toolbox-outline: __Tools__
 
-    All seven of them, and which one to reach for when.
+    All nine of them, and which one to reach for when.
 
     [:octicons-arrow-right-24: Tools](tools.md)
 

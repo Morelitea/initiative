@@ -141,7 +141,7 @@ export const signUpWithPasskey = async (
  * Unlike the step-up above, nothing is added to the session: the challenge is
  * issued for the request that will spend it, so what the key proves belongs to
  * the grant being issued rather than to the browser holding it. The assertion
- * goes back in the break-glass body, beside the reason and the guild.
+ * goes back in the break-glass body, beside the reason and the community.
  */
 export const assertForBreakGlass = async (): Promise<Record<string, unknown>> => {
   const begun = await apiClient.post<PasskeyAuthenticationOptions>(

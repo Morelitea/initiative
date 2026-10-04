@@ -8,7 +8,7 @@ Endpoints and services should check a capability via
 ``app.api.deps``) so the privilege ladder can change without touching every
 call site.
 
-This is deliberately separate from *guild* roles (``GuildRole``) and
+This is deliberately separate from *guild* roles (``CommunityRole``) and
 *initiative* roles, which are scoped tenancy concepts. Capabilities here are
 about platform-wide privilege.
 """
@@ -46,7 +46,7 @@ class Capability(str, Enum):
     USERS_DELETE = "users.delete"
 
     # Platform operations.
-    GUILDS_MANAGE = "guilds.manage"
+    COMMUNITIES_MANAGE = "communities.manage"
 
     # Writing the notices every user of this deployment is shown (see
     # ``app.services.platform.announcements``). Product communication rather
@@ -95,7 +95,7 @@ _MODERATOR: FrozenSet[Capability] = _SUPPORT | {
 }
 
 _OPERATOR: FrozenSet[Capability] = _MODERATOR | {
-    Capability.GUILDS_MANAGE,
+    Capability.COMMUNITIES_MANAGE,
     Capability.ANNOUNCEMENTS_MANAGE,
     Capability.USERS_DELETE,
     Capability.DATA_BYPASS,

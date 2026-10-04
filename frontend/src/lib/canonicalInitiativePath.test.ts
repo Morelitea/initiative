@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { canonicalInitiativePath } from "@/lib/guildUrl";
+import { canonicalInitiativePath } from "@/lib/communityUrl";
 
 describe("canonicalInitiativePath", () => {
   it("replaces an initiative the entity doesn't belong to", () => {
@@ -17,7 +17,7 @@ describe("canonicalInitiativePath", () => {
   });
 
   // An app's calendar belongs to no initiative; its address says so.
-  it("drops the segment for a guild-level entity", () => {
+  it("drops the segment for a community-level entity", () => {
     expect(canonicalInitiativePath("/c/1/i/9/calendars/2", null)).toBe("/c/1/calendars/2");
     expect(canonicalInitiativePath("/c/1/i/9/calendars/2/events/8", null)).toBe(
       "/c/1/calendars/2/events/8"
@@ -33,13 +33,13 @@ describe("canonicalInitiativePath", () => {
     expect(canonicalInitiativePath("/c/1/calendars/2", null)).toBe("/c/1/calendars/2");
   });
 
-  // Nothing outside a guild has an initiative to canonicalize.
-  it("leaves a non-guild path alone", () => {
+  // Nothing outside a community has an initiative to canonicalize.
+  it("leaves a non-community path alone", () => {
     expect(canonicalInitiativePath("/my-tools", 5)).toBe("/my-tools");
     expect(canonicalInitiativePath("/profile/notifications", null)).toBe("/profile/notifications");
   });
 
-  it("handles the guild root", () => {
+  it("handles the community root", () => {
     expect(canonicalInitiativePath("/c/1", 5)).toBe("/c/1/i/5");
     expect(canonicalInitiativePath("/c/1/i/5", null)).toBe("/c/1");
   });

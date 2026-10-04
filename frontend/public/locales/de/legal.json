@@ -35,7 +35,7 @@
       },
       "analytics": {
         "name": "Analyse",
-        "description": "Welche Seiten genutzt werden und wo Leute hängen bleiben – zusammengefasst gezählt, um zu erkennen, was zu verbessern ist."
+        "description": "Welche Seiten genutzt werden, auf welche Fehler Leute stoßen und wie schnell Seiten laden, samt Browser und Gerät. Nach einer zufälligen Kennung je Besuch gruppiert, nie nach Ihrem Konto."
       },
       "marketing": {
         "name": "Marketing",

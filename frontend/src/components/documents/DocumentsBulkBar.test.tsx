@@ -4,14 +4,14 @@ import { HttpResponse } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildDocumentSummary } from "@/__tests__/factories";
-import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 
 import { DocumentsBulkBar } from "./DocumentsBulkBar";
 
 vi.mock("@/lib/csv", () => ({ downloadBlob: vi.fn() }));
-vi.mock("@/lib/chesterToast", () => ({
+vi.mock("@/lib/mascotToast", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 
@@ -40,7 +40,7 @@ describe("DocumentsBulkBar export", () => {
   it("sends the selected ids and downloads the zip", async () => {
     let sent: string[] = [];
     server.use(
-      guildHttp.get("/exports/document", ({ request }) => {
+      communityHttp.get("/exports/document", ({ request }) => {
         sent = new URL(request.url).searchParams.getAll("ids");
         return new HttpResponse("PK-zip-bytes", {
           status: 200,

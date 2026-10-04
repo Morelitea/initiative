@@ -1,7 +1,7 @@
 from datetime import date
 from typing import List, Literal, Optional
 
-from pydantic import ConfigDict, Field
+from pydantic import AliasChoices, ConfigDict, Field
 
 from app.schemas.base import SanitizedBaseModel
 
@@ -23,11 +23,19 @@ class HeatmapDayData(SanitizedBaseModel):
     )
 
 
-class GuildTaskBreakdown(SanitizedBaseModel):
+class CommunityTaskBreakdown(SanitizedBaseModel):
     """Task completion breakdown by guild."""
 
-    guild_id: int = Field(..., description="Guild ID")
-    guild_name: str = Field(..., description="Guild name")
+    community_id: int = Field(
+        ...,
+        description="Guild ID",
+        validation_alias=AliasChoices("community_id", "guild_id"),
+    )
+    community_name: str = Field(
+        ...,
+        description="Guild name",
+        validation_alias=AliasChoices("community_name", "guild_name"),
+    )
     completed_count: int = Field(
         ..., description="Number of completed tasks in this guild"
     )
@@ -67,6 +75,8 @@ class UserStatsResponse(SanitizedBaseModel):
     heatmap_data: List[HeatmapDayData] = Field(
         ..., description="Daily activity data for last 365 days"
     )
-    guild_breakdown: List[GuildTaskBreakdown] = Field(
-        ..., description="Task completion breakdown by guild"
+    community_breakdown: List[CommunityTaskBreakdown] = Field(
+        ...,
+        description="Task completion breakdown by guild",
+        validation_alias=AliasChoices("community_breakdown", "guild_breakdown"),
     )

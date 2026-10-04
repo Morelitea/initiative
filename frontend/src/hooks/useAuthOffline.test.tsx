@@ -28,10 +28,14 @@ vi.mock("@/api/client", () => ({
   setAuthToken: vi.fn(),
   getAuthToken: () => null,
   clearUploadToken: vi.fn(),
+  watchForActivity: () => () => undefined,
+  startSessionActivity: vi.fn(),
+  forgetSessionActivity: vi.fn(),
 }));
 
 vi.mock("@/crypto/messaging", () => ({
   forgetMessagesOnThisDevice: vi.fn(),
+  serveAccount: vi.fn(),
 }));
 
 const clearWhiteboards = vi.fn();
@@ -103,7 +107,7 @@ beforeEach(() => {
 
 describe("bootstrapping with no answer from the server", () => {
   it("keeps the last-known user, marked unverified", async () => {
-    snapshot = buildUser({ full_name: "Alice" });
+    snapshot = buildUser();
     const stored = snapshot;
     get.mockRejectedValue({ request: {}, message: "Network Error" });
 

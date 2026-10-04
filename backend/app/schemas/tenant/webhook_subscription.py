@@ -10,7 +10,7 @@ from app.schemas.base import SanitizedBaseModel
 
 
 class WebhookSubscriptionCreate(SanitizedBaseModel):
-    """Body for ``POST /api/v1/c/{guild_id}/webhooks/subscriptions``.
+    """Body for ``POST /api/v1/c/{community_id}/webhooks/subscriptions``.
 
     The guild comes from the path. ``initiative_id`` narrows the subscription
     to one initiative; omitted, it covers the whole community.
@@ -48,7 +48,7 @@ class WebhookSubscriptionRead(SanitizedBaseModel):
     #: What this subscription's receiver calls the guild — the same name its
     #: deliveries arrive under, so the two can be matched. Pairwise: another
     #: subscriber holds an unrelated value for the same guild.
-    guild_ref: str
+    community_ref: str
     initiative_id: int | None
     #: Who registered it, named in the same sector as the guild. ``None`` when
     #: an app registered it rather than a person.

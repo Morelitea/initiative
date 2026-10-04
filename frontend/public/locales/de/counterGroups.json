@@ -39,15 +39,6 @@
   "sortNameDesc": "Name (Z→A)",
   "sortCountAsc": "Stand (niedrig→hoch)",
   "sortCountDesc": "Stand (hoch→niedrig)",
-  "duplicate": {
-    "title": "Gruppe duplizieren",
-    "description": "Erstelle eine Kopie dieser Gruppe mit allen Zählern und ihren aktuellen Werten.",
-    "action": "Duplizieren",
-    "dialogDescription": "Benenne die neue Kopie. Alle Zähler und ihre Werte werden kopiert.",
-    "defaultName": "{{name}} (Kopie)",
-    "duplicating": "Wird dupliziert…",
-    "success": "Gruppe dupliziert"
-  },
   "noCounters": "Keine Zähler in dieser Gruppe",
   "noCountersDescription": "Füge Zähler hinzu, um mit dem Verfolgen von Werten zu beginnen.",
   "reorder": "Neu anordnen",
@@ -69,8 +60,6 @@
   "noAccessDescription": "Du hast keine Berechtigung, diese Zählergruppe anzuzeigen.",
   "backToGroups": "Zurück zu den Zählergruppen",
   "backToGroup": "Zurück zur Gruppe",
-  "counterCount_one": "{{count}} Zähler",
-  "counterCount_other": "{{count}} Zähler",
   "focus": {
     "openFocus": "Vollbild öffnen",
     "exit": "Vollbild verlassen",
@@ -80,7 +69,6 @@
     "notFound": "Zähler in dieser Gruppe nicht gefunden"
   },
   "createFirst": "Erstelle deine erste Zählergruppe",
-  "settings": "Einstellungen",
   "details": "Details",
   "access": "Zugriff",
   "advanced": "Erweitert",

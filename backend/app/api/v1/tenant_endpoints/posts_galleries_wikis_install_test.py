@@ -3,7 +3,8 @@
 Each test installs an app the way a community does (``install_app``: placed in
 initiative A and not in B, granted scopes by the seat), seals an installation
 token for it, and calls the routes of these three tools that name a scope: the
-list, read, create and update, and a post's pin.
+list, read, create and update, a post's pin, a wiki's pages and a gallery's
+pictures.
 """
 
 from __future__ import annotations
@@ -15,16 +16,20 @@ import pytest
 from sqlmodel import select
 
 from app.core.messages import AppMessages
+from app.main import app_openapi
 from app.models.tenant.post import Post
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.testing import (
     create_resource_grant,
     guild_url,
     create_gallery,
+    create_gallery_image,
     create_post,
     create_post_poll,
     create_wiki,
+    create_wiki_page,
     guild_of,
+    lexical_body,
     route_session_to_guild,
 )
 from app.testing.app_clients import (
@@ -104,7 +109,7 @@ async def test_reads_what_is_open_to_its_initiative(
     # The seat is named by this install's reference, and the community by its
     # own.
     assert isinstance(body["created_by"], str)
-    assert isinstance(body["guild_id"], str)
+    assert isinstance(body["community_id"], str)
     assert listed.json()["items"][0]["created_by"] == body["created_by"]
     assert_names_nobody(read.text, [seat.user.id, guild_id])
 
@@ -119,7 +124,7 @@ async def test_reads_what_is_open_to_its_initiative(
     )
     assert person.status_code == 200, person.text
     assert person.json()["created_by"] == seat.user.id
-    assert person.json()["guild_id"] == guild_id
+    assert person.json()["community_id"] == guild_id
 
 
 async def test_a_post_it_reads_carries_no_one_s_own_state(
@@ -149,6 +154,148 @@ async def test_a_post_it_reads_carries_no_one_s_own_state(
         assert row["reactions"] == []
         assert row["poll"]["options"][0]["text"] == "Tuesday"
         assert_names_nobody(response.text, [seat.user.id, guild_id])
+
+
+async def test_lists_a_wiki_s_pages_with_the_read_scope(
+    client, session, acting_user, role_session
+):
+    await lift_person_and_guild_ids(session)
+    installed = await install_app(
+        session, acting_user, role_session, granted=["wikis:read"]
+    )
+    seat = installed.seat
+    guild_id = installed.guild.id
+    await _switch_on(session, TOOLS[2], installed.placed)
+    wiki = await create_wiki(session, installed.placed, seat.user)
+    await create_wiki_page(session, wiki, seat.user, title="Start here")
+    path = guild_url(guild_id, f"/wikis/{wiki.id}/pages")
+
+    listed = await client.get(path, headers=install_headers(installed, ["wikis:read"]))
+    assert listed.status_code == 200, listed.text
+    (page,) = listed.json()["items"]
+    assert page["title"] == "Start here"
+    assert isinstance(page["created_by"], str)
+    assert_names_nobody(listed.text, [seat.user.id, guild_id])
+
+    refused = await client.get(
+        path, headers=install_headers(installed, ["galleries:read"])
+    )
+    assert refused.status_code == 403, refused.text
+    assert refused.json()["detail"] == AppMessages.SCOPE_REQUIRED
+
+
+async def test_reads_a_wiki_page_with_the_read_scope(
+    client, session, acting_user, role_session
+):
+    await lift_person_and_guild_ids(session)
+    installed = await install_app(
+        session, acting_user, role_session, granted=["wikis:read"]
+    )
+    seat = installed.seat
+    guild_id = installed.guild.id
+    await _switch_on(session, TOOLS[2], installed.placed)
+    wiki = await create_wiki(session, installed.placed, seat.user)
+    content = lexical_body("Over to ", mentioning=seat.user.id, name="The Seat")
+    content["root"]["children"].append(
+        {"type": "image", "src": f"/uploads/{guild_id}/shot.png", "altText": "shot"}
+    )
+    page = await create_wiki_page(
+        session, wiki, seat.user, title="Start here", content=content
+    )
+    path = guild_url(guild_id, f"/wiki-pages/{page.id}")
+
+    read = await client.get(path, headers=install_headers(installed, ["wikis:read"]))
+    assert read.status_code == 200, read.text
+    body = read.json()
+    assert body["title"] == "Start here"
+    assert isinstance(body["created_by"], str)
+    assert isinstance(body["community_id"], str)
+    # The mention names the seat by this install's reference, and the stored
+    # picture comes without its path.
+    [_, node] = body["content"]["root"]["children"][0]["children"]
+    assert (node["mentionUserId"], node["mentionName"], node["text"]) == (
+        body["created_by"],
+        "",
+        "",
+    )
+    assert body["content"]["root"]["children"][1]["src"] == ""
+    assert "/uploads/" not in read.text
+    assert "The Seat" not in read.text
+    assert_names_nobody(read.text, [seat.user.id, guild_id])
+
+    refused = await client.get(
+        path, headers=install_headers(installed, ["galleries:read"])
+    )
+    assert refused.status_code == 403, refused.text
+    assert refused.json()["detail"] == AppMessages.SCOPE_REQUIRED
+
+
+async def test_lists_a_gallery_s_pictures_with_the_read_scope(
+    client, session, acting_user, role_session
+):
+    await lift_person_and_guild_ids(session)
+    installed = await install_app(
+        session, acting_user, role_session, granted=["galleries:read"]
+    )
+    seat = installed.seat
+    guild_id = installed.guild.id
+    await _switch_on(session, TOOLS[1], installed.placed)
+    gallery = await create_gallery(session, installed.placed, seat.user)
+    picture = await create_gallery_image(
+        session,
+        gallery,
+        seat.user,
+        title="Harbour",
+        write_blob=False,
+        thumbnail_url=f"/uploads/{guild_id}/harbour-thumb.webp",
+    )
+    file_url = picture.file_url
+    gallery.cover_image_id = picture.id
+    session.add(gallery)
+    await session.commit()
+    path = guild_url(guild_id, f"/galleries/{gallery.id}/images")
+    headers = install_headers(installed, ["galleries:read"])
+
+    listed = await client.get(path, headers=headers)
+    assert listed.status_code == 200, listed.text
+    (image,) = listed.json()["items"]
+    assert image["title"] == "Harbour"
+    assert isinstance(image["created_by"], str)
+    assert isinstance(image["community_id"], str)
+    assert isinstance(image["uploader"]["id"], str)
+    # A picture's stored file is an empty string, and nothing names anybody.
+    assert (image["file_url"], image["thumbnail_url"]) == ("", "")
+    assert "/uploads/" not in listed.text
+    assert_names_nobody(listed.text, [seat.user.id, guild_id])
+    for shown in ("/galleries/", f"/galleries/{gallery.id}"):
+        read = await client.get(guild_url(guild_id, shown), headers=headers)
+        assert read.status_code == 200, read.text
+        assert '"file_url":""' in read.text
+        assert "/uploads/" not in read.text
+        assert_names_nobody(read.text, [seat.user.id, guild_id])
+
+    # A person reading the same is served the paths.
+    person = await client.get(path, headers=seat.headers)
+    assert person.json()["items"][0]["file_url"] == file_url
+    cover = await client.get(
+        guild_url(guild_id, f"/galleries/{gallery.id}"), headers=seat.headers
+    )
+    assert cover.json()["cover"]["file_url"] == file_url
+
+    refused = await client.get(path, headers=install_headers(installed, ["wikis:read"]))
+    assert refused.status_code == 403, refused.text
+    assert refused.json()["detail"] == AppMessages.SCOPE_REQUIRED
+
+
+def test_the_app_document_lists_wiki_pages_and_gallery_pictures():
+    operations = {
+        operation["operationId"]: operation
+        for item in app_openapi()["paths"].values()
+        for operation in item.values()
+    }
+    assert operations["list_wiki_pages"]["x-app-scope"] == "wikis:read"
+    assert operations["read_wiki_page"]["x-app-scope"] == "wikis:read"
+    assert operations["list_gallery_images"]["x-app-scope"] == "galleries:read"
 
 
 # ---------------------------------------------------------------------------
@@ -216,7 +363,7 @@ async def test_what_it_creates_is_its_own(
     assert created.status_code == 201, created.text
     body = created.json()
     assert body["created_by"] is None
-    assert isinstance(body["guild_id"], str)
+    assert isinstance(body["community_id"], str)
     assert body["can"]["delete"] is True
     assert_names_nobody(created.text, [seat.user.id, guild_id])
 

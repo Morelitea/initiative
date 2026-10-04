@@ -17,8 +17,8 @@ import type { DashboardRead } from "@/api/generated/initiativeAPI.schemas";
 import { Button } from "@/components/ui/button";
 import { useUpgradeDashboard } from "@/hooks/useDashboards";
 import { useMarketplaceListingByUid } from "@/hooks/useMarketplace";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 
 export interface DashboardUpdateBadgeProps {
   dashboard: DashboardRead;

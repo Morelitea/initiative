@@ -26,8 +26,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage, messageForCode } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 
 interface ProviderFormState {
   slug: string;
@@ -57,7 +57,7 @@ const EMPTY_FORM: ProviderFormState = {
 
 // The mutation surface the section needs — satisfied structurally by the
 // React Query mutation objects the wrappers' domain hooks return, so the
-// operator and guild registries plug in without sharing hook signatures.
+// operator and community registries plug in without sharing hook signatures.
 interface RegistryMutation<TVariables, TResult = unknown> {
   mutate: (
     variables: TVariables,
@@ -84,8 +84,8 @@ export interface ProviderRegistrySectionProps {
 /**
  * One login-provider registry as a settings card: list, create/edit dialog
  * with presets, write-only secret handling, and delete confirmation. The
- * operator registry (platform settings) and each guild's registry (guild
- * settings, per-guild auth) both render through this — only the gates and
+ * operator registry (platform settings) and each community's registry (community
+ * settings, per-community auth) both render through this — only the gates and
  * endpoints differ, supplied by the wrapper's hooks.
  */
 export const ProviderRegistrySection = ({
@@ -203,7 +203,7 @@ export const ProviderRegistrySection = ({
   const saving = updateProvider.isPending;
 
   return (
-    <Card className="shadow-sm">
+    <Card>
       <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
         <div>
           <CardTitle>{title}</CardTitle>
@@ -295,7 +295,7 @@ export const ProviderRegistrySection = ({
         open={dialogOpen}
         onOpenChange={(open) => (open ? setDialogOpen(true) : closeDialog())}
       >
-        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>{t("authProviders.editTitle")}</DialogTitle>
             <DialogDescription>{dialogDescription}</DialogDescription>

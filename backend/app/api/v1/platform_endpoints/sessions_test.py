@@ -1,5 +1,6 @@
 """The account's own "where you're signed in" list, and ending one from it."""
 
+import uuid
 from types import SimpleNamespace
 from typing import Optional
 
@@ -14,7 +15,6 @@ from app.core.security import get_password_hash
 from app.models.platform.user import UserStatus
 from app.services import content_sockets
 from app.services.platform import api_keys as api_keys_service
-from app.services.platform import user_tokens
 from app.services.platform.ws_auth import authenticate_ws_token
 from app.services.content_sockets import (
     WS_CREDENTIAL_ENDED,
@@ -24,6 +24,8 @@ from app.services.content_sockets import (
     Wire,
     resource_room,
 )
+from app.api.v1.platform_endpoints.dm_transport_test import _registration
+from app.models.platform.dm_device import DmDevice
 from app.testing import create_user, get_auth_headers
 
 CHROME_MAC = (
@@ -47,12 +49,30 @@ async def _signed_in_user(session: AsyncSession, email: str):
     )
 
 
-async def _sign_in(client: AsyncClient, email: str, *, user_agent: str):
+async def _sign_in(
+    client: AsyncClient, email: str, *, user_agent: str, device: bool = False
+):
+    """A browser's sign-in, or with ``device`` the app's, which it tells apart
+    by the origin it presents."""
+    headers = {"user-agent": user_agent}
+    if device:
+        headers["Origin"] = "https://com.morelitea.initiative"
     return await client.post(
         "/api/v1/auth/token",
         data={"username": email, "password": PASSWORD},
-        headers={"user-agent": user_agent},
+        headers=headers,
     )
+
+
+async def _keep_messages(client: AsyncClient, signed_in, seed: int) -> str:
+    """Register a message key store under the session ``signed_in`` opened."""
+    registered = await client.post(
+        "/api/v1/me/dm/devices",
+        json=_registration(seed),
+        headers={"Authorization": f"Bearer {signed_in.json()['access_token']}"},
+    )
+    assert registered.status_code == 201, registered.text
+    return registered.json()["device_id"]
 
 
 async def test_the_list_names_each_browser_and_marks_the_one_asking(
@@ -100,6 +120,8 @@ async def test_the_list_carries_no_refresh_token(
     assert listed.status_code == 200
     assert set(listed.json()[0]) == {
         "id",
+        "message_device_id",
+        "device",
         "label",
         "kind",
         "ip",
@@ -138,15 +160,27 @@ async def test_a_session_is_dated_from_its_sign_in_not_its_last_renewal(
 async def test_ending_a_session_stops_it_renewing(
     client: AsyncClient, session: AsyncSession
 ):
+    """And withdraws the message device collecting under it."""
     await _signed_in_user(session, "end-one@example.com")
     doomed = await _sign_in(client, "end-one@example.com", user_agent=FIREFOX_WINDOWS)
     doomed_refresh = doomed.cookies.get("refresh_token")
+    keys = await _keep_messages(client, doomed, seed=1)
     client.cookies.clear()
     asking = await _sign_in(client, "end-one@example.com", user_agent=CHROME_MAC)
     headers = {"Authorization": f"Bearer {asking.json()['access_token']}"}
 
     rows = (await client.get("/api/v1/auth/sessions", headers=headers)).json()
     target = next(row for row in rows if row["label"] == "Firefox on Windows")
+    assert target["message_device_id"] == keys
+
+    # It renews after the list was read, which moves its key store to the
+    # chain's new row; ending the row listed still takes it.
+    client.cookies.clear()
+    client.cookies.set("refresh_token", doomed_refresh, path="/api/v1/auth")
+    renewed = await client.post("/api/v1/auth/refresh")
+    assert renewed.status_code == 200
+    doomed_refresh = renewed.cookies.get("refresh_token")
+    client.cookies.clear()
 
     ended = await client.delete(
         f"/api/v1/auth/sessions/{target['id']}", headers=headers
@@ -159,6 +193,7 @@ async def test_ending_a_session_stops_it_renewing(
 
     remaining = (await client.get("/api/v1/auth/sessions", headers=headers)).json()
     assert [row["label"] for row in remaining] == ["Chrome on macOS"]
+    assert await session.get(DmDevice, uuid.UUID(keys)) is None
 
 
 async def test_somebody_elses_session_answers_as_missing(
@@ -211,45 +246,38 @@ async def test_signing_out_everywhere_else_spares_the_one_asking(
 async def test_signing_out_everywhere_else_takes_the_phones_too(
     client: AsyncClient, session: AsyncSession
 ):
-    """The list shows both credentials, so a sweep that left the device tokens
-    behind would not be telling the truth."""
-    user = await _signed_in_user(session, "sweep-phones@example.com")
-    phone = await user_tokens.create_device_token(
-        session, user_id=user.id, device_name="Phone"
+    """The app's sign-in is a session like any other, so the sweep ends it. The
+    phone keeps its messages for its next sign-in, and the list shows it as a
+    device that is not signed in; another browser's go with its session."""
+    await _signed_in_user(session, "sweep-phones@example.com")
+    phone = await _sign_in(
+        client, "sweep-phones@example.com", user_agent=FIREFOX_WINDOWS, device=True
     )
+    phone_keys = await _keep_messages(client, phone, seed=1)
+    client.cookies.clear()
+    browser = await _sign_in(client, "sweep-phones@example.com", user_agent=CHROME_MAC)
+    browser_keys = await _keep_messages(client, browser, seed=5)
+    client.cookies.clear()
     asking = await _sign_in(client, "sweep-phones@example.com", user_agent=CHROME_MAC)
     headers = {"Authorization": f"Bearer {asking.json()['access_token']}"}
+    listed = (await client.get("/api/v1/auth/sessions", headers=headers)).json()
+    assert [
+        row["device"] for row in listed if row["message_device_id"] == phone_keys
+    ] == [True]
 
     swept = await client.post("/api/v1/auth/sessions/revoke-others", headers=headers)
     assert swept.status_code == 204
 
-    spent = await client.get(
-        "/api/v1/users/me", headers={"Authorization": f"DeviceToken {phone}"}
+    rows = (await client.get("/api/v1/auth/sessions", headers=headers)).json()
+    kept = [row for row in rows if row["id"] is None]
+    assert [row["message_device_id"] for row in kept] == [phone_keys]
+    assert await session.get(DmDevice, uuid.UUID(browser_keys)) is None
+
+    client.cookies.clear()
+    spent = await client.post(
+        "/api/v1/auth/refresh", json={"refresh_token": phone.json()["refresh_token"]}
     )
     assert spent.status_code == 401
-
-
-async def test_a_native_client_sweeping_spares_its_own_device(
-    client: AsyncClient, session: AsyncSession
-):
-    """Which credential is spared follows what the caller is holding."""
-    user = await _signed_in_user(session, "native-sweep@example.com")
-    asking = await user_tokens.create_device_token(
-        session, user_id=user.id, device_name="This phone"
-    )
-    other = await user_tokens.create_device_token(
-        session, user_id=user.id, device_name="Old tablet"
-    )
-    headers = {"Authorization": f"DeviceToken {asking}"}
-
-    swept = await client.post("/api/v1/auth/sessions/revoke-others", headers=headers)
-    assert swept.status_code == 204
-
-    assert (await client.get("/api/v1/users/me", headers=headers)).status_code == 200
-    stale = await client.get(
-        "/api/v1/users/me", headers={"Authorization": f"DeviceToken {other}"}
-    )
-    assert stale.status_code == 401
 
 
 @pytest.mark.parametrize(
@@ -257,7 +285,6 @@ async def test_a_native_client_sweeping_spares_its_own_device(
     [
         ("GET", "/api/v1/auth/sessions"),
         ("POST", "/api/v1/auth/sessions/revoke-others"),
-        ("GET", "/api/v1/auth/device-tokens"),
     ],
 )
 async def test_a_standing_credential_does_not_manage_sign_ins(
@@ -313,7 +340,6 @@ async def streams(monkeypatch):
     """A socket register the endpoints under test report to, whose guild and
     resource checks pass, so a socket closes on its credential or not at all."""
     auth_context.set_session_credential(None)
-    auth_context.set_device_token_id(None)
     register = ContentSockets()
 
     async def _admitted(*_a, **_k):
@@ -387,16 +413,19 @@ async def test_ending_a_session_closes_the_connections_opened_on_it(
 async def test_signing_out_everywhere_else_keeps_this_sessions_connections(
     client: AsyncClient, session: AsyncSession, streams: ContentSockets
 ):
-    user = await _signed_in_user(session, "sweep-streams@example.com")
+    await _signed_in_user(session, "sweep-streams@example.com")
     elsewhere = await _sign_in(
         client, "sweep-streams@example.com", user_agent=FIREFOX_WINDOWS
     )
     client.cookies.clear()
     asking = await _sign_in(client, "sweep-streams@example.com", user_agent=CHROME_MAC)
     asking_token = asking.json()["access_token"]
-    phone = await user_tokens.create_device_token(
-        session, user_id=user.id, device_name="Phone"
-    )
+    client.cookies.clear()
+    phone = (
+        await _sign_in(
+            client, "sweep-streams@example.com", user_agent=CHROME_MAC, device=True
+        )
+    ).json()["access_token"]
 
     on_elsewhere = await _open_stream(
         streams, elsewhere.json()["access_token"], session
@@ -420,16 +449,19 @@ async def test_a_password_change_closes_the_connections_opened_before_it(
 ):
     """Every credential the account held goes with the old password, this
     device's included; its replacement session is what it reconnects with."""
-    user = await _signed_in_user(session, "pw-streams@example.com")
+    await _signed_in_user(session, "pw-streams@example.com")
     elsewhere = await _sign_in(
         client, "pw-streams@example.com", user_agent=FIREFOX_WINDOWS
     )
     client.cookies.clear()
     asking = await _sign_in(client, "pw-streams@example.com", user_agent=CHROME_MAC)
     asking_token = asking.json()["access_token"]
-    phone = await user_tokens.create_device_token(
-        session, user_id=user.id, device_name="Phone"
-    )
+    client.cookies.clear()
+    phone = (
+        await _sign_in(
+            client, "pw-streams@example.com", user_agent=CHROME_MAC, device=True
+        )
+    ).json()["access_token"]
 
     on_elsewhere = await _open_stream(
         streams, elsewhere.json()["access_token"], session
@@ -438,7 +470,7 @@ async def test_a_password_change_closes_the_connections_opened_before_it(
     on_asking = await _open_stream(streams, asking_token, session)
 
     changed = await client.patch(
-        "/api/v1/users/me",
+        "/api/v1/me",
         json={"password": "newpassword456", "current_password": PASSWORD},
         headers={"Authorization": f"Bearer {asking_token}"},
     )

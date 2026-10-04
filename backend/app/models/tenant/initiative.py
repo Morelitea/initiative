@@ -390,10 +390,6 @@ class Initiative(
         default=None,
         sa_column=Column(String(length=32), nullable=True),
     )
-    is_default: bool = Field(
-        default=False,
-        sa_column=Column(Boolean, nullable=False, server_default="false"),
-    )
     # See InitiativeJoinPolicy. Guarded by ck_initiatives_join_policy.
     join_policy: str = Field(
         default=InitiativeJoinPolicy.private.value,
@@ -406,6 +402,12 @@ class Initiative(
     # New guild members are enrolled in this initiative automatically. Guild-admin
     # settable, and only on an `open` initiative (ck_initiatives_auto_join_open).
     auto_join: bool = Field(
+        default=False,
+        sa_column=Column(Boolean, nullable=False, server_default="false"),
+    )
+    # Nothing in it is exported on its own or copied to another initiative,
+    # by anyone. The initiative and community backups still take it.
+    keep_content_in: bool = Field(
         default=False,
         sa_column=Column(Boolean, nullable=False, server_default="false"),
     )

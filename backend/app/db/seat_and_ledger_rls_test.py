@@ -23,7 +23,7 @@ from sqlalchemy.exc import DBAPIError
 from sqlmodel import select
 
 from app.db.session import set_rls_context
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.platform.user import UserRole
 from app.models.tenant.ai_connection import GuildAIConnection, GuildAIConnectionKey
 from app.models.tenant.app_placement import AppPlacement
@@ -71,9 +71,9 @@ async def _labels(session, guild_id: int) -> list[str]:
 async def test_a_member_reads_a_connection_and_does_not_write_one(
     session, acting_user, role_session
 ):
-    seat = await acting_user(guild_role=GuildRole.superadmin)
+    seat = await acting_user(guild_role=CommunityRole.superadmin)
     await _seed_connection(session, seat.guild.id, seat.user.id)
-    member = await acting_user(guild_role=GuildRole.member, guild=seat.guild)
+    member = await acting_user(guild_role=CommunityRole.member, guild=seat.guild)
     s = await _as(role_session, user_id=member.user.id, guild_id=seat.guild.id)
     assert list(await s.exec(select(GuildAIConnection.label))) == ["Shared"]
     s.add(GuildAIConnection(label="By a member", provider="openai"))
@@ -86,7 +86,7 @@ async def test_a_member_reads_a_connection_and_does_not_write_one(
 async def test_an_admin_below_the_seat_does_not_write_a_connection(
     session, acting_user, role_session
 ):
-    a = await acting_user(guild_role=GuildRole.admin)
+    a = await acting_user(guild_role=CommunityRole.admin)
     s = await _as(role_session, user_id=a.user.id, guild_id=a.guild.id)
     s.add(GuildAIConnection(label="By an admin", provider="openai"))
     with pytest.raises(DBAPIError, match="row-level security"):
@@ -96,7 +96,7 @@ async def test_an_admin_below_the_seat_does_not_write_a_connection(
 
 
 async def test_the_seat_writes_a_connection(session, acting_user, role_session):
-    seat = await acting_user(guild_role=GuildRole.superadmin)
+    seat = await acting_user(guild_role=CommunityRole.superadmin)
     s = await _as(
         role_session, user_id=seat.user.id, guild_id=seat.guild.id, settings=True
     )
@@ -112,7 +112,7 @@ async def test_a_lent_seat_writes_only_beside_read_write(
 ):
     """A superadmin settings grant reads; the read_write content grant beside
     it is what lets it change a connection."""
-    seat = await acting_user(guild_role=GuildRole.superadmin)
+    seat = await acting_user(guild_role=CommunityRole.superadmin)
     await _seed_connection(session, seat.guild.id, seat.user.id)
     support = await create_user(session, role=UserRole.support)
     await create_access_grant(
@@ -162,7 +162,7 @@ async def _placed_initiatives(session, guild_id: int) -> list[int]:
 async def test_a_member_reads_placements_and_does_not_write_one(
     session, acting_user, role_session
 ):
-    seat = await acting_user(guild_role=GuildRole.superadmin, initiative=True)
+    seat = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
     app = await create_guild_app(
         session, seat.guild, seat.user, definition=_APP_DEFINITION
     )
@@ -171,7 +171,7 @@ async def test_a_member_reads_placements_and_does_not_write_one(
     await session.commit()
     other = await create_initiative(session, seat.guild, seat.user)
 
-    member = await acting_user(guild_role=GuildRole.member, guild=seat.guild)
+    member = await acting_user(guild_role=CommunityRole.member, guild=seat.guild)
     s = await _as(role_session, user_id=member.user.id, guild_id=seat.guild.id)
     assert list(await s.exec(select(AppPlacement.initiative_id))) == [
         seat.initiative.id
@@ -186,7 +186,7 @@ async def test_a_member_reads_placements_and_does_not_write_one(
 async def test_an_admin_below_the_seat_does_not_place_an_app(
     session, acting_user, role_session
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     app = await create_guild_app(session, a.guild, a.user, definition=_APP_DEFINITION)
     s = await _as(role_session, user_id=a.user.id, guild_id=a.guild.id)
     s.add(AppPlacement(install_id=app.id, initiative_id=a.initiative.id))
@@ -198,7 +198,7 @@ async def test_an_admin_below_the_seat_does_not_place_an_app(
 
 async def test_the_seat_places_an_app(session, acting_user, role_session):
     """On the content route the placement endpoint uses."""
-    seat = await acting_user(guild_role=GuildRole.superadmin, initiative=True)
+    seat = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
     app = await create_guild_app(
         session, seat.guild, seat.user, definition=_APP_DEFINITION
     )
@@ -225,7 +225,7 @@ async def test_an_admin_below_the_seat_does_not_write_an_install(
 ):
     """Installing, configuring and granting are the seat's: an admin below it
     reads the install and changes nothing on it."""
-    a = await acting_user(guild_role=GuildRole.admin)
+    a = await acting_user(guild_role=CommunityRole.admin)
     app = await create_guild_app(session, a.guild, a.user, definition=_APP_DEFINITION)
     s = await _as(role_session, user_id=a.user.id, guild_id=a.guild.id)
     result = await s.exec(
@@ -240,7 +240,7 @@ async def test_an_admin_below_the_seat_does_not_write_an_install(
 
 
 async def test_the_seat_grants_scopes(session, acting_user, role_session):
-    seat = await acting_user(guild_role=GuildRole.superadmin)
+    seat = await acting_user(guild_role=CommunityRole.superadmin)
     app = await create_guild_app(
         session, seat.guild, seat.user, definition=_APP_DEFINITION
     )
@@ -260,7 +260,7 @@ async def test_the_seat_grants_scopes(session, acting_user, role_session):
 async def test_only_the_seat_and_the_system_engine_read_secrets(
     session, acting_user, role_session
 ):
-    seat = await acting_user(guild_role=GuildRole.superadmin)
+    seat = await acting_user(guild_role=CommunityRole.superadmin)
     app = await create_guild_app(
         session,
         seat.guild,
@@ -278,7 +278,7 @@ async def test_only_the_seat_and_the_system_engine_read_secrets(
         GuildAIConnectionKey(connection_id=connection.id, api_key_encrypted="ct")
     )
     await session.commit()
-    member = await acting_user(guild_role=GuildRole.member, guild=seat.guild)
+    member = await acting_user(guild_role=CommunityRole.member, guild=seat.guild)
     read = text(
         "SELECT install_id FROM guild_app_secrets "
         "UNION ALL SELECT connection_id FROM guild_ai_connection_keys"
@@ -299,7 +299,7 @@ async def test_secret_fields_follow_the_stored_values(
 ):
     """Each key that holds a value, with the digest of its ciphertext, written
     by the trigger as the seat stores, replaces and removes the values."""
-    seat = await acting_user(guild_role=GuildRole.superadmin)
+    seat = await acting_user(guild_role=CommunityRole.superadmin)
     app = await create_guild_app(
         session, seat.guild, seat.user, definition=_APP_DEFINITION
     )
@@ -364,14 +364,14 @@ async def test_deliveries_are_read_through_their_subscription(
     """A member of the subscription's initiative reads its deliveries; a
     member of the community who is not in that initiative reads none, and
     neither does anyone but the administrator for a community-wide one."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     inside = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="member",
     )
-    outside = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+    outside = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
     await create_initiative(session, a.guild, outside.user)
     scoped = await _subscription(
         session, guild_id=a.guild.id, initiative_id=a.initiative.id, user_id=a.user.id
@@ -391,7 +391,7 @@ async def test_deliveries_are_read_through_their_subscription(
 async def test_only_the_system_engine_writes_a_delivery(
     session, acting_user, role_session
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     sid = await _subscription(
         session, guild_id=a.guild.id, initiative_id=a.initiative.id, user_id=a.user.id
     )

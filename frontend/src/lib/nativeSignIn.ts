@@ -8,7 +8,7 @@
  * kept here redeems it, and a callback that arrives when this app began no
  * sign-in is ignored.
  */
-import { redeemNativeSignInApiV1AuthNativeTokenPost } from "@/api/generated/auth/auth";
+import { redeemNativeSignIn as redeemNativeSignInRequest } from "@/api/generated/auth/auth";
 import type { NativeSession } from "@/lib/nativeSession";
 import { CREDENTIAL_KEYS, getItem, removeItem, setItem } from "@/lib/storage";
 
@@ -60,7 +60,7 @@ export const redeemNativeSignIn = async (
   code: string,
   pending: PendingSignIn
 ): Promise<NativeSession | null> => {
-  const token = await redeemNativeSignInApiV1AuthNativeTokenPost({
+  const token = await redeemNativeSignInRequest({
     code,
     code_verifier: pending.verifier,
   });

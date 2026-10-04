@@ -57,7 +57,7 @@ from app.models.platform.access_grant import (
     AccessGrantStatus,
     SettingsLevel,
 )
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.platform.user import UserRole
 from app.models.tenant.initiative import DEFAULT_PERMISSION_VALUES, PermissionKey
 from app.models.tenant.resource_grant import (
@@ -954,8 +954,9 @@ _SHARES = f"""(v_level = '{_OWNER}'
 #: - ``share``: as delete, and see ``_SHARES`` above.
 #: - ``configure`` (projects): owner or a manager of the initiative, and the
 #:   row can be changed.
-#: - ``export``: owner. Allowed even when archived, since exporting changes
-#:   nothing.
+#: - ``export``: owner, on a row of no initiative or of one the request reads
+#:   that does not keep its content in. Allowed even when archived, since
+#:   exporting changes nothing.
 #: - ``unarchive``: as edit, for a row that was archived on its own. A row
 #:   archived because its initiative was archived comes back with the
 #:   initiative instead.
@@ -972,7 +973,10 @@ BEGIN
     IF v_level IS NULL THEN
         RETURN v_actions;
     END IF;
-    IF v_level = '{_OWNER}' THEN
+    IF v_level = '{_OWNER}'
+       AND (p_initiative_id IS NULL
+            OR EXISTS (SELECT 1 FROM initiatives i
+                       WHERE i.id = p_initiative_id AND NOT i.keep_content_in)) THEN
         v_actions := v_actions || 'export'::text;
     END IF;
     IF {_MAY_CHANGE} THEN
@@ -1225,7 +1229,7 @@ AS $function$
         FROM public.guild_memberships m
         WHERE m.guild_id = p_guild_id
           AND m.user_id = p_user_id
-          AND m.role = '{GuildRole.superadmin.value}'
+          AND m.role = '{CommunityRole.superadmin.value}'
     )
     -- A live superadmin settings grant satisfies the same predicate.
     OR EXISTS (

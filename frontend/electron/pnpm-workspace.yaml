@@ -1,0 +1,6 @@
+# Its own pnpm project, so installing the frontend never downloads Electron.
+packages:
+  - "."
+allowBuilds:
+  # Squirrel's installer; the Windows build is NSIS.
+  electron-winstaller: false

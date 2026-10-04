@@ -15,7 +15,7 @@ has to ask twice.
 
 Two more name a **standing** rather than a resource: ``initiatives:moderate``
 (acting as a moderator in an initiative the app is placed in) and
-``guild:admin`` (acting with a guild admin's standing). A grant holds them by
+``community:admin`` (acting with a community admin's standing). A grant holds them by
 exact name, :func:`expand` gives them nothing, and no token carries one unless
 it asks for it by its level (:class:`InstallLevel`); see
 ``app.services.marketplace.app_oauth``.
@@ -83,13 +83,13 @@ class InstallLevel(str, Enum):
     alone give it."""
 
     moderator = "moderator"
-    guild_admin = "guild_admin"
+    community_admin = "community_admin"
 
 
 #: The scope a community grants for each level.
 LEVEL_SCOPES: dict[InstallLevel, str] = {
     InstallLevel.moderator: "initiatives:moderate",
-    InstallLevel.guild_admin: "guild:admin",
+    InstallLevel.community_admin: "community:admin",
 }
 STANDING_SCOPES: frozenset[str] = frozenset(LEVEL_SCOPES.values())
 

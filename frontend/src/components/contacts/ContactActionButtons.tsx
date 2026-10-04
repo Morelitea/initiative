@@ -12,7 +12,7 @@ import {
   useRequestConnection,
   useRequestMessage,
 } from "@/hooks/useDirectMessages";
-import { toast } from "@/lib/chesterToast";
+import { toast } from "@/lib/mascotToast";
 import { getUrlHandle } from "@/lib/userDisplay";
 import { cn } from "@/lib/utils";
 

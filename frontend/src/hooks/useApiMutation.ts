@@ -1,8 +1,8 @@
 import { useMutation } from "@tanstack/react-query";
 
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
-import { toast } from "@/lib/chesterToast";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 import type { MutationOpts } from "@/types/mutation";
 
 /**
@@ -73,27 +73,27 @@ export function useApiMutation<TData, TVariables = void>(
   });
 }
 
-interface GuildMutationConfig<TData, TVariables> {
-  /** Perform the request against the active guild (from the route path). */
-  mutationFn: (guildId: number, variables: TVariables) => Promise<TData>;
+interface CommunityMutationConfig<TData, TVariables> {
+  /** Perform the request against the active community (from the route path). */
+  mutationFn: (communityId: number, variables: TVariables) => Promise<TData>;
   invalidate?: (data: TData, variables: TVariables) => unknown;
   errorKey?: string;
 }
 
 /**
- * Guild-scoped variant of {@link useApiMutation}: threads the active guild id
- * (derived from the `/c/{guildId}` route) into `mutationFn`. Domain hooks stay
+ * Community-scoped variant of {@link useApiMutation}: threads the active community id
+ * (derived from the `/c/{communityId}` route) into `mutationFn`. Domain hooks stay
  * as thin named wrappers so their public signatures are unchanged.
  */
-export function useGuildMutation<TData, TVariables = void>(
-  config: GuildMutationConfig<TData, TVariables>,
+export function useCommunityMutation<TData, TVariables = void>(
+  config: CommunityMutationConfig<TData, TVariables>,
   options?: MutationOpts<TData, TVariables>
 ) {
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   return useApiMutation<TData, TVariables>(
     {
       ...config,
-      mutationFn: (variables) => config.mutationFn(guildId, variables),
+      mutationFn: (variables) => config.mutationFn(communityId, variables),
     },
     options
   );

@@ -358,7 +358,7 @@ async def test_trash_listing_dedupes_nested_comment_replies(
     parent_comment_id pointing at a still-trashed row.
     """
     from app.models.tenant.comment import Comment
-    from app.models.platform.guild import GuildRole
+    from app.models.platform.guild import CommunityRole
     from app.testing.factories import (
         create_guild_membership,
         get_auth_headers,
@@ -366,7 +366,9 @@ async def test_trash_listing_dedupes_nested_comment_replies(
 
     user = await create_user(session)
     guild = await create_guild(session, creator=user)
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=user, guild=guild, role=CommunityRole.admin
+    )
     initiative = await create_initiative(session, guild, user)
     project = await create_project(session, initiative, user)
     task = await _create_task(session, project, title="Task with comments")
@@ -396,7 +398,7 @@ async def test_trash_listing_dedupes_nested_comment_replies(
     await session.commit()
 
     # Hit the listing endpoint and confirm only the parent appears. Guild context
-    # is path-based now (/c/{guild_id}); the headers just carry auth.
+    # is path-based now (/c/{community_id}); the headers just carry auth.
     headers = get_auth_headers(user)
     response = await client.get(f"/api/v1/c/{guild.id}/trash/", headers=headers)
     assert response.status_code == 200, response.text
@@ -412,7 +414,7 @@ async def test_trash_listings_page_newest_first(session: AsyncSession, client):
     merge of each guild's newest rows."""
     from datetime import datetime
 
-    from app.models.platform.guild import GuildRole
+    from app.models.platform.guild import CommunityRole
     from app.testing.factories import create_guild_membership, get_auth_headers
 
     user = await create_user(session)
@@ -421,7 +423,7 @@ async def test_trash_listings_page_newest_first(session: AsyncSession, client):
     for _ in range(2):
         guild = await create_guild(session, creator=user)
         await create_guild_membership(
-            session, user=user, guild=guild, role=GuildRole.admin
+            session, user=user, guild=guild, role=CommunityRole.admin
         )
         guilds.append(guild)
         initiatives.append(await create_initiative(session, guild, user))
@@ -449,7 +451,7 @@ async def test_trash_listings_page_newest_first(session: AsyncSession, client):
             page += 1
 
     def keyed(items: list[dict]) -> list[tuple[int, str, int]]:
-        return [(i["guild_id"], i["entity_type"], i["entity_id"]) for i in items]
+        return [(i["community_id"], i["entity_type"], i["entity_id"]) for i in items]
 
     guild_total, guild_items = await walk(f"/api/v1/c/{guilds[0].id}/trash/")
     mine_total, mine_items = await walk("/api/v1/me/trash")
@@ -566,8 +568,9 @@ async def test_hard_purge_unresolves_wikilinks_in_linking_documents(
     session: AsyncSession,
 ):
     """Purging a document rewrites links pointing at it in surviving documents
-    (documentId -> null, yjs_state cleared) and takes the edges with it, so
-    nothing dangles after the row is gone."""
+    (documentId -> null) and takes the edges with it, so nothing dangles after
+    the row is gone. A Yjs state the editor cannot read is cleared, and the
+    next session makes it from the repaired content."""
     from sqlmodel import select
 
     from app.core.relationships import RelationshipType, node_id
@@ -802,7 +805,7 @@ async def test_trash_listing_shows_a_trashed_wiki_alone(session: AsyncSession, c
     threads come back with it, so none of them is offered on its own.
 
     Restoring it puts each page back under the address it had."""
-    from app.models.platform.guild import GuildRole
+    from app.models.platform.guild import CommunityRole
     from app.models.tenant.wiki import WikiPage
     from app.testing.factories import (
         create_comment,
@@ -814,7 +817,9 @@ async def test_trash_listing_shows_a_trashed_wiki_alone(session: AsyncSession, c
 
     user = await create_user(session)
     guild = await create_guild(session, creator=user)
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=user, guild=guild, role=CommunityRole.admin
+    )
     initiative = await create_initiative(session, guild, user)
     wiki = await create_wiki(session, initiative, user)
     page = await create_wiki_page(session, wiki, user, title="Step 1")
@@ -1005,13 +1010,15 @@ async def test_nothing_comes_back_under_something_still_in_the_trash(
     or it would be live under something in the bin. An archive over both, which
     stamps a child that can carry one, does not change that. Runs over every
     edge of the trash tree, so a new one is held to it."""
-    from app.models.platform.guild import GuildRole
+    from app.models.platform.guild import CommunityRole
     from app.services.tenant.archive import archive_entity, unarchive_entity
     from app.testing.factories import create_guild_membership, get_auth_headers
 
     user = await create_user(session)
     guild = await create_guild(session, creator=user)
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=user, guild=guild, role=CommunityRole.admin
+    )
     initiative = await create_initiative(session, guild, user)
     built: dict[type, SQLModel] = {}
     parent = await _build(session, parent_model, initiative, user, built)
@@ -1048,7 +1055,7 @@ async def test_the_trash_works_inside_an_archive(session: AsyncSession, client, 
     """Archived content can still be thrown away and brought back: it comes
     back into the archive, as everything around it is. A tool nobody owns comes
     back to whoever wrote it, archived or not."""
-    from app.models.platform.guild import GuildRole
+    from app.models.platform.guild import CommunityRole
     from app.services.tenant import ownership as ownership_service
     from app.services.tenant.archive import archive_entity
     from app.testing.factories import (
@@ -1059,7 +1066,9 @@ async def test_the_trash_works_inside_an_archive(session: AsyncSession, client, 
 
     user = await create_user(session)
     guild = await create_guild(session, creator=user)
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=user, guild=guild, role=CommunityRole.admin
+    )
     initiative = await create_initiative(session, guild, user)
     row = await _build(session, model, initiative, user, {})
     tool = ownership_service.tool_for_row(row)
@@ -1098,7 +1107,7 @@ async def test_every_tool_takes_its_thread_to_the_trash_and_back(
     the thread, the trash lists only the tool, and restoring it brings the
     thread back. Runs over the ``Tool`` enum, so a new tool is held to it."""
     from app.core.tools import Tool
-    from app.models.platform.guild import GuildRole
+    from app.models.platform.guild import CommunityRole
     from app.models.tenant.comment import Comment
     from app.testing.factories import (
         TOOL_FACTORIES,
@@ -1109,7 +1118,9 @@ async def test_every_tool_takes_its_thread_to_the_trash_and_back(
 
     user = await create_user(session)
     guild = await create_guild(session, creator=user)
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=user, guild=guild, role=CommunityRole.admin
+    )
     initiative = await create_initiative(session, guild, user)
 
     threads: dict[Tool, tuple[int, int | None]] = {}

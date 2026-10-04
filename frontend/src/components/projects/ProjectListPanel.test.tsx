@@ -10,16 +10,17 @@ import { HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
 
 import { buildPage, buildProject, ownerCan, readerCan } from "@/__tests__/factories";
-import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
 import { ProjectListPanel } from "@/components/projects/ProjectListPanel";
 
 const panel = (projects: ReturnType<typeof buildProject>[]) => {
-  server.use(guildHttp.get("/projects/", () => HttpResponse.json(buildPage(projects))));
+  server.use(communityHttp.get("/projects/", () => HttpResponse.json(buildPage(projects))));
   return renderPage(() => (
     <ProjectListPanel
       params={{ initiative_id: 1 }}
+      status="active"
       loadingLabel="Loading"
       errorLabel="Error"
       noMatchesLabel="No matches"

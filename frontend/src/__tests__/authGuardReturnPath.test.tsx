@@ -22,7 +22,7 @@ const signedOut = (pathname: string) =>
     context: {
       queryClient: new QueryClient(),
       auth: { user: null, loading: false },
-      guilds: undefined,
+      communities: undefined,
       server: { loading: false, isNativePlatform: false, isServerConfigured: true },
     } as unknown as RouterContext,
   });

@@ -1,7 +1,7 @@
 /**
  * Stands in for the browser's WebSocket, with the transitions driven by hand.
  *
- * Both push channels — the personal notification stream and the per-guild
+ * Both push channels — the personal notification stream and the per-community
  * events bus — are the same shape: a socket that authenticates in its first
  * frame, reconnects on its own, and is watched for going quiet. Their tests
  * drive it the same way, so the double is shared rather than written twice.

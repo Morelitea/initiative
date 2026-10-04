@@ -1,15 +1,13 @@
 {
   "title": "Moderation",
   "subtitle": "Was hier gemeldet wurde und was damit geschehen ist.",
-  "open": "Offen",
   "tabs": {
     "open": "Offen",
     "settled": "Erledigt"
   },
   "empty": {
     "open": "Es wurde nichts gemeldet.",
-    "settled": "Es wurde noch nichts erledigt.",
-    "noFurther": "Nichts weiter."
+    "settled": "Es wurde noch nichts erledigt."
   },
   "reportedCount_one": "Von {{count}} Person gemeldet",
   "reportedCount_other": "Von {{count}} Personen gemeldet",

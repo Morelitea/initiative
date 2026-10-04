@@ -7,7 +7,7 @@ Initiative; Counters are independent numeric values clamped to optional
 
 from datetime import datetime, timezone
 from decimal import Decimal
-from typing import Optional
+from typing import Optional, Sequence
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlalchemy.orm import selectinload, undefer
@@ -21,7 +21,14 @@ from app.models.tenant.counter import (
 )
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.resource_grant import ResourceGrant
-from app.schemas.tenant.counter import CounterSortDirection, CounterSortField
+from app.db.query import ids_in
+from app.schemas.tenant.counter import (
+    CounterPreview,
+    CounterSortDirection,
+    CounterSortField,
+    format_decimal,
+)
+from app.services.permissions import with_tool
 from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
 
@@ -37,14 +44,60 @@ from app.services.tenant import tags as tags_service
 
 
 def list_loader_options() -> list:
-    """Eager-load what a counter-group *list* row needs: its counters (for the
-    count), its sharing, the level the request holds on it and its tags."""
+    """Eager-load what a counter-group *list* row needs: its sharing, the level
+    the request holds on it and its tags."""
     return [
-        selectinload(CounterGroup.counters),
         selectinload(CounterGroup.grants).selectinload(ResourceGrant.role),
         selectinload(CounterGroup.initiative),
         undefer(CounterGroup.actions),
     ]
+
+
+#: Counters a list's card shows for each group.
+PREVIEW_COUNTERS = 4
+
+
+async def list_previews(
+    session: AsyncSession, groups: Sequence[CounterGroup]
+) -> dict[int, list[CounterPreview]]:
+    """The first few counters of every group on a list's page, in their own
+    order, read in one statement for the whole page."""
+    ids = [group.id for group in groups if group.id is not None]
+    if not ids:
+        return {}
+    ranked = (
+        select(
+            Counter.id,
+            Counter.counter_group_id,
+            Counter.name,
+            Counter.color,
+            Counter.count,
+            func.row_number()
+            .over(
+                partition_by=Counter.counter_group_id,
+                order_by=(Counter.position, Counter.id),
+            )
+            .label("rank"),
+        )
+        .where(ids_in(Counter.counter_group_id, ids), Counter.deleted_at.is_(None))
+        .subquery()
+    )
+    rows = await session.exec(
+        select(*ranked.c)
+        .where(ranked.c.rank <= PREVIEW_COUNTERS)
+        .order_by(ranked.c.counter_group_id, ranked.c.rank)
+    )
+    previews: dict[int, list[CounterPreview]] = {group_id: [] for group_id in ids}
+    for row in rows.all():
+        previews[row.counter_group_id].append(
+            CounterPreview(
+                id=row.id,
+                name=row.name,
+                color=row.color,
+                count=format_decimal(row.count),
+            )
+        )
+    return previews
 
 
 async def get_counter_group(
@@ -106,7 +159,12 @@ async def get_counter(
     *,
     populate_existing: bool = False,
 ) -> Counter | None:
-    stmt = select(Counter).where(Counter.id == counter_id)
+    """One counter, with its group as authorizing it reads it."""
+    stmt = (
+        select(Counter)
+        .where(Counter.id == counter_id)
+        .options(with_tool(Counter.group))
+    )
     if populate_existing:
         stmt = stmt.execution_options(populate_existing=True)
     counter = (await session.exec(stmt)).one_or_none()
@@ -192,36 +250,16 @@ async def reset_all_counters(
     return group
 
 
-async def copy_counters(
-    session: AsyncSession, source: CounterGroup, target: CounterGroup
-) -> None:
-    """Copy every live counter of ``source`` (values, bounds, view mode,
-    position) into ``target``, a duplicate whose sharing is already in the
-    session. Adds the rows; the caller commits.
-    """
-    # The sharing has to be IN the database before the counters are, because a
-    # counter is reached through its group: adding it to the session is not
-    # enough, since a flush orders its statements by table rather than by the
-    # order things were added.
-    await session.flush()
-
-    for counter in source.counters:
-        if counter.deleted_at is not None:
-            continue
-        session.add(
-            Counter(
-                counter_group_id=target.id,
-                name=counter.name,
-                color=counter.color,
-                count=counter.count,
-                min=counter.min,
-                max=counter.max,
-                step=counter.step,
-                initial_count=counter.initial_count,
-                view_mode=counter.view_mode,
-                position=counter.position,
+async def next_position(session: AsyncSession, group_id: int) -> Decimal:
+    """Where a counter added at the end of its group goes."""
+    last = (
+        await session.exec(
+            select(func.max(Counter.position)).where(
+                Counter.counter_group_id == group_id
             )
         )
+    ).one()
+    return (last or Decimal(0)) + 1
 
 
 async def sort_counters(

@@ -35,11 +35,14 @@ export function buildComment(overrides: Partial<CommentRead> = {}): CommentRead 
       id: 1,
       username: "comment-author",
       discriminator: 1001,
-      full_name: "Comment Author",
+      display_name: "Comment Author",
       avatar_url: null,
       presence: "offline",
     },
     reactions: [],
+    can_remove: false,
+    audience: "members",
+    system_kind: null,
     ...overrides,
   };
 }
@@ -55,7 +58,7 @@ export function buildReactionGroup(overrides: Partial<ReactionGroup> = {}): Reac
         id: 1,
         username: "reactor",
         discriminator: 2002,
-        full_name: "Reactor One",
+        display_name: "Reactor One",
         avatar_url: null,
       },
     ],
@@ -63,7 +66,7 @@ export function buildReactionGroup(overrides: Partial<ReactionGroup> = {}): Reac
   };
 }
 
-/** An entry of the guild-wide activity feed (`GET /comments/recent`). */
+/** An entry of the community-wide activity feed (`GET /comments/recent`). */
 export function buildRecentActivityEntry(
   overrides: Partial<RecentActivityEntry> = {}
 ): RecentActivityEntry {
@@ -76,7 +79,7 @@ export function buildRecentActivityEntry(
       id: 1,
       username: "comment-author",
       discriminator: 1001,
-      full_name: "Comment Author",
+      display_name: "Comment Author",
       avatar_url: null,
       presence: "offline",
     },

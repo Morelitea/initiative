@@ -32,12 +32,12 @@ from app.core.identity_boundary import boundary_scope
 from app.core.messages import AppMessages, AuthMessages
 from app.db.guild_standing import GuildContext, InstallContext
 from app.main import app
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.tenant.document import Document
 from app.testing import create_document
 from app.testing.app_clients import CLIENT, install_app, share_with_members
 
-_PROBE_PATH = "/api/v1/c/{guild_id}/app-scope-probe/documents"
+_PROBE_PATH = "/api/v1/c/{community_id}/app-scope-probe/documents"
 _read_documents = app_scope("documents:read")
 
 _probe = APIRouter(route_class=ActorRoute)
@@ -68,7 +68,7 @@ def _mounted():
 
 
 def _url(guild_id: int) -> str:
-    return _PROBE_PATH.format(guild_id=guild_id)
+    return _PROBE_PATH.format(community_id=guild_id)
 
 
 def _bearer(token: str) -> dict[str, str]:
@@ -218,7 +218,7 @@ async def test_a_token_that_is_not_a_live_install_is_unauthorized(
 
 
 async def test_a_person_passes_through_unchanged(client, session, acting_user):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
     await create_document(session, a.initiative, a.user, name="Mine")
 
     response = await client.get(_url(a.guild.id), headers=a.headers)
@@ -235,7 +235,7 @@ async def test_a_person_route_refuses_an_installation_token(
     )
 
     response = await client.get(
-        "/api/v1/users/me",
+        "/api/v1/me",
         headers=_bearer(_install_token(installed, ["documents:read"])),
     )
 
@@ -279,9 +279,7 @@ async def test_an_install_request_spends_two_statements_before_its_handler(
         # The slot ActorRoute opens for every request it serves.
         with boundary_scope():
             # ``person`` is what ``get_actor_user`` answers for an access token.
-            context = await _read_documents(
-                request, s, installed.guild.id, person=None, bearer_token=token
-            )
+            context = await _read_documents(request, s, installed.guild.id, person=None)
     finally:
         event.remove(engine, "before_cursor_execute", count)
 

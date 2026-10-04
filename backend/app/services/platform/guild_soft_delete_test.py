@@ -23,8 +23,8 @@ from app.models.platform.guild import (
     OPERATOR_SETTABLE_STATUSES,
     Guild,
     GuildMembership,
-    GuildRole,
-    GuildStatus,
+    CommunityRole,
+    CommunityStatus,
 )
 from app.models.platform.identity_ref import IdentityEntity, IdentityPurpose
 from app.services import email as email_service
@@ -48,7 +48,7 @@ async def _seated_guild(session: AsyncSession, **overrides):
     admin = await create_user(session)
     guild = await create_guild(session, creator=admin, **overrides)
     await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.superadmin
+        session, user=admin, guild=guild, role=CommunityRole.superadmin
     )
     return admin, guild
 
@@ -78,14 +78,14 @@ def test_deleted_is_not_a_status_that_reaches_content():
     contains, so adding a status is a decision about which side it falls on
     rather than something that happens by default.
     """
-    assert LIVE_STATUSES == {GuildStatus.active, GuildStatus.read_only}
-    assert GuildStatus.deleted not in LIVE_STATUSES
-    assert GuildStatus.deleted not in OPERATOR_SETTABLE_STATUSES
+    assert LIVE_STATUSES == {CommunityStatus.active, CommunityStatus.read_only}
+    assert CommunityStatus.deleted not in LIVE_STATUSES
+    assert CommunityStatus.deleted not in OPERATOR_SETTABLE_STATUSES
     # Every status is either live or refused — none is unaccounted for.
-    assert set(GuildStatus) - LIVE_STATUSES == {
-        GuildStatus.suspended,
-        GuildStatus.on_hold,
-        GuildStatus.deleted,
+    assert set(CommunityStatus) - LIVE_STATUSES == {
+        CommunityStatus.suspended,
+        CommunityStatus.on_hold,
+        CommunityStatus.deleted,
     }
 
 
@@ -103,7 +103,7 @@ async def test_deleting_keeps_the_row_the_roster_and_the_content(
 
     session.expunge_all()
     row = (await session.exec(select(Guild).where(Guild.id == guild.id))).one()
-    assert row.status == GuildStatus.deleted.value
+    assert row.status == CommunityStatus.deleted.value
     # The deletion time, which is what the purge date counts from.
     assert row.status_changed_at is not None
     roster = (
@@ -135,7 +135,7 @@ async def test_a_community_of_one_takes_its_roster_with_it(
     assert roster == []
     # ...and what comes back therefore has to be seated.
     row = (await session.exec(select(Guild).where(Guild.id == guild.id))).one()
-    assert row.status == GuildStatus.deleted.value
+    assert row.status == CommunityStatus.deleted.value
 
 
 async def test_a_deleted_community_is_gone_for_its_admin_too(
@@ -304,7 +304,7 @@ async def test_restore_refuses_a_community_that_is_not_deleted(
         json={"status": "active"},
     )
     assert response.status_code == 409
-    assert response.json()["detail"] == GuildMessages.GUILD_NOT_DELETED
+    assert response.json()["detail"] == GuildMessages.COMMUNITY_NOT_DELETED
 
 
 async def test_restore_needs_a_capability(
@@ -348,7 +348,7 @@ async def test_restore_asks_for_a_seat_when_the_roster_holds_none(
         json={"status": "active"},
     )
     assert refused.status_code == 400
-    assert refused.json()["detail"] == GuildMessages.GUILD_RESTORE_SEAT_REQUIRED
+    assert refused.json()["detail"] == GuildMessages.COMMUNITY_RESTORE_SEAT_REQUIRED
 
     seated = await create_user(session)
     response = await client.post(
@@ -368,7 +368,7 @@ async def test_restore_asks_for_a_seat_when_the_roster_holds_none(
             )
         )
     ).one()
-    assert membership.role == GuildRole.superadmin
+    assert membership.role == CommunityRole.superadmin
 
 
 async def test_the_status_control_cannot_delete_a_community(
@@ -558,20 +558,22 @@ async def test_the_purge_leaves_live_communities_alone(session: AsyncSession):
 async def test_deleting_a_community_writes_to_the_seat_that_could_restore_it(session):
     """The superadmin seat hears. An ordinary admin cannot ask for a restore,
     and members learn from it leaving their lists."""
-    from app.models.platform.guild import GuildRole
+    from app.models.platform.guild import CommunityRole
     from app.services.platform import guilds as guilds_service
     from app.testing import create_guild_membership, create_user
 
     seat = await create_user(session, email="gd-seat@example.com")
     guild = await create_guild(session, creator=seat, name="Allotment Society")
     await create_guild_membership(
-        session, user=seat, guild=guild, role=GuildRole.superadmin
+        session, user=seat, guild=guild, role=CommunityRole.superadmin
     )
     boss = await create_user(session, email="gd-admin@example.com")
-    await create_guild_membership(session, user=boss, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=boss, guild=guild, role=CommunityRole.admin
+    )
     hand = await create_user(session, email="gd-member@example.com")
     await create_guild_membership(
-        session, user=hand, guild=guild, role=GuildRole.member
+        session, user=hand, guild=guild, role=CommunityRole.member
     )
 
     notice = await guilds_service.soft_delete_guild(
@@ -585,14 +587,14 @@ async def test_deleting_a_community_writes_to_the_seat_that_could_restore_it(ses
 async def test_the_notice_is_gathered_before_the_roster_goes(session):
     """A community of one loses its roster on the way out, so the person to
     tell has to be read while they are still in it."""
-    from app.models.platform.guild import GuildRole
+    from app.models.platform.guild import CommunityRole
     from app.services.platform import guilds as guilds_service
     from app.testing import create_guild_membership, create_user
 
     alone = await create_user(session, email="gd-solo@example.com")
     guild = await create_guild(session, creator=alone, name="Just Me")
     await create_guild_membership(
-        session, user=alone, guild=guild, role=GuildRole.superadmin
+        session, user=alone, guild=guild, role=CommunityRole.superadmin
     )
 
     notice = await guilds_service.soft_delete_guild(
@@ -607,7 +609,7 @@ async def test_the_notice_is_gathered_before_the_roster_goes(session):
 
 async def _hold_since(session: AsyncSession, guild_id: int, held_at: datetime) -> None:
     row = (await session.exec(select(Guild).where(Guild.id == guild_id))).one()
-    row.status = GuildStatus.on_hold.value
+    row.status = CommunityStatus.on_hold.value
     row.status_changed_at = held_at
     session.add(row)
     await session.commit()
@@ -623,7 +625,7 @@ async def test_a_hold_that_runs_out_deletes_the_community(
     seat = await create_user(session, email="hold-seat@example.com")
     guild = await create_guild(session, creator=seat)
     await create_guild_membership(
-        session, user=seat, guild=guild, role=GuildRole.superadmin
+        session, user=seat, guild=guild, role=CommunityRole.superadmin
     )
     guild_id, name = guild.id, guild.name
     held_at = datetime.now(timezone.utc) - timedelta(
@@ -644,7 +646,7 @@ async def test_a_hold_that_runs_out_deletes_the_community(
 
     session.expunge_all()
     row = (await session.exec(select(Guild).where(Guild.id == guild_id))).one()
-    assert row.status == GuildStatus.deleted.value
+    assert row.status == CommunityStatus.deleted.value
     assert row.status_changed_at > held_at, "the retention window counts from now"
     roster = (
         await session.exec(
@@ -673,7 +675,7 @@ async def test_a_hold_waits_out_its_whole_window(session: AsyncSession):
     )
     session.expunge_all()
     row = (await session.exec(select(Guild).where(Guild.id == guild_id))).one()
-    assert row.status == GuildStatus.on_hold.value
+    assert row.status == CommunityStatus.on_hold.value
 
     session.expunge_all()
     assert (
@@ -688,7 +690,7 @@ async def test_only_a_hold_runs_out(session: AsyncSession):
     """Every other status is left as it is, however long it has been."""
     kept = {}
     for status in OPERATOR_SETTABLE_STATUSES:
-        if status is GuildStatus.on_hold:
+        if status is CommunityStatus.on_hold:
             continue
         guild = await create_guild(session, creator=await create_user(session))
         row = (await session.exec(select(Guild).where(Guild.id == guild.id))).one()
@@ -736,7 +738,7 @@ async def test_a_deployment_can_leave_holds_in_place(
         == 0
     )
     row = (await session.exec(select(Guild).where(Guild.id == guild_id))).one()
-    assert row.status == GuildStatus.on_hold.value
+    assert row.status == CommunityStatus.on_hold.value
 
 
 async def test_the_hold_is_told_in_each_seats_language(
@@ -748,11 +750,11 @@ async def test_the_hold_is_told_in_each_seats_language(
     seat = await create_user(session, email="hold-en@example.com")
     guild = await create_guild(session, creator=seat)
     await create_guild_membership(
-        session, user=seat, guild=guild, role=GuildRole.superadmin
+        session, user=seat, guild=guild, role=CommunityRole.superadmin
     )
     german = await create_user(session, email="hold-de@example.com", locale="de")
     await create_guild_membership(
-        session, user=german, guild=guild, role=GuildRole.superadmin
+        session, user=german, guild=guild, role=CommunityRole.superadmin
     )
     guild_id, seat_id = guild.id, seat.id
     held_at = datetime(2026, 9, 1, tzinfo=timezone.utc)
@@ -780,7 +782,7 @@ async def test_the_hold_is_told_in_each_seats_language(
         await session.exec(
             select(Notification).where(
                 Notification.user_id == seat_id,
-                Notification.type == NotificationType.guild_on_hold,
+                Notification.type == NotificationType.community_on_hold,
             )
         )
     ).all()

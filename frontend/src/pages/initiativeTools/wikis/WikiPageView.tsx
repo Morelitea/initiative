@@ -4,16 +4,24 @@ import { SlidersHorizontal } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { PropertyTarget, Tool, WikiReadingWidth } from "@/api/generated/initiativeAPI.schemas";
+import {
+  PropertyTarget,
+  SearchEntityType,
+  Tool,
+  WikiReadingWidth,
+} from "@/api/generated/initiativeAPI.schemas";
 import { ToolCommentsPanel } from "@/components/comments/ToolCommentsPanel";
 import { Editor } from "@/components/documents/editor/editor";
 import { WikiChrome } from "@/components/initiativeTools/wikis/WikiChrome";
-import { WikiPageConnections } from "@/components/initiativeTools/wikis/WikiPageConnections";
+import {
+  WikiConnectionsSheet,
+  WikiPageConnections,
+} from "@/components/initiativeTools/wikis/WikiPageConnections";
 import { WikiPageNav } from "@/components/initiativeTools/wikis/WikiPageNav";
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
 import { PropertyPanel } from "@/components/properties";
 import { Button } from "@/components/ui/button";
-import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -23,8 +31,8 @@ import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useReadOnOpen } from "@/hooks/useNotifications";
 import { useRecordRecentView } from "@/hooks/useRecents";
 import { useCreateWikiPage, useUpdateWikiPage, useWiki, useWikiPage } from "@/hooks/useWikis";
-import { toast } from "@/lib/chesterToast";
-import { useGuildPath } from "@/lib/guildUrl";
+import { useCommunityPath } from "@/lib/communityUrl";
+import { toast } from "@/lib/mascotToast";
 import { wikiPageRoute } from "@/lib/tools";
 import { cn } from "@/lib/utils";
 
@@ -42,14 +50,14 @@ import { cn } from "@/lib/utils";
  */
 export const WikiPageView = () => {
   const { t } = useTranslation(["wikis", "common", "properties"]);
-  const gp = useGuildPath();
+  const gp = useCommunityPath();
   const {
-    guildId,
+    communityId,
     wikiId: wikiIdParam,
     pageId: pageIdParam,
     initiativeId: initiativeIdParam,
   } = useParams({ strict: false }) as {
-    guildId?: string;
+    communityId?: string;
     wikiId?: string;
     pageId?: string;
     initiativeId?: string;
@@ -66,27 +74,20 @@ export const WikiPageView = () => {
   const pageId = Number(pageIdParam);
   const initiativeId = Number(initiativeIdParam);
   const validIds = Number.isFinite(wikiId) && Number.isFinite(pageId);
+  const pageRef = { type: SearchEntityType.wiki_page, id: pageId };
 
   // The newest body regardless of whether it has been sent, which is what the
   // reading view is shown the moment somebody stops writing. The server hears
   // about a body on a pause and, in a live room, writes it on a sweep of its
   // own — both of which finish long after the eye does.
   const latestBody = useRef<{ pageId: number; state: SerializedEditorState } | null>(null);
-  // What this tab last rendered, for the room to save as the page leaves.
-  const finalContent = useCallback(() => {
-    const latest = latestBody.current;
-    return latest && latest.pageId === pageId ? latest.state : undefined;
-  }, [pageId]);
-
   // Live co-editing, over the same room documents use — a page is just
-  // another body the server keeps a Yjs document for. The path names the page
-  // through its wiki, the way every other address for it does.
+  // another body the server keeps a Yjs document for.
   const collaboration = useCollaboration({
-    socketPath: validIds ? `wikis/${wikiId}/pages/${pageId}/collaborate` : null,
+    socketPath: validIds ? `wiki-pages/${pageId}/collaborate` : null,
     // Only while somebody is writing. A wiki is read far more than it is
     // written, so a reader opens no room and costs the server nothing.
     enabled: validIds && editWanted,
-    finalContent,
     onError: (error) => {
       toast.error(t("error"), { description: error.message });
     },
@@ -119,7 +120,7 @@ export const WikiPageView = () => {
   useReadOnOpen("wiki_page", loadedPageId);
   // Track recently viewed wikis for the layout header tabs bar. A wiki is read
   // through its pages, so each page that opens opens the wiki.
-  const { mutate: recordView } = useRecordRecentView("wiki", Number(guildId));
+  const { mutate: recordView } = useRecordRecentView("wiki", Number(communityId));
   const loadedWikiId = pageQuery.data?.wiki_id;
   useEffect(() => {
     if (!loadedPageId || !loadedWikiId) return;
@@ -203,12 +204,11 @@ export const WikiPageView = () => {
     setWrittenBody(null);
   }, [pageId]);
 
-  // While a room is live it owns the page's content column — it writes the
-  // JSON and the Yjs state from one snapshot, so the two always describe the
-  // same moment. This tab reports its rendering to the room and stops writing
-  // over REST; with no room, this is the only writer.
+  // While a room is live it owns the page's content column — it renders the
+  // JSON from its Yjs state and writes both together, so the two always
+  // describe the same moment. This tab stops writing over REST; with no
+  // room, this is the only writer.
   const isCollaborating = collaboration.isCollaborating;
-  const sendContent = collaboration.sendContent;
   useEffect(() => {
     if (bodyRevision === 0 || pendingBody.current === null) return;
     const timer = setTimeout(() => {
@@ -217,15 +217,11 @@ export const WikiPageView = () => {
       pendingBody.current = null;
       // Words left over from the page before are not this page's words, and
       // the page they were written into has been rebuilt behind us.
-      if (body.pageId !== pageId) return;
-      if (isCollaborating) {
-        sendContent(body.state);
-        return;
-      }
+      if (body.pageId !== pageId || isCollaborating) return;
       savePage({ content: body.state as unknown as Record<string, unknown> });
     }, 2000);
     return () => clearTimeout(timer);
-  }, [bodyRevision, pageId, savePage, isCollaborating, sendContent]);
+  }, [bodyRevision, pageId, savePage, isCollaborating]);
 
   // A page nobody has typed in yet is stored as `{}` — the column's default —
   // and a root with no children is the same thing said differently. Lexical
@@ -261,12 +257,9 @@ export const WikiPageView = () => {
     const unsent = pendingBody.current;
     if (!unsent || unsent.pageId !== pageId) return;
     pendingBody.current = null;
-    if (isCollaborating) {
-      sendContent(unsent.state);
-      return;
-    }
+    if (isCollaborating) return;
     savePage({ content: unsent.state as unknown as Record<string, unknown> });
-  }, [isEditing, validIds, pageId, isCollaborating, sendContent, savePage]);
+  }, [isEditing, validIds, pageId, isCollaborating, savePage]);
 
   // What the editor is handed, and a token that changes with it.
   //
@@ -342,7 +335,6 @@ export const WikiPageView = () => {
       <Card className="mx-auto mt-10 max-w-md">
         <CardHeader>
           <CardTitle>{t("pages.notFound")}</CardTitle>
-          <CardDescription>{t("notFoundDescription")}</CardDescription>
         </CardHeader>
       </Card>
     );
@@ -359,7 +351,11 @@ export const WikiPageView = () => {
   const isComfortable = wiki.reading_width === WikiReadingWidth.comfortable;
   // Asked for, allowed by the wiki, and there is a page to have connections.
   const railOpen = showConnections && wiki.show_connections && Boolean(page);
-  // Definitions belong to an initiative, so a guild-level wiki's pages have
+  const sheetOpen = railOpen && !railFitsBeside && railAsked;
+  // What the toggle shows is what is on screen: beside the words the rail is
+  // there from the start, while a drawer is shut until it is asked for.
+  const connectionsShown = railFitsBeside ? showConnections : sheetOpen;
+  // Definitions belong to an initiative, so a community-level wiki's pages have
   // none; and a reader has nothing to open on a page that carries none.
   const propertiesInitiativeId = wiki.initiative_id;
   const offersProperties =
@@ -395,9 +391,9 @@ export const WikiPageView = () => {
           onOpenComments={() => setCommentsOpen(true)}
           onToggleConnections={() => {
             setRailAsked(true);
-            setShowConnections((shown) => !shown);
+            setShowConnections(!connectionsShown);
           }}
-          connectionsOpen={showConnections}
+          connectionsOpen={connectionsShown}
           trailing={
             offersProperties ? (
               <Tooltip>
@@ -492,7 +488,7 @@ export const WikiPageView = () => {
               at which opening it moves nothing. */}
           {railOpen && railFitsBeside ? (
             <div className="flex w-72 shrink-0 flex-col overflow-y-auto py-6 pr-6">
-              <WikiPageConnections wikiId={wikiId} pageId={pageId} className="min-h-0" />
+              <WikiPageConnections entity={pageRef} initiativeId={wiki.initiative_id} />
             </div>
           ) : null}
         </div>
@@ -500,19 +496,12 @@ export const WikiPageView = () => {
 
       {/* Too narrow to sit beside the words, so it opens over them instead —
           the control means the same thing at every width. */}
-      <Sheet
-        open={railOpen && !railFitsBeside && railAsked}
+      <WikiConnectionsSheet
+        entity={pageRef}
+        initiativeId={wiki.initiative_id}
+        open={sheetOpen}
         onOpenChange={(open) => !open && setShowConnections(false)}
-      >
-        <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-sm">
-          <SheetHeader className="border-b px-5 py-4">
-            <SheetTitle>{t("links.title")}</SheetTitle>
-          </SheetHeader>
-          <div className="min-h-0 flex-1 overflow-y-auto p-3">
-            <WikiPageConnections wikiId={wikiId} pageId={pageId} className="border-0 shadow-none" />
-          </div>
-        </SheetContent>
-      </Sheet>
+      />
 
       <Sheet open={propertiesOpen && offersProperties} onOpenChange={setPropertiesOpen}>
         <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-md">
@@ -539,7 +528,7 @@ export const WikiPageView = () => {
       <Sheet open={commentsOpen} onOpenChange={setCommentsOpen}>
         <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-lg">
           <SheetHeader className="border-b px-5 py-4">
-            <SheetTitle>{t("comments")}</SheetTitle>
+            <SheetTitle className="sr-only">{t("comments")}</SheetTitle>
           </SheetHeader>
           <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
             {/* The page's thread, not the wiki's: a note about the rota

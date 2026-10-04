@@ -12,7 +12,7 @@ interface TaskAssigneeListProps {
 
 const sizeStyles = {
   sm: {
-    avatar: "h-4 w-4 text-[8px]",
+    avatar: "h-4 w-4 text-3xs",
     text: "text-xs",
   },
   md: {

@@ -1,17 +1,19 @@
-import { useEffect, useState } from "react";
+import { useRouter } from "@tanstack/react-router";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { setAuthToken } from "@/api/client";
 import {
-  getListPasskeysApiV1AuthPasskeysGetQueryKey,
-  getReadSecondFactorApiV1AuthTotpGetQueryKey,
-  useListPasskeysApiV1AuthPasskeysGet,
-  useRemovePasswordApiV1AuthPasswordRemovePost,
+  getListPasskeysQueryKey,
+  getReadSecondFactorQueryKey,
+  useListPasskeys,
+  useRemovePassword,
 } from "@/api/generated/auth/auth";
 import type { UserRead, UserSelfUpdate } from "@/api/generated/initiativeAPI.schemas";
 import { AddressManager } from "@/components/settings/AddressManager";
+import { HeldChangeNotice } from "@/components/settings/HeldChangeNotice";
 import { RecoveryCodesPanel } from "@/components/settings/RecoveryCodesPanel";
-import { SettingsSection } from "@/components/settings/SettingsSection";
+import { SettingsRow, SettingsSection } from "@/components/settings/SettingsSection";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -23,61 +25,58 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { SearchableCombobox } from "@/components/ui/searchable-combobox";
+import { DeleteAccountDialog } from "@/components/user/DeleteAccountDialog";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useServer } from "@/hooks/useServer";
 import { useUpdateCurrentUser } from "@/hooks/useUsers";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 import { PASSWORD_MIN_LENGTH, validatePasswordLocal } from "@/lib/passwordPolicy";
 import { queryClient } from "@/lib/queryClient";
-import { TIMEZONE_OPTIONS } from "@/lib/timezones";
 import { getUserHandle } from "@/lib/userDisplay";
 
 interface UserSettingsAccountPageProps {
   user: UserRead;
   refreshUser: () => Promise<void>;
+  logout: () => void | Promise<void>;
 }
 
 /**
- * The account: how you get in.
+ * The account: who it is, how you get in, and how you leave.
  *
- * Separate from Settings › Profile, which is the face other people see. The
- * split is along who the setting is for — nothing on this page is visible to
- * anyone else, and nothing on the profile page changes how you sign in. How
- * dates read to you is Settings › Interface, with the rest of that question.
+ * Separate from Settings › Profile, which is the face other people see.
+ * Ways out come last, in increasing order of consequence.
  */
-export const UserSettingsAccountPage = ({ user, refreshUser }: UserSettingsAccountPageProps) => {
+export const UserSettingsAccountPage = ({
+  user,
+  refreshUser,
+  logout,
+}: UserSettingsAccountPageProps) => {
   // Pull in ``auth`` and ``errors`` so the password-policy hint and the
   // server's ``PASSWORD_BREACHED`` code map without lazy-loading those
   // namespaces mid-submit.
   const { t } = useTranslation(["settings", "auth", "errors", "common"]);
-  const { isNativePlatform } = useServer();
-  const [fullName, setFullName] = useState(user.full_name ?? "");
+  const { isNativePlatform, getServerHostname, clearServerUrl } = useServer();
+  const router = useRouter();
   const [password, setPassword] = useState("");
   const [currentPassword, setCurrentPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  // Also editable beside the reminder time on Settings › Notifications, where
-  // you need to see which clock the time is in.
-  const [timezone, setTimezone] = useState(user.timezone ?? "UTC");
   const [error, setError] = useState<string | null>(null);
 
   const [removeOpen, setRemoveOpen] = useState(false);
   const [removeCurrentPassword, setRemoveCurrentPassword] = useState("");
   const [removeCodes, setRemoveCodes] = useState<string[] | null>(null);
   const [removeError, setRemoveError] = useState<string | null>(null);
-
-  useEffect(() => {
-    setTimezone(user.timezone ?? "UTC");
-  }, [user.timezone]);
+  // Deactivate and Delete open the same dialog at their own step.
+  const [leaving, setLeaving] = useState<"deactivate" | "soft_delete" | null>(null);
 
   const updateAccount = useUpdateCurrentUser({
     onSuccess: async (_data, variables) => {
       // A password change rotates token_version server-side and re-sets the
       // session cookie. On web the stale in-memory bearer would otherwise still
       // be sent and 401 us out, so drop it and let the fresh cookie carry the
-      // session. (Native uses bearer/device-token auth with no cookie fallback,
-      // so it re-authenticates instead — left as-is.)
+      // session. (Native has no cookie to fall back on, so it re-authenticates
+      // instead — left as-is.)
       if (variables.password && !isNativePlatform) {
         setAuthToken(null);
       }
@@ -86,7 +85,7 @@ export const UserSettingsAccountPage = ({ user, refreshUser }: UserSettingsAccou
       setConfirmPassword("");
       setError(null);
       await refreshUser();
-      toast.success(t("profile.updateSuccess"));
+      toast.success(t("account.passwordSaved"));
     },
     onError: (err: unknown) => {
       // Map server password-policy codes (``PASSWORD_TOO_SHORT``,
@@ -97,8 +96,8 @@ export const UserSettingsAccountPage = ({ user, refreshUser }: UserSettingsAccou
   });
 
   // Giving the password up is a browser errand — the server takes it there and
-  // not from the app, which signs in with a device token. An account that holds
-  // no password has nothing to give up either.
+  // not from the app. An account that holds no password has nothing to give up
+  // either.
   const offersRemoval = user.has_password && !isNativePlatform;
   // A password is offered only where this deployment signs anybody in with
   // one. Where it does not, the section says so and keeps only the way to
@@ -106,7 +105,7 @@ export const UserSettingsAccountPage = ({ user, refreshUser }: UserSettingsAccou
   const { passwordLoginEnabled } = useAppConfig();
   // What else the account could sign in with. Nothing else on this page reads
   // it, so it is asked for only where the offer stands.
-  const passkeys = useListPasskeysApiV1AuthPasskeysGet({
+  const passkeys = useListPasskeys({
     query: { enabled: offersRemoval },
   });
   const canRemovePassword =
@@ -122,7 +121,7 @@ export const UserSettingsAccountPage = ({ user, refreshUser }: UserSettingsAccou
     setRemoveError(null);
   };
 
-  const removePassword = useRemovePasswordApiV1AuthPasswordRemovePost({
+  const removePassword = useRemovePassword({
     mutation: {
       onSuccess: async (data) => {
         setRemoveError(null);
@@ -140,10 +139,10 @@ export const UserSettingsAccountPage = ({ user, refreshUser }: UserSettingsAccou
           setAuthToken(null);
         }
         void queryClient.invalidateQueries({
-          queryKey: getReadSecondFactorApiV1AuthTotpGetQueryKey(),
+          queryKey: getReadSecondFactorQueryKey(),
         });
         void queryClient.invalidateQueries({
-          queryKey: getListPasskeysApiV1AuthPasskeysGetQueryKey(),
+          queryKey: getListPasskeysQueryKey(),
         });
         try {
           await refreshUser();
@@ -162,90 +161,52 @@ export const UserSettingsAccountPage = ({ user, refreshUser }: UserSettingsAccou
     },
   });
 
+  const resetPasswordFields = () => {
+    setPassword("");
+    setCurrentPassword("");
+    setConfirmPassword("");
+    setError(null);
+  };
+
+  const passwordReady =
+    password.length > 0 && confirmPassword.length > 0 && (!user.has_password || !!currentPassword);
+
   return (
     <div className="space-y-6">
-      {/* Outside the form below, and before it: the address is what the field
-          here used to be. Every action commits on its own, so there is nothing
-          for that form's Save button to collect. */}
+      <HeldChangeNotice />
+      <SettingsSection title={t("profile.usernameLabel")} description={t("profile.usernameHelp")}>
+        <p className="font-medium">{getUserHandle(user)}</p>
+      </SettingsSection>
+
       <SettingsSection title={t("addresses.title")} description={t("addresses.description")}>
         <AddressManager />
       </SettingsSection>
 
       <form
-        className="space-y-6"
         onSubmit={(event) => {
           event.preventDefault();
-          if (password && password !== confirmPassword) {
+          if (password !== confirmPassword) {
             setError(t("profile.passwordsMismatch"));
             return;
           }
-          if (password && user.has_password && !currentPassword) {
+          if (user.has_password && !currentPassword) {
             setError(t("profile.currentPasswordRequired"));
             return;
           }
-          if (password) {
-            const policyError = validatePasswordLocal(password);
-            if (policyError) {
-              setError(policyError);
-              return;
-            }
+          const policyError = validatePasswordLocal(password);
+          if (policyError) {
+            setError(policyError);
+            return;
           }
-          const payload: Record<string, unknown> = {};
-          if (fullName !== user.full_name) {
-            payload.full_name = fullName;
+          const payload: UserSelfUpdate = { password };
+          // Changing a password asks for the one being replaced. An account
+          // that holds none is setting a first one.
+          if (user.has_password) {
+            payload.current_password = currentPassword;
           }
-          if (timezone !== (user.timezone ?? "UTC")) {
-            payload.timezone = timezone;
-          }
-          if (password) {
-            payload.password = password;
-            // Re-auth: changing a password asks for the one being replaced.
-            // An account that holds none is setting a first one.
-            if (user.has_password) {
-              payload.current_password = currentPassword;
-            }
-          }
-          updateAccount.mutate(payload as UserSelfUpdate);
+          updateAccount.mutate(payload);
         }}
       >
-        <SettingsSection
-          title={t("account.identityTitle")}
-          description={t("account.identityDescription")}
-        >
-          <div className="space-y-2">
-            <Label htmlFor="full-name">{t("profile.fullNameLabel")}</Label>
-            <Input
-              id="full-name"
-              value={fullName}
-              onChange={(event) => setFullName(event.target.value)}
-              placeholder={t("profile.fullNamePlaceholder")}
-              maxLength={255}
-            />
-            <p className="text-muted-foreground text-xs">{t("account.fullNameHelp")}</p>
-          </div>
-
-          <div className="space-y-2">
-            {/* Shown, not editable — the same arrangement the address has.
-                It is how everyone else sees you, so it is the one thing on
-                this page you would look for and not find. */}
-            <Label>{t("profile.usernameLabel")}</Label>
-            <Input value={getUserHandle(user)} disabled readOnly />
-            <p className="text-muted-foreground text-xs">{t("profile.usernameHelp")}</p>
-          </div>
-
-          <div className="space-y-2">
-            <Label>{t("profile.timezoneLabel")}</Label>
-            <SearchableCombobox
-              items={TIMEZONE_OPTIONS.map((tz) => ({ value: tz, label: tz }))}
-              value={timezone}
-              onValueChange={setTimezone}
-              placeholder={t("profile.timezonePlaceholder")}
-              emptyMessage={t("profile.timezoneEmpty")}
-            />
-            <p className="text-muted-foreground text-xs">{t("profile.timezoneHelp")}</p>
-          </div>
-        </SettingsSection>
-
         <SettingsSection
           title={
             user.has_password || !passwordLoginEnabled
@@ -260,30 +221,31 @@ export const UserSettingsAccountPage = ({ user, refreshUser }: UserSettingsAccou
                 : t("account.setPasswordDescription")
           }
           footer={
-            <>
-              <Button type="submit" disabled={updateAccount.isPending}>
-                {updateAccount.isPending ? t("profile.saving") : t("profile.saveChanges")}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                disabled={updateAccount.isPending}
-                onClick={() => {
-                  setPassword("");
-                  setCurrentPassword("");
-                  setConfirmPassword("");
-                  setFullName(user.full_name ?? "");
-                  setTimezone(user.timezone ?? "UTC");
-                  setError(null);
-                }}
-              >
-                {t("profile.reset")}
-              </Button>
-            </>
+            passwordLoginEnabled ? (
+              <>
+                <Button type="submit" disabled={!passwordReady || updateAccount.isPending}>
+                  {updateAccount.isPending
+                    ? t("profile.saving")
+                    : user.has_password
+                      ? t("account.changePassword")
+                      : t("account.setPasswordTitle")}
+                </Button>
+                {password || currentPassword || confirmPassword ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    disabled={updateAccount.isPending}
+                    onClick={resetPasswordFields}
+                  >
+                    {t("common:cancel")}
+                  </Button>
+                ) : null}
+              </>
+            ) : undefined
           }
         >
           {passwordLoginEnabled && user.has_password ? (
-            <div className="space-y-2">
+            <div className="space-y-2 md:max-w-sm">
               <Label htmlFor="current-password">{t("profile.currentPasswordLabel")}</Label>
               <Input
                 id="current-password"
@@ -291,7 +253,6 @@ export const UserSettingsAccountPage = ({ user, refreshUser }: UserSettingsAccou
                 autoComplete="current-password"
                 value={currentPassword}
                 onChange={(event) => setCurrentPassword(event.target.value)}
-                placeholder={t("profile.currentPasswordPlaceholder")}
               />
             </div>
           ) : null}
@@ -303,9 +264,9 @@ export const UserSettingsAccountPage = ({ user, refreshUser }: UserSettingsAccou
                 <Input
                   id="password"
                   type="password"
+                  autoComplete="new-password"
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
-                  placeholder={t("profile.passwordPlaceholder")}
                   minLength={password.length > 0 ? PASSWORD_MIN_LENGTH : undefined}
                 />
                 <p
@@ -323,9 +284,9 @@ export const UserSettingsAccountPage = ({ user, refreshUser }: UserSettingsAccou
                 <Input
                   id="confirm-password"
                   type="password"
+                  autoComplete="new-password"
                   value={confirmPassword}
                   onChange={(event) => setConfirmPassword(event.target.value)}
-                  placeholder={t("profile.passwordPlaceholder")}
                 />
               </div>
             </div>
@@ -340,7 +301,7 @@ export const UserSettingsAccountPage = ({ user, refreshUser }: UserSettingsAccou
           ) : null}
 
           {canRemovePassword ? (
-            <div className="space-y-2 border-t pt-4">
+            <div className="border-t pt-4">
               <Button
                 type="button"
                 variant="outline"
@@ -358,6 +319,65 @@ export const UserSettingsAccountPage = ({ user, refreshUser }: UserSettingsAccou
           ) : null}
         </SettingsSection>
       </form>
+
+      {isNativePlatform ? (
+        <SettingsSection
+          title={t("dangerZone.serverConnection")}
+          description={`${t("dangerZone.connectedTo", { hostname: getServerHostname() })} ${t(
+            "dangerZone.disconnectDescription"
+          )}`}
+          action={
+            <Button
+              variant="outline"
+              onClick={async () => {
+                await logout();
+                clearServerUrl();
+                router.navigate({ to: "/login", replace: true });
+              }}
+            >
+              {t("dangerZone.disconnectButton")}
+            </Button>
+          }
+        />
+      ) : null}
+
+      <SettingsSection destructive title={t("dangerZone.title")}>
+        <SettingsRow
+          label={t("dangerZone.deactivateTitle")}
+          description={t("dangerZone.deactivateDescription")}
+        >
+          <Button variant="outline" onClick={() => setLeaving("deactivate")}>
+            {t("dangerZone.deactivateButton")}
+          </Button>
+        </SettingsRow>
+        <SettingsRow
+          label={t("dangerZone.permanentDeleteTitle")}
+          description={
+            <>
+              {t("dangerZone.permanentDeleteDescriptionText")}{" "}
+              <strong>{t("dangerZone.cannotBeUndone")}</strong>
+            </>
+          }
+        >
+          <Button variant="destructive" onClick={() => setLeaving("soft_delete")}>
+            {t("dangerZone.deleteButton")}
+          </Button>
+        </SettingsRow>
+      </SettingsSection>
+
+      <DeleteAccountDialog
+        open={leaving !== null}
+        onOpenChange={(open) => {
+          if (!open) setLeaving(null);
+        }}
+        onSuccess={() => {
+          setLeaving(null);
+          logout();
+          router.navigate({ to: "/login" });
+        }}
+        user={user}
+        initialAction={leaving ?? undefined}
+      />
 
       <Dialog
         open={removeOpen}

@@ -16,7 +16,7 @@ async def test_mention_email_escapes_malicious_display_name(session, monkeypatch
     """A mention email whose actor display name contains markup must show the
     literal text in the HTML part (no live link inside the brand-styled body)
     while the plain-text alternative keeps the raw text."""
-    user = await create_user(session, full_name="Victim")
+    user = await create_user(session)
 
     captured: dict = {}
 
@@ -83,7 +83,7 @@ async def test_join_request_email_renders_and_escapes_the_note(session, monkeypa
     the keys exist and that the note renders as text, not markup, in the
     brand-styled body.
     """
-    manager = await create_user(session, full_name="Grace")
+    manager = await create_user(session)
 
     captured: dict = {}
 
@@ -108,7 +108,7 @@ async def test_join_request_email_renders_and_escapes_the_note(session, monkeypa
     )
     # The notice it rides on fills in the link, as ``notifications.notify`` does.
     pieces = replace(
-        pieces, link="https://app.example/navigate?guild_id=1&target=%2Fi%2F2"
+        pieces, link="https://app.example/navigate?community_id=1&target=%2Fi%2F2"
     )
     html_body, text_body = email_service.render_single(
         pieces, user=manager, accent="#000000", locale="en"
@@ -148,7 +148,7 @@ async def test_join_request_outcome_emails_render(
 ):
     """The requester's copy resolves for both outcomes, and omits the note line
     entirely when there is nothing to quote."""
-    requester = await create_user(session, full_name="Ada")
+    requester = await create_user(session)
 
     captured: dict = {}
 
@@ -164,7 +164,9 @@ async def test_join_request_outcome_emails_render(
         event=event,
         initiative_name="Parser Guild",
     )
-    pieces = replace(pieces, link="https://app.example/navigate?guild_id=1&target=%2Fi")
+    pieces = replace(
+        pieces, link="https://app.example/navigate?community_id=1&target=%2Fi"
+    )
     html_body, text_body = email_service.render_single(
         pieces, user=requester, accent="#000000", locale="en"
     )

@@ -19,18 +19,18 @@ from app.models.tenant.document import (
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.resource_grant import ResourceGrant
 from app.core.references import unresolve_wikilinks_to
-from app.core.tools import Tool
 from app.core.messages import DocumentMessages
 from app.services.tenant import attachments as attachments_service
+from app.services.tenant import body_states
+from app.services.tenant import content_references
 from app.services.tenant import ownership as ownership_service
 from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
-from app.services.tenant.collaboration import collaboration_manager
+from app.services.tenant.collaboration import collaboration_manager, written_into
 from app.db.session import routed_guild_id
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.db.guild_standing import ActorContext
-    from app.models.platform.user import User
 
 
 def _empty_paragraph() -> dict[str, Any]:
@@ -214,95 +214,52 @@ async def get_document_for_grants(
     return (await session.exec(statement)).one_or_none()
 
 
-async def duplicate_document(
-    session: AsyncSession,
-    *,
-    source: Document,
-    initiative_id: int,
-    name: str,
-    user: User,
-    actor: ActorContext,
-) -> Document:
-    """A copy of ``source`` in ``initiative_id``, owned by ``user`` and shared
-    as ``resource_access.duplicate_sharing`` says. Its pictures and stored file
-    are copied rather than shared, so each document's can be released on its
-    own; a file document's copy starts again at version 1. ``source.grants``
-    is loaded. The caller commits."""
-    from app.api import resource_access
-
-    await session.refresh(source, ["content"])
-    content_copy = normalize_document_content(
-        deepcopy(source.content),
-        document_type=source.document_type,
-    )
+async def copy_contents(
+    session: AsyncSession, source: Document, copy: Document, actor: ActorContext
+) -> list[Any]:
+    """Finish ``copy``, a duplicate of ``source`` already shared. Its pictures
+    and stored file are copied rather than shared, so each document's can be
+    released on its own; a file document's copy starts again at version 1.
+    Makes no rows inside it."""
+    content = normalize_document_content(copy.content, document_type=copy.document_type)
     copies = await attachments_service.copy_uploads(
         session,
         [
-            *attachments_service.extract_upload_urls(content_copy),
-            source.featured_image_url,
-            source.file_url,
+            *attachments_service.extract_upload_urls(content),
+            copy.featured_image_url,
+            copy.file_url,
         ],
         guild_id=actor.guild_id,
-        created_by=user.id,
-        initiative_id=initiative_id,
+        created_by=actor.user_id,
+        initiative_id=copy.initiative_id,
     )
 
     def copied(url: str | None) -> str | None:
         return copies.get(attachments_service.normalize_upload_url(url) or "", url)
 
-    duplicated = Document(
-        name=name,
-        initiative_id=initiative_id,
-        document_type=source.document_type,
-        content=attachments_service.replace_upload_urls(content_copy, copies),
-        created_by=user.id,
-        featured_image_url=copied(source.featured_image_url),
-        file_url=copied(source.file_url),
-        file_content_type=source.file_content_type,
-        file_size=source.file_size,
-        original_filename=source.original_filename,
-    )
-    session.add(duplicated)
-    await session.flush()
-
-    await resource_access.grant_initial_sharing(
-        session,
-        actor,
-        Tool.document,
-        user=user,
-        resource_id=duplicated.id,
-        initiative_id=initiative_id,
-        payload=None,
-        grants=resource_access.duplicate_sharing(source, initiative_id=initiative_id),
-    )
-    # The rows below are written as the copy's owner, so the sharing lands first.
-    await session.flush()
-    if duplicated.file_url is not None:
+    copy.content = attachments_service.replace_upload_urls(content, copies)
+    copy.featured_image_url = copied(copy.featured_image_url)
+    copy.file_url = copied(copy.file_url)
+    if copy.file_url is not None:
+        # An app is never an author: its copy names the file's uploader.
+        author = actor.user_id or await session.scalar(
+            select(DocumentFileVersion.created_by)
+            .where(DocumentFileVersion.document_id == source.id)
+            .order_by(DocumentFileVersion.version_number.desc())
+            .limit(1)
+        )
         session.add(
             DocumentFileVersion(
-                document_id=duplicated.id,
+                document_id=copy.id,
                 version_number=1,
-                file_url=duplicated.file_url,
-                file_content_type=duplicated.file_content_type,
-                file_size=duplicated.file_size,
-                original_filename=duplicated.original_filename,
-                created_by=user.id,
+                file_url=copy.file_url,
+                file_content_type=copy.file_content_type,
+                file_size=copy.file_size,
+                original_filename=copy.original_filename,
+                created_by=author,
             )
         )
-
-    # Copy tags from source document (active only)
-    await tags_service.copy_entity_tags(
-        session,
-        tags_service.TOOL_TAG_LINKS[Tool.document],
-        {source.id: duplicated.id},
-    )
-
-    # Copy property values ONLY when the target initiative matches the
-    # source's — definitions are initiative-scoped, so cross-initiative
-    # copies would produce orphaned values the target can't resolve.
-    if initiative_id == source.initiative_id:
-        await properties_service.copy_values(session, source, duplicated)
-    return duplicated
+    return []
 
 
 async def annotate_comment_counts(
@@ -338,7 +295,6 @@ async def unresolve_wikilinks_to_document(
     those links. Trashed ones are included — a document restored after the purge
     must not come back with a dangling link.
     """
-    from app.services.tenant import content_references
 
     linking_documents = await content_references.referencing_documents(
         session, deleted_document_id
@@ -353,9 +309,12 @@ async def unresolve_wikilinks_to_document(
             updated_content = deepcopy(doc.content)
             if unresolve_wikilinks_to(updated_content, deleted_document_id):
                 doc.content = updated_content
-                # Yjs state takes precedence over content on load; clear it so
-                # collaboration bootstraps from the repaired content.
-                doc.yjs_state = None
+                # A session opens on the Yjs state, so the repair is written
+                # into it too.
+                await session.refresh(doc, ["yjs_state"])
+                doc.yjs_state = await written_into(
+                    body_states.LEXICAL, doc.yjs_state, updated_content
+                )
                 flag_modified(doc, "content")
                 session.add(doc)
                 affected_doc_ids.append(doc.id)

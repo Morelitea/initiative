@@ -10,8 +10,16 @@ import { KeyRound } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { ServerChip } from "@/components/auth/ServerChoice";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { passkeyFailureMessage } from "@/lib/passkeyFailure";
 import { signInWithPasskey } from "@/lib/passkeys";
 
@@ -70,6 +78,9 @@ export const PasskeyRelayCard = ({ deviceName, codeChallenge }: PasskeyRelayCard
         ) : null}
         {error ? <p className="text-destructive text-sm">{error}</p> : null}
       </CardContent>
+      <CardFooter>
+        <ServerChip />
+      </CardFooter>
     </Card>
   );
 };

@@ -36,7 +36,7 @@ export const ToolExportCard = () => {
   );
 
   return (
-    <Card className="shadow-sm">
+    <Card>
       <CardHeader>
         <CardTitle>{t("common:toolSettings.export.title")}</CardTitle>
         <CardDescription>{t("common:toolSettings.export.description")}</CardDescription>

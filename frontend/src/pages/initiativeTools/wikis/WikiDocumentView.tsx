@@ -2,23 +2,31 @@ import { Link, useLocation, useParams } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { Tool, WikiPageKind, WikiReadingWidth } from "@/api/generated/initiativeAPI.schemas";
+import {
+  SearchEntityType,
+  Tool,
+  WikiPageKind,
+  WikiReadingWidth,
+} from "@/api/generated/initiativeAPI.schemas";
 import { ToolCommentsPanel } from "@/components/comments/ToolCommentsPanel";
 import { WikiChrome } from "@/components/initiativeTools/wikis/WikiChrome";
 import {
   isWideDocument,
   WikiDocumentBody,
 } from "@/components/initiativeTools/wikis/WikiDocumentBody";
-import { WikiPageConnections } from "@/components/initiativeTools/wikis/WikiPageConnections";
+import {
+  WikiConnectionsSheet,
+  WikiPageConnections,
+} from "@/components/initiativeTools/wikis/WikiPageConnections";
 import { WikiPageNav } from "@/components/initiativeTools/wikis/WikiPageNav";
 import { Button } from "@/components/ui/button";
-import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDocument } from "@/hooks/useDocuments";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useWiki } from "@/hooks/useWikis";
-import { useGuildPath } from "@/lib/guildUrl";
+import { useCommunityPath } from "@/lib/communityUrl";
 import { toolDetailRoute } from "@/lib/tools";
 import { cn } from "@/lib/utils";
 
@@ -36,7 +44,7 @@ import { cn } from "@/lib/utils";
  */
 export const WikiDocumentView = () => {
   const { t } = useTranslation(["wikis", "common"]);
-  const gp = useGuildPath();
+  const gp = useCommunityPath();
   const {
     wikiId: wikiIdParam,
     documentId: documentIdParam,
@@ -51,6 +59,7 @@ export const WikiDocumentView = () => {
   const documentId = Number(documentIdParam);
   const initiativeId = Number(initiativeIdParam);
   const validIds = Number.isFinite(wikiId) && Number.isFinite(documentId);
+  const documentRef = { type: SearchEntityType.document, id: documentId };
 
   const wikiQuery = useWiki(validIds ? wikiId : null);
   const documentQuery = useDocument(validIds ? documentId : null);
@@ -85,7 +94,6 @@ export const WikiDocumentView = () => {
       <Card className="mx-auto mt-10 max-w-md">
         <CardHeader>
           <CardTitle>{t("pages.notFound")}</CardTitle>
-          <CardDescription>{t("notFoundDescription")}</CardDescription>
         </CardHeader>
       </Card>
     );
@@ -100,6 +108,10 @@ export const WikiDocumentView = () => {
   const isComfortable =
     wiki.reading_width === WikiReadingWidth.comfortable && !isWideDocument(document_);
   const railOpen = showConnections && wiki.show_connections && Boolean(document_);
+  const sheetOpen = railOpen && !railFitsBeside && railAsked;
+  // What the toggle shows is what is on screen: beside the words the rail is
+  // there from the start, while a drawer is shut until it is asked for.
+  const connectionsShown = railFitsBeside ? showConnections : sheetOpen;
 
   return (
     <>
@@ -117,9 +129,9 @@ export const WikiDocumentView = () => {
           commentsEnabled={document_?.comments_enabled ?? false}
           onToggleConnections={() => {
             setRailAsked(true);
-            setShowConnections((shown) => !shown);
+            setShowConnections(!connectionsShown);
           }}
-          connectionsOpen={showConnections}
+          connectionsOpen={connectionsShown}
           trailing={
             <Button variant="outline" size="sm" className="h-8" asChild>
               <Link to={gp(toolDetailRoute(Tool.document, initiativeId, documentId))}>
@@ -167,34 +179,23 @@ export const WikiDocumentView = () => {
 
           {railOpen && railFitsBeside ? (
             <div className="flex w-72 shrink-0 flex-col overflow-y-auto py-6 pr-6">
-              <WikiPageConnections wikiId={wikiId} pageId={documentId} className="min-h-0" />
+              <WikiPageConnections entity={documentRef} initiativeId={wiki.initiative_id} />
             </div>
           ) : null}
         </div>
       </div>
 
-      <Sheet
-        open={railOpen && !railFitsBeside && railAsked}
+      <WikiConnectionsSheet
+        entity={documentRef}
+        initiativeId={wiki.initiative_id}
+        open={sheetOpen}
         onOpenChange={(open) => !open && setShowConnections(false)}
-      >
-        <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-sm">
-          <SheetHeader className="border-b px-5 py-4">
-            <SheetTitle>{t("links.title")}</SheetTitle>
-          </SheetHeader>
-          <div className="min-h-0 flex-1 overflow-y-auto p-3">
-            <WikiPageConnections
-              wikiId={wikiId}
-              pageId={documentId}
-              className="border-0 shadow-none"
-            />
-          </div>
-        </SheetContent>
-      </Sheet>
+      />
 
       <Sheet open={commentsOpen} onOpenChange={setCommentsOpen}>
         <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-lg">
           <SheetHeader className="border-b px-5 py-4">
-            <SheetTitle>{t("comments")}</SheetTitle>
+            <SheetTitle className="sr-only">{t("comments")}</SheetTitle>
           </SheetHeader>
           <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
             {/* A document in a wiki is still that document — its thread is

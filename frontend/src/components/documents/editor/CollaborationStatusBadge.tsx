@@ -105,11 +105,6 @@ export function CollaborationStatusBadge({
             >
               <StatusIcon className={cn("h-3 w-3", config.color)} />
               <span className="text-xs">{config.label}</span>
-              {isOnline && isCollaborating && collaborators.length > 0 && (
-                <span className="ml-0.5 text-muted-foreground text-xs">
-                  ({collaborators.length})
-                </span>
-              )}
             </Badge>
 
             {/* Collaborator avatars */}

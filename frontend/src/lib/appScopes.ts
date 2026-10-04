@@ -20,11 +20,11 @@ export const appScopeTarget = (scope: string): string | null =>
 
 /**
  * The scopes that name a standing rather than a resource: acting as a
- * moderator in an initiative, or as a guild admin. Never ticked for the seat.
+ * moderator in an initiative, or as a community admin. Never ticked for the seat.
  */
 export const STANDING_SCOPES: ReadonlySet<string> = new Set([
   "initiatives:moderate",
-  "guild:admin",
+  "community:admin",
 ]);
 
 /** Public id → the name that app goes by, as the server read it. */
@@ -77,9 +77,9 @@ export const scopeResourceLabel = (resource: string, t: ScopeT): string => {
 
 /**
  * What granting a scope lets the app do, as a plain sentence: "Read and change
- * projects", "See who is in your community", "Use GitHub in this community". A
- * resource with no sentence of its own is said with its label; an app with no
- * name in `appNames` is said by its public id.
+ * projects", "See who is in your community, by name", "Use GitHub in this
+ * community". A resource with no sentence of its own is said with its label; an
+ * app with no name in `appNames` is said by its public id.
  */
 export const scopeSentence = (scope: string, t: ScopeT, appNames: AppNames = {}): string => {
   const target = appScopeTarget(scope);

@@ -5,16 +5,16 @@ import type React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildTag } from "@/__tests__/factories";
-import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
 import type { TagRead } from "@/api/generated/initiativeAPI.schemas";
 
-vi.mock("@/lib/chesterToast", () => ({
+vi.mock("@/lib/mascotToast", () => ({
   toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
 }));
 
-import { toast } from "@/lib/chesterToast";
+import { toast } from "@/lib/mascotToast";
 
 import { TagBrowser } from "./TagBrowser";
 
@@ -29,7 +29,7 @@ const renderBrowser = (
   props: Partial<React.ComponentProps<typeof TagBrowser>> = {}
 ) => {
   // TagBrowser rows are TanStack `Link`s, so it needs a real router context.
-  const Page = () => <TagBrowser tags={tags} isLoading={false} activeGuildId={1} {...props} />;
+  const Page = () => <TagBrowser tags={tags} isLoading={false} activeCommunityId={1} {...props} />;
   return renderPage(Page);
 };
 
@@ -88,13 +88,13 @@ describe("TagBrowser", () => {
   it("renames a tag through the edit dialog (PATCH)", async () => {
     let patchBody: { name?: string; color?: string } | null = null;
     server.use(
-      guildHttp.patch("/tags/:tagId", async ({ request, params }) => {
+      communityHttp.patch("/tags/:tagId", async ({ request, params }) => {
         patchBody = (await request.json()) as { name?: string; color?: string };
         return HttpResponse.json({
           id: Number(params.tagId),
           name: patchBody.name,
           color: patchBody.color,
-          guild_id: 1,
+          community_id: 1,
           created_at: "2026-01-15T00:00:00.000Z",
           updated_at: "2026-01-15T00:00:00.000Z",
         });
@@ -118,7 +118,7 @@ describe("TagBrowser", () => {
   it("bulk-deletes every selected tag (DELETE per id) with one summary toast", async () => {
     const deletedIds: number[] = [];
     server.use(
-      guildHttp.delete("/tags/:tagId", ({ params }) => {
+      communityHttp.delete("/tags/:tagId", ({ params }) => {
         deletedIds.push(Number(params.tagId));
         return new HttpResponse(null, { status: 204 });
       })

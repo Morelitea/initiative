@@ -1,9 +1,9 @@
 import { authHandlers } from "./auth.handlers";
 import { commentHandlers } from "./comment.handlers";
+import { communityHandlers } from "./community.handlers";
 import { dmHandlers } from "./dm.handlers";
 import { documentHandlers } from "./document.handlers";
 import { filterPresetHandlers } from "./filterPreset.handlers";
-import { guildHandlers } from "./guild.handlers";
 import { initiativeHandlers } from "./initiative.handlers";
 import { notificationHandlers } from "./notification.handlers";
 import { projectHandlers } from "./project.handlers";
@@ -16,7 +16,7 @@ import { versionHandlers } from "./version.handlers";
 
 export const handlers = [
   ...authHandlers,
-  ...guildHandlers,
+  ...communityHandlers,
   ...initiativeHandlers,
   ...projectHandlers,
   ...filterPresetHandlers,

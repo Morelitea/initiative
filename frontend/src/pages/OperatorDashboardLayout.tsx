@@ -34,16 +34,16 @@ export const OperatorDashboardLayout = () => {
         capabilities: [Capability.usersRead],
       },
       {
-        value: "guilds",
-        label: t("operatorDashboard.tabs.guilds"),
+        value: "communities",
+        label: t("operatorDashboard.tabs.communities"),
         path: "/settings/operator/communities",
-        capabilities: [Capability.guildsManage],
+        capabilities: [Capability.communitiesManage],
       },
       {
         value: "placement",
         label: t("operatorDashboard.tabs.placement"),
         path: "/settings/operator/placement",
-        capabilities: [Capability.guildsManage],
+        capabilities: [Capability.communitiesManage],
       },
       {
         value: "announcements",
@@ -70,10 +70,7 @@ export const OperatorDashboardLayout = () => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="font-semibold text-3xl tracking-tight">{t("operatorDashboard.title")}</h1>
-        <p className="text-muted-foreground">{t("operatorDashboard.subtitle")}</p>
-      </div>
+      <h1 className="font-semibold text-3xl tracking-tight">{t("operatorDashboard.title")}</h1>
       <SettingsTabsNav
         tabs={tabs}
         activeTab={activeTab}

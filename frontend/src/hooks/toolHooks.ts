@@ -29,121 +29,131 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import {
-  createCalendarApiV1CGuildIdCalendarsPost,
-  deleteCalendarApiV1CGuildIdCalendarsCalendarIdDelete,
-  getListCalendarsApiV1CGuildIdCalendarsGetQueryKey,
-  getReadCalendarApiV1CGuildIdCalendarsCalendarIdGetQueryKey,
-  listCalendarsApiV1CGuildIdCalendarsGet,
-  readCalendarApiV1CGuildIdCalendarsCalendarIdGet,
-  setCalendarGrantsApiV1CGuildIdCalendarsCalendarIdGrantsPut,
-  updateCalendarApiV1CGuildIdCalendarsCalendarIdPatch,
+  createCalendar,
+  deleteCalendar,
+  duplicateCalendar,
+  getListCalendarsQueryKey,
+  getReadCalendarQueryKey,
+  listCalendars,
+  readCalendar,
+  setCalendarGrants,
+  updateCalendar,
 } from "@/api/generated/calendars/calendars";
 import {
-  createCounterGroupApiV1CGuildIdCounterGroupsPost,
-  deleteCounterGroupApiV1CGuildIdCounterGroupsGroupIdDelete,
-  getListCounterGroupsApiV1CGuildIdCounterGroupsGetQueryKey,
-  getReadCounterGroupApiV1CGuildIdCounterGroupsGroupIdGetQueryKey,
-  listCounterGroupsApiV1CGuildIdCounterGroupsGet,
-  readCounterGroupApiV1CGuildIdCounterGroupsGroupIdGet,
-  setCounterGroupGrantsApiV1CGuildIdCounterGroupsGroupIdGrantsPut,
-  updateCounterGroupApiV1CGuildIdCounterGroupsGroupIdPatch,
+  createCounterGroup,
+  deleteCounterGroup,
+  duplicateCounterGroup,
+  getListCounterGroupsQueryKey,
+  getReadCounterGroupQueryKey,
+  listCounterGroups,
+  readCounterGroup,
+  setCounterGroupGrants,
+  updateCounterGroup,
 } from "@/api/generated/counters/counters";
 import {
-  createDashboardApiV1CGuildIdDashboardsPost,
-  deleteDashboardApiV1CGuildIdDashboardsDashboardIdDelete,
-  getListDashboardsApiV1CGuildIdDashboardsGetQueryKey,
-  getReadDashboardApiV1CGuildIdDashboardsDashboardIdGetQueryKey,
-  listDashboardsApiV1CGuildIdDashboardsGet,
-  readDashboardApiV1CGuildIdDashboardsDashboardIdGet,
-  setDashboardGrantsApiV1CGuildIdDashboardsDashboardIdGrantsPut,
-  updateDashboardApiV1CGuildIdDashboardsDashboardIdPatch,
+  createDashboard,
+  deleteDashboard,
+  duplicateDashboard,
+  getListDashboardsQueryKey,
+  getReadDashboardQueryKey,
+  listDashboards,
+  readDashboard,
+  setDashboardGrants,
+  updateDashboard,
 } from "@/api/generated/dashboards/dashboards";
 import {
-  createDocumentApiV1CGuildIdDocumentsPost,
-  deleteDocumentApiV1CGuildIdDocumentsDocumentIdDelete,
-  getListDocumentsApiV1CGuildIdDocumentsGetQueryKey,
-  getReadDocumentApiV1CGuildIdDocumentsDocumentIdGetQueryKey,
-  listDocumentsApiV1CGuildIdDocumentsGet,
-  readDocumentApiV1CGuildIdDocumentsDocumentIdGet,
-  setDocumentGrantsApiV1CGuildIdDocumentsDocumentIdGrantsPut,
+  createDocument,
+  deleteDocument,
+  duplicateDocument,
+  getListDocumentsQueryKey,
+  getReadDocumentQueryKey,
+  listDocuments,
+  readDocument,
+  setDocumentGrants,
 } from "@/api/generated/documents/documents";
 import {
-  createGalleryApiV1CGuildIdGalleriesPost,
-  deleteGalleryApiV1CGuildIdGalleriesGalleryIdDelete,
-  getListGalleriesApiV1CGuildIdGalleriesGetQueryKey,
-  getReadGalleryApiV1CGuildIdGalleriesGalleryIdGetQueryKey,
-  listGalleriesApiV1CGuildIdGalleriesGet,
-  readGalleryApiV1CGuildIdGalleriesGalleryIdGet,
-  setGalleryGrantsApiV1CGuildIdGalleriesGalleryIdGrantsPut,
-  updateGalleryApiV1CGuildIdGalleriesGalleryIdPatch,
+  createGallery,
+  deleteGallery,
+  duplicateGallery,
+  getListGalleriesQueryKey,
+  getReadGalleryQueryKey,
+  listGalleries,
+  readGallery,
+  setGalleryGrants,
+  updateGallery,
 } from "@/api/generated/galleries/galleries";
 import type {
-  ListDocumentsApiV1CGuildIdDocumentsGetParams,
+  ListDocumentsParams,
   ResourceGrantSchema,
+  ToolDuplicateRequest,
 } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import {
-  getListMyCalendarsApiV1MeCalendarsGetQueryKey,
-  getListMyCounterGroupsApiV1MeCounterGroupsGetQueryKey,
-  getListMyDashboardsApiV1MeDashboardsGetQueryKey,
-  getListMyDocumentsApiV1MeDocumentsGetQueryKey,
-  getListMyGalleriesApiV1MeGalleriesGetQueryKey,
-  getListMyPostsApiV1MePostsGetQueryKey,
-  getListMyProjectsApiV1MeProjectsGetQueryKey,
-  getListMyQueuesApiV1MeQueuesGetQueryKey,
-  getListMyWikisApiV1MeWikisGetQueryKey,
-  listMyCalendarsApiV1MeCalendarsGet,
-  listMyCounterGroupsApiV1MeCounterGroupsGet,
-  listMyDashboardsApiV1MeDashboardsGet,
-  listMyDocumentsApiV1MeDocumentsGet,
-  listMyGalleriesApiV1MeGalleriesGet,
-  listMyPostsApiV1MePostsGet,
-  listMyProjectsApiV1MeProjectsGet,
-  listMyQueuesApiV1MeQueuesGet,
-  listMyWikisApiV1MeWikisGet,
+  getListMyCalendarsQueryKey,
+  getListMyCounterGroupsQueryKey,
+  getListMyDashboardsQueryKey,
+  getListMyDocumentsQueryKey,
+  getListMyGalleriesQueryKey,
+  getListMyPostsQueryKey,
+  getListMyProjectsQueryKey,
+  getListMyQueuesQueryKey,
+  getListMyWikisQueryKey,
+  listMyCalendars,
+  listMyCounterGroups,
+  listMyDashboards,
+  listMyDocuments,
+  listMyGalleries,
+  listMyPosts,
+  listMyProjects,
+  listMyQueues,
+  listMyWikis,
 } from "@/api/generated/my-tools/my-tools";
 import {
-  createPostApiV1CGuildIdPostsPost,
-  deletePostApiV1CGuildIdPostsPostIdDelete,
-  getListPostsApiV1CGuildIdPostsGetQueryKey,
-  getReadPostApiV1CGuildIdPostsPostIdGetQueryKey,
-  listPostsApiV1CGuildIdPostsGet,
-  readPostApiV1CGuildIdPostsPostIdGet,
-  setPostGrantsApiV1CGuildIdPostsPostIdGrantsPut,
-  updatePostApiV1CGuildIdPostsPostIdPatch,
+  createPost,
+  deletePost,
+  duplicatePost,
+  getListPostsQueryKey,
+  getReadPostQueryKey,
+  listPosts,
+  readPost,
+  setPostGrants,
+  updatePost,
 } from "@/api/generated/posts/posts";
 import {
-  createProjectApiV1CGuildIdProjectsPost,
-  deleteProjectApiV1CGuildIdProjectsProjectIdDelete,
-  getListProjectsApiV1CGuildIdProjectsGetQueryKey,
-  getReadProjectApiV1CGuildIdProjectsProjectIdGetQueryKey,
-  listProjectsApiV1CGuildIdProjectsGet,
-  readProjectApiV1CGuildIdProjectsProjectIdGet,
-  setProjectGrantsApiV1CGuildIdProjectsProjectIdGrantsPut,
+  createProject,
+  deleteProject,
+  duplicateProject,
+  getListProjectsQueryKey,
+  getReadProjectQueryKey,
+  listProjects,
+  readProject,
+  setProjectGrants,
 } from "@/api/generated/projects/projects";
 import {
-  createQueueApiV1CGuildIdQueuesPost,
-  deleteQueueApiV1CGuildIdQueuesQueueIdDelete,
-  getListQueuesApiV1CGuildIdQueuesGetQueryKey,
-  getReadQueueApiV1CGuildIdQueuesQueueIdGetQueryKey,
-  listQueuesApiV1CGuildIdQueuesGet,
-  readQueueApiV1CGuildIdQueuesQueueIdGet,
-  setQueueGrantsApiV1CGuildIdQueuesQueueIdGrantsPut,
-  updateQueueApiV1CGuildIdQueuesQueueIdPatch,
+  createQueue,
+  deleteQueue,
+  duplicateQueue,
+  getListQueuesQueryKey,
+  getReadQueueQueryKey,
+  listQueues,
+  readQueue,
+  setQueueGrants,
+  updateQueue,
 } from "@/api/generated/queues/queues";
 import {
-  createWikiApiV1CGuildIdWikisPost,
-  deleteWikiApiV1CGuildIdWikisWikiIdDelete,
-  getListWikisApiV1CGuildIdWikisGetQueryKey,
-  getReadWikiApiV1CGuildIdWikisWikiIdGetQueryKey,
-  listWikisApiV1CGuildIdWikisGet,
-  readWikiApiV1CGuildIdWikisWikiIdGet,
-  setWikiGrantsApiV1CGuildIdWikisWikiIdGrantsPut,
-  updateWikiApiV1CGuildIdWikisWikiIdPatch,
+  createWiki,
+  deleteWiki,
+  duplicateWiki,
+  getListWikisQueryKey,
+  getReadWikiQueryKey,
+  listWikis,
+  readWiki,
+  setWikiGrants,
+  updateWiki,
 } from "@/api/generated/wikis/wikis";
 import { invalidate, q } from "@/api/query-keys";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
-import { useGuildMutation } from "@/hooks/useApiMutation";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
+import { useCommunityMutation } from "@/hooks/useApiMutation";
 import { fetchAllPages } from "@/lib/fetchAllPages";
 import { queryClient } from "@/lib/queryClient";
 import { toolCamelPlural } from "@/lib/tools";
@@ -153,8 +163,18 @@ import type { QueryOpts } from "@/types/query";
 /** A cache key, as the generated key builders return one. */
 type CacheKey = readonly unknown[];
 
+/** Copies one into an initiative: `POST /{tool}/{id}/duplicate`, one route shape for every tool. */
+type Duplicate = (
+  communityId: number,
+  id: number,
+  data: ToolDuplicateRequest
+) => Promise<Duplicated>;
+
+/** What a duplicate answers with: the copy's id and where it went. */
+type Duplicated = { id: number; initiative_id: number | null };
+
 /**
- * The narrowing every tool's guild-wide list understands.
+ * The narrowing every tool's community-wide list understands.
  *
  * The nine endpoints accept far more than this between them — a document has
  * tags and a type, a calendar has a scope — but these are the terms they ALL
@@ -175,12 +195,12 @@ export interface ToolListParams {
 }
 
 /**
- * The same, for the cross-guild `/me` twin: no initiative (there is no order
+ * The same, for the cross-community `/me` twin: no initiative (there is no order
  * across communities to put one in), a set of communities instead, and the
  * "only what I wrote" view.
  */
 export interface ToolMyListParams {
-  guild_ids?: number[] | null;
+  community_ids?: number[] | null;
   search?: string | null;
   created_by_me?: boolean;
   sort_by?: string | null;
@@ -214,14 +234,14 @@ interface ToolListPage {
  * written once wherever the list is reached from.
  */
 const listQueries = <TList, TMyList, TParams, TMyParams>(endpoints: {
-  listKey: (guildId: number, params?: TParams) => CacheKey;
-  list: (guildId: number, params?: TParams) => Promise<TList>;
+  listKey: (communityId: number, params?: TParams) => CacheKey;
+  list: (communityId: number, params?: TParams) => Promise<TList>;
   myListKey: (params?: TMyParams) => CacheKey;
   myList: (params?: TMyParams) => Promise<TMyList>;
 }) => ({
-  listQuery: (guildId: number, params?: TParams) => ({
-    queryKey: endpoints.listKey(guildId, params),
-    queryFn: () => endpoints.list(guildId, params),
+  listQuery: (communityId: number, params?: TParams) => ({
+    queryKey: endpoints.listKey(communityId, params),
+    queryFn: () => endpoints.list(communityId, params),
   }),
   myListQuery: (params?: TMyParams) => ({
     queryKey: endpoints.myListKey(params),
@@ -230,21 +250,21 @@ const listQueries = <TList, TMyList, TParams, TMyParams>(endpoints: {
 });
 
 /**
- * One page of the tool's guild-wide list.
+ * One page of the tool's community-wide list.
  *
  * `keepPreviousData` keeps the rows on screen while a changed page, search or
  * order is in flight, rather than replacing the table with a loading line on
  * every keystroke.
  */
 const listHook = <TList, TParams>(endpoints: {
-  listKey: (guildId: number, params?: TParams) => CacheKey;
-  list: (guildId: number, params?: TParams) => Promise<TList>;
+  listKey: (communityId: number, params?: TParams) => CacheKey;
+  list: (communityId: number, params?: TParams) => Promise<TList>;
 }) => {
   return (params?: TParams, options?: QueryOpts<TList>) => {
-    const guildId = useActiveGuildId();
+    const communityId = useActiveCommunityId();
     return useQuery<TList>({
-      queryKey: endpoints.listKey(guildId, params),
-      queryFn: () => endpoints.list(guildId, params),
+      queryKey: endpoints.listKey(communityId, params),
+      queryFn: () => endpoints.list(communityId, params),
       placeholderData: keepPreviousData,
       ...options,
     });
@@ -257,15 +277,15 @@ const listHook = <TList, TParams>(endpoints: {
  * further and never widens.
  */
 const detailHook = <TRead>(endpoints: {
-  detailKey: (guildId: number, id: number) => CacheKey;
-  detail: (guildId: number, id: number) => Promise<TRead>;
+  detailKey: (communityId: number, id: number) => CacheKey;
+  detail: (communityId: number, id: number) => Promise<TRead>;
 }) => {
   return (id: number | null, options?: QueryOpts<TRead>) => {
-    const guildId = useActiveGuildId();
+    const communityId = useActiveCommunityId();
     const { enabled: userEnabled = true, ...rest } = options ?? {};
     return useQuery<TRead>({
-      queryKey: endpoints.detailKey(guildId, id!),
-      queryFn: () => endpoints.detail(guildId, id!),
+      queryKey: endpoints.detailKey(communityId, id!),
+      queryFn: () => endpoints.detail(communityId, id!),
       enabled: id !== null && Number.isFinite(id) && userEnabled,
       ...rest,
     });
@@ -274,15 +294,15 @@ const detailHook = <TRead>(endpoints: {
 
 const createHook = <TRead, TCreate>(
   endpoints: {
-    create: (guildId: number, data: TCreate) => Promise<TRead>;
+    create: (communityId: number, data: TCreate) => Promise<TRead>;
     tool: Tool;
   },
   errorKey: string
 ) => {
   return (options?: MutationOpts<TRead, TCreate>) =>
-    useGuildMutation<TRead, TCreate>(
+    useCommunityMutation<TRead, TCreate>(
       {
-        mutationFn: (guildId, data) => endpoints.create(guildId, data),
+        mutationFn: (communityId, data) => endpoints.create(communityId, data),
         invalidate: () => invalidate(q.toolList(endpoints.tool)),
         errorKey,
       },
@@ -305,21 +325,21 @@ interface ToolWriteOptions {
 
 const updateHook = <TRead, TUpdate>(
   endpoints: {
-    update: (guildId: number, id: number, data: TUpdate) => Promise<TRead>;
-    detailKey: (guildId: number, id: number) => CacheKey;
+    update: (communityId: number, id: number, data: TUpdate) => Promise<TRead>;
+    detailKey: (communityId: number, id: number) => CacheKey;
     tool: Tool;
   },
   errorKey: string,
   { seedsDetailOnUpdate = false }: ToolWriteOptions = {}
 ) => {
   return (id: number, options?: MutationOpts<TRead, TUpdate>) => {
-    const guildId = useActiveGuildId();
-    return useGuildMutation<TRead, TUpdate>(
+    const communityId = useActiveCommunityId();
+    return useCommunityMutation<TRead, TUpdate>(
       {
-        mutationFn: (guild, data) => endpoints.update(guild, id, data),
+        mutationFn: (community, data) => endpoints.update(community, id, data),
         invalidate: (updated) => {
           if (seedsDetailOnUpdate) {
-            queryClient.setQueryData(endpoints.detailKey(guildId, id), updated);
+            queryClient.setQueryData(endpoints.detailKey(communityId, id), updated);
           }
           return invalidate(q.tool(endpoints.tool, id));
         },
@@ -332,15 +352,15 @@ const updateHook = <TRead, TUpdate>(
 
 const deleteHook = (
   endpoints: {
-    remove: (guildId: number, id: number) => Promise<void>;
+    remove: (communityId: number, id: number) => Promise<void>;
     tool: Tool;
   },
   errorKey: string
 ) => {
   return (options?: MutationOpts<void, number>) =>
-    useGuildMutation<void, number>(
+    useCommunityMutation<void, number>(
       {
-        mutationFn: (guildId, id) => endpoints.remove(guildId, id),
+        mutationFn: (communityId, id) => endpoints.remove(communityId, id),
         invalidate: () => invalidate(q.toolList(endpoints.tool)),
         errorKey,
       },
@@ -351,15 +371,15 @@ const deleteHook = (
 /** The whole non-owner sharing state at once (unified resource sharing). */
 const grantsHook = <TRead>(
   endpoints: {
-    setGrants: (guildId: number, id: number, grants: ResourceGrantSchema[]) => Promise<TRead>;
+    setGrants: (communityId: number, id: number, grants: ResourceGrantSchema[]) => Promise<TRead>;
     tool: Tool;
   },
   errorKey: string
 ) => {
   return (id: number, options?: MutationOpts<TRead, ResourceGrantSchema[]>) =>
-    useGuildMutation<TRead, ResourceGrantSchema[]>(
+    useCommunityMutation<TRead, ResourceGrantSchema[]>(
       {
-        mutationFn: (guildId, grants) => endpoints.setGrants(guildId, id, grants),
+        mutationFn: (communityId, grants) => endpoints.setGrants(communityId, id, grants),
         invalidate: () => invalidate(q.tool(endpoints.tool, id)),
         errorKey,
       },
@@ -369,16 +389,17 @@ const grantsHook = <TRead>(
 
 /** Everything the generated client offers for a tool with no exceptions. */
 interface ToolEndpoints<TRead, TList, TMyList, TCreate, TUpdate, TParams> {
-  listKey: (guildId: number, params?: TParams) => CacheKey;
-  list: (guildId: number, params?: TParams) => Promise<TList>;
+  listKey: (communityId: number, params?: TParams) => CacheKey;
+  list: (communityId: number, params?: TParams) => Promise<TList>;
   myListKey: (params?: ToolMyListParams) => CacheKey;
   myList: (params?: ToolMyListParams) => Promise<TMyList>;
-  detailKey: (guildId: number, id: number) => CacheKey;
-  detail: (guildId: number, id: number) => Promise<TRead>;
-  create: (guildId: number, data: TCreate) => Promise<TRead>;
-  update: (guildId: number, id: number, data: TUpdate) => Promise<TRead>;
-  remove: (guildId: number, id: number) => Promise<void>;
-  setGrants: (guildId: number, id: number, grants: ResourceGrantSchema[]) => Promise<TRead>;
+  detailKey: (communityId: number, id: number) => CacheKey;
+  detail: (communityId: number, id: number) => Promise<TRead>;
+  create: (communityId: number, data: TCreate) => Promise<TRead>;
+  update: (communityId: number, id: number, data: TUpdate) => Promise<TRead>;
+  remove: (communityId: number, id: number) => Promise<void>;
+  setGrants: (communityId: number, id: number, grants: ResourceGrantSchema[]) => Promise<TRead>;
+  duplicate: Duplicate;
   /** Which tool this is — what its writes make stale follows from it. */
   tool: Tool;
 }
@@ -395,6 +416,7 @@ const makeToolHooks = <TRead, TList, TMyList, TCreate, TUpdate, TParams>(
   return {
     ...listQueries(endpoints),
     create: endpoints.create,
+    duplicate: endpoints.duplicate,
     useList: listHook(endpoints),
     useDetail: detailHook(endpoints),
     useCreate: createHook(endpoints, errorKey),
@@ -407,44 +429,47 @@ const makeToolHooks = <TRead, TList, TMyList, TCreate, TUpdate, TParams>(
 // ── One record per tool ──────────────────────────────────────────────────────
 
 const calendarEndpoints = {
-  listKey: getListCalendarsApiV1CGuildIdCalendarsGetQueryKey,
-  list: listCalendarsApiV1CGuildIdCalendarsGet,
-  myListKey: getListMyCalendarsApiV1MeCalendarsGetQueryKey,
-  myList: listMyCalendarsApiV1MeCalendarsGet,
-  detailKey: getReadCalendarApiV1CGuildIdCalendarsCalendarIdGetQueryKey,
-  detail: readCalendarApiV1CGuildIdCalendarsCalendarIdGet,
-  create: createCalendarApiV1CGuildIdCalendarsPost,
-  update: updateCalendarApiV1CGuildIdCalendarsCalendarIdPatch,
-  remove: deleteCalendarApiV1CGuildIdCalendarsCalendarIdDelete,
-  setGrants: setCalendarGrantsApiV1CGuildIdCalendarsCalendarIdGrantsPut,
+  listKey: getListCalendarsQueryKey,
+  list: listCalendars,
+  myListKey: getListMyCalendarsQueryKey,
+  myList: listMyCalendars,
+  detailKey: getReadCalendarQueryKey,
+  detail: readCalendar,
+  create: createCalendar,
+  update: updateCalendar,
+  remove: deleteCalendar,
+  setGrants: setCalendarGrants,
+  duplicate: duplicateCalendar,
   tool: Tool.calendar,
 };
 
 const counterGroupEndpoints = {
-  listKey: getListCounterGroupsApiV1CGuildIdCounterGroupsGetQueryKey,
-  list: listCounterGroupsApiV1CGuildIdCounterGroupsGet,
-  myListKey: getListMyCounterGroupsApiV1MeCounterGroupsGetQueryKey,
-  myList: listMyCounterGroupsApiV1MeCounterGroupsGet,
-  detailKey: getReadCounterGroupApiV1CGuildIdCounterGroupsGroupIdGetQueryKey,
-  detail: readCounterGroupApiV1CGuildIdCounterGroupsGroupIdGet,
-  create: createCounterGroupApiV1CGuildIdCounterGroupsPost,
-  update: updateCounterGroupApiV1CGuildIdCounterGroupsGroupIdPatch,
-  remove: deleteCounterGroupApiV1CGuildIdCounterGroupsGroupIdDelete,
-  setGrants: setCounterGroupGrantsApiV1CGuildIdCounterGroupsGroupIdGrantsPut,
+  listKey: getListCounterGroupsQueryKey,
+  list: listCounterGroups,
+  myListKey: getListMyCounterGroupsQueryKey,
+  myList: listMyCounterGroups,
+  detailKey: getReadCounterGroupQueryKey,
+  detail: readCounterGroup,
+  create: createCounterGroup,
+  update: updateCounterGroup,
+  remove: deleteCounterGroup,
+  setGrants: setCounterGroupGrants,
+  duplicate: duplicateCounterGroup,
   tool: Tool.counter_group,
 };
 
 const dashboardEndpoints = {
-  listKey: getListDashboardsApiV1CGuildIdDashboardsGetQueryKey,
-  list: listDashboardsApiV1CGuildIdDashboardsGet,
-  myListKey: getListMyDashboardsApiV1MeDashboardsGetQueryKey,
-  myList: listMyDashboardsApiV1MeDashboardsGet,
-  detailKey: getReadDashboardApiV1CGuildIdDashboardsDashboardIdGetQueryKey,
-  detail: readDashboardApiV1CGuildIdDashboardsDashboardIdGet,
-  create: createDashboardApiV1CGuildIdDashboardsPost,
-  update: updateDashboardApiV1CGuildIdDashboardsDashboardIdPatch,
-  remove: deleteDashboardApiV1CGuildIdDashboardsDashboardIdDelete,
-  setGrants: setDashboardGrantsApiV1CGuildIdDashboardsDashboardIdGrantsPut,
+  listKey: getListDashboardsQueryKey,
+  list: listDashboards,
+  myListKey: getListMyDashboardsQueryKey,
+  myList: listMyDashboards,
+  detailKey: getReadDashboardQueryKey,
+  detail: readDashboard,
+  create: createDashboard,
+  update: updateDashboard,
+  remove: deleteDashboard,
+  setGrants: setDashboardGrants,
+  duplicate: duplicateDashboard,
   tool: Tool.dashboard,
 };
 
@@ -454,53 +479,56 @@ const dashboardEndpoints = {
 // relationship graph) — all three live in `useDocuments.ts`. The list QUERY is
 // here like every other tool's, and that hook wraps it.
 const documentEndpoints = {
-  listKey: getListDocumentsApiV1CGuildIdDocumentsGetQueryKey,
+  listKey: getListDocumentsQueryKey,
   // `page_size: 0` asks for the complete set, which the server serves in
   // windows; this walks them. A positive page size passes straight through.
-  list: (guildId: number, params?: ListDocumentsApiV1CGuildIdDocumentsGetParams) =>
-    fetchAllPages(listDocumentsApiV1CGuildIdDocumentsGet, guildId, params ?? {}),
-  myListKey: getListMyDocumentsApiV1MeDocumentsGetQueryKey,
-  myList: listMyDocumentsApiV1MeDocumentsGet,
-  detailKey: getReadDocumentApiV1CGuildIdDocumentsDocumentIdGetQueryKey,
-  detail: readDocumentApiV1CGuildIdDocumentsDocumentIdGet,
-  remove: deleteDocumentApiV1CGuildIdDocumentsDocumentIdDelete,
-  setGrants: setDocumentGrantsApiV1CGuildIdDocumentsDocumentIdGrantsPut,
+  list: (communityId: number, params?: ListDocumentsParams) =>
+    fetchAllPages(listDocuments, communityId, params ?? {}),
+  myListKey: getListMyDocumentsQueryKey,
+  myList: listMyDocuments,
+  detailKey: getReadDocumentQueryKey,
+  detail: readDocument,
+  remove: deleteDocument,
+  setGrants: setDocumentGrants,
   tool: Tool.document,
 };
 
 const documentHooks = {
   ...listQueries(documentEndpoints),
-  create: createDocumentApiV1CGuildIdDocumentsPost,
+  create: createDocument,
+  duplicate: duplicateDocument,
   useDetail: detailHook(documentEndpoints),
   useDelete: deleteHook(documentEndpoints, "documents:bulk.deleteError"),
   useSetGrants: grantsHook(documentEndpoints, "documents:settings.updateAccessError"),
 };
 
 const galleryEndpoints = {
-  listKey: getListGalleriesApiV1CGuildIdGalleriesGetQueryKey,
-  list: listGalleriesApiV1CGuildIdGalleriesGet,
-  myListKey: getListMyGalleriesApiV1MeGalleriesGetQueryKey,
-  myList: listMyGalleriesApiV1MeGalleriesGet,
-  detailKey: getReadGalleryApiV1CGuildIdGalleriesGalleryIdGetQueryKey,
-  detail: readGalleryApiV1CGuildIdGalleriesGalleryIdGet,
-  create: createGalleryApiV1CGuildIdGalleriesPost,
-  update: updateGalleryApiV1CGuildIdGalleriesGalleryIdPatch,
-  remove: deleteGalleryApiV1CGuildIdGalleriesGalleryIdDelete,
-  setGrants: setGalleryGrantsApiV1CGuildIdGalleriesGalleryIdGrantsPut,
+  listKey: getListGalleriesQueryKey,
+  list: listGalleries,
+  myListKey: getListMyGalleriesQueryKey,
+  myList: listMyGalleries,
+  detailKey: getReadGalleryQueryKey,
+  detail: readGallery,
+  create: createGallery,
+  update: updateGallery,
+  remove: deleteGallery,
+  setGrants: setGalleryGrants,
+  duplicate: duplicateGallery,
   tool: Tool.gallery,
 };
 
 const postEndpoints = {
-  listKey: getListPostsApiV1CGuildIdPostsGetQueryKey,
-  list: listPostsApiV1CGuildIdPostsGet,
-  myListKey: getListMyPostsApiV1MePostsGetQueryKey,
-  myList: listMyPostsApiV1MePostsGet,
-  detailKey: getReadPostApiV1CGuildIdPostsPostIdGetQueryKey,
-  detail: readPostApiV1CGuildIdPostsPostIdGet,
-  create: createPostApiV1CGuildIdPostsPost,
-  update: updatePostApiV1CGuildIdPostsPostIdPatch,
-  remove: deletePostApiV1CGuildIdPostsPostIdDelete,
-  setGrants: setPostGrantsApiV1CGuildIdPostsPostIdGrantsPut,
+  listKey: getListPostsQueryKey,
+  list: listPosts,
+  myListKey: getListMyPostsQueryKey,
+  myList: listMyPosts,
+  detailKey: getReadPostQueryKey,
+  detail: readPost,
+  create: createPost,
+  update: updatePost,
+  remove: deletePost,
+  setGrants: setPostGrants,
+  duplicate: duplicatePost,
   tool: Tool.post,
 };
 
@@ -508,21 +536,22 @@ const postEndpoints = {
 // alone) — both live in `useProjects.ts`. The list QUERY is here like every
 // other tool's, and that hook wraps it.
 const projectEndpoints = {
-  listKey: getListProjectsApiV1CGuildIdProjectsGetQueryKey,
-  list: listProjectsApiV1CGuildIdProjectsGet,
-  myListKey: getListMyProjectsApiV1MeProjectsGetQueryKey,
-  myList: listMyProjectsApiV1MeProjectsGet,
-  detailKey: getReadProjectApiV1CGuildIdProjectsProjectIdGetQueryKey,
-  detail: readProjectApiV1CGuildIdProjectsProjectIdGet,
-  create: createProjectApiV1CGuildIdProjectsPost,
-  remove: deleteProjectApiV1CGuildIdProjectsProjectIdDelete,
-  setGrants: setProjectGrantsApiV1CGuildIdProjectsProjectIdGrantsPut,
+  listKey: getListProjectsQueryKey,
+  list: listProjects,
+  myListKey: getListMyProjectsQueryKey,
+  myList: listMyProjects,
+  detailKey: getReadProjectQueryKey,
+  detail: readProject,
+  create: createProject,
+  remove: deleteProject,
+  setGrants: setProjectGrants,
   tool: Tool.project,
 };
 
 const projectHooks = {
   ...listQueries(projectEndpoints),
   create: projectEndpoints.create,
+  duplicate: duplicateProject,
   useDetail: detailHook(projectEndpoints),
   useCreate: createHook(projectEndpoints, "projects:createDialog.createError"),
   useDelete: deleteHook(projectEndpoints, "projects:detail.deleteError"),
@@ -530,30 +559,32 @@ const projectHooks = {
 };
 
 const queueEndpoints = {
-  listKey: getListQueuesApiV1CGuildIdQueuesGetQueryKey,
-  list: listQueuesApiV1CGuildIdQueuesGet,
-  myListKey: getListMyQueuesApiV1MeQueuesGetQueryKey,
-  myList: listMyQueuesApiV1MeQueuesGet,
-  detailKey: getReadQueueApiV1CGuildIdQueuesQueueIdGetQueryKey,
-  detail: readQueueApiV1CGuildIdQueuesQueueIdGet,
-  create: createQueueApiV1CGuildIdQueuesPost,
-  update: updateQueueApiV1CGuildIdQueuesQueueIdPatch,
-  remove: deleteQueueApiV1CGuildIdQueuesQueueIdDelete,
-  setGrants: setQueueGrantsApiV1CGuildIdQueuesQueueIdGrantsPut,
+  listKey: getListQueuesQueryKey,
+  list: listQueues,
+  myListKey: getListMyQueuesQueryKey,
+  myList: listMyQueues,
+  detailKey: getReadQueueQueryKey,
+  detail: readQueue,
+  create: createQueue,
+  update: updateQueue,
+  remove: deleteQueue,
+  setGrants: setQueueGrants,
+  duplicate: duplicateQueue,
   tool: Tool.queue,
 };
 
 const wikiEndpoints = {
-  listKey: getListWikisApiV1CGuildIdWikisGetQueryKey,
-  list: listWikisApiV1CGuildIdWikisGet,
-  myListKey: getListMyWikisApiV1MeWikisGetQueryKey,
-  myList: listMyWikisApiV1MeWikisGet,
-  detailKey: getReadWikiApiV1CGuildIdWikisWikiIdGetQueryKey,
-  detail: readWikiApiV1CGuildIdWikisWikiIdGet,
-  create: createWikiApiV1CGuildIdWikisPost,
-  update: updateWikiApiV1CGuildIdWikisWikiIdPatch,
-  remove: deleteWikiApiV1CGuildIdWikisWikiIdDelete,
-  setGrants: setWikiGrantsApiV1CGuildIdWikisWikiIdGrantsPut,
+  listKey: getListWikisQueryKey,
+  list: listWikis,
+  myListKey: getListMyWikisQueryKey,
+  myList: listMyWikis,
+  detailKey: getReadWikiQueryKey,
+  detail: readWiki,
+  create: createWiki,
+  update: updateWiki,
+  remove: deleteWiki,
+  setGrants: setWikiGrants,
+  duplicate: duplicateWiki,
   tool: Tool.wiki,
 };
 
@@ -569,7 +600,7 @@ const wikiEndpoints = {
  */
 interface ToolQueries {
   listQuery: (
-    guildId: number,
+    communityId: number,
     params?: ToolListParams
   ) => { queryKey: CacheKey; queryFn: () => Promise<ToolListPage> };
   myListQuery: (params?: ToolMyListParams) => {
@@ -578,9 +609,11 @@ interface ToolQueries {
   };
   /** Makes one from a name and its initiative — what `useCreateTool` sends every tool. */
   create: (
-    guildId: number,
+    communityId: number,
     data: { name: string; initiative_id: number }
   ) => Promise<{ id: number }>;
+  /** Copies one into an initiative — what the settings page's duplicate card sends. */
+  duplicate: Duplicate;
 }
 
 /**
@@ -601,3 +634,20 @@ export const TOOL_HOOKS = {
   [Tool.gallery]: makeToolHooks(galleryEndpoints, { seedsDetailOnUpdate: true }),
   [Tool.wiki]: makeToolHooks(wikiEndpoints),
 } satisfies Record<Tool, ToolQueries>;
+
+/**
+ * Copy one of `tool` into an initiative, its own unless `data` names another.
+ * The new one is in that tool's lists, so they refetch.
+ */
+export const useDuplicateTool = (
+  tool: Tool,
+  options?: MutationOpts<Duplicated, { id: number; data: ToolDuplicateRequest }>
+) =>
+  useCommunityMutation<Duplicated, { id: number; data: ToolDuplicateRequest }>(
+    {
+      mutationFn: (communityId, { id, data }) => TOOL_HOOKS[tool].duplicate(communityId, id, data),
+      invalidate: () => invalidate(q.toolList(tool)),
+      errorKey: "common:toolSettings.duplicate.error",
+    },
+    options
+  );

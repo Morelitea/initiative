@@ -10,12 +10,12 @@ import { type FormEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
-  getListPasskeysApiV1AuthPasskeysGetQueryKey,
-  useBeginPasskeyRegistrationApiV1AuthPasskeysRegisterBeginPost,
-  useFinishPasskeyRegistrationApiV1AuthPasskeysRegisterFinishPost,
-  useListPasskeysApiV1AuthPasskeysGet,
-  useRemovePasskeyApiV1AuthPasskeysPasskeyIdRemovePost,
-  useRenamePasskeyApiV1AuthPasskeysPasskeyIdPatch,
+  getListPasskeysQueryKey,
+  useBeginPasskeyRegistration,
+  useFinishPasskeyRegistration,
+  useListPasskeys,
+  useRemovePasskey,
+  useRenamePasskey,
 } from "@/api/generated/auth/auth";
 import type {
   PasskeyRead,
@@ -34,11 +34,12 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { WizardDialog } from "@/components/ui/wizard-dialog";
+import { useAnnounceHeld } from "@/hooks/useHeldChange";
 import { useServer } from "@/hooks/useServer";
 import { useWizard } from "@/hooks/useWizard";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { formatDateTime } from "@/lib/formatDate";
+import { toast } from "@/lib/mascotToast";
 import { hasReservedSigil } from "@/lib/mentions";
 import { queryClient } from "@/lib/queryClient";
 
@@ -91,11 +92,11 @@ const promptMessageKey = (error: unknown): PromptMessageKey => {
  */
 export const PasskeysSection = () => {
   const { t } = useTranslation(["settings", "errors", "common"]);
+  const announceHeld = useAnnounceHeld();
   const { isNativePlatform, getServerOrigin } = useServer();
 
-  const list = useListPasskeysApiV1AuthPasskeysGet();
-  const refresh = () =>
-    queryClient.invalidateQueries({ queryKey: getListPasskeysApiV1AuthPasskeysGetQueryKey() });
+  const list = useListPasskeys();
+  const refresh = () => queryClient.invalidateQueries({ queryKey: getListPasskeysQueryKey() });
 
   const [addOpen, setAddOpen] = useState(false);
   const { step, go, back, reset } = useWizard<AddStep>("details");
@@ -143,7 +144,7 @@ export const PasskeysSection = () => {
     setError(null);
   };
 
-  const finish = useFinishPasskeyRegistrationApiV1AuthPasskeysRegisterFinishPost({
+  const finish = useFinishPasskeyRegistration({
     mutation: {
       onSuccess: () => {
         toast.success(t("passkeys.added"));
@@ -157,7 +158,7 @@ export const PasskeysSection = () => {
     },
   });
 
-  const begin = useBeginPasskeyRegistrationApiV1AuthPasskeysRegisterBeginPost({
+  const begin = useBeginPasskeyRegistration({
     mutation: {
       onSuccess: async (data) => {
         setError(null);
@@ -183,7 +184,7 @@ export const PasskeysSection = () => {
     },
   });
 
-  const rename = useRenamePasskeyApiV1AuthPasskeysPasskeyIdPatch({
+  const rename = useRenamePasskey({
     mutation: {
       onSuccess: () => {
         toast.success(t("passkeys.renamed"));
@@ -194,10 +195,11 @@ export const PasskeysSection = () => {
     },
   });
 
-  const remove = useRemovePasskeyApiV1AuthPasskeysPasskeyIdRemovePost({
+  const remove = useRemovePasskey({
     mutation: {
-      onSuccess: () => {
-        toast.success(t("passkeys.removed"));
+      onSuccess: (result) => {
+        if (result.held) announceHeld(result.held);
+        else toast.success(t("passkeys.removed"));
         void refresh();
         setRemoveTarget(null);
         setRemovePassword("");

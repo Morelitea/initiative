@@ -4,6 +4,7 @@ from typing import Any, Optional
 
 from sqlalchemy import (
     ARRAY,
+    Boolean,
     CheckConstraint,
     Column,
     DateTime,
@@ -140,4 +141,16 @@ class AuthSession(SQLModel, table=True):
     ip: Optional[str] = Field(default=None, sa_column=Column(INET, nullable=True))
     device_name: Optional[str] = Field(
         default=None, sa_column=Column(Text, nullable=True)
+    )
+    #: Opened by the phone or desktop app, which stays signed in for longer
+    #: than a browser does. Carried across every renewal and step-up.
+    device: bool = Field(
+        default=False,
+        sa_column=Column(Boolean, nullable=False, server_default=text("false")),
+    )
+    #: When the sign-in this session continues began, where it took the place
+    #: of another (a step-up, a replacement). Its own chain starts afresh, so
+    #: this is what still says how long the person has been signed in here.
+    continues_since: Optional[datetime] = Field(
+        default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
     )

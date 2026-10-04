@@ -16,7 +16,7 @@ import * as Y from "yjs";
 
 import { apiClient } from "@/api/client";
 import { toBase64 } from "@/lib/base64";
-import { buildGuildWsUrl } from "@/lib/wsUrl";
+import { buildCommunityWsUrl } from "@/lib/wsUrl";
 import {
   type CollaborationProvider,
   type CollaboratorInfo,
@@ -25,7 +25,7 @@ import {
 } from "@/lib/yjs/CollaborationProvider";
 
 import { useAuth } from "./useAuth";
-import { useGuilds } from "./useGuilds";
+import { useCommunities } from "./useCommunities";
 
 export type ConnectionStatus = "disconnected" | "connecting" | "connected" | "error";
 
@@ -35,9 +35,9 @@ const KEEPALIVE_LIMIT = 60_000;
 export interface UseCollaborationOptions {
   /**
    * The room, as the server addresses it: the collaboration path under
-   * `/c/{guildId}/collaboration/`. A document is
+   * `/c/{communityId}/collaboration/`. A document is
    * `documents/{id}/collaborate`; a wiki page is
-   * `wikis/{wikiId}/pages/{pageId}/collaborate`.
+   * `wiki-pages/{id}/collaborate`.
    *
    * The path IS the identity — changing it is what tears the old socket down
    * and opens the new one — so nothing else needs to say which body this is.
@@ -47,17 +47,12 @@ export interface UseCollaborationOptions {
   enabled?: boolean;
   onSynced?: () => void;
   onError?: (error: Error) => void;
-  /** The editor's rendering of the document as the page leaves, or
-   *  ``undefined`` for none. Handed to the room as the page is hidden or
-   *  left — over the socket, or with the handed-over edits when the socket
-   *  is gone — so the room's last save carries it. */
-  finalContent?: () => unknown;
 }
 
 export interface UseCollaborationResult {
   /**
    * Factory function for Lexical's CollaborationPlugin.
-   * Returns null if collaboration is not ready (missing auth, guild, etc.)
+   * Returns null if collaboration is not ready (missing auth, community, etc.)
    */
   providerFactory: ((id: string, yjsDocMap: Map<string, Y.Doc>) => CollaborationProvider) | null;
   /** Current connection status */
@@ -85,10 +80,6 @@ export interface UseCollaborationResult {
   /** Start the connection over with a fresh retry budget — what to call when
    *  the network is back and the socket should stop waiting out its backoff. */
   resume: () => void;
-  /** Hand the document's room the editor's JSON rendering of it, so the room
-   *  writes that and the Yjs state together. No-op when not collaborating —
-   *  the caller then saves it over REST instead. */
-  sendContent: (content: unknown) => void;
 }
 
 export function useCollaboration({
@@ -96,10 +87,9 @@ export function useCollaboration({
   enabled = true,
   onSynced,
   onError,
-  finalContent,
 }: UseCollaborationOptions): UseCollaborationResult {
   const { user } = useAuth();
-  const { activeGuildId } = useGuilds();
+  const { activeCommunityId } = useCommunities();
 
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("disconnected");
   const [isSynced, setIsSynced] = useState(false);
@@ -122,48 +112,34 @@ export function useCollaboration({
   // has already left.
   const onSyncedRef = useRef<UseCollaborationOptions["onSynced"]>(onSynced);
   const onErrorRef = useRef<UseCollaborationOptions["onError"]>(onError);
-  const finalContentRef = useRef<UseCollaborationOptions["finalContent"]>(finalContent);
   useEffect(() => {
     onSyncedRef.current = onSynced;
     onErrorRef.current = onError;
-    finalContentRef.current = finalContent;
-  }, [onSynced, onError, finalContent]);
+  }, [onSynced, onError]);
 
   // Check if we have all required values
-  const isReady = Boolean(enabled && user && activeGuildId && socketPath);
+  const isReady = Boolean(enabled && user && activeCommunityId && socketPath);
 
   // Build the WebSocket URL (memoized to detect changes). The credential
-  // rides in the socket's first frame, never the URL; the guild is the
-  // /c/{guildId} path segment.
+  // rides in the socket's first frame, never the URL; the community is the
+  // /c/{communityId} path segment.
   const wsUrl = useMemo(() => {
-    if (!isReady || !activeGuildId) {
+    if (!isReady || !activeCommunityId) {
       return null;
     }
-    return buildGuildWsUrl(activeGuildId, `collaboration/${socketPath}`);
-  }, [isReady, activeGuildId, socketPath]);
+    return buildCommunityWsUrl(activeCommunityId, `collaboration/${socketPath}`);
+  }, [isReady, activeCommunityId, socketPath]);
 
   // Hand the room anything this tab has that it has not seen, as the page is
-  // hidden or left. Over the socket when it is open — the rendering is all
-  // the room lacks — and otherwise as a keepalive request that outlives the
-  // page: the edits made while the socket was gone, merged into the room
-  // there, and the rendering with them when it fits.
+  // hidden or left while the socket is gone: the edits made meanwhile, as a
+  // keepalive request that outlives the page, merged into the room there.
   const handOver = useCallback(() => {
     const provider = providerRef.current;
     const path = handoverPathRef.current;
-    if (!provider || !path) return;
-    const rendering = finalContentRef.current?.();
-    if (provider.connected) {
-      if (rendering !== undefined) provider.sendContent(rendering);
-      return;
-    }
+    if (!provider || !path || provider.connected) return;
     const unsent = provider.unsentEdits();
     if (!unsent) return;
-    const edits = {
-      update: toBase64(unsent.update),
-      state_vector: toBase64(unsent.stateVector),
-    };
-    let body = JSON.stringify({ ...edits, content: rendering ?? null });
-    if (body.length > KEEPALIVE_LIMIT) body = JSON.stringify(edits);
+    const body = JSON.stringify({ update: toBase64(unsent.update) });
     apiClient
       .post(path, body, {
         headers: { "Content-Type": "application/json" },
@@ -186,7 +162,7 @@ export function useCollaboration({
     };
   }, [handOver]);
 
-  // Clean up provider when URL changes (a guild change, or a move to another
+  // Clean up provider when URL changes (a community change, or a move to another
   // body entirely). A renewed credential is not a change: the socket reads it
   // as it writes each first frame.
   useEffect(() => {
@@ -203,8 +179,8 @@ export function useCollaboration({
     }
     currentWsUrlRef.current = wsUrl;
     handoverPathRef.current =
-      wsUrl && activeGuildId ? `/c/${activeGuildId}/collaboration/${socketPath}` : null;
-  }, [wsUrl, activeGuildId, socketPath, handOver]);
+      wsUrl && activeCommunityId ? `/c/${activeCommunityId}/collaboration/${socketPath}` : null;
+  }, [wsUrl, activeCommunityId, socketPath, handOver]);
 
   // Create the provider factory that Lexical's CollaborationPlugin will call
   const providerFactory = useMemo(() => {
@@ -407,10 +383,6 @@ export function useCollaboration({
     providerRef.current?.resume();
   }, []);
 
-  const sendContent = useCallback((content: unknown) => {
-    providerRef.current?.sendContent(content);
-  }, []);
-
   // Sticky until the room changes: set from the one place that learns of a
   // sync, whichever path the provider took to get there.
   useEffect(() => {
@@ -430,7 +402,6 @@ export function useCollaboration({
       isCollaborating,
       isReady,
       resume,
-      sendContent,
     }),
     [
       providerFactory,
@@ -442,7 +413,6 @@ export function useCollaboration({
       isCollaborating,
       isReady,
       resume,
-      sendContent,
     ]
   );
 }

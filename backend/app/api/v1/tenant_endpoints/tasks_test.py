@@ -23,7 +23,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlmodel import select
 
 from app.services.tenant.task_creation import advance_recurrence_if_needed
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.tenant.task import Task, TaskStatusCategory
 from app.models.tenant.resource_grant import ResourceAccessLevel
 from app.testing.schema_harness import route_session_to_guild
@@ -76,7 +76,9 @@ async def test_list_tasks_in_project(
 ):
     """Test listing tasks filtered by project. A row carries its description
     as a plain-text excerpt and a flag, never the whole text."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     long = await create_task(
         session,
         a.project,
@@ -117,7 +119,7 @@ async def test_list_tasks_in_project(
             " with everyone. Draft…",
             True,
         ),
-        short.id: ("Ask @Mel about the budget.", True),
+        short.id: (f"Ask @[]({a.user.id}) about the budget.", True),
         linked.id: ("Read…", True),
         bare.id: (None, False),
     }
@@ -134,11 +136,11 @@ async def test_list_tasks_hides_a_project_the_member_holds_no_grant_on(
     resolved.
     """
     owner = await acting_user(
-        guild_role=GuildRole.member, initiative=True, project=True
+        guild_role=CommunityRole.member, initiative=True, project=True
     )
     # Same initiative; create_project seeds only the owner's grant.
     member = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=owner.guild,
         initiative=owner.initiative,
         initiative_role="member",
@@ -174,9 +176,9 @@ async def test_list_tasks_guild_admin_sees_unjoined_project(
     # ``owner`` (a plain guild member) builds the initiative + project, so the
     # admin is neither a member nor a permission holder.
     owner = await acting_user(
-        guild_role=GuildRole.member, initiative=True, project=True
+        guild_role=CommunityRole.member, initiative=True, project=True
     )
-    admin = await acting_user(guild_role=GuildRole.admin, guild=owner.guild)
+    admin = await acting_user(guild_role=CommunityRole.admin, guild=owner.guild)
 
     task1 = await _create_task(session, owner.project, "Hidden Task 1")
     task2 = await _create_task(session, owner.project, "Hidden Task 2")
@@ -206,9 +208,9 @@ async def test_a_project_filter_that_narrows_nothing_does_not_widen_access(
     and it still answers in full.
     """
     owner = await acting_user(
-        guild_role=GuildRole.member, initiative=True, project=True
+        guild_role=CommunityRole.member, initiative=True, project=True
     )
-    admin = await acting_user(guild_role=GuildRole.admin, guild=owner.guild)
+    admin = await acting_user(guild_role=CommunityRole.admin, guild=owner.guild)
     hidden = await _create_task(session, owner.project, "Hidden Task")
 
     # Negated equality: every project EXCEPT the named one.
@@ -248,7 +250,9 @@ async def test_an_archived_project_still_lists_its_tasks(
     A task archived earlier, on its own, carries a different stamp and stays
     behind the "show archived" toggle, as it does in a live project.
     """
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     earlier = await create_task(session, a.project, title="Archived earlier")
     await client.post(a.g(f"/archive/task/{earlier.id}"), headers=a.headers)
     task = await create_task(session, a.project, title="Archived with project")
@@ -284,7 +288,9 @@ async def test_create_task(client: AsyncClient, session: AsyncSession, acting_us
     zone it was picked in; a repeat a task can't have is refused."""
     from app.services.tenant import task_statuses as task_statuses_service
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
 
     # Create a task status
     await task_statuses_service.ensure_default_statuses(session, a.project.id)
@@ -327,7 +333,9 @@ async def test_create_task_with_status(
     """A non-default ``task_status_id`` is honored on create."""
     from app.services.tenant import task_statuses as task_statuses_service
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     await task_statuses_service.ensure_default_statuses(session, a.project.id)
     statuses = await task_statuses_service.list_statuses(session, a.project.id)
     default_status = await task_statuses_service.get_default_status(
@@ -356,7 +364,9 @@ async def test_create_task_with_tags(
     """``tag_ids`` on create attaches the tags in the same request."""
     from app.testing.factories import create_tag
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     tag1 = await create_tag(session, a.guild, name="urgent")
     tag2 = await create_tag(session, a.guild, name="backend")
 
@@ -381,7 +391,9 @@ async def test_a_create_naming_something_it_cannot_reach_persists_no_task(
     """The whole create is refused, and no half-written task survives it."""
     from sqlmodel import func, select
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
 
     response = await client.post(
         a.g("/tasks/"),
@@ -411,7 +423,9 @@ async def test_update_task_with_tags_and_properties(
     property values, unchanged."""
     from app.testing.factories import create_property_definition, create_tag
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     task = await _create_task(session, a.project)
     tag = await create_tag(session, a.guild, name="review")
     defn = await create_property_definition(session, a.initiative, name="Estimate")
@@ -442,6 +456,14 @@ async def test_update_task_with_tags_and_properties(
         defn.id: "later"
     }
 
+    # A required field is omitted to keep it, never nulled.
+    for field in ("title", "priority"):
+        response = await client.patch(
+            a.g(f"/tasks/{task.id}"), headers=a.headers, json={field: None}
+        )
+        assert response.status_code == 422, field
+        assert "FIELD_CANNOT_BE_NULL" in response.text, field
+
     # An explicit empty list clears the tags.
     response = await client.patch(
         a.g(f"/tasks/{task.id}"), headers=a.headers, json={"tag_ids": []}
@@ -455,10 +477,10 @@ async def test_create_task_requires_project_access(
 ):
     """Test that creating tasks requires project access."""
     owner = await acting_user(
-        guild_role=GuildRole.member, initiative=True, project=True
+        guild_role=CommunityRole.member, initiative=True, project=True
     )
     # ``outsider`` is a guild member but NOT an initiative member.
-    outsider = await acting_user(guild_role=GuildRole.member, guild=owner.guild)
+    outsider = await acting_user(guild_role=CommunityRole.member, guild=owner.guild)
 
     from app.services.tenant import task_statuses as task_statuses_service
 
@@ -483,7 +505,9 @@ async def test_create_task_requires_project_access(
 
 async def test_get_task_by_id(client: AsyncClient, session: AsyncSession, acting_user):
     """Test getting a task by ID."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     task = await _create_task(session, a.project)
 
     response = await client.get(a.g(f"/tasks/{task.id}"), headers=a.headers)
@@ -498,7 +522,9 @@ async def test_get_task_not_found(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """Test getting non-existent task."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
 
     response = await client.get(a.g("/tasks/99999"), headers=a.headers)
 
@@ -507,7 +533,9 @@ async def test_get_task_not_found(
 
 async def test_update_task(client: AsyncClient, session: AsyncSession, acting_user):
     """Test updating a task."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     task = await _create_task(session, a.project)
 
     payload = {"title": "Updated Title", "description": "Updated description"}
@@ -538,9 +566,9 @@ async def test_a_task_of_an_initiative_the_member_is_not_in_is_not_found(
     RLS answers for a row it does not show the same way it answers for one
     that is not there."""
     owner = await acting_user(
-        guild_role=GuildRole.member, initiative=True, project=True
+        guild_role=CommunityRole.member, initiative=True, project=True
     )
-    outsider = await acting_user(guild_role=GuildRole.member, guild=owner.guild)
+    outsider = await acting_user(guild_role=CommunityRole.member, guild=owner.guild)
     task = await _create_task(session, owner.project)
 
     response = await client.request(
@@ -555,7 +583,9 @@ async def test_a_task_of_an_initiative_the_member_is_not_in_is_not_found(
 
 async def test_delete_task(client: AsyncClient, session: AsyncSession, acting_user):
     """Test deleting a task."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     task = await _create_task(session, a.project)
 
     response = await client.delete(a.g(f"/tasks/{task.id}"), headers=a.headers)
@@ -568,9 +598,11 @@ async def test_assign_user_to_task(
 ):
     """Anyone who can open the project can be assigned; someone it is not
     shared with cannot."""
-    user = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    user = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     assignee = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=user.guild,
         initiative=user.initiative,
         initiative_role="member",
@@ -600,9 +632,11 @@ async def test_unassigning_withdraws_the_pending_digest_item(
 ):
     """An assignment that is undone before the digest goes out should not be
     announced — the queue row is withdrawn along with the assignment."""
-    user = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    user = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     assignee = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=user.guild,
         initiative=user.initiative,
         initiative_role="member",
@@ -657,11 +691,13 @@ async def test_move_task_to_different_project(
 ):
     """Moving a task keeps the assignees who can open the destination and
     drops the rest."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     project1 = a.project
     project2 = await create_project(session, a.initiative, a.user, name="Project 2")
     member = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="member",
@@ -691,10 +727,57 @@ async def test_move_task_to_different_project(
     assert [assignee["id"] for assignee in data["assignees"]] == [a.user.id]
 
 
+async def test_a_task_moves_only_inside_an_initiative_that_keeps_its_content_in(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
+    a.initiative.keep_content_in = True
+    session.add(a.initiative)
+    nearby = await create_project(session, a.initiative, a.user)
+    elsewhere = await create_project(
+        session, await create_initiative(session, a.guild, a.user), a.user
+    )
+    task = await create_task(session, a.project)
+    await session.commit()
+
+    refused = await client.post(
+        a.g(f"/tasks/{task.id}/move"),
+        headers=a.headers,
+        json={"target_project_id": elsewhere.id},
+    )
+    assert refused.status_code == 403
+    assert refused.json()["detail"] == "INITIATIVE_CONTENT_KEPT_IN"
+
+    moved = await client.post(
+        a.g(f"/tasks/{task.id}/move"),
+        headers=a.headers,
+        json={"target_project_id": nearby.id},
+    )
+    assert moved.status_code == 200, moved.text
+
+
 async def test_duplicate_task(client: AsyncClient, session: AsyncSession, acting_user):
-    """Test duplicating a task."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
-    task = await _create_task(session, a.project, "Original Task")
+    """A copy goes beside the original, at the end of its project, and is
+    linked to what the original is linked to. It names only assignees who can
+    open the project, and leaves every other task's assignees as they are."""
+    from app.models.tenant.task import TaskAssignee
+
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
+    outsider = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
+    task = await create_task(
+        session, a.project, title="Original Task", assignees=[a.user, outsider.user]
+    )
+    other = await create_task(session, a.project, assignees=[outsider.user])
+    blocker = await _create_task(session, a.project, "Blocker")
+    await create_relationship(
+        session,
+        a.guild,
+        source=(SearchEntityType.task, task.id),
+        target=(SearchEntityType.task, blocker.id),
+        relationship_type=RelationshipType.depends_on,
+    )
 
     response = await client.post(
         a.g(f"/tasks/{task.id}/duplicate"), headers=a.headers, json={}
@@ -702,16 +785,24 @@ async def test_duplicate_task(client: AsyncClient, session: AsyncSession, acting
 
     assert response.status_code == 201
     data = response.json()
-    assert data["title"] == "Original Task (copy)"
+    assert data["title"] == "Original Task (Copy)"
     assert data["project_id"] == task.project_id
-    assert data["id"] != task.id
+    assert data["position"] > blocker.position
+    assert data["blocked_by_open_count"] == 1
+    assert [assignee["id"] for assignee in data["assignees"]] == [a.user.id]
+    still = await session.exec(
+        select(TaskAssignee.user_id).where(TaskAssignee.task_id == other.id)
+    )
+    assert still.all() == [outsider.user.id]
 
 
 async def test_create_task_with_checklist(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """A task can be created with its checklist already on it."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
 
     response = await client.post(
         a.g("/tasks/"),
@@ -742,7 +833,9 @@ async def test_checklist_replaced_by_task_patch(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """Adding, renaming, reordering and deleting all arrive as the whole list."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     task = await _create_task(session, a.project)
 
     first = await client.patch(
@@ -783,7 +876,9 @@ async def test_checklist_edit_does_not_carry_completion(
     Someone renaming a line holds whatever the list said when they opened it.
     A tick that lands in between is not theirs to undo.
     """
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     task = await _create_task(session, a.project)
     await client.patch(
         a.g(f"/tasks/{task.id}"),
@@ -824,7 +919,9 @@ async def test_checklist_new_item_keeps_the_state_it_arrived_with(
 ):
     """An item the task does not hold yet is taken at its word — which is what
     an import and a restore need."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     task = await _create_task(session, a.project)
 
     response = await client.patch(
@@ -844,7 +941,9 @@ async def test_an_over_long_checklist_can_still_be_shortened(
     It has to stay editable, so the cap stops a list growing, not shrinking."""
     from app.schemas.tenant.task import MAX_CHECKLIST_ITEMS
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     oversized = checklist_items(
         *[f"Step {index}" for index in range(MAX_CHECKLIST_ITEMS + 20)]
     )
@@ -872,7 +971,9 @@ async def test_an_over_long_checklist_can_still_be_shortened(
 async def test_checklist_capped_on_a_task_that_has_none(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     from app.schemas.tenant.task import MAX_CHECKLIST_ITEMS
 
     response = await client.post(
@@ -895,7 +996,9 @@ async def test_checklist_patch_omitted_leaves_it_alone(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """PATCH semantics: an absent checklist means "leave unchanged"."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     task = await _create_task(session, a.project)
 
     await client.patch(
@@ -915,7 +1018,9 @@ async def test_toggle_checklist_item(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """A tick names one item and leaves the rest of the list as it was."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     task = await _create_task(session, a.project)
     await client.patch(
         a.g(f"/tasks/{task.id}"),
@@ -951,7 +1056,9 @@ async def test_toggling_two_items_keeps_both(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """Ticks of different items accumulate rather than replacing each other."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     task = await _create_task(session, a.project)
     await client.patch(
         a.g(f"/tasks/{task.id}"),
@@ -979,7 +1086,9 @@ async def test_toggle_unknown_checklist_item(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """An id the task does not hold is a 404."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     task = await _create_task(session, a.project)
 
     response = await client.patch(
@@ -996,7 +1105,9 @@ async def test_checklist_progress_on_task_list(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """The list payload carries the count the cards and table rows draw."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     task = await _create_task(session, a.project)
     await client.patch(
         a.g(f"/tasks/{task.id}"),
@@ -1025,7 +1136,9 @@ async def test_duplicate_task_copies_checklist_unticked(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """The copy carries the same lines with nothing done."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     task = await _create_task(session, a.project)
     await client.patch(
         a.g(f"/tasks/{task.id}"),
@@ -1047,7 +1160,9 @@ async def test_duplicate_task_copies_checklist_unticked(
 
 async def test_reorder_tasks(client: AsyncClient, session: AsyncSession, acting_user):
     """Test reordering tasks within a project."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     task1 = await _create_task(session, a.project, "Task 1")
     task2 = await _create_task(session, a.project, "Task 2")
     task3 = await _create_task(session, a.project, "Task 3")
@@ -1091,7 +1206,9 @@ async def test_reorder_single_task_returns_only_affected(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """A reorder sends only the moved task and the response is slimmed to it."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     task1 = await _create_task(session, a.project, "Task 1")
     task2 = await _create_task(session, a.project, "Task 2")
     task3 = await _create_task(session, a.project, "Task 3")
@@ -1126,7 +1243,9 @@ async def test_reorder_rebalances_on_precision_exhaustion(
     updated_at of merely-renumbered (not explicitly moved) tasks untouched."""
     from datetime import datetime
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     task1 = await _create_task(session, a.project, "Task 1")
     task2 = await _create_task(session, a.project, "Task 2")
     task3 = await _create_task(session, a.project, "Task 3")
@@ -1176,14 +1295,14 @@ async def test_task_guild_isolation(
 ):
     """Test that tasks are isolated by guild."""
     # First guild (with a workspace) — the actor is admin of it.
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     task1 = await _create_task(session, a.project)
 
     # A SECOND guild for the SAME user (acting_user always makes a new user, so
     # build the second guild membership with the raw factories reusing a.user).
     guild2 = await create_guild(session, name="Guild 2")
     await create_guild_membership(
-        session, user=a.user, guild=guild2, role=GuildRole.admin
+        session, user=a.user, guild=guild2, role=CommunityRole.admin
     )
 
     # Cannot access guild1 task with guild2 context
@@ -1198,7 +1317,9 @@ async def test_list_my_tasks(client: AsyncClient, session: AsyncSession, acting_
     """Test listing tasks assigned to current user."""
     from app.models.tenant.task import TaskAssignee
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     other_user = await create_user(session, email="other@example.com")
     await create_guild_membership(session, user=other_user, guild=a.guild)
 
@@ -1229,7 +1350,9 @@ async def test_filter_tasks_by_status(
     """Test filtering tasks by status."""
     from app.services.tenant import task_statuses as task_statuses_service
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
 
     # Create statuses
     statuses = await task_statuses_service.ensure_default_statuses(
@@ -1286,7 +1409,10 @@ async def recurring_task_env(session: AsyncSession, acting_user):
 
     async def _env(**actor_kwargs):
         a = await acting_user(
-            guild_role=GuildRole.member, initiative=True, project=True, **actor_kwargs
+            guild_role=CommunityRole.member,
+            initiative=True,
+            project=True,
+            **actor_kwargs,
         )
         statuses = await task_statuses_service.ensure_default_statuses(
             session, a.project.id
@@ -1607,7 +1733,9 @@ async def test_filter_tasks_by_date_window_group(
     """
     from datetime import datetime, timezone
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
 
     async def _dated(title, start, due):
         task = await _create_task(session, a.project, title)
@@ -1673,7 +1801,9 @@ async def test_filter_tasks_by_date_window_group(
 async def test_list_tasks_rejects_conditions_nested_too_deeply(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     conditions = json.dumps(
         [
             {
@@ -1698,11 +1828,13 @@ async def test_read_task_includes_creator_summary(
     """The task read embeds a ``creator`` summary so the detail view can show
     'Created by …' without fetching the whole guild roster."""
     a = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         initiative=True,
         project=True,
         username="ada-c",
-        full_name="Ada C.",
+    )
+    await create_guild_membership(
+        session, user=a.user, guild=a.guild, display_name="Ada C."
     )
     create = await client.post(
         a.g("/tasks/"),
@@ -1718,10 +1850,9 @@ async def test_read_task_includes_creator_summary(
     assert body["created_by"] == a.user.id
     assert body["creator"] is not None
     assert body["creator"]["id"] == a.user.id
-    # The handle is always there; the name comes too, because this guild
-    # takes the default and shows them.
+    # The handle is always there, and the name she set in this guild with it.
     assert body["creator"]["username"] == "ada-c"
-    assert body["creator"]["full_name"] == "Ada C."
+    assert body["creator"]["display_name"] == "Ada C."
 
 
 async def _assignment_fixture(session, actor):
@@ -1737,7 +1868,9 @@ async def _assignment_fixture(session, actor):
 async def test_filter_tasks_with_no_assignee(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     assigned, unassigned = await _assignment_fixture(session, a)
 
     conditions = json.dumps([{"field": "assignee_ids", "op": "is_null", "value": True}])
@@ -1755,7 +1888,9 @@ async def test_filter_tasks_with_any_assignee(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """``negate`` inverts it, so "has someone on it" comes free."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     assigned, unassigned = await _assignment_fixture(session, a)
 
     conditions = json.dumps(
@@ -1775,7 +1910,9 @@ async def test_unassigned_or_mine_returns_the_union(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """The filter panel compiles "none" alongside real ids into one OR group."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     assigned, unassigned = await _assignment_fixture(session, a)
     other_user = await create_user(session, email="someone-else@example.com")
     await create_guild_membership(session, user=other_user, guild=a.guild)
@@ -1811,7 +1948,9 @@ async def test_my_tasks_unassigned_is_vacuous_not_an_error(
 ):
     """``/me/tasks`` is already the set of tasks assigned to you, so asking it
     for unassigned ones is empty by construction — but it must not error."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     await _assignment_fixture(session, a)
 
     conditions = json.dumps([{"field": "assignee_ids", "op": "is_null", "value": True}])
@@ -1832,7 +1971,9 @@ async def test_blocked_by_open_count_counts_only_what_is_unfinished(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """A done blocker stops being one, without anybody taking the link back."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     task = await create_task(session, a.project)
     still_going = await create_task(
         session, a.project, status_category=TaskStatusCategory.todo
@@ -1860,7 +2001,9 @@ async def test_blocked_by_open_count_spans_kinds(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """Anything with a reading of "finished" can hold a task up, not just a task."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     task = await create_task(session, a.project)
     blocker = await create_task(session, a.project)
     group = await create_counter_group(session, a.initiative, a.user)
@@ -1889,7 +2032,9 @@ async def test_a_project_blocks_until_the_work_in_it_is_done(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """Waiting on a whole project is waiting on the tasks in it."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     task = await create_task(session, a.project)
     blocking_project = await create_project(session, a.initiative, a.user)
     todo = await create_task(
@@ -1928,7 +2073,9 @@ async def test_a_document_is_not_counted_as_a_blocker(
 ):
     """Nothing on a document says when it stops holding something up, so it is
     shown as a link and left out of the count rather than blocking forever."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     task = await create_task(session, a.project)
     doc = await create_document(session, a.initiative, a.user)
     await create_relationship(
@@ -1951,7 +2098,9 @@ async def test_blocking_the_other_way_round_is_not_counted(
 ):
     """The source of a dependency is the end that waits, so a task this one
     holds up is not something holding IT up."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     task = await create_task(session, a.project)
     waiting_on_us = await create_task(session, a.project)
     await create_relationship(
@@ -1976,7 +2125,7 @@ async def test_a_blocker_the_reader_cannot_open_is_not_counted(
     the reader is not in is invisible — and an invisible blocker must not show
     up as a number they cannot account for."""
     owner = await acting_user(
-        guild_role=GuildRole.member, initiative=True, project=True
+        guild_role=CommunityRole.member, initiative=True, project=True
     )
     task = await create_task(session, owner.project)
     elsewhere = await create_initiative(session, owner.guild, owner.user)
@@ -1996,7 +2145,7 @@ async def test_a_blocker_the_reader_cannot_open_is_not_counted(
     await create_resource_grant(session, owner.project, all_initiative_members=True)
 
     reader = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=owner.guild,
         initiative=owner.initiative,
         initiative_role="member",

@@ -1,8 +1,8 @@
 /** The account and sessions this device holds, and the only ways they move. */
 
 import {
-  claimOwnSessionKeysApiV1MeDmSessionKeysPost as claimOwnSessionKeys,
-  claimSessionKeysApiV1UsersUserIdDmSessionKeysPost as claimSessionKeys,
+  claimOwnSessionKeys,
+  claimSessionKeys,
 } from "@/api/generated/direct-messages/direct-messages";
 import type { DmOneTimeKeyUpload } from "@/api/generated/initiativeAPI.schemas";
 

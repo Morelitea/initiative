@@ -19,9 +19,9 @@ import type {
 
 import type {
   ChangelogResponse,
-  GetChangelogApiV1ChangelogGetParams,
-  GetLatestDockerhubVersionApiV1VersionLatestGet200,
-  GetVersionApiV1VersionGet200,
+  GetChangelogParams,
+  GetLatestDockerhubVersion200,
+  GetVersion200,
   HTTPValidationError,
 } from "../initiativeAPI.schemas";
 
@@ -49,62 +49,49 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
  * Get application version.
  * @summary Get Version
  */
-export const getVersionApiV1VersionGet = (
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<GetVersionApiV1VersionGet200>(
-    { url: `/api/v1/version`, method: "GET", signal },
-    options
-  );
+export const getVersion = (options?: SecondParameter<typeof apiMutator>, signal?: AbortSignal) => {
+  return apiMutator<GetVersion200>({ url: `/api/v1/version`, method: "GET", signal }, options);
 };
 
-export const getGetVersionApiV1VersionGetQueryKey = () => {
+export const getGetVersionQueryKey = () => {
   return [`/api/v1/version`] as const;
 };
 
-export const getGetVersionApiV1VersionGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof getVersionApiV1VersionGet>>,
+export const getGetVersionQueryOptions = <
+  TData = Awaited<ReturnType<typeof getVersion>>,
   TError = ErrorType<unknown>,
 >(options?: {
-  query?: Partial<
-    UseQueryOptions<Awaited<ReturnType<typeof getVersionApiV1VersionGet>>, TError, TData>
-  >;
+  query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getVersion>>, TError, TData>>;
   request?: SecondParameter<typeof apiMutator>;
 }) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey = queryOptions?.queryKey ?? getGetVersionApiV1VersionGetQueryKey();
+  const queryKey = queryOptions?.queryKey ?? getGetVersionQueryKey();
 
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof getVersionApiV1VersionGet>>> = ({
-    signal,
-  }) => getVersionApiV1VersionGet(requestOptions, signal);
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getVersion>>> = ({ signal }) =>
+    getVersion(requestOptions, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof getVersionApiV1VersionGet>>,
+    Awaited<ReturnType<typeof getVersion>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type GetVersionApiV1VersionGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof getVersionApiV1VersionGet>>
->;
-export type GetVersionApiV1VersionGetQueryError = ErrorType<unknown>;
+export type GetVersionQueryResult = NonNullable<Awaited<ReturnType<typeof getVersion>>>;
+export type GetVersionQueryError = ErrorType<unknown>;
 
-export function useGetVersionApiV1VersionGet<
-  TData = Awaited<ReturnType<typeof getVersionApiV1VersionGet>>,
+export function useGetVersion<
+  TData = Awaited<ReturnType<typeof getVersion>>,
   TError = ErrorType<unknown>,
 >(
   options: {
-    query: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof getVersionApiV1VersionGet>>, TError, TData>
-    > &
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getVersion>>, TError, TData>> &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getVersionApiV1VersionGet>>,
+          Awaited<ReturnType<typeof getVersion>>,
           TError,
-          Awaited<ReturnType<typeof getVersionApiV1VersionGet>>
+          Awaited<ReturnType<typeof getVersion>>
         >,
         "initialData"
       >;
@@ -112,19 +99,17 @@ export function useGetVersionApiV1VersionGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetVersionApiV1VersionGet<
-  TData = Awaited<ReturnType<typeof getVersionApiV1VersionGet>>,
+export function useGetVersion<
+  TData = Awaited<ReturnType<typeof getVersion>>,
   TError = ErrorType<unknown>,
 >(
   options?: {
-    query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof getVersionApiV1VersionGet>>, TError, TData>
-    > &
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getVersion>>, TError, TData>> &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getVersionApiV1VersionGet>>,
+          Awaited<ReturnType<typeof getVersion>>,
           TError,
-          Awaited<ReturnType<typeof getVersionApiV1VersionGet>>
+          Awaited<ReturnType<typeof getVersion>>
         >,
         "initialData"
       >;
@@ -132,14 +117,12 @@ export function useGetVersionApiV1VersionGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetVersionApiV1VersionGet<
-  TData = Awaited<ReturnType<typeof getVersionApiV1VersionGet>>,
+export function useGetVersion<
+  TData = Awaited<ReturnType<typeof getVersion>>,
   TError = ErrorType<unknown>,
 >(
   options?: {
-    query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof getVersionApiV1VersionGet>>, TError, TData>
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getVersion>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
@@ -148,19 +131,17 @@ export function useGetVersionApiV1VersionGet<
  * @summary Get Version
  */
 
-export function useGetVersionApiV1VersionGet<
-  TData = Awaited<ReturnType<typeof getVersionApiV1VersionGet>>,
+export function useGetVersion<
+  TData = Awaited<ReturnType<typeof getVersion>>,
   TError = ErrorType<unknown>,
 >(
   options?: {
-    query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof getVersionApiV1VersionGet>>, TError, TData>
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getVersion>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getGetVersionApiV1VersionGetQueryOptions(options);
+  const queryOptions = getGetVersionQueryOptions(options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -178,71 +159,62 @@ export function useGetVersionApiV1VersionGet<
  * so a request never waits on Docker Hub unless the answer has run out.
  * @summary Get Latest Dockerhub Version
  */
-export const getLatestDockerhubVersionApiV1VersionLatestGet = (
+export const getLatestDockerhubVersion = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<GetLatestDockerhubVersionApiV1VersionLatestGet200>(
+  return apiMutator<GetLatestDockerhubVersion200>(
     { url: `/api/v1/version/latest`, method: "GET", signal },
     options
   );
 };
 
-export const getGetLatestDockerhubVersionApiV1VersionLatestGetQueryKey = () => {
+export const getGetLatestDockerhubVersionQueryKey = () => {
   return [`/api/v1/version/latest`] as const;
 };
 
-export const getGetLatestDockerhubVersionApiV1VersionLatestGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof getLatestDockerhubVersionApiV1VersionLatestGet>>,
+export const getGetLatestDockerhubVersionQueryOptions = <
+  TData = Awaited<ReturnType<typeof getLatestDockerhubVersion>>,
   TError = ErrorType<unknown>,
 >(options?: {
   query?: Partial<
-    UseQueryOptions<
-      Awaited<ReturnType<typeof getLatestDockerhubVersionApiV1VersionLatestGet>>,
-      TError,
-      TData
-    >
+    UseQueryOptions<Awaited<ReturnType<typeof getLatestDockerhubVersion>>, TError, TData>
   >;
   request?: SecondParameter<typeof apiMutator>;
 }) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey =
-    queryOptions?.queryKey ?? getGetLatestDockerhubVersionApiV1VersionLatestGetQueryKey();
+  const queryKey = queryOptions?.queryKey ?? getGetLatestDockerhubVersionQueryKey();
 
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof getLatestDockerhubVersionApiV1VersionLatestGet>>
-  > = ({ signal }) => getLatestDockerhubVersionApiV1VersionLatestGet(requestOptions, signal);
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getLatestDockerhubVersion>>> = ({
+    signal,
+  }) => getLatestDockerhubVersion(requestOptions, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof getLatestDockerhubVersionApiV1VersionLatestGet>>,
+    Awaited<ReturnType<typeof getLatestDockerhubVersion>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type GetLatestDockerhubVersionApiV1VersionLatestGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof getLatestDockerhubVersionApiV1VersionLatestGet>>
+export type GetLatestDockerhubVersionQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getLatestDockerhubVersion>>
 >;
-export type GetLatestDockerhubVersionApiV1VersionLatestGetQueryError = ErrorType<unknown>;
+export type GetLatestDockerhubVersionQueryError = ErrorType<unknown>;
 
-export function useGetLatestDockerhubVersionApiV1VersionLatestGet<
-  TData = Awaited<ReturnType<typeof getLatestDockerhubVersionApiV1VersionLatestGet>>,
+export function useGetLatestDockerhubVersion<
+  TData = Awaited<ReturnType<typeof getLatestDockerhubVersion>>,
   TError = ErrorType<unknown>,
 >(
   options: {
     query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getLatestDockerhubVersionApiV1VersionLatestGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof getLatestDockerhubVersion>>, TError, TData>
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getLatestDockerhubVersionApiV1VersionLatestGet>>,
+          Awaited<ReturnType<typeof getLatestDockerhubVersion>>,
           TError,
-          Awaited<ReturnType<typeof getLatestDockerhubVersionApiV1VersionLatestGet>>
+          Awaited<ReturnType<typeof getLatestDockerhubVersion>>
         >,
         "initialData"
       >;
@@ -250,23 +222,19 @@ export function useGetLatestDockerhubVersionApiV1VersionLatestGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetLatestDockerhubVersionApiV1VersionLatestGet<
-  TData = Awaited<ReturnType<typeof getLatestDockerhubVersionApiV1VersionLatestGet>>,
+export function useGetLatestDockerhubVersion<
+  TData = Awaited<ReturnType<typeof getLatestDockerhubVersion>>,
   TError = ErrorType<unknown>,
 >(
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getLatestDockerhubVersionApiV1VersionLatestGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof getLatestDockerhubVersion>>, TError, TData>
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getLatestDockerhubVersionApiV1VersionLatestGet>>,
+          Awaited<ReturnType<typeof getLatestDockerhubVersion>>,
           TError,
-          Awaited<ReturnType<typeof getLatestDockerhubVersionApiV1VersionLatestGet>>
+          Awaited<ReturnType<typeof getLatestDockerhubVersion>>
         >,
         "initialData"
       >;
@@ -274,17 +242,13 @@ export function useGetLatestDockerhubVersionApiV1VersionLatestGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetLatestDockerhubVersionApiV1VersionLatestGet<
-  TData = Awaited<ReturnType<typeof getLatestDockerhubVersionApiV1VersionLatestGet>>,
+export function useGetLatestDockerhubVersion<
+  TData = Awaited<ReturnType<typeof getLatestDockerhubVersion>>,
   TError = ErrorType<unknown>,
 >(
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getLatestDockerhubVersionApiV1VersionLatestGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof getLatestDockerhubVersion>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
@@ -294,23 +258,19 @@ export function useGetLatestDockerhubVersionApiV1VersionLatestGet<
  * @summary Get Latest Dockerhub Version
  */
 
-export function useGetLatestDockerhubVersionApiV1VersionLatestGet<
-  TData = Awaited<ReturnType<typeof getLatestDockerhubVersionApiV1VersionLatestGet>>,
+export function useGetLatestDockerhubVersion<
+  TData = Awaited<ReturnType<typeof getLatestDockerhubVersion>>,
   TError = ErrorType<unknown>,
 >(
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getLatestDockerhubVersionApiV1VersionLatestGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof getLatestDockerhubVersion>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getGetLatestDockerhubVersionApiV1VersionLatestGetQueryOptions(options);
+  const queryOptions = getGetLatestDockerhubVersionQueryOptions(options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -326,8 +286,8 @@ export function useGetLatestDockerhubVersionApiV1VersionLatestGet<
  * If not provided, returns the most recent N versions (default 1).
  * @summary Get Changelog
  */
-export const getChangelogApiV1ChangelogGet = (
-  params?: GetChangelogApiV1ChangelogGetParams,
+export const getChangelog = (
+  params?: GetChangelogParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
@@ -337,58 +297,49 @@ export const getChangelogApiV1ChangelogGet = (
   );
 };
 
-export const getGetChangelogApiV1ChangelogGetQueryKey = (
-  params?: GetChangelogApiV1ChangelogGetParams
-) => {
+export const getGetChangelogQueryKey = (params?: GetChangelogParams) => {
   return [`/api/v1/changelog`, ...(params ? [params] : [])] as const;
 };
 
-export const getGetChangelogApiV1ChangelogGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof getChangelogApiV1ChangelogGet>>,
+export const getGetChangelogQueryOptions = <
+  TData = Awaited<ReturnType<typeof getChangelog>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params?: GetChangelogApiV1ChangelogGetParams,
+  params?: GetChangelogParams,
   options?: {
-    query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof getChangelogApiV1ChangelogGet>>, TError, TData>
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getChangelog>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   }
 ) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey = queryOptions?.queryKey ?? getGetChangelogApiV1ChangelogGetQueryKey(params);
+  const queryKey = queryOptions?.queryKey ?? getGetChangelogQueryKey(params);
 
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof getChangelogApiV1ChangelogGet>>> = ({
-    signal,
-  }) => getChangelogApiV1ChangelogGet(params, requestOptions, signal);
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getChangelog>>> = ({ signal }) =>
+    getChangelog(params, requestOptions, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof getChangelogApiV1ChangelogGet>>,
+    Awaited<ReturnType<typeof getChangelog>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type GetChangelogApiV1ChangelogGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof getChangelogApiV1ChangelogGet>>
->;
-export type GetChangelogApiV1ChangelogGetQueryError = ErrorType<HTTPValidationError>;
+export type GetChangelogQueryResult = NonNullable<Awaited<ReturnType<typeof getChangelog>>>;
+export type GetChangelogQueryError = ErrorType<HTTPValidationError>;
 
-export function useGetChangelogApiV1ChangelogGet<
-  TData = Awaited<ReturnType<typeof getChangelogApiV1ChangelogGet>>,
+export function useGetChangelog<
+  TData = Awaited<ReturnType<typeof getChangelog>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params: undefined | GetChangelogApiV1ChangelogGetParams,
+  params: undefined | GetChangelogParams,
   options: {
-    query: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof getChangelogApiV1ChangelogGet>>, TError, TData>
-    > &
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getChangelog>>, TError, TData>> &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getChangelogApiV1ChangelogGet>>,
+          Awaited<ReturnType<typeof getChangelog>>,
           TError,
-          Awaited<ReturnType<typeof getChangelogApiV1ChangelogGet>>
+          Awaited<ReturnType<typeof getChangelog>>
         >,
         "initialData"
       >;
@@ -396,20 +347,18 @@ export function useGetChangelogApiV1ChangelogGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetChangelogApiV1ChangelogGet<
-  TData = Awaited<ReturnType<typeof getChangelogApiV1ChangelogGet>>,
+export function useGetChangelog<
+  TData = Awaited<ReturnType<typeof getChangelog>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params?: GetChangelogApiV1ChangelogGetParams,
+  params?: GetChangelogParams,
   options?: {
-    query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof getChangelogApiV1ChangelogGet>>, TError, TData>
-    > &
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getChangelog>>, TError, TData>> &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getChangelogApiV1ChangelogGet>>,
+          Awaited<ReturnType<typeof getChangelog>>,
           TError,
-          Awaited<ReturnType<typeof getChangelogApiV1ChangelogGet>>
+          Awaited<ReturnType<typeof getChangelog>>
         >,
         "initialData"
       >;
@@ -417,15 +366,13 @@ export function useGetChangelogApiV1ChangelogGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetChangelogApiV1ChangelogGet<
-  TData = Awaited<ReturnType<typeof getChangelogApiV1ChangelogGet>>,
+export function useGetChangelog<
+  TData = Awaited<ReturnType<typeof getChangelog>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params?: GetChangelogApiV1ChangelogGetParams,
+  params?: GetChangelogParams,
   options?: {
-    query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof getChangelogApiV1ChangelogGet>>, TError, TData>
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getChangelog>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
@@ -434,20 +381,18 @@ export function useGetChangelogApiV1ChangelogGet<
  * @summary Get Changelog
  */
 
-export function useGetChangelogApiV1ChangelogGet<
-  TData = Awaited<ReturnType<typeof getChangelogApiV1ChangelogGet>>,
+export function useGetChangelog<
+  TData = Awaited<ReturnType<typeof getChangelog>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params?: GetChangelogApiV1ChangelogGetParams,
+  params?: GetChangelogParams,
   options?: {
-    query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof getChangelogApiV1ChangelogGet>>, TError, TData>
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getChangelog>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getGetChangelogApiV1ChangelogGetQueryOptions(params, options);
+  const queryOptions = getGetChangelogQueryOptions(params, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;

@@ -166,7 +166,7 @@ async def record_request(
                         guild_id,
                         NotificationType.app_consent_requested,
                         {
-                            "guild_id": guild_id,
+                            "community_id": guild_id,
                             "app_id": install_id,
                             "app_name": app_name or "",
                             "consent_id": consent_id,

@@ -82,8 +82,8 @@ def test_payload_has_no_pii_and_verifiable_signature(billing_configured):
     payload = json.loads(body)
     # The guild's reference + an event id ONLY: no emails, names, user ids or
     # member counts, and no row id of ours either.
-    assert set(payload) == {"guild_ref", "event_id"}
-    assert payload["guild_ref"] == "gbil_test42"
+    assert set(payload) == {"community_ref", "event_id"}
+    assert payload["community_ref"] == "gbil_test42"
     assert payload["event_id"]
 
     message = "\n".join(
@@ -226,7 +226,7 @@ async def test_payment_issue_sends_only_the_ref_signed(
     assert request.method == "POST"
     assert str(request.url) == "https://billing.internal/api/v1/payment-issue"
     body = request.content
-    assert json.loads(body) == {"guild_ref": "gbil_known"}
+    assert json.loads(body) == {"community_ref": "gbil_known"}
     ts = request.headers["X-Billing-Timestamp"]
     message = "\n".join(
         ["POST", "/api/v1/payment-issue", ts, hashlib.sha256(body).hexdigest()]
@@ -311,7 +311,7 @@ async def test_plan_summary_sends_only_the_ref_signed(
     assert request.method == "POST"
     assert str(request.url) == "https://billing.internal/api/v1/plan-summary"
     body = request.content
-    assert json.loads(body) == {"guild_ref": "gbil_known"}
+    assert json.loads(body) == {"community_ref": "gbil_known"}
     ts = request.headers["X-Billing-Timestamp"]
     message = "\n".join(
         ["POST", "/api/v1/plan-summary", ts, hashlib.sha256(body).hexdigest()]
@@ -402,7 +402,7 @@ async def test_a_lifecycle_ping_names_only_a_guild_billing_already_knows(
     known = await create_guild(session)
     ref = await billing_ping.billing_guild_ref(guild_id=known.id)
     await billing_ping._send_lifecycle_ping(known.id)
-    assert [json.loads(body)["guild_ref"] for body in posted] == [ref]
+    assert [json.loads(body)["community_ref"] for body in posted] == [ref]
 
 
 def test_each_ping_goes_to_its_own_path(billing_configured):

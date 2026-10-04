@@ -1,7 +1,7 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import type { RecurrencePreviewRequest } from "@/api/generated/initiativeAPI.schemas";
-import { previewRecurrenceApiV1RecurrencePreviewPost } from "@/api/generated/recurrence/recurrence";
+import { previewRecurrence } from "@/api/generated/recurrence/recurrence";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 
 /**
@@ -16,10 +16,7 @@ export const useRecurrencePreview = (request: RecurrencePreviewRequest | null) =
   const key = useDebouncedValue(latest, 300);
   const query = useQuery({
     queryKey: ["recurrence-preview", key],
-    queryFn: () =>
-      previewRecurrenceApiV1RecurrencePreviewPost(
-        JSON.parse(key as string) as RecurrencePreviewRequest
-      ),
+    queryFn: () => previewRecurrence(JSON.parse(key as string) as RecurrencePreviewRequest),
     enabled: key !== null,
     placeholderData: keepPreviousData,
     staleTime: Number.POSITIVE_INFINITY,

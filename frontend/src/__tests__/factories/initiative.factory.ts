@@ -14,7 +14,7 @@ import {
   toolViewPermission,
 } from "@/lib/tools";
 
-import { buildUserPublic, buildUserSummary } from "./user.factory";
+import { buildUserSummary } from "./user.factory";
 
 let counter = 0;
 
@@ -32,7 +32,7 @@ export function buildInitiativeMember(
 ): InitiativeMemberRead {
   counter++;
   return {
-    user: buildUserPublic(),
+    user: buildUserSummary(),
     role_id: null,
     role_name: null,
     role_display_name: null,
@@ -40,6 +40,7 @@ export function buildInitiativeMember(
     override_share_restrictions: false,
     oidc_managed: false,
     joined_at: "2026-01-15T00:00:00.000Z",
+    presence: "offline",
     ...overrides,
   };
 }
@@ -59,16 +60,16 @@ export function buildInitiative(overrides: Partial<InitiativeRead> = {}): Initia
   counter++;
   return {
     id: counter,
-    guild_id: 1,
+    community_id: 1,
     name: `Initiative ${counter}`,
     description: `Description for initiative ${counter}`,
     color: "#3b82f6",
-    is_default: false,
     archived_at: null,
     // Fail-closed, like the column default: an initiative is invite-only until
     // someone opens it.
     join_policy: "private",
     auto_join: false,
+    keep_content_in: false,
     created_at: "2026-01-15T00:00:00.000Z",
     updated_at: "2026-01-15T00:00:00.000Z",
     member_count: 0,
@@ -116,7 +117,7 @@ export function buildInitiativeRole(
   };
 }
 
-/** One card in the guild's initiative directory (`GET /initiatives/directory`). */
+/** One card in the community's initiative directory (`GET /initiatives/directory`). */
 export function buildInitiativeDirectoryEntry(
   overrides: Partial<InitiativeDirectoryEntry> = {}
 ): InitiativeDirectoryEntry {

@@ -40,7 +40,7 @@ export type SearchTarget = Pick<
   "entity_type" | "entity_id" | "initiative_id" | "tool" | "tool_id"
 >;
 
-/** The guild's vocabulary — the one result that lives in no tool. */
+/** The community's vocabulary — the one result that lives in no tool. */
 export const TAG_ENTITY_TYPE = SearchEntityType.tag;
 /** What people said on the content. */
 export const COMMENT_ENTITY_TYPE = SearchEntityType.comment;
@@ -152,14 +152,14 @@ export const hitIcon = (target: SearchTarget): LucideIcon => {
   const child = TOOL_CHILDREN[target.entity_type];
   if (child) return child.icon;
   // A tool's own row names its tool twice — as the tool and as the kind — so a
-  // caller that filled in only the kind still gets the right mark. The guild's
+  // caller that filled in only the kind still gets the right mark. The community's
   // vocabulary is the one thing that sits outside a tool, and falls through.
   const tool = target.tool ?? (target.entity_type as unknown as Tool);
   return TOOL_ICONS[tool] ?? Tag;
 };
 
 /**
- * The guild-relative address of a hit, or `null` when it has none — an entity
+ * The community-relative address of a hit, or `null` when it has none — an entity
  * type this build doesn't route, or a child whose parent didn't come back.
  */
 export const searchHitPath = (target: SearchTarget): string | null => {

@@ -2,9 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { apiClient } from "@/api/client";
-import { useGetExportJobApiV1CGuildIdExportsJobIdGet } from "@/api/generated/exports/exports";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
-import { toast } from "@/lib/chesterToast";
+import { useGetExportJob } from "@/api/generated/exports/exports";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { downloadBlob } from "@/lib/csv";
 import { getErrorMessage } from "@/lib/errorMessage";
 import {
@@ -12,6 +11,7 @@ import {
   filenameFromDisposition,
   normalizeBlobError,
 } from "@/lib/exportDownload";
+import { toast } from "@/lib/mascotToast";
 import { getItem, removeItem, setItem } from "@/lib/storage";
 
 const POLL_MS = 2000;
@@ -20,12 +20,12 @@ const TERMINAL = new Set(["done", "failed", "expired"]);
 // A pending job id survives the component unmounting (navigation) so a
 // return to an adopting view resumes the poll and delivers the download.
 // A full page reload is covered by the worker's inbox notification instead.
-const pendingKey = (guildId: number) => `exports:pending:${guildId}`;
+const pendingKey = (communityId: number) => `exports:pending:${communityId}`;
 
 export type ExportJobPhase = "idle" | "requesting" | "polling" | "done" | "failed";
 
 export interface StartExportOptions {
-  /** Source create route, e.g. "/exports/tasks" — relative to /c/{guildId}. */
+  /** Source create route, e.g. "/exports/tasks" — relative to /c/{communityId}. */
   endpoint: string;
   /** Query params: the selector plus format. A browser tz is added unless
    * the caller passes an explicit one. */
@@ -36,7 +36,7 @@ export interface StartExportOptions {
 
 export interface UseExportJobOptions {
   /** Adopt a stored pending job on mount. Exactly ONE instance per view may
-   * set this — the guild's pending key is shared across every export surface,
+   * set this — the community's pending key is shared across every export surface,
    * so a second adopter would handle the same job again (duplicate download
    * + toast). Every instance still WRITES the key on 202, so a job started
    * anywhere is resumed by the adopting instance on the next mount. */
@@ -48,7 +48,7 @@ export interface UseExportJobOptions {
  * failed) live here so every surface reports identically. */
 export function useExportJob({ resumePending = false }: UseExportJobOptions = {}) {
   const { t } = useTranslation("exports");
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   const [requesting, setRequesting] = useState(false);
   // The last terminal outcome, until the next start()/reset() — what lets a
   // wizard show a done/failed screen after the poll ends.
@@ -57,17 +57,17 @@ export function useExportJob({ resumePending = false }: UseExportJobOptions = {}
   // download it from again.
   const [inline, setInline] = useState(false);
   const [jobId, setJobId] = useState<number | null>(() => {
-    if (!resumePending || !guildId) {
+    if (!resumePending || !communityId) {
       return null;
     }
-    const stored = Number(getItem(pendingKey(guildId)));
+    const stored = Number(getItem(pendingKey(communityId)));
     return Number.isFinite(stored) && stored > 0 ? stored : null;
   });
   // Job ids already handled — a terminal status must fire exactly once even
   // though polling re-renders keep delivering it.
   const handledJobs = useRef(new Set<number>());
 
-  const jobQuery = useGetExportJobApiV1CGuildIdExportsJobIdGet(guildId, jobId ?? 0, {
+  const jobQuery = useGetExportJob(communityId, jobId ?? 0, {
     query: {
       enabled: jobId != null,
       refetchInterval: (query) => (TERMINAL.has(query.state.data?.status ?? "") ? false : POLL_MS),
@@ -84,7 +84,7 @@ export function useExportJob({ resumePending = false }: UseExportJobOptions = {}
     }
     handledJobs.current.add(jobId);
     setJobId(null);
-    removeItem(pendingKey(guildId));
+    removeItem(pendingKey(communityId));
     if (job.status !== "done") {
       setOutcome("failed");
       toast.error(t("export.failed"));
@@ -92,16 +92,16 @@ export function useExportJob({ resumePending = false }: UseExportJobOptions = {}
     }
     setOutcome("done");
     void downloadExportArtifact(
-      guildId,
+      communityId,
       jobId,
       t as (key: string, options?: Record<string, unknown>) => string,
       job.source,
       job.format
     );
-  }, [job, jobId, guildId, t]);
+  }, [job, jobId, communityId, t]);
 
   const start = async (options: StartExportOptions): Promise<void> => {
-    if (requesting || jobId != null || !guildId) {
+    if (requesting || jobId != null || !communityId) {
       return;
     }
     setRequesting(true);
@@ -112,7 +112,7 @@ export function useExportJob({ resumePending = false }: UseExportJobOptions = {}
       // only), and these endpoints are a 200-file / 202-job union — call the
       // shared axios instance directly so auth interceptors and the
       // conditions/sorting paramsSerializer still apply.
-      const res = await apiClient.get<Blob>(`/c/${guildId}${options.endpoint}`, {
+      const res = await apiClient.get<Blob>(`/c/${communityId}${options.endpoint}`, {
         // tz: report timestamps ("generated at …") render in the browser's
         // zone, not UTC. First so an explicit caller tz in params wins.
         params: {
@@ -134,7 +134,7 @@ export function useExportJob({ resumePending = false }: UseExportJobOptions = {}
       } else {
         const queued = JSON.parse(await res.data.text()) as { id: number };
         setJobId(queued.id);
-        setItem(pendingKey(guildId), String(queued.id));
+        setItem(pendingKey(communityId), String(queued.id));
         toast.success(t("export.queued"));
       }
     } catch (err) {

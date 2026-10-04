@@ -4,7 +4,7 @@ Whether a community's members can is an **operator** entitlement
 (``guild_administration.support_enabled``), not something the community's own
 admins switch on: the deployment that would receive the requests is the one
 that decides it is staffing them. Off is the default, and the "Ask for help"
-control then opens the FAQ.
+control then offers the support address, or the FAQ where there is none.
 
 Where a request lands is not this module's business either — it becomes a case
 in the ``support`` stream, and the binding says which project that is.
@@ -21,7 +21,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.intake import IntakeStream
 from app.models.platform.guild_administration import GuildAdministration
 from app.models.platform.user import User
-from app.services.platform.intake import CaseRefs, open_case, stream_is_bound
+from app.db import cohorts
+from app.services.platform.intake import CaseFiler, CaseRefs, open_case
 
 #: Longest a request's summary and its body may be. The case is a task, whose
 #: title is a line; the body is a description somebody reads, not a log.
@@ -53,20 +54,25 @@ async def _entitled(session: AsyncSession, guild_id: int) -> bool:
     return bool(row)
 
 
-async def can_ask_for_help(session: AsyncSession, *, guild_id: int) -> bool:
-    """Whether to offer the form rather than the FAQ.
+async def entitled(requester: User, guild_id: int) -> bool:
+    """Whether ``requester`` may ask for help from ``guild_id``.
 
-    Both halves, because either one missing makes the form a dead end: the
-    operator has to have switched it on, and something has to be bound to
-    receive what is sent.
+    Asked on a session of their own, routed into the community through the
+    ordinary entry point, so membership and every gate apply exactly as they
+    do on a read: somebody who cannot reach the community cannot ask from it.
     """
-    if not await _entitled(session, guild_id):
-        return False
-    return await stream_is_bound(IntakeStream.support)
+    from app.api.deps import GuildAccessError, establish_guild_access
+
+    async with cohorts.request_sessionmaker(guild_id)() as session:
+        account = await session.merge(requester, load=False)
+        try:
+            await establish_guild_access(session, account, guild_id)
+        except GuildAccessError:
+            return False
+        return await _entitled(session, guild_id)
 
 
 async def request_help(
-    session: AsyncSession,
     *,
     guild_id: int,
     requester: User,
@@ -77,22 +83,27 @@ async def request_help(
     """File one help request as a support case. Returns the case's task id.
 
     The case names who asked and which community they asked from, as the weak
-    refs every case carries — so whoever picks it up can reach them without
-    this endpoint having to resolve anybody.
+    refs every case carries, and records them as its filer: their subject and
+    their words open the case, said to them, so the conversation starts where
+    they started it. The description is the platform's summary.
     """
-    if not await _entitled(session, guild_id):
+    if not await entitled(requester, guild_id):
         raise SupportUnavailable
 
     moment = now or datetime.now(timezone.utc)
     outcome = await open_case(
         IntakeStream.support,
         title=subject,
-        body=body,
+        body=(
+            f"Help request from account {requester.id}, sent from community {guild_id}."
+        ),
         refs=CaseRefs(
             subject_user=requester.id,
             subject_guild=guild_id,
             reported_at=moment,
         ),
+        now=moment,
+        filer=CaseFiler(user_id=requester.id, subject=subject, words=body),
     )
     if outcome is None:
         # Nothing is bound to receive it. Said plainly rather than answering

@@ -6,13 +6,13 @@ import type { AnnouncementOperatorRead } from "@/api/generated/initiativeAPI.sch
 import { AnnouncementEditorDialog } from "@/components/announcements/AnnouncementEditorDialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDeleteAnnouncement, usePlatformAnnouncements } from "@/hooks/usePlatformAnnouncements";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { formatDateTime } from "@/lib/formatDate";
+import { toast } from "@/lib/mascotToast";
 
 type Status = "draft" | "scheduled" | "live" | "expired";
 
@@ -63,11 +63,10 @@ export const SettingsPlatformAnnouncementsPage = () => {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <Card>
         <CardHeader className="flex flex-row items-start justify-between gap-4">
           <div>
-            <CardTitle>{t("operator.title")}</CardTitle>
             <CardDescription>{t("operator.subtitle")}</CardDescription>
           </div>
           <Button
@@ -120,7 +119,9 @@ export const SettingsPlatformAnnouncementsPage = () => {
                       {t("operator.audience", {
                         role: t(`operator.roles.${announcement.min_platform_role ?? "member"}`),
                       })}
-                      {announcement.guild_admins_only ? ` · ${t("operator.guildAdminsOnly")}` : ""}
+                      {announcement.community_admins_only
+                        ? ` · ${t("operator.communityAdminsOnly")}`
+                        : ""}
                       {announcement.audience_accounts &&
                       announcement.audience_accounts !== "everyone"
                         ? ` · ${t(`operator.accounts.${announcement.audience_accounts}`)}`

@@ -2,9 +2,9 @@ import { useEffect } from "react";
 
 import { getAuthToken } from "@/api/client";
 import { invalidate, q } from "@/api/query-keys";
-import { useGuilds } from "@/hooks/useGuilds";
+import { useCommunities } from "@/hooks/useCommunities";
 import { openLiveSocket } from "@/lib/liveSocket";
-import { buildGuildWsUrl } from "@/lib/wsUrl";
+import { buildCommunityWsUrl } from "@/lib/wsUrl";
 
 /**
  * Subscribe to one resource's change signal and refetch it on every change, so
@@ -22,14 +22,14 @@ const useResourceRealtime = (
   resource: string,
   refetch: (resourceId: number) => void
 ): void => {
-  const { activeGuildId } = useGuilds();
+  const { activeCommunityId } = useCommunities();
 
   useEffect(() => {
-    if (!resourceId || !activeGuildId) return;
+    if (!resourceId || !activeCommunityId) return;
 
     let opened = 0;
     const connection = openLiveSocket({
-      url: buildGuildWsUrl(activeGuildId, `${resource}/${resourceId}/ws`),
+      url: buildCommunityWsUrl(activeCommunityId, `${resource}/${resourceId}/ws`),
       // Null is fine — the server reads the session cookie, which is the web
       // path.
       auth: () => ({ token: getAuthToken() }),
@@ -45,7 +45,7 @@ const useResourceRealtime = (
     });
 
     return () => connection.close();
-  }, [resourceId, resource, refetch, activeGuildId]);
+  }, [resourceId, resource, refetch, activeCommunityId]);
 };
 
 // Module-level invalidators so the effect's dependency stays stable.

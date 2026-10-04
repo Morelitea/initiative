@@ -76,15 +76,11 @@ class AuditEventType(str, Enum):
     #: credential id and never any key material.
     AUTH_PASSKEY_REGISTERED = "auth.passkey_registered"
     AUTH_PASSKEY_REMOVED = "auth.passkey_removed"
-    # The native credential, recorded so its use can be observed rather than
-    # guessed at. ``used`` rides the sliding window's own throttle, so it is
-    # about one event per device per day, not one per request.
-    AUTH_DEVICE_TOKEN_ISSUED = "auth.device_token_issued"
-    AUTH_DEVICE_TOKEN_USED = "auth.device_token_used"
-    #: A client traded a device token it already had for a session. Counted
-    #: apart from ``issued``, because nothing was issued — this is the one
-    #: that reads as movement onto the session path.
-    AUTH_DEVICE_TOKEN_EXCHANGED = "auth.device_token_exchanged"
+    #: A change to how the account is signed into was held, and later
+    #: cancelled or applied. The row carries the hold's id and kind.
+    AUTH_CHANGE_HELD = "auth.change_held"
+    AUTH_HELD_CHANGE_CANCELLED = "auth.held_change_cancelled"
+    AUTH_HELD_CHANGE_APPLIED = "auth.held_change_applied"
     #: Who holds a guild's sign-in configuration changed. The seat is passed
     #: on by whoever holds it — by membership, or through a superadmin
     #: settings grant — from the guild's own role route.
@@ -127,6 +123,9 @@ class AuditEventType(str, Enum):
     #: Between member and admin. A change to or from the seat that holds a
     #: community's sign-in is ``GUILD_SUPERADMIN_CHANGED`` instead.
     GUILD_MEMBER_ROLE_CHANGED = "guild.member_role_changed"
+    #: The seat turning one member's personal API keys off or on for the
+    #: community.
+    GUILD_MEMBER_API_ACCESS_CHANGED = "guild.member_api_access_changed"
     #: An invite is a standing offer of membership; issuing or withdrawing
     #: one is recorded, and redeeming one is a ``GUILD_MEMBER_ADDED``.
     GUILD_INVITE_CREATED = "guild.invite_created"
@@ -247,6 +246,8 @@ class AuditEventType(str, Enum):
     TRASH_PURGED = "trash.purged"
     API_KEY_CREATED = "api_key.created"
     API_KEY_DELETED = "api_key.deleted"
+    #: Switched off by staff rather than deleted by its holder, who still sees it.
+    API_KEY_REVOKED = "api_key.revoked"
     APP_INSTALLED = "app.installed"
     APP_UNINSTALLED = "app.uninstalled"
     WEBHOOK_CREATED = "webhook.created"
@@ -369,20 +370,19 @@ AUDIT_EVENT_META: dict[AuditEventType, AuditEventMeta] = {
     AuditEventType.AUTH_PASSKEY_REMOVED: AuditEventMeta(
         tier=2, category=AuditCategory.AUTHENTICATION, is_write=True
     ),
+    AuditEventType.AUTH_CHANGE_HELD: AuditEventMeta(
+        tier=2, category=AuditCategory.AUTHENTICATION, is_write=True
+    ),
+    AuditEventType.AUTH_HELD_CHANGE_CANCELLED: AuditEventMeta(
+        tier=2, category=AuditCategory.AUTHENTICATION, is_write=True
+    ),
+    AuditEventType.AUTH_HELD_CHANGE_APPLIED: AuditEventMeta(
+        tier=2, category=AuditCategory.AUTHENTICATION, is_write=True
+    ),
     AuditEventType.PLATFORM_LOGIN_METHODS_CHANGED: AuditEventMeta(
         tier=2, category=AuditCategory.AUTHENTICATION, is_write=True
     ),
     AuditEventType.PLATFORM_SECOND_FACTOR_REQUIREMENT_CHANGED: AuditEventMeta(
-        tier=2, category=AuditCategory.AUTHENTICATION, is_write=True
-    ),
-    AuditEventType.AUTH_DEVICE_TOKEN_ISSUED: AuditEventMeta(
-        tier=2, category=AuditCategory.AUTHENTICATION, is_write=True
-    ),
-    # Presenting one slides its expiry, which is the write this records.
-    AuditEventType.AUTH_DEVICE_TOKEN_USED: AuditEventMeta(
-        tier=2, category=AuditCategory.AUTHENTICATION, is_write=True
-    ),
-    AuditEventType.AUTH_DEVICE_TOKEN_EXCHANGED: AuditEventMeta(
         tier=2, category=AuditCategory.AUTHENTICATION, is_write=True
     ),
     AuditEventType.GUILD_SUPERADMIN_CHANGED: AuditEventMeta(
@@ -411,6 +411,9 @@ AUDIT_EVENT_META: dict[AuditEventType, AuditEventMeta] = {
         tier=2, category=AuditCategory.AUTHORIZATION, is_write=True
     ),
     AuditEventType.GUILD_MEMBER_ROLE_CHANGED: AuditEventMeta(
+        tier=2, category=AuditCategory.AUTHORIZATION, is_write=True
+    ),
+    AuditEventType.GUILD_MEMBER_API_ACCESS_CHANGED: AuditEventMeta(
         tier=2, category=AuditCategory.AUTHORIZATION, is_write=True
     ),
     AuditEventType.GUILD_INVITE_CREATED: AuditEventMeta(
@@ -545,6 +548,9 @@ AUDIT_EVENT_META: dict[AuditEventType, AuditEventMeta] = {
         tier=2, category=AuditCategory.AUTHENTICATION, is_write=True
     ),
     AuditEventType.API_KEY_DELETED: AuditEventMeta(
+        tier=2, category=AuditCategory.AUTHENTICATION, is_write=True
+    ),
+    AuditEventType.API_KEY_REVOKED: AuditEventMeta(
         tier=2, category=AuditCategory.AUTHENTICATION, is_write=True
     ),
     # Lifecycle.

@@ -316,7 +316,7 @@ export function HourGutter({ className }: { className: string }) {
         <div
           key={hour}
           className={cn(
-            "flex items-start justify-end border-b pt-1 text-[10px] text-muted-foreground",
+            "flex items-start justify-end border-b pt-1 text-3xs text-muted-foreground",
             className
           )}
           style={{ height: ROW_HEIGHT }}
@@ -408,7 +408,7 @@ export function DayColumn({
             enabled={dndEnabled}
             onSelect={onEntryClick}
             className={cn(
-              "absolute z-10 flex overflow-hidden rounded-r border text-left text-[11px] transition-colors",
+              "absolute z-10 flex overflow-hidden rounded-r border text-left text-2xs transition-colors",
               onEntryClick ? "cursor-pointer hover:brightness-90" : "cursor-default"
             )}
             style={{
@@ -424,7 +424,7 @@ export function DayColumn({
             <div className={cn("flex flex-col", compact ? "px-1.5 py-0.5" : "px-2 py-1")}>
               <span className="truncate font-medium">{block.entry.title}</span>
               {!compact || height >= 32 ? (
-                <span className="text-[10px] text-muted-foreground">
+                <span className="text-3xs text-muted-foreground">
                   {formatTime(start)} – {formatTime(end)}
                 </span>
               ) : null}

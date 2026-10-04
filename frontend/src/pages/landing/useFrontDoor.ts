@@ -7,7 +7,7 @@
  * phone app, which may not point anyone at a purchase outside the stores.
  */
 
-import { useBootstrapStatusApiV1AuthBootstrapGet } from "@/api/generated/auth/auth";
+import { useBootstrapStatus } from "@/api/generated/auth/auth";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useBillingCatalog } from "@/hooks/useBillingCatalog";
 import { useServer } from "@/hooks/useServer";
@@ -16,7 +16,7 @@ export const useFrontDoor = () => {
   const appConfig = useAppConfig();
   const { billing } = appConfig;
 
-  const bootstrap = useBootstrapStatusApiV1AuthBootstrapGet({ query: { staleTime: 60_000 } });
+  const bootstrap = useBootstrapStatus({ query: { staleTime: 60_000 } });
   // Until the server answers, the page offers sign-up: most deployments allow
   // it, and the button leaving is better than the button arriving late.
   const registrationOpen = bootstrap.data?.public_registration_enabled !== false;

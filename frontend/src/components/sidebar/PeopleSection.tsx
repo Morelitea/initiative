@@ -4,8 +4,8 @@ import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
-  GuildRole,
-  type GuildRosterMember,
+  CommunityRole,
+  type CommunityRosterMember,
   type Presence,
 } from "@/api/generated/initiativeAPI.schemas";
 import { Badge } from "@/components/ui/badge";
@@ -20,16 +20,16 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { ProfileAvatar } from "@/components/user/ProfileAvatar";
 import { UserHoverLink } from "@/components/user/UserHoverLink";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { useDirectMessagesEnabled, useDmSettings } from "@/hooks/useDirectMessages";
-import { useGuildRoster } from "@/hooks/useUsers";
+import { useCommunityRoster } from "@/hooks/useUsers";
 import { isAdminRole } from "@/lib/permissions";
 import { PRESENCE_ORDER, presenceLabelKey } from "@/lib/presence";
 import { getUserDisplayName } from "@/lib/userDisplay";
 import { cn } from "@/lib/utils";
 
-const RosterRow = ({ member }: { member: GuildRosterMember }) => {
-  const { t } = useTranslation("guilds");
+const RosterRow = ({ member }: { member: CommunityRosterMember }) => {
+  const { t } = useTranslation("communities");
   const status = member.custom_status;
   const away = member.presence === "offline";
   return (
@@ -50,9 +50,9 @@ const RosterRow = ({ member }: { member: GuildRosterMember }) => {
         <span className="min-w-0 flex-1">
           <span className="flex min-w-0 items-center gap-1 text-sm">
             <span className="truncate">{getUserDisplayName(member)}</span>
-            {isAdminRole(member.guild_role) && (
-              <Badge variant="secondary" className="shrink-0 px-1.5 py-0 text-[10px]">
-                {member.guild_role === GuildRole.superadmin
+            {isAdminRole(member.community_role) && (
+              <Badge variant="secondary" className="shrink-0 px-1.5 py-0 text-3xs">
+                {member.community_role === CommunityRole.superadmin
                   ? t("members.superadmin")
                   : t("members.admin")}
               </Badge>
@@ -79,15 +79,15 @@ const RosterRow = ({ member }: { member: GuildRosterMember }) => {
  */
 export const PeopleSection = () => {
   const { t } = useTranslation(["nav", "profiles", "common"]);
-  const roster = useGuildRoster();
-  const guildId = useActiveGuildId();
+  const roster = useCommunityRoster();
+  const communityId = useActiveCommunityId();
   const dmEnabled = useDirectMessagesEnabled();
   const dmSettings = useDmSettings().data;
   const readerHidden =
     dmEnabled &&
     (dmSettings?.dm_policy === "private" ||
       (dmSettings?.dm_policy === "community" &&
-        dmSettings.communities.some((c) => c.guild_id === guildId && !c.enabled)));
+        dmSettings.communities.some((c) => c.community_id === communityId && !c.enabled)));
 
   const pages = roster.data?.pages;
   const counts = pages?.[0]?.presence_counts;
@@ -95,7 +95,7 @@ export const PeopleSection = () => {
     // Pages are fetched one at a time from a list ordered by live presence, so
     // somebody whose presence changed in between can come back on two of them.
     const seen = new Set<number>();
-    const byPresence = new Map<Presence, GuildRosterMember[]>();
+    const byPresence = new Map<Presence, CommunityRosterMember[]>();
     for (const member of pages?.flatMap((page) => page.items) ?? []) {
       if (seen.has(member.id)) continue;
       seen.add(member.id);
@@ -142,7 +142,7 @@ export const PeopleSection = () => {
         ) : (
           groups.map(({ presence, members }) => (
             <section key={presence} aria-label={t(`profiles:${presenceLabelKey(presence)}`)}>
-              <h3 className="px-2 pb-1 font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
+              <h3 className="px-2 pb-1 font-medium text-muted-foreground text-xs uppercase tracking-wide">
                 {t("peopleGroup", {
                   label: t(`profiles:${presenceLabelKey(presence)}`),
                   count: counts?.[presence] ?? members.length,

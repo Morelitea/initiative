@@ -13,8 +13,8 @@ from typing import Any
 
 from sqlmodel import select
 
-from app.core.messages import AppMessages, CalendarMessages
-from app.models.platform.guild import GuildRole
+from app.core.messages import AppMessages, CalendarMessages, RelationshipMessages
+from app.models.platform.guild import CommunityRole
 from app.models.platform.notification import Notification, NotificationType
 from app.models.tenant.calendar import Calendar
 from app.models.tenant.calendar_event import CalendarEvent
@@ -23,6 +23,7 @@ from app.services.marketplace import app_refs
 from app.testing import (
     guild_url,
     create_calendar,
+    create_document,
     create_resource_grant,
     create_calendar_event,
     create_guild_app,
@@ -36,6 +37,7 @@ from app.testing.app_clients import (
     install_app,
     install_headers,
     lift_person_and_guild_ids,
+    share_with_members,
 )
 
 
@@ -58,7 +60,7 @@ async def _switch_on(session: Any, *initiatives: Any) -> None:
 
 async def _member_of_a(acting_user: Any, installed: Any) -> Any:
     return await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=installed.guild,
         initiative=installed.placed,
         initiative_role="member",
@@ -178,7 +180,7 @@ async def test_what_it_creates_is_its_own_and_names_nobody(
     assert created.status_code == 201, created.text
     calendar = created.json()
     assert calendar["created_by"] is None
-    assert isinstance(calendar["guild_id"], str)
+    assert isinstance(calendar["community_id"], str)
     assert calendar["can"]["delete"] is True
     assert_names_nobody(created.text, [installed.seat.user.id, guild_id])
 
@@ -257,6 +259,45 @@ async def test_it_shares_nothing_and_makes_no_community_calendar(
     assert community.json()["detail"] == CalendarMessages.APP_INITIATIVE_REQUIRED
 
 
+async def test_links_the_documents_open_to_it_in_the_calendars_initiative(
+    client, session, acting_user, role_session
+):
+    """An event it makes links documents by the rules a person's does, asked as
+    the install: one it can read in the calendar's initiative, and not one
+    from an initiative it was never placed in."""
+    scopes = ["calendars:write", "documents:read", "relationships:write"]
+    installed = await install_app(session, acting_user, role_session, granted=scopes)
+    guild_id = installed.guild.id
+    await _switch_on(session, installed.placed)
+    headers = install_headers(installed, scopes)
+    calendar = await client.post(
+        guild_url(guild_id, "/calendars/"),
+        headers=headers,
+        json={"name": "Made by the app", "initiative_id": installed.placed.id},
+    )
+    assert calendar.status_code == 201, calendar.text
+    document = await create_document(session, installed.placed, installed.seat.user)
+    await share_with_members(session, document, installed.placed.id)
+    elsewhere = await create_document(session, installed.unplaced, installed.seat.user)
+
+    def event_with(document_id: int) -> dict[str, Any]:
+        return {
+            "calendar_id": calendar.json()["id"],
+            "title": "Review",
+            "document_ids": [document_id],
+            **_window(),
+        }
+
+    url = guild_url(guild_id, "/calendar-events/")
+    linked = await client.post(url, headers=headers, json=event_with(document.id))
+    assert linked.status_code == 201, linked.text
+    assert [d["document_id"] for d in linked.json()["documents"]] == [document.id]
+
+    refused = await client.post(url, headers=headers, json=event_with(elsewhere.id))
+    assert refused.status_code == 404, refused.text
+    assert refused.json()["detail"] == RelationshipMessages.ENDPOINT_NOT_FOUND
+
+
 # ---------------------------------------------------------------------------
 # Attendees
 # ---------------------------------------------------------------------------
@@ -323,7 +364,8 @@ async def test_invites_attendees_by_reference_in_its_own_name(
     body = response.json()
     assert [a["user_id"] for a in body["attendees"]] == [reference]
     assert body["attendees"][0]["user"]["id"] == reference
-    assert [p["user_id"] for p in body["attendee_previews"]] == [reference]
+    assert body["attendees"][0]["user"]["username"] == attendee.user.username
+    assert body["attendee_previews"] == [body["attendees"][0]["user"]]
     assert_names_nobody(response.text, [seat.user.id, attendee.user.id, guild_id])
 
     await drain_notices()

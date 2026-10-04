@@ -19,8 +19,8 @@ const router = createRouter({ routeTree, context: buildRouterContext() });
 /**
  * The id of the innermost route a pathname resolves to.
  *
- * A path under `/c/{id}` with no page behind it still matches the guild
- * *layout*, so "nothing serves this" reads as resolving to `GUILD` rather than
+ * A path under `/c/{id}` with no page behind it still matches the community
+ * *layout*, so "nothing serves this" reads as resolving to `COMMUNITY` rather than
  * to null — that is what the deleted-route cases below assert.
  */
 function resolvedRouteId(pathname: string): string {
@@ -28,8 +28,8 @@ function resolvedRouteId(pathname: string): string {
   return String(matches.at(-1)?.routeId ?? "__none__");
 }
 
-const GUILD = "/_serverRequired/_authenticated/c/$guildId";
-const INITIATIVE = `${GUILD}/i/$initiativeId`;
+const COMMUNITY = "/_serverRequired/_authenticated/c/$communityId";
+const INITIATIVE = `${COMMUNITY}/i/$initiativeId`;
 
 describe("initiative route resolution", () => {
   it.each([
@@ -52,10 +52,10 @@ describe("initiative route resolution", () => {
     expect(resolvedRouteId(pathname)).toBe(routeId);
   });
 
-  // The initiatives list is the guild home, so the bare `/i` segment serves
-  // nothing of its own and falls back to the guild layout.
-  it("leaves the bare initiatives segment to the guild layout", () => {
-    expect(resolvedRouteId("/c/1/i")).toBe(GUILD);
+  // The initiatives list is the community home, so the bare `/i` segment serves
+  // nothing of its own and falls back to the community layout.
+  it("leaves the bare initiatives segment to the community layout", () => {
+    expect(resolvedRouteId("/c/1/i")).toBe(COMMUNITY);
   });
 
   // The tab routes are siblings of these; a tool segment that collided with
@@ -98,7 +98,7 @@ describe("initiative route resolution", () => {
       `${INITIATIVE}/dashboards/$dashboardId/settings/access`,
     ],
     ["/c/1/i/5/calendars/2/settings", `${INITIATIVE}/calendars/$calendarId/settings/`],
-    ["/c/1/calendars/2/settings/access", `${GUILD}/calendars/$calendarId/settings/access`],
+    ["/c/1/calendars/2/settings/access", `${COMMUNITY}/calendars/$calendarId/settings/access`],
   ])("resolves %s", (pathname, routeId) => {
     expect(resolvedRouteId(pathname)).toBe(routeId);
   });
@@ -116,25 +116,25 @@ describe("initiative route resolution", () => {
     expect(resolvedRouteId("/c/1/i/5/dashboards/gallery")).toBe(`${INITIATIVE}/dashboards/gallery`);
   });
 
-  // Only calendars can be guild-level; those keep their pre-initiative routes.
-  it("resolves a guild-level calendar and its events", () => {
-    expect(resolvedRouteId("/c/1/calendars/2")).toBe(`${GUILD}/calendars/$calendarId/`);
+  // Only calendars can be community-level; those keep their pre-initiative routes.
+  it("resolves a community-level calendar and its events", () => {
+    expect(resolvedRouteId("/c/1/calendars/2")).toBe(`${COMMUNITY}/calendars/$calendarId/`);
     expect(resolvedRouteId("/c/1/calendars/2/events/8")).toBe(
-      `${GUILD}/calendars/$calendarId/events/$eventId/`
+      `${COMMUNITY}/calendars/$calendarId/events/$eventId/`
     );
   });
 
-  // The calendar app's own surface — the guild's calendars, not a roll-up of
+  // The calendar app's own surface — the community's calendars, not a roll-up of
   // its initiatives'. That is why this one address survives the list below.
-  it("resolves the guild's calendars", () => {
-    expect(resolvedRouteId("/c/1/calendars")).toBe(`${GUILD}/calendars/`);
+  it("resolves the community's calendars", () => {
+    expect(resolvedRouteId("/c/1/calendars")).toBe(`${COMMUNITY}/calendars/`);
   });
 
   it("resolves the entity-reference resolver", () => {
-    expect(resolvedRouteId("/c/1/go/document/42")).toBe(`${GUILD}/go/$refType/$refId`);
+    expect(resolvedRouteId("/c/1/go/document/42")).toBe(`${COMMUNITY}/go/$refType/$refId`);
   });
 
-  // Deleted on purpose — the guild home is the cross-initiative browse now.
+  // Deleted on purpose — the community home is the cross-initiative browse now.
   it.each([
     "/c/1/projects",
     "/c/1/documents",
@@ -148,6 +148,6 @@ describe("initiative route resolution", () => {
     "/c/1/initiatives",
     "/c/1/initiatives/5",
   ])("no longer serves %s", (path) => {
-    expect(resolvedRouteId(path)).toBe(GUILD);
+    expect(resolvedRouteId(path)).toBe(COMMUNITY);
   });
 });

@@ -2,24 +2,24 @@ import { HttpResponse } from "msw";
 
 import { buildDefaultTaskStatuses, buildTask, buildTaskListResponse } from "@/__tests__/factories";
 
-import { guildHttp } from "../guildHttp";
+import { communityHttp } from "../communityHttp";
 
 export const taskHandlers = [
-  guildHttp.get("/tasks/", () => {
+  communityHttp.get("/tasks/", () => {
     return HttpResponse.json(buildTaskListResponse());
   }),
 
-  guildHttp.get("/tasks/autocomplete", () => {
+  communityHttp.get("/tasks/autocomplete", () => {
     return HttpResponse.json(
       buildTaskListResponse().items.map((task) => ({ id: task.id, title: task.title }))
     );
   }),
 
-  guildHttp.patch("/tasks/:id", () => {
+  communityHttp.patch("/tasks/:id", () => {
     return HttpResponse.json(buildTask());
   }),
 
-  guildHttp.get("/projects/:id/task-statuses/", () => {
+  communityHttp.get("/projects/:id/task-statuses/", () => {
     return HttpResponse.json(buildDefaultTaskStatuses());
   }),
 ];

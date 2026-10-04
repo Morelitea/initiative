@@ -26,16 +26,16 @@ from app.db.session import set_rls_context
 from app.schemas.platform.billing import (
     BillingCommunityNotice,
     BillingCommunityNoticeRead,
-    BillingGuildNameRead,
-    BillingGuildNameRequest,
-    BillingGuildStatusRead,
-    BillingGuildStatusRequest,
-    BillingGuildTierApply,
-    BillingGuildTierRead,
+    BillingCommunityNameRead,
+    BillingCommunityNameRequest,
+    BillingCommunityStatusRead,
+    BillingCommunityStatusRequest,
+    BillingCommunityTierApply,
+    BillingCommunityTierRead,
     BillingUsageRead,
     BillingUsageRequest,
 )
-from app.models.platform.guild import GuildStatus
+from app.models.platform.guild import CommunityStatus
 from app.services.platform import billing as billing_service
 from app.services.platform import guilds as guilds_service
 from app.services.platform import identity_refs
@@ -111,7 +111,7 @@ async def _resolve_guild(guild_ref: str) -> int:
     if guild_id is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=BillingMessages.GUILD_NOT_FOUND,
+            detail=BillingMessages.COMMUNITY_NOT_FOUND,
         )
     return guild_id
 
@@ -128,12 +128,12 @@ async def _burn_jti(session, claims) -> None:
         ) from exc
 
 
-@router.post("/community-tier", response_model=BillingGuildTierRead)
-async def apply_guild_tier(
+@router.post("/community-tier", response_model=BillingCommunityTierRead)
+async def apply_community_tier(
     request: Request, session: SessionDep
-) -> BillingGuildTierRead:
-    claims, payload = await _verify_and_parse(request, BillingGuildTierApply)
-    guild_id = await _resolve_guild(payload.guild_ref)
+) -> BillingCommunityTierRead:
+    claims, payload = await _verify_and_parse(request, BillingCommunityTierApply)
+    guild_id = await _resolve_guild(payload.community_ref)
     await set_rls_context(session, Billing(guild_id))
     await _burn_jti(session, claims)
     status_before = await billing_service.guild_lifecycle_status(session, guild_id)
@@ -146,7 +146,7 @@ async def apply_guild_tier(
         # the delivery can be retried once the guild exists.
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=BillingMessages.GUILD_NOT_FOUND,
+            detail=BillingMessages.COMMUNITY_NOT_FOUND,
         ) from exc
     except BillingSourceRestrictionError as exc:
         # The restriction is checked before the event-log claim, so the
@@ -160,8 +160,8 @@ async def apply_guild_tier(
         ) from exc
     await session.commit()
     if (
-        result.status is GuildStatus.on_hold
-        and status_before is not GuildStatus.on_hold
+        result.status is CommunityStatus.on_hold
+        and status_before is not CommunityStatus.on_hold
     ):
         # Told once, on the way in, and on the system engine: the billing
         # role writes guild status and caps and nothing else.
@@ -194,13 +194,13 @@ async def community_notice(
     suspended is recorded and tells nobody.
     """
     claims, payload = await _verify_and_parse(request, BillingCommunityNotice)
-    guild_id = await _resolve_guild(payload.guild_ref)
+    guild_id = await _resolve_guild(payload.community_ref)
     await set_rls_context(session, Billing(guild_id))
     await _burn_jti(session, claims)
     if await billing_service.guild_lifecycle_status(session, guild_id) is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=BillingMessages.GUILD_NOT_FOUND,
+            detail=BillingMessages.COMMUNITY_NOT_FOUND,
         )
     await session.commit()  # persist the one-shot jti redemption
     owner_user_id = (
@@ -232,8 +232,10 @@ async def community_notice(
     return BillingCommunityNoticeRead(delivered=delivered)
 
 
-@router.post("/community-name", response_model=BillingGuildNameRead)
-async def guild_name(request: Request, session: SessionDep) -> BillingGuildNameRead:
+@router.post("/community-name", response_model=BillingCommunityNameRead)
+async def community_name(
+    request: Request, session: SessionDep
+) -> BillingCommunityNameRead:
     """Signed read: what one guild calls itself.
 
     For rendering. A reference is unreadable on purpose, so a page about
@@ -243,8 +245,8 @@ async def guild_name(request: Request, session: SessionDep) -> BillingGuildNameR
     deleted 404s with the jti unredeemed, so the call stays retryable while it
     is the caller's timing rather than their credential that is wrong.
     """
-    claims, payload = await _verify_and_parse(request, BillingGuildNameRequest)
-    guild_id = await _resolve_guild(payload.guild_ref)
+    claims, payload = await _verify_and_parse(request, BillingCommunityNameRequest)
+    guild_id = await _resolve_guild(payload.community_ref)
     await set_rls_context(session, Billing(guild_id))
     await _burn_jti(session, claims)
 
@@ -252,20 +254,22 @@ async def guild_name(request: Request, session: SessionDep) -> BillingGuildNameR
     if name is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=BillingMessages.GUILD_NOT_FOUND,
+            detail=BillingMessages.COMMUNITY_NOT_FOUND,
         )
     await session.commit()  # persist the one-shot jti redemption
-    return BillingGuildNameRead(guild_ref=payload.guild_ref, name=name)
+    return BillingCommunityNameRead(community_ref=payload.community_ref, name=name)
 
 
-@router.post("/community-status", response_model=BillingGuildStatusRead)
-async def guild_status(request: Request, session: SessionDep) -> BillingGuildStatusRead:
+@router.post("/community-status", response_model=BillingCommunityStatusRead)
+async def community_status(
+    request: Request, session: SessionDep
+) -> BillingCommunityStatusRead:
     """Signed read: one guild's lifecycle status, ``deleted`` included.
 
     Only a purged guild 404s, with the jti unredeemed.
     """
-    claims, payload = await _verify_and_parse(request, BillingGuildStatusRequest)
-    guild_id = await _resolve_guild(payload.guild_ref)
+    claims, payload = await _verify_and_parse(request, BillingCommunityStatusRequest)
+    guild_id = await _resolve_guild(payload.community_ref)
     await set_rls_context(session, Billing(guild_id))
     await _burn_jti(session, claims)
 
@@ -273,14 +277,16 @@ async def guild_status(request: Request, session: SessionDep) -> BillingGuildSta
     if guild_status is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=BillingMessages.GUILD_NOT_FOUND,
+            detail=BillingMessages.COMMUNITY_NOT_FOUND,
         )
     await session.commit()  # persist the one-shot jti redemption
-    return BillingGuildStatusRead(guild_ref=payload.guild_ref, status=guild_status)
+    return BillingCommunityStatusRead(
+        community_ref=payload.community_ref, status=guild_status
+    )
 
 
 @router.post("/usage", response_model=BillingUsageRead)
-async def guild_usage(request: Request, session: SessionDep) -> BillingUsageRead:
+async def community_usage(request: Request, session: SessionDep) -> BillingUsageRead:
     """Signed read: current stored bytes for one guild.
 
     Envelope-verified and jti-burned on the billing session like the other
@@ -289,7 +295,7 @@ async def guild_usage(request: Request, session: SessionDep) -> BillingUsageRead
     it). A missing guild 404s with the jti unredeemed (retryable).
     """
     claims, payload = await _verify_and_parse(request, BillingUsageRequest)
-    guild_id = await _resolve_guild(payload.guild_ref)
+    guild_id = await _resolve_guild(payload.community_ref)
     await set_rls_context(session, Billing(guild_id))
     await _burn_jti(session, claims)
     try:
@@ -297,7 +303,9 @@ async def guild_usage(request: Request, session: SessionDep) -> BillingUsageRead
     except BillingGuildNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=BillingMessages.GUILD_NOT_FOUND,
+            detail=BillingMessages.COMMUNITY_NOT_FOUND,
         ) from exc
     await session.commit()  # persist the one-shot jti redemption
-    return BillingUsageRead(guild_ref=payload.guild_ref, usage_bytes=usage_bytes)
+    return BillingUsageRead(
+        community_ref=payload.community_ref, usage_bytes=usage_bytes
+    )

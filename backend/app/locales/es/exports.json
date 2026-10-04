@@ -60,6 +60,7 @@
     "start": "Inicio"
   },
   "fallback": {
-    "untitled": "(sin título)"
+    "untitled": "(sin título)",
+    "formerMember": "Exmiembro"
   }
 }

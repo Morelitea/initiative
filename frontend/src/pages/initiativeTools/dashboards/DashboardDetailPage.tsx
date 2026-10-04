@@ -1,5 +1,4 @@
-import { Link, useParams } from "@tanstack/react-router";
-import { Settings } from "lucide-react";
+import { useParams } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -12,25 +11,25 @@ import { PublishedViewNotice } from "@/components/initiativeTools/dashboards/Pub
 import { WidgetConfigDialog } from "@/components/initiativeTools/dashboards/WidgetConfigDialog";
 import { WidgetPicker } from "@/components/initiativeTools/dashboards/WidgetPicker";
 import { ToolAccessStatus } from "@/components/ToolAccessStatus";
-import { ToolBreadcrumb } from "@/components/tools/ToolBreadcrumb";
-import { Button } from "@/components/ui/button";
+import { ToolChest, ToolChestSegment } from "@/components/tools/ToolChest";
+import { ToolPageHeader } from "@/components/tools/ToolPageHeader";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
 import { useDashboardEditor } from "@/hooks/useDashboardEditor";
-import { useDashboard, useWidgetCatalog } from "@/hooks/useDashboards";
+import { useDashboard, useUpdateDashboard, useWidgetCatalog } from "@/hooks/useDashboards";
 import { useReadOnOpen } from "@/hooks/useNotifications";
 import { useRecordRecentView } from "@/hooks/useRecents";
-import { useGuildPath } from "@/lib/guildUrl";
+import { useCommunityPath } from "@/lib/communityUrl";
 import { toolListRoute, toolSettingsRoute } from "@/lib/tools";
 
 export function DashboardDetailPage() {
   const { t } = useTranslation(["dashboards", "common"]);
-  const { guildId, dashboardId } = useParams({ strict: false }) as {
-    guildId: string;
+  const { communityId, dashboardId } = useParams({ strict: false }) as {
+    communityId: string;
     dashboardId: string;
   };
   const parsedId = Number(dashboardId);
-  const gp = useGuildPath();
+  const gp = useCommunityPath();
 
   const dashboardQuery = useDashboard(Number.isFinite(parsedId) ? parsedId : null);
   const dashboard = dashboardQuery.data;
@@ -41,7 +40,7 @@ export function DashboardDetailPage() {
 
   // Track recently viewed dashboards for the layout header tabs bar — only
   // once the read succeeds (access checks passed).
-  const recordViewMutation = useRecordRecentView("dashboard", Number(guildId));
+  const recordViewMutation = useRecordRecentView("dashboard", Number(communityId));
   const viewedDashboardId = dashboard?.id;
   useReadOnOpen(Tool.dashboard, viewedDashboardId);
   useEffect(() => {
@@ -54,6 +53,7 @@ export function DashboardDetailPage() {
   // so the canvas is static without DAC write rather than merely looking it.
   const canEdit = Boolean(dashboard?.can.edit);
   const editor = useDashboardEditor(dashboard, catalogQuery.data, canEdit);
+  const rename = useUpdateDashboard(parsedId);
   const [configuringId, setConfiguringId] = useState<string | null>(null);
   const configuring =
     editor.definition.widgets.find((widget) => widget.id === configuringId) ?? null;
@@ -75,58 +75,55 @@ export function DashboardDetailPage() {
   // is what made an ordinary load look like a reload.
   return (
     <div className="space-y-6">
-      <ToolBreadcrumb
-        tool={Tool.dashboard}
-        initiativeId={dashboard?.initiative_id}
-        trail={[{ label: dashboard ? dashboard.name : <Skeleton className="h-4 w-32" /> }]}
-      />
-
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0 space-y-1">
-          {dashboard ? (
-            <h1 className="font-semibold text-3xl tracking-tight">{dashboard.name}</h1>
-          ) : (
-            <Skeleton className="h-9 w-64" />
-          )}
-          {dashboard?.description && (
+      {dashboard ? (
+        <ToolPageHeader
+          tool={Tool.dashboard}
+          initiativeId={dashboard.initiative_id}
+          settingsTo={
+            canEdit ? toolSettingsRoute(Tool.dashboard, initiativeId, dashboard.id) : undefined
+          }
+          chest={
+            <ToolChest tool={Tool.dashboard} entity={dashboard}>
+              <ToolChestSegment>
+                <div className="flex items-center gap-2">
+                  <DashboardUpdateBadge dashboard={dashboard} canEdit={canEdit} />
+                  {canEdit && (
+                    <>
+                      <WidgetPicker
+                        catalog={catalogQuery.data}
+                        widgetCount={editor.definition.widgets.length}
+                        onAdd={editor.addWidget}
+                      />
+                      {editor.isSaving && (
+                        <span className="text-muted-foreground text-xs">{t("canvas.saving")}</span>
+                      )}
+                    </>
+                  )}
+                </div>
+              </ToolChestSegment>
+            </ToolChest>
+          }
+          title={dashboard.name}
+          onRename={canEdit ? (name) => rename.mutateAsync({ name }) : undefined}
+        >
+          {dashboard.description && (
             <p className="text-muted-foreground text-sm">{dashboard.description}</p>
           )}
-          {dashboard && (
-            <PublishedViewNotice
-              published={dashboard.published_over}
-              active={dashboard.published_active}
-              sharedView={dashboard.view_as_active}
-            />
-          )}
+          <PublishedViewNotice
+            published={dashboard.published_over}
+            active={dashboard.published_active}
+          />
+        </ToolPageHeader>
+      ) : (
+        <div className="space-y-4">
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-4 w-20" />
+            <Skeleton className="h-4 w-3" />
+            <Skeleton className="h-4 w-32" />
+          </div>
+          <Skeleton className="h-9 w-64" />
         </div>
-
-        <div className="flex shrink-0 items-center gap-2">
-          {dashboard && <DashboardUpdateBadge dashboard={dashboard} canEdit={canEdit} />}
-          {canEdit && (
-            <>
-              {editor.isSaving && (
-                <span className="text-muted-foreground text-xs">{t("canvas.saving")}</span>
-              )}
-              <WidgetPicker
-                catalog={catalogQuery.data}
-                widgetCount={editor.definition.widgets.length}
-                onAdd={editor.addWidget}
-              />
-              {dashboard && (
-                <Button variant="outline" size="sm" asChild>
-                  <Link
-                    to={gp(toolSettingsRoute(Tool.dashboard, initiativeId, dashboard.id))}
-                    className="inline-flex items-center gap-2"
-                  >
-                    <Settings className="h-4 w-4" />
-                    {t("common:toolSettings.title")}
-                  </Link>
-                </Button>
-              )}
-            </>
-          )}
-        </div>
-      </div>
+      )}
 
       <DashboardCanvas
         definition={editor.definition}
@@ -148,9 +145,7 @@ export function DashboardDetailPage() {
         entityTitle={dashboard?.name}
       />
 
-      {dashboard != null && (
-        <ToolCommentsPanel tool={Tool.dashboard} entity={dashboard} canModerate={canEdit} />
-      )}
+      {dashboard != null && <ToolCommentsPanel tool={Tool.dashboard} entity={dashboard} />}
 
       {dashboard != null && (
         <WidgetConfigDialog

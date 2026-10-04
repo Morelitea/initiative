@@ -16,7 +16,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 import app.api.v1.platform_endpoints.guilds as guilds_endpoint
 from app.db.schema_provisioning import guild_role_name, guild_schema_name
-from app.models.platform.guild import Guild, GuildStatus
+from app.models.platform.guild import Guild, CommunityStatus
 from app.models.platform.app_setting import DEFAULT_GUILD_RETENTION_DAYS
 from app.services.platform import guild_purge
 from app.testing.factories import (
@@ -102,7 +102,7 @@ async def test_delete_guild_keeps_the_schema_until_the_purge(
     assert resp.status_code == 204
 
     guild = (await session.exec(select(Guild).where(Guild.id == gid))).one()
-    assert guild.status == GuildStatus.deleted.value
+    assert guild.status == CommunityStatus.deleted.value
     assert await _schema_exists(engine, schema), "retained for the restore window"
     assert await _role_exists(engine, role)
 
@@ -149,7 +149,7 @@ async def test_create_guild_rolls_back_when_provisioning_fails(
     )
 
     assert resp.status_code == 500
-    assert resp.json()["detail"] == "GUILD_PROVISION_FAILED"
+    assert resp.json()["detail"] == "COMMUNITY_PROVISION_FAILED"
     remaining = (
         await session.exec(select(Guild).where(Guild.name == "Rollback Guild"))
     ).all()

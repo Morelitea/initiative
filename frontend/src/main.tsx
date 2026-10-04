@@ -14,7 +14,7 @@ import { setApiBaseUrl } from "@/api/client";
 import { TaskCompletionEffectHost } from "@/components/effects/TaskCompletionEffectHost";
 import { AppErrorBoundary } from "@/components/errors/AppErrorBoundary";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
-import { GuildProvider, useGuilds } from "@/hooks/useGuilds";
+import { CommunityProvider, useCommunities } from "@/hooks/useCommunities";
 import { KeepScreenAwakeProvider } from "@/hooks/useKeepScreenAwake";
 import { PrideProvider } from "@/hooks/usePride";
 import { useRouteGuardSync } from "@/hooks/useRouteGuardSync";
@@ -34,7 +34,7 @@ import { registerServiceWorker } from "@/serviceWorkerRegistration";
  */
 const InnerApp = () => {
   const auth = useAuth();
-  const guilds = useGuilds();
+  const communities = useCommunities();
   const server = useServer();
 
   // Auth and server state settle after the first router load, so ask the router
@@ -49,7 +49,7 @@ const InnerApp = () => {
         context={{
           queryClient,
           auth,
-          guilds,
+          communities,
           server,
         }}
       />
@@ -121,9 +121,9 @@ async function bootstrap() {
                 <ServerProvider>
                   {withQueryClient(
                     <AuthProvider>
-                      <GuildProvider>
+                      <CommunityProvider>
                         <InnerApp />
-                      </GuildProvider>
+                      </CommunityProvider>
                     </AuthProvider>
                   )}
                 </ServerProvider>

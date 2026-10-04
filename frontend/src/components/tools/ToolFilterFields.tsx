@@ -13,15 +13,15 @@ import { type ComponentType, type ReactNode, useId } from "react";
 import { useTranslation } from "react-i18next";
 
 import type {
-  ListCalendarsApiV1CGuildIdCalendarsGetParams,
-  ListCounterGroupsApiV1CGuildIdCounterGroupsGetParams,
-  ListDashboardsApiV1CGuildIdDashboardsGetParams,
-  ListDocumentsApiV1CGuildIdDocumentsGetParams,
-  ListGalleriesApiV1CGuildIdGalleriesGetParams,
-  ListPostsApiV1CGuildIdPostsGetParams,
-  ListProjectsApiV1CGuildIdProjectsGetParams,
-  ListQueuesApiV1CGuildIdQueuesGetParams,
-  ListWikisApiV1CGuildIdWikisGetParams,
+  ListCalendarsParams,
+  ListCounterGroupsParams,
+  ListDashboardsParams,
+  ListDocumentsParams,
+  ListGalleriesParams,
+  ListPostsParams,
+  ListProjectsParams,
+  ListQueuesParams,
+  ListWikisParams,
 } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { DocumentFilterFields } from "@/components/documents/DocumentsFilterBar";
@@ -41,15 +41,15 @@ import type { TranslateFn } from "@/types/i18n";
 
 /** Each tool's list params, as its list route takes them. */
 type ToolListParams = {
-  [Tool.project]: ListProjectsApiV1CGuildIdProjectsGetParams;
-  [Tool.document]: ListDocumentsApiV1CGuildIdDocumentsGetParams;
-  [Tool.queue]: ListQueuesApiV1CGuildIdQueuesGetParams;
-  [Tool.counter_group]: ListCounterGroupsApiV1CGuildIdCounterGroupsGetParams;
-  [Tool.calendar]: ListCalendarsApiV1CGuildIdCalendarsGetParams;
-  [Tool.dashboard]: ListDashboardsApiV1CGuildIdDashboardsGetParams;
-  [Tool.post]: ListPostsApiV1CGuildIdPostsGetParams;
-  [Tool.gallery]: ListGalleriesApiV1CGuildIdGalleriesGetParams;
-  [Tool.wiki]: ListWikisApiV1CGuildIdWikisGetParams;
+  [Tool.project]: ListProjectsParams;
+  [Tool.document]: ListDocumentsParams;
+  [Tool.queue]: ListQueuesParams;
+  [Tool.counter_group]: ListCounterGroupsParams;
+  [Tool.calendar]: ListCalendarsParams;
+  [Tool.dashboard]: ListDashboardsParams;
+  [Tool.post]: ListPostsParams;
+  [Tool.gallery]: ListGalleriesParams;
+  [Tool.wiki]: ListWikisParams;
 };
 
 /** The params the list's caller decides rather than the person filtering:

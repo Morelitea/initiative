@@ -371,6 +371,7 @@ class TestConnections:
                 "not a field of this connection",
             ),
             ({"revoke": "rfc7009"}, "revoke_url"),
+            ({"revoke": "github_grant"}, "revoke_url"),
             ({"revoke": "telegram"}, "unknown revoke"),
             ({"type": "saml"}, "unknown type"),
         ],
@@ -379,6 +380,7 @@ class TestConnections:
             "an undeclared vendor value",
             "an undeclared field",
             "rfc7009 with nowhere to post",
+            "github_grant with nowhere to send",
             "an unknown revocation",
             "an unknown flow",
         ],
@@ -930,7 +932,7 @@ class TestEmbeds:
             {
                 "id": "orders",
                 "path": "/embed/orders",
-                "scopes": ["guild"],
+                "scopes": ["community"],
                 "admin_only": True,
                 "name": {"en": "Orders"},
             }
@@ -1003,11 +1005,11 @@ class TestWhereASurfaceRenders:
         return _normalize(features=["embeds"], embeds=[embed])["embeds"][0]
 
     def test_saying_nothing_keeps_the_placement_embeds_already_had(self):
-        assert self._embed()["scopes"] == ["guild"]
+        assert self._embed()["scopes"] == ["community"]
 
     def test_a_surface_may_render_in_both(self):
-        assert self._embed(scopes=["initiative", "guild"])["scopes"] == [
-            "guild",
+        assert self._embed(scopes=["initiative", "community"])["scopes"] == [
+            "community",
             "initiative",
         ]
 
@@ -1023,7 +1025,7 @@ class TestWhereASurfaceRenders:
             self._embed(scopes=[])
 
     def test_a_repeated_scope_is_stored_once(self):
-        assert self._embed(scopes=["guild", "guild"])["scopes"] == ["guild"]
+        assert self._embed(scopes=["community", "community"])["scopes"] == ["community"]
 
 
 class TestAdminOnlySurfaces:
@@ -1047,7 +1049,7 @@ class TestAdminOnlySurfaces:
         assert self._embed()["admin_only"] is False
 
     @pytest.mark.parametrize(
-        "scopes", [["guild"], ["initiative"], ["guild", "initiative"]]
+        "scopes", [["community"], ["initiative"], ["community", "initiative"]]
     )
     def test_any_surface_may_be_admin_only(self, scopes):
         assert self._embed(scopes=scopes, admin_only=True)["admin_only"] is True
@@ -1134,9 +1136,7 @@ class TestCanonicalShape:
                 }
             ],
             vendor=VENDOR,
-            endpoints=[
-                {"id": READ_ID, "direction": "read", "base_url": "http://x.test"}
-            ],
+            endpoints=[{"id": READ_ID, "direction": "read"}],
             embeds=[
                 {
                     "id": "orders",
@@ -1149,7 +1149,6 @@ class TestCanonicalShape:
         rendered = repr(definition)
         assert "http://" not in rendered
         assert "widget.test" not in rendered
-        assert "x.test" not in rendered
         assert "default_url" not in definition["service"]
 
     def test_the_whole_document_is_size_capped(self):

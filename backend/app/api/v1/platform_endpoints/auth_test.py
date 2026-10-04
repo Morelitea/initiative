@@ -10,7 +10,7 @@ Tests the auth API endpoints including:
 """
 
 import secrets
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, timedelta
 from urllib.parse import parse_qs, urlsplit
 
 import httpx
@@ -19,12 +19,12 @@ from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.email_i18n import email_t
 from app.core.encryption import (
     decrypt_token,
     hash_email,
 )
 from app.core.messages import OidcMessages
-from app.core.transitions import NATIVE_SIGN_IN_CODE
 from app.core.security import (
     REFRESH_COOKIE_NAME,
     SESSION_COOKIE_NAME,
@@ -59,6 +59,8 @@ from app.testing.oidc import (
     FakeIdp,
     mint_id_token,
 )
+
+APP_ORIGIN = {"Origin": "https://com.morelitea.initiative"}
 
 
 async def test_bootstrap_status_no_users(client: AsyncClient):
@@ -96,7 +98,6 @@ async def test_register_first_user(client: AsyncClient, session: AsyncSession):
     user_data = {
         "email": "first@example.com",
         "username": "first",
-        "full_name": "First User",
         "password": "securepassword123",
     }
 
@@ -105,7 +106,6 @@ async def test_register_first_user(client: AsyncClient, session: AsyncSession):
     assert response.status_code == 201
     data = response.json()
     assert data["email"] == "first@example.com"
-    assert data["full_name"] == "First User"
     assert data["status"] == "active"
     assert data["role"] == "owner"  # First user bootstraps as owner
     held = await session.exec(
@@ -119,7 +119,7 @@ async def test_register_with_a_community_makes_it(
 ):
     """A registration that names a community makes it, with the new account as
     its superadmin; one that also carries an invite is refused."""
-    from app.models.platform.guild import Guild, GuildMembership, GuildRole
+    from app.models.platform.guild import Guild, GuildMembership, CommunityRole
 
     await create_user(session)
     community = {"name": "Book Club", "description": "Monthly reads"}
@@ -153,7 +153,7 @@ async def test_register_with_a_community_makes_it(
         )
     ).all()
     assert [(g.name, g.description, role) for g, role in held] == [
-        ("Book Club", "Monthly reads", GuildRole.superadmin)
+        ("Book Club", "Monthly reads", CommunityRole.superadmin)
     ]
 
 
@@ -182,7 +182,8 @@ async def test_register_answers_the_age_question(client: AsyncClient):
     assert minor.json()["age_confirmed_at"] is None
     assert minor.json()["age_below_minimum_at"] is not None
 
-    unborn = await register("unborn", today + timedelta(days=1))
+    # Two days on, so no time zone the suite runs in reads it as today.
+    unborn = await register("unborn", today + timedelta(days=2))
     assert unborn.status_code == 422
     assert unborn.json()["detail"] == "USER_AGE_INVALID_BIRTHDATE"
 
@@ -212,13 +213,12 @@ async def test_register_with_invite_blocked_when_guild_full(
         json={
             "email": "reg-newuser@example.com",
             "username": "reg-newuser",
-            "full_name": "New User",
             "password": "password1234",
         },
     )
 
     assert response.status_code == 403
-    assert response.json()["detail"] == "GUILD_USER_LIMIT_REACHED"
+    assert response.json()["detail"] == "COMMUNITY_USER_LIMIT_REACHED"
 
 
 async def test_register_with_a_bound_invite_joins_on_confirming(
@@ -330,7 +330,6 @@ async def test_register_duplicate_email(client: AsyncClient, session: AsyncSessi
     user_data = {
         "email": "existing@example.com",
         "username": "existing",
-        "full_name": "Duplicate User",
         "password": "password1234",
     }
 
@@ -358,7 +357,6 @@ async def test_closed_registration_says_nothing_about_the_address(
             json={
                 "email": email,
                 "username": "closed",
-                "full_name": "Closed Door",
                 "password": "password1234",
             },
         )
@@ -372,7 +370,6 @@ async def test_register_normalizes_email(client: AsyncClient):
     user_data = {
         "email": "  TEST@EXAMPLE.COM  ",
         "username": "test",
-        "full_name": "Test User",
         "password": "password1234",
     }
 
@@ -396,7 +393,6 @@ async def test_register_persists_browser_timezone(
         json={
             "email": "tz-user@example.com",
             "username": "tz-user",
-            "full_name": "TZ User",
             "password": "password1234",
             "timezone": "America/Los_Angeles",
         },
@@ -421,7 +417,6 @@ async def test_register_rejects_invalid_timezone(client: AsyncClient):
         json={
             "email": "bad-tz@example.com",
             "username": "bad-tz",
-            "full_name": "Bad TZ",
             "password": "password1234",
             "timezone": "Mars/Olympus_Mons",
         },
@@ -442,7 +437,6 @@ async def test_register_without_timezone_keeps_utc_default(
         json={
             "email": "no-tz@example.com",
             "username": "no-tz",
-            "full_name": "No TZ",
             "password": "password1234",
         },
     )
@@ -475,7 +469,6 @@ async def test_register_requires_captcha_token_when_configured(
             json={
                 "email": "needs-captcha@example.com",
                 "username": "needs-captcha",
-                "full_name": "Needs Captcha",
                 "password": "password1234",
             },
         )
@@ -495,7 +488,6 @@ async def test_register_skips_captcha_for_bootstrap_first_user(
             json={
                 "email": "bootstrap@example.com",
                 "username": "bootstrap",
-                "full_name": "Bootstrap",
                 "password": "password1234",
             },
         )
@@ -519,7 +511,6 @@ async def test_register_no_captcha_required_when_provider_unset(
         json={
             "email": "no-captcha@example.com",
             "username": "no-captcha",
-            "full_name": "No Captcha",
             "password": "password1234",
         },
     )
@@ -547,7 +538,6 @@ async def test_register_with_valid_captcha_token_succeeds(
             json={
                 "email": "good-token@example.com",
                 "username": "good-token",
-                "full_name": "Good Token",
                 "password": "password1234",
                 "captcha_token": "stub-valid-token",
             },
@@ -562,7 +552,6 @@ async def test_login_success(client: AsyncClient, session: AsyncSession):
     await create_user(
         session,
         email="login@example.com",
-        full_name="Login User",
         hashed_password=get_password_hash(password),
         status=UserStatus.active,
         email_verified=True,
@@ -590,7 +579,6 @@ async def test_login_wrong_password(client: AsyncClient, session: AsyncSession):
     await create_user(
         session,
         email="test@example.com",
-        full_name="Test User",
         hashed_password=get_password_hash(password),
         status=UserStatus.active,
         email_verified=True,
@@ -608,11 +596,13 @@ async def test_login_wrong_password(client: AsyncClient, session: AsyncSession):
     assert "incorrect" in response.json()["detail"].lower()
 
 
-@pytest.mark.parametrize("endpoint", ["token", "device-token"])
+@pytest.mark.parametrize("origin", [None, APP_ORIGIN])
 async def test_password_token_refusal_does_not_reveal_account_resolution(
-    client: AsyncClient, session: AsyncSession, endpoint: str
+    client: AsyncClient, session: AsyncSession, origin: dict[str, str] | None
 ) -> None:
-    """Known, unknown, and non-password accounts have one public refusal shape."""
+    """Known, unknown, and non-password accounts have one public refusal shape,
+    from a browser and from the app alike."""
+    endpoint = "app" if origin else "browser"
     await create_user(session, email=f"known-{endpoint}@example.com")
     # Built through the factory rather than by hand: an account is more than
     # its row now that addresses are resolved separately, and a test that
@@ -620,23 +610,14 @@ async def test_password_token_refusal_does_not_reveal_account_resolution(
     await create_user(
         session,
         email=f"sso-{endpoint}@example.com",
-        full_name="No Password",
         hashed_password=None,
     )
 
     async def refuse(email: str):
-        if endpoint == "token":
-            return await client.post(
-                "/api/v1/auth/token",
-                data={"username": email, "password": "wrong-password"},
-            )
         return await client.post(
-            "/api/v1/auth/device-token",
-            json={
-                "email": email,
-                "password": "wrong-password",
-                "device_name": "test-phone",
-            },
+            "/api/v1/auth/token",
+            data={"username": email, "password": "wrong-password"},
+            headers=origin,
         )
 
     responses = [
@@ -656,8 +637,8 @@ async def test_password_token_refusal_does_not_reveal_account_resolution(
 
 
 @pytest.fixture
-def two_refusals_per_address(client, monkeypatch):
-    """The limiter on, with an address allowance two refusals wide.
+def two_per_address(client, monkeypatch):
+    """The limiter on, with each address allowed two refusals and two letters.
 
     Narrow enough that each test stays inside the per-client route limits, so
     what it meets is the address allowance alone. Takes ``client`` for the
@@ -668,7 +649,8 @@ def two_refusals_per_address(client, monkeypatch):
     from app.core import rate_limit
 
     monkeypatch.setattr(rate_limit.limiter, "enabled", True)
-    monkeypatch.setattr(rate_limit, "SIGN_IN_FAILURES_PER_ADDRESS", parse("2/hour"))
+    monkeypatch.setattr(rate_limit.SIGN_IN_FAILURES, "limit", parse("2/hour"))
+    monkeypatch.setattr(rate_limit.MAIL_SENDS, "limit", parse("2/hour"))
     rate_limit.limiter.reset()
     yield
     rate_limit.limiter.reset()
@@ -681,7 +663,7 @@ async def _sign_in(client: AsyncClient, email: str, password: str) -> httpx.Resp
 
 
 async def test_address_out_of_refusals_refuses_the_right_password(
-    client: AsyncClient, session: AsyncSession, two_refusals_per_address
+    client: AsyncClient, session: AsyncSession, two_per_address
 ) -> None:
     for email in ("held@example.com", "other@example.com"):
         await create_user(
@@ -704,27 +686,41 @@ async def test_address_out_of_refusals_refuses_the_right_password(
 
 
 async def test_address_allowance_is_shared_and_ignores_whether_anyone_holds_it(
-    client: AsyncClient, two_refusals_per_address
+    client: AsyncClient, two_per_address
 ) -> None:
-    """Both password routes draw on one allowance, and an address nobody holds
-    runs out the same way as one somebody does."""
+    """The browser and the app draw on one allowance, and an address nobody
+    holds runs out the same way as one somebody does."""
     await _sign_in(client, "Nobody@Example.com ", "wrong")
     await _sign_in(client, "nobody@example.com", "wrong")
 
     response = await client.post(
-        "/api/v1/auth/device-token",
-        json={
-            "email": "nobody@example.com",
-            "password": "wrong",
-            "device_name": "test-phone",
-        },
+        "/api/v1/auth/token",
+        data={"username": "nobody@example.com", "password": "wrong"},
+        headers=APP_ORIGIN,
     )
     assert response.status_code == 429
     assert response.json() == {"detail": "SIGN_IN_LOCKED"}
 
 
+async def test_one_network_address_is_not_one_allowance(
+    client: AsyncClient, two_per_address
+) -> None:
+    """Everybody in an office signs in from one network address, so wrong
+    passwords are counted by account and by address typed in, never by the
+    network they came from."""
+    for n in range(6):
+        response = await _sign_in(client, f"person{n}@example.com", "wrong")
+        assert response.status_code == 400, response.text
+        app_response = await client.post(
+            "/api/v1/auth/token",
+            data={"username": f"phone{n}@example.com", "password": "wrong"},
+            headers=APP_ORIGIN,
+        )
+        assert app_response.status_code == 400, app_response.text
+
+
 async def test_signing_in_starts_the_address_count_over(
-    client: AsyncClient, session: AsyncSession, two_refusals_per_address
+    client: AsyncClient, session: AsyncSession, two_per_address
 ) -> None:
     await create_user(
         session,
@@ -742,6 +738,83 @@ async def test_signing_in_starts_the_address_count_over(
     assert (
         await _sign_in(client, "typo@example.com", "right-password")
     ).status_code == 200
+
+
+@pytest.mark.parametrize("recovery", ["reset", "moderator"])
+async def test_lifting_a_lock_starts_the_address_count_over(
+    client: AsyncClient,
+    session: AsyncSession,
+    two_per_address,
+    recovery: str,
+) -> None:
+    """The refusal tells them to reset their password, and a moderator's unlock
+    says the account is open again, so either has to let them in, whichever of
+    the two counts was refusing them."""
+    from app.models.platform.user import UserRole
+    from app.models.platform.user_token import UserTokenPurpose
+    from app.services.auth import sign_in_locks
+    from app.services.platform import user_tokens
+
+    user = await create_user(
+        session,
+        email="Reset@Example.com",
+        hashed_password=get_password_hash("right-password"),
+        status=UserStatus.active,
+        email_verified=True,
+    )
+    user_id = user.id
+    for _ in range(2):
+        await _sign_in(client, "reset@example.com", "wrong")
+    for _ in range(sign_in_locks.LOCK_AFTER_FAILURES):
+        await sign_in_locks.record_failure(session, user_id)
+    await session.commit()
+    assert (
+        await _sign_in(client, "reset@example.com", "right-password")
+    ).status_code == 429
+
+    if recovery == "reset":
+        password = "brand-new-secret-123"
+        reset_token = await user_tokens.create_token(
+            session, user_id=user_id, purpose=UserTokenPurpose.password_reset
+        )
+        lifted = await client.post(
+            "/api/v1/auth/password/reset",
+            json={"token": reset_token, "password": password},
+        )
+    else:
+        password = "right-password"
+        moderator = await create_user(session, role=UserRole.moderator)
+        lifted = await client.delete(
+            f"/api/v1/operator/users/{user_id}/sign-in-lock",
+            headers=get_auth_headers(moderator),
+        )
+    assert lifted.status_code == 200, lifted.text
+    signed_in = await _sign_in(client, "reset@example.com", password)
+    assert signed_in.status_code == 200, signed_in.text
+
+
+async def test_an_address_is_sent_no_more_letters_than_its_allowance(
+    client: AsyncClient, session: AsyncSession, two_per_address
+) -> None:
+    """Counted by the address typed in, held or not, and not by the client:
+    the same client can still ask for a letter to another address."""
+    from app.services.platform import app_settings as app_settings_service
+
+    row = await app_settings_service.get_app_settings(session)
+    row.smtp_host = "smtp.example.com"
+    row.smtp_from_address = "noreply@example.com"
+    session.add(row)
+    await session.commit()
+
+    async def _forgot(email: str) -> httpx.Response:
+        return await client.post("/api/v1/auth/password/forgot", json={"email": email})
+
+    for _ in range(2):
+        assert (await _forgot("Nobody@Example.com")).status_code == 200
+    refused = await _forgot("nobody@example.com")
+    assert refused.status_code == 429
+    assert refused.json()["detail"] == "RATE_LIMITED"
+    assert (await _forgot("somebody-else@example.com")).status_code == 200
 
 
 async def test_five_wrong_passwords_lock_the_account(
@@ -769,12 +842,9 @@ async def test_five_wrong_passwords_lock_the_account(
     assert refused.json() == {"detail": "SIGN_IN_LOCKED"}
 
     app_refused = await client.post(
-        "/api/v1/auth/device-token",
-        json={
-            "email": "five@example.com",
-            "password": "right-password",
-            "device_name": "test-phone",
-        },
+        "/api/v1/auth/token",
+        data={"username": "five@example.com", "password": "right-password"},
+        headers=APP_ORIGIN,
     )
     assert app_refused.status_code == 429
 
@@ -799,7 +869,6 @@ async def test_login_refused_for_account_without_password(
     await create_user(
         session,
         email="sso-only@example.com",
-        full_name="SSO Only",
         hashed_password=None,
         status=UserStatus.active,
         email_verified=True,
@@ -823,7 +892,6 @@ async def test_login_inactive_user(client: AsyncClient, session: AsyncSession):
     await create_user(
         session,
         email="inactive@example.com",
-        full_name="Inactive User",
         hashed_password=get_password_hash(password),
         status=UserStatus.deactivated,  # Deactivated user
         email_verified=True,
@@ -847,7 +915,6 @@ async def test_login_unverified_email(client: AsyncClient, session: AsyncSession
     await create_user(
         session,
         email="unverified@example.com",
-        full_name="Unverified User",
         hashed_password=get_password_hash(password),
         status=UserStatus.active,
         email_verified=False,  # Email not verified
@@ -885,7 +952,6 @@ async def test_login_email_case_insensitive(client: AsyncClient, session: AsyncS
     await create_user(
         session,
         email="test@example.com",
-        full_name="Test User",
         hashed_password=get_password_hash(password),
         status=UserStatus.active,
         email_verified=True,
@@ -924,7 +990,6 @@ async def test_login_rehashes_legacy_bcrypt_password(
     user = await create_user(
         session,
         email="legacy@example.com",
-        full_name="Legacy User",
         hashed_password=legacy_hash,
         status=UserStatus.active,
         email_verified=True,
@@ -956,7 +1021,7 @@ async def test_malformed_jwt_returns_401(client: AsyncClient):
     depends on this distinction to auto-redirect expired sessions to
     /welcome."""
     headers = {"Authorization": "Bearer not.a.valid.jwt"}
-    response = await client.get("/api/v1/users/me", headers=headers)
+    response = await client.get("/api/v1/me", headers=headers)
 
     assert response.status_code == 401
     assert response.headers.get("WWW-Authenticate") == "Bearer"
@@ -969,7 +1034,7 @@ async def test_expired_jwt_returns_401(client: AsyncClient, session: AsyncSessio
     user = await create_user(session)
     expired_token = get_auth_token(user, expires_in=timedelta(seconds=-1))
     response = await client.get(
-        "/api/v1/users/me",
+        "/api/v1/me",
         headers={"Authorization": f"Bearer {expired_token}"},
     )
 
@@ -992,7 +1057,7 @@ async def test_stale_token_version_returns_401(
     await session.commit()
 
     response = await client.get(
-        "/api/v1/users/me",
+        "/api/v1/me",
         headers={"Authorization": f"Bearer {stale_token}"},
     )
     assert response.status_code == 401
@@ -1008,7 +1073,7 @@ async def test_new_access_token_authenticates(
     token = get_auth_token(user)
 
     response = await client.get(
-        "/api/v1/users/me",
+        "/api/v1/me",
         headers={"Authorization": f"Bearer {token}"},
     )
     assert response.status_code == 200
@@ -1027,7 +1092,7 @@ async def test_new_access_token_stale_version_returns_401(
     await session.commit()
 
     response = await client.get(
-        "/api/v1/users/me",
+        "/api/v1/me",
         headers={"Authorization": f"Bearer {token}"},
     )
     assert response.status_code == 401
@@ -1042,7 +1107,7 @@ async def test_scoped_upload_token_rejected_on_session_path(
     upload_token, _ = create_upload_token(user_id=user.id)
 
     response = await client.get(
-        "/api/v1/users/me",
+        "/api/v1/me",
         headers={"Authorization": f"Bearer {upload_token}"},
     )
     assert response.status_code == 401
@@ -1106,7 +1171,7 @@ async def test_logout_leaves_the_account_signed_in_elsewhere(
     assert user.token_version == initial_version
 
     elsewhere = await client.get(
-        "/api/v1/users/me",
+        "/api/v1/me",
         headers={"Authorization": f"Bearer {another_device}"},
     )
     assert elsewhere.status_code == 200
@@ -1160,40 +1225,6 @@ async def test_logout_revokes_the_refresh_token_presented_in_the_body(
 
     client.cookies.set("refresh_token", presented, path="/api/v1/auth")
     assert (await client.post("/api/v1/auth/refresh")).status_code == 401
-
-
-async def test_logout_consumes_only_the_device_token_it_came_in_on(
-    client: AsyncClient, session: AsyncSession
-):
-    """A device token names one installed client, so signing out on a phone
-    leaves the tablet's token working."""
-    from app.services.platform import user_tokens
-
-    user = await create_user(session, email="two-phones@example.com")
-    signing_out = await user_tokens.create_device_token(
-        session, user_id=user.id, device_name="Phone"
-    )
-    elsewhere = await user_tokens.create_device_token(
-        session, user_id=user.id, device_name="Tablet"
-    )
-
-    logout = await client.post(
-        "/api/v1/auth/logout",
-        headers={"Authorization": f"DeviceToken {signing_out}"},
-    )
-    assert logout.status_code == 204
-
-    spent = await client.get(
-        "/api/v1/users/me",
-        headers={"Authorization": f"DeviceToken {signing_out}"},
-    )
-    assert spent.status_code == 401
-
-    still_live = await client.get(
-        "/api/v1/users/me",
-        headers={"Authorization": f"DeviceToken {elsewhere}"},
-    )
-    assert still_live.status_code == 200
 
 
 async def test_logout_ignores_a_refresh_token_belonging_to_someone_else(
@@ -1403,8 +1434,7 @@ async def test_oidc_callback_provisions_new_user_and_sets_cookie(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):
     """Happy path: a verified id_token provisions the unknown user, links the
-    federated identity, and issues the web session cookie. The name claim is
-    stored as plain text."""
+    federated identity, and issues the web session cookie."""
     await _enable_platform_oidc(session)
     idp = FakeIdp()
     _wire_fake_idp(monkeypatch, idp)
@@ -1416,7 +1446,6 @@ async def test_oidc_callback_provisions_new_user_and_sets_cookie(
             "email": "new@example.com",
             "username": "new",
             "email_verified": True,
-            "name": "<b>New</b> User",
         },
     )
     assert response.status_code in (302, 307)
@@ -1430,7 +1459,6 @@ async def test_oidc_callback_provisions_new_user_and_sets_cookie(
             .where(UserEmail.email_hash == hash_email("new@example.com"))
         )
     ).one()
-    assert user.full_name == "New User"
     assert await addresses.has_proven_address(session, user_id=user.id)
     # SSO-only account: no password hash — the identity link carries the
     # subject, sync stamp, and (companion) refresh token.
@@ -1761,7 +1789,7 @@ async def test_oidc_refresh_cookie_rotates_into_access_token(
     access_token = resp.json()["access_token"]
 
     me = await client.get(
-        "/api/v1/users/me",
+        "/api/v1/me",
         headers={"Authorization": f"Bearer {access_token}"},
     )
     assert me.status_code == 200
@@ -2059,7 +2087,6 @@ async def test_oidc_callback_refuses_existing_account_when_email_unverified(
     existing = await create_user(
         session,
         email="victim@example.com",
-        full_name="Victim",
         email_verified=False,
     )
     await _enable_platform_oidc(session)
@@ -2076,11 +2103,9 @@ async def test_oidc_callback_refuses_existing_account_when_email_unverified(
     # No session was issued and no link was written.
     assert "session_token" not in response.cookies
     assert await _federated_identities(session) == []
-    # The account must not have been silently promoted to verified, and its
-    # profile must not have been overwritten by the IdP's claims.
+    # The account must not have been silently promoted to verified.
     await session.refresh(existing)
     assert not await addresses.has_proven_address(session, user_id=existing.id)
-    assert existing.full_name == "Victim"
 
 
 async def test_oidc_callback_links_existing_account_when_email_verified(
@@ -2094,7 +2119,6 @@ async def test_oidc_callback_links_existing_account_when_email_verified(
     existing = await create_user(
         session,
         email="member@example.com",
-        full_name="Member",
         email_verified=False,
     )
     await _enable_platform_oidc(session)
@@ -2124,6 +2148,93 @@ async def test_oidc_callback_links_existing_account_when_email_verified(
     assert len(await _federated_identities(session)) == 1
 
 
+async def test_a_provider_proving_an_added_address_tells_the_account(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """An address the person added and had not proved is proved when their
+    provider asserts it, and the account is told as the emailed link would."""
+    user = await create_user(session, email="linked@example.com")
+    user_id = user.id
+    await _enable_platform_oidc(session)
+    idp = FakeIdp()
+    _wire_fake_idp(monkeypatch, idp)
+    first = await _run_oidc_flow(
+        client,
+        idp,
+        id_token_claims={"email": "linked@example.com", "email_verified": True},
+    )
+    assert SESSION_COOKIE_NAME in first.cookies
+    addresses.record_address(
+        session,
+        user_id=user_id,
+        email="work@example.com",
+        source=addresses.SOURCE_ADDED,
+        verified=False,
+        is_primary=False,
+    )
+    await session.commit()
+
+    told: list[str] = []
+
+    async def _capture(user_, pieces, **_):
+        told.append(pieces.subject)
+
+    monkeypatch.setattr(email_outbox, "enqueue_account_letter", _capture)
+
+    again = await _run_oidc_flow(
+        client,
+        idp,
+        id_token_claims={"email": "work@example.com", "email_verified": True},
+    )
+    assert SESSION_COOKIE_NAME in again.cookies
+    assert told == [email_t("address.proved.subject", "en", escape=False)]
+
+
+async def test_a_provider_adding_an_address_tells_the_account(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """An address a provider proves on an account that already had a proved
+    one is a new way in, and the account is told. The address an account is
+    created with is not news."""
+    await _enable_platform_oidc(session)
+    idp = FakeIdp()
+    _wire_fake_idp(monkeypatch, idp)
+    told: list[str] = []
+
+    async def _capture(user_, pieces, **_):
+        told.append(pieces.subject)
+
+    monkeypatch.setattr(email_outbox, "enqueue_account_letter", _capture)
+
+    created = await _run_oidc_flow(
+        client,
+        idp,
+        id_token_claims={"email": "made-here@example.com", "email_verified": True},
+    )
+    assert SESSION_COOKIE_NAME in created.cookies
+    assert told == []
+
+    proved = email_t("address.proved.subject", "en", escape=False)
+    again = await _run_oidc_flow(
+        client,
+        idp,
+        id_token_claims={"email": "asserted@example.com", "email_verified": True},
+    )
+    assert SESSION_COOKIE_NAME in again.cookies
+    assert told == [proved]
+
+    # Asserted unverified first, it is held unproved and says nothing; the
+    # sign-in that later proves it tells the account.
+    for verified, expected in ((False, [proved]), (True, [proved, proved])):
+        later = await _run_oidc_flow(
+            client,
+            idp,
+            id_token_claims={"email": "later@example.com", "email_verified": verified},
+        )
+        assert SESSION_COOKIE_NAME in later.cookies
+        assert told == expected
+
+
 async def test_oidc_callback_refuses_deactivated_account(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):
@@ -2148,8 +2259,8 @@ async def test_oidc_callback_mobile_flow_hands_back_a_code(
 ):
     """The app's sign-in comes back as a one-time code bound to the challenge
     it began with. The verifier behind that challenge opens a session that
-    records the provider; any answer spends the code. A begin with no
-    challenge, from an older app, is handed a device token."""
+    records the provider and is a device's; any answer spends the code. A
+    begin with no challenge, from an older app, is asked to update."""
     await _enable_platform_oidc(session)
     idp = FakeIdp()
     _wire_fake_idp(monkeypatch, idp)
@@ -2202,40 +2313,16 @@ async def test_oidc_callback_mobile_flow_hands_back_a_code(
     auth_session = (await session.exec(select(AuthSession))).one()
     assert auth_session.satisfied_providers == [provider.id]
     assert auth_session.device_name == "Pixel"
+    assert auth_session.device is True
 
-    async def legacy_redirect() -> dict[str, str]:
-        legacy = await _run_oidc_flow(
-            client,
-            idp,
-            id_token_claims=claims,
-            login_params={"mobile": "true", "device_name": "Pixel"},
-        )
-        location = urlsplit(legacy.headers["location"])
-        return {k: v[0] for k, v in parse_qs(location.query).items()}
-
-    # The grace runs from this deployment's first boot with the code flow, and
-    # booting again does not restart it.
-    await app_settings_service.record_running_version(
-        session, version="0.99.0", transitions=[NATIVE_SIGN_IN_CODE.name]
+    legacy = await _run_oidc_flow(
+        client,
+        idp,
+        id_token_claims=claims,
+        login_params={"mobile": "true", "device_name": "Pixel"},
     )
-    started = (await app_settings_service.get_app_settings(session)).transitions
-    await app_settings_service.record_running_version(
-        session, version="0.99.1", transitions=[NATIVE_SIGN_IN_CODE.name]
-    )
-    row = await app_settings_service.get_app_settings(session)
-    assert row.transitions == started
-    query = await legacy_redirect()
-    assert query["token_type"] == "device_token"
-    assert query["token"]
-
-    row.transitions = {
-        NATIVE_SIGN_IN_CODE.name: (
-            datetime.now(timezone.utc) - NATIVE_SIGN_IN_CODE.grace - timedelta(days=1)
-        ).isoformat()
-    }
-    session.add(row)
-    await session.commit()
-    assert await legacy_redirect() == {"error": "NATIVE_APP_UPDATE_REQUIRED"}
+    location = urlsplit(legacy.headers["location"])
+    assert parse_qs(location.query) == {"error": ["NATIVE_APP_UPDATE_REQUIRED"]}
 
 
 async def test_oidc_callback_enriches_missing_email_from_userinfo(
@@ -2250,21 +2337,18 @@ async def test_oidc_callback_enriches_missing_email_from_userinfo(
             "email": "fromuserinfo@example.com",
             "username": "fromuserinfo",
             "email_verified": True,
-            "name": "Info User",
         }
     )
     _wire_fake_idp(monkeypatch, idp)
 
     response = await _run_oidc_flow(client, idp, id_token_claims={"email": None})
     assert response.status_code in (302, 307)
-    user = (
-        await session.exec(
-            select(User)
-            .join(UserEmail, UserEmail.user_id == User.id)
-            .where(UserEmail.email_hash == hash_email("fromuserinfo@example.com"))
-        )
-    ).one()
-    assert user.full_name == "Info User"
+    provisioned = await session.exec(
+        select(User)
+        .join(UserEmail, UserEmail.user_id == User.id)
+        .where(UserEmail.email_hash == hash_email("fromuserinfo@example.com"))
+    )
+    assert provisioned.one_or_none() is not None
 
 
 async def test_oidc_callback_ignores_userinfo_with_mismatched_sub(
@@ -2308,7 +2392,6 @@ async def test_register_rejects_password_shorter_than_minimum(client: AsyncClien
         json={
             "email": "tooshort@example.com",
             "username": "tooshort",
-            "full_name": "Too Short",
             "password": "elevenchars",  # 11 chars
         },
     )
@@ -2331,7 +2414,6 @@ async def test_register_rejects_breached_password(client: AsyncClient, monkeypat
         json={
             "email": "breached@example.com",
             "username": "breached",
-            "full_name": "Breached",
             "password": "long-enough-but-pwned",
         },
     )
@@ -2348,7 +2430,6 @@ async def test_register_accepts_compliant_password(client: AsyncClient):
         json={
             "email": "ok@example.com",
             "username": "ok-user",
-            "full_name": "OK User",
             "password": "twelve-chars",  # exactly 12 chars
         },
     )
@@ -2365,7 +2446,6 @@ async def test_login_grandfathers_existing_short_password(
     await create_user(
         session,
         email="legacy-short@example.com",
-        full_name="Legacy Short",
         hashed_password=get_password_hash(short_password),
         status=UserStatus.active,
         email_verified=True,
@@ -2416,22 +2496,21 @@ async def test_password_reset_rejects_short_password(
     assert fresh.consumed_at is None
 
 
-async def test_password_reset_revokes_sessions_and_device_tokens(
+async def test_password_reset_revokes_sessions_on_every_device(
     client: AsyncClient, session: AsyncSession
 ):
-    """A successful forgot-password reset must invalidate the user's
-    outstanding JWT (token_version bump) and active device tokens, so a
-    stolen-but-unexpired credential can't survive the reset."""
-    from sqlmodel import select
-
-    from app.models.platform.user_token import UserToken, UserTokenPurpose
+    """A successful forgot-password reset invalidates the user's outstanding
+    JWT (token_version bump) and every session, the app's included."""
+    from app.models.platform.user_token import UserTokenPurpose
+    from app.services.auth import sessions as session_service
     from app.services.platform import user_tokens
 
     user = await create_user(session, email="reset-revoke@example.com")
     old_jwt = get_auth_token(user)
-    device_token = await user_tokens.create_device_token(
-        session, user_id=user.id, device_name="Reset phone"
+    phone = await session_service.create_session(
+        session, user_id=user.id, amr=["pwd"], satisfied_providers=[], device=True
     )
+    phone_id = phone.session.id
     reset_token = await user_tokens.create_token(
         session,
         user_id=user.id,
@@ -2446,27 +2525,16 @@ async def test_password_reset_revokes_sessions_and_device_tokens(
 
     # Old JWT rejected (token_version bumped).
     post_jwt = await client.get(
-        "/api/v1/users/me",
+        "/api/v1/me",
         headers={"Authorization": f"Bearer {old_jwt}"},
     )
     assert post_jwt.status_code == 401
 
-    # Device token rejected (consumed).
-    post_device = await client.get(
-        "/api/v1/users/me",
-        headers={"Authorization": f"DeviceToken {device_token}"},
-    )
-    assert post_device.status_code == 401
-
-    token_row = (
-        await session.exec(
-            select(UserToken).where(
-                UserToken.user_id == user.id,
-                UserToken.purpose == UserTokenPurpose.device_auth,
-            )
-        )
-    ).one()
-    assert token_row.consumed_at is not None
+    # The phone's session is ended too.
+    session.expire_all()
+    ended = await session.get(AuthSession, phone_id)
+    assert ended is not None
+    assert ended.revoked_at is not None
 
 
 async def test_password_reset_tells_the_account(
@@ -2486,7 +2554,7 @@ async def test_password_reset_tells_the_account(
 
     told: list[int] = []
 
-    async def _capture(user_, pieces):
+    async def _capture(user_, pieces, **_):
         told.append(user_.id)
 
     monkeypatch.setattr(email_outbox, "enqueue_account_letter", _capture)
@@ -2527,7 +2595,6 @@ async def test_register_rolls_back_when_guild_seed_fails(
         json={
             "email": "seedfail@example.com",
             "username": "seedfail",
-            "full_name": "Seed Fail",
             "password": "securepassword123",
             "community": {"name": "Seed Fail"},
         },
@@ -2560,7 +2627,6 @@ async def _make_login_user(
     user = await create_user(
         session,
         email=email,
-        full_name="Refresh User",
         hashed_password=get_password_hash(password),
         status=UserStatus.active,
         email_verified=True,
@@ -2646,7 +2712,7 @@ async def test_refresh_rotates_and_new_token_authenticates(
     assert resp.cookies.get("refresh_token")  # a new (rotated) refresh was set
 
     me = await client.get(
-        "/api/v1/users/me",
+        "/api/v1/me",
         headers={"Authorization": f"Bearer {access_token}"},
     )
     assert me.status_code == 200
@@ -2803,7 +2869,7 @@ async def test_password_change_revokes_refresh_session(
     captured = login.cookies.get("refresh_token")
 
     change = await client.patch(
-        "/api/v1/users/me",
+        "/api/v1/me",
         json={"password": "newpassword456", "current_password": password},
     )
     assert change.status_code == 200
@@ -2828,7 +2894,6 @@ async def test_registering_records_when_the_password_was_set(
         json={
             "email": "stamped@example.com",
             "username": "stamped",
-            "full_name": "Stamped",
             "password": "a-perfectly-fine-secret-1",
         },
     )

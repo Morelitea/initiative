@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
 import { catalogUrl, portalPricingUrl } from "@/hooks/useBillingCatalog";
-import { androidApkUrl, DOCS_URL, docsUrl, REPO_URL } from "@/lib/links";
+import { androidApkUrl, DOCS_URL, desktopInstallerUrl, docsUrl, REPO_URL } from "@/lib/links";
 import { TOOLS, toolCamelPlural } from "@/lib/tools";
 
 import landing from "../../../public/locales/en/landing.json";
@@ -16,6 +16,7 @@ import { WhatsNewPage, WhatsNewPostPage } from "./WhatsNewPage";
 
 const PORTAL = "https://billing.example.com";
 const NATIVE_FLOOR = "0.69.0";
+const DESKTOP_FLOOR = "0.74.0";
 
 const tier = (overrides: Record<string, unknown>) => ({
   tagline: "A tagline",
@@ -84,6 +85,7 @@ const stubConfig = (billing: { url: string } | null, extra: Record<string, unkno
       community_age_gate_enabled: true,
       login_methods: ["password"],
       min_native_version: NATIVE_FLOOR,
+      min_desktop_version: DESKTOP_FLOOR,
       ...extra,
     })
   );
@@ -299,21 +301,34 @@ describe("DownloadPage", () => {
     expect(await screen.findByText(landing.download.descriptionPush)).toBeInTheDocument();
   });
 
+  it("offers this computer's installer from the release its own floor names", async () => {
+    renderDownload();
+
+    // jsdom says Linux.
+    const [installer] = await screen.findAllByTestId("desktop-installer");
+    expect(installer).toHaveAttribute("href", desktopInstallerUrl(DESKTOP_FLOOR, "linux"));
+    expect(installer).toHaveAttribute("download");
+  });
+
   it("shows the browser's install prompt once, then points at the guide", async () => {
     renderDownload();
-    const install = await screen.findByRole("link", { name: landing.download.desktop.button });
+    const [install] = await screen.findAllByRole("link", {
+      name: landing.download.browserInstall,
+    });
 
     const prompt = vi.fn().mockResolvedValue(undefined);
     act(() => {
       window.dispatchEvent(Object.assign(new Event("beforeinstallprompt"), { prompt }));
     });
-    fireEvent.click(await screen.findByRole("button", { name: landing.download.desktop.button }));
+    const [button] = await screen.findAllByRole("button", {
+      name: landing.download.browserInstall,
+    });
+    fireEvent.click(button);
     expect(prompt).toHaveBeenCalledTimes(1);
 
     // Spent after one use, whatever the answer: the guide again.
-    expect(
-      await screen.findByRole("link", { name: landing.download.desktop.button })
-    ).toHaveAttribute("href", install.getAttribute("href"));
+    const [again] = await screen.findAllByRole("link", { name: landing.download.browserInstall });
+    expect(again).toHaveAttribute("href", install.getAttribute("href"));
   });
 
   it("mentions passkeys only where the server offers them", async () => {
@@ -386,6 +401,31 @@ describe("PricingPage", () => {
         "/login"
       );
     });
+  });
+
+  it("strikes through the regular price on a plan sold at the early rate", async () => {
+    const onSale = {
+      ...CATALOG.tiers[2],
+      price: { base_monthly: 7, display: "$7", regular_display: "$10", sub_display: "per month" },
+    };
+    server.use(
+      stubConfig({ url: PORTAL }),
+      stubCatalog({
+        ...CATALOG,
+        tiers: [CATALOG.tiers[1], onSale, CATALOG.tiers[3]],
+        early_rate: { percent_off: 30, label: "30% off", note: "Early communities keep it" },
+      })
+    );
+    renderPricing();
+
+    const plans = await screen.findByRole("list", { name: landing.pricing.tierListAria });
+    const card = plans.querySelector('[data-tier="brass"]') as HTMLElement;
+    expect(within(card).getByText("$10").tagName).toBe("S");
+    expect(within(card).getByText("Regular price $10", { exact: false })).toBeInTheDocument();
+    expect(within(card).getByText("30% off")).toBeInTheDocument();
+    expect(
+      within(card).getByText("Early communities keep it", { exact: false })
+    ).toBeInTheDocument();
   });
 
   it("says so when the price book cannot be read", async () => {

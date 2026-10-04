@@ -81,6 +81,17 @@ class DashboardUpdate(SanitizedBaseModel):
     config: Optional[Dict[str, Any]] = None
 
 
+class DashboardPreview(SanitizedBaseModel):
+    """A dashboard as a list's card draws it: its canvas and its query widgets'
+    answers. Widgets bound to anything else draw from sample data there."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    definition: Dict[str, Any]
+    config: Dict[str, Any]
+    widgets: Dict[str, "DashboardWidgetData"] = Field(default_factory=dict)
+
+
 class DashboardSummary(DashboardBase, ToolSummaryBase):
     # Marketplace provenance; both null for a dashboard authored from scratch.
     listing_uid: Optional[str] = None
@@ -88,6 +99,8 @@ class DashboardSummary(DashboardBase, ToolSummaryBase):
     #: Whose access the query widgets answer from: null for each viewer's own,
     #: or the person who chose to show everybody their view.
     view_as_user_id: Optional[PersonId] = None
+    #: The canvas and its answers, when the list was asked for previews.
+    preview: Optional[DashboardPreview] = None
 
 
 class DashboardListResponse(PageMeta):
@@ -183,6 +196,11 @@ class DashboardDataResponse(SanitizedBaseModel):
 from app.schemas.sql_query import QueryResponse  # noqa: E402
 
 DashboardWidgetData.model_rebuild()
+# The preview names the widget answers declared above it.
+DashboardPreview.model_rebuild()
+DashboardSummary.model_rebuild()
+DashboardListResponse.model_rebuild()
+DashboardRead.model_rebuild()
 
 
 # --- widget catalog --------------------------------------------------------

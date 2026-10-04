@@ -5,10 +5,10 @@ This module handles:
     pattern in ``permissions.py``)
   - Queue and queue-item fetching with eager-loaded relationships
   - Turn management (advance, previous, start, stop, reset, set active item)
-  - Tag / document / task attachment helpers for queue items
 """
 
 from datetime import datetime, timezone
+from typing import Sequence
 
 from fastapi import HTTPException, status
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -16,17 +16,15 @@ from sqlalchemy.orm import selectinload, undefer
 from sqlmodel import select
 
 from app.core.messages import QueueMessages
-from app.models.tenant.document import Document
+from app.db.query import ids_in
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.queue import (
     Queue,
     QueueItem,
 )
 from app.models.tenant.resource_grant import ResourceGrant
-from app.core.relationships import RelationshipType
-from app.core.search import SearchEntityType
-from app.models.tenant.task import Task
-from app.services.tenant import relationships
+from app.schemas.tenant.queue import QueueTurnPreview
+from app.services.permissions import with_tool
 from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
 
@@ -42,12 +40,10 @@ from app.services.tenant import tags as tags_service
 
 
 def list_loader_options() -> list:
-    """Eager-load what a queue *list* row needs: its items (for the count), its
-    sharing and the level the request holds on it.
-    Lighter than :func:`get_queue`, which also walks each item's own links for
-    the detail read."""
+    """Eager-load what a queue *list* row needs: its sharing and the level the
+    request holds on it. Lighter than :func:`get_queue`, which also loads the
+    items for the detail read."""
     return [
-        selectinload(Queue.items),
         selectinload(Queue.grants).selectinload(ResourceGrant.role),
         selectinload(Queue.initiative),
         undefer(Queue.actions),
@@ -115,12 +111,14 @@ async def get_queue_item(
     *,
     populate_existing: bool = False,
 ) -> QueueItem | None:
-    """Fetch a queue item with tag/document/task/user relationships loaded."""
+    """Fetch a queue item with its person, tags and properties, and its queue
+    as authorizing it reads it."""
     stmt = (
         select(QueueItem)
         .where(QueueItem.id == item_id)
         .options(
             selectinload(QueueItem.user),
+            with_tool(QueueItem.queue),
         )
     )
     if populate_existing:
@@ -131,6 +129,78 @@ async def get_queue_item(
         await tags_service.annotate_tags(session, [item])
         await properties_service.annotate_properties(session, [item])
     return item
+
+
+#: Turns a list's card shows for each queue: whoever is up and who follows.
+PREVIEW_TURNS = 3
+
+
+async def list_previews(
+    session: AsyncSession, queues: Sequence[Queue]
+) -> dict[int, list[QueueTurnPreview]]:
+    """Whose turn it is and who follows, for every queue on a list's page, read
+    in one statement for the whole page.
+
+    The turns after the current one are walked the way :func:`advance_turn`
+    walks them: a held item is passed over until its round comes due, and is
+    then the turn it would be. A queue not running shows its order from the
+    top, without the held. Hidden items are out of the rotation either way."""
+    by_id = {queue.id: queue for queue in queues if queue.id is not None}
+    if not by_id:
+        return {}
+    rows = await session.exec(
+        select(
+            QueueItem.id,
+            QueueItem.queue_id,
+            QueueItem.label,
+            QueueItem.color,
+            QueueItem.held_at_round,
+        )
+        .where(
+            ids_in(QueueItem.queue_id, list(by_id)),
+            QueueItem.deleted_at.is_(None),
+            QueueItem.is_visible.is_(True),
+        )
+        .order_by(QueueItem.queue_id, QueueItem.position.desc(), QueueItem.id)
+    )
+    visible: dict[int, list] = {queue_id: [] for queue_id in by_id}
+    for row in rows.all():
+        visible[row.queue_id].append(row)
+
+    def turn(row, current: bool = False) -> QueueTurnPreview:
+        return QueueTurnPreview(
+            id=row.id, label=row.label, color=row.color, current=current
+        )
+
+    previews: dict[int, list[QueueTurnPreview]] = {}
+    for queue_id, order in visible.items():
+        queue = by_id[queue_id]
+        at = next(
+            (
+                index
+                for index, row in enumerate(order)
+                if queue.is_active and row.id == queue.current_item_id
+            ),
+            None,
+        )
+        if at is None:
+            previews[queue_id] = [
+                turn(row) for row in order if row.held_at_round is None
+            ][:PREVIEW_TURNS]
+            continue
+        turns = [turn(order[at], current=True)]
+        round_ = queue.current_round
+        for step in range(1, len(order)):
+            index = (at + step) % len(order)
+            if index == 0:
+                round_ += 1
+            row = order[index]
+            if row.held_at_round is None or row.held_at_round < round_:
+                turns.append(turn(row))
+            if len(turns) == PREVIEW_TURNS:
+                break
+        previews[queue_id] = turns
+    return previews
 
 
 # ---------------------------------------------------------------------------
@@ -465,76 +535,3 @@ async def release_held(
     queue.updated_at = datetime.now(timezone.utc)
     session.add(queue)
     return queue
-
-
-# ---------------------------------------------------------------------------
-# Tag / document / task attachment helpers
-# ---------------------------------------------------------------------------
-
-
-async def set_queue_item_documents(
-    session: AsyncSession,
-    item: QueueItem,
-    document_ids: list[int],
-    guild_id: int,
-    user_id: int,
-) -> None:
-    """Replace all document links on a queue item.
-
-    Validates that the referenced documents exist. The RLS layer handles
-    guild/initiative access scoping, so we only do an existence check here.
-    """
-    if document_ids:
-        docs_stmt = select(Document.id).where(Document.id.in_(document_ids))
-        docs_result = await session.exec(docs_stmt)
-        valid_ids = set(docs_result.all())
-
-        missing = set(document_ids) - valid_ids
-        if missing:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=QueueMessages.ITEM_NOT_FOUND,
-            )
-
-    await relationships.set_related(
-        session,
-        relationships.Endpoint(SearchEntityType.queue_item, item.id),
-        relationship_type=RelationshipType.attached,
-        other_kind=SearchEntityType.document,
-        ids=document_ids,
-        created_by=user_id,
-    )
-
-
-async def set_queue_item_tasks(
-    session: AsyncSession,
-    item: QueueItem,
-    task_ids: list[int],
-    guild_id: int,
-    user_id: int,
-) -> None:
-    """Replace all task links on a queue item.
-
-    Validates that the referenced tasks exist. The RLS layer handles
-    guild/initiative access scoping, so we only do an existence check here.
-    """
-    if task_ids:
-        tasks_stmt = select(Task.id).where(Task.id.in_(task_ids))
-        tasks_result = await session.exec(tasks_stmt)
-        valid_ids = set(tasks_result.all())
-
-        missing = set(task_ids) - valid_ids
-        if missing:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=QueueMessages.ITEM_NOT_FOUND,
-            )
-
-    await relationships.set_related(
-        session,
-        relationships.Endpoint(SearchEntityType.queue_item, item.id),
-        relationship_type=RelationshipType.attached,
-        other_kind=SearchEntityType.task,
-        ids=task_ids,
-        created_by=user_id,
-    )

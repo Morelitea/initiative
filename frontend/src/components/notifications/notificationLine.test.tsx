@@ -4,9 +4,9 @@
  * The account notices — a moderator renamed you, took your picture down,
  * suspended you — did neither. They fell past every `case` to the generic
  * "You have a new notification", and their destination was dropped because
- * the resolver only honoured a `target_path` that came with a `guild_id`.
+ * the resolver only honoured a `target_path` that came with a `community_id`.
  * These notices belong to the person rather than to any community, so the
- * server sends no guild with them.
+ * server sends no community with them.
  */
 import { Capacitor } from "@capacitor/core";
 import { describe, expect, it, vi } from "vitest";
@@ -61,40 +61,43 @@ describe("notificationText — account notices", () => {
   });
 
   it("names who to contact about a hold when there is somebody", () => {
-    const named = notice("guild_on_hold", { community: "Acme", contact: "help@example.com" });
-    const nobody = notice("guild_on_hold", { community: "Acme", contact: null });
-    expect(notificationText(named, t)).toContain("notifications.guildOnHoldWithContact");
-    expect(notificationText(nobody, t)).toContain("notifications.guildOnHold");
+    const named = notice("community_on_hold", { community: "Acme", contact: "help@example.com" });
+    const nobody = notice("community_on_hold", { community: "Acme", contact: null });
+    expect(notificationText(named, t)).toContain("notifications.communityOnHoldWithContact");
+    expect(notificationText(nobody, t)).toContain("notifications.communityOnHold");
     expect(notificationText(nobody, t)).not.toContain("WithContact");
   });
 
   it("names the day a held community is deleted, where it is", () => {
-    const dated = notice("guild_on_hold", {
+    const dated = notice("community_on_hold", {
       community: "Acme",
       contact: "help@example.com",
       delete_on: "2026-10-24",
     });
     const line = notificationText(dated, t);
-    expect(line).toContain("notifications.guildOnHoldDeletingWithContact");
+    expect(line).toContain("notifications.communityOnHoldDeletingWithContact");
     expect(line).toContain("2026");
     expect(
-      notificationText(notice("guild_on_hold", { community: "Acme", delete_on: "2026-10-24" }), t)
-    ).toContain("notifications.guildOnHoldDeleting(");
+      notificationText(
+        notice("community_on_hold", { community: "Acme", delete_on: "2026-10-24" }),
+        t
+      )
+    ).toContain("notifications.communityOnHoldDeleting(");
   });
 
   it("says when a trial ends, that it has, and that a new community is ready", () => {
     const ending = notificationText(
-      notice("guild_trial_ending", { community: "Acme", trial_ends_on: "2026-10-08" }),
+      notice("community_trial_ending", { community: "Acme", trial_ends_on: "2026-10-08" }),
       t
     );
-    expect(ending).toContain("notifications.guildTrialEnding");
+    expect(ending).toContain("notifications.communityTrialEnding");
     expect(ending).toContain("Acme");
     expect(ending).toContain("2026");
-    expect(notificationText(notice("guild_trial_ended", { community: "Acme" }), t)).toContain(
-      "notifications.guildTrialEnded"
+    expect(notificationText(notice("community_trial_ended", { community: "Acme" }), t)).toContain(
+      "notifications.communityTrialEnded"
     );
-    expect(notificationText(notice("guild_welcome", { community: "Acme" }), t)).toBe(
-      'notifications.guildWelcome({"community":"Acme"})'
+    expect(notificationText(notice("community_welcome", { community: "Acme" }), t)).toBe(
+      'notifications.communityWelcome({"community":"Acme"})'
     );
   });
 
@@ -103,15 +106,15 @@ describe("notificationText — account notices", () => {
     try {
       expect(
         notificationText(
-          notice("guild_trial_ending", { community: "Acme", trial_ends_on: "2026-10-08" }),
+          notice("community_trial_ending", { community: "Acme", trial_ends_on: "2026-10-08" }),
           t
         )
-      ).toContain("notifications.guildTrialEndingInApp(");
-      expect(notificationText(notice("guild_trial_ended", { community: "Acme" }), t)).toBe(
-        'notifications.guildTrialEndedInApp({"community":"Acme"})'
+      ).toContain("notifications.communityTrialEndingInApp(");
+      expect(notificationText(notice("community_trial_ended", { community: "Acme" }), t)).toBe(
+        'notifications.communityTrialEndedInApp({"community":"Acme"})'
       );
-      expect(notificationText(notice("guild_welcome", { community: "Acme" }), t)).toBe(
-        'notifications.guildWelcomeInApp({"community":"Acme"})'
+      expect(notificationText(notice("community_welcome", { community: "Acme" }), t)).toBe(
+        'notifications.communityWelcomeInApp({"community":"Acme"})'
       );
     } finally {
       native.mockRestore();
@@ -121,7 +124,7 @@ describe("notificationText — account notices", () => {
   it("takes a trial notice to the community's Plan & usage tab", () => {
     expect(
       notificationLink(
-        notice("guild_trial_ending", { guild_id: 7, target_path: "/settings/usage" })
+        notice("community_trial_ending", { community_id: 7, target_path: "/settings/usage" })
       )
     ).toBe("/c/7/settings/usage");
   });
@@ -134,7 +137,7 @@ describe("notificationText — account notices", () => {
   });
 });
 
-describe("notificationLink — a target_path without a guild", () => {
+describe("notificationLink — a target_path without a community", () => {
   it("takes an account notice to the account screen", () => {
     expect(notificationLink(notice("username_changed", { target_path: "/profile/account" }))).toBe(
       "/profile/account"
@@ -152,9 +155,9 @@ describe("notificationLink — a target_path without a guild", () => {
     );
   });
 
-  it("keeps scoping a path that does name a guild", () => {
+  it("keeps scoping a path that does name a community", () => {
     expect(
-      notificationLink(notice("post_published", { guild_id: 7, target_path: "/posts/3" }))
+      notificationLink(notice("post_published", { community_id: 7, target_path: "/posts/3" }))
     ).toBe("/c/7/posts/3");
   });
 
@@ -186,7 +189,7 @@ describe("notificationText — mentions", () => {
 
 describe("an app asking to act as the reader", () => {
   const request = notice("app_consent_requested", {
-    guild_id: 4,
+    community_id: 4,
     app_id: 7,
     app_name: "Auto",
     label: "Comment on the linked issue",
@@ -209,7 +212,7 @@ describe("an app asking to act as the reader", () => {
 
 describe("an app version waiting for the seat", () => {
   const waiting = notice("app_update_pending", {
-    guild_id: 4,
+    community_id: 4,
     app_id: 7,
     app_name: "Auto",
     version: "1.2.0",
@@ -224,5 +227,42 @@ describe("an app version waiting for the seat", () => {
 
   it("opens the community's integrations settings", () => {
     expect(notificationLink(waiting)).toBe("/c/4/settings/integrations");
+  });
+});
+
+describe("notificationText — a ticket the reader filed", () => {
+  const ticket = (data: Record<string, unknown>) =>
+    notice("ticket_updated", {
+      task_id: 7,
+      subject: "Lost my phone",
+      target_path: "/my-tickets/7",
+      ...data,
+    });
+
+  it("leads with a reply where there is one", () => {
+    const line = notificationText(ticket({ state: "waiting_on_you", replied: true }), t);
+    expect(line).toContain("notifications.ticketReplied");
+    expect(line).toContain("Lost my phone");
+  });
+
+  it("otherwise says where it stands", () => {
+    expect(notificationText(ticket({ state: "waiting_on_you", replied: false }), t)).toContain(
+      "notifications.ticketWaiting"
+    );
+    expect(notificationText(ticket({ state: "closed", replied: false }), t)).toContain(
+      "notifications.ticketClosed"
+    );
+    expect(notificationText(ticket({ state: "in_progress", replied: false }), t)).toContain(
+      "notifications.ticketMoving"
+    );
+  });
+
+  it("names an untitled ticket as theirs", () => {
+    const line = notificationText(ticket({ subject: null, state: "closed" }), t);
+    expect(line).toContain("notifications.ticketUnnamed");
+  });
+
+  it("goes to the reader's own view of it, outside any community", () => {
+    expect(notificationLink(ticket({ state: "closed" }))).toBe("/my-tickets/7");
   });
 });

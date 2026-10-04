@@ -22,6 +22,7 @@ jobs:
       contents: read
     outputs:
       build_android: ${{ steps.decide.outputs.build_android }}
+      build_desktop: ${{ steps.decide.outputs.build_desktop }}
       version: ${{ steps.version.outputs.version }}
     steps:
       - name: Checkout repository
@@ -51,10 +52,10 @@ jobs:
           fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Decide whether to build the native app
+      - name: Decide whether to build the native apps
         id: decide
         run: |
-          # The Android/iOS app only needs rebuilding when the native shell changed — which
+          # The Android app only needs rebuilding when the native shell changed — which
           # promote.sh records by moving MIN_NATIVE_VERSION forward. Compare this ref's value
           # against the previous release tag; web-only releases reuse the existing APK and
           # update over the air. The committed file is the single source of truth, so both the
@@ -72,6 +73,21 @@ jobs:
           else
             echo "build_android=false" >> "$GITHUB_OUTPUT"
             echo "Native min-version unchanged ('$cur') — web-only release, skipping the app build."
+          fi
+          # The desktop app has a floor of its own, MIN_DESKTOP_VERSION, decided the same way,
+          # so a desktop change builds no APK and a phone change no installers.
+          cur=$(cat MIN_DESKTOP_VERSION 2>/dev/null || echo "")
+          if [ -n "$prev" ]; then
+            old=$(git show "$prev:MIN_DESKTOP_VERSION" 2>/dev/null || echo "")
+          else
+            old=""
+          fi
+          if [ -z "$old" ] || [ "$old" != "$cur" ]; then
+            echo "build_desktop=true" >> "$GITHUB_OUTPUT"
+            echo "Desktop min-version changed ('$old' -> '$cur') or no prior value — building the installers."
+          else
+            echo "build_desktop=false" >> "$GITHUB_OUTPUT"
+            echo "Desktop min-version unchanged ('$cur') — skipping the installer build."
           fi
 
   build-android:
@@ -216,6 +232,13 @@ jobs:
           name: android-apk
           path: artifacts/*.apk
 
+  build-desktop:
+    needs: decide
+    if: ${{ needs.decide.outputs.build_desktop == 'true' }}
+    uses: ./.github/workflows/desktop-app.yml
+    permissions:
+      contents: read
+
   candidate:
     # The tree this run publishes, and whether Release Candidate built it and
     # walked it: then the release publishes that digest rather than a build.
@@ -286,10 +309,14 @@ jobs:
   publish:
     # Tags the checked image as the release: the candidate, or the build
     # above once its walk and journeys passed. Nothing is published unchecked.
-    needs: [decide, candidate, docker-public, walk, journeys]
+    # A release that moves a floor publishes only once that app is built, so
+    # no server asks for an app that is not there; a skipped build passes.
+    needs: [decide, candidate, docker-public, walk, journeys, build-android, build-desktop]
     if: >-
       ${{ !cancelled() && (needs.candidate.outputs.checked == 'true'
-      || (needs.walk.result == 'success' && needs.journeys.result == 'success')) }}
+      || (needs.walk.result == 'success' && needs.journeys.result == 'success'))
+      && needs.build-android.result != 'failure'
+      && needs.build-desktop.result != 'failure' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -322,16 +349,17 @@ jobs:
           docker buildx imagetools inspect "$IMAGE_NAME:latest"
 
   release:
-    needs: [decide, build-android, publish]
-    # Run even when build-android was *skipped* (web-only release). Only the Docker manifest
-    # must have been published, from the candidate or a walked build; the APK is attached
-    # opportunistically below. But a build-android *failure* on a native-change release is a
-    # hard error — publishing then would advertise "updates over the air" while the bumped
-    # minNativeVersion blocks OTA and no new APK exists.
+    needs: [decide, build-android, build-desktop, publish]
+    # Run even when the app builds were *skipped* (web-only release). Only the Docker manifest
+    # must have been published, from the candidate or a walked build; the APK and the desktop
+    # installers are attached opportunistically below. But a build *failure* on a native-change
+    # release is a hard error — publishing then would advertise "updates over the air" while the
+    # bumped minNativeVersion blocks OTA and no new app exists.
     if: >-
       always()
       && needs.publish.result == 'success'
       && needs.build-android.result != 'failure'
+      && needs.build-desktop.result != 'failure'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
@@ -361,6 +389,14 @@ jobs:
           name: android-apk
           path: artifacts
 
+      - name: Download desktop installers
+        if: needs.build-desktop.result == 'success'
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: desktop-*
+          merge-multiple: true
+          path: artifacts
+
       - name: Extract changelog for version
         id: changelog
         if: startsWith(github.ref, 'refs/tags/')
@@ -368,6 +404,7 @@ jobs:
           IMAGE_NAME: ${{ env.IMAGE_NAME }}
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
           APK_BUILT: ${{ needs.build-android.result == 'success' }}
+          DESKTOP_BUILT: ${{ needs.build-desktop.result == 'success' }}
           VERSION: ${{ needs.decide.outputs.version }}
         run: |
           echo "Extracting changelog for version $VERSION"
@@ -403,6 +440,13 @@ jobs:
             ANDROID_SECTION="### Android App
           No new app build this release — installed apps update automatically over the air on next launch."
           fi
+          if [ "$DESKTOP_BUILT" = "true" ]; then
+            DESKTOP_SECTION="### Desktop App
+          Download the installer for your computer from the assets below: the .exe for Windows, the .dmg for macOS, the .deb for Debian and Ubuntu."
+          else
+            DESKTOP_SECTION="### Desktop App
+          No new app build this release — installed apps update automatically over the air on next launch."
+          fi
 
           # Build full release body with changelog + download info
           cat > release_body.md << ENDOFBODY
@@ -413,6 +457,8 @@ jobs:
           ## Downloads
 
           $ANDROID_SECTION
+
+          $DESKTOP_SECTION
 
           ### Docker Image
           \`\`\`bash
@@ -425,11 +471,29 @@ jobs:
           # Remove leading whitespace from heredoc
           sed -i 's/^          //' release_body.md
 
+      # What an installed app may call, exported from the image this release
+      # published. The image carries no scripts/, so the checkout's are mounted.
+      - name: Export the app API spec
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          VERSION: ${{ needs.decide.outputs.version }}
+        run: |
+          mkdir -p artifacts
+          docker run --rm --entrypoint python \
+            -v "$PWD/backend/scripts:/app/scripts:ro" -v "$PWD/artifacts:/out" \
+            "$IMAGE_NAME:$VERSION" scripts/export_openapi.py --app /out/initiative-app-api.json
+
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
-          files: artifacts/*.apk
+          files: |
+            artifacts/*.apk
+            artifacts/*.exe
+            artifacts/*.dmg
+            artifacts/*.deb
+            artifacts/latest*.yml
+            artifacts/initiative-app-api.json
           body_path: release_body.md
           draft: false
           prerelease: false

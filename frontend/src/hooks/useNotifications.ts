@@ -16,18 +16,18 @@ import type {
   UnreadPlacesResponse,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
-  dismissNotificationApiV1NotificationsNotificationIdDelete,
-  getListNotificationsApiV1NotificationsGetQueryKey,
-  getUnreadNotificationPlacesApiV1NotificationsUnreadGetQueryKey,
-  listNotificationsApiV1NotificationsGet,
-  markAllNotificationsReadApiV1NotificationsReadAllPost,
-  markNotificationReadApiV1NotificationsNotificationIdReadPost,
-  markNotificationUnreadApiV1NotificationsNotificationIdUnreadPost,
-  readNotificationSubjectApiV1NotificationsReadSubjectPost,
-  unreadNotificationPlacesApiV1NotificationsUnreadGet,
+  dismissNotification,
+  getListNotificationsQueryKey,
+  getUnreadNotificationPlacesQueryKey,
+  listNotifications,
+  markAllNotificationsRead,
+  markNotificationRead,
+  markNotificationUnread,
+  readNotificationSubject,
+  unreadNotificationPlaces,
 } from "@/api/generated/notifications/notifications";
 import { describes, invalidate, q } from "@/api/query-keys";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { useApiMutation } from "@/hooks/useApiMutation";
 import { queryClient } from "@/lib/queryClient";
 import type { MutationOpts } from "@/types/mutation";
@@ -44,21 +44,21 @@ export const useNotifications = (options?: {
   enabled?: boolean;
   refetchInterval?: number | false;
   unreadOnly?: boolean;
-  guildId?: number;
+  communityId?: number;
   personalOnly?: boolean;
 }) => {
   return useQuery<NotificationListResponse>({
-    queryKey: getListNotificationsApiV1NotificationsGetQueryKey({
+    queryKey: getListNotificationsQueryKey({
       limit: NOTIFICATION_PAGE_SIZE,
       unread_only: options?.unreadOnly,
-      guild_id: options?.guildId,
+      community_id: options?.communityId,
       personal_only: options?.personalOnly,
     }),
     queryFn: () =>
-      listNotificationsApiV1NotificationsGet({
+      listNotifications({
         limit: NOTIFICATION_PAGE_SIZE,
         unread_only: options?.unreadOnly,
-        guild_id: options?.guildId,
+        community_id: options?.communityId,
         personal_only: options?.personalOnly,
       }),
     enabled: options?.enabled,
@@ -75,20 +75,20 @@ export const useNotifications = (options?: {
 export const useNotificationHistory = (options?: {
   enabled?: boolean;
   unreadOnly?: boolean;
-  guildId?: number;
+  communityId?: number;
   personalOnly?: boolean;
   refetchInterval?: number | false;
 }) => {
   const params = {
     limit: NOTIFICATION_PAGE_SIZE,
     unread_only: options?.unreadOnly,
-    guild_id: options?.guildId,
+    community_id: options?.communityId,
     personal_only: options?.personalOnly,
   };
   return useInfiniteQuery({
-    queryKey: [...getListNotificationsApiV1NotificationsGetQueryKey(params), "history"],
+    queryKey: [...getListNotificationsQueryKey(params), "history"],
     queryFn: ({ pageParam }) =>
-      listNotificationsApiV1NotificationsGet({
+      listNotifications({
         ...params,
         cursor: (pageParam as string | undefined) ?? undefined,
       }),
@@ -140,10 +140,7 @@ export const useAllUnreadNotifications = (options?: {
 
 /** The popover's query: every unread line, a page at a time. */
 const UNREAD_INBOX = { limit: NOTIFICATION_PAGE_SIZE, unread_only: true };
-const unreadInboxKey = () => [
-  ...getListNotificationsApiV1NotificationsGetQueryKey(UNREAD_INBOX),
-  "history",
-];
+const unreadInboxKey = () => [...getListNotificationsQueryKey(UNREAD_INBOX), "history"];
 
 /**
  * Read the popover's first page again and keep what it already held beneath
@@ -155,7 +152,7 @@ const unreadInboxKey = () => [
  * the totals disagree.
  */
 const readInboxHead = async (held: InfiniteData<NotificationListResponse>) => {
-  const head = await listNotificationsApiV1NotificationsGet(UNREAD_INBOX);
+  const head = await listNotifications(UNREAD_INBOX);
   const fresh = new Set(head.notifications.map((row) => row.id));
   const older = held.pages
     .flatMap((page) => page.notifications)
@@ -223,8 +220,8 @@ export const useUnreadPlaces = (options?: {
   refetchInterval?: number | false;
 }) => {
   return useQuery<UnreadPlacesResponse>({
-    queryKey: getUnreadNotificationPlacesApiV1NotificationsUnreadGetQueryKey(),
-    queryFn: () => unreadNotificationPlacesApiV1NotificationsUnreadGet(),
+    queryKey: getUnreadNotificationPlacesQueryKey(),
+    queryFn: () => unreadNotificationPlaces(),
     enabled: options?.enabled,
     refetchInterval: options?.refetchInterval,
   });
@@ -253,19 +250,19 @@ export const isAnsweredVisitRead = (query: Query) =>
  * so the next visit reads again.
  */
 export const useReadOnOpen = (kind: string, id: number | undefined) => {
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   const { data } = useQuery<SubjectReadResponse>({
-    queryKey: [...OPENED_KEY, guildId, kind, id],
+    queryKey: [...OPENED_KEY, communityId, kind, id],
     queryFn: async () => {
-      const read = await readNotificationSubjectApiV1NotificationsReadSubjectPost({
-        guild_id: guildId,
+      const read = await readNotificationSubject({
+        community_id: communityId,
         subject_type: kind,
         subject_id: id as number,
       });
       void invalidate(q.notifications());
       return read;
     },
-    enabled: guildId > 0 && Number.isFinite(id),
+    enabled: communityId > 0 && Number.isFinite(id),
     staleTime: Number.POSITIVE_INFINITY,
     gcTime: 0,
     refetchOnWindowFocus: false,
@@ -334,20 +331,17 @@ const applyRead = (client: QueryClient, matches: (notification: NotificationRead
   // time while the inbox page holds its own filters, so they are separate
   // entries — and one is paginated and one is not. A read has to reach both
   // shapes or the dot moves in one place and not the other.
-  client.setQueriesData<CachedList>(
-    { queryKey: getListNotificationsApiV1NotificationsGetQueryKey() },
-    (current) => {
-      if (!current) {
-        return current;
-      }
-      const readAt = new Date().toISOString();
-      if ("pages" in current) {
-        const pages = applyReadToPages(current.pages, matches, readAt);
-        return pages ? { ...current, pages } : current;
-      }
-      return applyReadToPages([current], matches, readAt)?.[0] ?? current;
+  client.setQueriesData<CachedList>({ queryKey: getListNotificationsQueryKey() }, (current) => {
+    if (!current) {
+      return current;
     }
-  );
+    const readAt = new Date().toISOString();
+    if ("pages" in current) {
+      const pages = applyReadToPages(current.pages, matches, readAt);
+      return pages ? { ...current, pages } : current;
+    }
+    return applyReadToPages([current], matches, readAt)?.[0] ?? current;
+  });
 
 // ── Mutations ───────────────────────────────────────────────────────────────
 
@@ -357,8 +351,7 @@ export const useMarkNotificationRead = (options?: MutationOpts<NotificationRead,
   const client = useQueryClient();
   return useApiMutation<NotificationRead, number>(
     {
-      mutationFn: (notificationId) =>
-        markNotificationReadApiV1NotificationsNotificationIdReadPost(notificationId),
+      mutationFn: (notificationId) => markNotificationRead(notificationId),
       invalidate: () => invalidate(q.notifications()),
     },
     {
@@ -372,7 +365,7 @@ export const useMarkNotificationRead = (options?: MutationOpts<NotificationRead,
         // The optimistic read gives way to what the server says rather than
         // standing; `invalidate` above only fires on success.
         void client.invalidateQueries({
-          queryKey: getListNotificationsApiV1NotificationsGetQueryKey(),
+          queryKey: getListNotificationsQueryKey(),
         });
         options?.onError?.(...args);
       },
@@ -384,18 +377,17 @@ export const useMarkNotificationUnread = (options?: MutationOpts<NotificationRea
   const client = useQueryClient();
   return useApiMutation<NotificationRead, number>(
     {
-      mutationFn: (notificationId) =>
-        markNotificationUnreadApiV1NotificationsNotificationIdUnreadPost(notificationId),
+      mutationFn: (notificationId) => markNotificationUnread(notificationId),
       invalidate: () => invalidate(q.notifications()),
     },
     {
       ...options,
       onSettled: (...args) => {
         void client.invalidateQueries({
-          queryKey: getListNotificationsApiV1NotificationsGetQueryKey(),
+          queryKey: getListNotificationsQueryKey(),
         });
         void client.invalidateQueries({
-          queryKey: getUnreadNotificationPlacesApiV1NotificationsUnreadGetQueryKey(),
+          queryKey: getUnreadNotificationPlacesQueryKey(),
         });
         options?.onSettled?.(...args);
       },
@@ -407,18 +399,17 @@ export const useDismissNotification = (options?: MutationOpts<void, number>) => 
   const client = useQueryClient();
   return useApiMutation<void, number>(
     {
-      mutationFn: (notificationId) =>
-        dismissNotificationApiV1NotificationsNotificationIdDelete(notificationId),
+      mutationFn: (notificationId) => dismissNotification(notificationId),
       invalidate: () => invalidate(q.notifications()),
     },
     {
       ...options,
       onSettled: (...args) => {
         void client.invalidateQueries({
-          queryKey: getListNotificationsApiV1NotificationsGetQueryKey(),
+          queryKey: getListNotificationsQueryKey(),
         });
         void client.invalidateQueries({
-          queryKey: getUnreadNotificationPlacesApiV1NotificationsUnreadGetQueryKey(),
+          queryKey: getUnreadNotificationPlacesQueryKey(),
         });
         options?.onSettled?.(...args);
       },
@@ -432,7 +423,7 @@ export const useMarkAllNotificationsRead = (
   const client = useQueryClient();
   return useApiMutation<NotificationCountResponse, void>(
     {
-      mutationFn: () => markAllNotificationsReadApiV1NotificationsReadAllPost(),
+      mutationFn: () => markAllNotificationsRead(),
       invalidate: () => invalidate(q.notifications()),
     },
     {
@@ -443,7 +434,7 @@ export const useMarkAllNotificationsRead = (
       },
       onError: (...args) => {
         void client.invalidateQueries({
-          queryKey: getListNotificationsApiV1NotificationsGetQueryKey(),
+          queryKey: getListNotificationsQueryKey(),
         });
         options?.onError?.(...args);
       },

@@ -15,7 +15,7 @@ from __future__ import annotations
 from httpx import AsyncClient
 
 from app.core.audit_events import AuditEventType
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.testing import emitted
 
 
@@ -42,9 +42,9 @@ class TestSharing:
     async def test_granting_somebody_access_records_the_level_they_gained(
         self, client: AsyncClient, acting_user, capfd
     ):
-        owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+        owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
         reader = await acting_user(
-            guild_role=GuildRole.member,
+            guild_role=CommunityRole.member,
             guild=owner.guild,
             initiative=owner.initiative,
             initiative_role="member",
@@ -72,9 +72,9 @@ class TestSharing:
     async def test_saving_the_same_list_again_records_nothing(
         self, client: AsyncClient, acting_user, capfd
     ):
-        owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+        owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
         reader = await acting_user(
-            guild_role=GuildRole.member,
+            guild_role=CommunityRole.member,
             guild=owner.guild,
             initiative=owner.initiative,
             initiative_role="member",
@@ -92,9 +92,9 @@ class TestSharing:
     async def test_a_level_that_moves_carries_both_ends(
         self, client: AsyncClient, acting_user, capfd
     ):
-        owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+        owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
         reader = await acting_user(
-            guild_role=GuildRole.member,
+            guild_role=CommunityRole.member,
             guild=owner.guild,
             initiative=owner.initiative,
             initiative_role="member",
@@ -123,7 +123,7 @@ class TestSharing:
     ):
         """A new document is shared with the whole initiative by default, and
         that is a grant like any other."""
-        owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+        owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
         capfd.readouterr()
 
         document_id = await _document(client, owner)
@@ -142,9 +142,9 @@ class TestSharing:
     async def test_a_refused_share_records_nothing(
         self, client: AsyncClient, acting_user, capfd
     ):
-        owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+        owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
         outsider = await acting_user(
-            guild_role=GuildRole.member,
+            guild_role=CommunityRole.member,
             guild=owner.guild,
             initiative=owner.initiative,
             initiative_role="member",

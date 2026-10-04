@@ -48,7 +48,7 @@ A direct link comes back "not found" rather than "access denied", because as far
 
 -   :material-shield-account-outline: __Initiative roles__
 
-    What roles are, what they unlock, and the Manager role's all-access pass.
+    What roles are, what they unlock, and the Moderator role's all-access pass.
 
     [:octicons-arrow-right-24: Initiative roles](initiative-roles.md)
 

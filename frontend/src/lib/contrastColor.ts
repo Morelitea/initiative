@@ -1,7 +1,7 @@
 /**
  * Picking text that can be read on a colour someone chose.
  *
- * A guild picks its banner's fill, so nothing here can assume a light or a
+ * A community picks its banner's fill, so nothing here can assume a light or a
  * dark background. The answer is the WCAG contrast ratio: compute it against
  * white and against black and take whichever is higher, rather than guessing a
  * lightness threshold — the ratio is what legibility is actually measured in,
@@ -11,7 +11,7 @@
 /**
  * The only two colours banner text is ever set to.
  *
- * Not a stylistic limit: the fill behind the words is the guild's to pick and
+ * Not a stylistic limit: the fill behind the words is the community's to pick and
  * its artwork can be anything, so they stay readable only by sitting at one end
  * of the scale or the other. The database refuses anything else.
  */
@@ -70,7 +70,7 @@ export const readableTextColor = (background: string): string => {
  * A shadow that keeps `ink` legible over a picture nobody here has seen.
  *
  * White text over a pale patch of artwork, or black text over a dark one, is
- * the failure case a stored text colour cannot rule out: the guild picks one
+ * the failure case a stored text colour cannot rule out: the community picks one
  * colour for a banner whose brightness varies across its width. So the words
  * carry their own opposite behind them — a dark shadow under light text and a
  * light one under dark — which restores the contrast wherever the picture goes

@@ -6,13 +6,14 @@ import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } fro
 import { useTranslation } from "react-i18next";
 
 import {
-  bootstrapStatusApiV1AuthBootstrapGet,
-  listLoginProvidersApiV1AuthProvidersGet,
+  bootstrapStatus as bootstrapStatusRequest,
+  listLoginProviders,
 } from "@/api/generated/auth/auth";
 import type { LoginProviderEntry } from "@/api/generated/initiativeAPI.schemas";
 import { EmailOtpCard } from "@/components/auth/EmailOtpCard";
 import { PasskeyRelayCard } from "@/components/auth/PasskeyRelayCard";
 import { ProviderMark } from "@/components/auth/ProviderMark";
+import { ServerPicker, ServerSubtitle } from "@/components/auth/ServerChoice";
 import { SignInFrame } from "@/components/auth/SignInFrame";
 import { Button } from "@/components/ui/button";
 import {
@@ -54,6 +55,22 @@ const FALLBACK_DEVICE_NAME = "Mobile Device";
 const flag = (value: unknown): string => String(value ?? "");
 
 export const LoginPage = () => {
+  const { isNativePlatform, isServerConfigured, serverUrl } = useServer();
+
+  // The app needs a server before anything else can load, so until it has
+  // one the server is all there is.
+  if (isNativePlatform && !isServerConfigured) {
+    return (
+      <SignInFrame>
+        <ServerPicker className="w-full max-w-md" />
+      </SignInFrame>
+    );
+  }
+  // Another server is another sign-in, so the card starts over.
+  return <SignInCard key={serverUrl ?? "web"} />;
+};
+
+const SignInCard = () => {
   const { t } = useTranslation(["auth", "common", "errors"]);
   const router = useRouter();
   const searchParams = useSearch({ strict: false }) as {
@@ -66,13 +83,7 @@ export const LoginPage = () => {
   };
   const { login, completeSecondFactor, applyPasskeySignIn } = useAuth();
   const resumeAfterSignIn = useResumeAfterSignIn();
-  const {
-    isNativePlatform,
-    isServerConfigured,
-    getServerHostname,
-    getServerOrigin,
-    clearServerUrl,
-  } = useServer();
+  const { isNativePlatform, isServerConfigured, getServerOrigin } = useServer();
   const { passwordLoginEnabled, passkeyLoginEnabled, emailOtpLoginEnabled } = useAppConfig();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -115,7 +126,7 @@ export const LoginPage = () => {
   useEffect(() => {
     const fetchProviders = async () => {
       try {
-        const response = await listLoginProvidersApiV1AuthProvidersGet();
+        const response = await listLoginProviders();
         setProviders(response.providers);
         // Only an answer says nothing is offered; a failed request says
         // nothing at all.
@@ -163,7 +174,7 @@ export const LoginPage = () => {
   useEffect(() => {
     const fetchBootstrapStatus = async () => {
       try {
-        const response = await bootstrapStatusApiV1AuthBootstrapGet();
+        const response = await bootstrapStatusRequest();
         setBootstrapStatus(response.has_users ? "ready" : "required");
       } catch {
         setBootstrapStatus("ready");
@@ -283,18 +294,33 @@ export const LoginPage = () => {
     }
   };
 
-  const handleChangeServer = () => {
-    clearServerUrl();
-    router.navigate({ to: "/connect", replace: true });
-  };
+  // A password manager can fill a form and submit it several times within one
+  // render, before `submitting` disables anything. A ref is set at once, so
+  // only the first of those is sent. One for both steps: only one is on screen.
+  const submitInFlightRef = useRef(false);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (submitInFlightRef.current) return;
+    submitInFlightRef.current = true;
+    // Read from the fields, not from state: a password manager can submit a
+    // field it filled before the change reached state, which would send what
+    // the field held before it was filled.
+    const fields = new FormData(event.currentTarget);
+    const enteredEmail = String(fields.get("email") ?? "");
+    const enteredPassword = String(fields.get("password") ?? "");
+    // And kept, so the next render does not put the old values back.
+    setEmail(enteredEmail);
+    setPassword(enteredPassword);
     setSubmitting(true);
     setError(null);
     try {
       const deviceName = isNativePlatform ? await resolveDeviceName() : undefined;
-      await login({ email: email.toLowerCase().trim(), password, deviceName });
+      await login({
+        email: enteredEmail.toLowerCase().trim(),
+        password: enteredPassword,
+        deviceName,
+      });
       await goWhereTheySignedInFor();
     } catch (err) {
       if (err instanceof SecondFactorRequiredError) {
@@ -308,17 +334,23 @@ export const LoginPage = () => {
       console.error(err);
       setError(err instanceof Error ? err.message : t("login.defaultError"));
     } finally {
+      submitInFlightRef.current = false;
       setSubmitting(false);
     }
   };
 
   const handleCodeSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!challenge) return;
+    if (!challenge || submitInFlightRef.current) return;
+    // From the field, for the same reason as the password.
+    const enteredCode = String(new FormData(event.currentTarget).get("second-factor-code") ?? "");
+    if (!enteredCode.trim()) return;
+    submitInFlightRef.current = true;
+    setCode(enteredCode);
     setSubmitting(true);
     setError(null);
     try {
-      const entered = code.trim();
+      const entered = enteredCode.trim();
       await completeSecondFactor({
         challenge,
         ...(useRecoveryCode ? { recoveryCode: entered } : { code: compactCode(entered) }),
@@ -329,6 +361,7 @@ export const LoginPage = () => {
       setError(err instanceof Error ? err.message : t("login.defaultError"));
       setCode("");
     } finally {
+      submitInFlightRef.current = false;
       setSubmitting(false);
     }
   };
@@ -381,13 +414,19 @@ export const LoginPage = () => {
     <SignInFrame>
       <Card className="w-full max-w-md shadow-lg">
         <CardHeader>
-          <CardTitle>{challenge ? t("secondFactor.title") : t("login.title")}</CardTitle>
+          <CardTitle className="text-2xl">
+            {challenge ? t("secondFactor.title") : t("login.title")}
+          </CardTitle>
           <CardDescription>
-            {challenge
-              ? useRecoveryCode
-                ? t("secondFactor.recoverySubtitle")
-                : t("secondFactor.subtitle")
-              : t("login.subtitle")}
+            {challenge ? (
+              useRecoveryCode ? (
+                t("secondFactor.recoverySubtitle")
+              ) : (
+                t("secondFactor.subtitle")
+              )
+            ) : (
+              <ServerSubtitle />
+            )}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -421,7 +460,9 @@ export const LoginPage = () => {
                   required
                 />
               </div>
-              <Button className="w-full" type="submit" disabled={submitting || !code.trim()}>
+              {/* Not held back on an empty `code`: a filled field may not have
+                  reached state yet, and `required` stops an empty one. */}
+              <Button className="w-full" type="submit" disabled={submitting}>
                 {submitting ? t("login.submitting") : t("secondFactor.submit")}
               </Button>
               <div className="flex items-center justify-between text-sm">
@@ -548,19 +589,6 @@ export const LoginPage = () => {
           )}
         </CardContent>
         <CardFooter className="flex flex-col items-start gap-2 text-muted-foreground text-sm">
-          {isNativePlatform && (
-            <p className="text-xs">
-              {t("login.connectedTo")} <span className="font-medium">{getServerHostname()}</span>
-              {" · "}
-              <button
-                type="button"
-                className="text-primary underline-offset-4 hover:underline"
-                onClick={handleChangeServer}
-              >
-                {t("login.changeServer")}
-              </button>
-            </p>
-          )}
           {passwordLoginEnabled ? (
             <p>
               {t("login.needAccount")}{" "}

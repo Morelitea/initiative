@@ -1,6 +1,6 @@
 """Integration tests for the calendar-entries aggregate endpoints.
 
-``GET /c/{guild_id}/calendar-entries`` and ``GET /me/calendar-entries`` return a
+``GET /c/{community_id}/calendar-entries`` and ``GET /me/calendar-entries`` return a
 union of calendar events + task markers over a date window. They must be a union
 *under the existing gates* — the same events/tasks the separate list endpoints
 would return for the same actor, never more.
@@ -11,8 +11,9 @@ from datetime import datetime, timedelta, timezone
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core import recurrence
 from app.core.messages import CalendarEventMessages
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.testing import (
     create_calendar,
     create_calendar_event,
@@ -50,7 +51,7 @@ async def _enable_events(session: AsyncSession, initiative, creator):
 async def test_guild_entries_unions_events_and_task_markers(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     calendar = await _enable_events(session, a.initiative, a.user)
 
     event = await create_calendar_event(
@@ -76,12 +77,13 @@ async def test_guild_entries_unions_events_and_task_markers(
 
 
 async def test_guild_entries_give_each_occurrence_of_a_repeat(
-    client: AsyncClient, session: AsyncSession, acting_user
+    client: AsyncClient, session: AsyncSession, acting_user, monkeypatch
 ):
     """A weekly event that began before the window is there once a week, and
     one that ended before it is not. A repeating task stays where it is, and its
-    next occurrences in the window come with it, up to its end."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    next occurrences in the window come with it, up to its end. A window whose
+    repeats hold more occurrences than a read expands is refused."""
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     calendar = await _enable_events(session, a.initiative, a.user)
     weekly = await create_calendar_event(
         session,
@@ -136,11 +138,25 @@ async def test_guild_entries_give_each_occurrence_of_a_repeat(
         (task.id, NOW - timedelta(days=17)),
     ]
 
+    params = {
+        "initiative_id": a.initiative.id,
+        "start_after": WINDOW_START,
+        "start_before": WINDOW_END,
+    }
+    # Eight event occurrences, then two task occurrences alone.
+    for leg, budget in (({}, 7), ({"include_events": False}, 1)):
+        monkeypatch.setattr(recurrence, "MAX_EXPANDED", budget)
+        refused = await client.get(
+            a.g("/calendar-entries/"), headers=a.headers, params={**params, **leg}
+        )
+        assert refused.status_code == 422, refused.text
+        assert refused.json()["detail"] == CalendarEventMessages.WINDOW_TOO_FULL
+
 
 async def test_guild_entries_include_flags_skip_legs(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     calendar = await _enable_events(session, a.initiative, a.user)
     await create_calendar_event(session, calendar, a.user, start_at=NOW)
     await create_task(session, a.project, due_date=NOW, assignees=[a.user])
@@ -181,7 +197,7 @@ async def test_guild_entries_hidden_from_non_member(
     (DAC: no grant) nor its tasks (initiative-member RLS) — the aggregate must
     not widen visibility beyond the per-resource list endpoints."""
     owner = await acting_user(
-        guild_role=GuildRole.member, initiative=True, project=True
+        guild_role=CommunityRole.member, initiative=True, project=True
     )
     calendar = await _enable_events(session, owner.initiative, owner.user)
     event = await create_calendar_event(session, calendar, owner.user, start_at=NOW)
@@ -190,7 +206,7 @@ async def test_guild_entries_hidden_from_non_member(
     )
 
     # Second guild member, deliberately NOT added to the initiative.
-    outsider = await acting_user(guild_role=GuildRole.member, guild=owner.guild)
+    outsider = await acting_user(guild_role=CommunityRole.member, guild=owner.guild)
 
     response = await client.get(
         outsider.g("/calendar-entries/"),
@@ -214,7 +230,7 @@ async def test_guild_entries_leave_out_an_initiative_the_reader_is_not_in(
     would be a calendar of markers for work whose events are absent.
     """
     member = await acting_user(
-        guild_role=GuildRole.member, initiative=True, project=True
+        guild_role=CommunityRole.member, initiative=True, project=True
     )
     calendar = await _enable_events(session, member.initiative, member.user)
     event = await create_calendar_event(session, calendar, member.user, start_at=NOW)
@@ -222,7 +238,7 @@ async def test_guild_entries_leave_out_an_initiative_the_reader_is_not_in(
         session, member.project, due_date=NOW, assignees=[member.user]
     )
 
-    admin = await acting_user(guild_role=GuildRole.admin, guild=member.guild)
+    admin = await acting_user(guild_role=CommunityRole.admin, guild=member.guild)
 
     response = await client.get(
         admin.g("/calendar-entries/"),
@@ -241,7 +257,7 @@ async def test_guild_entries_windows_tasks_by_params(
     """start_after/start_before bound the task leg even when the caller sends no
     matching date filter in `conditions` — the window is a first-class param, so
     an out-of-window task is excluded and the query never runs unbounded."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     in_window = await create_task(
         session, a.project, title="In window", due_date=NOW, assignees=[a.user]
     )
@@ -295,7 +311,9 @@ async def test_guild_entries_windows_tasks_by_params(
 
 async def _guild_with_project(session, user, *, name):
     guild = await create_guild(session, creator=user, name=name)
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=user, guild=guild, role=CommunityRole.admin
+    )
     initiative = await create_initiative(session, guild, user, name=f"{name} Init")
     calendar = await _enable_events(session, initiative, user)
     project = await create_project(session, initiative, user, name=f"{name} Project")
@@ -305,10 +323,10 @@ async def _guild_with_project(session, user, *, name):
 async def test_guild_scope_returns_every_guild_calendar_s_events(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """``scope=guild`` asks by kind, so the answer does not depend on the caller
+    """``scope=community`` asks by kind, so the answer does not depend on the caller
     first assembling a list of calendar ids — a list which would be one page of
     them, with everything after it silently undrawn."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     initiative_calendar = await _enable_events(session, a.initiative, a.user)
     await create_calendar_event(
         session, initiative_calendar, a.user, title="Standup", start_at=NOW
@@ -329,7 +347,7 @@ async def test_guild_scope_returns_every_guild_calendar_s_events(
         a.g("/calendar-entries/"),
         headers=a.headers,
         params={
-            "scope": "guild",
+            "scope": "community",
             "start_after": WINDOW_START,
             "start_before": WINDOW_END,
             "include_tasks": "false",
@@ -340,14 +358,21 @@ async def test_guild_scope_returns_every_guild_calendar_s_events(
 
 
 async def test_me_entries_aggregate_across_guilds(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, monkeypatch
 ):
+    """Entries from every guild, narrowed by ``guild_ids``; the guilds share
+    one budget of repeating occurrences."""
     user = await create_user(session, email="cal-me@example.com")
     g1, i1, p1, cal1 = await _guild_with_project(session, user, name="Alpha")
     g2, i2, p2, cal2 = await _guild_with_project(session, user, name="Beta")
 
-    event1 = await create_calendar_event(session, cal1, user, start_at=NOW)
-    event2 = await create_calendar_event(session, cal2, user, start_at=NOW)
+    weekly = "RRULE:FREQ=WEEKLY"
+    event1 = await create_calendar_event(
+        session, cal1, user, start_at=NOW, recurrence=weekly
+    )
+    event2 = await create_calendar_event(
+        session, cal2, user, start_at=NOW, recurrence=weekly
+    )
     task1 = await create_task(session, p1, due_date=NOW, assignees=[user])
     task2 = await create_task(session, p2, due_date=NOW, assignees=[user])
 
@@ -361,8 +386,8 @@ async def test_me_entries_aggregate_across_guilds(
     body = response.json()
     # IDs are per-guild-schema sequences, so a row is only unique as
     # (guild_id, id) once merged across guilds.
-    event_keys = {(e["guild_id"], e["id"]) for e in body["events"]}
-    task_keys = {(t["guild_id"], t["id"]) for t in body["tasks"]}
+    event_keys = {(e["community_id"], e["id"]) for e in body["events"]}
+    task_keys = {(t["community_id"], t["id"]) for t in body["tasks"]}
     assert {(g1.id, event1.id), (g2.id, event2.id)} <= event_keys
     assert {(g1.id, task1.id), (g2.id, task2.id)} <= task_keys
 
@@ -373,14 +398,24 @@ async def test_me_entries_aggregate_across_guilds(
         params={
             "start_after": WINDOW_START,
             "start_before": WINDOW_END,
-            "guild_ids": [g1.id],
+            "community_ids": [g1.id],
         },
     )
     assert narrowed.status_code == 200, narrowed.text
     nbody = narrowed.json()
-    narrowed_event_keys = {(e["guild_id"], e["id"]) for e in nbody["events"]}
+    narrowed_event_keys = {(e["community_id"], e["id"]) for e in nbody["events"]}
     assert (g1.id, event1.id) in narrowed_event_keys
     assert (g2.id, event2.id) not in narrowed_event_keys
+
+    # Five weekly occurrences in each guild: either fits alone, not both.
+    monkeypatch.setattr(recurrence, "MAX_EXPANDED", 9)
+    refused = await client.get(
+        "/api/v1/me/calendar-entries",
+        headers=headers,
+        params={"start_after": WINDOW_START, "start_before": WINDOW_END},
+    )
+    assert refused.status_code == 422, refused.text
+    assert refused.json()["detail"] == CalendarEventMessages.WINDOW_TOO_FULL
 
 
 async def test_me_entries_windows_tasks_by_params(

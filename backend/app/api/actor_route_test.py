@@ -30,7 +30,7 @@ from app.core.identity_boundary import GuildId, PersonId
 from app.core.messages import AppMessages
 from app.db.guild_standing import InstallContext
 from app.main import app
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.platform.identity_ref import (
     REF_GRACE_PERIOD,
     IdentityEntity,
@@ -50,7 +50,7 @@ from app.testing.app_clients import CLIENT, client_jwks, install_app
 
 pytestmark = pytest.mark.always
 
-_BASE = "/api/v1/c/{guild_id}/actor-route-probe"
+_BASE = "/api/v1/c/{community_id}/actor-route-probe"
 _read = app_scope("documents:read")
 _write = app_scope("documents:write")
 
@@ -144,7 +144,7 @@ def _counting() -> Iterator[list[str]]:
 
 
 def _url(guild_id: int, path: str) -> str:
-    return _BASE.format(guild_id=guild_id) + path
+    return _BASE.format(community_id=guild_id) + path
 
 
 def _bearer(guild_id: int, install_id: int, scopes, client_id: str = CLIENT):
@@ -164,7 +164,7 @@ async def _setup(session, acting_user, role_session, scopes=("documents:write",)
     )
     others = [
         await acting_user(
-            guild_role=GuildRole.member,
+            guild_role=CommunityRole.member,
             guild=installed.guild,
             initiative=installed.placed,
             initiative_role="member",
@@ -301,7 +301,7 @@ async def test_a_second_install_sees_different_references(
 
 
 async def test_a_person_reads_row_ids_unchanged(client, session, acting_user):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
     _state["people"] = [a.user.id]
 
     response = await client.get(_url(a.guild.id, "/people"), headers=a.headers)
@@ -367,7 +367,7 @@ async def test_an_install_names_people_by_reference(
 
 
 async def test_a_person_names_people_by_row_id(client, session, acting_user):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
 
     response = await client.post(
         _url(a.guild.id, "/assign"),

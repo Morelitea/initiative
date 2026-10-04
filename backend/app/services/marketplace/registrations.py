@@ -7,8 +7,8 @@ Every app splits the same way, whatever published its listing
   registry, a local upload, the operator's catalog directory, the build) may
   carry a ``registration`` block, and ``upsert_listing`` hands it to
   :func:`read_listing_registration` and :func:`apply_listing_registration`,
-  which write the listing, scope ceiling, image and reference sectors onto
-  the registration for the service it names, creating the row when there is
+  which write the listing, scope ceiling, image, reference sectors and
+  Compose service onto the registration for the service it names, creating the row when there is
   none. Reference sectors are honoured only from the registry.
 * **The operator gives the deployment facts**: where the app runs, the keys
   its container signs with, its vendor values, the switch, the mandatory flag
@@ -19,7 +19,11 @@ Every app splits the same way, whatever published its listing
   app whose listing has not arrived waits for it: the listing apply that
   creates the row applies the entry.
 
-Nothing is fetched from the app to fill any of it in. Its publisher is the row
+Nothing is fetched from the app to fill any of it in, except its key set when
+the operator asks: **Connect** (:func:`published_keys`, then
+:func:`connect_registration`) reads the set the app serves under its base URL,
+shows each key's fingerprint, and pins the set the operator confirms in place
+of any ``jwks_uri``. A changed set is picked up only by connecting again. Its publisher is the row
 for its ``public_id`` prefix (:mod:`app.services.marketplace.publishers`). The
 one secret it may hold is its vendor values
 (:mod:`app.services.marketplace.vendor_values`).
@@ -36,11 +40,12 @@ from __future__ import annotations
 
 import json
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Optional, Sequence
 from urllib.parse import urlparse
 
+import httpx
 from fastapi import HTTPException, status as http_status
 from jwt import PyJWK
 from jwt.exceptions import InvalidKeyError, PyJWKError
@@ -58,6 +63,7 @@ from app.models.platform.app_service_registration import (
     MAX_APP_ID_LENGTH,
     REFERENCE_SECTORS,
     AppServiceRegistration,
+    RegistrationKind,
     RegistrationSource,
 )
 from app.models.platform.publisher import (
@@ -69,12 +75,17 @@ from app.services import audit as audit_service
 from app.services.marketplace.app_keys import (
     PRIVATE_JWK_MEMBERS,
     PUBLIC_JWK_TYPES,
+    KeySetUnreadableError,
+    jwk_thumbprint,
     jwks_uri_allowed,
+    key_set_url,
+    read_key_set,
 )
 from app.services.marketplace import vendor_values as vendor_values_service
 from app.services.marketplace.publishers import ensure_publisher
 from app.services.marketplace.registration_lookup import (
     invalidate_registrations,
+    is_declarative,
     live_registration_clause,
     service_public_id,
 )
@@ -86,10 +97,12 @@ logger = logging.getLogger(__name__)
 AUDITED_FIELDS: tuple[str, ...] = (
     "public_id",
     "listing_uid",
+    "kind",
     "publisher_id",
     "base_url",
     "embed_origin",
     "allowed_origins",
+    "jwks",
     "jwks_uri",
     "scope_ceiling",
     "mandatory",
@@ -97,6 +110,7 @@ AUDITED_FIELDS: tuple[str, ...] = (
     "source",
     "image_digest",
     "reference_sectors",
+    "compose",
 )
 
 
@@ -104,14 +118,17 @@ __all__ = [
     "DeploymentFacts",
     "ListingRegistration",
     "ListingRegistrationError",
+    "PublishedKey",
     "ReconcileResult",
     "RegistrationView",
     "apply_deployment_facts",
     "apply_listing_registration",
     "check_signing_configured",
     "configured_facts",
+    "connect_registration",
     "create_registration",
     "delete_registration",
+    "filled_compose",
     "get_registration",
     "row_browser_base",
     "list_registrations",
@@ -123,6 +140,7 @@ __all__ = [
     "normalize_origins",
     "normalize_public_id",
     "origin_of",
+    "published_keys",
     "read_listing_registration",
     "reconcile_from_config",
     "registration_views",
@@ -565,6 +583,14 @@ async def update_registration(
     """
     row = await get_registration(session, registration_id)
     before = audit_service.snapshot(row, AUDITED_FIELDS)
+    placement = (base_url, embed_origin, allowed_origins, jwks, jwks_uri)
+    if row.kind == RegistrationKind.DECLARATIVE and any(
+        value is not None for value in placement
+    ):
+        raise _bad_request(
+            AppServiceMessages.DECLARATIVE_NOT_PLACED,
+            "a declarative app has no address, origins or keys",
+        )
     _write_placement(
         row,
         base_url=base_url,
@@ -680,11 +706,124 @@ async def delete_registration(
     invalidate_registrations()
 
 
+# --- connect: the key set the app serves --------------------------------------
+
+
+@dataclass(frozen=True, order=True)
+class PublishedKey:
+    """One key the app serves: its ``kid`` and RFC 7638 thumbprint."""
+
+    kid: str
+    fingerprint: str
+
+
+async def _served_key_set(
+    base_url: Optional[str], transport: Optional[httpx.AsyncBaseTransport]
+) -> tuple[dict, list[PublishedKey]]:
+    """The key set the app serves under ``base_url``, held to what a pasted
+    set must be, with each key's fingerprint."""
+    if not base_url:
+        raise HTTPException(
+            status_code=http_status.HTTP_409_CONFLICT,
+            detail=AppServiceMessages.CONNECT_NEEDS_BASE_URL,
+        )
+    url = key_set_url(base_url)
+    try:
+        document = await read_key_set(url, transport=transport)
+    except KeySetUnreadableError as exc:
+        logger.info("app services: %s could not be read (%s)", url, exc)
+        raise HTTPException(
+            status_code=http_status.HTTP_502_BAD_GATEWAY,
+            detail=AppServiceMessages.KEYS_UNREADABLE,
+        ) from exc
+    key_set = normalize_jwks(document)
+    if key_set is None:
+        raise _bad_request(AppServiceMessages.INVALID_JWKS, "the app serves no keys")
+    keys = [
+        PublishedKey(kid=entry["kid"], fingerprint=jwk_thumbprint(entry))
+        for entry in key_set["keys"]
+    ]
+    return key_set, keys
+
+
+def _keys_changed() -> HTTPException:
+    return HTTPException(
+        status_code=http_status.HTTP_409_CONFLICT,
+        detail=AppServiceMessages.KEYS_CHANGED,
+    )
+
+
+async def published_keys(
+    session: AsyncSession,
+    registration_id: int,
+    *,
+    transport: Optional[httpx.AsyncBaseTransport] = None,
+) -> list[PublishedKey]:
+    """The keys the app serves, for the operator to compare with the
+    fingerprints its container logged. Writes nothing."""
+    row = await get_registration(session, registration_id)
+    _, keys = await _served_key_set(row.base_url, transport)
+    return keys
+
+
+async def connect_registration(
+    session: AsyncSession,
+    registration_id: int,
+    *,
+    keys: Sequence[PublishedKey],
+    actor_user_id: int | None = None,
+    transport: Optional[httpx.AsyncBaseTransport] = None,
+) -> AppServiceRegistration:
+    """Pin the key set the app serves as the registration's ``jwks``, and
+    clear its ``jwks_uri`` so the pinned set is the only one it is verified
+    against.
+
+    The set is read again rather than taken from the request, and stored only
+    when its keys, ``kid`` and fingerprint together, are the ones the operator
+    confirmed, and the base URL it was read from is still the registration's
+    (409 otherwise). The row is locked for that check and the write, after the
+    read, so no lock is held while the app is asked.
+    """
+    base_url = (await get_registration(session, registration_id)).base_url
+    key_set, served = await _served_key_set(base_url, transport)
+    if sorted(served) != sorted(keys):
+        raise _keys_changed()
+    locked = (
+        await session.exec(
+            select(AppServiceRegistration)
+            .where(AppServiceRegistration.id == registration_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+    ).first()
+    if locked is None or locked.base_url != base_url:
+        await session.rollback()
+        raise _keys_changed()
+    return await update_registration(
+        session,
+        registration_id,
+        jwks=key_set,
+        jwks_uri="",
+        actor_user_id=actor_user_id,
+    )
+
+
 # --- app facts, from a listing ------------------------------------------------
 
 #: What a listing's ``registration`` block may not name: where a container runs
 #: and the keys it signs with are the deployment's.
 _DEPLOYMENT_KEYS = ("base_url", "embed_origin", "jwks", "jwks_uri")
+
+#: What a listing's Compose service may hold: YAML text, and the address the
+#: service answers at on the Compose network. A ``${`` opens one of the
+#: placeholders filled when the snippet is shown, and nothing else.
+_COMPOSE_KEYS = frozenset({"service", "base_url"})
+_MAX_COMPOSE_SERVICE = 4096
+_MAX_COMPOSE_BASE_URL = 512
+_COMPOSE_IMAGE = "${IMAGE}"
+_COMPOSE_INITIATIVE_URL = "${INITIATIVE_URL}"
+#: A host as a URL parser reads it back, lowercased.
+_COMPOSE_HOST_CHARS = frozenset("abcdefghijklmnopqrstuvwxyz0123456789.-")
 
 #: Characters a container image reference may use (``<repository>@sha256:``).
 _IMAGE_CHARS = frozenset("abcdefghijklmnopqrstuvwxyz0123456789._/:-@")
@@ -709,11 +848,15 @@ class ListingRegistration:
     listing_uid: str
     #: The catalog source of the listing (``registry``, ``operator``, …).
     source: str
+    #: ``container`` or ``declarative`` (``RegistrationKind``).
+    kind: str
     image: Optional[str]
     scope_ceiling: list[str]
     reference_sectors: list[str]
     #: Whether the registry listing verified under the root this image ships.
     root_is_builtin: bool
+    #: The Compose service its publisher wrote, placeholders unfilled.
+    compose: Optional[dict[str, str]] = None
 
 
 def _image_reference(value: Any) -> str:
@@ -736,6 +879,66 @@ def _image_reference(value: Any) -> str:
             "the container image is not pinned by sha256 digest"
         )
     return value
+
+
+def _compose(value: Any, *, image: Optional[str]) -> dict[str, str]:
+    """A listing's Compose service: ``service``, YAML text whose only
+    placeholders are ``${IMAGE}`` (only beside an image) and
+    ``${INITIATIVE_URL}``, and ``base_url``, an http(s) address with a host, an
+    optional port and an optional path."""
+    if not isinstance(value, Mapping) or set(value) != _COMPOSE_KEYS:
+        raise ListingRegistrationError("compose names its service and base_url only")
+    service, base_url = value["service"], value["base_url"]
+    if not isinstance(service, str) or not 0 < len(service) <= _MAX_COMPOSE_SERVICE:
+        raise ListingRegistrationError(
+            f"compose.service must be 1..{_MAX_COMPOSE_SERVICE} characters"
+        )
+    start = service.find("${")
+    while start != -1:
+        placeholder = next(
+            (
+                name
+                for name in (_COMPOSE_IMAGE, _COMPOSE_INITIATIVE_URL)
+                if service.startswith(name, start)
+            ),
+            None,
+        )
+        if placeholder is None:
+            raise ListingRegistrationError(
+                "compose.service fills ${IMAGE} and ${INITIATIVE_URL} only"
+            )
+        if placeholder == _COMPOSE_IMAGE and image is None:
+            raise ListingRegistrationError("compose.service names an image it lacks")
+        start = service.find("${", start + len(placeholder))
+    if not isinstance(base_url, str) or len(base_url) > _MAX_COMPOSE_BASE_URL:
+        raise ListingRegistrationError(
+            f"compose.base_url must be at most {_MAX_COMPOSE_BASE_URL} characters"
+        )
+    try:
+        parsed = urlparse(base_url)
+        parsed.port
+    except ValueError as exc:
+        raise ListingRegistrationError("compose.base_url is not a usable URL") from exc
+    if (
+        parsed.scheme not in ("http", "https")
+        or not parsed.hostname
+        or any(char not in _COMPOSE_HOST_CHARS for char in parsed.hostname)
+        or parsed.username is not None
+        or any(char in "?#" or char.isspace() for char in base_url)
+    ):
+        raise ListingRegistrationError("compose.base_url is not a usable URL")
+    return {"service": service, "base_url": base_url}
+
+
+def filled_compose(row: AppServiceRegistration) -> Optional[str]:
+    """The registration's Compose service as the operator copies it: its
+    image pinned by digest and Initiative's public address filled in."""
+    service = (row.compose or {}).get("service")
+    if not isinstance(service, str):
+        return None
+    return service.replace(_COMPOSE_IMAGE, row.image_digest or "").replace(
+        _COMPOSE_INITIATIVE_URL, settings.APP_URL.rstrip("/")
+    )
 
 
 def _vocabulary(values: Any, allowed: frozenset[str], *, what: str) -> list[str]:
@@ -767,16 +970,19 @@ async def read_listing_registration(
 ) -> ListingRegistration:
     """Read a listing's ``registration`` block, before the listing is written.
 
-    The block is the same from every source: ``kind: "container"``, an
-    optional ``image`` pinned by digest, the ``scope_ceiling``, and
-    ``reference_sectors``, which only a registry listing may name. It names no
-    location and no keys. The registration it writes is the one for the
-    service the listing's definition names, under the listing's own prefix;
-    one another listing already holds is refused.
+    The block is the same from every source: ``kind`` — ``container``, or
+    ``declarative`` for an app with no service block — an optional ``image``
+    pinned by digest and its Compose service (a container's only), the
+    ``scope_ceiling``, and ``reference_sectors``, which only a registry listing
+    may name. It names no location and no keys. The registration it writes is
+    the one for the app the listing's definition names, under the listing's own
+    prefix; one another listing already holds is refused.
     """
     if not isinstance(spec, Mapping):
         raise ListingRegistrationError("registration is not an object")
-    service_id = service_public_id(definition)
+    declarative = is_declarative(definition)
+    kind = RegistrationKind.DECLARATIVE if declarative else RegistrationKind.CONTAINER
+    service_id = service_public_id(definition, listing_public_id=listing_public_id)
     if service_id is None:
         raise ListingRegistrationError("only a service app carries a registration")
     try:
@@ -786,8 +992,10 @@ async def read_listing_registration(
     prefix = publisher_prefix(public_id)
     if prefix != publisher_prefix(listing_public_id):
         raise ListingRegistrationError("the service is published under another prefix")
-    if spec.get("kind") != "container":
-        raise ListingRegistrationError('registration.kind must be "container"')
+    if spec.get("kind") != kind:
+        raise ListingRegistrationError(f'registration.kind must be "{kind}"')
+    if declarative and any(key in spec for key in ("image", "compose")):
+        raise ListingRegistrationError("a declarative app runs no container")
     stated = [key for key in _DEPLOYMENT_KEYS if key in spec]
     if stated:
         raise ListingRegistrationError(
@@ -802,6 +1010,12 @@ async def read_listing_registration(
 
     declared_image = spec.get("image")
     image = _image_reference(declared_image) if declared_image is not None else None
+    declared_compose = spec.get("compose")
+    compose = (
+        _compose(declared_compose, image=image)
+        if declared_compose is not None
+        else None
+    )
     declared_ceiling = spec.get("scope_ceiling")
     ceiling = _vocabulary(
         declared_ceiling,
@@ -837,10 +1051,12 @@ async def read_listing_registration(
         public_id=public_id,
         listing_uid=listing_uid,
         source=source,
+        kind=kind,
         image=image,
         scope_ceiling=ceiling,
         reference_sectors=sectors,
         root_is_builtin=registry and root_is_builtin,
+        compose=compose,
     )
 
 
@@ -865,9 +1081,16 @@ async def apply_listing_registration(
         )
     before = {} if created else audit_service.snapshot(row, AUDITED_FIELDS)
     row.listing_uid = registration.listing_uid
+    row.kind = registration.kind
+    if registration.kind == RegistrationKind.DECLARATIVE:
+        # Runs nowhere and signs nothing: a location and keys a container
+        # version left behind go with it.
+        row.base_url = row.embed_origin = row.jwks = row.jwks_uri = None
+        row.allowed_origins = []
     row.scope_ceiling = registration.scope_ceiling
     row.reference_sectors = registration.reference_sectors
     row.image_digest = registration.image
+    row.compose = registration.compose
     row.root_is_builtin = registration.root_is_builtin
     row.source = (
         RegistrationSource.REGISTRY
@@ -1039,6 +1262,9 @@ def apply_deployment_facts(row: AppServiceRegistration, facts: DeploymentFacts) 
         )
 
     was = state()
+    if row.kind == RegistrationKind.DECLARATIVE:
+        # Runs nowhere and signs nothing: an entry's placement does not apply.
+        facts = replace(facts, base_url=None, allowed_origins=None)
     _write_placement(
         row,
         base_url=facts.base_url,

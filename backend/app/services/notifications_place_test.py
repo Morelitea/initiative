@@ -42,7 +42,7 @@ def test_the_place_is_read_off_the_payload():
     )
     assert user_notifications._place(
         {
-            "guild_id": 3,
+            "community_id": 3,
             "initiative_id": 9,
             "tool": "project",
             "entity_type": "task",
@@ -58,7 +58,7 @@ def test_the_place_is_read_off_the_payload():
         "subject_type": "task",
         "subject_id": 7,
     }
-    assert user_notifications._place({"guild_id": 3, "entity_type": "queue"}) == {
+    assert user_notifications._place({"community_id": 3, "entity_type": "queue"}) == {
         **nowhere,
         "guild_id": 3,
         "tool": "queue",
@@ -78,7 +78,7 @@ async def test_a_notification_with_no_initiative_still_names_its_community(
         session,
         user_id=member.id,
         notification_type=NotificationType.initiative_added,
-        data={"guild_id": guild.id},
+        data={"community_id": guild.id},
     )
     await session.commit()
 

@@ -54,59 +54,49 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
  * depends only on who is asking, never on what they're currently viewing.
  * @summary List Recents
  */
-export const listRecentsApiV1RecentsGet = (
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
+export const listRecents = (options?: SecondParameter<typeof apiMutator>, signal?: AbortSignal) => {
   return apiMutator<RecentItemRead[]>({ url: `/api/v1/recents/`, method: "GET", signal }, options);
 };
 
-export const getListRecentsApiV1RecentsGetQueryKey = () => {
+export const getListRecentsQueryKey = () => {
   return [`/api/v1/recents/`] as const;
 };
 
-export const getListRecentsApiV1RecentsGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof listRecentsApiV1RecentsGet>>,
+export const getListRecentsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listRecents>>,
   TError = ErrorType<HTTPValidationError>,
 >(options?: {
-  query?: Partial<
-    UseQueryOptions<Awaited<ReturnType<typeof listRecentsApiV1RecentsGet>>, TError, TData>
-  >;
+  query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listRecents>>, TError, TData>>;
   request?: SecondParameter<typeof apiMutator>;
 }) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey = queryOptions?.queryKey ?? getListRecentsApiV1RecentsGetQueryKey();
+  const queryKey = queryOptions?.queryKey ?? getListRecentsQueryKey();
 
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof listRecentsApiV1RecentsGet>>> = ({
-    signal,
-  }) => listRecentsApiV1RecentsGet(requestOptions, signal);
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listRecents>>> = ({ signal }) =>
+    listRecents(requestOptions, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof listRecentsApiV1RecentsGet>>,
+    Awaited<ReturnType<typeof listRecents>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ListRecentsApiV1RecentsGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof listRecentsApiV1RecentsGet>>
->;
-export type ListRecentsApiV1RecentsGetQueryError = ErrorType<HTTPValidationError>;
+export type ListRecentsQueryResult = NonNullable<Awaited<ReturnType<typeof listRecents>>>;
+export type ListRecentsQueryError = ErrorType<HTTPValidationError>;
 
-export function useListRecentsApiV1RecentsGet<
-  TData = Awaited<ReturnType<typeof listRecentsApiV1RecentsGet>>,
+export function useListRecents<
+  TData = Awaited<ReturnType<typeof listRecents>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options: {
-    query: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listRecentsApiV1RecentsGet>>, TError, TData>
-    > &
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof listRecents>>, TError, TData>> &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listRecentsApiV1RecentsGet>>,
+          Awaited<ReturnType<typeof listRecents>>,
           TError,
-          Awaited<ReturnType<typeof listRecentsApiV1RecentsGet>>
+          Awaited<ReturnType<typeof listRecents>>
         >,
         "initialData"
       >;
@@ -114,19 +104,17 @@ export function useListRecentsApiV1RecentsGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListRecentsApiV1RecentsGet<
-  TData = Awaited<ReturnType<typeof listRecentsApiV1RecentsGet>>,
+export function useListRecents<
+  TData = Awaited<ReturnType<typeof listRecents>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
-    query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listRecentsApiV1RecentsGet>>, TError, TData>
-    > &
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listRecents>>, TError, TData>> &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listRecentsApiV1RecentsGet>>,
+          Awaited<ReturnType<typeof listRecents>>,
           TError,
-          Awaited<ReturnType<typeof listRecentsApiV1RecentsGet>>
+          Awaited<ReturnType<typeof listRecents>>
         >,
         "initialData"
       >;
@@ -134,14 +122,12 @@ export function useListRecentsApiV1RecentsGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListRecentsApiV1RecentsGet<
-  TData = Awaited<ReturnType<typeof listRecentsApiV1RecentsGet>>,
+export function useListRecents<
+  TData = Awaited<ReturnType<typeof listRecents>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
-    query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listRecentsApiV1RecentsGet>>, TError, TData>
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listRecents>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
@@ -150,19 +136,17 @@ export function useListRecentsApiV1RecentsGet<
  * @summary List Recents
  */
 
-export function useListRecentsApiV1RecentsGet<
-  TData = Awaited<ReturnType<typeof listRecentsApiV1RecentsGet>>,
+export function useListRecents<
+  TData = Awaited<ReturnType<typeof listRecents>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
-    query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listRecentsApiV1RecentsGet>>, TError, TData>
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listRecents>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListRecentsApiV1RecentsGetQueryOptions(options);
+  const queryOptions = getListRecentsQueryOptions(options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -179,40 +163,39 @@ export function useListRecentsApiV1RecentsGet<
  * is not stored.
  * @summary Record Recent
  */
-export const recordRecentApiV1CGuildIdRecentsEntityTypeEntityIdPost = (
-  guildId: number,
+export const recordRecent = (
+  communityId: number,
   entityType: RecentEntityType,
   entityId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<RecentViewWrite>(
-    { url: `/api/v1/c/${guildId}/recents/${entityType}/${entityId}`, method: "POST", signal },
+    { url: `/api/v1/c/${communityId}/recents/${entityType}/${entityId}`, method: "POST", signal },
     options
   );
 };
 
-export const getRecordRecentApiV1CGuildIdRecentsEntityTypeEntityIdPostMutationKey = () =>
-  ["recordRecentApiV1CGuildIdRecentsEntityTypeEntityIdPost"] as const;
+export const getRecordRecentMutationKey = () => ["recordRecent"] as const;
 
-export const getRecordRecentApiV1CGuildIdRecentsEntityTypeEntityIdPostMutationOptions = <
+export const getRecordRecentMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof recordRecentApiV1CGuildIdRecentsEntityTypeEntityIdPost>>,
+    Awaited<ReturnType<typeof recordRecent>>,
     TError,
-    RecordRecentApiV1CGuildIdRecentsEntityTypeEntityIdPostMutationVariables,
+    RecordRecentMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof recordRecentApiV1CGuildIdRecentsEntityTypeEntityIdPost>>,
+  Awaited<ReturnType<typeof recordRecent>>,
   TError,
-  RecordRecentApiV1CGuildIdRecentsEntityTypeEntityIdPostMutationVariables,
+  RecordRecentMutationVariables,
   TContext
 > => {
-  const mutationKey = getRecordRecentApiV1CGuildIdRecentsEntityTypeEntityIdPostMutationKey();
+  const mutationKey = getRecordRecentMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -220,30 +203,22 @@ export const getRecordRecentApiV1CGuildIdRecentsEntityTypeEntityIdPostMutationOp
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof recordRecentApiV1CGuildIdRecentsEntityTypeEntityIdPost>>,
-    RecordRecentApiV1CGuildIdRecentsEntityTypeEntityIdPostMutationVariables
+    Awaited<ReturnType<typeof recordRecent>>,
+    RecordRecentMutationVariables
   > = (props) => {
-    const { guildId, entityType, entityId } = props ?? {};
+    const { communityId, entityType, entityId } = props ?? {};
 
-    return recordRecentApiV1CGuildIdRecentsEntityTypeEntityIdPost(
-      guildId,
-      entityType,
-      entityId,
-      requestOptions
-    );
+    return recordRecent(communityId, entityType, entityId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type RecordRecentApiV1CGuildIdRecentsEntityTypeEntityIdPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof recordRecentApiV1CGuildIdRecentsEntityTypeEntityIdPost>>
->;
+export type RecordRecentMutationResult = NonNullable<Awaited<ReturnType<typeof recordRecent>>>;
 
-export type RecordRecentApiV1CGuildIdRecentsEntityTypeEntityIdPostMutationError =
-  ErrorType<HTTPValidationError>;
-export type RecordRecentApiV1CGuildIdRecentsEntityTypeEntityIdPostMutationVariables = {
-  guildId: number;
+export type RecordRecentMutationError = ErrorType<HTTPValidationError>;
+export type RecordRecentMutationVariables = {
+  communityId: number;
   entityType: RecentEntityType;
   entityId: number;
 };
@@ -251,73 +226,66 @@ export type RecordRecentApiV1CGuildIdRecentsEntityTypeEntityIdPostMutationVariab
 /**
  * @summary Record Recent
  */
-export const useRecordRecentApiV1CGuildIdRecentsEntityTypeEntityIdPost = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
+export const useRecordRecent = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof recordRecentApiV1CGuildIdRecentsEntityTypeEntityIdPost>>,
+      Awaited<ReturnType<typeof recordRecent>>,
       TError,
-      RecordRecentApiV1CGuildIdRecentsEntityTypeEntityIdPostMutationVariables,
+      RecordRecentMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof recordRecentApiV1CGuildIdRecentsEntityTypeEntityIdPost>>,
+  Awaited<ReturnType<typeof recordRecent>>,
   TError,
-  RecordRecentApiV1CGuildIdRecentsEntityTypeEntityIdPostMutationVariables,
+  RecordRecentMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getRecordRecentApiV1CGuildIdRecentsEntityTypeEntityIdPostMutationOptions(options),
-    queryClient
-  );
+  return useMutation(getRecordRecentMutationOptions(options), queryClient);
 };
 /**
  * Close a tab: delete the caller's own recent-view row.
  *
- * Guild-scoped — mounted under /c/{guild_id}/recents because a tab can belong
+ * Guild-scoped — mounted under /c/{community_id}/recents because a tab can belong
  * to any of the user's guilds and per-schema ids are only unique within a
  * guild. Idempotent.
  * @summary Clear Recent
  */
-export const clearRecentApiV1CGuildIdRecentsEntityTypeEntityIdDelete = (
-  guildId: number,
+export const clearRecent = (
+  communityId: number,
   entityType: RecentEntityType,
   entityId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<void>(
-    { url: `/api/v1/c/${guildId}/recents/${entityType}/${entityId}`, method: "DELETE", signal },
+    { url: `/api/v1/c/${communityId}/recents/${entityType}/${entityId}`, method: "DELETE", signal },
     options
   );
 };
 
-export const getClearRecentApiV1CGuildIdRecentsEntityTypeEntityIdDeleteMutationKey = () =>
-  ["clearRecentApiV1CGuildIdRecentsEntityTypeEntityIdDelete"] as const;
+export const getClearRecentMutationKey = () => ["clearRecent"] as const;
 
-export const getClearRecentApiV1CGuildIdRecentsEntityTypeEntityIdDeleteMutationOptions = <
+export const getClearRecentMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof clearRecentApiV1CGuildIdRecentsEntityTypeEntityIdDelete>>,
+    Awaited<ReturnType<typeof clearRecent>>,
     TError,
-    ClearRecentApiV1CGuildIdRecentsEntityTypeEntityIdDeleteMutationVariables,
+    ClearRecentMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof clearRecentApiV1CGuildIdRecentsEntityTypeEntityIdDelete>>,
+  Awaited<ReturnType<typeof clearRecent>>,
   TError,
-  ClearRecentApiV1CGuildIdRecentsEntityTypeEntityIdDeleteMutationVariables,
+  ClearRecentMutationVariables,
   TContext
 > => {
-  const mutationKey = getClearRecentApiV1CGuildIdRecentsEntityTypeEntityIdDeleteMutationKey();
+  const mutationKey = getClearRecentMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -325,30 +293,22 @@ export const getClearRecentApiV1CGuildIdRecentsEntityTypeEntityIdDeleteMutationO
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof clearRecentApiV1CGuildIdRecentsEntityTypeEntityIdDelete>>,
-    ClearRecentApiV1CGuildIdRecentsEntityTypeEntityIdDeleteMutationVariables
+    Awaited<ReturnType<typeof clearRecent>>,
+    ClearRecentMutationVariables
   > = (props) => {
-    const { guildId, entityType, entityId } = props ?? {};
+    const { communityId, entityType, entityId } = props ?? {};
 
-    return clearRecentApiV1CGuildIdRecentsEntityTypeEntityIdDelete(
-      guildId,
-      entityType,
-      entityId,
-      requestOptions
-    );
+    return clearRecent(communityId, entityType, entityId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type ClearRecentApiV1CGuildIdRecentsEntityTypeEntityIdDeleteMutationResult = NonNullable<
-  Awaited<ReturnType<typeof clearRecentApiV1CGuildIdRecentsEntityTypeEntityIdDelete>>
->;
+export type ClearRecentMutationResult = NonNullable<Awaited<ReturnType<typeof clearRecent>>>;
 
-export type ClearRecentApiV1CGuildIdRecentsEntityTypeEntityIdDeleteMutationError =
-  ErrorType<HTTPValidationError>;
-export type ClearRecentApiV1CGuildIdRecentsEntityTypeEntityIdDeleteMutationVariables = {
-  guildId: number;
+export type ClearRecentMutationError = ErrorType<HTTPValidationError>;
+export type ClearRecentMutationVariables = {
+  communityId: number;
   entityType: RecentEntityType;
   entityId: number;
 };
@@ -356,28 +316,22 @@ export type ClearRecentApiV1CGuildIdRecentsEntityTypeEntityIdDeleteMutationVaria
 /**
  * @summary Clear Recent
  */
-export const useClearRecentApiV1CGuildIdRecentsEntityTypeEntityIdDelete = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
+export const useClearRecent = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof clearRecentApiV1CGuildIdRecentsEntityTypeEntityIdDelete>>,
+      Awaited<ReturnType<typeof clearRecent>>,
       TError,
-      ClearRecentApiV1CGuildIdRecentsEntityTypeEntityIdDeleteMutationVariables,
+      ClearRecentMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof clearRecentApiV1CGuildIdRecentsEntityTypeEntityIdDelete>>,
+  Awaited<ReturnType<typeof clearRecent>>,
   TError,
-  ClearRecentApiV1CGuildIdRecentsEntityTypeEntityIdDeleteMutationVariables,
+  ClearRecentMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getClearRecentApiV1CGuildIdRecentsEntityTypeEntityIdDeleteMutationOptions(options),
-    queryClient
-  );
+  return useMutation(getClearRecentMutationOptions(options), queryClient);
 };

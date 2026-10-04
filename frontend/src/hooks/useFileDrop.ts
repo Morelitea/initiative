@@ -1,8 +1,8 @@
 import { type DragEvent, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { toast } from "@/lib/chesterToast";
 import { matchesAccept } from "@/lib/fileUtils";
+import { toast } from "@/lib/mascotToast";
 
 interface FileDropOptions {
   /**

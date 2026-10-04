@@ -101,7 +101,7 @@ export const BULK_EXPORT_TOOLS = TOOLS.filter((t) => !NON_EXPORTABLE_TOOLS.has(t
  * link addresses that tool's own shelf instead of the default one.
  *
  * The kinds mirror backend `LISTING_KINDS`. Not every kind belongs here: `app`
- * installs at guild scope (the sidebar's apps section and guild settings own
+ * installs at community scope (the sidebar's apps section and community settings own
  * that link), and `auto` names a vocabulary entry nothing installs yet.
  */
 export const TOOL_LISTING_KINDS: Partial<Record<Tool, ListingKind>> = {
@@ -224,32 +224,32 @@ export const toolPascalSingular = (tool: Tool): string =>
 export const toolPascalPlural = (tool: Tool): string =>
   toolPlural(tool).replace(/(?:^|_)(\w)/g, (_, c: string) => c.toUpperCase());
 
-/** Resource-relative API path (WITHOUT the `/c/{guildId}` segment), e.g. "/api/v1/counter-groups".
- *  Callers must prepend `/api/v1/c/${guildId}` when building guild-scoped requests. */
+/** Resource-relative API path (WITHOUT the `/c/{communityId}` segment), e.g. "/api/v1/counter-groups".
+ *  Callers must prepend `/api/v1/c/${communityId}` when building community-scoped requests. */
 export const toolApiPath = (tool: Tool): string => `/api/v1/${toolRouteSegment(tool)}`;
 
 // ---------------------------------------------------------------------------
 // Routes — a tool entity's URL names the whole chain it belongs to:
-// /c/{guild}/i/{initiative}/{tool}/{id}. There is no guild-wide tool list; the
-// guild home (`/?tool=`) is the cross-initiative browse surface, so a tool's
+// /c/{community}/i/{initiative}/{tool}/{id}. There is no community-wide tool list; the
+// community home (`/?tool=`) is the cross-initiative browse surface, so a tool's
 // "list" is always one initiative's tab. Every builder here returns a
-// GUILD-relative path — callers prepend the guild prefix with `useGuildPath`.
+// COMMUNITY-relative path — callers prepend the community prefix with `useCommunityPath`.
 // ---------------------------------------------------------------------------
 
-/** Guild-relative initiatives list. */
+/** Community-relative initiatives list. */
 export const INITIATIVES_ROUTE = "/i";
 
-/** Guild-relative route for one initiative, e.g. "/i/12". */
+/** Community-relative route for one initiative, e.g. "/i/12". */
 export const initiativeRoute = (initiativeId: number): string =>
   `${INITIATIVES_ROUTE}/${initiativeId}`;
 
 /**
- * Guild-relative list route for a tool inside one initiative — which is also
+ * Community-relative list route for a tool inside one initiative — which is also
  * the initiative page with that tool's tab selected, e.g. "/i/12/counter-groups".
  *
- * `initiativeId === null` names a GUILD-LEVEL entity. Calendars are the only
+ * `initiativeId === null` names a COMMUNITY-LEVEL entity. Calendars are the only
  * tool that has any (an app-installed calendar has no `initiative_id`), and
- * they keep their guild routes. Treat `null` as "address me at the guild
+ * they keep their community routes. Treat `null` as "address me at the community
  * route", never as "initiative unknown".
  */
 export const toolListRoute = (tool: Tool, initiativeId: number | null): string =>
@@ -257,11 +257,11 @@ export const toolListRoute = (tool: Tool, initiativeId: number | null): string =
     ? `/${toolRouteSegment(tool)}`
     : `${initiativeRoute(initiativeId)}/${toolRouteSegment(tool)}`;
 
-/** Guild-relative detail route for one entity, e.g. "/i/12/counter-groups/3". */
+/** Community-relative detail route for one entity, e.g. "/i/12/counter-groups/3". */
 export const toolDetailRoute = (tool: Tool, initiativeId: number | null, id: number): string =>
   `${toolListRoute(tool, initiativeId)}/${id}`;
 
-/** Guild-relative settings route, e.g. "/i/12/counter-groups/3/settings". */
+/** Community-relative settings route, e.g. "/i/12/counter-groups/3/settings". */
 export const toolSettingsRoute = (tool: Tool, initiativeId: number | null, id: number): string =>
   `${toolDetailRoute(tool, initiativeId, id)}/settings`;
 
@@ -282,7 +282,7 @@ export type ToolSettingsSection = (typeof TOOL_SETTINGS_SECTIONS)[number];
 /** The section a tool's settings open on, addressed as `/settings` itself. */
 export const TOOL_SETTINGS_DEFAULT_SECTION: ToolSettingsSection = "details";
 
-/** Guild-relative route for one section of a tool's settings, e.g.
+/** Community-relative route for one section of a tool's settings, e.g.
  *  "/i/12/counter-groups/3/settings/access". */
 export const toolSettingsSectionRoute = (
   tool: Tool,
@@ -295,11 +295,13 @@ export const toolSettingsSectionRoute = (
 };
 
 /**
- * Where a tool's entities are browsed ACROSS initiatives: the guild home,
- * showing that tool. The only "list" a guild-level entity can go back to, and
+ * Where a tool's entities are browsed ACROSS initiatives: the community home,
+ * showing that tool. The only "list" a community-level entity can go back to, and
  * where a tool page lands when it has no initiative to return to.
  */
-export const toolGuildBrowseTarget = (tool: Tool): { to: string; search: { tool: string } } => ({
+export const toolCommunityBrowseTarget = (
+  tool: Tool
+): { to: string; search: { tool: string } } => ({
   to: "/",
   search: { tool: toolRouteSegment(tool) },
 });
@@ -356,7 +358,7 @@ export const wikiDocumentRoute = (
 ): string => `${toolDetailRoute(Tool.wiki, initiativeId, wikiId)}/documents/${documentId}`;
 
 /**
- * Guild-relative resolver route for an entity whose initiative isn't in hand,
+ * Community-relative resolver route for an entity whose initiative isn't in hand,
  * e.g. "/go/document/42". The resolver reads the entity and replaces itself
  * with the canonical address.
  *
@@ -375,7 +377,7 @@ export const toolParamName = (tool: Tool): string => `${toolCamelSingular(tool)}
  * discriminator and entity-ref segment. */
 export const toolKebabSingular = (tool: Tool): string => tool.replaceAll("_", "-");
 
-/** Export endpoint (relative to /c/{guildId}), e.g. "/exports/counter_group".
+/** Export endpoint (relative to /c/{communityId}), e.g. "/exports/counter_group".
  * It takes the selection as `ids`. */
 export const toolExportEndpoint = (tool: Tool): string => `/exports/${tool}`;
 
@@ -418,7 +420,7 @@ export const toolCreatePermission = (tool: Tool): PermissionKey =>
 
 /**
  * The shape every tool's read schema shares where comments are concerned: the
- * row's id, the initiative it lives in (null for a guild-level entity), and its
+ * row's id, the initiative it lives in (null for a community-level entity), and its
  * own comment switch. `tools_test.py` holds every tool's model and read schema
  * to carrying `comments_enabled`, so a tool entity satisfies this by
  * construction — which is what lets one panel serve all of them.
@@ -484,9 +486,9 @@ export const showsRelations = (tool: Tool): boolean => !NO_RELATIONS_PANEL.has(t
 export const isToolEnabled = (tool: Tool, initiative: InitiativeRead): boolean =>
   Boolean(initiative[`${toolPlural(tool)}_enabled` as keyof InitiativeRead]);
 
-/** Guild-relative create target for a tool inside an initiative: the tool's
+/** Community-relative create target for a tool inside an initiative: the tool's
  *  own tab, with its create dialog open (`?create=true`). Callers prepend the
- *  guild prefix (`useGuildPath`). */
+ *  community prefix (`useCommunityPath`). */
 export const toolCreateTarget = (
   tool: Tool,
   initiativeId: number

@@ -23,7 +23,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useRequestToJoinInitiative } from "@/hooks/useInitiatives";
-import { toast } from "@/lib/chesterToast";
+import { toast } from "@/lib/mascotToast";
 import type { DialogProps } from "@/types/dialog";
 
 /** Mirrors `JOIN_REQUEST_MESSAGE_MAX_LENGTH` in the backend's initiative

@@ -55,12 +55,15 @@ from app.core.tools import Tool
 from app.db import gucs
 from app.db.authorization import LIVE_GRANT, sql_values
 from app.models.platform.access_grant import AccessGrantPurpose, AccessLevel
-from app.models.platform.app_service_registration import registration_live_sql
+from app.models.platform.app_service_registration import (
+    RegistrationKind,
+    registration_live_sql,
+)
 from app.models.platform.guild import (
     GUILD_LADDER,
     LIVE_STATUS_VALUES,
-    GuildRole,
-    GuildStatus,
+    CommunityRole,
+    CommunityStatus,
 )
 from app.models.platform.identity_ref import (
     REF_GRACE_PERIOD,
@@ -77,7 +80,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from sqlalchemy.ext.asyncio import AsyncSession
 
     from app.models.platform.access_grant import AccessGrant
-    from app.models.platform.guild import Guild, GuildMembership, GuildRole
+    from app.models.platform.guild import Guild, GuildMembership, CommunityRole
 
 __all__ = [
     "ActorContext",
@@ -95,8 +98,8 @@ __all__ = [
 
 #: The rungs that administer a community, as the ladder orders them — the
 #: one spelling the admin fact and the settings rung are read off.
-_ADMIN_RUNGS: tuple[GuildRole, ...] = tuple(
-    rung for rung in GUILD_LADDER if rung.reaches(GuildRole.admin)
+_ADMIN_RUNGS: tuple[CommunityRole, ...] = tuple(
+    rung for rung in GUILD_LADDER if rung.reaches(CommunityRole.admin)
 )
 _ADMIN_RUNGS_SQL = sql_values(rung.value for rung in _ADMIN_RUNGS)
 #: The highest rung held wins, so the ladder is walked from the top.
@@ -227,7 +230,7 @@ _PERSON_STANDING: dict[gucs.Guc, str] = {
     ), '')""",
     gucs.GUILD_AUTH_OK: """   (SELECT public.guild_auth_satisfied()::text)""",
     gucs.CONTENT_HOLD: f"""COALESCE((
-      SELECT (g.status = '{GuildStatus.read_only.value}')::text
+      SELECT (g.status = '{CommunityStatus.read_only.value}')::text
       FROM public.guilds g
       WHERE g.id = {gucs.GUILD_ID}
     ), 'false')""",
@@ -252,7 +255,7 @@ _APP_SCOPE_FAMILY = APP_SCOPE_PREFIX.rstrip(":")
 #: The standings, as a SQL list: they name no resource.
 _STANDING_SCOPES_SQL = ", ".join(f"'{scope}'" for scope in sorted(STANDING_SCOPES))
 _MODERATE_SCOPE = LEVEL_SCOPES[InstallLevel.moderator]
-_GUILD_ADMIN_SCOPE = LEVEL_SCOPES[InstallLevel.guild_admin]
+_GUILD_ADMIN_SCOPE = LEVEL_SCOPES[InstallLevel.community_admin]
 #: The community statuses whose content is in use, as the person seam reads
 #: them.
 _LIVE_STATUSES_SQL = sql_values(sorted(LIVE_STATUS_VALUES))
@@ -370,7 +373,7 @@ _INSTALL_STANDING: dict[gucs.Guc, str] = {
     ), '')""",
     gucs.GUILD_AUTH_OK: """   (SELECT EXISTS (SELECT 1 FROM install))::text""",
     gucs.CONTENT_HOLD: f"""COALESCE((
-      SELECT (g.status = '{GuildStatus.read_only.value}')::text
+      SELECT (g.status = '{CommunityStatus.read_only.value}')::text
       FROM public.guilds g
       WHERE g.id = {gucs.GUILD_ID}
     ), 'false')""",
@@ -397,7 +400,7 @@ _INSTALL_STANDING: dict[gucs.Guc, str] = {
 #: standing (``standing_level``), which only an installation token that asked
 #: for one does, and only while the seat's grant still holds that scope:
 #: ``initiatives:moderate`` on a token narrowed to an initiative makes it a
-#: manager there with "Full access", as a moderator is; ``guild:admin`` makes
+#: manager there with "Full access", as a moderator is; ``community:admin`` makes
 #: it a guild admin, within the one initiative a narrowed token names. Either is still bounded by
 #: its resource scopes, which every tool policy asks first. The community's
 #: sign-in rules
@@ -422,9 +425,12 @@ _INSTALL_STANDING: dict[gucs.Guc, str] = {
 #: own sector (``purpose = 'app'``, the routed community and the routed
 #: install): ``guild_ref``, its live reference for the community, and
 #: ``named_refs``, the references in ``:named_refs`` that name somebody there,
-#: as ``{ref: [entity_type, entity_id]}``. A replaced reference still resolves
-#: for its grace window, as ``identity_refs.resolve_ref`` has it. The array
-#: chooses which rows are looked up; the sector is the routing's.
+#: as ``{ref: [entity_type, entity_id, member]}``, where ``member`` says
+#: whether a person is a member of the community — the profiles an install
+#: reads are its members' — which is who a mention the request writes may
+#: name. A replaced reference still
+#: resolves for its grace window, as ``identity_refs.resolve_ref`` has it. The
+#: array chooses which rows are looked up; the sector is the routing's.
 INSTALL_STANDING_SQL = f"""
 WITH consent AS (
   SELECT c.initiative_id,
@@ -440,7 +446,7 @@ WITH consent AS (
 ),
 install AS (
   SELECT a.id, {ISSUABLE_SCOPES_SQL} AS granted_scopes,
-         g.status = '{GuildStatus.read_only.value}' AS read_only
+         g.status = '{CommunityStatus.read_only.value}' AS read_only
   FROM guild_apps a
   JOIN public.guilds g ON g.id = {gucs.GUILD_ID}
   WHERE a.id = {gucs.INSTALL_ID}
@@ -452,6 +458,7 @@ install AS (
       JOIN public.publishers p ON p.id = r.publisher_id
       WHERE r.listing_uid = a.listing_uid
         AND r.public_id = {gucs.TOKEN_CLIENT_ID}
+        AND r.kind = '{RegistrationKind.CONTAINER}'
         AND {registration_live_sql("r", "p")}
     )
     AND ({gucs.USER_ID} IS NULL OR (
@@ -574,7 +581,15 @@ SELECT
       AND EXISTS (SELECT 1 FROM install)
   ) AS guild_ref,
   COALESCE((
-      SELECT jsonb_object_agg(r.ref, jsonb_build_array(r.entity_type, r.entity_id))
+      SELECT jsonb_object_agg(
+        r.ref,
+        jsonb_build_array(
+          r.entity_type, r.entity_id,
+          r.entity_type = '{IdentityEntity.user.value}' AND EXISTS (
+            SELECT 1 FROM public.guild_member_profiles p WHERE p.id = r.entity_id
+          )
+        )
+      )
       FROM public.identity_refs r
       WHERE r.ref = ANY(CAST(:named_refs AS text[]))
         AND {_IN_INSTALL_SECTOR}
@@ -670,7 +685,7 @@ class GuildContext:
     # --- Identity ------------------------------------------------------------
 
     @property
-    def role(self) -> "GuildRole":
+    def role(self) -> "CommunityRole":
         """The seat this request holds in the community.
 
         A grantee holds ``support`` — a first-class identity for granted access
@@ -679,8 +694,8 @@ class GuildContext:
         read separately.
         """
         if self.guild_role is None:
-            return GuildRole.support
-        return GuildRole(self.guild_role)
+            return CommunityRole.support
+        return CommunityRole(self.guild_role)
 
     @property
     def is_admin(self) -> bool:
@@ -692,7 +707,7 @@ class GuildContext:
         return self.guild_admin
 
     @property
-    def rung(self) -> "GuildRole":
+    def rung(self) -> "CommunityRole":
         """The rung this request administers the community at.
 
         The membership row's, or the one a live settings grant lends for its
@@ -701,10 +716,10 @@ class GuildContext:
         is what a decision about the roster or the seat asks.
         """
         if self.membership is None and self.settings_rung is not None:
-            return GuildRole(self.settings_rung)
+            return CommunityRole(self.settings_rung)
         return self.role
 
-    def reaches(self, rung: "GuildRole", *, settings: bool = False) -> bool:
+    def reaches(self, rung: "CommunityRole", *, settings: bool = False) -> bool:
         """Whether this request carries what ``rung`` carries, by the standing.
 
         The community's ladder asked of a request rather than of a row: the
@@ -717,14 +732,14 @@ class GuildContext:
         settings grant also answers at the rung it lends. Everywhere else the
         rungs above member are the membership row's alone.
         """
-        if rung is GuildRole.superadmin:
+        if rung is CommunityRole.superadmin:
             return self.guild_seat and (settings or self.guild_admin)
-        if rung is GuildRole.admin:
+        if rung is CommunityRole.admin:
             return self.guild_admin or (settings and self.settings_rung is not None)
-        if rung is GuildRole.member:
-            return self.guild_role is not None and GuildRole(self.guild_role).reaches(
-                GuildRole.member
-            )
+        if rung is CommunityRole.member:
+            return self.guild_role is not None and CommunityRole(
+                self.guild_role
+            ).reaches(CommunityRole.member)
         return True
 
     @property
@@ -738,8 +753,8 @@ class GuildContext:
         what a guard checks once the standing is in.
         """
         return (
-            self.guild_role == GuildRole.superadmin.value
-            or self.settings_grant_level == GuildRole.superadmin.value
+            self.guild_role == CommunityRole.superadmin.value
+            or self.settings_grant_level == CommunityRole.superadmin.value
         )
 
     @property
@@ -762,7 +777,7 @@ class GuildContext:
         """Whether this request may change the community configuration it
         reaches: the rung that reaches it, and a membership row or a
         ``read_write`` content grant beside that rung."""
-        return self.reaches(GuildRole.admin, settings=True) and self.grant_writes
+        return self.reaches(CommunityRole.admin, settings=True) and self.grant_writes
 
     # --- The two grant axes --------------------------------------------------
 
@@ -887,6 +902,8 @@ class InstallContext:
     #: sector, as ``(ref, entity_type, entity_id)``. For this request only:
     #: the replay writes the standing, and names nobody.
     named_refs: tuple[tuple[str, str, int], ...] = ()
+    #: The members of the community among the people those references name.
+    named_members: frozenset[int] = frozenset()
 
     @property
     def guild_auth_ok(self) -> bool:
@@ -962,6 +979,7 @@ class InstallContext:
             live=bool(row.get("live")),
             guild_ref=row.get("guild_ref") or None,
             named_refs=_named_refs(row.get("named_refs")),
+            named_members=_named_members(row.get("named_refs")),
         )
 
 
@@ -970,17 +988,28 @@ class InstallContext:
 ActorContext = GuildContext | InstallContext
 
 
-def _named_refs(value: Any) -> tuple[tuple[str, str, int], ...]:
-    """The statement's ``named_refs`` column as sorted triples. The driver hands
-    a ``jsonb`` column read through ``text()`` back as its text."""
+def _named(value: Any) -> dict[str, list[Any]]:
+    """The statement's ``named_refs`` column. The driver hands a ``jsonb``
+    column read through ``text()`` back as its text."""
     if not value:
-        return ()
-    mapping = json.loads(value) if isinstance(value, (str, bytes)) else value
+        return {}
+    return json.loads(value) if isinstance(value, (str, bytes)) else value
+
+
+def _named_refs(value: Any) -> tuple[tuple[str, str, int], ...]:
+    """The statement's ``named_refs`` column as sorted triples."""
     return tuple(
         sorted(
             (str(ref), str(entity_type), int(entity_id))
-            for ref, (entity_type, entity_id) in mapping.items()
+            for ref, (entity_type, entity_id, *_) in _named(value).items()
         )
+    )
+
+
+def _named_members(value: Any) -> frozenset[int]:
+    """The members of the community the ``named_refs`` column names."""
+    return frozenset(
+        int(entity_id) for _, entity_id, member in _named(value).values() if member
     )
 
 

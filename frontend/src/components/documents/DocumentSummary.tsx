@@ -87,8 +87,7 @@ export const DocumentSummary = ({ documentId, summary, onSummaryChange }: Docume
   // Summary generated
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h4 className="font-medium text-sm">{t("summary.title")}</h4>
+      <div className="flex items-center justify-end">
         <div className="flex items-center gap-1">
           <Button
             variant="ghost"

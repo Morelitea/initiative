@@ -104,7 +104,7 @@ def _normalize_optional_string(value: str | None) -> str | None:
 
 @dataclass(frozen=True)
 class _ConnRow:
-    scope: str  # "platform" | "guild"
+    scope: str  # "platform" | "community"
     id: int
     label: str
     provider: str
@@ -230,7 +230,7 @@ async def _purge_platform_connection_member_data(connection_id: int) -> None:
 
 def _conn_from_guild(row: GuildAIConnection) -> _ConnRow:
     return _ConnRow(
-        scope="guild",
+        scope="community",
         id=row.id,  # type: ignore[arg-type]
         label=row.label,
         provider=row.provider,
@@ -349,7 +349,7 @@ async def resolve_ai_settings(
         return ResolvedAISettings(enabled=False, source="disabled")
 
     cfg = await get_platform_ai_config(session)
-    if cfg.mode not in ("platform", "guild"):
+    if cfg.mode not in ("platform", "community"):
         return ResolvedAISettings(enabled=False, source="disabled")
 
     # Connections available in the active mode.
@@ -668,7 +668,7 @@ async def delete_platform_connection(
 def _guild_conn_response(row: GuildAIConnection) -> AIConnectionResponse:
     return AIConnectionResponse(
         id=row.id,  # type: ignore[arg-type]
-        scope=ConnectionScope.guild,
+        scope=ConnectionScope.community,
         label=row.label,
         provider=AIProvider(row.provider),
         base_url=row.base_url,
@@ -709,8 +709,8 @@ async def create_guild_connection(
     actor_user_id: int | None = None,
 ) -> AIConnectionResponse:
     base_url = _normalize_optional_string(payload.base_url)
-    # Guild connections are always public-only (scope="guild" => no private).
-    await _validate_connection_base_url(payload.provider, base_url, "guild")
+    # Guild connections are always public-only (scope="community" => no private).
+    await _validate_connection_base_url(payload.provider, base_url, "community")
     row = GuildAIConnection(
         created_by=user_id,
         label=payload.label.strip(),
@@ -740,7 +740,7 @@ async def create_guild_connection(
         target_type="ai_connection",
         target_id=row.id,
         detail={
-            "scope": ConnectionScope.guild.value,
+            "scope": ConnectionScope.community.value,
             **audit_service.changed_fields(
                 {}, audit_service.snapshot(row, AUDITED_CONNECTION_FIELDS)
             ),
@@ -775,10 +775,10 @@ async def update_guild_connection(
     provider = payload.provider or AIProvider(row.provider)
     if "base_url" in data:
         base_url = _normalize_optional_string(payload.base_url)
-        await _validate_connection_base_url(provider, base_url, "guild")
+        await _validate_connection_base_url(provider, base_url, "community")
         row.base_url = base_url
     elif "provider" in data:
-        await _validate_connection_base_url(provider, row.base_url, "guild")
+        await _validate_connection_base_url(provider, row.base_url, "community")
     if "label" in data and payload.label is not None:
         row.label = payload.label.strip()
     if "provider" in data and payload.provider is not None:
@@ -813,7 +813,7 @@ async def update_guild_connection(
             target_type="ai_connection",
             target_id=row.id,
             detail={
-                "scope": ConnectionScope.guild.value,
+                "scope": ConnectionScope.community.value,
                 **changed,
                 "secret_changed": secret_changed,
             },
@@ -838,20 +838,20 @@ async def delete_guild_connection(
         guild_id=guild_id,
         target_type="ai_connection",
         target_id=connection_id,
-        detail={"scope": ConnectionScope.guild.value},
+        detail={"scope": ConnectionScope.community.value},
     )
     # Connection administration includes removing every member reference. The
     # own-row policy on those tables admits the community's administrator,
     # which the seat holder running this already is in the request's standing.
     await session.exec(
         delete(GuildAIMemberKey).where(
-            GuildAIMemberKey.connection_scope == ConnectionScope.guild.value,
+            GuildAIMemberKey.connection_scope == ConnectionScope.community.value,
             GuildAIMemberKey.connection_id == connection_id,
         )
     )
     await session.exec(
         delete(GuildAIMemberPref).where(
-            GuildAIMemberPref.connection_scope == ConnectionScope.guild.value,
+            GuildAIMemberPref.connection_scope == ConnectionScope.community.value,
             GuildAIMemberPref.connection_id == connection_id,
         )
     )
@@ -866,7 +866,7 @@ async def _active_connections(
 ) -> list[_ConnRow]:
     if cfg.mode == "platform":
         return [c for c in cfg.connections if c.enabled]
-    if cfg.mode == "guild":
+    if cfg.mode == "community":
         rows = (
             await session.exec(
                 select(GuildAIConnection).where(GuildAIConnection.enabled.is_(True))
@@ -882,7 +882,7 @@ async def get_member_ai_view(
     cfg = await get_platform_ai_config(session)
     mode = (
         AIConfigMode(cfg.mode)
-        if cfg.mode in ("platform", "guild")
+        if cfg.mode in ("platform", "community")
         else AIConfigMode.disabled
     )
     if mode == AIConfigMode.disabled:

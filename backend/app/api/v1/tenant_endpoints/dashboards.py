@@ -606,7 +606,25 @@ async def load_dashboard_data(
     dashboard = await resource_access.load_authorized(
         session, Tool.dashboard, dashboard_id, current_user, guild_context
     )
-    context, through = await _answered_as(session, dashboard, guild_context.guild_id)
+    try:
+        widgets = await canvas_widget_data(session, dashboard, guild_context.guild_id)
+    except query_service.QueryError as refused:
+        raise HTTPException(
+            status_code=_QUERY_STATUS.get(refused.code, status.HTTP_400_BAD_REQUEST),
+            detail=refused.code,
+        ) from refused
+    return DashboardDataResponse(initiative_id=dashboard.initiative_id, widgets=widgets)
+
+
+async def canvas_widget_data(
+    session: AsyncSession, dashboard: Dashboard, guild_id: int
+) -> dict[str, DashboardWidgetData]:
+    """Every query widget on a dashboard the reader may already read, answered
+    together: the canvas route's work, and a list's preview of each row.
+
+    Raises :class:`query_service.QueryError` when the canvas as a whole is
+    refused; a single widget's refusal is its own entry."""
+    context, through = await _answered_as(session, dashboard, guild_id)
 
     widgets: dict[str, DashboardWidgetData] = {}
     statements: dict[str, query_service.ResolvedQuery] = {}
@@ -619,25 +637,19 @@ async def load_dashboard_data(
         except query_service.QueryError as refused:
             widgets[widget_id] = DashboardWidgetData(error=refused.code)
 
-    try:
-        outcomes = await query_service.execute_canvas(
-            statements,
-            context=context,
-            initiative_id=dashboard.initiative_id,
-            via_dashboard_id=through,
-        )
-    except query_service.QueryError as refused:
-        raise HTTPException(
-            status_code=_QUERY_STATUS.get(refused.code, status.HTTP_400_BAD_REQUEST),
-            detail=refused.code,
-        ) from refused
+    outcomes = await query_service.execute_canvas(
+        statements,
+        context=context,
+        initiative_id=dashboard.initiative_id,
+        via_dashboard_id=through,
+    )
     for widget_id, outcome in outcomes.items():
         widgets[widget_id] = (
             DashboardWidgetData(error=outcome.code)
             if isinstance(outcome, query_service.QueryError)
             else DashboardWidgetData(result=_query_response(outcome))
         )
-    return DashboardDataResponse(initiative_id=dashboard.initiative_id, widgets=widgets)
+    return widgets
 
 
 @router.get("/{dashboard_id}/widgets/{widget_id}/query", response_model=QueryResponse)

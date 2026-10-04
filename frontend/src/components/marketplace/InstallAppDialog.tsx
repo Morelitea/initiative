@@ -1,7 +1,7 @@
 /**
- * Adding an app to the guild, with the seat's consent.
+ * Adding an app to the community, with the seat's consent.
  *
- * An app belongs to the guild, so there is no initiative to choose for it the
+ * An app belongs to the community, so there is no initiative to choose for it the
  * way there is for a dashboard. What the seat does choose is on this one
  * screen, and is confirmed once:
  *
@@ -17,7 +17,7 @@
  * The server installs, grants and places in one transaction, under the same
  * checks the app's settings apply afterwards.
  *
- * Guild admins only. The server enforces that; this hides the action rather
+ * Community admins only. The server enforces that; this hides the action rather
  * than offering one that would be refused.
  */
 
@@ -41,13 +41,13 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { useInstallGuildApp } from "@/hooks/useGuildApps";
+import { useInstallCommunityApp } from "@/hooks/useCommunityApps";
 import { useInitiatives } from "@/hooks/useInitiatives";
 import { STANDING_SCOPES, scopeSentence, toggleScope } from "@/lib/appScopes";
-import { guildAppPath } from "@/lib/appSurfaces";
-import { toast } from "@/lib/chesterToast";
+import { communityAppPath } from "@/lib/appSurfaces";
+import { useCommunityPath } from "@/lib/communityUrl";
 import { getErrorMessage } from "@/lib/errorMessage";
-import { useGuildPath } from "@/lib/guildUrl";
+import { toast } from "@/lib/mascotToast";
 import type { DialogProps } from "@/types/dialog";
 
 export interface InstallAppDialogProps extends DialogProps {
@@ -61,7 +61,7 @@ type RoleKind = (typeof ROLE_KINDS)[number];
 export function InstallAppDialog({ listing, open, onOpenChange }: InstallAppDialogProps) {
   const { t } = useTranslation(["apps", "common", "nav"]);
   const navigate = useNavigate();
-  const gp = useGuildPath();
+  const gp = useCommunityPath();
 
   const requested = listing.requested_scopes ?? [];
   const grantable = new Set(listing.grantable_scopes ?? []);
@@ -79,7 +79,7 @@ export function InstallAppDialog({ listing, open, onOpenChange }: InstallAppDial
   const [where, setWhere] = useState<"all" | "some">("all");
   const [picked, setPicked] = useState<number[]>([]);
   const [roles, setRoles] = useState<RoleKind[]>(["moderator"]);
-  const install = useInstallGuildApp();
+  const install = useInstallCommunityApp();
 
   const submit = () =>
     install.mutate(
@@ -95,7 +95,7 @@ export function InstallAppDialog({ listing, open, onOpenChange }: InstallAppDial
           toast.success(t("apps:install.done", { name: app.name }));
           onOpenChange(false);
           // Straight to what it created, when it created something reachable.
-          const path = guildAppPath(app);
+          const path = communityAppPath(app);
           if (path) navigate({ to: gp(path) });
         },
         onError: (error) => {
@@ -111,13 +111,13 @@ export function InstallAppDialog({ listing, open, onOpenChange }: InstallAppDial
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto">
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>{t("apps:install.title", { name: listing.name })}</DialogTitle>
           <DialogDescription>{t("apps:install.description")}</DialogDescription>
         </DialogHeader>
 
-        {/* An app reaches the whole guild, so who wrote it is said here too —
+        {/* An app reaches the whole community, so who wrote it is said here too —
             the same sentence the card and the listing page showed. */}
         <ListingProvenance listing={listing} />
 
@@ -249,7 +249,7 @@ export function InstallAppDialog({ listing, open, onOpenChange }: InstallAppDial
   );
 }
 
-/** The guild's initiatives, ticked one by one. Loaded only once asked for. */
+/** The community's initiatives, ticked one by one. Loaded only once asked for. */
 function InitiativePicker({
   picked,
   onChange,

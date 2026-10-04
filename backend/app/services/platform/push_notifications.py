@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import uuid
 from contextlib import nullcontext
 from dataclasses import dataclass
 from typing import Any, AsyncContextManager, Dict, Optional, Sequence
@@ -77,6 +78,10 @@ PUSH_CHANNELS: dict[NotificationType, str] = {
     NotificationType.access_grant_approved: "access_grants",
     NotificationType.access_grant_denied: "access_grants",
     NotificationType.access_grant_revoked: "access_grants",
+    # Mostly a reply on something the reader wrote, so it rides the comments
+    # channel the installed app already registers rather than asking for a
+    # new one — a new channel id would mean a native release.
+    NotificationType.ticket_updated: "comments",
 }
 
 
@@ -287,7 +292,7 @@ async def send_push_to_user(
     title: str,
     body: str,
     data: Optional[Dict[str, Any]] = None,
-    only_device_token_ids: Optional[set[int]] = None,
+    only_session_ids: Optional[set[uuid.UUID]] = None,
     guild_id: Optional[int] = None,
     locale: Optional[str] = None,
 ) -> int:
@@ -310,8 +315,9 @@ async def send_push_to_user(
         title: Notification title
         body: Notification body
         data: Optional data payload
-        only_device_token_ids: Restrict delivery to these installations. Used by
-            categories that only make sense on a device set up for them.
+        only_session_ids: Restrict delivery to the devices these sign-ins
+            registered. Used by categories that only make sense on a device set
+            up for them.
         guild_id: The community this notification belongs to, whose own answer
             applies alongside the deployment's. ``None`` for a notification that
             belongs to no community — a message, a connection, an account
@@ -326,10 +332,8 @@ async def send_push_to_user(
         return 0
 
     tokens = await _recipient_tokens(user_id)
-    if only_device_token_ids is not None:
-        tokens = [
-            token for token in tokens if token.device_token_id in only_device_token_ids
-        ]
+    if only_session_ids is not None:
+        tokens = [token for token in tokens if token.session_id in only_session_ids]
 
     if not tokens:
         logger.debug(f"No push tokens found for user {user_id}")

@@ -1,7 +1,7 @@
 """The app contract, as this build reads it.
 
 The vocabulary an app manifest draws on — every enum, cap and character set —
-and the shape it takes are declared once, in the ``initiative-app-kit``
+and the shape it takes are declared once, in the ``initiative-app-sdk``
 repository, in ``manifest.contract.json``. That file is vendored here under
 ``backend/vendor/app-kit`` at a pinned kit version and read at import.
 

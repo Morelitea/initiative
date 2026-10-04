@@ -43,7 +43,7 @@ import { usePersistedColumnVisibility } from "@/hooks/usePersistedColumnVisibili
 import { usePersistedTableState } from "@/hooks/usePersistedTableState";
 import { useProperties } from "@/hooks/useProperties";
 import { useUnreadTree } from "@/hooks/useUnreadTree";
-import { useGuildPath } from "@/lib/guildUrl";
+import { useCommunityPath } from "@/lib/communityUrl";
 import { summarizeStored } from "@/lib/recurrence";
 import type { AppColumnDef } from "@/lib/table";
 import { truncateText } from "@/lib/text";
@@ -193,7 +193,7 @@ const ProjectTasksTableViewComponent = ({
 }: ProjectTasksListViewProps) => {
   const { t } = useTranslation(["projects", "comments", "tasks"]);
   const statusDisabled = !canEditTaskDetails || taskActionsDisabled;
-  const gp = useGuildPath();
+  const gp = useCommunityPath();
 
   // Programmatic property columns (hidden by default, persist visibility).
   // Scoped to the project's initiative so the column list stays focused.
@@ -566,7 +566,7 @@ type TaskCellProps = {
 
 const TaskCell = ({ task, taskHref }: TaskCellProps) => {
   const { t } = useTranslation(["projects", "dates", "comments"]);
-  const unreadDot = useUnreadTree().hasSubject(task.guild_id, "task", task.id) ? (
+  const unreadDot = useUnreadTree().hasSubject(task.community_id, "task", task.id) ? (
     <UnreadDot />
   ) : null;
   // Memoize expensive recurrence computation
