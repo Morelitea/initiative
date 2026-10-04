@@ -9,7 +9,8 @@ revision 20261004_0453), so the per-resource mechanism goes:
 - the grants made to a dashboard are deleted, and ``resource_grants`` loses
   ``dashboard_id`` with its index, foreign key and the checks that named it;
 - ``public.standing`` loses ``via_dashboard_id``, and ``current_standing()`` in
-  every guild schema that has one is restated to build the shorter value.
+  every guild schema that has one is restated to build the shorter value;
+- the per-schema ``standing_via_dashboard_id()`` helper is dropped.
 
 The access functions that read the field, and the row-level policies on
 ``resource_grants`` that read the column, are rendered from the application at
@@ -247,6 +248,10 @@ def upgrade() -> None:
     run_for_each_guild_schema(bind, _upgrade_schema)
     op.execute("ALTER TYPE public.standing DROP ATTRIBUTE via_dashboard_id")
     _restate(bind, CURRENT_STANDING_AFTER)
+    # The per-schema helper that read the field is no longer rendered at boot,
+    # so the copy an existing schema carries goes here; a fresh one never has it.
+    for schema in guild_schema_names(bind):
+        op.execute(f'DROP FUNCTION IF EXISTS "{schema}".standing_via_dashboard_id()')
 
 
 def downgrade() -> None:

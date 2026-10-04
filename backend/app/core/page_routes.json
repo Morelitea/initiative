@@ -140,6 +140,7 @@
   "/settings/operator/",
   "/settings/operator/access",
   "/settings/operator/announcements",
+  "/settings/operator/billing",
   "/settings/operator/communities",
   "/settings/operator/placement",
   "/settings/operator/users",
