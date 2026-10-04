@@ -571,6 +571,9 @@ def _output_grains(select: ast.SelectStmt) -> tuple[str | None, ...]:
 
 def _target_grain(target: ast.ResTarget) -> str | None:
     call = target.val
+    # A rounded date cast to another date type is still rounded to that unit.
+    while isinstance(call, ast.TypeCast):
+        call = call.arg
     if not isinstance(call, ast.FuncCall):
         return None
     if _name_parts(call.funcname)[-1:] != ["date_trunc"]:

@@ -660,6 +660,12 @@ class TestAConstantACastNamesTheTypeOf:
             ("month", None),
         ),
         ("SELECT DATE_TRUNC('Quarter', due_date) FROM tasks", ("quarter",)),
+        (
+            "SELECT date_trunc('month', due_date)::date AS month, count(*) AS n "
+            "FROM tasks GROUP BY 1",
+            ("month", None),
+        ),
+        ("SELECT CAST(date_trunc('week', due_date) AS date) FROM tasks", ("week",)),
         ("SELECT due_date, title FROM tasks", (None, None)),
         ("SELECT date_trunc('hour', due_date) FROM tasks", (None,)),
     ],
