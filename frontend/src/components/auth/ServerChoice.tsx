@@ -1,3 +1,4 @@
+import { Capacitor } from "@capacitor/core";
 import { Check, ChevronDown } from "lucide-react";
 import { type FormEvent, type ReactNode, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
@@ -162,6 +163,12 @@ const ServerAddressForm = ({ onConnected }: { onConnected?: () => void }) => {
   const isCurrent =
     serverUrl !== null && trimmed !== "" && normalizeServerUrl(trimmed) === serverUrl;
 
+  // The phone apps reach HTTPS servers only, so a plain-HTTP address that fails says why.
+  const failure = (fallback: string) =>
+    /^http:\/\//i.test(trimmed) && ["ios", "android"].includes(Capacitor.getPlatform())
+      ? t("server.httpsOnly")
+      : fallback;
+
   const handleConnect = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!trimmed || isCurrent) return;
@@ -170,7 +177,7 @@ const ServerAddressForm = ({ onConnected }: { onConnected?: () => void }) => {
     try {
       const result = await testServerConnection(trimmed);
       if (!result.valid) {
-        setError(result.error ?? t("server.connectError"));
+        setError(failure(result.error ?? t("server.connectError")));
         return;
       }
       // A sign-up begun on one server stays there, and leaving a server signs
@@ -181,7 +188,7 @@ const ServerAddressForm = ({ onConnected }: { onConnected?: () => void }) => {
       await setServerUrl(trimmed);
       onConnected?.();
     } catch {
-      setError(t("server.connectError"));
+      setError(failure(t("server.connectError")));
     } finally {
       setConnecting(false);
     }
