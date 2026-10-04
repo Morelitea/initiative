@@ -24,7 +24,7 @@ import type {
   PlatformCommunityStorageRead,
 } from "@/api/generated/initiativeAPI.schemas";
 import { CommunityStatus } from "@/api/generated/initiativeAPI.schemas";
-import { BillingConsoleButton } from "@/components/platform/BillingConsoleButton";
+import { BillingConsoleButton, opensBillingHere } from "@/components/platform/BillingConsoleButton";
 import { CommunityRestoreWizard } from "@/components/platform/CommunityRestoreWizard";
 import { Section, SettingRow } from "@/components/platform/SettingRow";
 import { Badge } from "@/components/ui/badge";
@@ -200,7 +200,7 @@ export const CommunityOperatorSettingsSheet = ({
           {planIsBillings && !deleted ? (
             <div className="space-y-3 rounded-md border bg-muted/40 p-4">
               <p className="text-sm">{t("communities.sheet.setInBilling")}</p>
-              {billing?.operator_handoff ? (
+              {billing?.operator_handoff && opensBillingHere() ? (
                 <BillingConsoleButton community={community} console="operator" size="sm">
                   {t("communities.sheet.changeInBilling")}
                 </BillingConsoleButton>
