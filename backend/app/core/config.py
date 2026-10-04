@@ -613,11 +613,13 @@ class Settings(BaseSettings):
             connect_src += extra
 
         # The landing page reads the public pricing catalog straight from the
-        # billing portal, so its origin joins connect-src only on a deployment
-        # that has one. Reduced to an origin the same way as the app frames.
+        # billing portal and frames the portal's pricing grid, so its origin
+        # joins connect-src and frame-src only on a deployment that has one.
+        # Reduced to an origin the same way as the app frames.
         billing_origin = _origin_of(self.BILLING_URL) if self.BILLING_URL else None
         if billing_origin:
             connect_src.append(billing_origin)
+            frame_src.append(billing_origin)
 
         # The measurement collector, where one is named on another origin. A
         # same-origin path is already covered by 'self'.

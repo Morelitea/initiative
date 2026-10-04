@@ -442,14 +442,17 @@ def test_csp_captcha_origins_only_when_configured():
 
 
 def test_csp_billing_origin_only_when_portal_configured():
-    """The landing page fetches the pricing catalog from the billing portal,
-    so its origin is allowed for fetch() only on a deployment that names one —
-    and only the origin, never the path it was configured with."""
+    """The landing page fetches the pricing catalog from the billing portal
+    and frames its pricing grid, so its origin is allowed for fetch() and
+    frames only on a deployment that names one, and only the origin, never the
+    path it was configured with."""
     assert "billing.example.com" not in _csp(_settings())
 
     on = _csp(_settings(BILLING_URL="https://billing.example.com/portal/"))
     assert "https://billing.example.com" in _directive(on, "connect-src")
     assert "/portal" not in _directive(on, "connect-src")
+    assert "https://billing.example.com" in _directive(on, "frame-src")
+    assert "/portal" not in _directive(on, "frame-src")
     assert "billing.example.com" not in _directive(on, "script-src")
 
 

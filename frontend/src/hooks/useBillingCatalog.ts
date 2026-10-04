@@ -12,6 +12,7 @@
  */
 
 import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 
 // ---------------------------------------------------------------------------
 // Shape (mirrors the portal's catalog schema; fields the landing page reads)
@@ -76,11 +77,21 @@ export interface BillingCatalog {
 
 const trimSlash = (url: string) => url.replace(/\/+$/, "");
 
-/** The portal's catalog endpoint, next to the portal itself. */
-export const catalogUrl = (portalUrl: string) => `${trimSlash(portalUrl)}/api/v1/catalog`;
+/** The portal's catalog endpoint, next to the portal itself, in `lang` when
+ *  given (the portal answers in English for a language it has no words for). */
+export const catalogUrl = (portalUrl: string, lang?: string | null) =>
+  `${trimSlash(portalUrl)}/api/v1/catalog${lang ? `?lang=${encodeURIComponent(lang)}` : ""}`;
 
 /** The portal's own pricing page, where every plan is laid out in full. */
 export const portalPricingUrl = (portalUrl: string) => `${trimSlash(portalUrl)}/upgrade`;
+
+/** The portal's pricing grid on its own, for the front door to frame. The
+ *  portal draws it, prices it in the reader's currency and words it in their
+ *  language; this app never asks billing about prices. */
+export const pricingEmbedUrl = (
+  portalUrl: string,
+  { lang, theme }: { lang: string; theme: "light" | "dark" }
+) => `${trimSlash(portalUrl)}/embed/pricing?${new URLSearchParams({ lang, theme }).toString()}`;
 
 // ---------------------------------------------------------------------------
 // Fetch + hook
@@ -126,8 +137,11 @@ const isCatalog = (value: unknown): value is BillingCatalog =>
   value.tiers.length > 0 &&
   value.tiers.every(isTier);
 
-export async function fetchBillingCatalog(portalUrl: string): Promise<BillingCatalog> {
-  const response = await fetch(catalogUrl(portalUrl), {
+export async function fetchBillingCatalog(
+  portalUrl: string,
+  lang?: string | null
+): Promise<BillingCatalog> {
+  const response = await fetch(catalogUrl(portalUrl, lang), {
     headers: { Accept: "application/json" },
   });
   if (!response.ok) {
@@ -144,11 +158,15 @@ export async function fetchBillingCatalog(portalUrl: string): Promise<BillingCat
  *  are rare and a reload is the ordinary way to see one. */
 const CATALOG_STALE_MS = 10 * 60 * 1000;
 
-export const useBillingCatalog = (portalUrl: string | null | undefined) =>
-  useQuery<BillingCatalog>({
-    queryKey: ["billing-catalog", portalUrl ?? null],
-    queryFn: () => fetchBillingCatalog(portalUrl as string),
+/** The price book in the reader's language. */
+export const useBillingCatalog = (portalUrl: string | null | undefined) => {
+  const { i18n } = useTranslation();
+  const lang = i18n.resolvedLanguage ?? i18n.language ?? null;
+  return useQuery<BillingCatalog>({
+    queryKey: ["billing-catalog", portalUrl ?? null, lang],
+    queryFn: () => fetchBillingCatalog(portalUrl as string, lang),
     enabled: Boolean(portalUrl),
     staleTime: CATALOG_STALE_MS,
     retry: false,
   });
+};
