@@ -11,8 +11,10 @@ revision 20261004_0453), so the per-resource mechanism goes:
 - ``public.standing`` loses ``via_dashboard_id``, and ``current_standing()`` in
   every guild schema that has one is restated to build the shorter value.
 
-The access functions that read the field are rendered from the application at
-boot, so a schema's gates follow on the next start. The bodies here are stated
+The access functions that read the field, and the row-level policies on
+``resource_grants`` that read the column, are rendered from the application at
+boot: the policies are dropped here so the column can go, and the next start
+writes them all back from the current render. The bodies here are stated
 in full, as they were and as they become, so this revision reads the same
 whatever the module says later.
 
@@ -139,8 +141,39 @@ def _unique_grantee(columns: str) -> None:
     )
 
 
+#: The row-level policies that read ``resource_grants.dashboard_id``, found by
+#: the catalog's own dependency record rather than by name, so a policy any
+#: past render wrote is found too.
+_POLICIES_ON_THE_COLUMN = sa.text(
+    """
+    SELECT DISTINCT c.relname, pol.polname
+      FROM pg_depend d
+      JOIN pg_policy pol ON d.classid = 'pg_policy'::regclass AND d.objid = pol.oid
+      JOIN pg_class c ON c.oid = pol.polrelid
+     WHERE d.refclassid = 'pg_class'::regclass
+       AND d.refobjid = to_regclass('resource_grants')
+       AND d.refobjsubid = (
+           SELECT attnum FROM pg_attribute
+            WHERE attrelid = to_regclass('resource_grants')
+              AND attname = 'dashboard_id'
+       )
+    """
+)
+
+
+def _drop_policies_on_the_column() -> None:
+    """Drop the policies that read the column, so it can go.
+
+    Every policy here is rendered from the application at boot, and the
+    render no longer names the column, so the next start writes them back
+    without it."""
+    for table, policy in op.get_bind().execute(_POLICIES_ON_THE_COLUMN).all():
+        op.execute(f'DROP POLICY IF EXISTS "{policy}" ON "{table}"')
+
+
 def _upgrade_schema() -> None:
     _write_unforced(f"DELETE FROM {_TABLE} WHERE dashboard_id IS NOT NULL")
+    _drop_policies_on_the_column()
     op.execute("DROP INDEX IF EXISTS ix_resource_grants_dashboard")
     for name in (
         "resource_grants_dashboard_reads",
