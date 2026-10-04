@@ -159,7 +159,8 @@ jobs:
           ORG_GRADLE_PROJECT_initiativeSigningStorePassword: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ORG_GRADLE_PROJECT_initiativeSigningKeyAlias: ${{ secrets.ANDROID_KEY_ALIAS }}
           ORG_GRADLE_PROJECT_initiativeSigningKeyPassword: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: ./gradlew assembleRelease
+        # The APK is for GitHub Releases and Obtainium; the bundle (AAB) is what Google Play takes.
+        run: ./gradlew assembleRelease bundleRelease
 
       - name: Build unsigned APK (fallback)
         if: ${{ env.HAS_KEYSTORE != 'true' }}
@@ -218,6 +219,13 @@ jobs:
           mkdir -p artifacts
           if [ "$HAS_KEYSTORE" = 'true' ]; then
             cp "$release_dir/app-release.apk" "artifacts/initiative-$VERSION.apk"
+            aab=frontend/android/app/build/outputs/bundle/release/app-release.aab
+            if [ ! -f "$aab" ]; then
+              echo "::error::Signing was configured but Gradle produced no app bundle."
+              exit 1
+            fi
+            mkdir -p play
+            cp "$aab" "play/initiative-$VERSION.aab"
           else
             cp "$release_dir/app-release-unsigned.apk" "artifacts/initiative-$VERSION-unsigned.apk"
           fi
@@ -231,6 +239,14 @@ jobs:
         with:
           name: android-apk
           path: artifacts/*.apk
+
+      # For uploading to Google Play by hand; it is not attached to the GitHub Release.
+      - name: Upload the Play bundle
+        if: ${{ env.HAS_KEYSTORE == 'true' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: android-aab
+          path: play/*.aab
 
   build-desktop:
     needs: decide
