@@ -21,9 +21,11 @@ const updater = vi.hoisted(() => ({
 }));
 vi.mock("@/plugins/desktopUpdater", () => ({ default: updater }));
 
-const installSource = vi.hoisted(() => ({ get: vi.fn(async () => ({}) as { installer?: string }) }));
-vi.mock("@/plugins/installSource", () => ({
-  default: installSource,
+const appEnvironment = vi.hoisted(() => ({
+  get: vi.fn(async () => ({}) as { installer?: string }),
+}));
+vi.mock("@/plugins/appEnvironment", () => ({
+  default: appEnvironment,
   PLAY_STORE_INSTALLER: "com.android.vending",
 }));
 
@@ -46,11 +48,25 @@ describe("NativeUpdateRequiredDialog", () => {
 
   it("sends an Android app installed from Google Play back to Play", async () => {
     vi.spyOn(Capacitor, "getPlatform").mockReturnValue("android");
-    installSource.get.mockResolvedValueOnce({ installer: "com.android.vending" });
+    appEnvironment.get.mockResolvedValueOnce({ installer: "com.android.vending" });
     renderDialog();
 
     expect(await screen.findByText(/from Google Play/i)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /download/i })).toHaveAttribute("href", PLAY_STORE_URL);
+  });
+
+  it("offers no download on Android until it knows where the app came from", async () => {
+    vi.spyOn(Capacitor, "getPlatform").mockReturnValue("android");
+    let answer: (value: { installer?: string }) => void = () => {};
+    appEnvironment.get.mockReturnValueOnce(new Promise((resolve) => (answer = resolve)));
+    renderDialog();
+
+    expect(screen.queryByRole("link", { name: /download/i })).not.toBeInTheDocument();
+    answer({ installer: "com.android.vending" });
+    expect(await screen.findByRole("link", { name: /download/i })).toHaveAttribute(
+      "href",
+      PLAY_STORE_URL
+    );
   });
 
   it("sends an iPhone to the App Store, with no download or update of its own", async () => {

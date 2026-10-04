@@ -2,6 +2,7 @@ package com.morelitea.initiative;
 
 import android.content.pm.PackageManager;
 import android.os.Build;
+import android.security.NetworkSecurityPolicy;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
@@ -9,11 +10,12 @@ import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 
 /**
- * Says which app installed this one (Google Play is "com.android.vending"), so an update
- * prompt can send a Play install to Play and a downloaded APK to the next APK.
+ * Facts about this install that the web layer cannot see: which app installed it (Google Play
+ * is "com.android.vending"), so an update prompt can send a Play install to Play, and whether
+ * this build may reach plain-HTTP servers, which only a debug build does.
  */
-@CapacitorPlugin(name = "InstallSource")
-public class InstallSourcePlugin extends Plugin {
+@CapacitorPlugin(name = "AppEnvironment")
+public class AppEnvironmentPlugin extends Plugin {
 
     @PluginMethod
     public void get(PluginCall call) {
@@ -22,6 +24,7 @@ public class InstallSourcePlugin extends Plugin {
         if (installer != null) {
             result.put("installer", installer);
         }
+        result.put("cleartextPermitted", NetworkSecurityPolicy.getInstance().isCleartextTrafficPermitted());
         call.resolve(result);
     }
 
