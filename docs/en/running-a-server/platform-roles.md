@@ -20,7 +20,7 @@ Five rungs, each adding to the one below:
 | **Member** | Standard access to their own communities. No server-wide privileges. This is everyone by default. |
 | **Support** | Read-only visibility of the platform's users, can **request** time-bound access to a community to help with an issue, and can let somebody answer the age question again after a typo. |
 | **Moderator** | Everything Support can do, **plus** user management (suspend/reactivate, revoke an account's API keys) and content moderation. |
-| **Operator** | Manages users, communities, and roles platform-wide, has cross-community access (via break-glass), approves access requests, writes [announcements](announcements.md), and writes [sign-in placement rules](single-sign-on.md#rules-on-a-provider). |
+| **Operator** | Manages users, communities, and roles platform-wide, has cross-community access (via break-glass), approves access requests, writes [announcements](announcements.md), writes [sign-in placement rules](single-sign-on.md#rules-on-a-provider), and opens [billing insights](#billing-insights). |
 | **Owner** | Full control, **including server-wide configuration** (single sign-on, email, branding, AI). The only role that can change configuration. |
 
 !!! info "Capabilities, not just titles"
@@ -67,6 +67,12 @@ The row's actions menu keeps the one-off jobs. It offers nothing but **Export** 
     - **Hard delete** — everything removed, including authored content; not reversible.
 
 Before a destructive delete, Initiative makes you resolve one kind of **blocker**: an account holding a community's only [superadmin](../guides/communities.md#why-superadmin-is-separate) seat. Either the account holder hands the seat to another member first, or you [break glass](#cross-community-access-break-glass-and-time-bound-grants) into the community and, from its own settings, appoint somebody in **Settings → Users** — or, where there's nobody left to hand it to, delete the community in **Settings → Danger zone**. Deleting a community always happens there, under a grant. Content they owned is released on the way out for the community's admins to claim.
+
+## Billing insights
+
+On a server connected to a billing service, **Operator dashboard → Billing** opens a page of how things are going across every community: revenue, recurring revenue, refunds and chargebacks straight from the payment processor, beside counts of communities by plan, trials, overdue payments and cancellations.
+
+It needs no grant, because it opens no community. Nothing on it names a community, a customer or a person — only totals and counts. Operators and owners hold it. A server with no billing service has no Billing tab.
 
 ## Cross-community access: break-glass and time-bound grants
 

@@ -82,7 +82,6 @@ const shared = (overrides: Record<string, unknown> = {}) => ({
   all_initiative_members: false,
   user_grant_count: 1,
   role_grant_count: 0,
-  via_dashboard: false,
   ...overrides,
 });
 

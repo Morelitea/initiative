@@ -434,9 +434,6 @@ const SharingArea = ({
                   {item.all_initiative_members && (
                     <Badge variant="secondary">{t("sharing.everyone")}</Badge>
                   )}
-                  {item.via_dashboard && (
-                    <Badge variant="outline">{t("sharing.viaDashboard")}</Badge>
-                  )}
                   {/* Two counts, two keys: one string cannot pluralise on two
                       numbers at once. */}
                   <span className="text-muted-foreground text-sm">

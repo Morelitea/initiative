@@ -16,7 +16,7 @@ from app.core.messages import QueryMessages
 from app.models.platform.guild import CommunityRole
 from app.models.tenant.task import TaskStatusCategory
 from app.services.query import executor
-from app.services.tenant.published_views_test import dashboard_body, dashboards_on
+from app.services.tenant.view_as_test import dashboard_body, dashboards_on
 from app.testing import create_project, create_task
 
 
@@ -99,7 +99,7 @@ async def test_the_canvas_answers_what_each_widget_answers(
     assert canvas["w1"]["result"]["rows"] == [[3]]
 
 
-async def test_a_reader_sees_their_own_rows_and_what_is_published(
+async def test_a_reader_sees_their_own_rows_or_the_initiatives(
     client, session, acting_user
 ):
     author, project = await _author_with_tasks(session, acting_user)
@@ -119,12 +119,12 @@ async def test_a_reader_sees_their_own_rows_and_what_is_published(
     before = await _data(client, reader, dashboard_id)
     assert [before[w]["result"]["rows"] for w in ("w1", "w2")] == [[[0]], [[0]]]
 
-    published = await client.put(
-        author.g(f"/dashboards/{dashboard_id}/published"),
-        json={"resources": [{"resource_type": "project", "resource_id": project.id}]},
+    shared = await client.put(
+        author.g(f"/dashboards/{dashboard_id}/view-mode"),
+        json={"mode": "initiative"},
         headers=author.headers,
     )
-    assert published.status_code == 200, published.text
+    assert shared.status_code == 200, shared.text
 
     after = await _data(client, reader, dashboard_id)
     assert [after[w]["result"]["rows"] for w in ("w1", "w2")] == [[[3]], [[1]]]

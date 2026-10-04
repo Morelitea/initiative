@@ -507,6 +507,18 @@ def build(spec: QuerySpec) -> str:
             positions.append(ast.A_Const(val=ast.Integer(ival=aliases.index(name) + 1)))
         select.groupClause = tuple(positions)
 
+    if spec.order_by is None and spec.group_by:
+        # Rows in the order of what they are grouped by, so a time series
+        # reads left to right instead of in whatever order the groups were
+        # gathered. Ordinal for the same reason as the grouping.
+        select.sortClause = tuple(
+            ast.SortBy(
+                node=ast.A_Const(val=ast.Integer(ival=aliases.index(name) + 1)),
+                sortby_dir=SortByDir.SORTBY_ASC,
+            )
+            for name in spec.group_by
+        )
+
     if spec.order_by is not None:
         if spec.order_by.field not in aliases:
             raise QueryError(QueryMessages.UNKNOWN_FIELD, spec.order_by.field)

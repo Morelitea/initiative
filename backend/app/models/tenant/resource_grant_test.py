@@ -106,7 +106,6 @@ async def test_a_grant_may_name_an_app_install_alone(session: AsyncSession):
     assert stored.user_id is None
     assert stored.role_id is None
     assert stored.all_initiative_members is False
-    assert stored.dashboard_id is None
 
 
 async def test_a_grant_naming_a_user_and_an_install_is_refused(

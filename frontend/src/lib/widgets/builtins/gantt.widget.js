@@ -52,6 +52,12 @@ const meta = {
           es: "Trimestres",
           fr: "Trimestres",
         },
+        year: {
+          en: "Years",
+          de: "Jahre",
+          es: "Años",
+          fr: "Années",
+        },
       },
     },
     group: {

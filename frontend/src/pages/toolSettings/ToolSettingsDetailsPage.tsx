@@ -28,7 +28,7 @@ import { toast } from "@/lib/mascotToast";
 
 export const ToolSettingsDetailsPage = () => {
   const { t } = useTranslation(["common", "properties"]);
-  const { tool, entity, update, detailsExtra } = useToolSettings();
+  const { tool, entity, update, detailsExtra, detailsInline } = useToolSettings();
   const canManage = entity.can.edit;
 
   // Name and description wait for Save, so a refetch arriving mid-sentence
@@ -116,6 +116,7 @@ export const ToolSettingsDetailsPage = () => {
                 {update.isPending ? t("toolSettings.saving") : t("save")}
               </Button>
             )}
+            {detailsInline && <div className="border-t pt-4">{detailsInline}</div>}
           </CardContent>
         </Card>
       )}
