@@ -104,8 +104,35 @@ describe("decideNativeUpdate", () => {
     expect(decideNativeUpdate({ ...base, manifestVersion: "0.49.0" })).toBe("download");
   });
 
-  it("downloads when the server is older (downgrade to match is desired)", () => {
-    expect(decideNativeUpdate({ ...base, manifestVersion: "0.47.0" })).toBe("download");
+  it("goes back to an older bundle that is still no older than the app shipped with", () => {
+    expect(
+      decideNativeUpdate({ ...base, currentVersion: "0.49.0", manifestVersion: "0.48.1" })
+    ).toBe("download");
+  });
+
+  it("never installs a bundle older than the one the app shipped with", () => {
+    expect(decideNativeUpdate({ ...base, manifestVersion: "0.47.9" })).toBe("older-than-app");
+    expect(
+      decideNativeUpdate({ ...base, currentVersion: "0.49.0", manifestVersion: "0.47.0" })
+    ).toBe("older-than-app");
+  });
+
+  it("still installs a suffixed build of the version the app shipped with", () => {
+    expect(
+      decideNativeUpdate({ ...base, currentVersion: "0.48.1", manifestVersion: "0.48.0-dev-abc" })
+    ).toBe("download");
+  });
+
+  it("takes only patch releases over the air on iOS", () => {
+    const ios = { ...base, platform: "ios" };
+    expect(decideNativeUpdate({ ...ios, manifestVersion: "0.48.3" })).toBe("download");
+    expect(decideNativeUpdate({ ...ios, manifestVersion: "0.48.3-dev-abc" })).toBe("download");
+    expect(decideNativeUpdate({ ...ios, manifestVersion: "0.49.0" })).toBe("native-required");
+    expect(decideNativeUpdate({ ...ios, manifestVersion: "1.48.0" })).toBe("native-required");
+    // Other platforms keep taking feature releases.
+    expect(decideNativeUpdate({ ...base, platform: "android", manifestVersion: "0.49.0" })).toBe(
+      "download"
+    );
   });
 
   it("requires a native update when the bundle needs a newer shell than installed", () => {
