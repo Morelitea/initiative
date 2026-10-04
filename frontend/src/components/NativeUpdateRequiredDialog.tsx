@@ -29,6 +29,14 @@ interface NativeUpdateRequiredDialogProps {
 }
 
 /** The new app for this device, from the release the bundle's floor names. */
+/** Where this device gets a newer app: a download link, or (iOS) the App Store alone. */
+const describeKey = (platform: string) =>
+  platform === "electron"
+    ? "version.nativeUpdateRequiredDescriptionDesktop"
+    : platform === "ios"
+      ? "version.nativeUpdateRequiredDescriptionIos"
+      : "version.nativeUpdateRequiredDescription";
+
 const downloadUrl = (minNativeVersion?: string): string => {
   if (!minNativeVersion) return RELEASES_URL;
   if (Capacitor.getPlatform() !== "electron") return androidApkUrl(minNativeVersion);
@@ -48,6 +56,9 @@ export const NativeUpdateRequiredDialog = ({
   onClose,
 }: NativeUpdateRequiredDialogProps) => {
   const { t } = useTranslation("communities");
+  const platform = Capacitor.getPlatform();
+  // An iPhone app updates through the App Store and nowhere else, so it offers no download.
+  const offersDownload = platform !== "ios";
   // A desktop app that can replace itself offers to, and to keep doing so.
   const [canUpdate, setCanUpdate] = useState(false);
   const [always, setAlways] = useState(true);
@@ -90,11 +101,7 @@ export const NativeUpdateRequiredDialog = ({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{t("version.nativeUpdateRequiredTitle")}</DialogTitle>
-          <DialogDescription>
-            {Capacitor.getPlatform() === "electron"
-              ? t("version.nativeUpdateRequiredDescriptionDesktop", { version })
-              : t("version.nativeUpdateRequiredDescription", { version })}
-          </DialogDescription>
+          <DialogDescription>{t(describeKey(platform), { version })}</DialogDescription>
         </DialogHeader>
         {canUpdate ? (
           <div className="flex items-center gap-2">
@@ -118,9 +125,9 @@ export const NativeUpdateRequiredDialog = ({
             <Button onClick={() => void updateNow()} disabled={updating}>
               {updating ? t("version.updating") : t("version.updateNow")}
             </Button>
-          ) : (
+          ) : offersDownload ? (
             download
-          )}
+          ) : null}
         </DialogFooter>
       </DialogContent>
     </Dialog>

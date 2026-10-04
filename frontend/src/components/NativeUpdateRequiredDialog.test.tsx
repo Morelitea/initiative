@@ -38,6 +38,16 @@ describe("NativeUpdateRequiredDialog", () => {
     expect(await screen.findByRole("link", { name: /download/i })).toHaveAttribute("href", href);
   });
 
+  it("sends an iPhone to the App Store, with no download or update of its own", async () => {
+    vi.spyOn(Capacitor, "getPlatform").mockReturnValue("ios");
+    renderDialog();
+
+    expect(await screen.findByText(/from the App Store/i)).toBeInTheDocument();
+    expect(screen.queryByText(/APK/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /download/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /update now/i })).not.toBeInTheDocument();
+  });
+
   it("updates a desktop app that can replace itself, and keeps doing so", async () => {
     const user = userEvent.setup();
     vi.spyOn(Capacitor, "getPlatform").mockReturnValue("electron");

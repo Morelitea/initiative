@@ -389,6 +389,7 @@
     "nativeUpdateRequiredTitle": "Mise à jour de l'application requise",
     "nativeUpdateRequiredDescription": "La version {{version}} est disponible, mais elle nécessite une version de l'application plus récente que celle installée. Veuillez mettre à jour Initiative depuis votre magasin d'applications ou installer le dernier APK.",
     "nativeUpdateRequiredDescriptionDesktop": "La version {{version}} est disponible, mais elle nécessite une version de l'application plus récente que celle installée. Téléchargez la dernière version d'Initiative pour votre ordinateur.",
+    "nativeUpdateRequiredDescriptionIos": "La version {{version}} est disponible, mais elle nécessite une version de l'application plus récente que celle installée. Veuillez mettre à jour Initiative depuis l'App Store.",
     "nativeUpdateRequiredAcknowledge": "Compris",
     "nativeUpdateDownload": "Télécharger",
     "alwaysUpdate": "Toujours mettre à jour automatiquement",

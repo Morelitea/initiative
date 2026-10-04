@@ -24,7 +24,8 @@ export const LegalDocumentPage = () => {
   return (
     <div className="flex min-h-screen flex-col items-center bg-muted/60 px-4 py-10">
       <Link
-        to="/welcome"
+        // The app packages have no front page; sign-in is where they start.
+        to={__IS_CAPACITOR__ ? "/login" : "/welcome"}
         className="mb-6 flex items-center gap-3 font-semibold text-2xl text-primary tracking-tight"
       >
         <LogoIcon className="h-8 w-8" aria-hidden="true" focusable="false" />

@@ -1,7 +1,13 @@
 import { createFileRoute, lazyRouteComponent } from "@tanstack/react-router";
 
+import { leaveForSignIn, NotInApp } from "@/lib/webOnlyRoute";
+
 export const Route = createFileRoute("/_serverRequired/download")({
-  component: lazyRouteComponent(() =>
-    import("@/pages/landing/DownloadPage").then((m) => ({ default: m.DownloadPage }))
-  ),
+  beforeLoad: leaveForSignIn,
+  // Decided at build time, so an app package carries no copy of the page.
+  component: __IS_CAPACITOR__
+    ? NotInApp
+    : lazyRouteComponent(() =>
+        import("@/pages/landing/DownloadPage").then((m) => ({ default: m.DownloadPage }))
+      ),
 });
