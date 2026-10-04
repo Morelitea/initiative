@@ -3015,3 +3015,92 @@ export const useCreatePlatformCommunityBillingServiceHandoff = <
     queryClient
   );
 };
+/**
+ * Mint the handoff into the billing service's insights page.
+ *
+ * Backs the operator dashboard's Billing tab (``billing.insights``). Unlike
+ * the console handoffs above it names no community and needs no access
+ * grant: the page shows Paddle's account-wide figures and counts that name
+ * no community, and billing reads them as a role that can see nothing else.
+ * The person is named by billing's pairwise reference, which is what billing
+ * records the visit under.
+ * @summary Create Billing Insights Handoff
+ */
+export const createBillingInsightsHandoff = (
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<BillingPortalHandoffResponse>(
+    { url: `/api/v1/settings/billing/insights-handoff`, method: "POST", signal },
+    options
+  );
+};
+
+export const getCreateBillingInsightsHandoffMutationKey = () =>
+  ["createBillingInsightsHandoff"] as const;
+
+export const getCreateBillingInsightsHandoffMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createBillingInsightsHandoff>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createBillingInsightsHandoff>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = getCreateBillingInsightsHandoffMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createBillingInsightsHandoff>>,
+    void
+  > = () => {
+    return createBillingInsightsHandoff(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateBillingInsightsHandoffMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createBillingInsightsHandoff>>
+>;
+
+export type CreateBillingInsightsHandoffMutationError = ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Create Billing Insights Handoff
+ */
+export const useCreateBillingInsightsHandoff = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof createBillingInsightsHandoff>>,
+      TError,
+      void,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof createBillingInsightsHandoff>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(getCreateBillingInsightsHandoffMutationOptions(options), queryClient);
+};

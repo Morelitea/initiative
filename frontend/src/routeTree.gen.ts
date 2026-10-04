@@ -63,6 +63,7 @@ import { Route as ServerRequiredAuthenticatedCCommunityIdBillingRouteImport } fr
 import { Route as ServerRequiredAuthenticatedSettingsOperatorIndexRouteImport } from './routes/_serverRequired/_authenticated/settings/operator/index'
 import { Route as ServerRequiredAuthenticatedSettingsOperatorAccessRouteImport } from './routes/_serverRequired/_authenticated/settings/operator/access'
 import { Route as ServerRequiredAuthenticatedSettingsOperatorAnnouncementsRouteImport } from './routes/_serverRequired/_authenticated/settings/operator/announcements'
+import { Route as ServerRequiredAuthenticatedSettingsOperatorBillingRouteImport } from './routes/_serverRequired/_authenticated/settings/operator/billing'
 import { Route as ServerRequiredAuthenticatedSettingsOperatorCommunitiesRouteImport } from './routes/_serverRequired/_authenticated/settings/operator/communities'
 import { Route as ServerRequiredAuthenticatedSettingsOperatorPlacementRouteImport } from './routes/_serverRequired/_authenticated/settings/operator/placement'
 import { Route as ServerRequiredAuthenticatedSettingsOperatorUsersRouteImport } from './routes/_serverRequired/_authenticated/settings/operator/users'
@@ -486,6 +487,12 @@ const ServerRequiredAuthenticatedSettingsOperatorAnnouncementsRoute =
   ServerRequiredAuthenticatedSettingsOperatorAnnouncementsRouteImport.update({
     id: '/announcements',
     path: '/announcements',
+    getParentRoute: () => ServerRequiredAuthenticatedSettingsOperatorRoute,
+  } as any)
+const ServerRequiredAuthenticatedSettingsOperatorBillingRoute =
+  ServerRequiredAuthenticatedSettingsOperatorBillingRouteImport.update({
+    id: '/billing',
+    path: '/billing',
     getParentRoute: () => ServerRequiredAuthenticatedSettingsOperatorRoute,
   } as any)
 const ServerRequiredAuthenticatedSettingsOperatorCommunitiesRoute =
@@ -1448,6 +1455,7 @@ export interface FileRoutesByFullPath {
   '/c/$communityId/billing': typeof ServerRequiredAuthenticatedCCommunityIdBillingRoute
   '/settings/operator/access': typeof ServerRequiredAuthenticatedSettingsOperatorAccessRoute
   '/settings/operator/announcements': typeof ServerRequiredAuthenticatedSettingsOperatorAnnouncementsRoute
+  '/settings/operator/billing': typeof ServerRequiredAuthenticatedSettingsOperatorBillingRoute
   '/settings/operator/communities': typeof ServerRequiredAuthenticatedSettingsOperatorCommunitiesRoute
   '/settings/operator/placement': typeof ServerRequiredAuthenticatedSettingsOperatorPlacementRoute
   '/settings/operator/users': typeof ServerRequiredAuthenticatedSettingsOperatorUsersRoute
@@ -1608,6 +1616,7 @@ export interface FileRoutesByTo {
   '/c/$communityId/billing': typeof ServerRequiredAuthenticatedCCommunityIdBillingRoute
   '/settings/operator/access': typeof ServerRequiredAuthenticatedSettingsOperatorAccessRoute
   '/settings/operator/announcements': typeof ServerRequiredAuthenticatedSettingsOperatorAnnouncementsRoute
+  '/settings/operator/billing': typeof ServerRequiredAuthenticatedSettingsOperatorBillingRoute
   '/settings/operator/communities': typeof ServerRequiredAuthenticatedSettingsOperatorCommunitiesRoute
   '/settings/operator/placement': typeof ServerRequiredAuthenticatedSettingsOperatorPlacementRoute
   '/settings/operator/users': typeof ServerRequiredAuthenticatedSettingsOperatorUsersRoute
@@ -1764,6 +1773,7 @@ export interface FileRoutesById {
   '/_serverRequired/_authenticated/c/$communityId_/billing': typeof ServerRequiredAuthenticatedCCommunityIdBillingRoute
   '/_serverRequired/_authenticated/settings/operator/access': typeof ServerRequiredAuthenticatedSettingsOperatorAccessRoute
   '/_serverRequired/_authenticated/settings/operator/announcements': typeof ServerRequiredAuthenticatedSettingsOperatorAnnouncementsRoute
+  '/_serverRequired/_authenticated/settings/operator/billing': typeof ServerRequiredAuthenticatedSettingsOperatorBillingRoute
   '/_serverRequired/_authenticated/settings/operator/communities': typeof ServerRequiredAuthenticatedSettingsOperatorCommunitiesRoute
   '/_serverRequired/_authenticated/settings/operator/placement': typeof ServerRequiredAuthenticatedSettingsOperatorPlacementRoute
   '/_serverRequired/_authenticated/settings/operator/users': typeof ServerRequiredAuthenticatedSettingsOperatorUsersRoute
@@ -1931,6 +1941,7 @@ export interface FileRouteTypes {
     | '/c/$communityId/billing'
     | '/settings/operator/access'
     | '/settings/operator/announcements'
+    | '/settings/operator/billing'
     | '/settings/operator/communities'
     | '/settings/operator/placement'
     | '/settings/operator/users'
@@ -2091,6 +2102,7 @@ export interface FileRouteTypes {
     | '/c/$communityId/billing'
     | '/settings/operator/access'
     | '/settings/operator/announcements'
+    | '/settings/operator/billing'
     | '/settings/operator/communities'
     | '/settings/operator/placement'
     | '/settings/operator/users'
@@ -2246,6 +2258,7 @@ export interface FileRouteTypes {
     | '/_serverRequired/_authenticated/c/$communityId_/billing'
     | '/_serverRequired/_authenticated/settings/operator/access'
     | '/_serverRequired/_authenticated/settings/operator/announcements'
+    | '/_serverRequired/_authenticated/settings/operator/billing'
     | '/_serverRequired/_authenticated/settings/operator/communities'
     | '/_serverRequired/_authenticated/settings/operator/placement'
     | '/_serverRequired/_authenticated/settings/operator/users'
@@ -2744,6 +2757,13 @@ declare module '@tanstack/react-router' {
       path: '/announcements'
       fullPath: '/settings/operator/announcements'
       preLoaderRoute: typeof ServerRequiredAuthenticatedSettingsOperatorAnnouncementsRouteImport
+      parentRoute: typeof ServerRequiredAuthenticatedSettingsOperatorRoute
+    }
+    '/_serverRequired/_authenticated/settings/operator/billing': {
+      id: '/_serverRequired/_authenticated/settings/operator/billing'
+      path: '/billing'
+      fullPath: '/settings/operator/billing'
+      preLoaderRoute: typeof ServerRequiredAuthenticatedSettingsOperatorBillingRouteImport
       parentRoute: typeof ServerRequiredAuthenticatedSettingsOperatorRoute
     }
     '/_serverRequired/_authenticated/settings/operator/communities': {
@@ -4042,6 +4062,7 @@ const ServerRequiredAuthenticatedCCommunityIdRouteWithChildren =
 interface ServerRequiredAuthenticatedSettingsOperatorRouteChildren {
   ServerRequiredAuthenticatedSettingsOperatorAccessRoute: typeof ServerRequiredAuthenticatedSettingsOperatorAccessRoute
   ServerRequiredAuthenticatedSettingsOperatorAnnouncementsRoute: typeof ServerRequiredAuthenticatedSettingsOperatorAnnouncementsRoute
+  ServerRequiredAuthenticatedSettingsOperatorBillingRoute: typeof ServerRequiredAuthenticatedSettingsOperatorBillingRoute
   ServerRequiredAuthenticatedSettingsOperatorCommunitiesRoute: typeof ServerRequiredAuthenticatedSettingsOperatorCommunitiesRoute
   ServerRequiredAuthenticatedSettingsOperatorPlacementRoute: typeof ServerRequiredAuthenticatedSettingsOperatorPlacementRoute
   ServerRequiredAuthenticatedSettingsOperatorUsersRoute: typeof ServerRequiredAuthenticatedSettingsOperatorUsersRoute
@@ -4054,6 +4075,8 @@ const ServerRequiredAuthenticatedSettingsOperatorRouteChildren: ServerRequiredAu
       ServerRequiredAuthenticatedSettingsOperatorAccessRoute,
     ServerRequiredAuthenticatedSettingsOperatorAnnouncementsRoute:
       ServerRequiredAuthenticatedSettingsOperatorAnnouncementsRoute,
+    ServerRequiredAuthenticatedSettingsOperatorBillingRoute:
+      ServerRequiredAuthenticatedSettingsOperatorBillingRoute,
     ServerRequiredAuthenticatedSettingsOperatorCommunitiesRoute:
       ServerRequiredAuthenticatedSettingsOperatorCommunitiesRoute,
     ServerRequiredAuthenticatedSettingsOperatorPlacementRoute:

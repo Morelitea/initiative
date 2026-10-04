@@ -80,6 +80,9 @@ UsersDeleteDep = Annotated[User, Depends(require_capability(Capability.USERS_DEL
 GuildsManageDep = Annotated[
     User, Depends(require_capability(Capability.COMMUNITIES_MANAGE))
 ]
+BillingInsightsDep = Annotated[
+    User, Depends(require_capability(Capability.BILLING_INSIGHTS))
+]
 RolesAssignDep = Annotated[User, Depends(require_capability(Capability.ROLES_ASSIGN))]
 # App-wide configuration (OIDC, SMTP, branding, role labels, platform AI).
 # Owner-only — imported by settings.py / ai_settings.py.

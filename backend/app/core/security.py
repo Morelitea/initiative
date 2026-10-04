@@ -523,6 +523,42 @@ def create_billing_portal_handoff_token(
     return token, int(expires_in.total_seconds())
 
 
+BILLING_INSIGHTS_AUDIENCE = "initiative:billing-insights"
+BILLING_INSIGHTS_HANDOFF_LIFETIME = timedelta(seconds=60)
+
+
+def billing_insights_handoff_enabled() -> bool:
+    """True when this deployment can mint the insights handoff."""
+    return bool(settings.BILLING_URL and settings.HANDOFF_SIGNING_PRIVATE_KEY_PEM)
+
+
+def create_billing_insights_handoff_token(
+    *,
+    user_ref: str,
+    expires_in: timedelta = BILLING_INSIGHTS_HANDOFF_LIFETIME,
+) -> tuple[str, int]:
+    """Mint the handoff into the billing service's insights page.
+
+    The same RS256 key as the portal handoff, under its own audience, so
+    neither token opens the other's door. It names the person by billing's
+    pairwise reference and nothing else: no community and no grant, because
+    the page shows nothing about any one community.
+    """
+    now = datetime.now(timezone.utc)
+    payload: dict[str, Any] = {
+        "jti": str(uuid.uuid4()),
+        "sub": user_ref,
+        "aud": BILLING_INSIGHTS_AUDIENCE,
+        "iss": "initiative",
+        "iat": int(now.timestamp()),
+        "exp": now + expires_in,
+    }
+    key, algorithm, kid = _resolve_handoff_signing_material()
+    headers: dict[str, Any] | None = {"kid": kid} if kid else None
+    token = jwt.encode(payload, key, algorithm=algorithm, headers=headers)
+    return token, int(expires_in.total_seconds())
+
+
 class AppPlatformSigningNotConfiguredError(RuntimeError):
     """Raised when app-platform signing material is needed but absent.
 

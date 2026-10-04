@@ -52,6 +52,12 @@ export const OperatorDashboardLayout = () => {
         capabilities: [Capability.announcementsManage],
       },
       {
+        value: "billing",
+        label: t("operatorDashboard.tabs.billing"),
+        path: "/settings/operator/billing",
+        capabilities: [Capability.billingInsights],
+      },
+      {
         value: "access",
         label: t("operatorDashboard.tabs.access"),
         path: "/settings/operator/access",
