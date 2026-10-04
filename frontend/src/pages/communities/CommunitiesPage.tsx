@@ -21,6 +21,7 @@
 
 import { useSearch } from "@tanstack/react-router";
 import { CloudOff, SearchX } from "lucide-react";
+import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import { CommunityCard } from "@/components/guilds/CommunityCard";
@@ -34,13 +35,14 @@ import { useCommunityGuilds } from "@/hooks/useCommunities";
 import { renderableBanner } from "@/lib/banner";
 import { getErrorCode } from "@/lib/errorMessage";
 import { asGuildCategories } from "@/lib/guildCategories";
+import { countriesNamedBy } from "@/lib/guildLocation";
 
 /** Stable keys for the loading placeholders — an index key on a list that can
  *  change is the lint rule this avoids. */
 const SKELETON_KEYS = ["a", "b", "c", "d", "e", "f"];
 
 export function CommunitiesPage() {
-  const { t } = useTranslation(["guilds", "common"]);
+  const { t, i18n } = useTranslation(["guilds", "common"]);
   // Read loosely and re-narrowed here rather than trusted from the route:
   // `useSearch({ strict: false })` returns the params as they are and does not
   // run the route's `validateSearch`, so anywhere this page is mounted another
@@ -51,9 +53,19 @@ export function CommunitiesPage() {
 
   const { communityDirectoryEnabled, isLoading: configLoading } = useAppConfig();
 
+  // Where a community is counts as much as what it is called: the search also
+  // reaches its location, and a country is stored as a code, so the countries
+  // the words name go along with them.
+  const query = search.trim();
+  const queryCountries = useMemo(
+    () => (query ? countriesNamedBy(query, i18n.resolvedLanguage ?? i18n.language ?? "en") : []),
+    [query, i18n.resolvedLanguage, i18n.language]
+  );
+
   const directory = useCommunityGuilds(
     {
-      q: search.trim() || undefined,
+      q: query || undefined,
+      q_country: queryCountries.length ? queryCountries : undefined,
       category: categories.length ? categories : undefined,
     },
     { enabled: communityDirectoryEnabled }

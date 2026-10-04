@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  countriesNamedBy,
   type GuildLocation,
   locationDetailLines,
   locationHasMoreDetail,
@@ -120,5 +121,34 @@ describe("locationMapUrl", () => {
   it("searches for the whole place, without the community's label", () => {
     const url = locationMapUrl(at({ country: "US", city: "Seattle", label: "Queen Anne" }), "en");
     expect(url).toBe("https://www.openstreetmap.org/search?query=Seattle%2C%20United%20States");
+  });
+});
+
+describe("countriesNamedBy", () => {
+  it("finds a country by its name", () => {
+    expect(countriesNamedBy("Japan", "en")).toEqual(["JP"]);
+  });
+
+  it("finds it by a word of the name, and by every country sharing it", () => {
+    const united = countriesNamedBy("united", "en");
+    expect(united).toContain("US");
+    expect(united).toContain("GB");
+    expect(countriesNamedBy("kingdom", "en")).toContain("GB");
+  });
+
+  it("reads two letters as a code or a short name, not a fragment", () => {
+    expect(countriesNamedBy("us", "en")).toEqual(["US"]);
+    expect(countriesNamedBy("uk", "en")).toEqual(["GB"]);
+  });
+
+  it("takes the reader's language and English alike, accents or not", () => {
+    expect(countriesNamedBy("Deutschland", "de")).toEqual(["DE"]);
+    expect(countriesNamedBy("Germany", "de")).toEqual(["DE"]);
+    expect(countriesNamedBy("Mexico", "es")).toEqual(["MX"]);
+  });
+
+  it("names nothing for a place that is not a country", () => {
+    expect(countriesNamedBy("Seattle", "en")).toEqual([]);
+    expect(countriesNamedBy("a", "en")).toEqual([]);
   });
 });

@@ -152,3 +152,85 @@ export const locationMapUrl = (location: GuildLocation, locale: string): string 
     .join(", ");
   return `https://www.openstreetmap.org/search?query=${encodeURIComponent(query)}`;
 };
+
+const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+/** Two-letter region codes that are not countries anybody lives in. */
+const NOT_COUNTRIES = new Set(["EU", "EZ", "UN", "ZZ", "QO"]);
+
+/**
+ * Whether a code is the one a country goes by, rather than a retired alias for
+ * it ("UK" for GB, "DD" for DE), which the browser still names.
+ */
+const isCanonicalRegion = (code: string): boolean => {
+  try {
+    return Intl.getCanonicalLocales(`und-${code}`)[0] === `und-${code}`;
+  } catch {
+    return false;
+  }
+};
+
+const fold = (text: string): string =>
+  text
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase()
+    .trim();
+
+/** Every country's names a reader might type, per locale: long and short. */
+const countryNameIndex = new Map<string, { code: string; names: string[] }[]>();
+
+const namesOfCountries = (locale: string) => {
+  const cached = countryNameIndex.get(locale);
+  if (cached) return cached;
+  const index: { code: string; names: string[] }[] = [];
+  const lookups = [locale, "en"].flatMap((lang) =>
+    (["long", "short"] as const).map((style) => regionNames(lang, style))
+  );
+  for (const first of LETTERS) {
+    for (const second of LETTERS) {
+      const code = `${first}${second}`;
+      if (NOT_COUNTRIES.has(code) || !isCanonicalRegion(code)) continue;
+      const names = new Set<string>();
+      for (const lookup of lookups) {
+        let name: string | undefined;
+        try {
+          name = lookup?.of(code);
+        } catch {
+          name = undefined;
+        }
+        // An unknown code comes back as itself.
+        if (name && name !== code) names.add(fold(name));
+      }
+      if (names.size) index.push({ code, names: [...names] });
+    }
+  }
+  countryNameIndex.set(locale, index);
+  return index;
+};
+
+/**
+ * The countries a search names, as codes: "japan" is JP, "united" is every
+ * United something, "uk" is GB. A location stores its country as a code, so
+ * the directory's search needs these to find a community by its country.
+ *
+ * Two letters match a code or a short name exactly — "us" is the United
+ * States, not every country with "us" in it. Longer text matches the start of
+ * a name or of any word in one.
+ */
+export const countriesNamedBy = (query: string, locale: string): string[] => {
+  const needle = fold(query);
+  if (needle.length < 2) return [];
+  const matches: string[] = [];
+  for (const { code, names } of namesOfCountries(locale)) {
+    const hit =
+      needle.length === 2
+        ? needle === code.toLowerCase() || names.includes(needle)
+        : names.some(
+            (name) =>
+              name.startsWith(needle) ||
+              name.split(/[\s-]+/).some((word) => word.startsWith(needle))
+          );
+    if (hit) matches.push(code);
+  }
+  return matches;
+};

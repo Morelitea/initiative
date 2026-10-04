@@ -9866,6 +9866,10 @@ export type ExportPlatformUsersCsvApiV1OperatorUsersExportCsvGetParams = {
 
 export type ListCommunityGuildsApiV1CommunitiesDirectoryGetParams = {
   q?: string | null;
+  /**
+   * @maxItems 50
+   */
+  q_country?: string[];
   category?: GuildCategory[];
   /**
    * @minimum 1

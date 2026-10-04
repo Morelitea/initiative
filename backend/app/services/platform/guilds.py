@@ -99,6 +99,18 @@ class SupportIntakeMissingError(Exception):
 MIN_COMMUNITY_SEATS = 2
 
 
+#: The parts of a guild's location the directory's search reads as text. The
+#: country is matched by code instead (see ``list_community_guilds``).
+LOCATION_SEARCH_PARTS = (
+    "label",
+    "city",
+    "region",
+    "region_code",
+    "address",
+    "postal_code",
+)
+
+
 # Canonical order for a guild's categories: the order they are declared in
 # ``GuildCategory``. Storing them sorted means every card, filter chip, and
 # assertion sees the same sequence regardless of the order they were checked.
@@ -2215,6 +2227,7 @@ async def list_community_guilds(
     *,
     user_id: int,
     query: str | None = None,
+    query_countries: list[str] | None = None,
     categories: list[str] | None = None,
     page: int = 1,
     page_size: int = 24,
@@ -2228,7 +2241,9 @@ async def list_community_guilds(
     Ordered by member count, busiest first, since that is what someone with no
     guild yet is choosing between; ``query`` narrows on name or description
     across the whole directory rather than within a page, so a search reaches
-    guilds no amount of scrolling had loaded.
+    guilds no amount of scrolling had loaded. It reaches the location too: the
+    text parts of it, and ``query_countries`` — the countries the search names,
+    resolved by the caller, since a country is stored as its code.
 
     Needs a session that can see every guild's ``guild_memberships`` rows to
     count them (the system engine), the same precondition ``count_members``
@@ -2259,9 +2274,17 @@ async def list_community_guilds(
         # On any of the shelves asked for.
         filters.append(Guild.categories.overlap(categories))
     if query and query.strip():
-        # Case-insensitive across the two fields a card actually shows.
+        # Case-insensitive across what a card shows: its name, its description
+        # and where it is.
         needle = f"%{query.strip()}%"
-        filters.append(or_(Guild.name.ilike(needle), Guild.description.ilike(needle)))
+        location = Guild.__table__.c.location
+        matches = [Guild.name.ilike(needle), Guild.description.ilike(needle)]
+        matches.extend(
+            location[part].astext.ilike(needle) for part in LOCATION_SEARCH_PARTS
+        )
+        if query_countries:
+            matches.append(location["country"].astext.in_(query_countries))
+        filters.append(or_(*matches))
 
     # Every guild has exactly one administration row, created with it, so this
     # is an inner join by construction.

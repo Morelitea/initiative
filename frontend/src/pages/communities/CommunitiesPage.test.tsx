@@ -281,6 +281,26 @@ describe("CommunitiesPage", () => {
     );
   });
 
+  it("sends the countries a search names, so it reaches where communities are", async () => {
+    renderDirectory({ q: "Japan" });
+    await screen.findByText("Riverside Players");
+
+    expect(directoryFor).toHaveBeenCalledWith(
+      expect.objectContaining({ q: "Japan", q_country: ["JP"] }),
+      expect.anything()
+    );
+  });
+
+  it("sends no countries for a search that names none", async () => {
+    renderDirectory({ q: "dice" });
+    await screen.findByText("Riverside Players");
+
+    expect(directoryFor).toHaveBeenCalledWith(
+      expect.objectContaining({ q: "dice", q_country: undefined }),
+      expect.anything()
+    );
+  });
+
   it("says what nothing matched, naming the search it came from", async () => {
     directoryFor.mockReturnValue(directoryResult([]));
     renderDirectory({ q: "dice" });

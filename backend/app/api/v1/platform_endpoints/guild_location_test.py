@@ -203,3 +203,87 @@ async def test_members_and_the_directory_read_the_location(
     )
     [card] = [item for item in directory.json()["items"] if item["id"] == guild.id]
     assert card["location"]["region_code"] == "WA"
+
+
+# ---------------------------------------------------------------------------
+# Searching the directory by location
+# ---------------------------------------------------------------------------
+
+
+async def _listed_at(session: AsyncSession, name: str, location: dict | None):
+    guild = await create_guild(session, name=name, location=location)
+    guild.is_community = True
+    guild.show_member_names = False
+    guild.categories = ["other"]
+    guild.has_adult_content = False
+    session.add(guild)
+    await session.commit()
+    return guild
+
+
+async def _directory_names(client: AsyncClient, headers: dict, **params) -> set[str]:
+    response = await client.get(
+        "/api/v1/communities/directory", params=params, headers=headers
+    )
+    assert response.status_code == 200, response.text
+    return {item["name"] for item in response.json()["items"]}
+
+
+@pytest.fixture
+async def located_directory(session: AsyncSession):
+    await app_settings_service.update_community_settings(
+        session, community_directory_enabled=True
+    )
+    await _listed_at(
+        session,
+        "Gardeners",
+        {
+            "country": "US",
+            "region": "Washington",
+            "region_code": "WA",
+            "city": "Seattle",
+            "label": "Queen Anne Neighborhood",
+            "postal_code": "98109",
+        },
+    )
+    await _listed_at(session, "Go Club", {"country": "JP", "city": "Kyoto"})
+    await _listed_at(session, "Choir", None)
+
+
+@pytest.mark.parametrize(
+    "params,expected",
+    [
+        ({"q": "seattle"}, {"Gardeners"}),
+        ({"q": "Queen Anne"}, {"Gardeners"}),
+        ({"q": "washington"}, {"Gardeners"}),
+        ({"q": "98109"}, {"Gardeners"}),
+        ({"q": "kyoto"}, {"Go Club"}),
+        # A country is stored as a code: the client names the codes the
+        # search text means, and either is enough.
+        ({"q": "Japan", "q_country": ["jp"]}, {"Go Club"}),
+        ({"q": "Japan"}, set()),
+        # A malformed code is ignored rather than refused.
+        ({"q": "Japan", "q_country": ["japan"]}, set()),
+    ],
+)
+async def test_the_directory_searches_where_a_community_is(
+    client: AsyncClient,
+    acting_user,
+    located_directory,
+    params: dict,
+    expected: set[str],
+):
+    browser = await acting_user("member")
+
+    assert await _directory_names(client, browser.headers, **params) == expected
+
+
+async def test_a_country_alone_does_not_filter_without_a_search(
+    client: AsyncClient, acting_user, located_directory
+):
+    """``q_country`` widens a search; it is not a filter of its own."""
+    browser = await acting_user("member")
+
+    names = await _directory_names(client, browser.headers, q_country=["JP"])
+
+    assert names == {"Gardeners", "Go Club", "Choir"}
