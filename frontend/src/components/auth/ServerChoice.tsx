@@ -85,9 +85,10 @@ const hostOf = (origin: string | null): string | null => {
 };
 
 /**
- * "Sign in to <server>", under the sign-in card's title. A browser is on its
- * server already, so there the server is only named; in the app it is a
- * small menu, and choosing your own server opens its address beneath.
+ * Where a sign-in goes, under the sign-in card's title. A browser is on its
+ * server already, so there it is only the chip; in the app it is "Sign in to
+ * <server>" with the server as a small menu, and choosing your own server
+ * opens its address beneath.
  */
 export const ServerSubtitle = () => {
   const { t } = useTranslation("auth");
@@ -95,21 +96,7 @@ export const ServerSubtitle = () => {
   const host = hostOf(getServerOrigin());
   const [editing, setEditing] = useState(false);
 
-  if (!isNativePlatform) {
-    return (
-      <div className="flex flex-wrap items-center gap-2">
-        <p>
-          <Trans
-            t={t}
-            i18nKey="login.signInTo"
-            values={{ server: host }}
-            components={{ server: <span className="font-medium text-foreground" /> }}
-          />
-        </p>
-        <ServerChip />
-      </div>
-    );
-  }
+  if (!isNativePlatform) return <ServerChip />;
 
   return (
     <div className="space-y-3">

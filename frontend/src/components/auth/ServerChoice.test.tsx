@@ -33,10 +33,11 @@ describe("ServerChip", () => {
 });
 
 describe("ServerSubtitle", () => {
-  it("names the browser's own server without a menu", () => {
+  it("shows a browser only the chip, since it is on its server already", () => {
     renderWithProviders(<ServerSubtitle />, { server: { isNativePlatform: false } });
 
-    expect(screen.getByText(/^sign in to/i)).toBeInTheDocument();
+    expect(screen.getByText(/^self-hosted$/i)).toBeInTheDocument();
+    expect(screen.queryByText(/^sign in to/i)).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /^server$/i })).not.toBeInTheDocument();
   });
 
