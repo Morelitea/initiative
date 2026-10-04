@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 
 import { useAuth } from "@/hooks/useAuth";
 import { useServer } from "@/hooks/useServer";
+import { syncFirebaseProject } from "@/lib/firebaseProject";
 import { registerPushToken } from "@/lib/pushRegistration";
 import { returnPath } from "@/lib/returnPath";
 import FirebaseRuntime from "@/plugins/firebaseRuntime";
@@ -46,6 +47,7 @@ export const usePushNotifications = (): UsePushNotificationsReturn => {
         }
 
         try {
+          await syncFirebaseProject(serverUrl);
           const initResult = await FirebaseRuntime.initialize({ serverUrl });
 
           if (!initResult.success) {
@@ -168,6 +170,7 @@ export const usePushNotifications = (): UsePushNotificationsReturn => {
     // Initialize Firebase if not already done
     if (!fcmEnabled) {
       try {
+        await syncFirebaseProject(serverUrl);
         const initResult = await FirebaseRuntime.initialize({ serverUrl });
 
         if (!initResult.success) {
