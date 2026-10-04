@@ -191,11 +191,19 @@ export const useDeleteRole = (initiativeId: number) => {
   });
 };
 
+/** Role permissions that are not a tool's view/create pair: capabilities inside
+ *  a tool. Off for an ordinary role; managers always hold them. */
+export const EXTRA_PERMISSION_KEYS = [
+  "dashboards_run_as_initiative",
+] as const satisfies readonly PermissionKey[];
+
 // i18n-based permission label keys (use with t()) — one view/create pair per
-// tool, derived: settings.permissions.view{PascalPlural} / create{PascalPlural}.
-export const PERMISSION_LABEL_KEYS: Record<PermissionKey, string> = Object.fromEntries(
-  TOOLS.flatMap((tool) => [
+// tool, derived: settings.permissions.view{PascalPlural} / create{PascalPlural},
+// plus settings.permissions.<key> for each extra key.
+export const PERMISSION_LABEL_KEYS: Record<PermissionKey, string> = Object.fromEntries([
+  ...TOOLS.flatMap((tool) => [
     [toolViewPermission(tool), `settings.permissions.view${toolPascalPlural(tool)}`],
     [toolCreatePermission(tool), `settings.permissions.create${toolPascalPlural(tool)}`],
-  ])
-) as Record<PermissionKey, string>;
+  ]),
+  ...EXTRA_PERMISSION_KEYS.map((key) => [key, `settings.permissions.${key}`]),
+]) as Record<PermissionKey, string>;

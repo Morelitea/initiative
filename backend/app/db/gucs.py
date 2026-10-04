@@ -198,7 +198,6 @@ SESSION_AMR = Guc("app.session_amr", Kind.NAMES)
 
 # --- What narrows the read ----------------------------------------------------
 SCOPE_INITIATIVE_ID = Guc("app.scope_initiative_id", Kind.INT)
-VIA_DASHBOARD_ID = Guc("app.via_dashboard_id", Kind.INT)
 #: The statement is reader-written, on the query surface.
 QUERY = Guc("app.query", Kind.BOOL, read_once=True)
 
@@ -287,7 +286,6 @@ REQUEST_GUCS: tuple[Guc, ...] = (
     PLATFORM_FACTOR,
     BILLING_GUILD_ID,
     SCOPE_INITIATIVE_ID,
-    VIA_DASHBOARD_ID,
     QUERY,
     GUILD_AUTH_OK,
     INSTALL_ID,

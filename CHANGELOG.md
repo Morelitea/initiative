@@ -19,6 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Moderators can revoke someone's API keys** from **Operator dashboard › Users**.
 - **Prometheus metrics** for pages opened, tools created and active accounts, and **opt-in browser analytics** through Grafana Faro (`FARO_COLLECTOR_URL`). See **Running a server › Configuration**.
 - **Follow the help requests you've filed** from **My Tickets** in the sidebar: where each stands, what the team said, and your answers, updated as they come. The team replies from a panel on the case, kept apart from its comments. **Server operators:** on the **Intake** page, pick the statuses that wait on the requester and that their answer moves a case to (**Set this up for me** creates both); security and moderation each need an initiative of their own.
+- **Run a dashboard as Individual or Initiative.** Under a dashboard's **Settings → Details**: Individual (the default) shows each person only what they can see; Initiative shows everyone the same numbers, with full read access to the initiative. A new role permission, **Run dashboards as Initiative**, says who may turn it on or change such a dashboard's tiles; managers always can.
+- **Filters can match all or any.** Choose once at the top, add a group for the other kind, and choose to leave out, include, or count only archived work and templates. Deleted things are never counted.
+- **A timeline can be drawn in years.**
 
 ### Changed
 
@@ -50,6 +53,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The app asks where your Initiative runs** on its first screen, and signed-out pages show which server you're on.
 - **The app opens faster.**
 - **Documentation and Ask for help are separate buttons** at the foot of the sidebar.
+- **Clearer query builder.** Plain names for columns and fields ("Due date", not `due_date`) and shorter, plainer wording throughout.
+- **"Published figures" are removed.** **Run dashboard as → Initiative** replaces them. A dashboard that published figures goes back to showing each person their own numbers on upgrade; switch it to Initiative to share them again.
 
 ### Fixed
 
@@ -73,6 +78,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **New queue items and events attach only things from their own initiative.**
 - **Project filter presets show in your language**, and the time zone picker shows UTC.
 - **An account made through a provider with no email address can make a confirmed address its primary.**
+- **Grouping by week, month, quarter or year works in charts.** Dates showed as long raw numbers and came back out of order; they're now labelled by their period and sorted oldest first.
+- **Heatmaps show weekly, monthly, quarterly and yearly data** instead of scattering it over a day calendar.
 
 ## [0.74.0] - 2026-10-01
 

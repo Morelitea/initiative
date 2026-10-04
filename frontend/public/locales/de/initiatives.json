@@ -249,7 +249,8 @@
       "viewShort": "Ansehen",
       "createShort": "Erstellen",
       "viewWikis": "Wikis ansehen",
-      "createWikis": "Wikis erstellen"
+      "createWikis": "Wikis erstellen",
+      "dashboards_run_as_initiative": "Dashboards als Initiative ausführen"
     },
     "handleColumn": "Handle",
     "toolAudience": {

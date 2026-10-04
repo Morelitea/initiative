@@ -189,7 +189,6 @@ async def read_initiative_sharing(
                 all_initiative_members=item.all_initiative_members,
                 user_grant_count=item.user_grant_count,
                 role_grant_count=item.role_grant_count,
-                via_dashboard=item.via_dashboard,
             )
             for item in items
         ]

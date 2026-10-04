@@ -17,6 +17,7 @@ import {
   Tool,
 } from "@/api/generated/initiativeAPI.schemas";
 import { TOOL_SKETCHES } from "@/components/initiatives/ToolSkeletons";
+import { EXTRA_PERMISSION_KEYS } from "@/hooks/useInitiativeRoles";
 import { PALETTE_TOOLS, TOOL_PALETTE } from "@/lib/toolPalette";
 import { TOOL_HAS_DETAIL } from "@/lib/toolRows";
 import {
@@ -100,7 +101,10 @@ describe("tool registry", () => {
   });
 
   it("derives the exact permission keys the API exposes", () => {
-    const derived = TOOLS.flatMap((tool) => [toolViewPermission(tool), toolCreatePermission(tool)]);
+    const derived = [
+      ...TOOLS.flatMap((tool) => [toolViewPermission(tool), toolCreatePermission(tool)]),
+      ...EXTRA_PERMISSION_KEYS,
+    ];
     expect(derived.sort()).toEqual(Object.values(PermissionKey).sort());
   });
 

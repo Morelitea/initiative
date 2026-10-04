@@ -82,7 +82,6 @@
     "description": "How widely each thing here is reached. Open one to change it.",
     "empty": "Nothing here has been shared with anybody in particular.",
     "everyone": "Everyone here",
-    "viaDashboard": "Through a dashboard",
     "people_one": "{{count}} person",
     "people_other": "{{count}} people",
     "roles_one": "{{count}} role",

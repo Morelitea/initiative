@@ -248,10 +248,6 @@
   "QUERY_RESERVED_NAME": "„me“ steht für die lesende Person und kann deshalb nichts anderes benennen.",
   "QUERY_VIEWER_NEEDS_A_PERSON": "Vergleiche „me“ mit einem Feld, das eine Person enthält.",
   "DASHBOARD_WIDGET_HAS_NO_QUERY": "Dieses Widget hat keine Abfrage.",
-  "DASHBOARD_PUBLISH_BEYOND_YOUR_REACH": "Du kannst nur veröffentlichen, was du selbst öffnen kannst.",
-  "DASHBOARD_EDIT_NEEDS_THE_PUBLISHED_ACCESS": "Diese Änderung setzt Zugriff auf alles voraus, was das Dashboard veröffentlicht.",
-  "DASHBOARD_PUBLISHED_VIEW_HAS_NO_READER": "Eine veröffentlichte Zahl ist für alle dieselbe und kann daher nicht nach „me“ fragen.",
-  "SHARING_DASHBOARD_GRANT_NOT_SET_HERE": "Eine veröffentlichte Zahl wird im veröffentlichenden Dashboard verwaltet.",
   "SHARING_APP_INSTALL_GRANT_NOT_SET_HERE": "Der Zugriff einer App wird in den Einstellungen der App erteilt, nicht hier.",
   "QUERY_TOO_EXPENSIVE": "Diese Abfrage verlangt mehr Arbeit, als eine Abfrage leisten darf. Grenze sie ein — weniger Tabellen oder ein Filter, der die Zeilen reduziert.",
   "QUERY_TIMED_OUT": "Diese Abfrage hat zu lange gedauert und wurde abgebrochen.",
@@ -785,5 +781,7 @@
   "APP_SERVICE_VENDOR_SETUP_FAILED": "GitHub hat die Werte der neuen App nicht übergeben. Starte die Einrichtung neu.",
   "APP_CHANNEL_CONNECTION_EXPIRED": "Diese Verbindung ist abgelaufen, und das Mitglied muss sich erneut verbinden.",
   "APP_CHANNEL_CONNECTION_NO_TOKEN": "Diese Verbindung hält kein Token, das ausgegeben werden kann.",
-  "APP_CHANNEL_TOKEN_UNAVAILABLE": "Der Anbieter hat kein Token ausgegeben. Versuche es gleich noch einmal."
+  "APP_CHANNEL_TOKEN_UNAVAILABLE": "Der Anbieter hat kein Token ausgegeben. Versuche es gleich noch einmal.",
+  "DASHBOARD_VIEW_MODE_NOT_ALLOWED": "Deine Rolle darf Dashboards nicht als Initiative ausführen. Frag eine Initiativleitung.",
+  "DASHBOARD_VIEW_MODE_EDIT_NOT_ALLOWED": "Dieses Dashboard läuft als Initiative, daher brauchst du zum Ändern der Widgets die Berechtigung, Dashboards als Initiative auszuführen. Stelle „Dashboard ausführen als“ auf Einzelperson, um zu bearbeiten."
 }

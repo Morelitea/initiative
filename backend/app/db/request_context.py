@@ -231,7 +231,6 @@ def _person_values(
         gucs.PAM_READ: pam_read,
         gucs.PAM_WRITE: pam_write,
         gucs.SCOPE_INITIATIVE_ID: getattr(shape, "scope_initiative_id", None),
-        gucs.VIA_DASHBOARD_ID: getattr(shape, "via_dashboard_id", None),
         gucs.QUERY: getattr(shape, "query", False),
         gucs.GUILD_AUTH_OK: shape.sign_in.on_behalf
         or (standing is not None and standing.guild_auth_ok),
@@ -249,8 +248,7 @@ class Member:
     ``read_only`` is the community's content hold: the SELECT-only role, with
     the membership legs evaluated normally. ``seat`` is the seat's own
     configuration routes asking for the seat's role. ``query`` is the reader's
-    own SQL on the query surface, narrowed to ``scope_initiative_id`` and, for
-    a published view, answered through ``via_dashboard_id``'s grants.
+    own SQL on the query surface, narrowed to ``scope_initiative_id``.
     """
 
     guild_id: int
@@ -262,7 +260,6 @@ class Member:
     seat: bool = False
     query: bool = False
     scope_initiative_id: Optional[int] = None
-    via_dashboard_id: Optional[int] = None
     attributed = True
 
     def __post_init__(self) -> None:
@@ -318,7 +315,6 @@ class ContentGrantee:
     seat: bool = False
     query: bool = False
     scope_initiative_id: Optional[int] = None
-    via_dashboard_id: Optional[int] = None
     attributed = True
 
     def __post_init__(self) -> None:

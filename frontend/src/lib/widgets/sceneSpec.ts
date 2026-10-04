@@ -168,6 +168,11 @@ export interface Series {
  *  which is why there is no such value here. The axis, the legend, and the
  *  table view carry the rest. */
 export const SERIES_LABELS = ["none", "extremes", "end"] as const;
+
+/** How far apart the x positions of a time series are, when x is a moment.
+ *  The renderer labels each point at that grain ("Mar 2026", "Q1 2026"). */
+export const SERIES_TIME_UNITS = ["day", "week", "month", "quarter", "year"] as const;
+export type SeriesTimeUnit = (typeof SERIES_TIME_UNITS)[number];
 export type SeriesLabels = (typeof SERIES_LABELS)[number];
 
 /** Bars, lines, areas, or slices — the `chart` primitive's shape, and the one
@@ -180,6 +185,9 @@ export interface SeriesNode {
   format?: NumberFormat;
   xLabel?: string;
   yLabel?: string;
+  /** The x values are epoch milliseconds, one per this unit — a day, a week,
+   *  a month… The renderer formats them, because the sandbox has no locale. */
+  xTime?: SeriesTimeUnit;
   showLegend?: boolean;
   /** Direct labels on the marks. Omitted means none. */
   labels?: SeriesLabels;
@@ -258,7 +266,7 @@ export interface TimelineNode {
   start?: number;
   end?: number;
   /** Tick density hint. The renderer may coarsen it to fit the tile. */
-  scale?: "day" | "week" | "month" | "quarter";
+  scale?: "day" | "week" | "month" | "quarter" | "year";
   /** The instant to mark with the "today" line, as the widget saw it.
    *
    *  Carried on the scene rather than read from the renderer's own clock so a

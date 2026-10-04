@@ -8,7 +8,7 @@
  * correctly happen.
  */
 
-import type { NumberFormat } from "./sceneSpec";
+import type { NumberFormat, SeriesTimeUnit } from "./sceneSpec";
 
 const DURATION_UNITS: [number, string][] = [
   [86_400_000, "d"],
@@ -100,4 +100,38 @@ export const formatAxisValue = (
     }).format(new Date(value));
   }
   return formatValue(value, format ?? "compact", options);
+};
+
+/** A moment on a time series, labelled at the grain the series is grouped by.
+ *
+ *  Read in UTC: the database rounds a date down to its day, week, month… at
+ *  midnight UTC, and reading that in a timezone west of it would label every
+ *  point with the day before. */
+export const formatTimeBucket = (
+  value: string | number,
+  unit: SeriesTimeUnit,
+  options: FormatOptions = {}
+): string => {
+  const at = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(at)) return String(value);
+  const date = new Date(at);
+  const utc = { timeZone: "UTC" } as const;
+  switch (unit) {
+    case "year":
+      return String(date.getUTCFullYear());
+    case "quarter":
+      return `Q${Math.floor(date.getUTCMonth() / 3) + 1} ${date.getUTCFullYear()}`;
+    case "month":
+      return new Intl.DateTimeFormat(options.locale, {
+        ...utc,
+        month: "short",
+        year: "numeric",
+      }).format(date);
+    default:
+      return new Intl.DateTimeFormat(options.locale, {
+        ...utc,
+        month: "short",
+        day: "numeric",
+      }).format(date);
+  }
 };
