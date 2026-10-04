@@ -87,6 +87,7 @@
 				504EC3001FED79650016851F /* Sources */,
 				504EC3011FED79650016851F /* Frameworks */,
 				504EC3021FED79650016851F /* Resources */,
+				7A1C0E5B2F4D3A1E00C0FFEE /* Stamp Initiative version */,
 			);
 			buildRules = (
 			);
@@ -153,6 +154,28 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		7A1C0E5B2F4D3A1E00C0FFEE /* Stamp Initiative version */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Stamp Initiative version";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# The app reports the release it was built from, read from the repository VERSION file.\nVERSION_FILE=\"${SRCROOT}/../../../VERSION\"\nif [ ! -f \"$VERSION_FILE\" ]; then\n  echo \"error: VERSION not found at $VERSION_FILE\"\n  exit 1\nfi\nversion=$(tr -d \"[:space:]\" < \"$VERSION_FILE\")\n/usr/libexec/PlistBuddy -c \"Set :CFBundleShortVersionString ${version}\" \"${TARGET_BUILD_DIR}/${INFOPLIST_PATH}\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		504EC3001FED79650016851F /* Sources */ = {

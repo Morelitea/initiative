@@ -3,6 +3,7 @@
  * show the kind of server as a chip; signing in or up in the app picks one
  * inside the card and keeps the address it was given.
  */
+import { Capacitor } from "@capacitor/core";
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
@@ -14,7 +15,12 @@ import { freshAnswers, readStartDraft, saveStartDraft } from "@/lib/startFlow";
 
 import { ServerChip, ServerPicker, ServerSubtitle } from "./ServerChoice";
 
-const mocks = vi.hoisted(() => ({ clearStart: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  clearStart: vi.fn(),
+  appEnvironment: vi.fn(async () => ({}) as { cleartextPermitted?: boolean }),
+}));
+
+vi.mock("@/plugins/appEnvironment", () => ({ default: { get: () => mocks.appEnvironment() } }));
 
 vi.mock("@/lib/startFlow", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/startFlow")>();
@@ -105,6 +111,36 @@ describe("ServerPicker", () => {
     expect(readStartDraft()).toBeNull();
     expect(getSelfHostedAddress()).toBe("https://new.example.com");
   });
+
+  it.each([
+    ["an Android release build", "android", false, /https servers only/i],
+    ["an Android debug build", "android", true, /could not connect to server/i],
+    ["an iPhone", "ios", undefined, /https servers only/i],
+    ["the desktop app", "electron", undefined, /could not connect to server/i],
+  ])(
+    "on %s, says why a plain-HTTP address did not connect",
+    async (_, platform, cleartext, message) => {
+      const user = userEvent.setup();
+      vi.spyOn(Capacitor, "getPlatform").mockReturnValue(platform as string);
+      mocks.appEnvironment.mockResolvedValueOnce({
+        cleartextPermitted: cleartext as boolean | undefined,
+      });
+      renderWithProviders(<ServerPicker />, {
+        server: {
+          isNativePlatform: true,
+          serverUrl: null,
+          testServerConnection: vi.fn().mockResolvedValue({ valid: false }),
+        },
+      });
+
+      const address = screen.getByRole("textbox", { name: /server address/i });
+      await user.clear(address);
+      await user.type(address, "http://192.168.1.20:8000");
+      await user.click(screen.getByRole("button", { name: /^connect$/i }));
+
+      expect(await screen.findByText(message)).toBeInTheDocument();
+    }
+  );
 
   it("says the app is connected to the address it shows", () => {
     setSelfHostedAddress("https://home.example.com");

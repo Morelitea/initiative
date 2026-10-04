@@ -1,3 +1,4 @@
+import { Capacitor } from "@capacitor/core";
 import { Check, ChevronDown } from "lucide-react";
 import { type FormEvent, type ReactNode, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
@@ -23,6 +24,7 @@ import { normalizeServerUrl, useServer } from "@/hooks/useServer";
 import { getSelfHostedAddress, setSelfHostedAddress } from "@/lib/serverStorage";
 import { clearStart } from "@/lib/startFlow";
 import { cn } from "@/lib/utils";
+import AppEnvironment from "@/plugins/appEnvironment";
 
 /**
  * The kind of server a sign-in goes to, where it cannot be changed: in a
@@ -162,6 +164,19 @@ const ServerAddressForm = ({ onConnected }: { onConnected?: () => void }) => {
   const isCurrent =
     serverUrl !== null && trimmed !== "" && normalizeServerUrl(trimmed) === serverUrl;
 
+  // A phone app that cannot reach plain-HTTP servers says so when an http:// address fails.
+  // iOS never can; an Android release build cannot, while a debug build can.
+  const failure = async (fallback: string) => {
+    if (!/^http:\/\//i.test(trimmed)) return fallback;
+    const platform = Capacitor.getPlatform();
+    if (platform === "ios") return t("server.httpsOnly");
+    if (platform !== "android") return fallback;
+    const { cleartextPermitted } = await AppEnvironment.get().catch(() => ({
+      cleartextPermitted: undefined,
+    }));
+    return cleartextPermitted === false ? t("server.httpsOnly") : fallback;
+  };
+
   const handleConnect = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!trimmed || isCurrent) return;
@@ -170,7 +185,7 @@ const ServerAddressForm = ({ onConnected }: { onConnected?: () => void }) => {
     try {
       const result = await testServerConnection(trimmed);
       if (!result.valid) {
-        setError(result.error ?? t("server.connectError"));
+        setError(await failure(result.error ?? t("server.connectError")));
         return;
       }
       // A sign-up begun on one server stays there, and leaving a server signs
@@ -181,7 +196,7 @@ const ServerAddressForm = ({ onConnected }: { onConnected?: () => void }) => {
       await setServerUrl(trimmed);
       onConnected?.();
     } catch {
-      setError(t("server.connectError"));
+      setError(await failure(t("server.connectError")));
     } finally {
       setConnecting(false);
     }

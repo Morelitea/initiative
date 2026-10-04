@@ -8,6 +8,7 @@
  * it with a dialog and tries again.
  */
 
+import { Capacitor } from "@capacitor/core";
 import { type ComponentProps, type ReactNode, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -32,6 +33,9 @@ import { assertForBreakGlass, describePasskeyPromptError } from "@/lib/passkeys"
 import { classifySecondFactorAnswer } from "@/lib/secondFactorAnswer";
 
 type BillingConsole = "support" | "operator";
+
+/** The billing portal is opened from the website and the other apps, never from the iPhone app. */
+export const opensBillingHere = () => Capacitor.getPlatform() !== "ios";
 
 export const BillingConsoleButton = ({
   community,
@@ -81,6 +85,10 @@ export const BillingConsoleButton = ({
       setOpening(false);
     }
   };
+
+  if (!opensBillingHere()) {
+    return <span className="text-sm">{children}</span>;
+  }
 
   return (
     <>

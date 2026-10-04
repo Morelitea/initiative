@@ -46,7 +46,8 @@ android {
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
         applicationId "com.morelitea.initiative" + appIdSuffix
-        manifestPlaceholders = [appLabel: appLabel]
+        // Plain-HTTP servers only in a debug build, for testing against a server on the LAN.
+        manifestPlaceholders = [appLabel: appLabel, usesCleartextTraffic: "false"]
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode appVersionCode
@@ -69,6 +70,9 @@ android {
         }
     }
     buildTypes {
+        debug {
+            manifestPlaceholders = [usesCleartextTraffic: "true"]
+        }
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
