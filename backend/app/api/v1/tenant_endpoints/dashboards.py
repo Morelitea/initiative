@@ -479,7 +479,9 @@ def _widget_ids(definition: dict[str, Any] | None) -> list[str]:
 def _query_response(result: query_service.QueryResult) -> QueryResponse:
     return QueryResponse(
         columns=[
-            QueryColumnDescription(name=column.name, type=column.type)
+            QueryColumnDescription(
+                name=column.name, type=column.type, grain=column.grain
+            )
             for column in result.columns
         ],
         rows=[list(row) for row in result.rows],

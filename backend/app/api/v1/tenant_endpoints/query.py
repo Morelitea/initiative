@@ -79,7 +79,8 @@ def _described(
 ) -> list[QueryColumnDescription]:
     """The executor's columns on the wire. Both endpoints answer with them."""
     return [
-        QueryColumnDescription(name=column.name, type=column.type) for column in columns
+        QueryColumnDescription(name=column.name, type=column.type, grain=column.grain)
+        for column in columns
     ]
 
 

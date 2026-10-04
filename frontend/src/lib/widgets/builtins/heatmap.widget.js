@@ -68,6 +68,15 @@ const strings = {
     Dec: { en: "Dec", de: "Dez", es: "Dic", fr: "Déc" },
   },
   week: { en: "Weeks", de: "Wochen", es: "Semanas", fr: "Semaines" },
+  // "{n}" is the quarter's number.
+  quarter: { en: "Q{n}", de: "Q{n}", es: "T{n}", fr: "T{n}" },
+  // "{date}" is the week's first day.
+  weekOf: {
+    en: "Week of {date}",
+    de: "Woche ab {date}",
+    es: "Semana del {date}",
+    fr: "Semaine du {date}",
+  },
   weekdays: {
     Sun: { en: "Sun", de: "So", es: "Dom", fr: "Dim" },
     Mon: { en: "Mon", de: "Mo", es: "Lun", fr: "Lun" },
@@ -104,6 +113,9 @@ function render(data, config, context) {
     return entry[lang] || entry[lang.split("-")[0]] || entry.en || key;
   };
   const DAY = 86400000;
+  /** A cell's hover text: the period it is, then the count in it. */
+  const cellLabel = (period, count) => period + ": " + count;
+  const fill = (template, key, value) => template.split("{" + key + "}").join(value);
   const empty = (message) => ({ v: 1, scene: { kind: "empty", message } });
 
   /** Weekday and month names in the viewer's language. Short forms, because
@@ -162,7 +174,7 @@ function render(data, config, context) {
         x: column,
         y: at.getUTCDay(),
         value: day.count,
-        label: day.count + " on " + at.toISOString().slice(0, 10),
+        label: cellLabel(at.toISOString().slice(0, 10), day.count),
       });
     }
     if (!cells.length) return empty(say("nothingRecorded"));
@@ -202,26 +214,6 @@ function render(data, config, context) {
   const tone =
     config.tone === "positive" ? "positive" : config.tone === "warning" ? "warning" : "accent";
 
-  /**
-   * How far apart the dates are. A statement grouped by week, month, quarter
-   * or year rounds every date down to the start of one, and drawing those on a
-   * day grid would leave one lit cell per week, month or year.
-   */
-  const grainOf = (days) => {
-    const moments = days.map((day) => new Date(day.date));
-    if (moments.length < 2) return "day";
-    const every = (test) => moments.every(test);
-    const midnight = (at) =>
-      at.getUTCHours() === 0 && at.getUTCMinutes() === 0 && at.getUTCSeconds() === 0;
-    if (!every(midnight)) return "day";
-    const first = (at) => at.getUTCDate() === 1;
-    if (every((at) => first(at) && at.getUTCMonth() === 0)) return "year";
-    if (every((at) => first(at) && at.getUTCMonth() % 3 === 0)) return "quarter";
-    if (every(first)) return "month";
-    if (every((at) => at.getUTCDay() === 1)) return "week";
-    return "day";
-  };
-
   /** One cell per period: months and quarters as a row per year, weeks and
    *  years as one strip. */
   const periods = (days, grain) => {
@@ -236,7 +228,10 @@ function render(data, config, context) {
 
     if (grain === "month" || grain === "quarter") {
       const perYear = grain === "month" ? 12 : 4;
-      xLabels = grain === "month" ? MONTHS.slice() : ["Q1", "Q2", "Q3", "Q4"];
+      xLabels =
+        grain === "month"
+          ? MONTHS.slice()
+          : [1, 2, 3, 4].map((n) => fill(say("quarter"), "n", String(n)));
       yLabels = [];
       for (let year = firstYear; year <= lastYear; year++) yLabels.push(String(year));
       for (const day of sorted) {
@@ -246,7 +241,7 @@ function render(data, config, context) {
           x: slot % perYear,
           y: at.getUTCFullYear() - firstYear,
           value: day.count,
-          label: day.count + " in " + xLabels[slot] + " " + at.getUTCFullYear(),
+          label: cellLabel(xLabels[slot] + " " + at.getUTCFullYear(), day.count),
         });
       }
     } else if (grain === "year") {
@@ -257,7 +252,7 @@ function render(data, config, context) {
           x: year - firstYear,
           y: 0,
           value: day.count,
-          label: day.count + " in " + year,
+          label: cellLabel(String(year), day.count),
         });
       }
     } else {
@@ -277,7 +272,7 @@ function render(data, config, context) {
           x: Math.round((day.date - anchor) / (7 * DAY)),
           y: 0,
           value: day.count,
-          label: day.count + " in the week of " + at.toISOString().slice(0, 10),
+          label: cellLabel(fill(say("weekOf"), "date", at.toISOString().slice(0, 10)), day.count),
         });
       }
     }
@@ -314,6 +309,9 @@ function render(data, config, context) {
     date: row[atColumn],
     count: typeof row[valueAt] === "number" ? row[valueAt] : 0,
   }));
-  const grain = grainOf(days);
-  return grain === "day" ? grid(days) : periods(days, grain);
+  // The period the statement rounded the date to. A plain date is a day.
+  const grain = (data.columns || [])[atColumn]?.grain;
+  return grain === "week" || grain === "month" || grain === "quarter" || grain === "year"
+    ? periods(days, grain)
+    : grid(days);
 }

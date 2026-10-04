@@ -401,32 +401,17 @@ function render(data, config, context) {
   const nameOf = (index) => (columns[index] ? columns[index].name : say("series"));
 
   // A date label is a moment in epoch milliseconds. It stays a number, and the
-  // scene says how far apart the moments are, so the app can label each one
+  // scene says which period each point is — the unit the statement rounded
+  // the column to, or a day for a plain date — so the app can label it
   // "Mar 2026" or "Q1 2026" rather than printing the raw number.
-  const timed = labelAt !== undefined && columns[labelAt] && columns[labelAt].type === "date";
-  const timeUnit = () => {
-    const moments = [];
-    for (const row of rows) {
-      if (typeof row[labelAt] === "number") moments.push(new Date(row[labelAt]));
-    }
-    if (!moments.length) return undefined;
-    const every = (test) => moments.every(test);
-    const midnight = (at) =>
-      at.getUTCHours() === 0 && at.getUTCMinutes() === 0 && at.getUTCSeconds() === 0;
-    if (!every(midnight)) return "day";
-    const firstOfMonth = (at) => at.getUTCDate() === 1;
-    if (every((at) => firstOfMonth(at) && at.getUTCMonth() === 0) && moments.length > 1) {
-      return "year";
-    }
-    if (every((at) => firstOfMonth(at) && at.getUTCMonth() % 3 === 0) && moments.length > 1) {
-      return "quarter";
-    }
-    if (every(firstOfMonth) && moments.length > 1) return "month";
-    // date_trunc('week') lands on a Monday.
-    if (every((at) => at.getUTCDay() === 1) && moments.length > 1) return "week";
-    return "day";
-  };
-  const xTime = timed ? timeUnit() : undefined;
+  const GRAINS = ["day", "week", "month", "quarter", "year"];
+  const labelColumn = labelAt !== undefined ? columns[labelAt] : undefined;
+  const xTime =
+    labelColumn && labelColumn.type === "date"
+      ? GRAINS.indexOf(labelColumn.grain) >= 0
+        ? labelColumn.grain
+        : "day"
+      : undefined;
 
   const labelOf = (row, rowIndex) => {
     if (labelAt === undefined || row[labelAt] === null) return rowIndex + 1;

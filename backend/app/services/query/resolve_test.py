@@ -649,3 +649,22 @@ class TestAConstantACastNamesTheTypeOf:
         )
         assert statement.parameters == ("high",)
         assert "'7 days'" in statement.sql
+
+
+@pytest.mark.parametrize(
+    ("sql", "grains"),
+    [
+        (
+            "SELECT date_trunc('month', due_date) AS m, count(*) AS n "
+            "FROM tasks GROUP BY 1",
+            ("month", None),
+        ),
+        ("SELECT DATE_TRUNC('Quarter', due_date) FROM tasks", ("quarter",)),
+        ("SELECT due_date, title FROM tasks", (None, None)),
+        ("SELECT date_trunc('hour', due_date) FROM tasks", (None,)),
+    ],
+)
+def test_a_rounded_date_says_what_it_is_rounded_to(sql, grains):
+    """A chart labels a period by the unit the statement rounded to, not by
+    guessing from the dates that came back."""
+    assert resolve(sql).column_grains == grains

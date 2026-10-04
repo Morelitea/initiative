@@ -721,6 +721,7 @@ export const FieldType = {
 export interface QueryColumnDescription {
   name: string;
   type: FieldType;
+  grain?: string | null;
 }
 
 /**

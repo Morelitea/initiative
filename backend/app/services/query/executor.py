@@ -73,6 +73,8 @@ class QueryColumn:
 
     name: str
     type: FieldType
+    #: The period the column is rounded to (``date_trunc``'s unit), or ``None``.
+    grain: str | None = None
 
 
 #: What a Postgres type is, in the vocabulary the field registry already uses.
@@ -162,6 +164,7 @@ async def _described(
         connection, {attribute.type.oid for attribute in attributes}
     )
     declared = statement.column_types
+    grains = statement.column_grains
     return tuple(
         QueryColumn(
             name=attribute.name,
@@ -170,6 +173,7 @@ async def _described(
                 if position < len(declared) and declared[position] is not None
                 else _column_type(attribute, enum_oids)
             ),
+            grain=grains[position] if position < len(grains) else None,
         )
         for position, attribute in enumerate(attributes)
     )

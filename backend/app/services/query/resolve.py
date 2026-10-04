@@ -78,6 +78,10 @@ class ResolvedQuery:
     #: name one. ``None`` where the output is an expression rather than a
     #: field, and the database is the one to describe it.
     column_types: tuple[FieldType | None, ...] = ()
+    #: The period each output column is rounded to, by position: the unit of a
+    #: ``date_trunc`` the column is, or ``None``. A chart labels a point by it
+    #: ("Mar 2026", "Q1 2026") instead of guessing from the dates it got back.
+    column_grains: tuple[str | None, ...] = ()
     #: Whether the statement asked about whoever is reading it. A caller that
     #: needs one answer for everybody has to know, because this is the one
     #: thing in the language that makes a statement answer differently per
@@ -555,6 +559,29 @@ def _output_types(
     return tuple(_target_type(target, scope) for target in select.targetList or ())
 
 
+#: The units of ``date_trunc`` a column may be labelled by.
+GRAINS = frozenset({"day", "week", "month", "quarter", "year"})
+
+
+def _output_grains(select: ast.SelectStmt) -> tuple[str | None, ...]:
+    """The period each output column is rounded to, read before the literals
+    are bound: a target that is ``date_trunc('<unit>', …)`` is that unit."""
+    return tuple(_target_grain(target) for target in select.targetList or ())
+
+
+def _target_grain(target: ast.ResTarget) -> str | None:
+    call = target.val
+    if not isinstance(call, ast.FuncCall):
+        return None
+    if _name_parts(call.funcname)[-1:] != ["date_trunc"]:
+        return None
+    args = call.args or ()
+    if not args or not isinstance(args[0], ast.A_Const):
+        return None
+    unit = getattr(args[0].val, "sval", None)
+    return unit.lower() if isinstance(unit, str) and unit.lower() in GRAINS else None
+
+
 def _target_type(target: ast.ResTarget, scope: dict[str, str]) -> FieldType | None:
     spec = _target_spec(target, scope)
     return spec.type if spec is not None else None
@@ -863,6 +890,7 @@ def resolve(sql: str) -> ResolvedQuery:
     _expand_relations(select)
     scope = _relations(select)
     column_types = _output_types(select, scope)
+    column_grains = _output_grains(select)
     _check_viewer(select, scope)
     _resolve_columns(select, scope)
     parameters = _bind_literals(select)
@@ -872,5 +900,6 @@ def resolve(sql: str) -> ResolvedQuery:
         parameters=parameters,
         relations=tuple(sorted(set(scope.values()))),
         column_types=column_types,
+        column_grains=column_grains,
         names_the_reader=names_the_reader,
     )
