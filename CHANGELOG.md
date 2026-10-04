@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Billing insights** for operators and owners, under **Operator dashboard → Billing** on servers connected to a billing service: revenue, subscribers and cancellations across every community, without opening any one of them. The new `billing.insights` capability gates it.
 - **"This wasn't me" in account emails.** Signs your account out everywhere and turns off its API keys. When a change looks out of place, the email to your other addresses can undo it too.
 - **Some sign-in changes wait two days** when made from somewhere your account is new to, with **Cancel the change** in every email and in your settings. Signing in with a passkey skips the wait.
 - **Remove a phone or computer** from **User settings › Security › Where you're signed in**. It is signed out and loses the messages only it held.

@@ -581,6 +581,7 @@ export interface BillingConfig {
   url: string;
   operator_handoff?: boolean;
   manages_plans?: boolean;
+  insights?: boolean;
 }
 
 /**
@@ -2071,6 +2072,7 @@ export const Capability = {
   usersmanage: "users.manage",
   usersdelete: "users.delete",
   communitiesmanage: "communities.manage",
+  billinginsights: "billing.insights",
   announcementsmanage: "announcements.manage",
   rolesassign: "roles.assign",
   databypass: "data.bypass",

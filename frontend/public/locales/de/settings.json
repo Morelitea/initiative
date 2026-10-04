@@ -1115,7 +1115,8 @@
       "access": "Zugriff",
       "communities": "Communitys",
       "placement": "Zuordnung bei Anmeldung",
-      "announcements": "Ankündigungen"
+      "announcements": "Ankündigungen",
+      "billing": "Abrechnung"
     }
   },
   "providerPlacement": {
@@ -1955,5 +1956,17 @@
       "offHelp": "Benachrichtigungen zu dieser Community nennen, worum es geht, sobald sie die App verlassen.",
       "platformHelp": "Dieser Server blendet Details überall aus – diese Community ist bereits abgedeckt."
     }
+  },
+  "billingInsights": {
+    "title": "Abrechnungskennzahlen",
+    "description": "Wie das Geschäft über alle Communities läuft: Umsatz, Abonnenten und Kündigungen.",
+    "fromPaddle": "Umsatz, wiederkehrender Umsatz, Erstattungen, Rückbuchungen und Abonnentenzahlen kommen direkt vom Zahlungsanbieter, so wie er sie berechnet hat.",
+    "fromBilling": "Communities nach Tarif, Testphasen, überfällige Zahlungen und Kündigungen kommen aus den eigenen Daten der Abrechnung.",
+    "noCommunity": "Es öffnet keine Community und braucht keine Zugriffsfreigabe: Nichts auf der Seite nennt eine Community, einen Kunden oder eine Person.",
+    "open": "Abrechnungskennzahlen öffnen",
+    "opening": "Wird geöffnet…",
+    "openError": "Die Abrechnungskennzahlen konnten nicht geöffnet werden.",
+    "notConfigured": "Diese Installation hat keinen Abrechnungsdienst oder keinen Signaturschlüssel für die Übergabe.",
+    "platformOnly": "Abrechnungskennzahlen sind für Plattformbetreiber und Eigentümer."
   }
 }

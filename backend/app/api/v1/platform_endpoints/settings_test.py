@@ -1101,6 +1101,7 @@ async def test_a_zero_hour_limit_is_refused(client: AsyncClient, owner):
 
 _CONFIG_MANAGE = "config.manage"  # owner only
 _GUILDS_MANAGE = "communities.manage"  # operator and owner
+_BILLING_INSIGHTS = "billing.insights"  # operator and owner
 
 #: (capability, method, path — ``{community_id}`` is filled in, json body or None)
 _ROUTES: list[tuple[str, str, str, dict | None]] = [
@@ -1125,6 +1126,7 @@ _ROUTES: list[tuple[str, str, str, dict | None]] = [
     (_GUILDS_MANAGE, "patch", GUILDS + "/{community_id}", {"max_storage_bytes": 1024}),
     (_GUILDS_MANAGE, "patch", GUILDS + "/{community_id}", {"status": "suspended"}),
     (_GUILDS_MANAGE, "post", GUILDS + "/{community_id}/billing/service-handoff", None),
+    (_BILLING_INSIGHTS, "post", "/api/v1/settings/billing/insights-handoff", None),
 ]
 
 #: The tiers each capability sits above.
@@ -1136,6 +1138,7 @@ _BELOW_THE_BAR: dict[str, list[UserRole]] = {
         UserRole.operator,
     ],
     _GUILDS_MANAGE: [UserRole.member, UserRole.support, UserRole.moderator],
+    _BILLING_INSIGHTS: [UserRole.member, UserRole.support, UserRole.moderator],
 }
 
 
@@ -1341,3 +1344,80 @@ async def test_cookie_consent_is_owner_only(client, operator):
     )
 
     assert response.status_code == 403
+
+
+# --- Operator dashboard: the billing insights page ---
+
+_INSIGHTS = "/api/v1/settings/billing/insights-handoff"
+
+
+async def test_the_insights_handoff_names_a_person_and_no_community(
+    client: AsyncClient, operator, monkeypatch, handoff_signing_key
+) -> None:
+    """RS256 under the portal's key, its own audience, and nothing about any
+    community or grant — the page it opens shows none."""
+    import jwt
+
+    from app.core.config import settings as app_settings
+    from app.core.security import BILLING_INSIGHTS_AUDIENCE
+
+    monkeypatch.setattr(app_settings, "BILLING_URL", "https://billing.example.com")
+
+    resp = await client.post(_INSIGHTS, headers=operator.headers)
+
+    assert resp.status_code == 200, resp.text
+    token = resp.json()["handoff_token"]
+    payload = jwt.decode(
+        token,
+        handoff_signing_key,
+        algorithms=["RS256"],
+        audience=BILLING_INSIGHTS_AUDIENCE,
+        issuer="initiative",
+    )
+    assert payload["sub"].startswith("ubil_")
+    for absent in ("guild_ref", "guild_id", "community_ref", "grant_id", "user_id"):
+        assert absent not in payload
+
+
+@pytest.mark.parametrize(
+    "billing_url,signing,expected,detail",
+    [
+        pytest.param(None, True, 404, "BILLING_PORTAL_NOT_CONFIGURED", id="no-portal"),
+        pytest.param(
+            "https://billing.example.com",
+            False,
+            503,
+            "BILLING_PORTAL_SIGNING_NOT_CONFIGURED",
+            id="no-signing-key",
+        ),
+    ],
+)
+async def test_the_insights_button_says_what_the_deployment_is_missing(
+    client: AsyncClient, operator, monkeypatch, billing_url, signing, expected, detail
+) -> None:
+    from app.core.config import settings as app_settings
+
+    monkeypatch.setattr(app_settings, "BILLING_URL", billing_url)
+    if not signing:
+        monkeypatch.setattr(app_settings, "HANDOFF_SIGNING_PRIVATE_KEY_PEM", None)
+
+    resp = await client.post(_INSIGHTS, headers=operator.headers)
+
+    assert resp.status_code == expected
+    assert resp.json()["detail"] == detail
+
+
+@pytest.mark.parametrize("signing", [True, False])
+async def test_the_app_config_says_whether_insights_can_open(
+    client: AsyncClient, monkeypatch, handoff_signing_key, signing
+) -> None:
+    from app.core.config import settings as app_settings
+
+    monkeypatch.setattr(app_settings, "BILLING_URL", "https://billing.example.com")
+    if not signing:
+        monkeypatch.setattr(app_settings, "HANDOFF_SIGNING_PRIVATE_KEY_PEM", None)
+
+    resp = await client.get("/api/v1/config")
+
+    assert resp.status_code == 200
+    assert resp.json()["billing"]["insights"] is signing

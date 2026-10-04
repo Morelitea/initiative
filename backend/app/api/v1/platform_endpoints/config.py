@@ -16,7 +16,10 @@ from pydantic import BaseModel
 from app.api.deps import SessionDep
 from app.core.cookie_categories import active_cookie_categories
 from app.core.config import settings
-from app.core.security import billing_support_handoff_enabled
+from app.core.security import (
+    billing_insights_handoff_enabled,
+    billing_support_handoff_enabled,
+)
 from app.services.platform.billing import billing_managed
 from app.core.version import get_min_desktop_version, get_min_native_version
 from app.services import captcha as captcha_service
@@ -61,6 +64,9 @@ class BillingConfig(BaseModel):
     # entitlements. The Guilds tab then shows them read-only and offers only
     # a suspension as a status change.
     manages_plans: bool = False
+    # Whether the billing service's insights page can be opened from here:
+    # the operator dashboard's Billing tab shows its button only then.
+    insights: bool = False
 
 
 class AppConfig(BaseModel):
@@ -147,6 +153,7 @@ async def get_app_config(session: SessionDep) -> AppConfig:
             url=settings.BILLING_URL,
             operator_handoff=billing_support_handoff_enabled(),
             manages_plans=billing_managed(),
+            insights=billing_insights_handoff_enabled(),
         )
         if settings.BILLING_URL
         else None
