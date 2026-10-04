@@ -19,7 +19,11 @@ public class FirebaseRuntimePlugin: CAPPlugin, CAPBridgedPlugin {
         let enabled: Bool
     }
 
+    // Read and written on the main queue only. Each check takes a number, and only the
+    // latest one may change the answer, so a slow reply about a previous server cannot
+    // overwrite the current one.
     private var serverSendsPush = false
+    private var latestCheck = 0
 
     @objc func initialize(_ call: CAPPluginCall) {
         guard let serverUrl = call.getString("serverUrl"), !serverUrl.isEmpty else {
@@ -32,31 +36,45 @@ public class FirebaseRuntimePlugin: CAPPlugin, CAPBridgedPlugin {
             return
         }
 
-        URLSession.shared.dataTask(with: url) { [weak self] data, response, error in
-            guard error == nil,
-                  let status = (response as? HTTPURLResponse)?.statusCode, status == 200,
-                  let data = data,
-                  let config = try? JSONDecoder().decode(ServerConfig.self, from: data) else {
-                self?.serverSendsPush = false
-                call.resolve(["success": false, "message": "Could not read the server's push settings"])
-                return
-            }
-            self?.serverSendsPush = config.enabled
-            if config.enabled {
-                call.resolve(["success": true])
-            } else {
-                call.resolve(["success": false, "message": "Push notifications are off on this server"])
-            }
-        }.resume()
+        DispatchQueue.main.async {
+            self.latestCheck += 1
+            let check = self.latestCheck
+            URLSession.shared.dataTask(with: url) { [weak self] data, response, error in
+                var sendsPush = false
+                if error == nil,
+                   let status = (response as? HTTPURLResponse)?.statusCode, status == 200,
+                   let data = data,
+                   let config = try? JSONDecoder().decode(ServerConfig.self, from: data) {
+                    sendsPush = config.enabled
+                }
+                DispatchQueue.main.async {
+                    guard let self = self, check == self.latestCheck else {
+                        call.resolve(["success": false, "message": "A newer check replaced this one"])
+                        return
+                    }
+                    self.serverSendsPush = sendsPush
+                    if sendsPush {
+                        call.resolve(["success": true])
+                    } else {
+                        call.resolve(["success": false, "message": "Push notifications are off on this server"])
+                    }
+                }
+            }.resume()
+        }
     }
 
     @objc func isInitialized(_ call: CAPPluginCall) {
-        call.resolve(["initialized": serverSendsPush])
+        DispatchQueue.main.async {
+            call.resolve(["initialized": self.serverSendsPush])
+        }
     }
 
     /// Nothing is stored between launches: the server is asked again on each one.
     @objc func clearConfig(_ call: CAPPluginCall) {
-        serverSendsPush = false
-        call.resolve(["success": true])
+        DispatchQueue.main.async {
+            self.latestCheck += 1
+            self.serverSendsPush = false
+            call.resolve(["success": true])
+        }
     }
 }
