@@ -38,6 +38,8 @@ Either way Android will check that you meant to install something from outside t
 
 The first launch asks which Initiative it's talking to, because there are a lot of them and it can't guess. See [the mobile app](signing-in.md#the-mobile-app).
 
+It only talks to servers on a secure `https://` address. A server on plain `http://` won't connect from the app, though the browser still reaches it. Same answer as above: a question for whoever set the server up.
+
 ### It keeps itself current
 
 When your community's server moves to a new version, the app fetches the matching update in the background and offers to reload. You don't reinstall anything and you don't visit a store.
@@ -50,6 +52,8 @@ Restore your old phone's backup onto a new one and the app comes back with your 
 
 ??? techspec "How the over-the-air update works"
     Each Docker image ships the Capacitor web bundle that matches its version, served from `/api/v1/native/bundle/`, along with a statement of that bundle (its version, checksum and the oldest app it runs on) signed with Initiative's release key. On launch the app checks the signature against the keys it was built with, compares the signed version with the one it's running, downloads the difference, verifies its checksum, and swaps it in behind the splash screen. A bundle without a valid signature is left alone and the app stays on the version it has.
+
+    It never goes back past the version the installed app shipped with. A server older than that leaves the app on what it already runs, so an old server can't swap in a bundle from before the app was built.
 
     An over-the-air update can only replace web assets, never native code. Each bundle therefore declares a `minNativeVersion`, and the app refuses any bundle that needs a newer shell than the installed APK — prompting for a store or APK update instead. Release CI rebuilds the APK only when that floor moves, so most releases attach none at all. An updater watching the releases falls back to the last one that did — which is the build you want, because it is still the shell this bundle runs on. Re-attaching that same APK to later releases would be worse than attaching nothing: an updater reads the release, not the file, so it would see a new version each time and reinstall the app you already have.
 

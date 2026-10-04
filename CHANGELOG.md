@@ -30,6 +30,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The jackalope mascot is called Yonder now**, not Chester.
 - **The phone and desktop apps open straight to sign-in.** The website's front pages (welcome, pricing, download, what's new) are no longer part of the apps.
 - **On iPhone, an app update is sent to the App Store**, not to an APK download.
+- **The Android app connects to `https://` servers only.** **Server operators:** a server on plain `http://` needs HTTPS before the app can reach it; browsers are unaffected.
+- **The phone app never goes back to an update older than itself**, and on iPhone a new feature release arrives through the App Store.
+- **An app installed from Google Play is sent back to Play** when it needs updating.
 - **The phone and desktop apps stay signed in for ninety days** of not being used, and show as one row each in your sessions. An app last opened before 0.70 asks you to sign in once.
 - **The sign-in page says which server you're signing in to.** In the phone app, tap its name to switch servers.
 - **API access is set per member.** A community's superadmin turns one person's personal API keys on or off from the **API access** column in **Community settings › Users**, which stops keys they already made too. It replaces the community-wide switch on the **Security** tab and, like it, applies only where the server grants the community the security standard. Members of a community that had keys switched off start with them off. Personal API keys never reach a community through an access grant.
