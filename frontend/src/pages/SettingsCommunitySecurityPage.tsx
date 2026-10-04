@@ -35,8 +35,8 @@ import {
 } from "@/hooks/useCommunityAuthPolicy";
 import { useServer } from "@/hooks/useServer";
 import { useServerForm } from "@/hooks/useServerForm";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 
 /**
  * Community sign-in configuration (Settings → Security), in two halves.

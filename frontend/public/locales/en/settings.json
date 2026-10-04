@@ -542,9 +542,9 @@
     "saveInterface": "Save interface settings",
     "savingInterface": "Saving…",
     "interfaceSuccess": "Interface settings updated",
-    "chesterPlayground": {
-      "title": "Chester toast playground",
-      "description": "Trigger each toast type to preview its Chester variant and animation.",
+    "yonderPlayground": {
+      "title": "Yonder toast playground",
+      "description": "Trigger each toast type to preview its Yonder variant and animation.",
       "default": {
         "label": "default (idle)",
         "message": "Just a notification"

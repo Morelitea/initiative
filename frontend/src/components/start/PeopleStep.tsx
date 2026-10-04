@@ -6,7 +6,7 @@ import { PATH_SCENES, PATH_TINTS, PixelScene } from "@/components/start/PixelSce
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { toast } from "@/lib/chesterToast";
+import { toast } from "@/lib/mascotToast";
 import { cn } from "@/lib/utils";
 
 /** A burst of confetti for a finished community, for anybody who has not

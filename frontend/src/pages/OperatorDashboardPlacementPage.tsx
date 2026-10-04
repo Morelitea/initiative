@@ -27,8 +27,8 @@ import {
   useProviderPlacement,
   useSetPlacementEverywhere,
 } from "@/hooks/useProviderPlacement";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 import { Capability, hasCapability } from "@/lib/permissions";
 
 /** The rule dialog's subject: a provider, and the rule on it being edited. */

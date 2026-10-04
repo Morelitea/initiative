@@ -40,10 +40,10 @@ import { liveInitiatives } from "@/hooks/useInitiativeAccess";
 import { useInitiatives } from "@/hooks/useInitiatives";
 import { useWizard } from "@/hooks/useWizard";
 import { BackupPeekError, type PeekedManifest, peekBackupManifest } from "@/lib/backupPeek";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { formatBytes } from "@/lib/fileUtils";
 import { formatDateTime } from "@/lib/formatDate";
+import { toast } from "@/lib/mascotToast";
 import { getItem, removeItem, setItem } from "@/lib/storage";
 
 // Mirrors the backend's IMPORT_MAX_BACKUP_UPLOAD_BYTES — the UX

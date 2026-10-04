@@ -26,8 +26,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useBreakGlassRequirements } from "@/hooks/useAccessGrants";
 import { useAppConfig } from "@/hooks/useAppConfig";
-import { toast } from "@/lib/chesterToast";
 import { getErrorCode, getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 import { assertForBreakGlass, describePasskeyPromptError } from "@/lib/passkeys";
 import { classifySecondFactorAnswer } from "@/lib/secondFactorAnswer";
 

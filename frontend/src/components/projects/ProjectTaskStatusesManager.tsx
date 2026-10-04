@@ -58,8 +58,8 @@ import {
   useReorderTaskStatuses,
   useUpdateTaskStatus,
 } from "@/hooks/useProjects";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 import { defaultsForCategory, maybeSwapDefaultsOnCategoryChange } from "@/lib/taskStatusDefaults";
 import { cn } from "@/lib/utils";
 

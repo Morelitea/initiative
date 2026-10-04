@@ -41,8 +41,8 @@ import {
   useOperatorSetUsername,
   useOperatorUpdatePlatformRole,
 } from "@/hooks/useOperatorUsers";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 import { getUserHandle } from "@/lib/userDisplay";
 import type { TranslateFn } from "@/types/i18n";
 

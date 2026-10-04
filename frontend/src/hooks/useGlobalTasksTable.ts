@@ -20,8 +20,8 @@ import type { PropertyFilterCondition } from "@/components/properties/PropertyFi
 import { useCommunities } from "@/hooks/useCommunities";
 import { useUpdateTaskInCommunity } from "@/hooks/useTasks";
 import { useViewPreference } from "@/hooks/useViewPreference";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 import { statusForCategory } from "@/lib/taskStatusDefaults";
 
 const SORT_DEFAULTS: SortField[] = [

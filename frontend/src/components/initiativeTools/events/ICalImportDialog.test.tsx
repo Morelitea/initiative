@@ -18,7 +18,7 @@ import { renderWithProviders } from "@/__tests__/helpers/render";
 
 import { ICalImportDialog } from "./ICalImportDialog";
 
-vi.mock("@/lib/chesterToast", () => ({
+vi.mock("@/lib/mascotToast", () => ({
   toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
 }));
 

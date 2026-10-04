@@ -44,7 +44,7 @@ export const ChooseStep = ({
             >
               <PixelScene
                 scene={PATH_SCENES[path]}
-                className="w-11 group-has-[[data-state=checked]]:motion-safe:animate-[chester-hop_0.4s_ease-out] sm:w-14"
+                className="w-11 group-has-[[data-state=checked]]:motion-safe:animate-[yonder-hop_0.4s_ease-out] sm:w-14"
               />
             </span>
             <span className="min-w-0 flex-1 space-y-1">

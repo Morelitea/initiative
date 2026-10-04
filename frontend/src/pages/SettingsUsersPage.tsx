@@ -52,8 +52,8 @@ import {
   useUpdateCommunityMembership,
   useUsers,
 } from "@/hooks/useUsers";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 import type { AppColumnDef } from "@/lib/table";
 import { getUrlHandle, getUserDisplayName, getUserHandle } from "@/lib/userDisplay";
 

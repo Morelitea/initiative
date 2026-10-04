@@ -24,7 +24,7 @@ import { useSetPostReactions } from "@/hooks/usePostReactions";
 import { useServerForm } from "@/hooks/useServerForm";
 import { useSetToolComments } from "@/hooks/useToolComments";
 import { useSetToolTags } from "@/hooks/useToolTags";
-import { toast } from "@/lib/chesterToast";
+import { toast } from "@/lib/mascotToast";
 
 export const ToolSettingsDetailsPage = () => {
   const { t } = useTranslation(["common", "properties"]);

@@ -31,8 +31,8 @@ import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { liveInitiatives } from "@/hooks/useInitiativeAccess";
 import { useInitiatives } from "@/hooks/useInitiatives";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 import { toolEnvelopeType, toolForEnvelopeType } from "@/lib/tools";
 
 // The real upload cap is server-owned and arrives via /api/v1/config

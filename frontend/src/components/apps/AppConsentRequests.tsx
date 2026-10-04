@@ -23,8 +23,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useGrantAppConsent, useRevokeAppConsent } from "@/hooks/useCommunityAppDetail";
 import { useInitiatives } from "@/hooks/useInitiatives";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 
 export interface AppConsentRequestsProps {
   appId: number;

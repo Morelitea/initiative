@@ -23,8 +23,8 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import { useServerForm } from "@/hooks/useServerForm";
 import { getProvidersForScope } from "@/lib/ai-providers";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 import { Capability, hasCapability } from "@/lib/permissions";
 
 const MODES: AIConfigMode[] = ["disabled", "platform", "community"];

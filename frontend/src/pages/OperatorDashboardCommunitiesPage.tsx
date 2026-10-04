@@ -23,8 +23,8 @@ import { useAppConfig } from "@/hooks/useAppConfig";
 import { useAuth } from "@/hooks/useAuth";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { usePlatformCommunities, useUpdateCommunityStorage } from "@/hooks/useSettings";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 import { Capability, hasCapability } from "@/lib/permissions";
 import type { AppColumnDef } from "@/lib/table";
 

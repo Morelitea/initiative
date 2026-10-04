@@ -36,8 +36,8 @@ import {
 import { useSpreadsheetSheets } from "@/components/documents/spreadsheet/useSpreadsheetSheets";
 import { useSpreadsheetStructure } from "@/components/documents/spreadsheet/useSpreadsheetStructure";
 import { matchHistoryShortcut } from "@/hooks/useYjsHistory";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 import { MAX_COLS, MAX_ROWS, sheetGrid } from "@/lib/spreadsheet/bounds";
 import {
   parseSpreadsheetContent,

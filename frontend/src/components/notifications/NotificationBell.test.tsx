@@ -17,7 +17,7 @@ let streamConnected = false;
 vi.mock("@/hooks/useNotificationStream", () => ({
   useNotificationStreamConnected: () => streamConnected,
 }));
-vi.mock("@/lib/chesterToast", () => ({
+vi.mock("@/lib/mascotToast", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 

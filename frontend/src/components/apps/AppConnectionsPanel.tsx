@@ -44,8 +44,8 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { useConnectApp, useDisconnectApp, useUpdateAppConfig } from "@/hooks/useCommunityAppDetail";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 import { localized } from "@/lib/widgets/widgetMeta";
 
 /** One typed input in a connection's form, as the pinned definition declares

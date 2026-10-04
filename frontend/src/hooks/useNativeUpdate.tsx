@@ -7,8 +7,8 @@ import { useTranslation } from "react-i18next";
 
 import { compareVersions } from "@/hooks/useDockerHubVersion";
 import { useServer } from "@/hooks/useServer";
-import { toast } from "@/lib/chesterToast";
 import { autoUpdateConsented, desktopCanUpdate } from "@/lib/desktopUpdates";
+import { toast } from "@/lib/mascotToast";
 import { type UpdateStatement, verifiedStatement } from "@/lib/otaTrust";
 import DesktopUpdater from "@/plugins/desktopUpdater";
 

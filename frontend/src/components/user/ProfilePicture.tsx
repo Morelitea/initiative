@@ -15,9 +15,9 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Tabs, TabsBar, TabsContent, TabsTrigger } from "@/components/ui/tabs";
 import { ProfileAvatar } from "@/components/user/ProfileAvatar";
 import { useUpdateCurrentUser } from "@/hooks/useUsers";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { ImageRenditionError, renderAvatar } from "@/lib/imageRenditions";
+import { toast } from "@/lib/mascotToast";
 import type { AvatarSourceUser, DisplayableUser } from "@/lib/userDisplay";
 
 /** Where this server serves an uploaded picture from. A linked one — from a

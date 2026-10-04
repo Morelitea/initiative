@@ -1,14 +1,14 @@
 import { type RobotToastOptions, toast as robotToast } from "robot-toast";
 
-import excitedSvg from "@/assets/chester/excited.svg";
-import idleSvg from "@/assets/chester/idle.svg";
-import proudSvg from "@/assets/chester/proud.svg";
-import talkingSvg from "@/assets/chester/talking.svg";
-import thinkingSvg from "@/assets/chester/thinking.svg";
+import excitedSvg from "@/assets/yonder/excited.svg";
+import idleSvg from "@/assets/yonder/idle.svg";
+import proudSvg from "@/assets/yonder/proud.svg";
+import talkingSvg from "@/assets/yonder/talking.svg";
+import thinkingSvg from "@/assets/yonder/thinking.svg";
 
-type ChesterToastType = "default" | "success" | "error" | "warning" | "info" | "loading";
+type MascotToastType = "default" | "success" | "error" | "warning" | "info" | "loading";
 
-type ChesterToastPosition =
+type MascotToastPosition =
   | "top-left"
   | "top-center"
   | "top-right"
@@ -16,7 +16,7 @@ type ChesterToastPosition =
   | "bottom-center"
   | "bottom-right";
 
-const VARIANT_BY_TYPE: Record<ChesterToastType, string> = {
+const VARIANT_BY_TYPE: Record<MascotToastType, string> = {
   default: idleSvg,
   success: proudSvg,
   error: excitedSvg,
@@ -25,16 +25,16 @@ const VARIANT_BY_TYPE: Record<ChesterToastType, string> = {
   loading: talkingSvg,
 };
 
-interface ChesterToastOptions {
+interface MascotToastOptions {
   /** Custom dismissal handle. Sonner uses string|number; we accept both. */
   id?: string | number;
   /** ms to auto-dismiss; pass `Infinity` to keep open until dismissed. */
   duration?: number;
   /** Secondary line appended below the main message (Sonner parity). */
   description?: string;
-  /** Override the auto-selected Chester variant with any imported SVG URL. */
+  /** Override the auto-selected Yonder variant with any imported SVG URL. */
   robotVariant?: string;
-  position?: ChesterToastPosition;
+  position?: MascotToastPosition;
   typeSpeed?: number;
   /** Sonner-style action; mapped to a single robot-toast button. */
   action?: { label: string; onClick: (e: MouseEvent) => void };
@@ -50,7 +50,7 @@ type RobotToastType = "default" | "success" | "error" | "warning" | "info";
 
 const idMap = new Map<string | number, number>();
 
-const ROBOT_TYPE_BY_TYPE: Record<ChesterToastType, RobotToastType> = {
+const ROBOT_TYPE_BY_TYPE: Record<MascotToastType, RobotToastType> = {
   default: "default",
   success: "success",
   error: "error",
@@ -79,7 +79,7 @@ const ACTION_MS = 2_000;
 /** Never leave less than this much time after the message finishes typing. */
 const MIN_DWELL_MS = 1_200;
 /** Floor on total on-screen time, per type — warnings and errors sit longer. */
-const MIN_TOTAL_MS_BY_TYPE: Record<ChesterToastType, number> = {
+const MIN_TOTAL_MS_BY_TYPE: Record<MascotToastType, number> = {
   default: 3_000,
   success: 3_000,
   info: 3_000,
@@ -91,7 +91,7 @@ const MIN_TOTAL_MS_BY_TYPE: Record<ChesterToastType, number> = {
 /** Dwell time (ms) to hand robot-toast for a message it will type at `typeSpeed`. */
 const computeAutoClose = (
   message: string,
-  type: ChesterToastType,
+  type: MascotToastType,
   typeSpeed: number,
   hasAction: boolean
 ): number => {
@@ -103,8 +103,8 @@ const computeAutoClose = (
 
 const buildInput = (
   message: string,
-  type: ChesterToastType,
-  opts?: ChesterToastOptions
+  type: MascotToastType,
+  opts?: MascotToastOptions
 ): RobotToastOptions => {
   const text = opts?.description ? `${message}\n${opts.description}` : message;
   const typeSpeed = opts?.typeSpeed ?? 20;
@@ -138,7 +138,7 @@ const buildInput = (
   return input;
 };
 
-const fire = (message: string, type: ChesterToastType, opts?: ChesterToastOptions): number => {
+const fire = (message: string, type: MascotToastType, opts?: MascotToastOptions): number => {
   const internalId = robotToast(buildInput(message, type, opts));
   if (opts?.id !== undefined) idMap.set(opts.id, internalId);
   return internalId;
@@ -150,24 +150,24 @@ interface PromiseMessages<T> {
   error: string | ((err: unknown) => string);
 }
 
-interface ChesterToast {
-  (message: string, options?: ChesterToastOptions): number;
-  success(message: string, options?: ChesterToastOptions): number;
-  error(message: string, options?: ChesterToastOptions): number;
-  warning(message: string, options?: ChesterToastOptions): number;
-  info(message: string, options?: ChesterToastOptions): number;
-  message(message: string, options?: ChesterToastOptions): number;
-  loading(message: string, options?: ChesterToastOptions): number;
+interface MascotToast {
+  (message: string, options?: MascotToastOptions): number;
+  success(message: string, options?: MascotToastOptions): number;
+  error(message: string, options?: MascotToastOptions): number;
+  warning(message: string, options?: MascotToastOptions): number;
+  info(message: string, options?: MascotToastOptions): number;
+  message(message: string, options?: MascotToastOptions): number;
+  loading(message: string, options?: MascotToastOptions): number;
   dismiss(id?: string | number): void;
   promise<T>(
     promise: Promise<T>,
     msgs: PromiseMessages<T>,
-    options?: ChesterToastOptions
+    options?: MascotToastOptions
   ): Promise<T>;
 }
 
-const toast = ((message: string, options?: ChesterToastOptions) =>
-  fire(message, "default", options)) as ChesterToast;
+const toast = ((message: string, options?: MascotToastOptions) =>
+  fire(message, "default", options)) as MascotToast;
 
 toast.success = (message, options) => fire(message, "success", options);
 toast.error = (message, options) => fire(message, "error", options);
@@ -193,7 +193,7 @@ toast.dismiss = (id) => {
 toast.promise = async <T>(
   promise: Promise<T>,
   msgs: PromiseMessages<T>,
-  options?: ChesterToastOptions
+  options?: MascotToastOptions
 ) => {
   const loadingId = fire(msgs.loading, "loading", { ...options, duration: Infinity });
   try {
@@ -212,5 +212,5 @@ toast.promise = async <T>(
   }
 };
 
-export type { ChesterToastOptions, ChesterToastType };
+export type { MascotToastOptions, MascotToastType };
 export { computeAutoClose, toast };

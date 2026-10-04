@@ -1,8 +1,8 @@
 import { useMutation } from "@tanstack/react-query";
 
 import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 import type { MutationOpts } from "@/types/mutation";
 
 /**

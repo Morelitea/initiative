@@ -28,9 +28,9 @@ import { useAppConfig } from "@/hooks/useAppConfig";
 import { useAuth } from "@/hooks/useAuth";
 import { useCommunities } from "@/hooks/useCommunities";
 import { useJoinDirectoryCommunity } from "@/hooks/useCommunityDirectory";
-import { toast } from "@/lib/chesterToast";
 import { communityPath } from "@/lib/communityUrl";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 
 export const CommunityCard = ({ community }: { community: DirectoryCommunityRead }) => {
   const { t } = useTranslation(["communities", "common"]);

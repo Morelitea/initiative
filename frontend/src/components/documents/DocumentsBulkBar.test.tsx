@@ -11,7 +11,7 @@ import { renderWithProviders } from "@/__tests__/helpers/render";
 import { DocumentsBulkBar } from "./DocumentsBulkBar";
 
 vi.mock("@/lib/csv", () => ({ downloadBlob: vi.fn() }));
-vi.mock("@/lib/chesterToast", () => ({
+vi.mock("@/lib/mascotToast", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 

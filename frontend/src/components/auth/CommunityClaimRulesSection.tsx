@@ -57,8 +57,8 @@ import {
 } from "@/hooks/useCommunityAuthPolicy";
 import { useInitiativeRoles } from "@/hooks/useInitiativeRoles";
 import { useInitiativesForCommunity } from "@/hooks/useInitiatives";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 
 /** Sentinel for "the community itself", which has no initiative id. */
 const COMMUNITY_ONLY = "community";

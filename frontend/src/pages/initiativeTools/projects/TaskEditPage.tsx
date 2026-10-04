@@ -77,10 +77,10 @@ import {
   useTask,
   useUpdateTask,
 } from "@/hooks/useTasks";
-import { toast } from "@/lib/chesterToast";
 import { useCommunityPath } from "@/lib/communityUrl";
 import { dateRangeBounds } from "@/lib/dateRange";
 import { getHttpStatus } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 import { queryClient } from "@/lib/queryClient";
 import { fromStored, rulePayload } from "@/lib/recurrence";
 import { referenceRef } from "@/lib/smartChips";

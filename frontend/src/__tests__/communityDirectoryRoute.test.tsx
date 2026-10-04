@@ -34,7 +34,7 @@ vi.mock("@/hooks/useAppConfig", () => ({
     isLoading: false,
   }),
 }));
-vi.mock("@/lib/chesterToast", () => ({
+vi.mock("@/lib/mascotToast", () => ({
   toast: { info: vi.fn(), error: vi.fn(), success: vi.fn() },
 }));
 

@@ -31,7 +31,7 @@ import {
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { useFcmConfig } from "@/hooks/useSettings";
 import { useUpdateNotificationPreferences } from "@/hooks/useUsers";
-import { toast } from "@/lib/chesterToast";
+import { toast } from "@/lib/mascotToast";
 
 // Lead-time presets (minutes) for the event reminder. 0 = "at the time of the
 // event"; reminders are turned off with the channel switches, not here.

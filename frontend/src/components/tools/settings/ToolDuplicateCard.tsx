@@ -39,8 +39,8 @@ import {
 import { useDuplicateTool } from "@/hooks/toolHooks";
 import { useToolCreateAccess } from "@/hooks/useInitiativeAccess";
 import { useInitiative } from "@/hooks/useInitiatives";
-import { toast } from "@/lib/chesterToast";
 import { useCommunityPath } from "@/lib/communityUrl";
+import { toast } from "@/lib/mascotToast";
 import { toolDetailRoute } from "@/lib/tools";
 
 /** Whether this viewer may copy it: write on it, or read on a template, which

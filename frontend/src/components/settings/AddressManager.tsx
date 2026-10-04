@@ -25,8 +25,8 @@ import {
   visibleAddresses,
 } from "@/hooks/useAddresses";
 import { isHeld, useAnnounceHeld } from "@/hooks/useHeldChange";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 
 /** A change to the list waiting on its confirmation. */
 type Change =

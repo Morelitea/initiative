@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import type { ChesterToastType } from "./chesterToast";
-import { computeAutoClose } from "./chesterToast";
+import type { MascotToastType } from "./mascotToast";
+import { computeAutoClose } from "./mascotToast";
 
 const TYPE_SPEED = 20;
 
 /** What the reader actually experiences: the typing animation plus the dwell after it. */
-const totalOnScreen = (message: string, type: ChesterToastType, hasAction = false) =>
+const totalOnScreen = (message: string, type: MascotToastType, hasAction = false) =>
   message.length * TYPE_SPEED + computeAutoClose(message, type, TYPE_SPEED, hasAction);
 
 describe("computeAutoClose", () => {

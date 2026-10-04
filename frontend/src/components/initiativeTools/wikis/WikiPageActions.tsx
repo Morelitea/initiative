@@ -40,8 +40,8 @@ import {
   useUpdateWiki,
   useUpdateWikiPage,
 } from "@/hooks/useWikis";
-import { toast } from "@/lib/chesterToast";
 import { useCommunityPath } from "@/lib/communityUrl";
+import { toast } from "@/lib/mascotToast";
 import { toolDetailRoute, wikiPageRoute } from "@/lib/tools";
 
 interface WikiPageActionsProps {

@@ -28,11 +28,11 @@ import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { useInitiativeRoster } from "@/hooks/useInitiatives";
 import { MentionedPeopleScope, ReportMentionedPeople } from "@/hooks/useMentionedPeople";
 import { useInitiativeSharing, useModerationReports, useSettleReport } from "@/hooks/useModeration";
-import { toast } from "@/lib/chesterToast";
 import { communityPath } from "@/lib/communityUrl";
 import { entityRefTypeFor, isSearchEntityType } from "@/lib/entityResolver";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { formatDateTime } from "@/lib/formatDate";
+import { toast } from "@/lib/mascotToast";
 import { searchHitPath } from "@/lib/searchResults";
 
 /** The outcomes, in the order a moderator usually reaches for them. */

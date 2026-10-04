@@ -10,9 +10,9 @@ import { SlotPicker, TrophyPicker } from "@/components/user/DecorationPicker";
 import { MyDecorationPacks } from "@/components/user/MyDecorationPacks";
 import { ProfilePreview } from "@/components/user/ProfilePreview";
 import { useMyDecorations, useUpdateCurrentUser } from "@/hooks/useUsers";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { currentYear, DATED_DECORATIONS } from "@/lib/gradArtwork";
+import { toast } from "@/lib/mascotToast";
 
 /** Mirrors ``MAX_PROFILE_TROPHIES`` on the server. */
 const MAX_TROPHIES = 6;

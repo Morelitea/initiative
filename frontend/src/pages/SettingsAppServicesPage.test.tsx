@@ -54,7 +54,7 @@ const connectMutate = vi.fn();
 const startSetupMutate = vi.fn();
 const completeSetupMutate = vi.fn();
 
-vi.mock("@/lib/chesterToast", () => ({
+vi.mock("@/lib/mascotToast", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 

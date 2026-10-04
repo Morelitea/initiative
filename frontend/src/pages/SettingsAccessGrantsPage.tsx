@@ -34,9 +34,9 @@ import {
 } from "@/hooks/useAccessGrants";
 import { useAuth } from "@/hooks/useAuth";
 import { useCommunities } from "@/hooks/useCommunities";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { minutesLeft } from "@/lib/formatDate";
+import { toast } from "@/lib/mascotToast";
 import { assertForBreakGlass, describePasskeyPromptError } from "@/lib/passkeys";
 import { Capability, hasCapability } from "@/lib/permissions";
 import { classifySecondFactorAnswer } from "@/lib/secondFactorAnswer";

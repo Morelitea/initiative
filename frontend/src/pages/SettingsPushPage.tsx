@@ -21,8 +21,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/hooks/useAuth";
 import { useServerForm } from "@/hooks/useServerForm";
 import { usePushSettings, useUpdatePushSettings } from "@/hooks/useSettings";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 import { Capability, hasCapability } from "@/lib/permissions";
 
 const TEXT_FIELDS = ["project_id", "application_id", "api_key", "sender_id"] as const;

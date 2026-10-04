@@ -31,8 +31,8 @@ import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useReadOnOpen } from "@/hooks/useNotifications";
 import { useRecordRecentView } from "@/hooks/useRecents";
 import { useCreateWikiPage, useUpdateWikiPage, useWiki, useWikiPage } from "@/hooks/useWikis";
-import { toast } from "@/lib/chesterToast";
 import { useCommunityPath } from "@/lib/communityUrl";
+import { toast } from "@/lib/mascotToast";
 import { wikiPageRoute } from "@/lib/tools";
 import { cn } from "@/lib/utils";
 

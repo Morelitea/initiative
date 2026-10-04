@@ -27,8 +27,8 @@ import {
   readStoredCommunityIdFor,
 } from "@/lib/activeCommunityStorage";
 import { renderableBanner } from "@/lib/banner";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 import {
   addGrantOnlyCommunityIds,
   hydrateCommunityShard,

@@ -26,8 +26,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage, messageForCode } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 
 interface ProviderFormState {
   slug: string;

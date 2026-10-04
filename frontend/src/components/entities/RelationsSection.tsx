@@ -47,9 +47,9 @@ import {
   useRelationsNeighbourhood,
   useUnrelate,
 } from "@/hooks/useRelationships";
-import { toast } from "@/lib/chesterToast";
 import { DOCUMENT_UPLOAD_ACCEPT } from "@/lib/fileUtils";
 import { docsUrl } from "@/lib/links";
+import { toast } from "@/lib/mascotToast";
 import {
   groupEdges,
   groupOf,

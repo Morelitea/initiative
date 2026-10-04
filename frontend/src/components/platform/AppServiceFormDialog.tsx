@@ -25,8 +25,8 @@ import {
   useStartVendorSetup,
 } from "@/hooks/useAppServices";
 import { parseAllowedOrigins, postToVendor } from "@/lib/appServices";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 import { localized } from "@/lib/widgets/widgetMeta";
 
 /** What the operator stated, before it is shaped into a create or a patch. */

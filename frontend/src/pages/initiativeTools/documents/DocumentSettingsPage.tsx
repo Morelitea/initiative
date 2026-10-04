@@ -14,7 +14,7 @@ import {
   useSetDocumentGrants,
   useUpdateDocument,
 } from "@/hooks/useDocuments";
-import { toast } from "@/lib/chesterToast";
+import { toast } from "@/lib/mascotToast";
 
 export const DocumentSettingsPage = () => {
   const { t } = useTranslation(["documents", "common"]);

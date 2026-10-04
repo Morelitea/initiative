@@ -16,7 +16,7 @@ const mocks = vi.hoisted(() => ({
   readPermissions: vi.fn(),
 }));
 
-vi.mock("@/lib/chesterToast", () => ({
+vi.mock("@/lib/mascotToast", () => ({
   toast: { error: mocks.error, success: mocks.success },
 }));
 

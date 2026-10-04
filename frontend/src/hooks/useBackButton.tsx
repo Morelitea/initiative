@@ -3,7 +3,7 @@ import { Capacitor } from "@capacitor/core";
 import { useRouter } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
 
-import { toast } from "@/lib/chesterToast";
+import { toast } from "@/lib/mascotToast";
 
 const EXIT_TIMEOUT_MS = 2000;
 

@@ -24,8 +24,8 @@ import { useGrantToolToRoles, useInitiativeRoles } from "@/hooks/useInitiativeRo
 import { useInitiativeSettings } from "@/hooks/useInitiativeSettings";
 import { useUpdateInitiative } from "@/hooks/useInitiatives";
 import { useServerForm } from "@/hooks/useServerForm";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 import { isToolEnabled, TOOLS, toolCamelPlural, toolViewPermission } from "@/lib/tools";
 
 const DEFAULT_INITIATIVE_COLOR = "#6366F1";

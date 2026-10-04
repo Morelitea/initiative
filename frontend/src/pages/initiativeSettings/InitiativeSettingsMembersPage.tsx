@@ -24,8 +24,8 @@ import { useCommunities } from "@/hooks/useCommunities";
 import { useInitiativeRoles } from "@/hooks/useInitiativeRoles";
 import { useInitiativeSettings } from "@/hooks/useInitiativeSettings";
 import { useUpdateInitiative } from "@/hooks/useInitiatives";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 
 export const InitiativeSettingsMembersPage = () => {
   const { t } = useTranslation(["initiatives", "common"]);

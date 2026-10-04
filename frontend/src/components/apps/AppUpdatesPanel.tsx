@@ -35,8 +35,8 @@ import { Switch } from "@/components/ui/switch";
 import { useDeclineAppUpgrade, useUpgradeApp } from "@/hooks/useCommunityAppDetail";
 import { useUpdateCommunityApp } from "@/hooks/useCommunityApps";
 import { type AppNames, scopeSentence } from "@/lib/appScopes";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 import { localized } from "@/lib/widgets/widgetMeta";
 
 export function AppUpdatesPanel({ app }: { app: CommunityAppDetail }) {

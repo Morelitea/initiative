@@ -29,7 +29,7 @@ import {
   scopeSentence,
   toggleScope,
 } from "@/lib/appScopes";
-import { toast } from "@/lib/chesterToast";
+import { toast } from "@/lib/mascotToast";
 
 export interface AppScopesPanelProps {
   app: CommunityAppDetail;

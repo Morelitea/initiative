@@ -13,7 +13,7 @@ import { useTranslation } from "react-i18next";
 
 import { createDraftStore } from "@/components/documents/spreadsheet/draftStore";
 import type { SpreadsheetCellsStore } from "@/components/documents/spreadsheet/useSpreadsheetCells";
-import { toast } from "@/lib/chesterToast";
+import { toast } from "@/lib/mascotToast";
 import type { CellPos, SheetGrid } from "@/lib/spreadsheet/bounds";
 import { type CellValue, colIndexToLetter, keyOf } from "@/lib/spreadsheet/coords";
 import { coerceScalar } from "@/lib/spreadsheet/csv";

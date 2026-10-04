@@ -10,7 +10,7 @@ import type { useCommunities } from "@/hooks/useCommunities";
 
 import { CommunityExportCard } from "./CommunityExportCard";
 
-vi.mock("@/lib/chesterToast", () => ({
+vi.mock("@/lib/mascotToast", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 vi.mock("@/lib/exportDownload", () => ({

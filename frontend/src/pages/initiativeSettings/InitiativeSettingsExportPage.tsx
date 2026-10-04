@@ -13,8 +13,8 @@ import { InitiativeSettingsExportTab } from "@/components/initiatives/settings/I
 import { InitiativeSettingsPermissionRequired } from "@/components/initiatives/settings/InitiativeSettingsGuard";
 import { useInitiativeSettings } from "@/hooks/useInitiativeSettings";
 import { useUpdateInitiative } from "@/hooks/useInitiatives";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 
 export const InitiativeSettingsExportPage = () => {
   const { t } = useTranslation("initiatives");

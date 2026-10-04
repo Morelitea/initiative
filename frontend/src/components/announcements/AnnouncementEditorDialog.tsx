@@ -37,8 +37,8 @@ import {
   useUploadAnnouncementImage,
 } from "@/hooks/usePlatformAnnouncements";
 import { validateTriggerRoute } from "@/lib/announcementPages";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 import { resolveHeaderlessApiUrl } from "@/lib/uploadUrl";
 
 const CATEGORIES: AnnouncementCategory[] = [

@@ -17,8 +17,8 @@ import {
 } from "@/api/generated/initiatives/initiatives";
 import { invalidate, q } from "@/api/query-keys";
 import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 import { TOOLS, toolCreatePermission, toolPascalPlural, toolViewPermission } from "@/lib/tools";
 
 export const useInitiativeRoles = (initiativeId: number | null) => {

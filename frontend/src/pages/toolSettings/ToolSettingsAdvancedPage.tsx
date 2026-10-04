@@ -25,8 +25,8 @@ import { ToolSettingsPermissionRequired } from "@/components/tools/settings/Tool
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { toast } from "@/lib/chesterToast";
 import { useCommunityPath } from "@/lib/communityUrl";
+import { toast } from "@/lib/mascotToast";
 import { toolCommunityBrowseTarget, toolListRoute } from "@/lib/tools";
 
 export const ToolSettingsAdvancedPage = () => {

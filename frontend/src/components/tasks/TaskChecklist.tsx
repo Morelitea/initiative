@@ -52,7 +52,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useAIEnabled } from "@/hooks/useAIEnabled";
 import { useGenerateChecklist, useToggleChecklistItem, useUpdateTask } from "@/hooks/useTasks";
 import { newChecklistItemId } from "@/lib/checklist";
-import { toast } from "@/lib/chesterToast";
+import { toast } from "@/lib/mascotToast";
 
 /** A checklist as the server holds it, in one comparable string. */
 const fingerprint = (items: ChecklistItem[]) =>

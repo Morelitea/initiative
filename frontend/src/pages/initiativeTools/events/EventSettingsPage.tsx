@@ -38,9 +38,9 @@ import {
 } from "@/hooks/useCalendarEvents";
 import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
 import { useServerForm } from "@/hooks/useServerForm";
-import { toast } from "@/lib/chesterToast";
 import { useCommunityPath } from "@/lib/communityUrl";
 import { formatDate, formatDateTime } from "@/lib/formatDate";
+import { toast } from "@/lib/mascotToast";
 import { allDayReference, fromStored, rulePayload } from "@/lib/recurrence";
 import { eventRoute, eventSettingsRoute, toolDetailRoute, toolListRoute } from "@/lib/tools";
 

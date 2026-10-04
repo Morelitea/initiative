@@ -13,7 +13,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { renderWithProviders } from "@/__tests__/helpers/render";
-import { toast } from "@/lib/chesterToast";
+import { toast } from "@/lib/mascotToast";
 
 const mocks = vi.hoisted(() => ({
   list: vi.fn(),
@@ -27,7 +27,7 @@ const mocks = vi.hoisted(() => ({
   browserSupportsWebAuthn: vi.fn(() => true),
 }));
 
-vi.mock("@/lib/chesterToast", () => ({
+vi.mock("@/lib/mascotToast", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 

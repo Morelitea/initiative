@@ -14,7 +14,7 @@ import {
   useDmSettings,
   useUpdateDmSettings,
 } from "@/hooks/useDirectMessages";
-import { toast } from "@/lib/chesterToast";
+import { toast } from "@/lib/mascotToast";
 
 /**
  * Who may reach this account.

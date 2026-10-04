@@ -21,9 +21,9 @@ import { useAuth } from "@/hooks/useAuth";
 import { useMarkReadOnScreen, usePostReadTracker } from "@/hooks/usePostReadTracker";
 import { useMarkPostUnread, useSetPostPin, useUpdatePost } from "@/hooks/usePosts";
 import { useUnreadTree } from "@/hooks/useUnreadTree";
-import { toast } from "@/lib/chesterToast";
 import { useCommunityPath } from "@/lib/communityUrl";
 import { formatDateTime } from "@/lib/formatDate";
+import { toast } from "@/lib/mascotToast";
 import { toolDetailRoute } from "@/lib/tools";
 import { cn } from "@/lib/utils";
 

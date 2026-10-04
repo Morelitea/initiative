@@ -24,11 +24,11 @@ import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
 import type { InitiativeMemberRead, InitiativeRead } from "@/api/generated/initiativeAPI.schemas";
 
-vi.mock("@/lib/chesterToast", () => ({
+vi.mock("@/lib/mascotToast", () => ({
   toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
 }));
 
-import { toast } from "@/lib/chesterToast";
+import { toast } from "@/lib/mascotToast";
 
 import { InitiativeSettingsMembersPage } from "./InitiativeSettingsMembersPage";
 

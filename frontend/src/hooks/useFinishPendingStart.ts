@@ -5,8 +5,8 @@ import { useTranslation } from "react-i18next";
 import { type CommunityCategory, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { useAuth } from "@/hooks/useAuth";
 import { useCommunities } from "@/hooks/useCommunities";
-import { toast } from "@/lib/chesterToast";
 import { communityPath } from "@/lib/communityUrl";
+import { toast } from "@/lib/mascotToast";
 import {
   clearStart,
   findStartedCommunity,

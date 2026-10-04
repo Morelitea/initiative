@@ -35,8 +35,8 @@ import {
 } from "@/hooks/useCalendarEvents";
 import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
 import { useReadOnOpen } from "@/hooks/useNotifications";
-import { toast } from "@/lib/chesterToast";
 import { useCommunityPath } from "@/lib/communityUrl";
+import { toast } from "@/lib/mascotToast";
 import { summarizeStored } from "@/lib/recurrence";
 import { hour12Option } from "@/lib/timeFormat";
 import { eventRoute, eventSettingsRoute, toolDetailRoute, toolListRoute } from "@/lib/tools";

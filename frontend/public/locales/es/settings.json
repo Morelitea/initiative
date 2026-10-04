@@ -542,9 +542,9 @@
     "saveInterface": "Guardar configuración de interfaz",
     "savingInterface": "Guardando…",
     "interfaceSuccess": "Configuración de interfaz actualizada",
-    "chesterPlayground": {
-      "title": "Banco de pruebas de Chester",
-      "description": "Activa cada tipo de notificación para previsualizar la variante de Chester y su animación.",
+    "yonderPlayground": {
+      "title": "Banco de pruebas de Yonder",
+      "description": "Activa cada tipo de notificación para previsualizar la variante de Yonder y su animación.",
       "default": {
         "label": "predeterminado (inactivo)",
         "message": "Solo una notificación"

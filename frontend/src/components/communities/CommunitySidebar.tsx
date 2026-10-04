@@ -47,10 +47,10 @@ import { useBillingPortal } from "@/hooks/useBillingPortal";
 import { type CommunityEntry, useCommunities } from "@/hooks/useCommunities";
 import { useMessagesWaiting } from "@/hooks/useMyMessages";
 import { useUnreadTree } from "@/hooks/useUnreadTree";
-import { toast } from "@/lib/chesterToast";
 import { communityPath } from "@/lib/communityUrl";
 import { getErrorCode, getErrorMessage } from "@/lib/errorMessage";
 import { getInitials } from "@/lib/initials";
+import { toast } from "@/lib/mascotToast";
 import { resolveHeaderlessApiUrl } from "@/lib/uploadUrl";
 import { cn } from "@/lib/utils";
 

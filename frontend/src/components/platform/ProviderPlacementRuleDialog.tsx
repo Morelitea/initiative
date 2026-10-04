@@ -45,8 +45,8 @@ import {
   usePlacementTargets,
   useUpdatePlacementRule,
 } from "@/hooks/useProviderPlacement";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 
 /** Sentinel for "the community itself", which has no initiative id. */
 const COMMUNITY_ONLY = "community";

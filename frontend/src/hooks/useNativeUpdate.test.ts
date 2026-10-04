@@ -38,7 +38,7 @@ vi.mock("@/lib/desktopUpdates", () => ({
 vi.mock("@/plugins/desktopUpdater", () => ({
   default: { download: native.download, install: native.install },
 }));
-vi.mock("@/lib/chesterToast", () => ({ toast: { info: native.toast } }));
+vi.mock("@/lib/mascotToast", () => ({ toast: { info: native.toast } }));
 
 const bundle = (over: Partial<BundleInfo>): BundleInfo => ({
   id: "1",

@@ -15,8 +15,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { usePlatformAuthSettings, useUpdatePlatformAuthSettings } from "@/hooks/useSettings";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 
 export const SessionLifetimeSection = () => {
   const query = usePlatformAuthSettings();

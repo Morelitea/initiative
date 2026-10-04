@@ -30,8 +30,8 @@ import {
   useUpdateAuthProvider,
   useUpdatePlatformAuthSettings,
 } from "@/hooks/useSettings";
-import { toast } from "@/lib/chesterToast";
 import { getErrorCode, getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 
 /** The three answers, in the order they widen. */
 const LEVELS = ["nobody", "platform_roles", "everyone"] as const;

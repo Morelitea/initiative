@@ -10,7 +10,7 @@ import type { TagBulkEditRequest } from "@/api/generated/initiativeAPI.schemas";
 
 import { BulkEditTagsDialog } from "./BulkEditTagsDialog";
 
-vi.mock("@/lib/chesterToast", () => ({
+vi.mock("@/lib/mascotToast", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 
@@ -160,7 +160,7 @@ describe("BulkEditTagsDialog", () => {
     await userEvent.click(await screen.findByText("alpha"));
     await userEvent.click(screen.getByRole("button", { name: LABELS.apply }));
 
-    const { toast } = await import("@/lib/chesterToast");
+    const { toast } = await import("@/lib/mascotToast");
     await waitFor(() => expect(toast.error).toHaveBeenCalled());
     expect(onSuccess).not.toHaveBeenCalled();
     expect(onOpenChange).not.toHaveBeenCalledWith(false);

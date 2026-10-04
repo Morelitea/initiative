@@ -24,9 +24,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { downloadExportArtifact } from "@/lib/exportDownload";
+import { toast } from "@/lib/mascotToast";
 import { queryClient } from "@/lib/queryClient";
 
 const ACTIVE = new Set(["staged", "fetching", "queued", "running"]);

@@ -16,8 +16,8 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { WizardDialog } from "@/components/ui/wizard-dialog";
 import { useOperatorDeleteUser, useUserDeletionEligibility } from "@/hooks/useOperatorUsers";
 import { useWizard } from "@/hooks/useWizard";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 import { getUserDisplayName } from "@/lib/userDisplay";
 import type { DialogWithSuccessProps } from "@/types/dialog";
 

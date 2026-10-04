@@ -38,8 +38,8 @@ import {
   useInitiativeMemberSearch,
   useUserSearch,
 } from "@/hooks/useUsers";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 import { isAdminRole } from "@/lib/permissions";
 import type { AppColumnDef } from "@/lib/table";
 import { getUserDisplayName } from "@/lib/userDisplay";

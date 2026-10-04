@@ -19,7 +19,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useCommunities } from "@/hooks/useCommunities";
-import { toast } from "@/lib/chesterToast";
+import { toast } from "@/lib/mascotToast";
 import type { DialogProps } from "@/types/dialog";
 
 interface LeaveCommunityDialogProps extends DialogProps {

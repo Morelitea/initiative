@@ -24,8 +24,8 @@ import {
   useCommunityAuthSettings,
   useUpdateCommunityAuthSettings,
 } from "@/hooks/useCommunityAuthPolicy";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 
 export const CommunityNotificationPolicySection = ({ communityId }: { communityId: number }) => {
   const { t } = useTranslation("settings");

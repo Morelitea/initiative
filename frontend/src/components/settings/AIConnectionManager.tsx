@@ -9,8 +9,8 @@ import type {
 } from "@/api/generated/initiativeAPI.schemas";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage, messageForCode } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 
 import { AIConnectionDialog } from "./AIConnectionDialog";
 import { AIConnectionRow } from "./AIConnectionRow";

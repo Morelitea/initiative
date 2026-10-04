@@ -4,7 +4,6 @@ import { useTranslation } from "react-i18next";
 import { apiClient } from "@/api/client";
 import { useGetExportJob } from "@/api/generated/exports/exports";
 import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
-import { toast } from "@/lib/chesterToast";
 import { downloadBlob } from "@/lib/csv";
 import { getErrorMessage } from "@/lib/errorMessage";
 import {
@@ -12,6 +11,7 @@ import {
   filenameFromDisposition,
   normalizeBlobError,
 } from "@/lib/exportDownload";
+import { toast } from "@/lib/mascotToast";
 import { getItem, removeItem, setItem } from "@/lib/storage";
 
 const POLL_MS = 2000;

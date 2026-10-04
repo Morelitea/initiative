@@ -20,8 +20,8 @@ import {
   useUpdateAppService,
 } from "@/hooks/useAppServices";
 import { useAuth } from "@/hooks/useAuth";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 import { Capability, hasCapability } from "@/lib/permissions";
 
 /** Whether a registration carries a key set, pasted or by address. */

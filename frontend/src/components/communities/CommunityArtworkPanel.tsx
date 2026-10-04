@@ -54,7 +54,6 @@ import { ImagePicker } from "@/components/ui/image-picker";
 import { Label } from "@/components/ui/label";
 import { useCommunities } from "@/hooks/useCommunities";
 import { renderableBanner } from "@/lib/banner";
-import { toast } from "@/lib/chesterToast";
 import { DARK_TEXT, LIGHT_TEXT, readableTextColor, readableTextShadow } from "@/lib/contrastColor";
 import { getErrorMessage } from "@/lib/errorMessage";
 import {
@@ -62,6 +61,7 @@ import {
   renderCommunityBanner,
   renderCommunityIcon,
 } from "@/lib/imageRenditions";
+import { toast } from "@/lib/mascotToast";
 import { resolveHeaderlessApiUrl } from "@/lib/uploadUrl";
 
 type Busy = "icon" | "banner" | "look" | null;

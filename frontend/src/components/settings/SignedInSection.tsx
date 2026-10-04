@@ -34,7 +34,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useRelativeTime } from "@/hooks/useRelativeTime";
 import { useEndSignedIn, useMySessions, useRevokeOtherSessions } from "@/hooks/useSecurity";
-import { toast } from "@/lib/chesterToast";
+import { toast } from "@/lib/mascotToast";
 
 const KIND_ICONS = {
   [Kind.mobile]: Smartphone,

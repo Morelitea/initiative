@@ -52,9 +52,9 @@ import {
   useUpsertIntakeBinding,
 } from "@/hooks/useIntakeSettings";
 import { usePlatformCommunities } from "@/hooks/useSettings";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { formatDateTime } from "@/lib/formatDate";
+import { toast } from "@/lib/mascotToast";
 import { Capability, hasCapability } from "@/lib/permissions";
 
 /** Sentinel for "no community", which a Select cannot express with "". */

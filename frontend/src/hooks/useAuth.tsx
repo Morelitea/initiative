@@ -31,8 +31,8 @@ import { clearAllWhiteboardSceneCaches } from "@/components/documents/whiteboard
 import { forgetMessagesOnThisDevice, serveAccount } from "@/crypto/messaging";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import { clearJustSignedIn, markJustSignedIn } from "@/lib/authTransition";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 import {
   clearRefreshToken,
   type NativeSession,

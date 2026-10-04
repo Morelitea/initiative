@@ -15,8 +15,8 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { useSetPostPin } from "@/hooks/usePosts";
-import { toast } from "@/lib/chesterToast";
 import { formatDateTime, fromLocalDateTimeInput, toLocalDateTimeInput } from "@/lib/formatDate";
+import { toast } from "@/lib/mascotToast";
 import { cn } from "@/lib/utils";
 
 interface PinnedBannerProps {

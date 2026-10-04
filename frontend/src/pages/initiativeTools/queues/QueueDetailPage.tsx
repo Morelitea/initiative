@@ -42,8 +42,8 @@ import {
 import { useQueueView } from "@/hooks/useQueueView";
 import { useRecordRecentView } from "@/hooks/useRecents";
 import { useQueueRealtime } from "@/hooks/useResourceRealtime";
-import { toast } from "@/lib/chesterToast";
 import { useCommunityPath } from "@/lib/communityUrl";
+import { toast } from "@/lib/mascotToast";
 import { toolListRoute, toolSettingsRoute } from "@/lib/tools";
 
 export function QueueDetailPage() {

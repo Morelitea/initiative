@@ -20,8 +20,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Label } from "@/components/ui/label";
 import { usePlatformAuthSettings, useUpdatePlatformAuthSettings } from "@/hooks/useSettings";
-import { toast } from "@/lib/chesterToast";
 import { getErrorCode, getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 
 /** The two refusals that come with a number to acknowledge. */
 const ACKNOWLEDGEABLE = new Set([

@@ -30,13 +30,13 @@ import {
   useUploadDocumentVersion,
 } from "@/hooks/useDocuments";
 import { useRelativeTime } from "@/hooks/useRelativeTime";
-import { toast } from "@/lib/chesterToast";
 import {
   DOCUMENT_UPLOAD_ACCEPT,
   formatBytes,
   getFileExtension,
   getFileTypeLabel,
 } from "@/lib/fileUtils";
+import { toast } from "@/lib/mascotToast";
 import { resolveDocumentDownloadUrl, resolveDocumentVersionDownloadUrl } from "@/lib/uploadUrl";
 import { cn } from "@/lib/utils";
 

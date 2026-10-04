@@ -50,7 +50,7 @@ const stubDeployment = () =>
     ),
     http.get("/api/v1/auth/username-suggestions", ({ request }) => {
       suggestionSeeds.push(new URL(request.url).searchParams.get("seed"));
-      return HttpResponse.json({ suggestions: ["chesterfan", "lidlifter"] });
+      return HttpResponse.json({ suggestions: ["yonderfan", "lidlifter"] });
     }),
     http.get(catalogUrl(PORTAL), () =>
       HttpResponse.json({
@@ -196,13 +196,13 @@ describe("what the account is made with", () => {
     await heading("About you");
     // Nothing typed yet, so there is no account to make.
     expect(screen.getByRole("button", { name: "Continue" })).toBeDisabled();
-    await userEvent.click(await screen.findByRole("button", { name: "chesterfan" }));
-    expect(screen.getByLabelText("Username")).toHaveValue("chesterfan");
+    await userEvent.click(await screen.findByRole("button", { name: "yonderfan" }));
+    expect(screen.getByLabelText("Username")).toHaveValue("yonderfan");
     // The number it will get, shown and locked beside the name.
     expect(await screen.findByText("#0042")).toBeInTheDocument();
     await continueEnabled();
     // A pick is not typing, so it does not seed the next round of suggestions.
-    expect(suggestionSeeds).not.toContain("chesterfan");
+    expect(suggestionSeeds).not.toContain("yonderfan");
     await press("Continue");
     await heading("Your space");
     await press("Continue");
@@ -211,9 +211,9 @@ describe("what the account is made with", () => {
     const sent = register.mock.calls[0][0];
     expect(sent).toMatchObject({
       email: "new@example.com",
-      username: "chesterfan",
+      username: "yonderfan",
       username_offer: "signed-42",
-      community: { name: "chesterfan's space" },
+      community: { name: "yonderfan's space" },
     });
   });
 

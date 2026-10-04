@@ -9,7 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/hooks/useAuth";
 import { useServerForm } from "@/hooks/useServerForm";
 import { useEmailSettings, useSendTestEmail, useUpdateEmailSettings } from "@/hooks/useSettings";
-import { toast } from "@/lib/chesterToast";
+import { toast } from "@/lib/mascotToast";
 import { Capability, hasCapability } from "@/lib/permissions";
 
 interface EmailPayload {

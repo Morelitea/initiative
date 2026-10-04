@@ -11,12 +11,12 @@ import type { ExportJobRead } from "@/api/generated/initiativeAPI.schemas";
 import { ExportTasksButton } from "./ExportTasksButton";
 
 vi.mock("@/lib/csv", () => ({ downloadBlob: vi.fn() }));
-vi.mock("@/lib/chesterToast", () => ({
+vi.mock("@/lib/mascotToast", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 
-import { toast } from "@/lib/chesterToast";
 import { downloadBlob } from "@/lib/csv";
+import { toast } from "@/lib/mascotToast";
 import { getItem, setItem } from "@/lib/storage";
 
 const PDF = new Uint8Array([0x25, 0x50, 0x44, 0x46]); // "%PDF"

@@ -53,8 +53,8 @@ import {
   useRevokeMemberConsents,
 } from "@/hooks/useCommunityAppDetail";
 import { useUserSearch } from "@/hooks/useUsers";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 import { getUserDisplayName } from "@/lib/userDisplay";
 import { localized } from "@/lib/widgets/widgetMeta";
 

@@ -97,7 +97,6 @@ import {
   useUpdateTask,
 } from "@/hooks/useTasks";
 import { useViewPreference } from "@/hooks/useViewPreference";
-import { toast } from "@/lib/chesterToast";
 import { resolvePresetState } from "@/lib/filters/presets";
 import {
   buildTaskConditions,
@@ -112,6 +111,7 @@ import {
   taskFilterCount,
   taskFiltersEqual,
 } from "@/lib/filters/taskFilters";
+import { toast } from "@/lib/mascotToast";
 import { getProjectColor } from "@/lib/projectColor";
 import { rulePayload } from "@/lib/recurrence";
 import { getItem, setItem } from "@/lib/storage";

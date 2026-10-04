@@ -16,8 +16,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { useCommunities } from "@/hooks/useCommunities";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 
 interface RemoveCommunityMemberDialogProps {
   open: boolean;

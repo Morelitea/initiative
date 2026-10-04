@@ -9,8 +9,8 @@ import {
   readHeldChange,
 } from "@/api/generated/users/users";
 import { useApiMutation } from "@/hooks/useApiMutation";
-import { toast } from "@/lib/chesterToast";
 import { formatDateTime } from "@/lib/formatDate";
+import { toast } from "@/lib/mascotToast";
 import { queryClient } from "@/lib/queryClient";
 import type { MutationOpts } from "@/types/mutation";
 

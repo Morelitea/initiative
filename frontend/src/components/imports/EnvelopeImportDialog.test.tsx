@@ -12,7 +12,7 @@ import { queryClient } from "@/lib/queryClient";
 
 import { EnvelopeImportDialog } from "./EnvelopeImportDialog";
 
-vi.mock("@/lib/chesterToast", () => ({
+vi.mock("@/lib/mascotToast", () => ({
   toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
 }));
 
@@ -31,7 +31,7 @@ vi.mock("@/hooks/useInitiatives", () => ({
   useInitiatives: () => ({ data: [initiative] }),
 }));
 
-import { toast } from "@/lib/chesterToast";
+import { toast } from "@/lib/mascotToast";
 
 function selectFile(contents: object) {
   const input = screen.getByLabelText(/export file/i) as HTMLInputElement;

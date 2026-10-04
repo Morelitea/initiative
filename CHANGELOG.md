@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Mentions always show the name a person goes by now**, or **Former member** once they've left, and search finds mentions by that name. **Server operators:** the first start rebuilds each community's search index.
 - **The server prepares documents for live editing**, and live editing works across several copies of the server. **Server operators:** the editor helper uses about 90 MB while running; see **Running more than one copy**.
 - **Changing your email addresses asks you to confirm it's you.**
+- **The jackalope mascot is called Yonder now**, not Chester.
 - **The phone and desktop apps stay signed in for ninety days** of not being used, and show as one row each in your sessions. An app last opened before 0.70 asks you to sign in once.
 - **The sign-in page says which server you're signing in to.** In the phone app, tap its name to switch servers.
 - **API access is set per member.** A community's superadmin turns one person's personal API keys on or off from the **API access** column in **Community settings › Users**, which stops keys they already made too. It replaces the community-wide switch on the **Security** tab and, like it, applies only where the server grants the community the security standard. Members of a community that had keys switched off start with them off. Personal API keys never reach a community through an access grant.

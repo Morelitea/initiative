@@ -33,8 +33,8 @@ import { Switch } from "@/components/ui/switch";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useAuth } from "@/hooks/useAuth";
 import { useCommunitySettings, useUpdateCommunitySettings } from "@/hooks/useSettings";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 import { Capability, hasCapability } from "@/lib/permissions";
 
 export const SettingsPlatformCommunityPage = () => {

@@ -22,7 +22,7 @@ import { ColorPickerPopover } from "@/components/ui/color-picker-popover";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsBar, TabsContent, TabsTrigger } from "@/components/ui/tabs";
 import { useDeleteTag, useTag, useTagEntities, useUpdateTag } from "@/hooks/useTags";
-import { toast } from "@/lib/chesterToast";
+import { toast } from "@/lib/mascotToast";
 import { TOOL_ICONS, TOOLS, toolNavLabelKey } from "@/lib/tools";
 
 export const TagDetailPage = () => {

@@ -41,7 +41,7 @@ import {
   useProperties,
   useUpdateProperty,
 } from "@/hooks/useProperties";
-import { toast } from "@/lib/chesterToast";
+import { toast } from "@/lib/mascotToast";
 
 const PROPERTY_TYPE_OPTIONS: PropertyTypeValue[] = [
   PropertyType.text,

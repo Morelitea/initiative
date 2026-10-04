@@ -34,7 +34,7 @@ import {
   useSetQueueItemLinks,
   useUpdateQueueItem,
 } from "@/hooks/useQueues";
-import { toast } from "@/lib/chesterToast";
+import { toast } from "@/lib/mascotToast";
 import { sameIds } from "@/lib/relationships";
 import type { DialogProps } from "@/types/dialog";
 

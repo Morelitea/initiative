@@ -12,7 +12,7 @@
  * sign in) has to be typed.
  *
  * This file holds the order of the steps and what finishing does; each step's
- * form is its own component beside it, and Chester hosts every one.
+ * form is its own component beside it, and Yonder hosts every one.
  */
 
 import { Link, useNavigate } from "@tanstack/react-router";
@@ -29,7 +29,6 @@ import { SignInFrame } from "@/components/auth/SignInFrame";
 import { useAgeConfirmation } from "@/components/auth/useAgeConfirmation";
 import { RecoveryCodesPanel } from "@/components/settings/RecoveryCodesPanel";
 import { AccountStep } from "@/components/start/AccountStep";
-import { type ChesterPose, ChesterSays } from "@/components/start/ChesterSays";
 import { ChooseStep } from "@/components/start/ChooseStep";
 import { CommunityStep } from "@/components/start/CommunityStep";
 import { InterestStep } from "@/components/start/InterestStep";
@@ -37,6 +36,7 @@ import { InviteStep } from "@/components/start/InviteStep";
 import { PeopleStep } from "@/components/start/PeopleStep";
 import { PlanStep } from "@/components/start/PlanStep";
 import { ContinueButton } from "@/components/start/stepParts";
+import { type YonderPose, YonderSays } from "@/components/start/YonderSays";
 import { YouStep } from "@/components/start/YouStep";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -49,8 +49,8 @@ import { useCommunities } from "@/hooks/useCommunities";
 import { useLandOnStarter, useOpenDirectory, useSeedStarter } from "@/hooks/useFinishPendingStart";
 import { useServer } from "@/hooks/useServer";
 import { useWizard } from "@/hooks/useWizard";
-import { toast } from "@/lib/chesterToast";
 import { getErrorCode, getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 import { describePasskeyPromptError, signUpWithPasskey } from "@/lib/passkeys";
 import {
   clearStart,
@@ -495,7 +495,7 @@ const StartSteps = ({
       : null;
 
   let title: string;
-  let pose: ChesterPose;
+  let pose: YonderPose;
   let line: string | null = null;
   let body: ReactNode;
   switch (step) {
@@ -708,7 +708,7 @@ const StartSteps = ({
   return (
     <SignInFrame fillPhone>
       <Card className="grid w-full max-w-lg gap-4 p-6 shadow-lg max-sm:min-h-dvh max-sm:max-w-none max-sm:content-start max-sm:rounded-none max-sm:border-0 max-sm:pt-[max(1.5rem,env(safe-area-inset-top))] max-sm:pb-[max(1.5rem,env(safe-area-inset-bottom))]">
-        <ChesterSays key={step} pose={pose} line={line} />
+        <YonderSays key={step} pose={pose} line={line} />
         <WizardFrame
           title={title}
           progress={

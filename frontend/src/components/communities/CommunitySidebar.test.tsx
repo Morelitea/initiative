@@ -18,7 +18,7 @@ import { buildCommunity } from "@/__tests__/factories";
 import { renderPage } from "@/__tests__/helpers/render";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import type { CommunityEntry, useCommunities } from "@/hooks/useCommunities";
-import { toast } from "@/lib/chesterToast";
+import { toast } from "@/lib/mascotToast";
 
 import { CommunitySidebar } from "./CommunitySidebar";
 
@@ -51,7 +51,7 @@ vi.mock("@/api/generated/communities/communities", async () => {
     createCommunityBillingHandoff: mintMock,
   };
 });
-vi.mock("@/lib/chesterToast", () => ({
+vi.mock("@/lib/mascotToast", () => ({
   toast: { info: vi.fn(), error: vi.fn(), success: vi.fn() },
 }));
 

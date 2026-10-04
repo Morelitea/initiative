@@ -41,9 +41,9 @@ import {
   useUpdatePost,
 } from "@/hooks/usePosts";
 import { useRecordRecentView } from "@/hooks/useRecents";
-import { toast } from "@/lib/chesterToast";
 import { useCommunityPath } from "@/lib/communityUrl";
 import { formatDateTime, fromLocalDateTimeInput, toLocalDateTimeInput } from "@/lib/formatDate";
+import { toast } from "@/lib/mascotToast";
 import { hasBody, MAX_POST_TEXT_CHARS } from "@/lib/posts";
 import { referenceRef } from "@/lib/smartChips";
 import { toolListRoute, toolSettingsRoute } from "@/lib/tools";

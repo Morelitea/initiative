@@ -49,8 +49,8 @@ import {
   presetFor,
   suggestScopes,
 } from "@/lib/authProviderPresets";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage, messageForCode } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 import { isValidProviderSlug } from "@/lib/providerSlug";
 
 type Step = "choose" | "address" | "credentials" | "options";

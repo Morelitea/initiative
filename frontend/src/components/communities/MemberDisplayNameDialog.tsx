@@ -13,8 +13,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useSetMemberDisplayName } from "@/hooks/useUsers";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 import type { DialogProps } from "@/types/dialog";
 
 /** The longest name the server takes (`MEMBER_DISPLAY_NAME_MAX_LENGTH`). */

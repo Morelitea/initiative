@@ -48,8 +48,8 @@ import {
   useUpdateCommunityAuthSettings,
 } from "@/hooks/useCommunityAuthPolicy";
 import { useWizard } from "@/hooks/useWizard";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 
 /** Which claim narrows which provider. Each one spells "our tenant"
  *  differently, and only the provider knows which word it uses. */

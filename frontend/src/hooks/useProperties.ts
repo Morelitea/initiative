@@ -23,7 +23,7 @@ import { invalidate, q } from "@/api/query-keys";
 import { buildUniqueOptionSlug, findOptionByLabel } from "@/components/properties/propertyHelpers";
 import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { useCommunityMutation } from "@/hooks/useApiMutation";
-import { toast } from "@/lib/chesterToast";
+import { toast } from "@/lib/mascotToast";
 import type { MutationOpts } from "@/types/mutation";
 
 // ── Queries ──────────────────────────────────────────────────────────────────

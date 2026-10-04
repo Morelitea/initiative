@@ -46,8 +46,8 @@ import {
   useFileTicket,
   useTicketAvailability,
 } from "@/hooks/useTickets";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage, getHttpStatus } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 
 /** Match the columns behind them, so a field stops where the server would. */
 const SUBJECT_MAX = 200;

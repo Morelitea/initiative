@@ -45,9 +45,9 @@ import { useInstallCommunityApp } from "@/hooks/useCommunityApps";
 import { useInitiatives } from "@/hooks/useInitiatives";
 import { STANDING_SCOPES, scopeSentence, toggleScope } from "@/lib/appScopes";
 import { communityAppPath } from "@/lib/appSurfaces";
-import { toast } from "@/lib/chesterToast";
 import { useCommunityPath } from "@/lib/communityUrl";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 import type { DialogProps } from "@/types/dialog";
 
 export interface InstallAppDialogProps extends DialogProps {

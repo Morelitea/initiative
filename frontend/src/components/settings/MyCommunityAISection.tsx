@@ -9,8 +9,8 @@ import {
   useSetMemberPref,
   useTestMemberAI,
 } from "@/hooks/useAISettings";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage, messageForCode } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 
 import { MemberAIConnectionRow, myConnectionValue } from "./MemberAIConnectionRow";
 

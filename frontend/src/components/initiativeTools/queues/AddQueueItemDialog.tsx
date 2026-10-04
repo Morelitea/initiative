@@ -22,7 +22,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useCreateQueueItem, useSetQueueItemLinks } from "@/hooks/useQueues";
-import { toast } from "@/lib/chesterToast";
+import { toast } from "@/lib/mascotToast";
 import type { LinkedRef } from "@/lib/relationships";
 import type { DialogProps } from "@/types/dialog";
 

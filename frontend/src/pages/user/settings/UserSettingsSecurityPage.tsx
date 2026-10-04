@@ -32,8 +32,8 @@ import {
 } from "@/components/ui/select";
 import { useCommunities } from "@/hooks/useCommunities";
 import { useCreateApiKey, useDeleteApiKey, useMyApiKeys } from "@/hooks/useSecurity";
-import { toast } from "@/lib/chesterToast";
 import { formatDateTime } from "@/lib/formatDate";
+import { toast } from "@/lib/mascotToast";
 
 const computeStatus = (key: ApiKeyMetadata) => {
   if (!key.is_active) {

@@ -16,7 +16,7 @@ import type {
   ProviderPlacementRuleRead,
 } from "@/api/generated/initiativeAPI.schemas";
 
-vi.mock("@/lib/chesterToast", () => ({
+vi.mock("@/lib/mascotToast", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 

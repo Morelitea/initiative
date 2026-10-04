@@ -58,8 +58,8 @@ import { useReadOnOpen } from "@/hooks/useNotifications";
 import { useRecordRecentView } from "@/hooks/useRecents";
 import { useCounterGroupRealtime } from "@/hooks/useResourceRealtime";
 import { useViewPreference } from "@/hooks/useViewPreference";
-import { toast } from "@/lib/chesterToast";
 import { useCommunityPath } from "@/lib/communityUrl";
+import { toast } from "@/lib/mascotToast";
 import { counterRoute, toolListRoute, toolSettingsRoute } from "@/lib/tools";
 
 const layoutStorageKey = (groupId: number) => `counter-group-${groupId}-layout`;

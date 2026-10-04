@@ -22,7 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { RelativeTime } from "@/components/ui/relative-time";
 import { useInitiativeJoinRequests, useResolveJoinRequest } from "@/hooks/useInitiatives";
-import { toast } from "@/lib/chesterToast";
+import { toast } from "@/lib/mascotToast";
 import {
   getAvatarSrc,
   getInitialsForUser,

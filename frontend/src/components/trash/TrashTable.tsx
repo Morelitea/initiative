@@ -22,8 +22,8 @@ import {
   usePurgeTrashEntity,
   useRestoreTrashEntity,
 } from "@/hooks/useTrash";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 
 /**
  * `user` — the viewer's own deletions across every community (personal settings).

@@ -37,9 +37,9 @@ import { WizardDialog } from "@/components/ui/wizard-dialog";
 import { useAnnounceHeld } from "@/hooks/useHeldChange";
 import { useServer } from "@/hooks/useServer";
 import { useWizard } from "@/hooks/useWizard";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { formatDateTime } from "@/lib/formatDate";
+import { toast } from "@/lib/mascotToast";
 import { hasReservedSigil } from "@/lib/mentions";
 import { queryClient } from "@/lib/queryClient";
 

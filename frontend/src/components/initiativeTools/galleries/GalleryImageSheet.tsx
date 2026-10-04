@@ -36,9 +36,9 @@ import {
   useUpdateGalleryImage,
   useUploadGalleryImageVersion,
 } from "@/hooks/useGalleries";
-import { toast } from "@/lib/chesterToast";
 import { formatBytes } from "@/lib/fileUtils";
 import { ACCEPT_ATTRIBUTE, imageLabel, imageSrc, refuseFile } from "@/lib/galleries";
+import { toast } from "@/lib/mascotToast";
 import { resolveUploadUrl } from "@/lib/uploadUrl";
 import { cn } from "@/lib/utils";
 

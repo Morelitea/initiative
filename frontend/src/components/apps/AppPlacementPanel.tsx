@@ -29,8 +29,8 @@ import { useSetAppPlacementRoles, useUpdateCommunityApp } from "@/hooks/useCommu
 import { useInitiativeRoles } from "@/hooks/useInitiativeRoles";
 import { useInitiatives } from "@/hooks/useInitiatives";
 import { declaredEmbeds } from "@/lib/appSurfaces";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 
 export interface AppPlacementPanelProps {
   app: CommunityAppDetail;

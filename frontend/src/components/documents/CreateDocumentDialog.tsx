@@ -47,13 +47,13 @@ import { useAppConfig } from "@/hooks/useAppConfig";
 import { useCreateDocument, useUploadDocument } from "@/hooks/useDocuments";
 import { useInitiative } from "@/hooks/useInitiatives";
 import { useCommunityPickerSuggestions } from "@/hooks/useSearch";
-import { toast } from "@/lib/chesterToast";
 import {
   DOCUMENT_UPLOAD_ACCEPT,
   formatBytes,
   getFileTypeLabel,
   nameWithoutExtension,
 } from "@/lib/fileUtils";
+import { toast } from "@/lib/mascotToast";
 import { matchSmartLinkProvider, SUPPORTED_PROVIDER_BADGES } from "@/lib/smartLinkProviders";
 import type { DialogProps } from "@/types/dialog";
 

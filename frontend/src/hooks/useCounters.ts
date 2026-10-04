@@ -25,7 +25,6 @@ import { invalidate, q } from "@/api/query-keys";
 import { TOOL_HOOKS } from "@/hooks/toolHooks";
 import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { useCommunityMutation } from "@/hooks/useApiMutation";
-import { toast } from "@/lib/chesterToast";
 import {
   optimisticDecrement,
   optimisticIncrement,
@@ -34,6 +33,7 @@ import {
 } from "@/lib/counter-math";
 import { fireCounterStepFeedback } from "@/lib/counterStepFeedback";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 import type { MutationOpts } from "@/types/mutation";
 
 // ── Optimistic update helpers ───────────────────────────────────────────────

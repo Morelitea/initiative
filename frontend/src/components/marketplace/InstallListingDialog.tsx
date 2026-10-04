@@ -41,9 +41,9 @@ import {
 } from "@/components/ui/select";
 import { useCreateDashboard } from "@/hooks/useDashboards";
 import { useToolCreateAccess } from "@/hooks/useInitiativeAccess";
-import { toast } from "@/lib/chesterToast";
 import { useCommunityPath } from "@/lib/communityUrl";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 import { toolDetailRoute } from "@/lib/tools";
 import type { DialogProps } from "@/types/dialog";
 

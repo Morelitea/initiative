@@ -44,8 +44,8 @@ import {
   useCommunityNarrowings,
   useUpdateCommunityStorage,
 } from "@/hooks/useSettings";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 
 const GIB = 1024 ** 3;
 

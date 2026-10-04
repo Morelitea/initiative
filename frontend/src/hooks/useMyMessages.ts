@@ -57,8 +57,8 @@ import {
   useDmSettings,
   usePendingContactRequests,
 } from "@/hooks/useDirectMessages";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 
 export const messageKeys = {
   conversations: ["dm", "conversations"] as const,

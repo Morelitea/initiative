@@ -11,7 +11,7 @@ import { renderWithProviders } from "@/__tests__/helpers/render";
 import { TrashTable } from "./TrashTable";
 
 // Hoist toast spy so we can assert on it without pulling the whole module.
-vi.mock("@/lib/chesterToast", () => {
+vi.mock("@/lib/mascotToast", () => {
   const success = vi.fn();
   const error = vi.fn();
   return {
@@ -107,7 +107,7 @@ describe("TrashTable", () => {
   });
 
   it("clicking Restore POSTs to the restore endpoint and shows a success toast", async () => {
-    const { toast } = await import("@/lib/chesterToast");
+    const { toast } = await import("@/lib/mascotToast");
     const restoreCalls: string[] = [];
 
     server.use(
@@ -134,7 +134,7 @@ describe("TrashTable", () => {
   });
 
   it("clicking Delete now opens a destructive confirmation and DELETEs on confirm", async () => {
-    const { toast } = await import("@/lib/chesterToast");
+    const { toast } = await import("@/lib/mascotToast");
     const purgeCalls: string[] = [];
 
     server.use(

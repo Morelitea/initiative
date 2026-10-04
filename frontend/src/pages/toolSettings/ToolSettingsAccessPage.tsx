@@ -12,7 +12,7 @@ import { ShareControl } from "@/components/access/ShareControl";
 import { useToolSettings } from "@/components/tools/settings/ToolSettingsContext";
 import { ToolSettingsPermissionRequired } from "@/components/tools/settings/ToolSettingsGuard";
 import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
-import { toast } from "@/lib/chesterToast";
+import { toast } from "@/lib/mascotToast";
 
 export const ToolSettingsAccessPage = () => {
   const { t } = useTranslation(["common", "access"]);

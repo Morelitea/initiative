@@ -20,7 +20,7 @@ const mocks = vi.hoisted(() => ({
   revokeOthers: vi.fn(),
 }));
 
-vi.mock("@/lib/chesterToast", () => ({
+vi.mock("@/lib/mascotToast", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 

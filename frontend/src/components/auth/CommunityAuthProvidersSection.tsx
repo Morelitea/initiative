@@ -38,8 +38,8 @@ import {
   useDisconnectProvider,
   useUpdateProviderConnection,
 } from "@/hooks/useCommunityAuthPolicy";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 
 export const CommunityAuthProvidersSection = ({
   communityId,

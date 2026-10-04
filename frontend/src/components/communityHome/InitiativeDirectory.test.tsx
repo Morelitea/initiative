@@ -21,11 +21,11 @@ import {
   type UserRead,
 } from "@/api/generated/initiativeAPI.schemas";
 
-vi.mock("@/lib/chesterToast", () => ({
+vi.mock("@/lib/mascotToast", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 
-import { toast } from "@/lib/chesterToast";
+import { toast } from "@/lib/mascotToast";
 import { getItem } from "@/lib/storage";
 
 import { InitiativeDirectory } from "./InitiativeDirectory";

@@ -24,8 +24,8 @@ import { SettingsSection } from "@/components/settings/SettingsSection";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { usePlatformAuthSettings, useUpdatePlatformAuthSettings } from "@/hooks/useSettings";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 
 export const SecondFactorMethodSection = () => {
   const { t } = useTranslation("settings");

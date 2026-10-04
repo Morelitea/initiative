@@ -15,7 +15,7 @@ import { EMPTY_TASK_FILTERS, taskSpecConditions } from "@/lib/filters/taskFilter
 import { ExportWizard } from "./ExportWizard";
 
 vi.mock("@/lib/csv", () => ({ downloadBlob: vi.fn() }));
-vi.mock("@/lib/chesterToast", () => ({
+vi.mock("@/lib/mascotToast", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 

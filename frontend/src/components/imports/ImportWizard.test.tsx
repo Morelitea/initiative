@@ -9,7 +9,7 @@ import { renderWithProviders } from "@/__tests__/helpers/render";
 
 import { ImportWizard } from "./ImportWizard";
 
-vi.mock("@/lib/chesterToast", () => ({
+vi.mock("@/lib/mascotToast", () => ({
   toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
 }));
 

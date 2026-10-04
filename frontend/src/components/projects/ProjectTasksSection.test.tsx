@@ -25,7 +25,7 @@ import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
 import { ProjectTasksSection } from "@/components/projects/ProjectTasksSection";
-import { toast } from "@/lib/chesterToast";
+import { toast } from "@/lib/mascotToast";
 import { fireTaskCompletionFeedback } from "@/lib/taskCompletionFeedback";
 
 vi.mock("@/lib/taskCompletionFeedback", async (importOriginal) => ({

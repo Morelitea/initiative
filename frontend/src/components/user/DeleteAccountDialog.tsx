@@ -13,8 +13,8 @@ import { WizardDialog } from "@/components/ui/wizard-dialog";
 import { useMyDeletionEligibility } from "@/hooks/useOperatorUsers";
 import { useDeleteOwnAccount } from "@/hooks/useUsers";
 import { useWizard } from "@/hooks/useWizard";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 import type { DialogWithSuccessProps } from "@/types/dialog";
 
 /**

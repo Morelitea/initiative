@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import type { TaskListRead, TaskStatusRead } from "@/api/generated/initiativeAPI.schemas";
 import { statusTriggerStyle, TaskStatusOption } from "@/components/tasks/TaskStatusOption";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
-import { toast } from "@/lib/chesterToast";
+import { toast } from "@/lib/mascotToast";
 
 type TaskStatusSelectorProps = {
   task: TaskListRead;

@@ -51,9 +51,9 @@ import {
   useUpdateCommunityApp,
 } from "@/hooks/useCommunityApps";
 import { declaredEmbeds } from "@/lib/appSurfaces";
-import { toast } from "@/lib/chesterToast";
 import { useCommunityPath } from "@/lib/communityUrl";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 import { cn } from "@/lib/utils";
 
 export function SettingsCommunityAppsPage() {

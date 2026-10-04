@@ -17,9 +17,9 @@ import { InitiativeSettingsPermissionRequired } from "@/components/initiatives/s
 import { useArchiveEntity, useUnarchiveEntity } from "@/hooks/useArchive";
 import { useInitiativeSettings } from "@/hooks/useInitiativeSettings";
 import { useDeleteInitiative } from "@/hooks/useInitiatives";
-import { toast } from "@/lib/chesterToast";
 import { useCommunityPath } from "@/lib/communityUrl";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 
 export const InitiativeSettingsDangerPage = () => {
   const { t } = useTranslation(["initiatives", "common"]);

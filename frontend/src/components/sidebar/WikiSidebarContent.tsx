@@ -37,8 +37,8 @@ import {
   useWiki,
   useWikiPages,
 } from "@/hooks/useWikis";
-import { toast } from "@/lib/chesterToast";
 import { useCommunityPath } from "@/lib/communityUrl";
+import { toast } from "@/lib/mascotToast";
 import { TOOL_ICONS, toolSettingsRoute, wikiDocumentRoute, wikiPageRoute } from "@/lib/tools";
 
 // Adding a document to a wiki is named by the documents tool itself, so the row

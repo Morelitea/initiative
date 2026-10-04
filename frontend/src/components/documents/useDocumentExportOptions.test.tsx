@@ -15,7 +15,7 @@ import { ToolSettingsProvider } from "@/components/tools/settings/ToolSettingsCo
 import { useDocumentExportOptions } from "./useDocumentExportOptions";
 
 vi.mock("@/lib/csv", () => ({ downloadBlob: vi.fn() }));
-vi.mock("@/lib/chesterToast", () => ({
+vi.mock("@/lib/mascotToast", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 vi.mock("@excalidraw/excalidraw", () => ({

@@ -7,9 +7,9 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { useApplyHeldChange, useCancelHeldChange, useHeldChange } from "@/hooks/useHeldChange";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { formatDateTime } from "@/lib/formatDate";
+import { toast } from "@/lib/mascotToast";
 import { browserOffersPasskeys, describePasskeyPromptError } from "@/lib/passkeys";
 
 /** What each waiting change will do, by the kind the server names. */

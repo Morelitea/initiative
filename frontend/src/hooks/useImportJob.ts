@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { useGetImportJob } from "@/api/generated/imports/imports";
 import type { ImportJobRead } from "@/api/generated/initiativeAPI.schemas";
 import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
-import { toast } from "@/lib/chesterToast";
+import { toast } from "@/lib/mascotToast";
 import { getItem, removeItem, setItem } from "@/lib/storage";
 
 const POLL_MS = 2000;

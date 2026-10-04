@@ -10,9 +10,9 @@ import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDeleteAnnouncement, usePlatformAnnouncements } from "@/hooks/usePlatformAnnouncements";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { formatDateTime } from "@/lib/formatDate";
+import { toast } from "@/lib/mascotToast";
 
 type Status = "draft" | "scheduled" | "live" | "expired";
 

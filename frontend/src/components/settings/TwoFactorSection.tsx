@@ -26,9 +26,9 @@ import { Label } from "@/components/ui/label";
 import { WizardDialog } from "@/components/ui/wizard-dialog";
 import { useAnnounceHeld } from "@/hooks/useHeldChange";
 import { useWizard } from "@/hooks/useWizard";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { formatDateTime } from "@/lib/formatDate";
+import { toast } from "@/lib/mascotToast";
 import { queryClient } from "@/lib/queryClient";
 import { classifySecondFactorAnswer } from "@/lib/secondFactorAnswer";
 

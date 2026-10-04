@@ -33,8 +33,8 @@ import type {
 } from "@/api/generated/initiativeAPI.schemas";
 import { invalidate, q } from "@/api/query-keys";
 import { useAppConfig } from "@/hooks/useAppConfig";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 
 /** Everything a change to one of these lists can affect. */
 export const refreshContactLists = () => {

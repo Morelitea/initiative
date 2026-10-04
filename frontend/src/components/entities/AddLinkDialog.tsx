@@ -32,7 +32,6 @@ import {
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useUploadDocument } from "@/hooks/useDocuments";
 import { type ToolRef, useRelate } from "@/hooks/useRelationships";
-import { toast } from "@/lib/chesterToast";
 import {
   DOCUMENT_UPLOAD_ACCEPT,
   formatBytes,
@@ -41,6 +40,7 @@ import {
   getFileTypeLabel,
   nameWithoutExtension,
 } from "@/lib/fileUtils";
+import { toast } from "@/lib/mascotToast";
 import {
   canAssert,
   defaultGroupFor,

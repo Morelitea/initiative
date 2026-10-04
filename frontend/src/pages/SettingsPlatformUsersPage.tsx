@@ -44,9 +44,9 @@ import {
   useOperatorTriggerPasswordReset,
   usePlatformUsers,
 } from "@/hooks/useOperatorUsers";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { formatDateTime } from "@/lib/formatDate";
+import { toast } from "@/lib/mascotToast";
 import { Capability, hasCapability } from "@/lib/permissions";
 import type { AppColumnDef } from "@/lib/table";
 import { getUserHandle } from "@/lib/userDisplay";

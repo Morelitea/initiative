@@ -36,8 +36,8 @@ import {
 } from "@/components/ui/select";
 import { useArchiveEntity, useUnarchiveEntity } from "@/hooks/useArchive";
 import { useSetToolTags } from "@/hooks/useToolTags";
-import { toast } from "@/lib/chesterToast";
 import { useCommunityPath } from "@/lib/communityUrl";
+import { toast } from "@/lib/mascotToast";
 import { cn } from "@/lib/utils";
 
 export interface ToolChestEntity {

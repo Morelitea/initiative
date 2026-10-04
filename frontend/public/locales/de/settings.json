@@ -542,9 +542,9 @@
     "saveInterface": "Oberflächeneinstellungen speichern",
     "savingInterface": "Speichern…",
     "interfaceSuccess": "Oberflächeneinstellungen aktualisiert",
-    "chesterPlayground": {
-      "title": "Chester-Toast-Spielwiese",
-      "description": "Löse jeden Toast-Typ aus, um seine Chester-Variante und Animation in der Vorschau zu sehen.",
+    "yonderPlayground": {
+      "title": "Yonder-Toast-Spielwiese",
+      "description": "Löse jeden Toast-Typ aus, um seine Yonder-Variante und Animation in der Vorschau zu sehen.",
       "default": {
         "label": "Standard (untätig)",
         "message": "Nur eine Benachrichtigung"

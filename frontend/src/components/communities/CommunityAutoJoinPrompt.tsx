@@ -23,7 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useInitiatives, useUpdateInitiative } from "@/hooks/useInitiatives";
-import { toast } from "@/lib/chesterToast";
+import { toast } from "@/lib/mascotToast";
 
 export const CommunityAutoJoinPrompt = () => {
   const { t } = useTranslation(["communities", "common"]);

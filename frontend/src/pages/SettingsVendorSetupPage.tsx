@@ -4,8 +4,8 @@ import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
 import { useCompleteVendorSetup } from "@/hooks/useAppServices";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 
 /**
  * Where an app vendor's own setup sends the operator back.

@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { useUpdateTaskInCommunity } from "@/hooks/useTasks";
-import { toast } from "@/lib/chesterToast";
+import { toast } from "@/lib/mascotToast";
 
 type TaskPrioritySelectorProps = {
   task: TaskListRead;

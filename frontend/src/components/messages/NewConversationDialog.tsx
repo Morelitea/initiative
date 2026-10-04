@@ -33,9 +33,9 @@ import {
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { parseHandle, useDmPermissions, useRequestConnection } from "@/hooks/useDirectMessages";
 import { useRosterCheck, useStartGroup } from "@/hooks/useMyMessages";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { getInitials } from "@/lib/initials";
+import { toast } from "@/lib/mascotToast";
 import { getUrlHandle, getUserDisplayName } from "@/lib/userDisplay";
 import { cn } from "@/lib/utils";
 

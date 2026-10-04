@@ -25,7 +25,7 @@ import {
   useTestStorageConnection,
   useUpdateStorageSettings,
 } from "@/hooks/useSettings";
-import { toast } from "@/lib/chesterToast";
+import { toast } from "@/lib/mascotToast";
 import { Capability, hasCapability } from "@/lib/permissions";
 
 type Backend = "local" | "s3";

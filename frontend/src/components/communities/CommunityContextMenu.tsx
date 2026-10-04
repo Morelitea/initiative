@@ -26,8 +26,8 @@ import {
 import { useBillingPortal } from "@/hooks/useBillingPortal";
 import { useCommunities } from "@/hooks/useCommunities";
 import { holdsBillingSeat } from "@/lib/billingSummary";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 
 import { LeaveCommunityDialog } from "./LeaveCommunityDialog";
 

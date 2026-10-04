@@ -6,7 +6,7 @@ import { SPREADSHEET_ORIGINS } from "@/components/documents/spreadsheet/origins"
 import type { SpreadsheetCellsStore } from "@/components/documents/spreadsheet/useSpreadsheetCells";
 import type { SpreadsheetFormattingStore } from "@/components/documents/spreadsheet/useSpreadsheetFormatting";
 import type { SpreadsheetSelection } from "@/components/documents/spreadsheet/useSpreadsheetSelection";
-import { toast } from "@/lib/chesterToast";
+import { toast } from "@/lib/mascotToast";
 import { MAX_COLS, MAX_ROWS, type SheetBounds, type SheetGrid } from "@/lib/spreadsheet/bounds";
 import type { CellValue } from "@/lib/spreadsheet/coords";
 import type { SheetId, SheetMeta } from "@/lib/spreadsheet/sheets";

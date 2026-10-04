@@ -38,9 +38,9 @@ import { WizardDialog } from "@/components/ui/wizard-dialog";
 import { usePlatformUsers } from "@/hooks/useOperatorUsers";
 import { useRestoreCommunity } from "@/hooks/useSettings";
 import { useWizard } from "@/hooks/useWizard";
-import { toast } from "@/lib/chesterToast";
 import { OPERATOR_SETTABLE_STATUSES } from "@/lib/communityStatus";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 import { getUserHandle } from "@/lib/userDisplay";
 
 type Step = "seat" | "status";

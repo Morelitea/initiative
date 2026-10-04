@@ -18,8 +18,8 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { useKeepScreenAwake } from "@/hooks/useKeepScreenAwake";
 import { useUpdateCurrentUser } from "@/hooks/useUsers";
-import { toast } from "@/lib/chesterToast";
 import { autoUpdateConsented, desktopCanUpdate, setAutoUpdateConsent } from "@/lib/desktopUpdates";
+import { toast } from "@/lib/mascotToast";
 import {
   dispatchTaskCompletionVisualFeedback,
   parseTaskCompletionVisualFeedback,

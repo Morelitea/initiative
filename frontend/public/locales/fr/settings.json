@@ -542,9 +542,9 @@
     "saveInterface": "Enregistrer les paramètres d'interface",
     "savingInterface": "Enregistrement…",
     "interfaceSuccess": "Paramètres d'interface mis à jour",
-    "chesterPlayground": {
-      "title": "Banc d'essai des notifications Chester",
-      "description": "Déclenchez chaque type de notification pour prévisualiser la variante de Chester et son animation.",
+    "yonderPlayground": {
+      "title": "Banc d'essai des notifications Yonder",
+      "description": "Déclenchez chaque type de notification pour prévisualiser la variante de Yonder et son animation.",
       "default": {
         "label": "défaut (au repos)",
         "message": "Une simple notification"

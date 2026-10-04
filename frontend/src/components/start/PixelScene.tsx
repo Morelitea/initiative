@@ -1,6 +1,6 @@
 /**
  * Small pixel-art pictures for the start flow, drawn in the same chunky style
- * as Chester and the completion effects. Each scene is a 16x12 grid; every
+ * as Yonder and the completion effects. Each scene is a 16x12 grid; every
  * character names a colour in the scene's palette.
  */
 
@@ -13,7 +13,7 @@ interface Scene {
   palette: Record<string, string>;
 }
 
-/** Chester's outline brown, shared so the scenes sit beside him. */
+/** Yonder's outline brown, shared so the scenes sit beside him. */
 const OUTLINE = "#2A1A0A";
 
 /** An envelope sealed with a heart. */

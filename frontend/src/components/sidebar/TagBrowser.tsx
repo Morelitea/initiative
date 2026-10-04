@@ -28,8 +28,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDeleteTag, useUpdateTag } from "@/hooks/useTags";
-import { toast } from "@/lib/chesterToast";
 import { communityPath } from "@/lib/communityUrl";
+import { toast } from "@/lib/mascotToast";
 import { getItem, setItem } from "@/lib/storage";
 import { buildTagTree, type TagTreeNode } from "@/lib/tagTree";
 import { cn } from "@/lib/utils";

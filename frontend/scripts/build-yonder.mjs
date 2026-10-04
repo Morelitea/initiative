@@ -1,8 +1,8 @@
-// Draw Chester's poses from his line art.
+// Draw Yonder's poses from his line art.
 //
-//   node scripts/build-chester.mjs
+//   node scripts/build-yonder.mjs
 //
-// src/assets/chester/base.svg is the drawing, as Affinity exports it: one
+// src/assets/yonder/base.svg is the drawing, as Affinity exports it: one
 // group per part (ears, antlers, face, mouth, nose, eyes, leaf body, stem
 // tail). This flattens each part's transforms into its paths and writes one
 // animated SVG per pose beside it, adding what the pose needs on top: closed
@@ -12,7 +12,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const DIR = join(dirname(fileURLToPath(import.meta.url)), "../src/assets/chester");
+const DIR = join(dirname(fileURLToPath(import.meta.url)), "../src/assets/yonder");
 
 // The artboard is 2953 units square; the poses draw it at a tenth of that.
 // At 64px the whole figure leaves his face too small to read, so the frame
@@ -63,7 +63,7 @@ const IDENTITY = [1, 0, 0, 1, 0, 0];
 const parseTransform = (transform) => {
   if (!transform) return IDENTITY;
   const matrix = transform.match(/^matrix\(([^)]*)\)$/);
-  if (!matrix) throw new Error(`build-chester: unsupported transform ${transform}`);
+  if (!matrix) throw new Error(`build-yonder: unsupported transform ${transform}`);
   return matrix[1].split(",").map(Number);
 };
 
@@ -73,7 +73,7 @@ const round = (n) => String(Math.round(n * 10) / 10);
 // x,y pair and an affine transform maps the curve exactly.
 const transformPath = (d, m) => {
   if (/[^MCLZ\d\s,.-]/.test(d))
-    throw new Error("build-chester: path uses a command besides M C L Z");
+    throw new Error("build-yonder: path uses a command besides M C L Z");
   return d
     .replace(/(-?[\d.]+),(-?[\d.]+)/g, (_, xs, ys) => {
       const [x, y] = [Number(xs), Number(ys)];
@@ -135,7 +135,7 @@ const EXPECTED = [
   "stem-tail",
 ];
 for (const id of EXPECTED) {
-  if (!parts.has(id)) throw new Error(`build-chester: base.svg has no #${id}`);
+  if (!parts.has(id)) throw new Error(`build-yonder: base.svg has no #${id}`);
 }
 
 const paths = (list) =>
@@ -152,7 +152,7 @@ const part = (id) => paths(parts.get(id));
 const LIP = "#8C5A38";
 const mouthPaths = parts.get("mouth");
 const lipIndex = mouthPaths.findLastIndex((p) => p.fill === LIP);
-if (lipIndex < 0) throw new Error(`build-chester: #mouth has no ${LIP} lip line`);
+if (lipIndex < 0) throw new Error(`build-yonder: #mouth has no ${LIP} lip line`);
 
 // The chin under the lip line: the mouth's lowest path besides the line.
 const lowest = (d) => Math.max(...[...d.matchAll(/-?[\d.]+ (-?[\d.]+)/g)].map((m) => Number(m[1])));
@@ -278,7 +278,7 @@ const pose = ({ css, eyes, blink, winkEye, mouth = [], altMouth = [], extras = "
     .join("\n");
 
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${VIEW_BOX}">
-<!-- Drawn by frontend/scripts/build-chester.mjs from base.svg; edit those and run it again. -->
+<!-- Drawn by frontend/scripts/build-yonder.mjs from base.svg; edit those and run it again. -->
 <style>${BASE_CSS}
 @media (prefers-reduced-motion: no-preference) {${css}
 }
@@ -397,5 +397,5 @@ const POSES = {
 
 for (const [name, svg] of Object.entries(POSES)) {
   writeFileSync(join(DIR, `${name}.svg`), svg);
-  console.log(`build-chester: ${name}.svg (${(svg.length / 1024).toFixed(1)} KB)`);
+  console.log(`build-yonder: ${name}.svg (${(svg.length / 1024).toFixed(1)} KB)`);
 }
