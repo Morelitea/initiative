@@ -390,6 +390,7 @@
     "nativeUpdateRequiredDescription": "Version {{version}} ist verfügbar, benötigt aber eine neuere Version der App als die installierte. Bitte aktualisiere Initiative über deinen App-Store oder installiere die neueste APK.",
     "nativeUpdateRequiredDescriptionDesktop": "Version {{version}} ist verfügbar, braucht aber eine neuere Version der App als die installierte. Lade die neueste Version von Initiative für deinen Computer herunter.",
     "nativeUpdateRequiredDescriptionIos": "Version {{version}} ist verfügbar, benötigt aber eine neuere Version der App als die installierte. Bitte aktualisiere Initiative über den App Store.",
+    "nativeUpdateRequiredDescriptionPlay": "Version {{version}} ist verfügbar, benötigt aber eine neuere Version der App als die installierte. Bitte aktualisiere Initiative über Google Play.",
     "nativeUpdateRequiredAcknowledge": "Verstanden",
     "nativeUpdateDownload": "Herunterladen",
     "alwaysUpdate": "Immer automatisch aktualisieren",

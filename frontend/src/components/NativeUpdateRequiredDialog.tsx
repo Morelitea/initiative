@@ -15,9 +15,10 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { desktopCanUpdate, setAutoUpdateConsent } from "@/lib/desktopUpdates";
-import { androidApkUrl, desktopInstallerUrl, RELEASES_URL } from "@/lib/links";
+import { androidApkUrl, desktopInstallerUrl, PLAY_STORE_URL, RELEASES_URL } from "@/lib/links";
 import { detectDesktopOs } from "@/pages/landing/platform";
 import DesktopUpdater from "@/plugins/desktopUpdater";
+import InstallSource, { PLAY_STORE_INSTALLER } from "@/plugins/installSource";
 
 interface NativeUpdateRequiredDialogProps {
   open: boolean;
@@ -30,14 +31,17 @@ interface NativeUpdateRequiredDialogProps {
 
 /** The new app for this device, from the release the bundle's floor names. */
 /** Where this device gets a newer app: a download link, or (iOS) the App Store alone. */
-const describeKey = (platform: string) =>
+const describeKey = (platform: string, fromPlay: boolean) =>
   platform === "electron"
     ? "version.nativeUpdateRequiredDescriptionDesktop"
     : platform === "ios"
       ? "version.nativeUpdateRequiredDescriptionIos"
-      : "version.nativeUpdateRequiredDescription";
+      : fromPlay
+        ? "version.nativeUpdateRequiredDescriptionPlay"
+        : "version.nativeUpdateRequiredDescription";
 
-const downloadUrl = (minNativeVersion?: string): string => {
+const downloadUrl = (minNativeVersion: string | undefined, fromPlay: boolean): string => {
+  if (fromPlay) return PLAY_STORE_URL;
   if (!minNativeVersion) return RELEASES_URL;
   if (Capacitor.getPlatform() !== "electron") return androidApkUrl(minNativeVersion);
   const os = detectDesktopOs();
@@ -64,6 +68,8 @@ export const NativeUpdateRequiredDialog = ({
   const [always, setAlways] = useState(true);
   const [updating, setUpdating] = useState(false);
   const [failed, setFailed] = useState(false);
+  // A Play install updates from Play; an APK, or an app too old to say, takes the next APK.
+  const [fromPlay, setFromPlay] = useState(false);
 
   // Each prompt starts afresh: a failure belongs to the release it was for.
   useEffect(() => {
@@ -71,7 +77,12 @@ export const NativeUpdateRequiredDialog = ({
     setFailed(false);
     setUpdating(false);
     if (minNativeVersion) void desktopCanUpdate().then(setCanUpdate);
-  }, [open, minNativeVersion]);
+    if (platform === "android") {
+      void InstallSource.get()
+        .then(({ installer }) => setFromPlay(installer === PLAY_STORE_INSTALLER))
+        .catch(() => setFromPlay(false));
+    }
+  }, [open, minNativeVersion, platform]);
 
   const updateNow = async () => {
     if (!minNativeVersion) return;
@@ -89,7 +100,7 @@ export const NativeUpdateRequiredDialog = ({
 
   const download = (
     <Button asChild>
-      <a href={downloadUrl(minNativeVersion)} target="_blank" rel="noopener noreferrer">
+      <a href={downloadUrl(minNativeVersion, fromPlay)} target="_blank" rel="noopener noreferrer">
         <Download className="h-4 w-4" aria-hidden="true" />
         {t("version.nativeUpdateDownload")}
       </a>
@@ -101,7 +112,7 @@ export const NativeUpdateRequiredDialog = ({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{t("version.nativeUpdateRequiredTitle")}</DialogTitle>
-          <DialogDescription>{t(describeKey(platform), { version })}</DialogDescription>
+          <DialogDescription>{t(describeKey(platform, fromPlay), { version })}</DialogDescription>
         </DialogHeader>
         {canUpdate ? (
           <div className="flex items-center gap-2">
