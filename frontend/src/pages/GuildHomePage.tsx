@@ -22,6 +22,7 @@ import { GuildBannerBadges } from "@/components/guildHome/GuildBannerBadges";
 import { GuildHomeEmptyState } from "@/components/guildHome/GuildHomeEmptyState";
 import { GuildRecentComments } from "@/components/guildHome/GuildRecentComments";
 import { InitiativeDirectory } from "@/components/guildHome/InitiativeDirectory";
+import { GuildLocationLine } from "@/components/guilds/GuildLocationLine";
 import { CreateInitiativeWizard } from "@/components/initiatives/CreateInitiativeWizard";
 import { ToolViewFilter } from "@/components/initiativeTools/shared/ToolViewFilter";
 import { PageBanner } from "@/components/PageBanner";
@@ -36,6 +37,7 @@ import { useInitiativeDirectory, useInitiatives } from "@/hooks/useInitiatives";
 import { useToolBrowserSearch } from "@/hooks/useToolBrowserSearch";
 import { useToolCounts } from "@/hooks/useToolCounts";
 import { renderableBanner } from "@/lib/banner";
+import { readableTextShadow } from "@/lib/contrastColor";
 import { useGuildPath } from "@/lib/guildUrl";
 import { DEFAULT_ENABLED_TOOLS, isToolView, TOOLS, type ToolView, toolViews } from "@/lib/tools";
 import { cn } from "@/lib/utils";
@@ -136,6 +138,18 @@ export function GuildHomePage() {
         banner={banner}
         title={activeGuild?.name ?? t("title")}
         subtitle={activeGuild?.description ?? t("subtitle")}
+        meta={
+          activeGuild?.location ? (
+            <GuildLocationLine
+              location={activeGuild.location}
+              className="font-medium text-sm sm:text-base"
+              style={{
+                color: banner.text_color,
+                textShadow: readableTextShadow(banner.text_color),
+              }}
+            />
+          ) : null
+        }
         badges={
           activeGuild ? (
             <GuildBannerBadges

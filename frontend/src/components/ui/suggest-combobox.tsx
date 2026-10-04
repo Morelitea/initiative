@@ -52,6 +52,9 @@ export interface SuggestComboboxProps {
   /** Called when the list is first opened — fetch the suggestions here. */
   onOpen?: () => void;
   isLoading?: boolean;
+  /** At most this many matches are listed — for a list of thousands, which
+   *  is searched rather than scrolled. */
+  limit?: number;
   "aria-label"?: string;
 }
 
@@ -68,13 +71,17 @@ export const SuggestCombobox = ({
   className,
   onOpen,
   isLoading = false,
+  limit,
   "aria-label": ariaLabel,
 }: SuggestComboboxProps) => {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const matching = suggestions.filter((item) => item.toLowerCase().includes(search.toLowerCase()));
+  const allMatching = suggestions.filter((item) =>
+    item.toLowerCase().includes(search.toLowerCase())
+  );
+  const matching = limit === undefined ? allMatching : allMatching.slice(0, limit);
   const typedIsOnTheList = suggestions.some((item) => item.toLowerCase() === search.toLowerCase());
   const offerTyped = search.length > 0 && !typedIsOnTheList;
 

@@ -2349,6 +2349,34 @@ export interface GuildBannerRead {
 }
 
 /**
+ * Where a community is, as precisely as its admin cares to say.
+ *
+ * The country is the one required part: everything finer is optional, so a
+ * community can be "Japan", "Ontario, Canada", "Seattle, WA" or a street
+ * address. The parts are generic rather than one country's address form —
+ * ``region`` is whatever the country's first-level division is (a state, a
+ * province, a prefecture, a county), and a country without one leaves it out.
+ *
+ * ``region_code`` is the region's ISO 3166-2 suffix ("WA" for Washington),
+ * which lets a card say "Seattle, WA" where the country writes its regions
+ * that way. ``label`` is the admin's own name for the place
+ * ("Queen Anne Neighborhood"), shown ahead of it.
+ *
+ * The same shape is read and written: the whole location is one value, and a
+ * PATCH replaces it.
+ */
+export interface GuildLocationOutput {
+  /** @pattern ^[A-Za-z]{2}$ */
+  country: string;
+  region: string | null;
+  region_code: string | null;
+  city: string | null;
+  address: string | null;
+  postal_code: string | null;
+  label: string | null;
+}
+
+/**
  * One card in the community directory.
  *
  * Deliberately not a :class:`GuildRead`: the reader is a stranger, so this
@@ -2372,6 +2400,7 @@ export interface CommunityGuildRead {
   online_count: number;
   already_member: boolean;
   banner: GuildBannerRead;
+  location: GuildLocationOutput | null;
 }
 
 /**
@@ -4879,6 +4908,34 @@ export interface GuildInviteStatus {
   uses: number | null;
 }
 
+/**
+ * Where a community is, as precisely as its admin cares to say.
+ *
+ * The country is the one required part: everything finer is optional, so a
+ * community can be "Japan", "Ontario, Canada", "Seattle, WA" or a street
+ * address. The parts are generic rather than one country's address form —
+ * ``region`` is whatever the country's first-level division is (a state, a
+ * province, a prefecture, a county), and a country without one leaves it out.
+ *
+ * ``region_code`` is the region's ISO 3166-2 suffix ("WA" for Washington),
+ * which lets a card say "Seattle, WA" where the country writes its regions
+ * that way. ``label`` is the admin's own name for the place
+ * ("Queen Anne Neighborhood"), shown ahead of it.
+ *
+ * The same shape is read and written: the whole location is one value, and a
+ * PATCH replaces it.
+ */
+export interface GuildLocationInput {
+  /** @pattern ^[A-Za-z]{2}$ */
+  country: string;
+  region?: string | null;
+  region_code?: string | null;
+  city?: string | null;
+  address?: string | null;
+  postal_code?: string | null;
+  label?: string | null;
+}
+
 export type GuildRole = (typeof GuildRole)[keyof typeof GuildRole];
 
 export const GuildRole = {
@@ -5037,6 +5094,7 @@ export interface GuildRead {
   show_member_names: boolean;
   has_adult_content: boolean | null;
   banner: GuildBannerRead;
+  location: GuildLocationOutput | null;
   online_count: number;
   icon_url: string | null;
 }
@@ -5100,6 +5158,7 @@ export interface GuildUpdate {
   categories?: GuildCategory[] | null;
   show_member_names?: boolean | null;
   banner?: GuildBannerWrite | null;
+  location?: GuildLocationInput | null;
   has_adult_content?: boolean | null;
 }
 

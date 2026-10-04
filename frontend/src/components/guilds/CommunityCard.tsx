@@ -2,8 +2,8 @@
  * One guild in the community directory.
  *
  * Everything on this card is what the guild published by opting in — its
- * banner, name, description, icon, shelves, and how many people are already
- * there. A guild the caller is already in keeps its card (so a search still
+ * banner, name, description, icon, shelves, where it is if it said, and how
+ * many people are already there. A guild the caller is already in keeps its card (so a search still
  * finds it) but offers a way in rather than a way to join twice.
  *
  * The two pictures arrive as URLs and are fetched per card, not carried in the
@@ -20,6 +20,7 @@ import { useTranslation } from "react-i18next";
 
 import type { CommunityGuildRead } from "@/api/generated/initiativeAPI.schemas";
 import { AgeConfirmationDialog } from "@/components/guilds/AgeConfirmationDialog";
+import { GuildLocationLine } from "@/components/guilds/GuildLocationLine";
 import { GuildAvatar } from "@/components/guilds/GuildSidebar";
 import { ReportButton } from "@/components/moderation/ReportButton";
 import { Badge } from "@/components/ui/badge";
@@ -145,6 +146,14 @@ export const CommunityCard = ({ guild }: { guild: CommunityGuildRead }) => {
                   {t("guilds:memberCount", { count: guild.member_count })}
                 </span>
               </p>
+              {/* Where it is, on a line of its own: the short reading, with
+                  anything finer behind a hover or a tap. */}
+              {guild.location ? (
+                <GuildLocationLine
+                  location={guild.location}
+                  className="mt-0.5 text-muted-foreground"
+                />
+              ) : null}
             </div>
           </div>
 

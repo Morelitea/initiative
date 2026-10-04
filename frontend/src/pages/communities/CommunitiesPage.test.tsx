@@ -42,6 +42,7 @@ const community = (overrides: Partial<CommunityGuildRead> = {}): CommunityGuildR
   name: "Riverside Players",
   description: "Community theatre.",
   icon_url: null,
+  location: null,
   banner: buildBanner(),
   categories: ["art"],
   member_count: 12,
@@ -164,6 +165,29 @@ describe("CommunitiesPage", () => {
     expect(screen.getByText("Community theatre.")).toBeInTheDocument();
     expect(screen.getByText("12 members")).toBeInTheDocument();
     expect(screen.getByText("Art & design")).toBeInTheDocument();
+  });
+
+  it("says where a community is, and leaves the street off the card", async () => {
+    directoryFor.mockReturnValue(
+      directoryResult([
+        community({
+          location: {
+            country: "US",
+            region: "Washington",
+            region_code: "WA",
+            city: "Seattle",
+            address: "1 Queen Anne Ave N",
+            postal_code: "98109",
+            label: "Queen Anne Neighborhood",
+          },
+        }),
+      ])
+    );
+
+    renderDirectory();
+
+    expect(await screen.findByText("Queen Anne Neighborhood, Seattle, WA")).toBeInTheDocument();
+    expect(screen.queryByText(/98109/)).not.toBeInTheDocument();
   });
 
   it("puts the guild's banner across the top of its card", async () => {

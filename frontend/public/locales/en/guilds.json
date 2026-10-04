@@ -538,5 +538,34 @@
     "failed": "This community's members could not be loaded.",
     "searchPlaceholder": "Filter members"
   },
-  "unreadHere": "Unread activity"
+  "unreadHere": "Unread activity",
+  "location": {
+    "ariaLabel": "Location: {{location}}",
+    "openMap": "Open in map",
+    "title": "Location",
+    "description": "Optional. Say where your community is, as broadly or exactly as you like. A country on its own is enough. It shows on your community's front page and on its card.",
+    "loading": "Loading…",
+    "noMatches": "Nothing matches.",
+    "countryLabel": "Country",
+    "countryPlaceholder": "Choose a country",
+    "regionLabel": "State, province or region",
+    "regionNone": "Not specified",
+    "cityLabel": "City or town",
+    "cityPlaceholder": "Not specified",
+    "citySearch": "Search or type a place…",
+    "cityEmpty": "No suggestions. Type the name instead.",
+    "cityTyped": "Use \"{{value}}\"",
+    "addressLabel": "Street address",
+    "postalLabel": "Postal code",
+    "addressHint": "Optional. Only shown when someone opens the location's details, never on the card itself.",
+    "labelLabel": "Place name",
+    "labelPlaceholder": "Queen Anne Neighborhood",
+    "labelHint": "Shown before the place, like \"Queen Anne Neighborhood, Seattle, WA\". Keep it short: cards give this one line.",
+    "preview": "How it reads",
+    "listedNote": "Your community is listed in the directory, so anyone browsing it can see this, including the address details.",
+    "save": "Save location",
+    "saved": "Location saved.",
+    "remove": "Remove location",
+    "removed": "Location removed."
+  }
 }

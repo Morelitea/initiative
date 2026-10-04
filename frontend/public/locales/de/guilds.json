@@ -538,5 +538,34 @@
     "failed": "Die Mitglieder dieser Community konnten nicht geladen werden.",
     "searchPlaceholder": "Mitglieder filtern"
   },
-  "unreadHere": "Ungelesenes"
+  "unreadHere": "Ungelesenes",
+  "location": {
+    "ariaLabel": "Ort: {{location}}",
+    "openMap": "Auf der Karte öffnen",
+    "title": "Ort",
+    "description": "Optional. Sag, wo deine Community ist – so grob oder genau du möchtest. Ein Land allein reicht. Er erscheint auf der Startseite deiner Community und auf ihrer Karte.",
+    "loading": "Wird geladen …",
+    "noMatches": "Keine Treffer.",
+    "countryLabel": "Land",
+    "countryPlaceholder": "Land auswählen",
+    "regionLabel": "Bundesland, Provinz oder Region",
+    "regionNone": "Nicht angegeben",
+    "cityLabel": "Stadt oder Ort",
+    "cityPlaceholder": "Nicht angegeben",
+    "citySearch": "Ort suchen oder eingeben …",
+    "cityEmpty": "Keine Vorschläge. Gib den Namen einfach ein.",
+    "cityTyped": "„{{value}}“ verwenden",
+    "addressLabel": "Straße und Hausnummer",
+    "postalLabel": "Postleitzahl",
+    "addressHint": "Optional. Nur sichtbar, wenn jemand die Ortsdetails öffnet, nie auf der Karte selbst.",
+    "labelLabel": "Ortsname",
+    "labelPlaceholder": "Queen Anne Neighborhood",
+    "labelHint": "Steht vor dem Ort, etwa „Queen Anne Neighborhood, Seattle, WA“. Halte ihn kurz: Karten haben dafür eine Zeile.",
+    "preview": "So wird es angezeigt",
+    "listedNote": "Deine Community ist im Verzeichnis gelistet, daher kann das jeder sehen, der es durchsucht – auch die Adressdetails.",
+    "save": "Ort speichern",
+    "saved": "Ort gespeichert.",
+    "remove": "Ort entfernen",
+    "removed": "Ort entfernt."
+  }
 }

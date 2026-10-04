@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Community locations.** A community can say where it is, from just a country down to a street address, with its own name for the place ("Queen Anne Neighborhood, Seattle, WA"). It shows on the community's front page and its card; street and postcode stay behind a hover or tap.
+
 ## [0.74.0] - 2026-10-01
 
 ### Added

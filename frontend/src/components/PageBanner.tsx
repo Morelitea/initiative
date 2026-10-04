@@ -153,6 +153,11 @@ export type PageBannerProps = {
   banner: GuildBannerRead;
   /** Chips for the banner's top-right corner — a guild's roster and room counts. */
   badges?: ReactNode;
+  /**
+   * A row of its own under the title — a guild's location. Rendered as given:
+   * the caller dresses it in the banner's ink.
+   */
+  meta?: ReactNode;
   /** Alt text for the picture; empty for artwork that says nothing. */
   imageAlt?: string;
   /**
@@ -169,6 +174,7 @@ export function PageBanner({
   subtitle,
   banner: { image_url: imageUrl, color, text_color: ink, text_align: align, fade },
   badges,
+  meta,
   imageAlt = "",
   haloOverImage = false,
 }: PageBannerProps) {
@@ -308,6 +314,17 @@ export function PageBanner({
           >
             {title}
           </h1>
+          {meta ? (
+            <div
+              className={cn(
+                "flex max-w-full",
+                align === "left" ? "justify-start" : "justify-center",
+                halo && "text-neutral-800"
+              )}
+            >
+              {meta}
+            </div>
+          ) : null}
           {subtitle ? (
             <p
               className={cn(

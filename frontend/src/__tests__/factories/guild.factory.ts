@@ -46,6 +46,7 @@ export function buildGuild(overrides: Partial<GuildRead> = {}): GuildRead {
     name: `Guild ${counter}`,
     description: `Description for guild ${counter}`,
     icon_url: null,
+    location: null,
     banner: buildBanner(),
     online_count: 0,
     role,
