@@ -312,11 +312,11 @@
   },
   "viewMode": {
     "label": "Run dashboard as",
-    "viewer": "Individual",
-    "owner": "Initiative",
-    "viewerHint": "Each person sees only what they have access to, so numbers can differ from person to person.",
-    "ownerHint": "Everyone sees the same numbers, using the access of whoever turned this on — regardless of their own permissions. Use with caution.",
-    "inactive": "Paused: the person who turned this on no longer has access, so everyone sees their own numbers.",
+    "individual": "Individual",
+    "initiative": "Initiative",
+    "individualHint": "Each person sees only what they have access to, so numbers can differ from person to person.",
+    "initiativeHint": "Everyone sees the same numbers, with full read access to this initiative — regardless of their own permissions. Use with caution.",
+    "notAllowed": "Your role can't run dashboards as Initiative. An initiative manager can turn it on, or allow it for your role.",
     "notice": "Same numbers for everyone"
   }
 }

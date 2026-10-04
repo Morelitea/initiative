@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import ConfigDict, Field
 
-from app.core.identity_boundary import PersonId
+from app.models.tenant.dashboard import DashboardViewMode
 from app.schemas.base import SanitizedBaseModel, TitleStr
 from app.schemas.tenant.property import PropertiesOnCreate
 from app.schemas.query import PageMeta
@@ -96,9 +96,9 @@ class DashboardSummary(DashboardBase, ToolSummaryBase):
     # Marketplace provenance; both null for a dashboard authored from scratch.
     listing_uid: Optional[str] = None
     listing_version: Optional[str] = None
-    #: Whose access the query widgets answer from: null for each viewer's own,
-    #: or the person who chose to show everybody their view.
-    view_as_user_id: Optional[PersonId] = None
+    #: Whose access the query widgets answer from: each viewer's own, or full
+    #: read access to the initiative, the same for everyone.
+    view_mode: DashboardViewMode = DashboardViewMode.individual
     #: The canvas and its answers, when the list was asked for previews.
     preview: Optional[DashboardPreview] = None
 
@@ -135,23 +135,13 @@ class DashboardRead(DashboardSummary):
     #: when the dashboard has fallen back to their own would be the disclosure
     #: saying the opposite of what is happening.
     published_active: bool = False
-    #: Whether ``view_as_user_id`` is serving right now. It rests on that
-    #: person's standing in the community and falls back to each viewer's own
-    #: view when it stops, so the setting and what readers see can differ.
-    view_as_active: bool = False
+    #: Whether the reader may set this dashboard to run as its initiative, or
+    #: change its widgets while it does: an initiative manager, a community
+    #: admin, or a role holding ``dashboards_run_as_initiative``.
+    can_run_as_initiative: bool = False
 
 
-class DashboardViewMode(str, Enum):
-    """Whose access a dashboard's query widgets answer from."""
-
-    #: Each person sees what their own access reaches. The default.
-    viewer = "viewer"
-    #: Everybody who can open the dashboard sees what the person setting this
-    #: sees.
-    owner = "owner"
-
-
-class DashboardViewAsRequest(SanitizedBaseModel):
+class DashboardViewModeRequest(SanitizedBaseModel):
     mode: DashboardViewMode
 
 

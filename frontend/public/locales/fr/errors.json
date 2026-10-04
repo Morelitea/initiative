@@ -786,5 +786,6 @@
   "APP_CHANNEL_CONNECTION_EXPIRED": "Cette connexion a expiré et le membre doit se reconnecter.",
   "APP_CHANNEL_CONNECTION_NO_TOKEN": "Cette connexion ne détient aucun jeton à fournir.",
   "APP_CHANNEL_TOKEN_UNAVAILABLE": "Le fournisseur n'a pas fourni de jeton. Réessayez dans un instant.",
-  "DASHBOARD_VIEW_AS_EDIT_OWNER_ONLY": "Ce tableau de bord s'exécute avec l'accès d'une autre personne, elle seule peut donc modifier ses widgets. Passez « Exécuter le tableau de bord en tant que » sur Individuel pour le modifier."
+  "DASHBOARD_VIEW_MODE_NOT_ALLOWED": "Votre rôle ne peut pas exécuter les tableaux de bord en tant qu'Initiative. Demandez à un responsable de l'initiative.",
+  "DASHBOARD_VIEW_MODE_EDIT_NOT_ALLOWED": "Ce tableau de bord s'exécute en tant que son initiative : modifier ses widgets demande l'autorisation d'exécuter les tableaux de bord en tant qu'Initiative. Passez « Exécuter le tableau de bord en tant que » sur Individuel pour le modifier."
 }

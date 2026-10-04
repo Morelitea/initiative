@@ -1,9 +1,10 @@
 /**
- * "Run dashboard as": each viewer's own access, or one view for everyone.
+ * "Run dashboard as": each viewer's own access, or the initiative's.
  *
  * Sits inline in the dashboard's Details form and saves on change. "Initiative"
- * runs the widgets with the access of whoever picked it, so it never shows more
- * than they can see themselves.
+ * runs the widgets with full read access to the initiative, whoever turned it
+ * on. Choosing it takes an initiative role permission that managers always
+ * hold; anybody who can edit the dashboard may switch it back.
  */
 
 import { useTranslation } from "react-i18next";
@@ -23,9 +24,9 @@ import { useSetDashboardViewMode } from "@/hooks/useDashboards";
 export function DashboardViewModeField({ dashboard }: { dashboard: DashboardRead }) {
   const { t } = useTranslation("dashboards");
   const setMode = useSetDashboardViewMode(dashboard.id);
-  const mode =
-    dashboard.view_as_user_id == null ? DashboardViewMode.viewer : DashboardViewMode.owner;
+  const mode = dashboard.view_mode;
   const canEdit = dashboard.can.edit;
+  const mayChooseInitiative = dashboard.can_run_as_initiative;
 
   return (
     <div className="space-y-2">
@@ -39,21 +40,25 @@ export function DashboardViewModeField({ dashboard }: { dashboard: DashboardRead
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value={DashboardViewMode.viewer}>{t("viewMode.viewer")}</SelectItem>
-          <SelectItem value={DashboardViewMode.owner}>{t("viewMode.owner")}</SelectItem>
+          <SelectItem value={DashboardViewMode.individual}>{t("viewMode.individual")}</SelectItem>
+          <SelectItem value={DashboardViewMode.initiative} disabled={!mayChooseInitiative}>
+            {t("viewMode.initiative")}
+          </SelectItem>
         </SelectContent>
       </Select>
       <p
         className={
-          mode === DashboardViewMode.owner
+          mode === DashboardViewMode.initiative
             ? "text-amber-700 text-xs dark:text-amber-400"
             : "text-muted-foreground text-xs"
         }
       >
-        {mode === DashboardViewMode.owner ? t("viewMode.ownerHint") : t("viewMode.viewerHint")}
+        {mode === DashboardViewMode.initiative
+          ? t("viewMode.initiativeHint")
+          : t("viewMode.individualHint")}
       </p>
-      {mode === DashboardViewMode.owner && !dashboard.view_as_active && (
-        <p className="text-destructive text-xs">{t("viewMode.inactive")}</p>
+      {canEdit && !mayChooseInitiative && (
+        <p className="text-muted-foreground text-xs">{t("viewMode.notAllowed")}</p>
       )}
     </div>
   );

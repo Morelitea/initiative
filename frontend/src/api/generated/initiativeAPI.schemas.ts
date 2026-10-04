@@ -3887,6 +3887,16 @@ export interface DashboardInstalledListings {
   counts: DashboardInstalledListingsCounts;
 }
 
+/**
+ * Whose access a dashboard's query widgets answer from.
+ */
+export type DashboardViewMode = (typeof DashboardViewMode)[keyof typeof DashboardViewMode];
+
+export const DashboardViewMode = {
+  individual: "individual",
+  initiative: "initiative",
+} as const;
+
 export type DashboardPreviewDefinition = { [key: string]: unknown };
 
 export type DashboardPreviewConfig = { [key: string]: unknown };
@@ -3924,7 +3934,7 @@ export interface DashboardSummary {
   description: string | null;
   listing_uid: string | null;
   listing_version: string | null;
-  view_as_user_id: number | null;
+  view_mode: DashboardViewMode;
   preview: DashboardPreview | null;
 }
 
@@ -3971,13 +3981,13 @@ export interface DashboardRead {
   description: string | null;
   listing_uid: string | null;
   listing_version: string | null;
-  view_as_user_id: number | null;
+  view_mode: DashboardViewMode;
   preview: DashboardPreview | null;
   definition: DashboardReadDefinition;
   config: DashboardReadConfig;
   published_over: PublishedOver[];
   published_active: boolean;
-  view_as_active: boolean;
+  can_run_as_initiative: boolean;
 }
 
 export type DashboardUpdateDefinition = { [key: string]: unknown } | null;
@@ -3991,17 +4001,7 @@ export interface DashboardUpdate {
   config?: DashboardUpdateConfig;
 }
 
-/**
- * Whose access a dashboard's query widgets answer from.
- */
-export type DashboardViewMode = (typeof DashboardViewMode)[keyof typeof DashboardViewMode];
-
-export const DashboardViewMode = {
-  viewer: "viewer",
-  owner: "owner",
-} as const;
-
-export interface DashboardViewAsRequest {
+export interface DashboardViewModeRequest {
   mode: DashboardViewMode;
 }
 
@@ -5710,6 +5710,7 @@ export const PermissionKey = {
   create_galleries: "create_galleries",
   wikis_enabled: "wikis_enabled",
   create_wikis: "create_wikis",
+  dashboards_run_as_initiative: "dashboards_run_as_initiative",
 } as const;
 
 /**

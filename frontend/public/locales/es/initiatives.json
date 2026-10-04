@@ -249,7 +249,8 @@
       "viewShort": "Ver",
       "createShort": "Crear",
       "viewWikis": "Ver wikis",
-      "createWikis": "Crear wikis"
+      "createWikis": "Crear wikis",
+      "dashboards_run_as_initiative": "Ejecutar paneles como Iniciativa"
     },
     "handleColumn": "Identificador",
     "toolAudience": {

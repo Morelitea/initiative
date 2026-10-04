@@ -312,11 +312,11 @@
   },
   "viewMode": {
     "label": "Dashboard ausführen als",
-    "viewer": "Einzelperson",
-    "owner": "Initiative",
-    "viewerHint": "Jede Person sieht nur, worauf sie Zugriff hat — die Zahlen können sich also von Person zu Person unterscheiden.",
-    "ownerHint": "Alle sehen dieselben Zahlen, mit dem Zugriff der Person, die das eingeschaltet hat — unabhängig von ihren eigenen Berechtigungen. Mit Vorsicht verwenden.",
-    "inactive": "Pausiert: Die Person, die das eingeschaltet hat, hat keinen Zugriff mehr, daher sieht jede Person ihre eigenen Zahlen.",
+    "individual": "Einzelperson",
+    "initiative": "Initiative",
+    "individualHint": "Jede Person sieht nur, worauf sie Zugriff hat — die Zahlen können sich also von Person zu Person unterscheiden.",
+    "initiativeHint": "Alle sehen dieselben Zahlen, mit vollem Lesezugriff auf diese Initiative — unabhängig von ihren eigenen Berechtigungen. Mit Vorsicht verwenden.",
+    "notAllowed": "Deine Rolle darf Dashboards nicht als Initiative ausführen. Eine Initiativleitung kann es einschalten oder deiner Rolle erlauben.",
     "notice": "Dieselben Zahlen für alle"
   }
 }

@@ -786,5 +786,6 @@
   "APP_CHANNEL_CONNECTION_EXPIRED": "Diese Verbindung ist abgelaufen, und das Mitglied muss sich erneut verbinden.",
   "APP_CHANNEL_CONNECTION_NO_TOKEN": "Diese Verbindung hält kein Token, das ausgegeben werden kann.",
   "APP_CHANNEL_TOKEN_UNAVAILABLE": "Der Anbieter hat kein Token ausgegeben. Versuche es gleich noch einmal.",
-  "DASHBOARD_VIEW_AS_EDIT_OWNER_ONLY": "Dieses Dashboard läuft mit dem Zugriff einer anderen Person, daher kann nur sie die Widgets ändern. Stelle „Dashboard ausführen als“ auf Einzelperson, um zu bearbeiten."
+  "DASHBOARD_VIEW_MODE_NOT_ALLOWED": "Deine Rolle darf Dashboards nicht als Initiative ausführen. Frag eine Initiativleitung.",
+  "DASHBOARD_VIEW_MODE_EDIT_NOT_ALLOWED": "Dieses Dashboard läuft als Initiative, daher brauchst du zum Ändern der Widgets die Berechtigung, Dashboards als Initiative auszuführen. Stelle „Dashboard ausführen als“ auf Einzelperson, um zu bearbeiten."
 }

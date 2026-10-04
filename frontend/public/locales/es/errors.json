@@ -786,5 +786,6 @@
   "APP_CHANNEL_CONNECTION_EXPIRED": "Esa conexión ha caducado y el miembro tiene que volver a conectar.",
   "APP_CHANNEL_CONNECTION_NO_TOKEN": "Esa conexión no tiene ningún token que entregar.",
   "APP_CHANNEL_TOKEN_UNAVAILABLE": "El proveedor no entregó un token. Inténtalo de nuevo en un momento.",
-  "DASHBOARD_VIEW_AS_EDIT_OWNER_ONLY": "Este panel se ejecuta con el acceso de otra persona, así que solo ella puede cambiar sus widgets. Cambia «Ejecutar el panel como» a Individual para editar."
+  "DASHBOARD_VIEW_MODE_NOT_ALLOWED": "Tu rol no puede ejecutar paneles como Iniciativa. Pídelo a quien gestiona la iniciativa.",
+  "DASHBOARD_VIEW_MODE_EDIT_NOT_ALLOWED": "Este panel se ejecuta como su iniciativa, así que cambiar sus widgets requiere permiso para ejecutar paneles como Iniciativa. Cambia «Ejecutar el panel como» a Individual para editar."
 }

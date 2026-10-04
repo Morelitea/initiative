@@ -27,7 +27,7 @@ import type {
   DashboardListResponse,
   DashboardRead,
   DashboardUpdate,
-  DashboardViewAsRequest,
+  DashboardViewModeRequest,
   HTTPValidationError,
   ListDashboardsParams,
   PublishRequest,
@@ -1374,51 +1374,52 @@ export const useSetPublishedView = <TError = ErrorType<HTTPValidationError>, TCo
 /**
  * Choose whose access this dashboard's query widgets answer from.
  *
- * ``owner`` shows everybody who can open the dashboard what the caller sees —
- * always the caller, never somebody else. ``viewer`` goes back to each
- * person's own. Either takes write access to the dashboard, like any other
- * change to it.
- * @summary Set View As
+ * ``individual`` is each viewer's own. ``initiative`` is full read access to
+ * the dashboard's initiative, the same for everyone who can open it — the
+ * dashboard's access, not the caller's. Either takes write access to the
+ * dashboard; turning ``initiative`` on also takes the initiative role
+ * permission for it, which managers always hold.
+ * @summary Set View Mode
  */
-export const setViewAs = (
+export const setViewMode = (
   communityId: number,
   dashboardId: number,
-  dashboardViewAsRequest: BodyType<DashboardViewAsRequest>,
+  dashboardViewModeRequest: BodyType<DashboardViewModeRequest>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<DashboardRead>(
     {
-      url: `/api/v1/c/${communityId}/dashboards/${dashboardId}/view-as`,
+      url: `/api/v1/c/${communityId}/dashboards/${dashboardId}/view-mode`,
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      data: dashboardViewAsRequest,
+      data: dashboardViewModeRequest,
       signal,
     },
     options
   );
 };
 
-export const getSetViewAsMutationKey = () => ["setViewAs"] as const;
+export const getSetViewModeMutationKey = () => ["setViewMode"] as const;
 
-export const getSetViewAsMutationOptions = <
+export const getSetViewModeMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof setViewAs>>,
+    Awaited<ReturnType<typeof setViewMode>>,
     TError,
-    SetViewAsMutationVariables,
+    SetViewModeMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof setViewAs>>,
+  Awaited<ReturnType<typeof setViewMode>>,
   TError,
-  SetViewAsMutationVariables,
+  SetViewModeMutationVariables,
   TContext
 > => {
-  const mutationKey = getSetViewAsMutationKey();
+  const mutationKey = getSetViewModeMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1426,47 +1427,47 @@ export const getSetViewAsMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof setViewAs>>,
-    SetViewAsMutationVariables
+    Awaited<ReturnType<typeof setViewMode>>,
+    SetViewModeMutationVariables
   > = (props) => {
     const { communityId, dashboardId, data } = props ?? {};
 
-    return setViewAs(communityId, dashboardId, data, requestOptions);
+    return setViewMode(communityId, dashboardId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type SetViewAsMutationResult = NonNullable<Awaited<ReturnType<typeof setViewAs>>>;
-export type SetViewAsMutationBody = BodyType<DashboardViewAsRequest>;
-export type SetViewAsMutationError = ErrorType<HTTPValidationError>;
-export type SetViewAsMutationVariables = {
+export type SetViewModeMutationResult = NonNullable<Awaited<ReturnType<typeof setViewMode>>>;
+export type SetViewModeMutationBody = BodyType<DashboardViewModeRequest>;
+export type SetViewModeMutationError = ErrorType<HTTPValidationError>;
+export type SetViewModeMutationVariables = {
   communityId: number;
   dashboardId: number;
-  data: BodyType<DashboardViewAsRequest>;
+  data: BodyType<DashboardViewModeRequest>;
 };
 
 /**
- * @summary Set View As
+ * @summary Set View Mode
  */
-export const useSetViewAs = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
+export const useSetViewMode = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof setViewAs>>,
+      Awaited<ReturnType<typeof setViewMode>>,
       TError,
-      SetViewAsMutationVariables,
+      SetViewModeMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof setViewAs>>,
+  Awaited<ReturnType<typeof setViewMode>>,
   TError,
-  SetViewAsMutationVariables,
+  SetViewModeMutationVariables,
   TContext
 > => {
-  return useMutation(getSetViewAsMutationOptions(options), queryClient);
+  return useMutation(getSetViewModeMutationOptions(options), queryClient);
 };
 /**
  * Replace the dashboard's entire sharing state in one call — the body is

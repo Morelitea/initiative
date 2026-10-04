@@ -6,7 +6,7 @@ import {
   getReadWidgetCatalogQueryKey,
   readInstalledListings,
   readWidgetCatalog,
-  setViewAs,
+  setViewMode,
   upgradeDashboard,
 } from "@/api/generated/dashboards/dashboards";
 import type {
@@ -104,8 +104,8 @@ export const useUpgradeDashboard = (
 };
 
 /**
- * Whose access this dashboard's widgets run as: each viewer's own, or the
- * access of whoever chooses "the same for everyone".
+ * Whose access this dashboard's widgets run as: each viewer's own, or full
+ * read access to the initiative, the same for everyone.
  */
 export const useSetDashboardViewMode = (
   dashboardId: number,
@@ -113,7 +113,7 @@ export const useSetDashboardViewMode = (
 ) =>
   useCommunityMutation<DashboardRead, DashboardViewMode>(
     {
-      mutationFn: (communityId, mode) => setViewAs(communityId, dashboardId, { mode }),
+      mutationFn: (communityId, mode) => setViewMode(communityId, dashboardId, { mode }),
       invalidate: () => invalidateDashboardAndList(dashboardId),
       errorKey: "dashboards:error",
     },

@@ -1,7 +1,17 @@
 from datetime import datetime, timezone
 from typing import Any, List, Optional, TYPE_CHECKING
 
-from sqlalchemy import Column, DateTime, ForeignKey, Index, Integer
+from enum import Enum
+
+from sqlalchemy import (
+    CheckConstraint,
+    Column,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field, Relationship
 
@@ -21,6 +31,15 @@ if TYPE_CHECKING:  # pragma: no cover
     from app.models.platform.user_profile_view import MemberProfile
 
 
+class DashboardViewMode(str, Enum):
+    """Whose access a dashboard's query widgets answer from."""
+
+    #: Each person sees what their own access reaches. The default.
+    individual = "individual"
+    #: Everyone who can open the dashboard sees everything in its initiative.
+    initiative = "initiative"
+
+
 class Dashboard(
     CommentsToggleMixin,
     CreatedByMixin,
@@ -38,9 +57,9 @@ class Dashboard(
     the normal gated endpoints, so a dashboard grants no access of its own and
     can never mutate what it displays.
 
-    ``view_as_user_id`` is the one exception to "per viewer": a dashboard
-    whose owner has chosen to show their own view answers its statements as
-    them, for everybody who can open it.
+    ``view_mode`` is the one exception to "per viewer": a dashboard set to run
+    as its initiative answers its statements with full read access to that
+    initiative, for everybody who can open it.
 
     ``config`` fills the binding slots a definition leaves open, so one shared
     definition can be pointed at this initiative's actual counters/documents.
@@ -60,6 +79,9 @@ class Dashboard(
     # is the one that keeps an index on it.
     __table_args__ = (
         Index("ix_dashboards_listing_uid", "listing_uid"),
+        CheckConstraint(
+            "view_mode IN ('individual', 'initiative')", name="ck_dashboards_view_mode"
+        ),
         {"implicit_returning": False},
     )
 
@@ -82,12 +104,18 @@ class Dashboard(
         default_factory=dict,
         sa_column=Column(JSONB, nullable=False, server_default="{}"),
     )
-    #: Whose access the query widgets answer from. ``None`` is each viewer's
-    #: own, which is the default and almost always right. A user id means the
-    #: canvas shows everybody who can open it what that person sees: it is set
-    #: only by that person, for themselves, and stops serving the moment they
-    #: no longer stand in the community (see ``app.services.tenant.view_as``).
-    view_as_user_id: Optional[int] = Field(default=None, nullable=True)
+    #: Whose access the query widgets answer from: ``individual`` (each
+    #: viewer's own, the default) or ``initiative`` (full read access to this
+    #: dashboard's initiative, the same for everyone who can open it). See
+    #: ``app.services.tenant.view_as``.
+    view_mode: str = Field(
+        default=DashboardViewMode.individual.value,
+        sa_column=Column(
+            String(20),
+            nullable=False,
+            server_default=DashboardViewMode.individual.value,
+        ),
+    )
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),

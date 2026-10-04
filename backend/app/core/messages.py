@@ -986,9 +986,12 @@ class DashboardMessages:
     #: ``me`` in a statement on a dashboard that publishes. A published view is
     #: one set of numbers for everybody, and the reader is not fixed.
     PUBLISHED_VIEW_HAS_NO_READER = "DASHBOARD_PUBLISHED_VIEW_HAS_NO_READER"
-    #: Changing the widgets of a dashboard that shows somebody else's view.
-    #: Only the person whose view it shows decides what of it is shown.
-    VIEW_AS_EDIT_OWNER_ONLY = "DASHBOARD_VIEW_AS_EDIT_OWNER_ONLY"
+    #: Setting a dashboard to run as its initiative without the role
+    #: permission for it (managers always hold it).
+    VIEW_MODE_NOT_ALLOWED = "DASHBOARD_VIEW_MODE_NOT_ALLOWED"
+    #: Changing the widgets of a dashboard that runs as its initiative without
+    #: that same permission.
+    VIEW_MODE_EDIT_NOT_ALLOWED = "DASHBOARD_VIEW_MODE_EDIT_NOT_ALLOWED"
     BINDING_SQL_TOO_LONG = "BINDING_SQL_TOO_LONG"
     WIDGET_MAPPING_INVALID = "WIDGET_MAPPING_INVALID"
 

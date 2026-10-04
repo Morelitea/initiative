@@ -42,7 +42,7 @@ from app.models.platform.marketplace import (
     MarketplaceListingVersion,
 )
 from app.models.platform.user import User
-from app.models.tenant.dashboard import Dashboard
+from app.models.tenant.dashboard import Dashboard, DashboardViewMode
 from app.schemas.tenant.dashboard import (
     DashboardDataResponse,
     DashboardWidgetData,
@@ -52,8 +52,7 @@ from app.schemas.tenant.dashboard import (
     DashboardCreate,
     DashboardRead,
     DashboardUpdate,
-    DashboardViewAsRequest,
-    DashboardViewMode,
+    DashboardViewModeRequest,
     WidgetCatalog,
     build_widget_catalog,
 )
@@ -341,7 +340,7 @@ async def update_dashboard(
             definition, config, await _endpoint_columns(session)
         )
         if (normalized, normalized_config) != (dashboard.definition, dashboard.config):
-            _check_view_as_allows(dashboard, current_user)
+            _check_view_mode_allows(dashboard, guild_context)
         await _check_publishing_allows(
             session,
             dashboard_id,
@@ -414,7 +413,7 @@ async def upgrade_dashboard(
     # publishing. That is the same act as editing it, and answers to the same
     # two rules — a listing whose new version asks about the reader cannot be
     # taken by a dashboard that publishes, until it stops publishing.
-    _check_view_as_allows(dashboard, current_user)
+    _check_view_mode_allows(dashboard, guild_context)
     await _check_publishing_allows(
         session, dashboard_id, definition, config, current_user, guild_context
     )
@@ -464,18 +463,20 @@ async def _check_publishing_allows(
         )
 
 
-def _check_view_as_allows(dashboard: Dashboard, user: User) -> None:
-    """Whether *user* may change what this dashboard's widgets ask.
+def _check_view_mode_allows(dashboard: Dashboard, guild_context: GuildContext) -> None:
+    """Whether the caller may change what this dashboard's widgets ask.
 
-    A dashboard showing somebody's view answers as them, so what its
-    statements ask is what of theirs everybody sees. Only that person decides
-    it; anybody else with write access can switch the dashboard back to each
-    viewer's own view first.
+    A dashboard that runs as its initiative reads everything in it, so what its
+    statements ask is what everybody who opens it sees. Changing them takes
+    the same permission as turning it on; anybody else with write access can
+    switch it back to Individual first.
     """
-    if dashboard.view_as_user_id is not None and dashboard.view_as_user_id != user.id:
+    if view_as.runs_as_initiative(dashboard) and not view_as.may_run_as_initiative(
+        guild_context, dashboard.initiative_id
+    ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=DashboardMessages.VIEW_AS_EDIT_OWNER_ONLY,
+            detail=DashboardMessages.VIEW_MODE_EDIT_NOT_ALLOWED,
         )
 
 
@@ -576,16 +577,15 @@ async def _answered_as(
     """Who this canvas's statements run as, and the dashboard they may read
     through.
 
-    The owner's view when the dashboard shows it and they still stand in the
-    community; otherwise the viewer's own, with whatever it publishes over.
+    The initiative's full read access when the dashboard runs as its
+    initiative; otherwise the viewer's own, with whatever it publishes over.
     Asked only after the dashboard's own gates have admitted the reader.
     """
-    owner = await view_as.owner_context(dashboard, guild_id)
-    if owner is not None:
-        return owner, None
-    return routed_context(session), await _published_through(
-        session, dashboard, guild_id
-    )
+    routed = routed_context(session)
+    widened = view_as.initiative_context(dashboard, routed)
+    if widened is not None:
+        return widened, None
+    return routed, await _published_through(session, dashboard, guild_id)
 
 
 @router.get("/{dashboard_id}/data", response_model=DashboardDataResponse)
@@ -875,24 +875,27 @@ async def _serialized_with_published(
         and not published_views.names_the_reader(dashboard.definition, dashboard.config)
         and await published_views.author_still_reaches(grants, guild_id)
     )
-    read.view_as_active = await view_as.serves(dashboard, guild_id)
+    read.can_run_as_initiative = view_as.may_run_as_initiative(
+        require_guild_context(session), dashboard.initiative_id
+    )
     return read
 
 
-@router.put("/{dashboard_id}/view-as", response_model=DashboardRead)
-async def set_view_as(
+@router.put("/{dashboard_id}/view-mode", response_model=DashboardRead)
+async def set_view_mode(
     dashboard_id: int,
-    payload: DashboardViewAsRequest,
+    payload: DashboardViewModeRequest,
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> DashboardRead:
     """Choose whose access this dashboard's query widgets answer from.
 
-    ``owner`` shows everybody who can open the dashboard what the caller sees —
-    always the caller, never somebody else. ``viewer`` goes back to each
-    person's own. Either takes write access to the dashboard, like any other
-    change to it.
+    ``individual`` is each viewer's own. ``initiative`` is full read access to
+    the dashboard's initiative, the same for everyone who can open it — the
+    dashboard's access, not the caller's. Either takes write access to the
+    dashboard; turning ``initiative`` on also takes the initiative role
+    permission for it, which managers always hold.
     """
     dashboard = await resource_access.load_authorized(
         session,
@@ -902,10 +905,17 @@ async def set_view_as(
         guild_context,
         access="write",
     )
-    wanted = current_user.id if payload.mode == DashboardViewMode.owner else None
-    if dashboard.view_as_user_id != wanted:
-        previous = dashboard.view_as_user_id
-        dashboard.view_as_user_id = wanted
+    wanted = payload.mode.value
+    if wanted == DashboardViewMode.initiative.value and not (
+        view_as.may_run_as_initiative(guild_context, dashboard.initiative_id)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=DashboardMessages.VIEW_MODE_NOT_ALLOWED,
+        )
+    if dashboard.view_mode != wanted:
+        previous = dashboard.view_mode
+        dashboard.view_mode = wanted
         dashboard.updated_at = datetime.now(timezone.utc)
         session.add(dashboard)
         await audit_service.record(
@@ -917,7 +927,7 @@ async def set_view_as(
             target_id=dashboard_id,
             detail={
                 "initiative_id": dashboard.initiative_id,
-                "view_as": {"from": previous, "to": wanted},
+                "view_mode": {"from": previous, "to": wanted},
             },
         )
         await session.commit()

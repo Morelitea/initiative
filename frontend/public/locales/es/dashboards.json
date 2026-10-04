@@ -312,11 +312,11 @@
   },
   "viewMode": {
     "label": "Ejecutar el panel como",
-    "viewer": "Individual",
-    "owner": "Iniciativa",
-    "viewerHint": "Cada persona ve solo aquello a lo que tiene acceso, así que las cifras pueden variar de una persona a otra.",
-    "ownerHint": "Todos ven las mismas cifras, con el acceso de quien lo activó — sin importar sus propios permisos. Úsalo con precaución.",
-    "inactive": "En pausa: quien lo activó ya no tiene acceso, así que cada persona ve sus propias cifras.",
+    "individual": "Individual",
+    "initiative": "Iniciativa",
+    "individualHint": "Cada persona ve solo aquello a lo que tiene acceso, así que las cifras pueden variar de una persona a otra.",
+    "initiativeHint": "Todos ven las mismas cifras, con acceso total de lectura a esta iniciativa — sin importar sus propios permisos. Úsalo con precaución.",
+    "notAllowed": "Tu rol no puede ejecutar paneles como Iniciativa. Quien gestiona la iniciativa puede activarlo o permitirlo para tu rol.",
     "notice": "Las mismas cifras para todos"
   }
 }

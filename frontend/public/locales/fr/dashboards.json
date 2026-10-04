@@ -312,11 +312,11 @@
   },
   "viewMode": {
     "label": "Exécuter le tableau de bord en tant que",
-    "viewer": "Individuel",
-    "owner": "Initiative",
-    "viewerHint": "Chaque personne ne voit que ce à quoi elle a accès, les chiffres peuvent donc varier d'une personne à l'autre.",
-    "ownerHint": "Tout le monde voit les mêmes chiffres, avec l'accès de la personne qui l'a activé — quelles que soient ses propres autorisations. À utiliser avec prudence.",
-    "inactive": "En pause : la personne qui l'a activé n'a plus accès, chacun voit donc ses propres chiffres.",
+    "individual": "Individuel",
+    "initiative": "Initiative",
+    "individualHint": "Chaque personne ne voit que ce à quoi elle a accès, les chiffres peuvent donc varier d'une personne à l'autre.",
+    "initiativeHint": "Tout le monde voit les mêmes chiffres, avec un accès complet en lecture à cette initiative — quelles que soient ses propres autorisations. À utiliser avec prudence.",
+    "notAllowed": "Votre rôle ne peut pas exécuter les tableaux de bord en tant qu'Initiative. Un responsable de l'initiative peut l'activer ou l'autoriser pour votre rôle.",
     "notice": "Les mêmes chiffres pour tout le monde"
   }
 }

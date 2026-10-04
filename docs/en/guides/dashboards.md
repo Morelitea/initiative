@@ -35,13 +35,11 @@ There is one case where that's wrong, and it's the case dashboards get built for
 So under **Settings → Details**, **Run dashboard as** has two choices:
 
 - **Individual** — the default. Everyone sees only what they can open, so numbers can differ from person to person.
-- **Initiative** — everyone sees the same numbers, using the access of whoever picked it, whatever their own permissions. Use it with care: people will see figures from things they can't open themselves.
+- **Initiative** — everyone sees the same numbers, with full read access to the initiative, whatever their own permissions. Use it with care: people will see figures from things they can't open themselves.
 
-Three things hold for **Initiative**:
+**Initiative** is the dashboard's own access, not a person's. It doesn't change when whoever turned it on leaves or changes role, and it only ever reads — nothing on a dashboard can change your data.
 
-- It's always *your* access. Nobody can point a dashboard at somebody else's.
-- Only you can change its tiles while it's on, because the tiles decide what of yours everybody sees. Anyone else who can edit it can switch it back to **Individual** first.
-- If you leave, lose your place, or your account is suspended, it pauses — everyone goes back to their own numbers — and the dashboard says so.
+Who may turn it on is a role permission, **Run dashboards as Initiative**, under **Initiative settings → Roles**. Managers always can. Changing the tiles of a dashboard that runs as Initiative takes the same permission, since the tiles decide what everybody sees; anyone else who can edit it can switch it back to **Individual** first.
 
 ## Building one
 
@@ -78,7 +76,7 @@ Wherever a filter wants a person, one of the choices is **Me**.
 
 That doesn't mean you. It means whoever is looking at the tile. Place *My open tasks* once and everybody who opens that dashboard sees theirs — one tile, not one per person, and nobody's name stored inside it.
 
-(On a dashboard set to run as **Initiative**, *Me* is the person who chose that — the numbers are theirs, for everyone.)
+(On a dashboard that runs as **Initiative**, *Me* is still whoever is looking — the tile counts across the whole initiative, then narrows to them.)
 
 ### Grouping by time
 

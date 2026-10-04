@@ -1,7 +1,8 @@
-"""A dashboard that shows everybody its owner's view.
+"""A dashboard that runs as its initiative.
 
-Two people, one dashboard, and a project only one of them can open: the shape
-of every test here.
+The shape of most tests here: a project nobody but its owner can open, a
+member of the same initiative who cannot see it, and a dashboard counting its
+tasks.
 """
 
 from __future__ import annotations
@@ -16,32 +17,62 @@ from app.services.tenant.published_views_test import (
     make_dashboard,
     widget_rows,
 )
-from app.testing import create_project, create_task
+from app.testing import create_project, create_queue, create_task
 
 
 async def two_people(session, acting_user):
-    """An admin who owns a private project with two tasks, and a member of the
-    same initiative who cannot open it."""
-    owner = await acting_user(guild_role=CommunityRole.admin, initiative=True)
-    await dashboards_on(session, owner.initiative)
+    """A community admin who owns a private project with two tasks, and a
+    member of the same initiative who cannot open it."""
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
+    await dashboards_on(session, admin.initiative)
     reader = await acting_user(
         guild_role=CommunityRole.member,
-        guild=owner.guild,
-        initiative=owner.initiative,
+        guild=admin.guild,
+        initiative=admin.initiative,
         initiative_role="member",
     )
-    project = await create_project(session, owner.initiative, owner.user)
+    project = await create_project(session, admin.initiative, admin.user)
     await create_task(session, project)
     await create_task(session, project)
-    return owner, reader
+    return admin, reader
 
 
 async def set_mode(client, actor, dashboard_id: int, mode: str):
     return await client.put(
-        actor.g(f"/dashboards/{dashboard_id}/view-as"),
+        actor.g(f"/dashboards/{dashboard_id}/view-mode"),
         json={"mode": mode},
         headers=actor.headers,
     )
+
+
+async def share_for_writing(client, owner, dashboard_id: int, editor) -> None:
+    shared = await client.put(
+        owner.g(f"/dashboards/{dashboard_id}/grants"),
+        json=[
+            {"all_initiative_members": True, "level": "read"},
+            {"user_id": editor.user.id, "level": "write"},
+        ],
+        headers=owner.headers,
+    )
+    assert shared.status_code in (200, 204), shared.text
+
+
+async def a_role_that_may(client, admin, *, may: bool) -> str:
+    """A custom role, holding the permission or not."""
+    created = await client.post(
+        admin.g(f"/initiatives/{admin.initiative.id}/roles"),
+        json={
+            "name": "leads",
+            "display_name": "Leads",
+            "permissions": {
+                "dashboards_enabled": True,
+                "dashboards_run_as_initiative": may,
+            },
+        },
+        headers=admin.headers,
+    )
+    assert created.status_code == 201, created.text
+    return "leads"
 
 
 async def canvas_rows(client, actor, dashboard_id: int):
@@ -53,163 +84,194 @@ async def canvas_rows(client, actor, dashboard_id: int):
 
 
 class TestWhatAReaderSees:
-    async def test_the_owner_view_is_shown_to_every_reader(
+    async def test_everyone_sees_the_whole_initiative(
         self, client, session, acting_user
     ):
-        owner, reader = await two_people(session, acting_user)
-        dashboard_id = await make_dashboard(client, owner)
+        admin, reader = await two_people(session, acting_user)
+        dashboard_id = await make_dashboard(client, admin)
         assert await widget_rows(client, reader, dashboard_id) == [[0]]
 
-        response = await set_mode(client, owner, dashboard_id, "owner")
+        response = await set_mode(client, admin, dashboard_id, "initiative")
         assert response.status_code == 200, response.text
-        body = response.json()
-        assert body["view_as_user_id"] == owner.user.id
-        assert body["view_as_active"] is True
+        assert response.json()["view_mode"] == "initiative"
 
         assert await widget_rows(client, reader, dashboard_id) == [[2]]
         assert await canvas_rows(client, reader, dashboard_id) == [[2]]
 
-        back = await set_mode(client, owner, dashboard_id, "viewer")
+        back = await set_mode(client, admin, dashboard_id, "individual")
         assert back.status_code == 200
-        assert back.json()["view_as_user_id"] is None
+        assert back.json()["view_mode"] == "individual"
         assert await widget_rows(client, reader, dashboard_id) == [[0]]
+
+    async def test_it_does_not_depend_on_who_turned_it_on(
+        self, client, session, acting_user
+    ):
+        """It is the dashboard's access, not a person's: the one who switched
+        it on leaving, or being suspended, changes nothing."""
+        admin, reader = await two_people(session, acting_user)
+        setter = await acting_user(
+            guild_role=CommunityRole.member,
+            guild=admin.guild,
+            initiative=admin.initiative,
+            initiative_role="project_manager",
+        )
+        dashboard_id = await make_dashboard(client, setter)
+        assert (
+            await set_mode(client, setter, dashboard_id, "initiative")
+        ).status_code == 200
+        assert await widget_rows(client, reader, dashboard_id) == [[2]]
+
+        setter.user.status = UserStatus.suspended
+        session.add(setter.user)
+        await session.delete(setter.membership)
+        await session.commit()
+
+        assert await widget_rows(client, reader, dashboard_id) == [[2]]
+
+    async def test_it_reaches_tools_the_readers_role_cannot_view(
+        self, client, session, acting_user
+    ):
+        """Full read means every tool the initiative has switched on, not only
+        those the reader's own role may open."""
+        admin, reader = await two_people(session, acting_user)
+        admin.initiative.queues_enabled = True
+        session.add(admin.initiative)
+        await session.commit()
+        await create_queue(session, admin.initiative, admin.user)
+
+        dashboard_id = await make_dashboard(
+            client, admin, "SELECT count(*) AS n FROM queues"
+        )
+        assert await widget_rows(client, reader, dashboard_id) == [[0]]
+        await set_mode(client, admin, dashboard_id, "initiative")
+        assert await widget_rows(client, reader, dashboard_id) == [[1]]
 
     async def test_it_answers_nowhere_but_that_dashboard(
         self, client, session, acting_user
     ):
-        owner, reader = await two_people(session, acting_user)
-        dashboard_id = await make_dashboard(client, owner)
-        await set_mode(client, owner, dashboard_id, "owner")
+        admin, reader = await two_people(session, acting_user)
+        dashboard_id = await make_dashboard(client, admin)
+        await set_mode(client, admin, dashboard_id, "initiative")
 
         direct = await client.post(
             reader.g("/query"),
-            json={"sql": COUNT_TASKS, "initiative_id": owner.initiative.id},
+            json={"sql": COUNT_TASKS, "initiative_id": admin.initiative.id},
             headers=reader.headers,
         )
         assert direct.status_code == 200
         assert direct.json()["rows"] == [[0]]
-        other = await make_dashboard(client, owner)
+        other = await make_dashboard(client, admin)
         assert await widget_rows(client, reader, other) == [[0]]
 
-    async def test_me_is_the_owner(self, client, session, acting_user):
-        """The view shown is the owner's, so the reader the statement names is
-        them too."""
-        owner, reader = await two_people(session, acting_user)
+    async def test_me_is_still_the_reader(self, client, session, acting_user):
+        """Running as the initiative widens what is counted, not who is asking:
+        a tile about "me" is about whoever is looking."""
+        admin, reader = await two_people(session, acting_user)
         dashboard_id = await make_dashboard(
-            client, owner, "SELECT count(*) AS n FROM tasks WHERE created_by = me"
+            client, admin, "SELECT count(*) AS n FROM tasks WHERE created_by = me"
         )
-        await set_mode(client, owner, dashboard_id, "owner")
-        own = await widget_rows(client, owner, dashboard_id)
-        assert await widget_rows(client, reader, dashboard_id) == own
+        await set_mode(client, admin, dashboard_id, "initiative")
+        assert await widget_rows(client, reader, dashboard_id) == [[0]]
 
 
 class TestWhoMayChooseIt:
     async def test_a_reader_cannot_turn_it_on(self, client, session, acting_user):
-        owner, reader = await two_people(session, acting_user)
-        dashboard_id = await make_dashboard(client, owner)
-        response = await set_mode(client, reader, dashboard_id, "owner")
+        admin, reader = await two_people(session, acting_user)
+        dashboard_id = await make_dashboard(client, admin)
+        response = await set_mode(client, reader, dashboard_id, "initiative")
         assert response.status_code in (403, 404)
 
-    async def test_an_editor_shows_only_their_own_view(
+    async def test_an_editor_needs_the_role_permission(
         self, client, session, acting_user
     ):
-        """Turning it on names the person doing it; there is no way to name
-        anybody else."""
-        owner, reader = await two_people(session, acting_user)
-        dashboard_id = await make_dashboard(client, owner)
-        await client.put(
-            owner.g(f"/dashboards/{dashboard_id}/grants"),
-            json=[{"user_id": reader.user.id, "level": "write"}],
-            headers=owner.headers,
+        admin, _ = await two_people(session, acting_user)
+        role = await a_role_that_may(client, admin, may=False)
+        editor = await acting_user(
+            guild_role=CommunityRole.member,
+            guild=admin.guild,
+            initiative=admin.initiative,
+            initiative_role=role,
         )
-        response = await set_mode(client, reader, dashboard_id, "owner")
-        assert response.status_code == 200, response.text
-        assert response.json()["view_as_user_id"] == reader.user.id
-        assert await widget_rows(client, owner, dashboard_id) == [[0]]
+        dashboard_id = await make_dashboard(client, admin)
+        await share_for_writing(client, admin, dashboard_id, editor)
 
-    async def test_only_the_owner_changes_the_widgets(
+        detail = await client.get(
+            editor.g(f"/dashboards/{dashboard_id}"), headers=editor.headers
+        )
+        assert detail.json()["can_run_as_initiative"] is False
+        refused = await set_mode(client, editor, dashboard_id, "initiative")
+        assert refused.status_code == 403
+        assert refused.json()["detail"] == DashboardMessages.VIEW_MODE_NOT_ALLOWED
+
+    async def test_a_role_holding_the_permission_may(
         self, client, session, acting_user
     ):
-        owner, reader = await two_people(session, acting_user)
-        dashboard_id = await make_dashboard(client, owner)
-        await client.put(
-            owner.g(f"/dashboards/{dashboard_id}/grants"),
-            json=[{"user_id": reader.user.id, "level": "write"}],
-            headers=owner.headers,
+        admin, reader = await two_people(session, acting_user)
+        role = await a_role_that_may(client, admin, may=True)
+        editor = await acting_user(
+            guild_role=CommunityRole.member,
+            guild=admin.guild,
+            initiative=admin.initiative,
+            initiative_role=role,
         )
-        await set_mode(client, owner, dashboard_id, "owner")
+        dashboard_id = await make_dashboard(client, admin)
+        await share_for_writing(client, admin, dashboard_id, editor)
+
+        response = await set_mode(client, editor, dashboard_id, "initiative")
+        assert response.status_code == 200, response.text
+        assert response.json()["can_run_as_initiative"] is True
+        assert await widget_rows(client, reader, dashboard_id) == [[2]]
+
+    async def test_a_manager_always_may(self, client, session, acting_user):
+        admin, _ = await two_people(session, acting_user)
+        manager = await acting_user(
+            guild_role=CommunityRole.member,
+            guild=admin.guild,
+            initiative=admin.initiative,
+            initiative_role="project_manager",
+        )
+        dashboard_id = await make_dashboard(client, manager)
+        response = await set_mode(client, manager, dashboard_id, "initiative")
+        assert response.status_code == 200, response.text
+
+    async def test_widgets_change_only_with_the_permission(
+        self, client, session, acting_user
+    ):
+        admin, _ = await two_people(session, acting_user)
+        role = await a_role_that_may(client, admin, may=False)
+        editor = await acting_user(
+            guild_role=CommunityRole.member,
+            guild=admin.guild,
+            initiative=admin.initiative,
+            initiative_role=role,
+        )
+        dashboard_id = await make_dashboard(client, admin)
+        await share_for_writing(client, admin, dashboard_id, editor)
+        await set_mode(client, admin, dashboard_id, "initiative")
 
         edit = await client.patch(
-            reader.g(f"/dashboards/{dashboard_id}"),
+            editor.g(f"/dashboards/{dashboard_id}"),
             json={"definition": dashboard_body("SELECT title FROM tasks")},
-            headers=reader.headers,
+            headers=editor.headers,
         )
         assert edit.status_code == 403
-        assert edit.json()["detail"] == DashboardMessages.VIEW_AS_EDIT_OWNER_ONLY
+        assert edit.json()["detail"] == DashboardMessages.VIEW_MODE_EDIT_NOT_ALLOWED
 
         # A rename is not what the widgets ask, and is allowed.
         rename = await client.patch(
-            reader.g(f"/dashboards/{dashboard_id}"),
+            editor.g(f"/dashboards/{dashboard_id}"),
             json={"name": "Renamed"},
-            headers=reader.headers,
+            headers=editor.headers,
         )
         assert rename.status_code == 200, rename.text
 
-        # The owner may change them.
-        own_edit = await client.patch(
-            owner.g(f"/dashboards/{dashboard_id}"),
-            json={"definition": dashboard_body("SELECT count(*) AS n FROM projects")},
-            headers=owner.headers,
-        )
-        assert own_edit.status_code == 200, own_edit.text
-
-        # And the other editor can switch it back, then edit.
+        # Anyone who can edit may switch it back, and then edit.
         assert (
-            await set_mode(client, reader, dashboard_id, "viewer")
+            await set_mode(client, editor, dashboard_id, "individual")
         ).status_code == 200
         edit = await client.patch(
-            reader.g(f"/dashboards/{dashboard_id}"),
+            editor.g(f"/dashboards/{dashboard_id}"),
             json={"definition": dashboard_body("SELECT title FROM tasks")},
-            headers=reader.headers,
+            headers=editor.headers,
         )
         assert edit.status_code == 200, edit.text
-
-
-class TestItFailsClosedOnTheOwner:
-    async def test_a_suspended_owner_shows_nothing_of_theirs(
-        self, client, session, acting_user
-    ):
-        owner, reader = await two_people(session, acting_user)
-        dashboard_id = await make_dashboard(client, owner)
-        await set_mode(client, owner, dashboard_id, "owner")
-        assert await widget_rows(client, reader, dashboard_id) == [[2]]
-
-        owner.user.status = UserStatus.suspended
-        session.add(owner.user)
-        await session.commit()
-
-        assert await widget_rows(client, reader, dashboard_id) == [[0]]
-        detail = await client.get(
-            reader.g(f"/dashboards/{dashboard_id}"), headers=reader.headers
-        )
-        assert detail.json()["view_as_active"] is False
-        assert detail.json()["view_as_user_id"] == owner.user.id
-
-    async def test_an_owner_who_left_shows_nothing_of_theirs(
-        self, client, session, acting_user
-    ):
-        owner, reader = await two_people(session, acting_user)
-        admin = await acting_user(
-            guild_role=CommunityRole.admin,
-            guild=owner.guild,
-            initiative=owner.initiative,
-            initiative_role="member",
-        )
-        dashboard_id = await make_dashboard(client, admin)
-        await set_mode(client, admin, dashboard_id, "owner")
-        assert await widget_rows(client, reader, dashboard_id) == [[2]]
-
-        await session.delete(admin.membership)
-        await session.commit()
-
-        assert await widget_rows(client, reader, dashboard_id) == [[0]]

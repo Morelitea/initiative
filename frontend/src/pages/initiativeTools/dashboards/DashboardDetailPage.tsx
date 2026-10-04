@@ -2,7 +2,7 @@ import { useParams } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { Tool } from "@/api/generated/initiativeAPI.schemas";
+import { DashboardViewMode, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { ToolCommentsPanel } from "@/components/comments/ToolCommentsPanel";
 import { ToolRelationsPanel } from "@/components/entities/ToolRelationsPanel";
 import { DashboardCanvas } from "@/components/initiativeTools/dashboards/DashboardCanvas";
@@ -112,6 +112,7 @@ export function DashboardDetailPage() {
           <PublishedViewNotice
             published={dashboard.published_over}
             active={dashboard.published_active}
+            sharedView={dashboard.view_mode === DashboardViewMode.initiative}
           />
         </ToolPageHeader>
       ) : (
