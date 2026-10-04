@@ -442,18 +442,39 @@ def test_csp_captcha_origins_only_when_configured():
 
 
 def test_csp_billing_origin_only_when_portal_configured():
-    """The landing page fetches the pricing catalog from the billing portal
-    and frames its pricing grid, so its origin is allowed for fetch() and
-    frames only on a deployment that names one, and only the origin, never the
-    path it was configured with."""
+    """The landing page fetches the pricing catalog from the billing portal,
+    so its origin is allowed for fetch() only on a deployment that names one,
+    and only the origin, never the path it was configured with. It frames the
+    portal's pricing grid, and that page alone is allowed in a frame."""
     assert "billing.example.com" not in _csp(_settings())
 
     on = _csp(_settings(BILLING_URL="https://billing.example.com/portal/"))
     assert "https://billing.example.com" in _directive(on, "connect-src")
     assert "/portal" not in _directive(on, "connect-src")
-    assert "https://billing.example.com" in _directive(on, "frame-src")
-    assert "/portal" not in _directive(on, "frame-src")
+    # One page of the portal may be framed, its pricing grid; not the portal.
+    frames = _directive(on, "frame-src").split()
+    assert "https://billing.example.com/portal/embed/pricing" in frames
+    assert "https://billing.example.com" not in frames
     assert "billing.example.com" not in _directive(on, "script-src")
+
+
+@pytest.mark.parametrize(
+    ("billing_url", "frame"),
+    [
+        ("https://billing.example.com", "https://billing.example.com/embed/pricing"),
+        ("https://billing.example.com/", "https://billing.example.com/embed/pricing"),
+        ("http://localhost:8100", "http://localhost:8100/embed/pricing"),
+    ],
+)
+def test_csp_frames_only_the_billing_pricing_grid(billing_url, frame):
+    frames = _directive(_csp(_settings(BILLING_URL=billing_url)), "frame-src").split()
+    assert frame in frames
+    assert not any(f.startswith(billing_url.rstrip("/")) and f != frame for f in frames)
+
+
+def test_csp_frames_nothing_from_a_billing_url_it_cannot_reduce_safely():
+    on = _csp(_settings(BILLING_URL="https://billing.example.com/a;b"))
+    assert "billing.example.com" not in _directive(on, "frame-src")
 
 
 def test_csp_collector_origin_only_when_one_is_on_another_origin():

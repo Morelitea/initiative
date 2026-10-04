@@ -120,6 +120,26 @@ def _format_csp(directives: dict[str, list[str]]) -> str:
     )
 
 
+#: The billing portal's pricing grid, the one page of it the front door frames.
+BILLING_PRICING_EMBED_PATH = "/embed/pricing"
+
+#: Characters a path may carry into a CSP source expression.
+_CSP_PATH = re.compile(r"^[A-Za-z0-9._~/-]*$")
+
+
+def _billing_embed_source(url: str) -> str | None:
+    """The exact address of the billing portal's pricing grid, as a CSP
+    source: its origin and path, so a frame may load that page and no other.
+    None when the portal's URL cannot be reduced to one safely."""
+    origin = _origin_of(url)
+    if not origin:
+        return None
+    base = urlsplit(url.strip()).path.rstrip("/")
+    if not _CSP_PATH.match(base):
+        return None
+    return f"{origin}{base}{BILLING_PRICING_EMBED_PATH}"
+
+
 def _origin_of(url: str) -> str | None:
     """Return the ``scheme://host[:port]`` origin of a URL, or None if unparseable."""
     parts = urlsplit(url.strip())
@@ -613,13 +633,15 @@ class Settings(BaseSettings):
             connect_src += extra
 
         # The landing page reads the public pricing catalog straight from the
-        # billing portal and frames the portal's pricing grid, so its origin
-        # joins connect-src and frame-src only on a deployment that has one.
-        # Reduced to an origin the same way as the app frames.
+        # billing portal, so its origin joins connect-src only on a deployment
+        # that has one. It also frames the portal's pricing grid, and frame-src
+        # names that one page, not the portal: no other page may be framed.
         billing_origin = _origin_of(self.BILLING_URL) if self.BILLING_URL else None
         if billing_origin:
             connect_src.append(billing_origin)
-            frame_src.append(billing_origin)
+            embed = _billing_embed_source(self.BILLING_URL)
+            if embed:
+                frame_src.append(embed)
 
         # The measurement collector, where one is named on another origin. A
         # same-origin path is already covered by 'self'.
