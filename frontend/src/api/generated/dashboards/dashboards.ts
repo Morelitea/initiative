@@ -30,7 +30,6 @@ import type {
   DashboardViewModeRequest,
   HTTPValidationError,
   ListDashboardsParams,
-  PublishRequest,
   QueryResponse,
   ReadDashboardParams,
   ResourceGrantSchema,
@@ -1113,9 +1112,8 @@ export function useLoadDashboardData<
  * Run the statement stored on one of this dashboard's widgets.
  *
  * What runs is the widget's own, never one the request supplies. That is what
- * makes a published view safe to serve: the rows a dashboard's grants reach
- * are shown through the question somebody published, and a reader cannot ask
- * a different one of them.
+ * makes running as the initiative safe to serve: its wider read is only ever
+ * asked the question stored on the dashboard.
  *
  * The dashboard's own four gates decide whether this caller sees anything at
  * all, and they run first. The canvas loads through
@@ -1267,110 +1265,6 @@ export function useRunWidgetQuery<
   return withQueryKey(query, queryOptions.queryKey);
 }
 
-/**
- * Say what this dashboard shows to everybody who can open it.
- *
- * The whole list each time. Every resource named here becomes readable
- * *through* this dashboard: its tiles stop answering from each viewer's own
- * access for those rows and answer the same way for all of them.
- *
- * Three things this refuses, and each is one of the rules the feature rests
- * on. It reaches no further than the author, so a resource they cannot read
- * themselves cannot be published. It stays fixed, so a dashboard whose
- * statements ask about the reader cannot become one. And it is authoring, so
- * it takes write access to the dashboard like any other change to it.
- * @summary Set Published View
- */
-export const setPublishedView = (
-  communityId: number,
-  dashboardId: number,
-  publishRequest: BodyType<PublishRequest>,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<DashboardRead>(
-    {
-      url: `/api/v1/c/${communityId}/dashboards/${dashboardId}/published`,
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      data: publishRequest,
-      signal,
-    },
-    options
-  );
-};
-
-export const getSetPublishedViewMutationKey = () => ["setPublishedView"] as const;
-
-export const getSetPublishedViewMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof setPublishedView>>,
-    TError,
-    SetPublishedViewMutationVariables,
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof setPublishedView>>,
-  TError,
-  SetPublishedViewMutationVariables,
-  TContext
-> => {
-  const mutationKey = getSetPublishedViewMutationKey();
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof setPublishedView>>,
-    SetPublishedViewMutationVariables
-  > = (props) => {
-    const { communityId, dashboardId, data } = props ?? {};
-
-    return setPublishedView(communityId, dashboardId, data, requestOptions);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type SetPublishedViewMutationResult = NonNullable<
-  Awaited<ReturnType<typeof setPublishedView>>
->;
-export type SetPublishedViewMutationBody = BodyType<PublishRequest>;
-export type SetPublishedViewMutationError = ErrorType<HTTPValidationError>;
-export type SetPublishedViewMutationVariables = {
-  communityId: number;
-  dashboardId: number;
-  data: BodyType<PublishRequest>;
-};
-
-/**
- * @summary Set Published View
- */
-export const useSetPublishedView = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof setPublishedView>>,
-      TError,
-      SetPublishedViewMutationVariables,
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof setPublishedView>>,
-  TError,
-  SetPublishedViewMutationVariables,
-  TContext
-> => {
-  return useMutation(getSetPublishedViewMutationOptions(options), queryClient);
-};
 /**
  * Choose whose access this dashboard's query widgets answer from.
  *

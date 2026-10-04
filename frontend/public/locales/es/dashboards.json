@@ -306,10 +306,6 @@
     "counter_groups": "Grupos de contadores",
     "task_statuses": "Estados de tarea"
   },
-  "published": {
-    "notice_one": "Muestra una cifra compartida — la misma para todos aquí",
-    "notice_other": "Muestra {{count}} cifras compartidas — las mismas para todos aquí"
-  },
   "viewMode": {
     "label": "Ejecutar el panel como",
     "individual": "Individual",

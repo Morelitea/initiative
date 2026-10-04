@@ -306,10 +306,6 @@
     "counter_groups": "Zählergruppen",
     "task_statuses": "Aufgabenstatus"
   },
-  "published": {
-    "notice_one": "Zeigt eine geteilte Zahl — für alle hier gleich",
-    "notice_other": "Zeigt {{count}} geteilte Zahlen — für alle hier gleich"
-  },
   "viewMode": {
     "label": "Dashboard ausführen als",
     "individual": "Einzelperson",

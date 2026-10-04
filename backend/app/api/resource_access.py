@@ -262,9 +262,7 @@ def duplicate_sharing(source: Any, *, initiative_id: int) -> list[ResourceGrantS
     return [
         ResourceGrantSchema.model_validate(grant)
         for grant in source.grants
-        if grant.level != ResourceAccessLevel.owner
-        and grant.dashboard_id is None
-        and grant.app_install_id is None
+        if grant.level != ResourceAccessLevel.owner and grant.app_install_id is None
     ]
 
 

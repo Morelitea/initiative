@@ -461,7 +461,6 @@ STANDING_FIELDS: tuple[tuple[str, str, str], ...] = (
     _read(gucs.ROLE_GRANTS),
     _read(gucs.ROLE_DENIES),
     _read(gucs.ENABLED_TOOLS),
-    _read(gucs.VIA_DASHBOARD_ID),
     # An installed app acting in the community: which install, and the
     # resources its scopes let it read and write. Unset on every request a
     # person makes.
@@ -821,9 +820,8 @@ p_tool IS NULL
 #: The grant rows on ``(p_tool, p_resource_id)`` that reach this reader: one
 #: naming them, one on an initiative role they hold, one shared with every
 #: member of an initiative they are in (or of the community, on a row that
-#: belongs to no initiative), the dashboard a published view is read through,
-#: or one naming the installed app the request is for. Written over the row
-#: alias ``g``.
+#: belongs to no initiative), or one naming the installed app the request is
+#: for. Written over the row alias ``g``.
 GRANT_REACHES_READER = f"""\
 g.resource_type = p_tool
               AND g.resource_id = p_resource_id
@@ -835,8 +833,6 @@ g.resource_type = p_tool
                     AND {_B.this_guild}
                     AND (g.initiative_id IS NULL
                          OR g.initiative_id = ANY ({_B.field("member_initiatives")})))
-                OR (g.dashboard_id IS NOT NULL
-                    AND g.dashboard_id = {_B.field("via_dashboard_id")})
                 OR (g.app_install_id IS NOT NULL
                     AND g.app_install_id = {_B.install_id})
               )"""

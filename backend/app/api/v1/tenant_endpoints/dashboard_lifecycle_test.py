@@ -10,7 +10,7 @@ count only them.
 from __future__ import annotations
 
 from app.models.platform.guild import CommunityRole
-from app.services.tenant.published_views_test import (
+from app.services.tenant.view_as_test import (
     dashboards_on,
     make_dashboard,
     widget_rows,

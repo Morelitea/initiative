@@ -306,10 +306,6 @@
     "counter_groups": "Groupes de compteurs",
     "task_statuses": "Statuts de tâche"
   },
-  "published": {
-    "notice_one": "Affiche un chiffre partagé — le même pour tout le monde ici",
-    "notice_other": "Affiche {{count}} chiffres partagés — les mêmes pour tout le monde ici"
-  },
   "viewMode": {
     "label": "Exécuter le tableau de bord en tant que",
     "individual": "Individuel",

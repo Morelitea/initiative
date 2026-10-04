@@ -93,7 +93,6 @@ class SharedResourceRead(SanitizedBaseModel):
     all_initiative_members: bool
     user_grant_count: int
     role_grant_count: int
-    via_dashboard: bool
 
 
 class InitiativeSharingRead(SanitizedBaseModel):

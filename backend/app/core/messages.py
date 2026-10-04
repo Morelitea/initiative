@@ -511,10 +511,6 @@ class SharingMessages:
     been given the wording for it.
     """
 
-    #: A grant naming a dashboard, sent to a resource's own sharing. That kind
-    #: is made and taken back against the dashboard that publishes it, so this
-    #: list neither writes nor removes one.
-    DASHBOARD_GRANT_NOT_SET_HERE = "SHARING_DASHBOARD_GRANT_NOT_SET_HERE"
     #: A grant naming an installed app, sent to a resource's own sharing. What
     #: an app may reach is granted by the community's seat, so this list
     #: neither writes nor removes one.
@@ -973,19 +969,8 @@ class DashboardMessages:
     BINDING_SOURCE_NOT_ALLOWED = "DASHBOARD_BINDING_SOURCE_NOT_ALLOWED"
     CONFIG_INVALID = "DASHBOARD_CONFIG_INVALID"
     BINDING_SQL_MISSING = "BINDING_SQL_MISSING"
-    # Published views (app.services.tenant.published_views).
     #: A widget of this dashboard that holds no statement to run.
     WIDGET_HAS_NO_QUERY = "DASHBOARD_WIDGET_HAS_NO_QUERY"
-    #: Publishing over a resource the author cannot read themselves. A
-    #: published view hands on the author's own reach and never more than it.
-    PUBLISH_BEYOND_YOUR_REACH = "DASHBOARD_PUBLISH_BEYOND_YOUR_REACH"
-    #: Editing what a publishing dashboard asks, without the access it
-    #: publishes over. The statement is what decides which of those rows a
-    #: reader sees, so changing one is the same act as writing it.
-    EDIT_NEEDS_THE_PUBLISHED_ACCESS = "DASHBOARD_EDIT_NEEDS_THE_PUBLISHED_ACCESS"
-    #: ``me`` in a statement on a dashboard that publishes. A published view is
-    #: one set of numbers for everybody, and the reader is not fixed.
-    PUBLISHED_VIEW_HAS_NO_READER = "DASHBOARD_PUBLISHED_VIEW_HAS_NO_READER"
     #: Setting a dashboard to run as its initiative without the role
     #: permission for it (managers always hold it).
     VIEW_MODE_NOT_ALLOWED = "DASHBOARD_VIEW_MODE_NOT_ALLOWED"

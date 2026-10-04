@@ -10,14 +10,57 @@ from __future__ import annotations
 from app.core.messages import DashboardMessages
 from app.models.platform.guild import CommunityRole
 from app.models.platform.user import UserStatus
-from app.services.tenant.published_views_test import (
-    COUNT_TASKS,
-    dashboard_body,
-    dashboards_on,
-    make_dashboard,
-    widget_rows,
-)
 from app.testing import create_project, create_queue, create_task
+
+
+COUNT_TASKS = "SELECT count(*) AS n FROM tasks"
+
+
+def dashboard_body(*statements: str) -> dict:
+    """A canvas of one stat per statement, w1, w2, … in order."""
+    return {
+        "version": 1,
+        "widgets": [
+            {
+                "id": f"w{index + 1}",
+                "type": "stat",
+                "grid": {"x": 0, "y": index * 2, "w": 4, "h": 2},
+                "binding": {"source": "query", "sql": sql},
+            }
+            for index, sql in enumerate(statements or (COUNT_TASKS,))
+        ],
+    }
+
+
+async def dashboards_on(session, initiative) -> None:
+    """The tool switch. A role permission gates creating one, and the switch
+    gates the tool existing at all."""
+    initiative.dashboards_enabled = True
+    session.add(initiative)
+    await session.commit()
+    await session.refresh(initiative)
+
+
+async def make_dashboard(client, actor, sql: str = COUNT_TASKS) -> int:
+    response = await client.post(
+        actor.g("/dashboards/"),
+        json={
+            "name": "Status",
+            "initiative_id": actor.initiative.id,
+            "definition": dashboard_body(sql),
+        },
+        headers=actor.headers,
+    )
+    assert response.status_code in (200, 201), response.text
+    return response.json()["id"]
+
+
+async def widget_rows(client, actor, dashboard_id: int, widget_id: str = "w1"):
+    response = await client.get(
+        actor.g(f"/dashboards/{dashboard_id}/widgets/{widget_id}/query"),
+        headers=actor.headers,
+    )
+    assert response.status_code == 200, response.text
 
 
 async def two_people(session, acting_user):

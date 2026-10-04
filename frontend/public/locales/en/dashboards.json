@@ -306,10 +306,6 @@
     "counter_groups": "Counter groups",
     "task_statuses": "Task statuses"
   },
-  "published": {
-    "notice_one": "Shows one shared figure — the same for everyone here",
-    "notice_other": "Shows {{count}} shared figures — the same for everyone here"
-  },
   "viewMode": {
     "label": "Run dashboard as",
     "individual": "Individual",

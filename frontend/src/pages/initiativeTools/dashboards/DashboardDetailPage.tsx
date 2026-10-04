@@ -7,7 +7,7 @@ import { ToolCommentsPanel } from "@/components/comments/ToolCommentsPanel";
 import { ToolRelationsPanel } from "@/components/entities/ToolRelationsPanel";
 import { DashboardCanvas } from "@/components/initiativeTools/dashboards/DashboardCanvas";
 import { DashboardUpdateBadge } from "@/components/initiativeTools/dashboards/DashboardUpdateBadge";
-import { PublishedViewNotice } from "@/components/initiativeTools/dashboards/PublishedViewNotice";
+import { InitiativeViewNotice } from "@/components/initiativeTools/dashboards/InitiativeViewNotice";
 import { WidgetConfigDialog } from "@/components/initiativeTools/dashboards/WidgetConfigDialog";
 import { WidgetPicker } from "@/components/initiativeTools/dashboards/WidgetPicker";
 import { ToolAccessStatus } from "@/components/ToolAccessStatus";
@@ -109,11 +109,7 @@ export function DashboardDetailPage() {
           {dashboard.description && (
             <p className="text-muted-foreground text-sm">{dashboard.description}</p>
           )}
-          <PublishedViewNotice
-            published={dashboard.published_over}
-            active={dashboard.published_active}
-            sharedView={dashboard.view_mode === DashboardViewMode.initiative}
-          />
+          {dashboard.view_mode === DashboardViewMode.initiative && <InitiativeViewNotice />}
         </ToolPageHeader>
       ) : (
         <div className="space-y-4">

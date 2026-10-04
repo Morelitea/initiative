@@ -49,7 +49,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The app opens faster.**
 - **Documentation and Ask for help are separate buttons** at the foot of the sidebar.
 - **Clearer query builder.** Plain names for columns and fields ("Due date", not `due_date`) and shorter, plainer wording throughout.
-- **The per-project "Published figures" card is gone** from dashboard settings; **Run dashboard as** replaces it. Dashboards that already publish keep doing so.
+- **"Published figures" are removed.** **Run dashboard as → Initiative** replaces them. A dashboard that published figures goes back to showing each person their own numbers on upgrade; switch it to Initiative to share them again.
 
 ### Fixed
 
