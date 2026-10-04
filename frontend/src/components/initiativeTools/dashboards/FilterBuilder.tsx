@@ -12,7 +12,8 @@
  * may, and the author picks which at the top; a group inside asks the other
  * question. "Any" is stored as one OR group, so the description is still the
  * plain filter tree the server reads. The dataset's lifecycle defaults (not
- * archived, not a template) are switches above the rows rather than rows, so
+ * archived, not a template) are a leave out / include / only choice above the
+ * rows rather than rows, so
  * choosing "any" never turns them into "archived or not".
  *
  * **Dates are relative unless you ask otherwise.** A dashboard is a standing
@@ -114,8 +115,9 @@ export const fieldLabel = (
 };
 
 /** Whether a top-level condition is one of the dataset's lifecycle defaults —
- *  "not archived", "not a template" — which are offered as switches rather
- *  than as rows, so the match-all/any choice below never applies to them. */
+ *  "not archived", "not a template" — or its opposite. Those are offered as a
+ *  choice above the rows rather than as rows, so the match-all/any choice
+ *  below never applies to them. */
 const sameLeaf = (node: FilterNode, wanted: FilterLeaf): boolean =>
   !isGroup(node) &&
   node.field === wanted.field &&
@@ -123,11 +125,26 @@ const sameLeaf = (node: FilterNode, wanted: FilterLeaf): boolean =>
   JSON.stringify(node.value) === JSON.stringify(wanted.value) &&
   !node.negate;
 
-/** Which switch a default condition is, by what it reads. */
+/** Leave the archived (or templates) out, count them too, or count only them. */
+export type Lifecycle = "exclude" | "include" | "only";
+
+/** The opposite of a default: both are yes/no questions ("is it unarchived",
+ *  "is it not a template"), so asking only for the others is the same
+ *  comparison with the answer flipped. */
+const onlyLeaf = (leaf: FilterLeaf): FilterLeaf => ({ ...leaf, value: !leaf.value });
+
+const lifecycleOf = (value: FilterNode[], leaf: FilterLeaf): Lifecycle =>
+  value.some((node) => sameLeaf(node, leaf))
+    ? "exclude"
+    : value.some((node) => sameLeaf(node, onlyLeaf(leaf)))
+      ? "only"
+      : "include";
+
+/** Which choice a default condition is, by what it reads. */
 const defaultLabelKey = (field: string) =>
   field.endsWith("is_template")
-    ? ("dashboards:filterBuilder.hideTemplates" as const)
-    : ("dashboards:filterBuilder.hideArchived" as const);
+    ? ("dashboards:filterBuilder.templates" as const)
+    : ("dashboards:filterBuilder.archived" as const);
 
 /**
  * The stored filter, read as the builder draws it: the lifecycle switches that
@@ -137,8 +154,10 @@ const defaultLabelKey = (field: string) =>
  * a stored filter of one OR group therefore reads back as "any".
  */
 function splitFilters(value: FilterNode[], defaults: readonly FilterLeaf[]) {
-  const lifecycle = defaults.map((wanted) => value.some((node) => sameLeaf(node, wanted)));
-  const rest = value.filter((node) => !defaults.some((wanted) => sameLeaf(node, wanted)));
+  const lifecycle = defaults.map((wanted) => lifecycleOf(value, wanted));
+  const rest = value.filter(
+    (node) => !defaults.some((wanted) => sameLeaf(node, wanted) || sameLeaf(node, onlyLeaf(wanted)))
+  );
   const only = rest.length === 1 ? rest[0] : undefined;
   if (only && isGroup(only) && only.logic === "or") {
     return { lifecycle, match: "any" as const, rows: only.conditions };
@@ -147,12 +166,18 @@ function splitFilters(value: FilterNode[], defaults: readonly FilterLeaf[]) {
 }
 
 function joinFilters(
-  lifecycle: boolean[],
+  lifecycle: Lifecycle[],
   defaults: readonly FilterLeaf[],
   match: "all" | "any",
   rows: FilterNode[]
 ): FilterNode[] {
-  const kept = defaults.filter((_, index) => lifecycle[index]).map((leaf) => ({ ...leaf }));
+  const kept = defaults.flatMap((leaf, index) =>
+    lifecycle[index] === "exclude"
+      ? [{ ...leaf }]
+      : lifecycle[index] === "only"
+        ? [onlyLeaf(leaf)]
+        : []
+  );
   if (match === "any" && rows.length) return [...kept, { logic: "or", conditions: rows }];
   return [...kept, ...rows];
 }
@@ -189,7 +214,7 @@ export function FilterBuilder({ value, onChange, initiativeId, dataset }: Filter
   );
 
   const { lifecycle, match, rows } = splitFilters(value, defaults);
-  const emit = (next: { lifecycle?: boolean[]; match?: "all" | "any"; rows?: FilterNode[] }) =>
+  const emit = (next: { lifecycle?: Lifecycle[]; match?: "all" | "any"; rows?: FilterNode[] }) =>
     onChange(
       joinFilters(next.lifecycle ?? lifecycle, defaults, next.match ?? match, next.rows ?? rows)
     );
@@ -228,24 +253,38 @@ export function FilterBuilder({ value, onChange, initiativeId, dataset }: Filter
         <div className="flex flex-wrap gap-x-6 gap-y-2">
           {defaults.map((leaf, index) => (
             <div key={leaf.field} className="flex items-center gap-2">
-              <Switch
-                id={`${switchId}-${index}`}
-                checked={lifecycle[index]}
-                onCheckedChange={(checked) => {
-                  const next = lifecycle.slice();
-                  next[index] = checked;
-                  emit({ lifecycle: next });
-                }}
-              />
               <Label htmlFor={`${switchId}-${index}`} className="font-normal text-sm">
                 {t(defaultLabelKey(leaf.field))}
               </Label>
+              <Select
+                value={lifecycle[index]}
+                onValueChange={(choice) => {
+                  const next = lifecycle.slice();
+                  next[index] = choice as Lifecycle;
+                  emit({ lifecycle: next });
+                }}
+              >
+                <SelectTrigger id={`${switchId}-${index}`} className="h-8 w-32">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="exclude">
+                    {t("dashboards:filterBuilder.lifecycleExclude")}
+                  </SelectItem>
+                  <SelectItem value="include">
+                    {t("dashboards:filterBuilder.lifecycleInclude")}
+                  </SelectItem>
+                  <SelectItem value="only">
+                    {t("dashboards:filterBuilder.lifecycleOnly")}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           ))}
         </div>
       )}
 
-      {rows.length === 0 && !lifecycle.some(Boolean) && (
+      {rows.length === 0 && lifecycle.every((choice) => choice === "include") && (
         <p className="text-muted-foreground text-xs">{t("dashboards:filterBuilder.empty")}</p>
       )}
 

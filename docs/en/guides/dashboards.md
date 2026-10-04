@@ -68,7 +68,7 @@ Either way you can reach what a thing is *attached to* without writing a join. T
 
 The **Filters** say which rows a tile is about. Pick a field, how to compare it, what to compare it against. With more than one, choose whether rows must match **all** of them or **any**, and add a group for the other kind when "high or urgent, and mine" is the actual question.
 
-Archived work and templates are left out to start with. Those are the two switches above the filters; turn one off to count them too.
+Archived work and templates are left out to start with. **Archived** and **Templates** above the filters each say **Leave out**, **Include** or **Only** — so "everything we archived this year" is one click away. Deleted things are never counted, on any dashboard, for anyone.
 
 Dates are asked as distances rather than as dates. A tile set to *the next 30 days* still means that next month, which is the whole difference between a dashboard and a screenshot.
 

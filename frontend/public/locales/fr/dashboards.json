@@ -208,8 +208,6 @@
     "relativeHint": "Compté au moment où le tableau de bord est ouvert : la question ne se périme jamais.",
     "loading": "Chargement des filtres…",
     "noFields": "Rien à filtrer ici pour l'instant.",
-    "hideArchived": "Exclure les archivés",
-    "hideTemplates": "Exclure les modèles",
     "matchPrefix": "Correspondre à",
     "match": "Tous ou au moins un",
     "matchAll": "tous",
@@ -221,7 +219,12 @@
     "groupAll": "Tous ceux-ci",
     "addToGroup": "Ajouter au groupe",
     "addGroupAny": "Ajouter un groupe « au moins un »",
-    "addGroupAll": "Ajouter un groupe « tous »"
+    "addGroupAll": "Ajouter un groupe « tous »",
+    "archived": "Archivés",
+    "templates": "Modèles",
+    "lifecycleExclude": "Exclure",
+    "lifecycleInclude": "Inclure",
+    "lifecycleOnly": "Uniquement"
   },
   "tableView": {
     "empty": "Rien à mettre en tableau",

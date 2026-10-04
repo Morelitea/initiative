@@ -208,8 +208,6 @@
     "relativeHint": "Zählt ab dem Moment, in dem das Dashboard geöffnet wird – veraltet also nie.",
     "loading": "Filter werden geladen…",
     "noFields": "Hier gibt es noch nichts zum Filtern.",
-    "hideArchived": "Archivierte ausblenden",
-    "hideTemplates": "Vorlagen ausblenden",
     "matchPrefix": "Auf",
     "match": "Alle oder einen erfüllen",
     "matchAll": "alle",
@@ -221,7 +219,12 @@
     "groupAll": "Alle davon",
     "addToGroup": "Zur Gruppe hinzufügen",
     "addGroupAny": "„Einer davon“-Gruppe hinzufügen",
-    "addGroupAll": "„Alle davon“-Gruppe hinzufügen"
+    "addGroupAll": "„Alle davon“-Gruppe hinzufügen",
+    "archived": "Archivierte",
+    "templates": "Vorlagen",
+    "lifecycleExclude": "Ausblenden",
+    "lifecycleInclude": "Einbeziehen",
+    "lifecycleOnly": "Nur diese"
   },
   "tableView": {
     "empty": "Nichts zu tabellieren",

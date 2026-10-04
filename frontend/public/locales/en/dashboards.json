@@ -198,8 +198,6 @@
     "relativeHint": "Counts from whenever the dashboard is opened, so it never goes stale.",
     "loading": "Loading filters…",
     "noFields": "Nothing to filter on here yet.",
-    "hideArchived": "Leave out archived",
-    "hideTemplates": "Leave out templates",
     "matchPrefix": "Match",
     "match": "Match all or any",
     "matchAll": "all",
@@ -211,7 +209,12 @@
     "groupAll": "All of these",
     "addToGroup": "Add to group",
     "addGroupAny": "Add an “any of” group",
-    "addGroupAll": "Add an “all of” group"
+    "addGroupAll": "Add an “all of” group",
+    "archived": "Archived",
+    "templates": "Templates",
+    "lifecycleExclude": "Leave out",
+    "lifecycleInclude": "Include",
+    "lifecycleOnly": "Only"
   },
   "tableView": {
     "empty": "Nothing to tabulate",

@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **Run a dashboard as Individual or Initiative.** Under a dashboard's **Settings → Details**: Individual (the default) shows each person only what they can see; Initiative shows everyone the same numbers, using the access of whoever turned it on. It pauses if that person leaves or loses access, and only they can change its tiles while it's on.
-- **Filters can match all or any.** Choose once at the top, add a group for the other kind, and archived work and templates are simple switches.
+- **Filters can match all or any.** Choose once at the top, add a group for the other kind, and choose to leave out, include, or count only archived work and templates. Deleted things are never counted.
 - **A timeline can be drawn in years.**
 
 ### Changed

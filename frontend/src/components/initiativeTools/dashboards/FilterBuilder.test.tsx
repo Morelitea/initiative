@@ -1,6 +1,6 @@
 /**
  * The filter's two choices: whether every row must match or any may, and
- * whether archived work and templates are left out. The defaults are switches
+ * whether archived work and templates are left out, included, or all there is. The defaults are switches
  * so "any" never turns them into "archived or not".
  */
 import { screen, waitFor } from "@testing-library/react";
@@ -52,7 +52,9 @@ const mount = (value: FilterNode[]) => {
 describe("FilterBuilder", () => {
   it("reads one OR group as 'any' and keeps the default outside it", async () => {
     mount([ARCHIVED, { logic: "or", conditions: [TITLE_A, TITLE_B] }]);
-    expect(await screen.findByRole("switch", { name: /leave out archived/i })).toBeChecked();
+    expect(await screen.findByRole("combobox", { name: /^archived$/i })).toHaveTextContent(
+      /leave out/i
+    );
     expect(screen.getByRole("combobox", { name: /match all or any/i })).toHaveTextContent(/any/i);
     expect(screen.getByText(/^or$/i)).toBeInTheDocument();
   });
@@ -70,10 +72,28 @@ describe("FilterBuilder", () => {
     );
   });
 
-  it("turning a default off drops its condition", async () => {
+  it("including archived work drops its condition", async () => {
     const onChange = mount([ARCHIVED, TITLE_A]);
     const user = userEvent.setup();
-    await user.click(await screen.findByRole("switch", { name: /leave out archived/i }));
+    await user.click(await screen.findByRole("combobox", { name: /^archived$/i }));
+    await user.click(await screen.findByRole("option", { name: /^include$/i }));
     expect(onChange).toHaveBeenLastCalledWith([TITLE_A]);
+  });
+
+  it("asks for only archived work with the same comparison flipped", async () => {
+    const onChange = mount([ARCHIVED, TITLE_A]);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("combobox", { name: /^archived$/i }));
+    await user.click(await screen.findByRole("option", { name: /^only$/i }));
+    expect(onChange).toHaveBeenLastCalledWith([
+      { field: "archived_at", op: "is_null", value: false },
+      TITLE_A,
+    ]);
+  });
+
+  it("reads 'only' back from a stored filter", async () => {
+    mount([{ field: "archived_at", op: "is_null", value: false } as FilterNode]);
+    expect(await screen.findByRole("combobox", { name: /^archived$/i })).toHaveTextContent(/only/i);
+    expect(screen.queryByText(/no filters/i)).not.toBeInTheDocument();
   });
 });

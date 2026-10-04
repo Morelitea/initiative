@@ -418,8 +418,10 @@ describe("what a new statement leaves out", () => {
 
     await screen.findByRole("tab", { name: /build/i });
     await waitFor(() => expect(screen.queryByText(/no filters/i)).not.toBeInTheDocument());
-    // As switches the author can turn off, not rows to read through.
-    expect(await screen.findByRole("switch", { name: /leave out archived/i })).toBeChecked();
+    // As a choice the author can change, not rows to read through.
+    expect(await screen.findByRole("combobox", { name: /^archived$/i })).toHaveTextContent(
+      /leave out/i
+    );
   });
 
   it("leaves a statement somebody already wrote alone", async () => {
