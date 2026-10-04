@@ -40,7 +40,9 @@ describe("GuildLocationLine", () => {
       />
     );
 
-    expect(screen.getByText("Queen Anne Neighborhood, Seattle, WA")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Location: Queen Anne Neighborhood, Seattle, WA" })
+    ).toBeInTheDocument();
     expect(screen.queryByText("1 Queen Anne Ave N")).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button"));

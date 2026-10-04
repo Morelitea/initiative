@@ -186,7 +186,9 @@ describe("CommunitiesPage", () => {
 
     renderDirectory();
 
-    expect(await screen.findByText("Queen Anne Neighborhood, Seattle, WA")).toBeInTheDocument();
+    expect(
+      await screen.findByRole("button", { name: "Location: Queen Anne Neighborhood, Seattle, WA" })
+    ).toBeInTheDocument();
     expect(screen.queryByText(/98109/)).not.toBeInTheDocument();
   });
 
