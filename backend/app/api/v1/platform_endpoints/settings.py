@@ -2,6 +2,7 @@ import logging
 from datetime import datetime
 from typing import Any, Literal
 
+import httpx
 from fastapi import APIRouter, HTTPException, Query, Request, status
 from sqlalchemy import func
 from sqlmodel import select
@@ -92,7 +93,7 @@ from app.core.login_methods import (
 )
 from app.services.platform import auth_posture
 from app.services.platform import app_settings as app_settings_service
-from app.services.platform import push_config
+from app.services.platform import push_config, push_relay
 from app.services import captcha as captcha_service
 from app.services.captcha_config import ResolvedCaptchaConfig
 from app.services.platform import billing as billing_service
@@ -756,6 +757,11 @@ async def get_fcm_config(request: Request) -> FCMConfigResponse:
 
     Rate limited to 20 requests per minute to prevent abuse.
 
+    With no service account configured, pushes go through Morelitea's push
+    relay, and the Firebase settings served are the relay's (fetched with this
+    server's relay key and cached); if the relay cannot say, ``enabled`` is
+    served alone.
+
     Read from the settings row (``push_config``), not the environment: an owner
     who turns push on in Settings has the mobile clients pick it up on their
     next launch rather than on the next redeploy. The resolver opens its own
@@ -763,12 +769,28 @@ async def get_fcm_config(request: Request) -> FCMConfigResponse:
     unauthenticated and sessionless.
     """
     cfg = await push_config.ensure_push_config_fresh()
+    if not cfg.enabled:
+        return FCMConfigResponse(enabled=False)
+    if cfg.service_account_json:
+        return FCMConfigResponse(
+            enabled=True,
+            project_id=cfg.project_id,
+            application_id=cfg.application_id,
+            api_key=cfg.api_key,
+            sender_id=cfg.sender_id,
+        )
+    # No service account: Android pushes go through the push relay, so the app
+    # starts Firebase with the relay's project. An iPhone needs only `enabled`.
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        relay = await push_relay.android_config(client)
+    if relay is None:
+        return FCMConfigResponse(enabled=True)
     return FCMConfigResponse(
-        enabled=cfg.enabled,
-        project_id=cfg.project_id if cfg.enabled else None,
-        application_id=cfg.application_id if cfg.enabled else None,
-        api_key=cfg.api_key if cfg.enabled else None,
-        sender_id=cfg.sender_id if cfg.enabled else None,
+        enabled=True,
+        project_id=relay.project_id,
+        application_id=relay.application_id,
+        api_key=relay.api_key,
+        sender_id=relay.sender_id,
     )
 
 

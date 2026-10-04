@@ -640,7 +640,7 @@
     "loading": "Einstellungen für Push-Benachrichtigungen werden geladen…",
     "loadError": "Einstellungen für Push-Benachrichtigungen konnten nicht geladen werden.",
     "title": "Firebase Cloud Messaging",
-    "description": "Das Firebase-Projekt, bei dem sich die mobilen Apps registrieren und über das der Server Push-Benachrichtigungen sendet.",
+    "description": "Optional. Ohne Dienstkontoschlüssel laufen Push-Benachrichtigungen über das Push-Relay von Morelitea, und diese Felder können leer bleiben. Mit einem laufen Android-Pushes über dein eigenes Firebase-Projekt; iPhone-Pushes nutzen immer das Relay.",
     "enabledLabel": "Push-Benachrichtigungen senden",
     "enabledHelp": "Die mobilen Apps übernehmen das beim nächsten Öffnen. Kein Neustart nötig.",
     "fields": {

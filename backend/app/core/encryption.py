@@ -23,6 +23,8 @@ SALT_AI_API_KEY = b"ai-api-key"
 SALT_S3_SECRET_KEY = b"s3-secret-key"
 SALT_CAPTCHA_SECRET_KEY = b"captcha-secret-key"
 SALT_FCM_SERVICE_ACCOUNT = b"fcm-service-account"
+# The key this server sends to the push relay with, issued when it registered.
+SALT_PUSH_RELAY_KEY = b"push-relay-key"
 SALT_EMAIL = b"email"
 SALT_EVENT_PUBLISHER_PAYLOAD = b"event-publisher-payload"
 # Values a guild (or one of its members) supplies to an installed app's

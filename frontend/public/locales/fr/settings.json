@@ -640,7 +640,7 @@
     "loading": "Chargement des paramètres des notifications push…",
     "loadError": "Impossible de charger les paramètres des notifications push.",
     "title": "Firebase Cloud Messaging",
-    "description": "Le projet Firebase auprès duquel les applications mobiles s'enregistrent, et par lequel le serveur envoie les notifications push.",
+    "description": "Facultatif. Sans clé de compte de service, les notifications push passent par le relais push de Morelitea et ces champs peuvent rester vides. Avec une clé, les notifications Android passent par votre propre projet Firebase ; celles de l'iPhone passent toujours par le relais.",
     "enabledLabel": "Envoyer des notifications push",
     "enabledHelp": "Les applications mobiles le prennent en compte à leur prochaine ouverture. Aucun redémarrage nécessaire.",
     "fields": {
