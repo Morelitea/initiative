@@ -200,17 +200,28 @@
     "field": "Feld",
     "operator": "Bedingung",
     "value": "Wert",
-    "empty": "Keine Filter. Dieses Widget zeigt alles in der Initiative.",
+    "empty": "Keine Filter — zeigt alles in der Initiative.",
     "chooseValue": "Auswählen …",
-    "group": "Eines davon",
-    "addGroup": "Eine „eines davon“-Gruppe hinzufügen",
-    "groupHint": "Zeilen passen, wenn eine der Bedingungen darin zutrifft.",
     "relative": "Relativ",
     "absolute": "An einem Datum",
     "relativeDays": "Tage ab heute",
     "relativeHint": "Zählt ab dem Moment, in dem das Dashboard geöffnet wird – veraltet also nie.",
     "loading": "Filter werden geladen…",
-    "noFields": "Hier gibt es noch nichts zum Filtern."
+    "noFields": "Hier gibt es noch nichts zum Filtern.",
+    "hideArchived": "Archivierte ausblenden",
+    "hideTemplates": "Vorlagen ausblenden",
+    "matchPrefix": "Auf",
+    "match": "Alle oder einen erfüllen",
+    "matchAll": "alle",
+    "matchAny": "einen",
+    "matchSuffix": "dieser Filter zutreffen",
+    "and": "und",
+    "or": "oder",
+    "groupAny": "Einer davon",
+    "groupAll": "Alle davon",
+    "addToGroup": "Zur Gruppe hinzufügen",
+    "addGroupAny": "„Einer davon“-Gruppe hinzufügen",
+    "addGroupAll": "„Alle davon“-Gruppe hinzufügen"
   },
   "tableView": {
     "empty": "Nichts zu tabellieren",
@@ -248,25 +259,27 @@
     "total": "Gesamt"
   },
   "builder": {
-    "dataset": "Was gelesen wird",
-    "columns": "Spalten",
+    "dataset": "Daten aus",
+    "columns": "Anzeigen",
     "addColumn": "Spalte hinzufügen",
     "removeColumn": "Spalte entfernen",
-    "everyRow": "Jede Zeile",
-    "asItIs": "Unverändert",
+    "everyRow": "Zeilen",
+    "asItIs": "Wert",
     "exactTime": "Genaue Zeit",
-    "groupBy": "Eine Zeile je",
-    "everythingTogether": "Alles zusammen",
-    "groupByHelp": "Zeilen mit gleichem Wert zusammenfassen und den Rest zählen oder summieren.",
+    "groupBy": "Gruppieren nach",
+    "everythingTogether": "Nichts — eine Summe",
+    "groupByHelp": "Zeilen mit gleichem Wert werden zu einer Zeile; Anzahl und Summen werden je Gruppe berechnet.",
     "statement": "Die erzeugte Anweisung",
     "tabBuild": "Erstellen",
     "tabSql": "SQL",
     "statementPlaceholder": "SELECT priority, count(*) AS tasks FROM tasks GROUP BY priority",
     "returns": "Ergebnis: {{columns}}",
     "checking": "Diese Anweisung wird geprüft…",
-    "notBuilt": "Die Abfrage dieses Widgets wurde nicht hier erstellt. Eine neue zu erstellen ersetzt sie.",
+    "notBuilt": "Dieses Widget nutzt von Hand geschriebenes SQL. Eine hier erstellte Abfrage ersetzt es.",
     "buildNew": "Neue Abfrage erstellen",
-    "refused": "Diese Kombination kann nicht gelesen werden. Versuche eine andere Spalte."
+    "refused": "Diese Kombination lässt sich nicht ausführen. Versuche eine andere Spalte.",
+    "field": "Spalte",
+    "fn": "Anzeigen als"
   },
   "aggregate": {
     "count": "Anzahl",
@@ -291,13 +304,16 @@
     "task_statuses": "Aufgabenstatus"
   },
   "published": {
-    "title": "Veröffentlichte Zahlen",
-    "help": "Ein Dashboard zeigt normalerweise jeder Person, was sie ohnehin sehen kann. Was hier genannt ist, sehen alle gleich, die dieses Dashboard öffnen können — eine Zahl, die gemeinsame Grundlage sein muss, ist dann eine und nicht mehrere. Veröffentlichen lässt sich nur, was du selbst öffnen kannst, und wem es gehört, kann es jederzeit zurückziehen.",
-    "empty": "Nichts veröffentlicht. Jede Kachel antwortet aus Sicht der lesenden Person.",
-    "choose": "Projekt wählen",
-    "add": "Veröffentlichen",
-    "stop": "Nicht mehr veröffentlichen",
-    "notice_one": "Zeigt eine veröffentlichte Zahl — für alle hier dieselbe",
-    "notice_other": "Zeigt {{count}} veröffentlichte Zahlen — für alle hier dieselben"
+    "notice_one": "Zeigt eine geteilte Zahl — für alle hier gleich",
+    "notice_other": "Zeigt {{count}} geteilte Zahlen — für alle hier gleich"
+  },
+  "viewMode": {
+    "label": "Dashboard ausführen als",
+    "viewer": "Einzelperson",
+    "owner": "Initiative",
+    "viewerHint": "Jede Person sieht nur, worauf sie Zugriff hat — die Zahlen können sich also von Person zu Person unterscheiden.",
+    "ownerHint": "Alle sehen dieselben Zahlen, mit dem Zugriff der Person, die das eingeschaltet hat — unabhängig von ihren eigenen Berechtigungen. Mit Vorsicht verwenden.",
+    "inactive": "Pausiert: Die Person, die das eingeschaltet hat, hat keinen Zugriff mehr, daher sieht jede Person ihre eigenen Zahlen.",
+    "notice": "Dieselben Zahlen für alle"
   }
 }

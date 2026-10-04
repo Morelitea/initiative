@@ -280,7 +280,7 @@ function render(data, config, context) {
     return best;
   };
 
-  const chart = (series, xLabel, yLabel) => {
+  const chart = (series, xLabel, yLabel, xTime) => {
     const scene = {
       kind: "series",
       mark: mark,
@@ -288,6 +288,7 @@ function render(data, config, context) {
       stacked: stacked || undefined,
       xLabel: xLabel || undefined,
       yLabel: yLabel || undefined,
+      xTime: xTime || undefined,
       // A legend earns its space only once there is more than one series.
       showLegend: series.length > 1,
       labels: labels,
@@ -398,8 +399,40 @@ function render(data, config, context) {
 
   const columns = data.columns || [];
   const nameOf = (index) => (columns[index] ? columns[index].name : say("series"));
-  const labelOf = (row, rowIndex) =>
-    labelAt !== undefined && row[labelAt] !== null ? String(row[labelAt]) : rowIndex + 1;
+
+  // A date label is a moment in epoch milliseconds. It stays a number, and the
+  // scene says how far apart the moments are, so the app can label each one
+  // "Mar 2026" or "Q1 2026" rather than printing the raw number.
+  const timed = labelAt !== undefined && columns[labelAt] && columns[labelAt].type === "date";
+  const timeUnit = () => {
+    const moments = [];
+    for (const row of rows) {
+      if (typeof row[labelAt] === "number") moments.push(new Date(row[labelAt]));
+    }
+    if (!moments.length) return undefined;
+    const every = (test) => moments.every(test);
+    const midnight = (at) =>
+      at.getUTCHours() === 0 && at.getUTCMinutes() === 0 && at.getUTCSeconds() === 0;
+    if (!every(midnight)) return "day";
+    const firstOfMonth = (at) => at.getUTCDate() === 1;
+    if (every((at) => firstOfMonth(at) && at.getUTCMonth() === 0) && moments.length > 1) {
+      return "year";
+    }
+    if (every((at) => firstOfMonth(at) && at.getUTCMonth() % 3 === 0) && moments.length > 1) {
+      return "quarter";
+    }
+    if (every(firstOfMonth) && moments.length > 1) return "month";
+    // date_trunc('week') lands on a Monday.
+    if (every((at) => at.getUTCDay() === 1) && moments.length > 1) return "week";
+    return "day";
+  };
+  const xTime = timed ? timeUnit() : undefined;
+
+  const labelOf = (row, rowIndex) => {
+    if (labelAt === undefined || row[labelAt] === null) return rowIndex + 1;
+    if (xTime && typeof row[labelAt] === "number") return row[labelAt];
+    return String(row[labelAt]);
+  };
 
   const series = valueColumns.slice(0, 12).map((index) => ({
     name: nameOf(index),
@@ -411,6 +444,8 @@ function render(data, config, context) {
 
   return chart(
     arrangeAll(series),
-    labelAt !== undefined && columns[labelAt] ? columns[labelAt].name : undefined
+    labelAt !== undefined && columns[labelAt] ? columns[labelAt].name : undefined,
+    undefined,
+    xTime
   );
 }

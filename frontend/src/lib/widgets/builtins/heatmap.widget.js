@@ -67,6 +67,7 @@ const strings = {
     Nov: { en: "Nov", de: "Nov", es: "Nov", fr: "Nov" },
     Dec: { en: "Dec", de: "Dez", es: "Dic", fr: "Déc" },
   },
+  week: { en: "Weeks", de: "Wochen", es: "Semanas", fr: "Semaines" },
   weekdays: {
     Sun: { en: "Sun", de: "So", es: "Dom", fr: "Dim" },
     Mon: { en: "Mon", de: "Mo", es: "Lun", fr: "Lun" },
@@ -198,6 +199,101 @@ function render(data, config, context) {
     };
   };
 
+  const tone =
+    config.tone === "positive" ? "positive" : config.tone === "warning" ? "warning" : "accent";
+
+  /**
+   * How far apart the dates are. A statement grouped by week, month, quarter
+   * or year rounds every date down to the start of one, and drawing those on a
+   * day grid would leave one lit cell per week, month or year.
+   */
+  const grainOf = (days) => {
+    const moments = days.map((day) => new Date(day.date));
+    if (moments.length < 2) return "day";
+    const every = (test) => moments.every(test);
+    const midnight = (at) =>
+      at.getUTCHours() === 0 && at.getUTCMinutes() === 0 && at.getUTCSeconds() === 0;
+    if (!every(midnight)) return "day";
+    const first = (at) => at.getUTCDate() === 1;
+    if (every((at) => first(at) && at.getUTCMonth() === 0)) return "year";
+    if (every((at) => first(at) && at.getUTCMonth() % 3 === 0)) return "quarter";
+    if (every(first)) return "month";
+    if (every((at) => at.getUTCDay() === 1)) return "week";
+    return "day";
+  };
+
+  /** One cell per period: months and quarters as a row per year, weeks and
+   *  years as one strip. */
+  const periods = (days, grain) => {
+    const sorted = days.slice().sort((a, b) => a.date - b.date);
+    const firstYear = new Date(sorted[0].date).getUTCFullYear();
+    const lastYear = new Date(sorted[sorted.length - 1].date).getUTCFullYear();
+    const cells = [];
+    let max = 0;
+    let xLabels = [];
+    let yLabels = [""];
+    for (const day of sorted) if (day.count > max) max = day.count;
+
+    if (grain === "month" || grain === "quarter") {
+      const perYear = grain === "month" ? 12 : 4;
+      xLabels = grain === "month" ? MONTHS.slice() : ["Q1", "Q2", "Q3", "Q4"];
+      yLabels = [];
+      for (let year = firstYear; year <= lastYear; year++) yLabels.push(String(year));
+      for (const day of sorted) {
+        const at = new Date(day.date);
+        const slot = grain === "month" ? at.getUTCMonth() : Math.floor(at.getUTCMonth() / 3);
+        cells.push({
+          x: slot % perYear,
+          y: at.getUTCFullYear() - firstYear,
+          value: day.count,
+          label: day.count + " in " + xLabels[slot] + " " + at.getUTCFullYear(),
+        });
+      }
+    } else if (grain === "year") {
+      for (let year = firstYear; year <= lastYear; year++) xLabels.push(String(year));
+      for (const day of sorted) {
+        const year = new Date(day.date).getUTCFullYear();
+        cells.push({
+          x: year - firstYear,
+          y: 0,
+          value: day.count,
+          label: day.count + " in " + year,
+        });
+      }
+    } else {
+      // Weeks: one strip, a column per week, months named where they change.
+      const anchor = sorted[0].date;
+      const columns = Math.floor((sorted[sorted.length - 1].date - anchor) / (7 * DAY)) + 1;
+      let previous = -1;
+      for (let column = 0; column < columns; column++) {
+        const month = new Date(anchor + column * 7 * DAY).getUTCMonth();
+        xLabels.push(month !== previous ? MONTHS[month] : "");
+        previous = month;
+      }
+      yLabels = [say("week")];
+      for (const day of sorted) {
+        const at = new Date(day.date);
+        cells.push({
+          x: Math.round((day.date - anchor) / (7 * DAY)),
+          y: 0,
+          value: day.count,
+          label: day.count + " in the week of " + at.toISOString().slice(0, 10),
+        });
+      }
+    }
+    return {
+      v: 1,
+      scene: {
+        kind: "matrix",
+        cells: cells,
+        max: max || 1,
+        xLabels: xLabels,
+        yLabels: yLabels,
+        tone: tone,
+      },
+    };
+  };
+
   // Which columns fill this widget's slots, resolved by the host.
   const slots = context?.slots || {};
   const atColumn = (slots.at || [])[0];
@@ -214,10 +310,10 @@ function render(data, config, context) {
   const dated = rows.filter((row) => typeof row[atColumn] === "number");
   if (!dated.length) return empty(say("needDayColumn"));
 
-  return grid(
-    dated.map((row) => ({
-      date: row[atColumn],
-      count: typeof row[valueAt] === "number" ? row[valueAt] : 0,
-    }))
-  );
+  const days = dated.map((row) => ({
+    date: row[atColumn],
+    count: typeof row[valueAt] === "number" ? row[valueAt] : 0,
+  }));
+  const grain = grainOf(days);
+  return grain === "day" ? grid(days) : periods(days, grain);
 }

@@ -95,6 +95,7 @@ export function DashboardDetailPage() {
             <PublishedViewNotice
               published={dashboard.published_over}
               active={dashboard.published_active}
+              sharedView={dashboard.view_as_active}
             />
           )}
         </div>

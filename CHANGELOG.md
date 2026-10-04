@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Run a dashboard as Individual or Initiative.** Under a dashboard's **Settings → Details**: Individual (the default) shows each person only what they can see; Initiative shows everyone the same numbers, using the access of whoever turned it on. It pauses if that person leaves or loses access, and only they can change its tiles while it's on.
+- **Filters can match all or any.** Choose once at the top, add a group for the other kind, and archived work and templates are simple switches.
+- **A timeline can be drawn in years.**
+
+### Changed
+
+- **Clearer query builder.** Plain names for columns and fields ("Due date", not `due_date`) and shorter, plainer wording throughout.
+- **The per-project "Published figures" card is gone** from dashboard settings; **Run dashboard as** replaces it. Dashboards that already publish keep doing so.
+
+### Fixed
+
+- **Grouping by week, month, quarter or year works in charts.** Dates showed as long raw numbers and came back out of order; they're now labelled by their period and sorted oldest first.
+- **Heatmaps show weekly, monthly, quarterly and yearly data** instead of scattering it over a day calendar.
+
 ## [0.74.0] - 2026-10-01
 
 ### Added

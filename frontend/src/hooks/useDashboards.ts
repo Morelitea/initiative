@@ -6,13 +6,13 @@ import {
   getReadWidgetCatalogApiV1CGuildIdDashboardsWidgetCatalogGetQueryKey,
   readInstalledListingsApiV1CGuildIdDashboardsInstalledListingsGet,
   readWidgetCatalogApiV1CGuildIdDashboardsWidgetCatalogGet,
-  setPublishedViewApiV1CGuildIdDashboardsDashboardIdPublishedPut,
+  setViewAsApiV1CGuildIdDashboardsDashboardIdViewAsPut,
   upgradeDashboardApiV1CGuildIdDashboardsDashboardIdUpgradePost,
 } from "@/api/generated/dashboards/dashboards";
 import type {
   DashboardInstalledListings,
   DashboardRead,
-  PublishTarget,
+  DashboardViewMode,
   WidgetCatalog,
 } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
@@ -108,21 +108,17 @@ export const useUpgradeDashboard = (
 };
 
 /**
- * What this dashboard shows to everybody who can open it.
- *
- * The whole list each time, like sharing: publishing is a deliberate act and
- * what it grants over is what somebody looked at when they did it.
+ * Whose access this dashboard's widgets run as: each viewer's own, or the
+ * access of whoever chooses "the same for everyone".
  */
-export const useSetPublishedView = (
+export const useSetDashboardViewMode = (
   dashboardId: number,
-  options?: MutationOpts<DashboardRead, PublishTarget[]>
+  options?: MutationOpts<DashboardRead, DashboardViewMode>
 ) =>
-  useGuildMutation<DashboardRead, PublishTarget[]>(
+  useGuildMutation<DashboardRead, DashboardViewMode>(
     {
-      mutationFn: (guildId, resources) =>
-        setPublishedViewApiV1CGuildIdDashboardsDashboardIdPublishedPut(guildId, dashboardId, {
-          resources,
-        }),
+      mutationFn: (guildId, mode) =>
+        setViewAsApiV1CGuildIdDashboardsDashboardIdViewAsPut(guildId, dashboardId, { mode }),
       invalidate: () => invalidateDashboardAndList(dashboardId),
       errorKey: "dashboards:error",
     },

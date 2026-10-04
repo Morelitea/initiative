@@ -200,17 +200,28 @@
     "field": "Champ",
     "operator": "Condition",
     "value": "Valeur",
-    "empty": "Aucun filtre. Ce widget affiche tout ce que contient l'initiative.",
+    "empty": "Aucun filtre — affiche tout dans l'initiative.",
     "chooseValue": "Choisir…",
-    "group": "L'une de ces conditions",
-    "addGroup": "Ajouter un groupe « l'une de ces conditions »",
-    "groupHint": "Une ligne correspond si l'une des conditions du groupe est vraie.",
     "relative": "Relative",
     "absolute": "À une date",
     "relativeDays": "Jours à partir d'aujourd'hui",
     "relativeHint": "Compté au moment où le tableau de bord est ouvert : la question ne se périme jamais.",
     "loading": "Chargement des filtres…",
-    "noFields": "Rien à filtrer ici pour l'instant."
+    "noFields": "Rien à filtrer ici pour l'instant.",
+    "hideArchived": "Exclure les archivés",
+    "hideTemplates": "Exclure les modèles",
+    "matchPrefix": "Correspondre à",
+    "match": "Tous ou au moins un",
+    "matchAll": "tous",
+    "matchAny": "au moins un",
+    "matchSuffix": "de ces filtres",
+    "and": "et",
+    "or": "ou",
+    "groupAny": "Au moins un de ceux-ci",
+    "groupAll": "Tous ceux-ci",
+    "addToGroup": "Ajouter au groupe",
+    "addGroupAny": "Ajouter un groupe « au moins un »",
+    "addGroupAll": "Ajouter un groupe « tous »"
   },
   "tableView": {
     "empty": "Rien à mettre en tableau",
@@ -248,25 +259,27 @@
     "total": "Total"
   },
   "builder": {
-    "dataset": "Ce qui est lu",
-    "columns": "Colonnes",
+    "dataset": "Afficher les données de",
+    "columns": "Afficher",
     "addColumn": "Ajouter une colonne",
     "removeColumn": "Retirer cette colonne",
-    "everyRow": "Chaque ligne",
-    "asItIs": "Tel quel",
+    "everyRow": "Lignes",
+    "asItIs": "Valeur",
     "exactTime": "Heure exacte",
-    "groupBy": "Une ligne par",
-    "everythingTogether": "Tout ensemble",
-    "groupByHelp": "Regroupe les lignes qui partagent une valeur et compte ou totalise le reste.",
+    "groupBy": "Regrouper par",
+    "everythingTogether": "Rien — un total",
+    "groupByHelp": "Les lignes de même valeur ne font plus qu'une ; nombres et totaux sont calculés pour chacune.",
     "statement": "L'instruction ainsi construite",
     "tabBuild": "Créer",
     "tabSql": "SQL",
     "statementPlaceholder": "SELECT priority, count(*) AS tasks FROM tasks GROUP BY priority",
     "returns": "Renvoie : {{columns}}",
     "checking": "Vérification de l'instruction…",
-    "notBuilt": "La requête de ce widget n'a pas été créée ici. En créer une nouvelle la remplace.",
+    "notBuilt": "Ce widget utilise du SQL écrit à la main. Créer une requête ici le remplacera.",
     "buildNew": "Créer une nouvelle requête",
-    "refused": "Cette combinaison ne peut pas être lue. Essayez une autre colonne."
+    "refused": "Cette combinaison ne peut pas être exécutée. Essayez une autre colonne.",
+    "field": "Colonne",
+    "fn": "Afficher comme"
   },
   "aggregate": {
     "count": "Nombre",
@@ -291,13 +304,16 @@
     "task_statuses": "Statuts de tâche"
   },
   "published": {
-    "title": "Chiffres publiés",
-    "help": "Un tableau de bord montre normalement à chacun ce qu'il peut déjà voir. Ce qui est nommé ici s'affiche de la même façon pour toutes les personnes qui peuvent ouvrir ce tableau de bord : un chiffre qui doit servir de base commune en est un seul, et non plusieurs. Vous ne pouvez publier que ce que vous pouvez ouvrir vous-même, et son propriétaire peut le retirer à tout moment.",
-    "empty": "Rien de publié. Chaque tuile répond selon la personne qui la regarde.",
-    "choose": "Choisissez un projet",
-    "add": "Publier",
-    "stop": "Ne plus publier ceci",
-    "notice_one": "Affiche un chiffre publié — le même pour tout le monde ici",
-    "notice_other": "Affiche {{count}} chiffres publiés — les mêmes pour tout le monde ici"
+    "notice_one": "Affiche un chiffre partagé — le même pour tout le monde ici",
+    "notice_other": "Affiche {{count}} chiffres partagés — les mêmes pour tout le monde ici"
+  },
+  "viewMode": {
+    "label": "Exécuter le tableau de bord en tant que",
+    "viewer": "Individuel",
+    "owner": "Initiative",
+    "viewerHint": "Chaque personne ne voit que ce à quoi elle a accès, les chiffres peuvent donc varier d'une personne à l'autre.",
+    "ownerHint": "Tout le monde voit les mêmes chiffres, avec l'accès de la personne qui l'a activé — quelles que soient ses propres autorisations. À utiliser avec prudence.",
+    "inactive": "En pause : la personne qui l'a activé n'a plus accès, chacun voit donc ses propres chiffres.",
+    "notice": "Les mêmes chiffres pour tout le monde"
   }
 }

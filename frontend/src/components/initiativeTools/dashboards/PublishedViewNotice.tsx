@@ -15,8 +15,12 @@ import type { PublishedOver } from "@/api/generated/initiativeAPI.schemas";
 export function PublishedViewNotice({
   published,
   active,
+  sharedView = false,
 }: {
   published: PublishedOver[];
+  /** The whole dashboard runs as one person's access ("Run dashboard as:
+   *  Initiative") and that is serving right now. */
+  sharedView?: boolean;
   /** Whether those grants are serving. A published view rests on its author's
    *  standing access; when that stops the dashboard falls back to each
    *  viewer's own, and saying the figures are shared would then be saying the
@@ -24,6 +28,14 @@ export function PublishedViewNotice({
   active: boolean;
 }) {
   const { t } = useTranslation("dashboards");
+  if (sharedView) {
+    return (
+      <p className="inline-flex items-center gap-1.5 text-muted-foreground text-xs">
+        <Eye className="h-3.5 w-3.5" aria-hidden />
+        {t("viewMode.notice")}
+      </p>
+    );
+  }
   if (!published.length || !active) return null;
   return (
     <p className="inline-flex items-center gap-1.5 text-muted-foreground text-xs">

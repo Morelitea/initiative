@@ -39,8 +39,8 @@ import {
   YAxis,
 } from "recharts";
 
-import { formatAxisValue, formatValue } from "@/lib/widgets/format";
-import type { NumberFormat, SceneNode } from "@/lib/widgets/sceneSpec";
+import { formatAxisValue, formatTimeBucket, formatValue } from "@/lib/widgets/format";
+import type { NumberFormat, SceneNode, SeriesTimeUnit } from "@/lib/widgets/sceneSpec";
 import { seriesColor, toneColor } from "@/lib/widgets/tone";
 
 type Node = Extract<SceneNode, { kind: "series" }>;
@@ -99,18 +99,24 @@ function SeriesTooltip({
   payload,
   label,
   format,
+  xTime,
   colors,
 }: {
   active?: boolean;
   payload?: { name?: string; value?: number; dataKey?: string }[];
   label?: string | number;
   format?: NumberFormat;
+  xTime?: SeriesTimeUnit;
   colors: string[];
 }) {
   if (!active || !payload?.length) return null;
   return (
     <div className="rounded-md border bg-popover px-2.5 py-2 text-popover-foreground shadow-md">
-      <p className="mb-1 font-medium text-xs">{formatAxisValue(label ?? "", format)}</p>
+      <p className="mb-1 font-medium text-xs">
+        {xTime && label !== undefined
+          ? formatTimeBucket(label, xTime)
+          : formatAxisValue(label ?? "", format)}
+      </p>
       <ul className="space-y-0.5">
         {payload.map((entry, index) => (
           <li key={entry.dataKey ?? index} className="flex items-center gap-2 text-xs">
@@ -171,6 +177,12 @@ export function SeriesNode({ node }: { node: Node }) {
     typeof value === "string" || typeof value === "number"
       ? formatAxisValue(value, node.format)
       : "";
+  // The category axis: a moment at the series' grain when x is a time, and
+  // otherwise the same formatting as the values.
+  const xFormatter = (value: unknown) =>
+    node.xTime && (typeof value === "string" || typeof value === "number")
+      ? formatTimeBucket(value, node.xTime)
+      : tickFormatter(value);
 
   if (!rows.length) return null;
 
@@ -201,7 +213,7 @@ export function SeriesNode({ node }: { node: Node }) {
   const tooltip = (
     <Tooltip
       cursor={{ fill: "var(--muted)", fillOpacity: 0.4 }}
-      content={<SeriesTooltip format={node.format} colors={colors} />}
+      content={<SeriesTooltip format={node.format} xTime={node.xTime} colors={colors} />}
     />
   );
 
@@ -215,7 +227,10 @@ export function SeriesNode({ node }: { node: Node }) {
           {tooltip}
           {node.showLegend && <Legend wrapperStyle={{ fontSize: 11 }} />}
           <Pie
-            data={slices.map((point) => ({ name: String(point.x), value: point.y }))}
+            data={slices.map((point) => ({
+              name: node.xTime ? formatTimeBucket(point.x, node.xTime) : String(point.x),
+              value: point.y,
+            }))}
             dataKey="value"
             nameKey="name"
             innerRadius="45%"
@@ -265,7 +280,7 @@ export function SeriesNode({ node }: { node: Node }) {
       <ResponsiveContainer width="100%" height="100%">
         <Chart data={rows}>
           {grid}
-          <XAxis dataKey="x" {...axisProps} tickFormatter={tickFormatter} />
+          <XAxis dataKey="x" {...axisProps} tickFormatter={xFormatter} />
           <YAxis {...axisProps} width={44} tickFormatter={tickFormatter} />
           {tooltip}
           {legend}
@@ -317,11 +332,17 @@ export function SeriesNode({ node }: { node: Node }) {
         {node.horizontal ? (
           <>
             <XAxis type="number" {...axisProps} tickFormatter={tickFormatter} />
-            <YAxis type="category" dataKey="x" {...axisProps} width={96} />
+            <YAxis
+              type="category"
+              dataKey="x"
+              {...axisProps}
+              width={96}
+              tickFormatter={node.xTime ? xFormatter : undefined}
+            />
           </>
         ) : (
           <>
-            <XAxis dataKey="x" {...axisProps} tickFormatter={tickFormatter} />
+            <XAxis dataKey="x" {...axisProps} tickFormatter={xFormatter} />
             <YAxis {...axisProps} width={44} tickFormatter={tickFormatter} />
           </>
         )}

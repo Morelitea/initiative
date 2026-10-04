@@ -763,5 +763,6 @@
   "APP_SERVICE_INVALID_VENDOR_VALUE": "That value isn't valid. Check its length, and that an address starts with https:// or http://.",
   "APP_CHANNEL_CONNECTION_EXPIRED": "That connection has run out, and the member has to connect again.",
   "APP_CHANNEL_CONNECTION_NO_TOKEN": "That connection holds no token to give.",
-  "APP_CHANNEL_TOKEN_UNAVAILABLE": "The vendor didn't give a token. Try again shortly."
+  "APP_CHANNEL_TOKEN_UNAVAILABLE": "The vendor didn't give a token. Try again shortly.",
+  "DASHBOARD_VIEW_AS_EDIT_OWNER_ONLY": "This dashboard runs as someone else's access, so only they can change its widgets. Switch “Run dashboard as” to Individual to edit."
 }

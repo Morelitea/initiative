@@ -763,5 +763,6 @@
   "APP_SERVICE_INVALID_VENDOR_VALUE": "Ese valor no es válido. Revisa su longitud y que una dirección empiece por https:// o http://.",
   "APP_CHANNEL_CONNECTION_EXPIRED": "Esa conexión ha caducado y el miembro tiene que volver a conectar.",
   "APP_CHANNEL_CONNECTION_NO_TOKEN": "Esa conexión no tiene ningún token que entregar.",
-  "APP_CHANNEL_TOKEN_UNAVAILABLE": "El proveedor no entregó un token. Inténtalo de nuevo en un momento."
+  "APP_CHANNEL_TOKEN_UNAVAILABLE": "El proveedor no entregó un token. Inténtalo de nuevo en un momento.",
+  "DASHBOARD_VIEW_AS_EDIT_OWNER_ONLY": "Este panel se ejecuta con el acceso de otra persona, así que solo ella puede cambiar sus widgets. Cambia «Ejecutar el panel como» a Individual para editar."
 }

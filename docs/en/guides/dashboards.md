@@ -28,18 +28,20 @@ So two people can open the same dashboard and correctly see different numbers, a
 
 The access rules you set on projects and documents follow straight through into the reporting — which means a dashboard is never the accidental side door to something somebody wasn't supposed to see.
 
-## Published figures
+## Run dashboard as
 
 There is one case where that's wrong, and it's the case dashboards get built for: the number everybody in the room is supposed to be looking at. A total that's smaller for half the meeting isn't a total, it's an argument.
 
-So under **Settings → Published figures** you can name a project the dashboard should show the same way to everyone who can open it. Name it once, and the tiles stop answering per person for those rows.
+So under **Settings → Details**, **Run dashboard as** has two choices:
 
-Four things hold:
+- **Individual** — the default. Everyone sees only what they can open, so numbers can differ from person to person.
+- **Initiative** — everyone sees the same numbers, using the access of whoever picked it, whatever their own permissions. Use it with care: people will see figures from things they can't open themselves.
 
-- You can only publish what you can open yourself. It hands on your reach, never more.
-- Whoever owns the project sees the share sitting on it, and can take it back whenever they like.
-- If you lose access, leave, or your account is suspended, it stops — the tiles go back to showing each person their own.
-- The dashboard says when it's on, so nobody has to wonder whose numbers they're reading.
+Three things hold for **Initiative**:
+
+- It's always *your* access. Nobody can point a dashboard at somebody else's.
+- Only you can change its tiles while it's on, because the tiles decide what of yours everybody sees. Anyone else who can edit it can switch it back to **Individual** first.
+- If you leave, lose your place, or your account is suspended, it pauses — everyone goes back to their own numbers — and the dashboard says so.
 
 ## Building one
 
@@ -64,7 +66,9 @@ Either way you can reach what a thing is *attached to* without writing a join. T
 
 ### Narrowing it
 
-The **Filters** rows say which rows a tile is about. Pick a field, how to compare it, what to compare it against. Bracket a few as *any of these* when "high or urgent, and mine" is the actual question.
+The **Filters** say which rows a tile is about. Pick a field, how to compare it, what to compare it against. With more than one, choose whether rows must match **all** of them or **any**, and add a group for the other kind when "high or urgent, and mine" is the actual question.
+
+Archived work and templates are left out to start with. Those are the two switches above the filters; turn one off to count them too.
 
 Dates are asked as distances rather than as dates. A tile set to *the next 30 days* still means that next month, which is the whole difference between a dashboard and a screenshot.
 
@@ -74,7 +78,11 @@ Wherever a filter wants a person, one of the choices is **Me**.
 
 That doesn't mean you. It means whoever is looking at the tile. Place *My open tasks* once and everybody who opens that dashboard sees theirs — one tile, not one per person, and nobody's name stored inside it.
 
-(A tile like that can't also be a published figure. A number that's different for everyone can't be the same for everyone.)
+(On a dashboard set to run as **Initiative**, *Me* is the person who chose that — the numbers are theirs, for everyone.)
+
+### Grouping by time
+
+Group a date by **day**, **week**, **month**, **quarter** or **year** and a chart labels each point that way — "Mar 2026", "Q1 2026" — in order, oldest first. A heatmap draws months and quarters as a row per year, and weeks and years as a single strip.
 
 ### Boards
 

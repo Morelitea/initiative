@@ -244,3 +244,30 @@ describe("the widget's own words", () => {
     expect(scene.series[0].points.at(-1)?.x).toBe("Other");
   });
 });
+
+describe("a chart over dates", () => {
+  const at = (iso: string) => Date.parse(`${iso}T00:00:00Z`);
+  const byDate = (dates: string[]) =>
+    rows(
+      ["due_date", "count"],
+      ["date", "number"],
+      dates.map((date, index) => [at(date), index + 1])
+    );
+
+  it.each([
+    ["day", ["2026-09-01", "2026-09-02", "2026-09-04"]],
+    ["week", ["2026-09-07", "2026-09-14", "2026-09-28"]],
+    ["month", ["2026-01-01", "2026-02-01", "2026-05-01"]],
+    ["quarter", ["2026-01-01", "2026-04-01", "2026-10-01"]],
+    ["year", ["2024-01-01", "2025-01-01", "2026-01-01"]],
+  ])("keeps the moments and says they are a %s apart", async (unit, dates) => {
+    const scene = await draw(byDate(dates));
+    expect(scene.xTime).toBe(unit);
+    expect(scene.series[0].points.map((point) => point.x)).toEqual(dates.map(at));
+  });
+
+  it("leaves a text label alone", async () => {
+    const scene = await draw(rows(["priority", "count"], ["text", "number"], [["high", 2]]));
+    expect(scene.xTime).toBeUndefined();
+  });
+});

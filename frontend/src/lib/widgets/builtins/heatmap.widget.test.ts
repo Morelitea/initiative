@@ -64,3 +64,51 @@ describe("a heatmap with nothing to draw", () => {
     expect(JSON.stringify(scene)).not.toContain("Nothing recorded");
   });
 });
+
+describe("a heatmap of dates grouped coarser than a day", () => {
+  const at = (iso: string) => Date.parse(`${iso}T00:00:00Z`);
+
+  it("draws months as a row per year", async () => {
+    const scene = await draw(
+      table([
+        [at("2026-01-01"), 3],
+        [at("2026-02-01"), 5],
+        [at("2027-03-01"), 1],
+      ])
+    );
+    expect(scene.kind).toBe("matrix");
+    if (scene.kind !== "matrix") return;
+    expect(scene.yLabels).toEqual(["2026", "2027"]);
+    expect(scene.xLabels).toHaveLength(12);
+    expect(scene.cells.map((cell) => [cell.x, cell.y, cell.value])).toEqual([
+      [0, 0, 3],
+      [1, 0, 5],
+      [2, 1, 1],
+    ]);
+  });
+
+  it("draws weeks as one strip, a column each", async () => {
+    // Three Mondays, the second skipped.
+    const scene = await draw(
+      table([
+        [at("2026-09-07"), 2],
+        [at("2026-09-21"), 4],
+        [at("2026-09-28"), 1],
+      ])
+    );
+    if (scene.kind !== "matrix") throw new Error("not a matrix");
+    expect(scene.yLabels).toHaveLength(1);
+    expect(scene.cells.map((cell) => cell.x)).toEqual([0, 2, 3]);
+  });
+
+  it("draws years along one row", async () => {
+    const scene = await draw(
+      table([
+        [at("2024-01-01"), 2],
+        [at("2026-01-01"), 4],
+      ])
+    );
+    if (scene.kind !== "matrix") throw new Error("not a matrix");
+    expect(scene.xLabels).toEqual(["2024", "2025", "2026"]);
+  });
+});

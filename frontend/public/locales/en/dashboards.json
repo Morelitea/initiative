@@ -190,17 +190,28 @@
     "field": "Field",
     "operator": "Condition",
     "value": "Value",
-    "empty": "No filters. This widget shows everything in the initiative.",
+    "empty": "No filters — this shows everything in the initiative.",
     "chooseValue": "Choose…",
-    "group": "Any of these",
-    "addGroup": "Add an ‘any of’ group",
-    "groupHint": "Rows match if any condition inside is true.",
     "relative": "Relative",
     "absolute": "On a date",
     "relativeDays": "Days from today",
     "relativeHint": "Counts from whenever the dashboard is opened, so it never goes stale.",
     "loading": "Loading filters…",
-    "noFields": "Nothing to filter on here yet."
+    "noFields": "Nothing to filter on here yet.",
+    "hideArchived": "Leave out archived",
+    "hideTemplates": "Leave out templates",
+    "matchPrefix": "Match",
+    "match": "Match all or any",
+    "matchAll": "all",
+    "matchAny": "any",
+    "matchSuffix": "of these filters",
+    "and": "and",
+    "or": "or",
+    "groupAny": "Any of these",
+    "groupAll": "All of these",
+    "addToGroup": "Add to group",
+    "addGroupAny": "Add an “any of” group",
+    "addGroupAll": "Add an “all of” group"
   },
   "tableView": {
     "empty": "Nothing to tabulate",
@@ -248,25 +259,27 @@
     "total": "Total"
   },
   "builder": {
-    "dataset": "What this reads",
-    "columns": "Columns",
+    "dataset": "Show data from",
+    "columns": "Show",
     "addColumn": "Add a column",
     "removeColumn": "Remove this column",
-    "everyRow": "Every row",
-    "asItIs": "As it is",
+    "everyRow": "Rows",
+    "asItIs": "Value",
     "exactTime": "Exact time",
-    "groupBy": "One row per",
-    "everythingTogether": "Everything together",
-    "groupByHelp": "Group rows that share a value, and count or total the rest.",
+    "groupBy": "Group by",
+    "everythingTogether": "Nothing — one total",
+    "groupByHelp": "Rows with the same value become one row; counts and totals are worked out for each.",
     "statement": "The statement this builds",
     "tabBuild": "Build",
     "tabSql": "SQL",
     "statementPlaceholder": "SELECT priority, count(*) AS tasks FROM tasks GROUP BY priority",
     "returns": "Returns: {{columns}}",
     "checking": "Checking this statement…",
-    "notBuilt": "This widget's query was not built here. Building a new one replaces it.",
+    "notBuilt": "This widget uses SQL written by hand. Building a query here will replace it.",
     "buildNew": "Build a new query",
-    "refused": "That combination cannot be read. Try a different column."
+    "refused": "That combination can't be run. Try a different column.",
+    "field": "Column",
+    "fn": "Show as"
   },
   "aggregate": {
     "count": "Count",
@@ -291,13 +304,16 @@
     "task_statuses": "Task statuses"
   },
   "published": {
-    "title": "Published figures",
-    "help": "A dashboard normally shows each person what they can already see. Anything named here is shown the same way to everyone who can open this dashboard — so a figure that has to be common ground is one number, not several. You can only publish what you can open yourself, and whoever owns it can take it back at any time.",
-    "empty": "Nothing published. Every tile answers from whoever is looking at it.",
-    "choose": "Choose a project",
-    "add": "Publish",
-    "stop": "Stop publishing this",
-    "notice_one": "Shows one published figure — the same for everyone here",
-    "notice_other": "Shows {{count}} published figures — the same for everyone here"
+    "notice_one": "Shows one shared figure — the same for everyone here",
+    "notice_other": "Shows {{count}} shared figures — the same for everyone here"
+  },
+  "viewMode": {
+    "label": "Run dashboard as",
+    "viewer": "Individual",
+    "owner": "Initiative",
+    "viewerHint": "Each person sees only what they have access to, so numbers can differ from person to person.",
+    "ownerHint": "Everyone sees the same numbers, using the access of whoever turned this on — regardless of their own permissions. Use with caution.",
+    "inactive": "Paused: the person who turned this on no longer has access, so everyone sees their own numbers.",
+    "notice": "Same numbers for everyone"
   }
 }

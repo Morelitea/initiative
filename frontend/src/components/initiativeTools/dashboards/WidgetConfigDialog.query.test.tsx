@@ -418,6 +418,8 @@ describe("what a new statement leaves out", () => {
 
     await screen.findByRole("tab", { name: /build/i });
     await waitFor(() => expect(screen.queryByText(/no filters/i)).not.toBeInTheDocument());
+    // As switches the author can turn off, not rows to read through.
+    expect(await screen.findByRole("switch", { name: /leave out archived/i })).toBeChecked();
   });
 
   it("leaves a statement somebody already wrote alone", async () => {
