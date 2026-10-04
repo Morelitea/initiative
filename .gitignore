@@ -90,3 +90,6 @@ backend/.testmondata*
 # Browser journeys (frontend/e2e): reports and failure traces
 frontend/playwright-report/
 frontend/test-results/
+
+# Firebase config for the iOS build (injected in CI, like google-services.json)
+frontend/ios/App/App/GoogleService-Info.plist
