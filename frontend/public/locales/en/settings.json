@@ -640,7 +640,7 @@
     "loading": "Loading push notification settings…",
     "loadError": "Unable to load push notification settings.",
     "title": "Firebase Cloud Messaging",
-    "description": "The Firebase project the mobile apps register with, and the server sends push notifications through.",
+    "description": "Optional. Without a service account key, push notifications go through Morelitea's push relay and these fields can stay empty. With one, Android pushes go through your own Firebase project; iPhone pushes always use the relay.",
     "enabledLabel": "Send push notifications",
     "enabledHelp": "The mobile apps pick this up the next time they open. No restart needed.",
     "fields": {

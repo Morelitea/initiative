@@ -7,16 +7,16 @@ account: ``push_relay_server_id`` (not a secret) and
 ``push_relay_key_encrypted`` (Fernet, like the credentials beside it). Nothing
 is written: the first push through the relay fills them.
 
-Revision ID: 20261004_0453
-Revises: 20261003_0452
+Revision ID: 20261004_0455
+Revises: 20261004_0454
 Create Date: 2026-10-04
 """
 
 import sqlalchemy as sa
 from alembic import op
 
-revision = "20261004_0453"
-down_revision = "20261003_0452"
+revision = "20261004_0455"
+down_revision = "20261004_0454"
 branch_labels = None
 depends_on = None
 

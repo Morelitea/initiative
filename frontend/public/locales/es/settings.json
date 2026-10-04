@@ -640,7 +640,7 @@
     "loading": "Cargando ajustes de notificaciones push…",
     "loadError": "No se pudieron cargar los ajustes de notificaciones push.",
     "title": "Firebase Cloud Messaging",
-    "description": "El proyecto de Firebase con el que se registran las aplicaciones móviles y a través del cual el servidor envía las notificaciones push.",
+    "description": "Opcional. Sin una clave de cuenta de servicio, las notificaciones push pasan por el relé de push de Morelitea y estos campos pueden quedar vacíos. Con una, las notificaciones de Android pasan por tu propio proyecto de Firebase; las de iPhone siempre usan el relé.",
     "enabledLabel": "Enviar notificaciones push",
     "enabledHelp": "Las aplicaciones móviles lo aplican la próxima vez que se abren. No hace falta reiniciar.",
     "fields": {
