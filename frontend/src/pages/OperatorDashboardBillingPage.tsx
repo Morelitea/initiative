@@ -41,7 +41,7 @@ export const OperatorDashboardBillingPage = () => {
       const { handoff_token } = await createBillingInsightsHandoff();
       const lang = i18n.resolvedLanguage ?? i18n.language;
       // The token rides in the fragment, which never leaves the browser.
-      const url = `${billing.url}/insights?lang=${encodeURIComponent(
+      const url = `${billing.url.replace(/\/+$/, "")}/insights?lang=${encodeURIComponent(
         lang
       )}#insights_handoff=${encodeURIComponent(handoff_token)}`;
       if (tab) tab.location.href = url;

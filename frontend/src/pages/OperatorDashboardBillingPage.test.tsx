@@ -53,6 +53,20 @@ describe("OperatorDashboardBillingPage", () => {
     openSpy.mockRestore();
   });
 
+  it("does not double the slash when the billing URL ends in one", async () => {
+    billingConfig = { url: "https://example.com/billing/", operator_handoff: true, insights: true };
+    const location = { href: "" };
+    const tab = { opener: {} as unknown, location, close: vi.fn() };
+    const openSpy = vi.spyOn(window, "open").mockReturnValue(tab as unknown as Window);
+    mintHandoff.mockResolvedValue({ handoff_token: "tok-9", expires_in_seconds: 60 });
+
+    renderPage();
+    await userEvent.click(await screen.findByRole("button", { name: /open billing insights/i }));
+
+    expect(location.href.split("#")[0]).toBe("https://example.com/billing/insights?lang=en");
+    openSpy.mockRestore();
+  });
+
   it("closes the blank tab when minting fails", async () => {
     const tab = { opener: {} as unknown, location: { href: "" }, close: vi.fn() };
     const openSpy = vi.spyOn(window, "open").mockReturnValue(tab as unknown as Window);
