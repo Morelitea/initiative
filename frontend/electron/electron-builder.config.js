@@ -13,7 +13,7 @@ module.exports = {
     desktopName: "initiative.desktop",
     version,
     homepage: "https://github.com/Morelitea/initiative",
-    author: { name: "Morelitea", email: "hello@beyonders.studio" },
+    author: { name: "Beyonders Studio", email: "hello@beyonders.studio" },
   },
   directories: {
     output: "dist",
