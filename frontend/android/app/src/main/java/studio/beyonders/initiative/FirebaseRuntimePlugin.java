@@ -1,4 +1,4 @@
-package com.morelitea.initiative;
+package studio.beyonders.initiative;
 
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;

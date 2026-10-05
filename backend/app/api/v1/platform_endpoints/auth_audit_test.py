@@ -108,7 +108,7 @@ async def test_password_endpoints_finalize_unknown_account_refusals_without_iden
     device_response = await client.post(
         "/api/v1/auth/token",
         data={"username": "still-nobody@example.com", "password": PASSWORD},
-        headers={"Origin": "https://com.morelitea.initiative"},
+        headers={"Origin": "https://studio.beyonders.initiative"},
     )
     assert login_response.status_code == device_response.status_code == 400
 

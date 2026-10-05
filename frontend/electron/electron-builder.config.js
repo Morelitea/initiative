@@ -6,14 +6,14 @@ const version = readFileSync(join(__dirname, "..", "..", "VERSION"), "utf8").tri
 
 /** @type {import('electron-builder').Configuration} */
 module.exports = {
-  appId: "com.morelitea.initiative",
+  appId: "studio.beyonders.initiative",
   productName: "Initiative",
   extraMetadata: {
     name: "initiative",
     desktopName: "initiative.desktop",
     version,
     homepage: "https://github.com/Morelitea/initiative",
-    author: { name: "Morelitea", email: "hello@morelitea.com" },
+    author: { name: "Morelitea", email: "hello@beyonders.studio" },
   },
   directories: {
     output: "dist",

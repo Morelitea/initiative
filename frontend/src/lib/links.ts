@@ -42,7 +42,8 @@ const DESKTOP_INSTALLER = {
 /** The desktop installer for one computer, attached to the same release as
  *  the APK and named the same way (see `desktop-app.yml`). */
 /** The app's Google Play listing. */
-export const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=com.morelitea.initiative";
+export const PLAY_STORE_URL =
+  "https://play.google.com/store/apps/details?id=studio.beyonders.initiative";
 
 export const desktopInstallerUrl = (version: string, os: DesktopOs): string =>
   `${RELEASES_URL}/download/v${version}/initiative-${version}${DESKTOP_INSTALLER[os]}`;
