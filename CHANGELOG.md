@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **The pricing page shows the billing portal's own plan cards**, in your language and your currency, laid out the same as on the portal.
 - **App and API integrations may need updating.** See [#2472](https://github.com/Morelitea/initiative/issues/2472). The `route` label of `initiative_page_views_total` now reads `/c/$communityId/…`.
 - **Accounts no longer have a name.** You're your handle, or the display name you set in a community. Saved names are deleted on upgrade. **Server operators:** `FIRST_OWNER_FULL_NAME` is ignored.
 - **Mentions always show the name a person goes by now**, or **Former member** once they've left, and search finds mentions by that name. **Server operators:** the first start rebuilds each community's search index.
