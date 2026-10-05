@@ -16,7 +16,7 @@
  */
 
 import { Check, ChevronsUpDown, Loader2 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -78,11 +78,20 @@ export const SuggestCombobox = ({
   const [search, setSearch] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const allMatching = suggestions.filter((item) =>
-    item.toLowerCase().includes(search.toLowerCase())
-  );
-  const matching = limit === undefined ? allMatching : allMatching.slice(0, limit);
-  const typedIsOnTheList = suggestions.some((item) => item.toLowerCase() === search.toLowerCase());
+  // Lower-cased once per list rather than once per keystroke, which matters
+  // for a list of thousands.
+  const lowered = useMemo(() => suggestions.map((item) => item.toLowerCase()), [suggestions]);
+  const listed = useMemo(() => new Set(lowered), [lowered]);
+  const needle = search.toLowerCase();
+  const matching = useMemo(() => {
+    const max = limit ?? Number.POSITIVE_INFINITY;
+    const found: string[] = [];
+    for (let index = 0; index < suggestions.length && found.length < max; index++) {
+      if (lowered[index].includes(needle)) found.push(suggestions[index]);
+    }
+    return found;
+  }, [suggestions, lowered, needle, limit]);
+  const typedIsOnTheList = listed.has(needle);
   const offerTyped = search.length > 0 && !typedIsOnTheList;
 
   const choose = (chosen: string) => {

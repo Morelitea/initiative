@@ -4,8 +4,8 @@
  * It sorts the directory — the communities nearest them first — and never
  * narrows it. It travels in the directory's address (`near_country`,
  * `near_region`, `near_city`, the same names the endpoint takes), and the last
- * one set is kept on this device so the directory opens near them next time
- * too. A place in the address wins over the kept one.
+ * one set is kept on this device for the account that set it, so the directory
+ * opens near them next time too. A place in the address wins over the kept one.
  */
 
 import { getItem, removeItem, setItem } from "@/lib/storage";
@@ -74,7 +74,8 @@ export type NearSearch = {
   near_city?: string;
 };
 
-const NEAR_KEY = "initiative-directory-near";
+/** Kept per account: another account on the same device has its own. */
+const nearKey = (userId: number): string => `initiative-directory-near:${userId}`;
 
 const text = (value: unknown, max: number): string | undefined =>
   typeof value === "string" && value.trim() ? value.trim().slice(0, max) : undefined;
@@ -114,8 +115,10 @@ export const subscribeSavedNear = (listener: () => void): (() => void) => {
   return () => listeners.delete(listener);
 };
 
-/** For `useSyncExternalStore`: the kept place, as stored — stable by value. */
-export const savedNearSnapshot = (): string | null => getItem(NEAR_KEY);
+/** The account's kept place, as stored — stable by value, for
+ *  `useSyncExternalStore`. Nothing is kept for nobody. */
+export const savedNearSnapshot = (userId: number | null): string | null =>
+  userId === null ? null : getItem(nearKey(userId));
 
 /** The kept place, read from what `savedNearSnapshot` returned. */
 export const parseSavedNear = (raw: string | null): NearPlace | null => {
@@ -135,9 +138,10 @@ export const parseSavedNear = (raw: string | null): NearPlace | null => {
   }
 };
 
-export const saveNear = (near: NearPlace | null): void => {
-  if (near?.country) void setItem(NEAR_KEY, JSON.stringify(near));
-  else void removeItem(NEAR_KEY);
+export const saveNear = (near: NearPlace | null, userId: number | null): void => {
+  if (userId === null) return;
+  if (near?.country) void setItem(nearKey(userId), JSON.stringify(near));
+  else void removeItem(nearKey(userId));
   for (const listener of listeners) listener();
 };
 

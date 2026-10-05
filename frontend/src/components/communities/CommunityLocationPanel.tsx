@@ -18,13 +18,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useCommunities } from "@/hooks/useCommunities";
 import type { CommunityLocation } from "@/lib/communityLocation";
+import type { Place } from "@/lib/directoryNear";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { toast } from "@/lib/mascotToast";
 
 /** Kept in step with the server's limits on each part. */
 const LIMITS = { label: 60, address: 200, postal_code: 20 } as const;
 
-type Draft = {
+export type Draft = {
   country: string;
   region: string;
   region_code: string;
@@ -56,6 +57,16 @@ const draftOf = (location: CommunityLocation | null | undefined): Draft =>
         label: location.label ?? "",
       }
     : EMPTY_DRAFT;
+
+/**
+ * A draft with a newly picked place. The street, postcode and name belong to
+ * the country they were written for, as the region and city do, so a new
+ * country clears them too.
+ */
+export const withPlace = (draft: Draft, place: Place): Draft =>
+  place.country === draft.country
+    ? { ...draft, ...place }
+    : { ...draft, ...place, address: "", postal_code: "", label: "" };
 
 const orNull = (value: string): string | null => value.trim() || null;
 
@@ -122,7 +133,11 @@ export const CommunityLocationPanel = () => {
       </CardHeader>
       <CardContent>
         <form className="space-y-4" onSubmit={handleSubmit}>
-          <PlacePicker value={draft} onChange={(place) => update(place)} disabled={saving} />
+          <PlacePicker
+            value={draft}
+            onChange={(place) => setDraft((current) => withPlace(current, place))}
+            disabled={saving}
+          />
 
           {draft.country ? (
             <>

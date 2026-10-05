@@ -25,6 +25,7 @@ export const CommunityCardFace = ({
   avatar,
   aside,
   meta,
+  locationDetails = true,
   className,
   children,
 }: {
@@ -37,6 +38,11 @@ export const CommunityCardFace = ({
   aside?: ReactNode;
   /** A further line under who is there. */
   meta?: ReactNode;
+  /**
+   * Whether the location row opens its details. Off for a card that is itself
+   * one button, where it is a plain line instead.
+   */
+  locationDetails?: boolean;
   className?: string;
   children?: ReactNode;
 }) => {
@@ -96,6 +102,7 @@ export const CommunityCardFace = ({
             {community.location ? (
               <CommunityLocationLine
                 location={community.location}
+                interactive={locationDetails}
                 className="mt-0.5 text-muted-foreground"
               />
             ) : null}

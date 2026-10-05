@@ -14,6 +14,7 @@ import { useTranslation } from "react-i18next";
 import { PlacePicker } from "@/components/communities/PlacePicker";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { useAuth } from "@/hooks/useAuth";
 import { locationPlace } from "@/lib/communityLocation";
 import {
   EMPTY_PLACE,
@@ -30,11 +31,12 @@ export const DirectoryNearControl = ({ near }: { near: NearPlace | null }) => {
   const { t, i18n } = useTranslation("communities");
   const locale = i18n.resolvedLanguage ?? i18n.language ?? "en";
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<Place>(EMPTY_PLACE);
 
   const apply = (next: NearPlace | null) => {
-    saveNear(next);
+    saveNear(next, user?.id ?? null);
     void navigate({
       to: "/communities",
       search: (prev: Record<string, unknown>) => ({

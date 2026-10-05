@@ -28,6 +28,12 @@ export type CommunityLocationLineProps = {
   className?: string;
   /** For a row painted on a banner, in the banner's own ink. */
   style?: CSSProperties;
+  /**
+   * Whether the row opens its details. Off where the row sits inside
+   * something that is itself clickable — a card that is one button — which
+   * a second control inside would fight.
+   */
+  interactive?: boolean;
 };
 
 /** How long the pointer may be off both the row and its details before they close. */
@@ -37,6 +43,7 @@ export const CommunityLocationLine = ({
   location,
   className,
   style,
+  interactive = true,
 }: CommunityLocationLineProps) => {
   const { t, i18n } = useTranslation("communities");
   const locale = i18n.resolvedLanguage ?? i18n.language ?? "en";
@@ -61,7 +68,7 @@ export const CommunityLocationLine = ({
     </>
   );
 
-  if (!locationHasMoreDetail(location)) {
+  if (!interactive || !locationHasMoreDetail(location)) {
     return (
       <p className={rowClass} style={style} title={line}>
         <span className="sr-only">{label}</span>

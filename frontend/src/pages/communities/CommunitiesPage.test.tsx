@@ -80,8 +80,11 @@ const directoryResult = (
 /** What the page says instead of a grid. Exactly one is ever true at a time. */
 const VERDICTS = ["No community directory here", "Directory unavailable", "No communities yet"];
 
+/** Who the directory is rendered for, so a kept place has an owner. */
+const reader = buildUser();
+
 beforeEach(() => {
-  saveNear(null);
+  saveNear(null, reader.id);
   vi.clearAllMocks();
   config.communityDirectory = true;
   config.ageGate = true;
@@ -322,8 +325,8 @@ describe("CommunitiesPage", () => {
   });
 
   it("sorts from the place kept on this device, and forgets it when cleared", async () => {
-    saveNear({ country: "JP", city: "Kyoto" });
-    renderDirectory();
+    saveNear({ country: "JP", city: "Kyoto" }, reader.id);
+    renderDirectory({}, { user: reader });
     await screen.findByText("Riverside Players");
     expect(directoryFor).toHaveBeenLastCalledWith(
       expect.objectContaining({ near_country: "JP", near_city: "Kyoto" }),

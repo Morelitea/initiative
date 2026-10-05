@@ -32,6 +32,7 @@ import { StatusMessage } from "@/components/StatusMessage";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAppConfig } from "@/hooks/useAppConfig";
+import { useAuth } from "@/hooks/useAuth";
 import { useDirectoryCommunities } from "@/hooks/useCommunityDirectory";
 import { renderableBanner } from "@/lib/banner";
 import { asCommunityCategories } from "@/lib/communityCategories";
@@ -73,7 +74,9 @@ export function CommunitiesPage() {
 
   // Where the reader is: the address's place, else the one kept on this
   // device. It sorts the nearest first and narrows nothing.
-  const savedNear = useSyncExternalStore(subscribeSavedNear, savedNearSnapshot);
+  const { user } = useAuth();
+  const userId = user?.id ?? null;
+  const savedNear = useSyncExternalStore(subscribeSavedNear, () => savedNearSnapshot(userId));
   const nearKey = JSON.stringify(nearSearchFrom(rawSearch));
   // biome-ignore lint/correctness/useExhaustiveDependencies: nearKey is the address's place, by value
   const near = useMemo(

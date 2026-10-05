@@ -527,6 +527,9 @@ const CommunityRow = ({
           {...dragProps}
         >
           <CommunityCardFace
+            // The whole card switches communities, so its location is a line
+            // rather than a second control inside it.
+            locationDetails={false}
             // The card rendition, as the directory shows it: this list is every
             // community the caller is in, and the full banner is many times heavier.
             community={{

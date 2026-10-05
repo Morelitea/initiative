@@ -54,4 +54,16 @@ describe("CommunityLocationLine", () => {
       expect.stringContaining("openstreetmap.org/search")
     );
   });
+
+  it("is a plain line where it sits inside something clickable", () => {
+    render(
+      <CommunityLocationLine
+        interactive={false}
+        location={at({ country: "US", region_code: "WA", city: "Seattle", address: "1 Main St" })}
+      />
+    );
+
+    expect(screen.getByText("Seattle, WA")).toBeInTheDocument();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+  });
 });

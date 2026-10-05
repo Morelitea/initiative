@@ -40,10 +40,16 @@ export const useLandOnStarter = () => {
 /** The directory, on the shelves they picked. */
 export const useOpenDirectory = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  // Read when the directory opens, which can be just after the account that
+  // is opening it was signed in.
+  const userRef = useRef(user);
+  userRef.current = user;
   return useCallback(
     (categories: CommunityCategory[], near: NearPlace | null = null) => {
-      // Kept for next time too, so the directory keeps opening near them.
-      if (near) saveNear(near);
+      // Kept for next time too, so the directory keeps opening near them. The
+      // address carries it either way.
+      if (near) saveNear(near, userRef.current?.id ?? null);
       return navigate({
         to: "/communities",
         search: { ...(categories.length ? { category: categories } : {}), ...nearSearchOf(near) },

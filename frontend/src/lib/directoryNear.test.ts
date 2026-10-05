@@ -11,7 +11,10 @@ import {
   subscribeSavedNear,
 } from "./directoryNear";
 
-afterEach(() => saveNear(null));
+afterEach(() => {
+  saveNear(null, 1);
+  saveNear(null, 2);
+});
 
 describe("nearSearchFrom", () => {
   it("keeps a well-formed place, upper-casing its codes", () => {
@@ -42,13 +45,23 @@ describe("the kept place", () => {
     const heard = vi.fn();
     const stop = subscribeSavedNear(heard);
 
-    saveNear({ country: "JP", city: "Kyoto" });
-    expect(parseSavedNear(savedNearSnapshot())).toMatchObject({ country: "JP", city: "Kyoto" });
+    saveNear({ country: "JP", city: "Kyoto" }, 1);
+    expect(parseSavedNear(savedNearSnapshot(1))).toMatchObject({ country: "JP", city: "Kyoto" });
 
-    saveNear(null);
-    expect(savedNearSnapshot()).toBeNull();
+    saveNear(null, 1);
+    expect(savedNearSnapshot(1)).toBeNull();
     expect(heard).toHaveBeenCalledTimes(2);
     stop();
+  });
+
+  it("is each account's own", () => {
+    saveNear({ country: "JP", city: "Kyoto" }, 1);
+
+    expect(savedNearSnapshot(2)).toBeNull();
+    expect(savedNearSnapshot(null)).toBeNull();
+    // Nobody signed in keeps nothing.
+    saveNear({ country: "US" }, null);
+    expect(savedNearSnapshot(null)).toBeNull();
   });
 
   it("gives way to a place in the address", () => {
