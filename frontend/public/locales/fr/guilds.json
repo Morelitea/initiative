@@ -566,6 +566,14 @@
     "save": "Enregistrer le lieu",
     "saved": "Lieu enregistré.",
     "remove": "Supprimer le lieu",
-    "removed": "Lieu supprimé."
+    "removed": "Lieu supprimé.",
+    "near": {
+      "label": "Près de {{place}}",
+      "add": "Près de moi",
+      "title": "Où êtes-vous ?",
+      "hint": "Les communautés proches passent en premier. Rien n’est masqué, et c’est gardé sur cet appareil pour la prochaine fois.",
+      "apply": "Afficher d’abord les proches",
+      "clear": "Ne plus trier par lieu"
+    }
   }
 }

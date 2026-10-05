@@ -566,6 +566,14 @@
     "save": "Save location",
     "saved": "Location saved.",
     "remove": "Remove location",
-    "removed": "Location removed."
+    "removed": "Location removed.",
+    "near": {
+      "label": "Near {{place}}",
+      "add": "Near me",
+      "title": "Where are you?",
+      "hint": "Communities near you come first. Nothing is hidden, and it's kept on this device for next time.",
+      "apply": "Show nearby first",
+      "clear": "Stop sorting by location"
+    }
   }
 }

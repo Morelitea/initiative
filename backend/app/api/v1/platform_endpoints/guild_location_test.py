@@ -287,3 +287,79 @@ async def test_a_country_alone_does_not_filter_without_a_search(
     names = await _directory_names(client, browser.headers, q_country=["JP"])
 
     assert names == {"Gardeners", "Go Club", "Choir"}
+
+
+# ---------------------------------------------------------------------------
+# Putting the communities near the reader first
+# ---------------------------------------------------------------------------
+
+
+async def _directory_order(client: AsyncClient, headers: dict, **params) -> list[str]:
+    response = await client.get(
+        "/api/v1/communities/directory", params=params, headers=headers
+    )
+    assert response.status_code == 200, response.text
+    return [item["name"] for item in response.json()["items"]]
+
+
+@pytest.fixture
+async def spread_directory(session: AsyncSession):
+    await app_settings_service.update_community_settings(
+        session, community_directory_enabled=True
+    )
+    places = {
+        "Kyoto Go": {"country": "JP", "city": "Kyoto"},
+        "Nowhere Choir": None,
+        "Texas Rodeo": {"country": "US", "region_code": "TX", "city": "Austin"},
+        "Tacoma Rowers": {"country": "US", "region_code": "WA", "city": "Tacoma"},
+        "Seattle Gardeners": {
+            "country": "US",
+            "region_code": "WA",
+            "city": "Seattle",
+        },
+        # Same city name, another state: not near a reader in Washington.
+        "Seattle Ohio": {"country": "US", "region_code": "OH", "city": "Seattle"},
+    }
+    for name, location in places.items():
+        await _listed_at(session, name, location)
+
+
+async def test_the_nearest_communities_come_first(
+    client: AsyncClient, acting_user, spread_directory
+):
+    browser = await acting_user("member")
+
+    order = await _directory_order(
+        client,
+        browser.headers,
+        near_country="us",
+        near_region="wa",
+        near_city="seattle",
+    )
+
+    assert order[:2] == ["Seattle Gardeners", "Tacoma Rowers"]
+    # Then the rest of the country, then nowhere in particular, then abroad.
+    assert set(order[2:4]) == {"Seattle Ohio", "Texas Rodeo"}
+    assert order[4:] == ["Nowhere Choir", "Kyoto Go"]
+
+
+async def test_a_country_alone_puts_that_country_first(
+    client: AsyncClient, acting_user, spread_directory
+):
+    browser = await acting_user("member")
+
+    order = await _directory_order(client, browser.headers, near_country="JP")
+
+    assert order[0] == "Kyoto Go"
+    assert order[1] == "Nowhere Choir"
+
+
+async def test_near_reorders_without_narrowing(
+    client: AsyncClient, acting_user, spread_directory
+):
+    browser = await acting_user("member")
+
+    near = await _directory_order(client, browser.headers, near_country="JP")
+    anywhere = await _directory_order(client, browser.headers)
+
+    assert sorted(near) == sorted(anywhere)

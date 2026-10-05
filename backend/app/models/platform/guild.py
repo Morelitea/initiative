@@ -273,7 +273,7 @@ class Guild(SQLModel, table=True):
     # parts), or NULL for one that has not said — the default, and the answer
     # for most guilds. One value, replaced whole, like the banner.
     location: Optional[dict[str, Any]] = Field(
-        default=None, sa_column=Column(JSONB, nullable=True)
+        default=None, sa_column=Column(JSONB(none_as_null=True), nullable=True)
     )
     created_by: Optional[int] = Field(default=None, foreign_key="users.id")
     created_at: datetime = Field(

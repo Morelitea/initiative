@@ -13,6 +13,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { buildBanner, buildUser } from "@/__tests__/factories";
 import { renderPage } from "@/__tests__/helpers/render";
 import type { CommunityGuildRead } from "@/api/generated/initiativeAPI.schemas";
+import { saveNear } from "@/lib/directoryNear";
 
 import { CommunitiesPage } from "./CommunitiesPage";
 
@@ -77,6 +78,7 @@ const directoryResult = (items: CommunityGuildRead[], overrides: Record<string, 
 const VERDICTS = ["No community directory here", "Directory unavailable", "No communities yet"];
 
 beforeEach(() => {
+  saveNear(null);
   vi.clearAllMocks();
   config.communityDirectory = true;
   config.ageGate = true;
@@ -299,6 +301,32 @@ describe("CommunitiesPage", () => {
       expect.objectContaining({ q: "dice", q_country: undefined }),
       expect.anything()
     );
+  });
+
+  it("sorts from the place in the address", async () => {
+    renderDirectory({ near_country: "US", near_region: "WA", near_city: "Seattle" });
+    await screen.findByText("Riverside Players");
+
+    expect(directoryFor).toHaveBeenCalledWith(
+      expect.objectContaining({ near_country: "US", near_region: "WA", near_city: "Seattle" }),
+      expect.anything()
+    );
+    expect(screen.getByRole("button", { name: "Near Seattle, WA" })).toBeInTheDocument();
+  });
+
+  it("sorts from the place kept on this device, and forgets it when cleared", async () => {
+    saveNear({ country: "JP", city: "Kyoto" });
+    renderDirectory();
+    await screen.findByText("Riverside Players");
+    expect(directoryFor).toHaveBeenLastCalledWith(
+      expect.objectContaining({ near_country: "JP", near_city: "Kyoto" }),
+      expect.anything()
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Stop sorting by location" }));
+
+    await waitFor(() => expect(directoryFor.mock.lastCall?.[0]).not.toHaveProperty("near_country"));
+    expect(screen.getByRole("button", { name: "Near me" })).toBeInTheDocument();
   });
 
   it("says what nothing matched, naming the search it came from", async () => {

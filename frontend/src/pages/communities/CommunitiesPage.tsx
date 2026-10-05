@@ -21,11 +21,12 @@
 
 import { useSearch } from "@tanstack/react-router";
 import { CloudOff, SearchX } from "lucide-react";
-import { useMemo } from "react";
+import { useMemo, useSyncExternalStore } from "react";
 import { useTranslation } from "react-i18next";
 
 import { CommunityCard } from "@/components/guilds/CommunityCard";
 import { CommunitySearchField } from "@/components/guilds/CommunitySearchField";
+import { DirectoryNearControl } from "@/components/guilds/DirectoryNearControl";
 import { PageBanner } from "@/components/PageBanner";
 import { StatusMessage } from "@/components/StatusMessage";
 import { Button } from "@/components/ui/button";
@@ -33,6 +34,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useCommunityGuilds } from "@/hooks/useCommunities";
 import { renderableBanner } from "@/lib/banner";
+import {
+  effectiveNear,
+  nearSearchFrom,
+  nearSearchOf,
+  parseSavedNear,
+  savedNearSnapshot,
+  subscribeSavedNear,
+} from "@/lib/directoryNear";
 import { getErrorCode } from "@/lib/errorMessage";
 import { asGuildCategories } from "@/lib/guildCategories";
 import { countriesNamedBy } from "@/lib/guildLocation";
@@ -47,7 +56,7 @@ export function CommunitiesPage() {
   // `useSearch({ strict: false })` returns the params as they are and does not
   // run the route's `validateSearch`, so anywhere this page is mounted another
   // way an unrecognized value would otherwise filter the grid down to nothing.
-  const rawSearch = useSearch({ strict: false }) as { category?: unknown; q?: unknown };
+  const rawSearch = useSearch({ strict: false }) as Record<string, unknown>;
   const categories = asGuildCategories(rawSearch.category);
   const search = typeof rawSearch.q === "string" ? rawSearch.q : "";
 
@@ -62,10 +71,21 @@ export function CommunitiesPage() {
     [query, i18n.resolvedLanguage, i18n.language]
   );
 
+  // Where the reader is: the address's place, else the one kept on this
+  // device. It sorts the nearest first and narrows nothing.
+  const savedNear = useSyncExternalStore(subscribeSavedNear, savedNearSnapshot);
+  const nearKey = JSON.stringify(nearSearchFrom(rawSearch));
+  // biome-ignore lint/correctness/useExhaustiveDependencies: nearKey is the address's place, by value
+  const near = useMemo(
+    () => effectiveNear(nearSearchFrom(rawSearch), parseSavedNear(savedNear)),
+    [nearKey, savedNear]
+  );
+
   const directory = useCommunityGuilds(
     {
       q: query || undefined,
       q_country: queryCountries.length ? queryCountries : undefined,
+      ...nearSearchOf(near),
       category: categories.length ? categories : undefined,
     },
     { enabled: communityDirectoryEnabled }
@@ -123,6 +143,8 @@ export function CommunitiesPage() {
           reach it. The shelves stay in the sidebar: they are a list of twelve,
           and the search is the one that answers "is my thing here at all". */}
       <CommunitySearchField className="lg:hidden" />
+
+      <DirectoryNearControl near={near} />
 
       {directory.isError ? (
         // A directory that failed to answer is not a directory with nothing

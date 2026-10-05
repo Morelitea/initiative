@@ -2,29 +2,39 @@ import { Check } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import type { GuildCategory } from "@/api/generated/initiativeAPI.schemas";
+import { PlacePicker } from "@/components/guilds/PlacePicker";
 import { ContinueButton, SkipButton } from "@/components/start/stepParts";
 import { Button } from "@/components/ui/button";
+import type { Place } from "@/lib/directoryNear";
 import { GUILD_CATEGORIES, guildCategoryLabel } from "@/lib/guildCategories";
 
 /** Each shelf's own colour, spread evenly around the wheel. */
 const shelfColour = (index: number): string =>
   `oklch(0.7 0.16 ${Math.round((index * 360) / GUILD_CATEGORIES.length)})`;
 
-/** The directory shelves to open on, as many as they like. */
+/**
+ * Where they are, if they like, and the directory shelves to open on, as many
+ * as they like. The place sorts the directory nearest-first; it hides nothing.
+ */
 export const InterestStep = ({
   value,
   onChange,
+  near,
+  onNearChange,
   onContinue,
   onSkip,
   disabled,
 }: {
   value: GuildCategory[];
   onChange: (categories: GuildCategory[]) => void;
+  near: Place;
+  onNearChange: (near: Place) => void;
   onContinue: () => void;
   onSkip: () => void;
   disabled?: boolean;
 }) => {
   const { t } = useTranslation(["guilds", "common"]);
+  const { t: tAuth } = useTranslation("auth");
   const toggle = (category: GuildCategory) =>
     onChange(
       value.includes(category)
@@ -34,6 +44,12 @@ export const InterestStep = ({
     );
   return (
     <>
+      <fieldset className="space-y-3">
+        <legend className="font-medium text-sm">{tAuth("start.interest.whereTitle")}</legend>
+        <p className="text-muted-foreground text-xs">{tAuth("start.interest.whereHint")}</p>
+        <PlacePicker value={near} onChange={onNearChange} disabled={disabled} />
+      </fieldset>
+      <p className="font-medium text-sm">{tAuth("start.interest.whatTitle")}</p>
       <div className="flex flex-wrap gap-2">
         {GUILD_CATEGORIES.map((category, index) => {
           const picked = value.includes(category);

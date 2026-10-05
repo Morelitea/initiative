@@ -14,6 +14,7 @@ import { createProjectApiV1CGuildIdProjectsPost } from "@/api/generated/projects
 import { invalidate, q } from "@/api/query-keys";
 import { DEFAULT_GRANTS } from "@/components/access/grants";
 import type { GuildEntry } from "@/hooks/useGuilds";
+import { EMPTY_PLACE, type Place, placeFrom } from "@/lib/directoryNear";
 import { asGuildCategories } from "@/lib/guildCategories";
 import { getItem, removeItem, setItem } from "@/lib/storage";
 
@@ -24,6 +25,8 @@ export interface StartAnswers {
   inviteCode: string;
   /** Join: the directory shelves to open on; none opens all of them. */
   categories: GuildCategory[];
+  /** Join: where they are, to open the directory nearest them first. */
+  near: Place;
   communityName: string;
   description: string;
   initiativeName: string;
@@ -46,6 +49,7 @@ export const freshAnswers = (path: StartPath, inviteCode = ""): StartAnswers => 
   path,
   inviteCode,
   categories: [],
+  near: EMPTY_PLACE,
   communityName: "",
   description: "",
   initiativeName: "",
@@ -74,6 +78,7 @@ const current = (saved: StartAnswers | null): StartAnswers | null => {
     // A copy saved with a single interest named it `category`.
     categories: asGuildCategories(saved.categories ?? (saved as { category?: unknown }).category),
     username: typeof saved.username === "string" ? saved.username : "",
+    near: placeFrom(saved.near),
   };
 };
 

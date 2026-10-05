@@ -49,6 +49,7 @@ import { useGuilds } from "@/hooks/useGuilds";
 import { useServer } from "@/hooks/useServer";
 import { useWizard } from "@/hooks/useWizard";
 import { toast } from "@/lib/chesterToast";
+import { EMPTY_PLACE, nearOfPlace } from "@/lib/directoryNear";
 import { getErrorCode, getErrorMessage } from "@/lib/errorMessage";
 import { describePasskeyPromptError, signUpWithPasskey } from "@/lib/passkeys";
 import {
@@ -348,7 +349,7 @@ const StartSteps = ({
       await clearStart();
       if (final.path === "join") {
         if (user.age_below_minimum_at) commit("underAge");
-        else await leave(() => openDirectory(final.categories));
+        else await leave(() => openDirectory(final.categories, nearOfPlace(final.near)));
         return;
       }
       if (final.path === "invite") {
@@ -542,9 +543,11 @@ const StartSteps = ({
         <InterestStep
           value={answers.categories}
           onChange={(categories) => update({ categories })}
+          near={answers.near}
+          onNearChange={(near) => update({ near })}
           onContinue={next}
           onSkip={() => {
-            update({ categories: [] });
+            update({ categories: [], near: EMPTY_PLACE });
             next();
           }}
           disabled={busy}

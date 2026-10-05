@@ -566,6 +566,14 @@
     "save": "Ort speichern",
     "saved": "Ort gespeichert.",
     "remove": "Ort entfernen",
-    "removed": "Ort entfernt."
+    "removed": "Ort entfernt.",
+    "near": {
+      "label": "In der Nähe von {{place}}",
+      "add": "In meiner Nähe",
+      "title": "Wo bist du?",
+      "hint": "Communities in deiner Nähe kommen zuerst. Ausgeblendet wird nichts, und es bleibt für das nächste Mal auf diesem Gerät.",
+      "apply": "Nahe zuerst zeigen",
+      "clear": "Nicht mehr nach Ort sortieren"
+    }
   }
 }

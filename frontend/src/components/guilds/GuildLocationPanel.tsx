@@ -1,39 +1,28 @@
 /**
  * Where the community is — optional, and as broad or as exact as its admin
  * likes: a country alone, a region of one, a city, or a street address, with a
- * name of their own for the place on top.
- *
- * Countries, their regions and their cities come from `country-state-city`,
- * which is loaded here and nowhere else: countries and regions when the panel
- * opens, the much larger city list only once somebody opens the city field. A
- * city is a suggestion, not a requirement — a place the list does not know is
- * typed in as itself.
+ * name of their own for the place on top. The place itself is a
+ * `PlacePicker`; the street, postcode and name are this panel's own.
  */
 
-import { type FormEvent, useEffect, useMemo, useState } from "react";
+import { type FormEvent, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { updateGuildApiV1CommunitiesGuildIdPatch } from "@/api/generated/communities/communities";
 import type { GuildRead } from "@/api/generated/initiativeAPI.schemas";
 import { GuildLocationLine } from "@/components/guilds/GuildLocationLine";
+import { PlacePicker } from "@/components/guilds/PlacePicker";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { SearchableCombobox } from "@/components/ui/searchable-combobox";
-import { SuggestCombobox } from "@/components/ui/suggest-combobox";
 import { useGuilds } from "@/hooks/useGuilds";
-import { useLocationCities, useLocationPlaces } from "@/hooks/useLocationLibrary";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
-import { countryName, type GuildLocation } from "@/lib/guildLocation";
+import type { GuildLocation } from "@/lib/guildLocation";
 
-/** Stands for "no region" in the region picker, whose values are codes. */
-const NO_REGION = "__none__";
-/** Cities listed at once; the rest are a search away. */
-const CITY_SUGGESTION_LIMIT = 100;
 /** Kept in step with the server's limits on each part. */
-const LIMITS = { label: 60, city: 100, address: 200, postal_code: 20 } as const;
+const LIMITS = { label: 60, address: 200, postal_code: 20 } as const;
 
 type Draft = {
   country: string;
@@ -85,14 +74,9 @@ const locationOf = (draft: Draft): GuildLocation | null =>
 
 export const GuildLocationPanel = () => {
   const { activeGuild, refreshGuilds, updateGuildInState } = useGuilds();
-  const { t, i18n } = useTranslation(["guilds", "common"]);
-  const locale = i18n.resolvedLanguage ?? i18n.language ?? "en";
+  const { t } = useTranslation(["guilds", "common"]);
   const [draft, setDraft] = useState<Draft>(() => draftOf(activeGuild?.location));
   const [saving, setSaving] = useState(false);
-  const [wantCities, setWantCities] = useState(false);
-
-  const places = useLocationPlaces();
-  const cities = useLocationCities(wantCities);
 
   const stored = activeGuild?.location;
   // Compared by value: the guild list is refetched on focus, and a fresh copy
@@ -103,56 +87,9 @@ export const GuildLocationPanel = () => {
     setDraft(draftOf(stored));
   }, [storedKey]);
 
-  const countryItems = useMemo(
-    () =>
-      (places.data?.countries ?? [])
-        .map((country) => ({
-          value: country.isoCode,
-          label: countryName(country.isoCode, locale) || country.name,
-        }))
-        .sort((a, b) => a.label.localeCompare(b.label, locale)),
-    [places.data, locale]
-  );
-
-  const regions = useMemo(
-    () => (draft.country ? (places.data?.State.getStatesOfCountry(draft.country) ?? []) : []),
-    [places.data, draft.country]
-  );
-  const regionItems = useMemo(
-    () => [
-      { value: NO_REGION, label: t("location.regionNone") },
-      ...regions.map((region) => ({ value: region.isoCode, label: region.name })),
-    ],
-    [regions, t]
-  );
-
-  const citySuggestions = useMemo(() => {
-    if (!cities.data || !draft.country) return [];
-    const list = draft.region_code
-      ? cities.data.getCitiesOfState(draft.country, draft.region_code)
-      : (cities.data.getCitiesOfCountry(draft.country) ?? []);
-    return Array.from(new Set(list.map((city) => city.name)));
-  }, [cities.data, draft.country, draft.region_code]);
-
   if (!activeGuild) return null;
 
   const update = (patch: Partial<Draft>) => setDraft((current) => ({ ...current, ...patch }));
-
-  const chooseCountry = (country: string) => {
-    if (country === draft.country) return;
-    // A region and a city belong to the country they were picked in.
-    update({ country, region: "", region_code: "", city: "" });
-  };
-
-  const chooseRegion = (code: string) => {
-    if (code === NO_REGION) {
-      update({ region: "", region_code: "" });
-      return;
-    }
-    if (code === draft.region_code) return;
-    const region = regions.find((candidate) => candidate.isoCode === code);
-    update({ region: region?.name ?? "", region_code: code, city: "" });
-  };
 
   const save = async (location: GuildLocation | null, done: string) => {
     setSaving(true);
@@ -185,57 +122,7 @@ export const GuildLocationPanel = () => {
       </CardHeader>
       <CardContent>
         <form className="space-y-4" onSubmit={handleSubmit}>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label>{t("location.countryLabel")}</Label>
-              <SearchableCombobox
-                items={countryItems}
-                value={draft.country}
-                onValueChange={chooseCountry}
-                placeholder={
-                  places.isPending ? t("location.loading") : t("location.countryPlaceholder")
-                }
-                emptyMessage={t("location.noMatches")}
-                disabled={places.isPending || saving}
-                aria-label={t("location.countryLabel")}
-              />
-            </div>
-            {/* A country with no first-level divisions has nothing to pick. */}
-            {draft.country && regions.length > 0 ? (
-              <div className="space-y-2">
-                <Label>{t("location.regionLabel")}</Label>
-                <SearchableCombobox
-                  items={regionItems}
-                  value={draft.region_code || NO_REGION}
-                  onValueChange={chooseRegion}
-                  placeholder={t("location.regionNone")}
-                  emptyMessage={t("location.noMatches")}
-                  disabled={saving}
-                  aria-label={t("location.regionLabel")}
-                />
-              </div>
-            ) : null}
-            {draft.country ? (
-              <div className="space-y-2">
-                <Label>{t("location.cityLabel")}</Label>
-                <SuggestCombobox
-                  suggestions={citySuggestions}
-                  value={draft.city}
-                  onValueChange={(city) => update({ city: city.slice(0, LIMITS.city) })}
-                  placeholder={t("location.cityPlaceholder")}
-                  searchPlaceholder={t("location.citySearch")}
-                  loadingLabel={t("location.loading")}
-                  emptyLabel={t("location.cityEmpty")}
-                  typedLabel={(value) => t("location.cityTyped", { value })}
-                  onOpen={() => setWantCities(true)}
-                  isLoading={cities.isFetching}
-                  limit={CITY_SUGGESTION_LIMIT}
-                  disabled={saving}
-                  aria-label={t("location.cityLabel")}
-                />
-              </div>
-            ) : null}
-          </div>
+          <PlacePicker value={draft} onChange={(place) => update(place)} disabled={saving} />
 
           {draft.country ? (
             <>

@@ -6,6 +6,7 @@ import { type GuildCategory, Tool } from "@/api/generated/initiativeAPI.schemas"
 import { useAuth } from "@/hooks/useAuth";
 import { useGuilds } from "@/hooks/useGuilds";
 import { toast } from "@/lib/chesterToast";
+import { type NearPlace, nearOfPlace, nearSearchOf, saveNear } from "@/lib/directoryNear";
 import { guildPath } from "@/lib/guildUrl";
 import {
   clearStart,
@@ -40,11 +41,14 @@ export const useLandOnStarter = () => {
 export const useOpenDirectory = () => {
   const navigate = useNavigate();
   return useCallback(
-    (categories: GuildCategory[]) =>
-      navigate({
+    (categories: GuildCategory[], near: NearPlace | null = null) => {
+      // Kept for next time too, so the directory keeps opening near them.
+      if (near) saveNear(near);
+      return navigate({
         to: "/communities",
-        search: categories.length ? { category: categories } : {},
-      }),
+        search: { ...(categories.length ? { category: categories } : {}), ...nearSearchOf(near) },
+      });
+    },
     [navigate]
   );
 };
@@ -87,7 +91,7 @@ export const useFinishPendingStart = (): void => {
       void (async () => {
         await clearStart();
         if (answers.path === "join" && !user.age_below_minimum_at) {
-          await openDirectory(answers.categories);
+          await openDirectory(answers.categories, nearOfPlace(answers.near));
         }
       })();
       return;

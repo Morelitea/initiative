@@ -9871,6 +9871,9 @@ export type ListCommunityGuildsApiV1CommunitiesDirectoryGetParams = {
    */
   q_country?: string[];
   category?: GuildCategory[];
+  near_country?: string | null;
+  near_region?: string | null;
+  near_city?: string | null;
   /**
    * @minimum 1
    */

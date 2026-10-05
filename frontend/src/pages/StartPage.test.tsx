@@ -241,6 +241,8 @@ describe("what the account is made with", () => {
     await userEvent.click(screen.getByRole("radio", { name: /join a community/i }));
     await press("Continue");
     await heading("What are you into?");
+    // Where they are is asked too, and is theirs to leave blank.
+    expect(screen.getByRole("group", { name: "Where are you? (optional)" })).toBeInTheDocument();
     await press("Tabletop RPG");
     await press("Gaming");
     await press("Continue");
@@ -259,6 +261,7 @@ describe("what the account is made with", () => {
     expect(sent.inviteCode).toBeUndefined();
     // Waiting for the first sign-in, which opens the directory on every pick.
     expect(readPendingStart("new@example.com")?.categories).toEqual(["gaming", "ttrpg"]);
+    expect(readPendingStart("new@example.com")?.near.country).toBe("");
   });
 });
 

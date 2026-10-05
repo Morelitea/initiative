@@ -566,6 +566,14 @@
     "save": "Guardar ubicación",
     "saved": "Ubicación guardada.",
     "remove": "Quitar ubicación",
-    "removed": "Ubicación quitada."
+    "removed": "Ubicación quitada.",
+    "near": {
+      "label": "Cerca de {{place}}",
+      "add": "Cerca de mí",
+      "title": "¿Dónde estás?",
+      "hint": "Las comunidades cercanas van primero. No se oculta nada y se guarda en este dispositivo para la próxima vez.",
+      "apply": "Mostrar primero las cercanas",
+      "clear": "Dejar de ordenar por ubicación"
+    }
   }
 }

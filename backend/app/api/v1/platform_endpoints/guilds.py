@@ -348,6 +348,11 @@ async def list_community_guilds(
     # these matches the search as if its text had.
     q_country: list[str] = Query(default=[], max_length=50),
     category: list[GuildCategory] = Query(default=[]),
+    # Where the reader is, to put the communities nearest them first. Each is
+    # optional below the country; none of them narrows what is listed.
+    near_country: str | None = Query(default=None, pattern=r"^[A-Za-z]{2}$"),
+    near_region: str | None = Query(default=None, max_length=10),
+    near_city: str | None = Query(default=None, max_length=100),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=24, ge=1, le=MAX_COMMUNITY_PAGE_SIZE),
 ) -> CommunityGuildPage:
@@ -376,6 +381,15 @@ async def list_community_guilds(
                 code.upper() for code in q_country if re.fullmatch(r"[A-Za-z]{2}", code)
             ],
             categories=[c.value for c in category],
+            near=(
+                guilds_service.NearPlace(
+                    country=near_country.upper(),
+                    region_code=(near_region or "").strip().upper() or None,
+                    city=(near_city or "").strip() or None,
+                )
+                if near_country
+                else None
+            ),
             page=page,
             page_size=page_size,
         )
