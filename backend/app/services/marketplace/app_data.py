@@ -296,7 +296,7 @@ def project_returns(
 # --- usage figures ----------------------------------------------------------
 #
 # An app can report what a community has used of something it meters — runs,
-# credits, calls — on the community's Usage tab, beside storage and seats. It
+# credits, calls — on the community's Usage tab, beside storage and members. It
 # does that with an ordinary read endpoint: ``group: "usage"`` (the group is the
 # consumer's vocabulary, and this is ours), ``admin_only``, no required
 # parameters. Each single ``int`` return is one figure, labelled by the return's
