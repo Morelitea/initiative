@@ -73,7 +73,7 @@ const AppUsageSection = ({ entry }: { entry: AppUsageEntry }) => {
   );
 };
 
-/** Community usage against its storage and seat caps, and what its installed
+/** Community usage against its storage and member caps, and what its installed
  *  apps report it has used of what they meter.
  *
  * On the seat's Usage tab, the first in community settings, on every install:
@@ -141,7 +141,7 @@ export const CommunityUsagePanel = () => {
 
         <div className="space-y-2">
           <div className="flex justify-between text-sm">
-            <span className="font-medium">{t("usagePanel.seats")}</span>
+            <span className="font-medium">{t("usagePanel.members")}</span>
             <span className="text-muted-foreground">
               {maxUsers == null
                 ? t("usagePanel.countOfUnlimited", { used: members })

@@ -426,7 +426,7 @@
   "usagePanel": {
     "title": "Uso",
     "storage": "Almacenamiento",
-    "seats": "Plazas",
+    "members": "Miembros",
     "usedOfMax": "{{used}} de {{max}}",
     "usedOfUnlimited": "{{used}} usado · Ilimitado",
     "storageUnavailable": "No disponible en este momento",

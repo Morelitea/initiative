@@ -24,11 +24,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Filters can match all or any.** Choose once at the top, add a group for the other kind, and choose to leave out, include, or count only archived work and templates. Deleted things are never counted.
 - **Push notifications without Firebase.** Turn on **Send push notifications** and leave the rest empty: your server registers itself once with Morelitea's push relay and sends through it. iPhone pushes always go through the relay; with your own Firebase service account, Android pushes still go straight to Firebase. The relay passes the text on and never keeps it. See **Running a server › Push notifications**.
 - **A timeline can be drawn in years.**
-- **Installed apps can report usage on the community's Usage tab.** Automations shows its monthly runs and run credits there, beside storage and seats. An app reports usage with a read endpoint in the `usage` group, marked `admin_only`.
+- **Installed apps can report usage on the community's Usage tab.** Automations shows its monthly runs and run credits there, beside storage and members. An app reports usage with a read endpoint in the `usage` group, marked `admin_only`.
 
 ### Changed
 
-- **The Usage tab says seats**, shown as used out of the limit (`10/200`).
+- **The Usage tab shows members** as used out of the limit (`10/200`).
 - **The pricing page shows the billing portal's own plan cards**, in your language and your currency, laid out the same as on the portal.
 - **App and API integrations may need updating.** See [#2472](https://github.com/Morelitea/initiative/issues/2472). The `route` label of `initiative_page_views_total` now reads `/c/$communityId/…`.
 - **Accounts no longer have a name.** You're your handle, or the display name you set in a community. Saved names are deleted on upgrade. **Server operators:** `FIRST_OWNER_FULL_NAME` is ignored.

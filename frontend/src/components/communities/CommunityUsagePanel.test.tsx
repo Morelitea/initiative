@@ -59,8 +59,8 @@ describe("CommunityUsagePanel", () => {
   it("renders storage and member usage against caps (FOSS, billing absent)", () => {
     renderWithProviders(<CommunityUsagePanel />);
     expect(screen.getByText("Storage")).toBeInTheDocument();
-    expect(screen.getByText("Seats")).toBeInTheDocument();
-    // Seats: 4/10 — the usage number renders from the community's own row.
+    expect(screen.getByText("Members")).toBeInTheDocument();
+    // Members: 4/10 — the usage number renders from the community's own row.
     expect(screen.getByText("4/10")).toBeInTheDocument();
   });
 

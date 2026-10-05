@@ -127,7 +127,7 @@ Open **Community settings** from the sidebar or the rail:
 
 | Tab | What's in it |
 |---|---|
-| **Usage** | Storage and seats against the community's limits, plus anything an installed app meters (Automations shows its monthly runs and run credits here). On a hosted server the tab is **Plan & usage** and also shows the plan: a running trial, the next renewal and its amount, a scheduled cancellation, or a failed payment. Every change to the plan, cancelling included, is made in the billing portal the tab links to. Superadmin only, and where community settings opens for them. |
+| **Usage** | Storage and members against the community's limits, plus anything an installed app meters (Automations shows its monthly runs and run credits here). On a hosted server the tab is **Plan & usage** and also shows the plan: a running trial, the next renewal and its amount, a scheduled cancellation, or a failed payment. Every change to the plan, cancelling included, is made in the billing portal the tab links to. Superadmin only, and where community settings opens for them. |
 | **Community** | Name, description, icon and banner (square, up to 512 KB), and the directory listing. |
 | **Users** | Members, roles, invite links. A superadmin also sees whose personal API keys reach the community, where the server grants it the security standard. |
 | **Initiatives** | Create and manage the community's initiatives. |
