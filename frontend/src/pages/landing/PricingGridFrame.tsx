@@ -11,9 +11,11 @@
  */
 
 import { useNavigate } from "@tanstack/react-router";
+import { ArrowUpRight } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { Button } from "@/components/ui/button";
 import { portalPricingUrl, pricingEmbedUrl } from "@/hooks/useBillingCatalog";
 import { useTheme } from "@/hooks/useTheme";
 import { docsUrl } from "@/lib/links";
@@ -36,24 +38,37 @@ const originOf = (url: string): string | null => {
   }
 };
 
-/** A new tab, or this one when the browser will not open one. */
+/** How long the grid has to say it arrived before the page offers a link to
+ *  the plans instead. */
+export const FRAME_TIMEOUT_MS = 8000;
+
+/** A new tab, or this one when the browser will not open one. Opened without
+ *  the `noopener` feature, which makes `window.open` return null even when it
+ *  opened, and cut loose by hand instead. */
 const openOut = (href: string) => {
-  const tab = window.open(href, "_blank", "noopener,noreferrer");
-  if (!tab) window.location.assign(href);
+  const tab = window.open(href, "_blank");
+  if (tab) tab.opener = null;
+  else window.location.assign(href);
 };
 
 export const PricingGridFrame = ({
   portalUrl,
   registrationOpen,
+  timeoutMs = FRAME_TIMEOUT_MS,
 }: {
   portalUrl: string;
   registrationOpen: boolean;
+  timeoutMs?: number;
 }) => {
   const { t, i18n } = useTranslation("landing");
   const { resolvedTheme } = useTheme();
   const navigate = useNavigate();
   const frame = useRef<HTMLIFrameElement>(null);
   const [height, setHeight] = useState(INITIAL_HEIGHT);
+  // Whether the grid has reported in. A frame that never does (billing down,
+  // or a version without the embed) gives way to a link to the plans.
+  const [arrived, setArrived] = useState(false);
+  const [gaveUp, setGaveUp] = useState(false);
   const lang = i18n.resolvedLanguage ?? i18n.language ?? "en";
   const theme = resolvedTheme === "dark" ? "dark" : "light";
   const portalOrigin = originOf(portalUrl);
@@ -68,6 +83,7 @@ export const PricingGridFrame = ({
       if (message.type === EMBED_HEIGHT && typeof message.height === "number") {
         if (Number.isFinite(message.height) && message.height > 0) {
           setHeight(Math.min(Math.ceil(message.height), MAX_HEIGHT));
+          setArrived(true);
         }
         return;
       }
@@ -88,6 +104,27 @@ export const PricingGridFrame = ({
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
   }, [navigate, portalOrigin, portalUrl, registrationOpen]);
+
+  useEffect(() => {
+    if (arrived) return;
+    const timer = window.setTimeout(() => setGaveUp(true), timeoutMs);
+    return () => window.clearTimeout(timer);
+  }, [arrived, timeoutMs]);
+
+  if (gaveUp && !arrived) {
+    return (
+      <div className="rounded-3xl border bg-card p-8 text-center shadow-xl" role="status">
+        <h2 className="font-bold text-xl">{t("pricing.unavailableTitle")}</h2>
+        <p className="mt-2 text-muted-foreground">{t("pricing.unavailableBody")}</p>
+        <Button variant="outline" className="mt-5" asChild>
+          <a href={portalPricingUrl(portalUrl)} target="_blank" rel="noopener noreferrer">
+            {t("pricing.seeAll")}
+            <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
+          </a>
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <iframe

@@ -11,7 +11,7 @@ import { TOOLS, toolCamelPlural } from "@/lib/tools";
 import landing from "../../../public/locales/en/landing.json";
 import { DownloadPage } from "./DownloadPage";
 import { HomePage } from "./HomePage";
-import { EMBED_CTA, EMBED_HEIGHT, SELF_HOST_GUIDE } from "./PricingGridFrame";
+import { EMBED_CTA, EMBED_HEIGHT, FRAME_TIMEOUT_MS, SELF_HOST_GUIDE } from "./PricingGridFrame";
 import { PricingPage } from "./PricingPage";
 import { WhatsNewPage, WhatsNewPostPage } from "./WhatsNewPage";
 
@@ -391,24 +391,64 @@ describe("PricingPage", () => {
 
   it("sends each plan's button where it belongs", async () => {
     server.use(stubConfig({ url: PORTAL }), stubCatalog());
-    const open = vi.spyOn(window, "open").mockReturnValue({} as Window);
+    const tab = { opener: {} as unknown };
+    const open = vi.spyOn(window, "open").mockReturnValue(tab as unknown as Window);
+    const before = window.location.href;
     const { router } = renderPricing();
 
     const frame = await frameOf();
     // Buying goes to the portal; running it yourself goes to the install
     // guide; signing up is this app's own door.
     fromFrame(frame, { type: EMBED_CTA, tier: "brass", kind: "checkout" });
-    expect(open).toHaveBeenLastCalledWith(
-      portalPricingUrl(PORTAL),
-      "_blank",
-      "noopener,noreferrer"
-    );
+    expect(open).toHaveBeenLastCalledWith(portalPricingUrl(PORTAL), "_blank");
+    // A new tab, cut loose from this page, and this page stays put.
+    expect(tab.opener).toBeNull();
+    expect(window.location.href).toBe(before);
     fromFrame(frame, { type: EMBED_CTA, tier: "self_hosted", kind: "external" });
-    expect(open).toHaveBeenLastCalledWith(SELF_HOST_GUIDE, "_blank", "noopener,noreferrer");
+    expect(open).toHaveBeenLastCalledWith(SELF_HOST_GUIDE, "_blank");
     expect(SELF_HOST_GUIDE).toBe(docsUrl("running-a-server/installation/"));
     fromFrame(frame, { type: EMBED_CTA, tier: "pewter", kind: "signup" });
     await waitFor(() => expect(router.state.location.pathname).toBe("/start"));
     open.mockRestore();
+  });
+
+  it("offers a link to the plans when the grid never arrives", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      server.use(stubConfig({ url: PORTAL }), stubCatalog());
+      renderPricing();
+
+      await frameOf();
+      act(() => {
+        vi.advanceTimersByTime(FRAME_TIMEOUT_MS);
+      });
+      const fallback = await screen.findByRole("status");
+      expect(within(fallback).getByText(landing.pricing.unavailableTitle)).toBeInTheDocument();
+      expect(within(fallback).getByRole("link", { name: /See every plan/ })).toHaveAttribute(
+        "href",
+        portalPricingUrl(PORTAL)
+      );
+      expect(screen.queryByTitle(landing.pricing.tierListAria)).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps the grid once it has arrived", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      server.use(stubConfig({ url: PORTAL }), stubCatalog());
+      renderPricing();
+
+      const frame = await frameOf();
+      fromFrame(frame, { type: EMBED_HEIGHT, height: 1200 });
+      act(() => {
+        vi.advanceTimersByTime(FRAME_TIMEOUT_MS * 2);
+      });
+      expect(screen.getByTitle(landing.pricing.tierListAria)).toBe(frame);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("sends a free plan's sign-up to the login page when registration is closed", async () => {
