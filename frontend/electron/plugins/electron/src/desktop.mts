@@ -10,7 +10,7 @@ interface Context {
 }
 
 /** Matches electron-builder's `appId`, which names the app to Windows. */
-const APP_ID = "com.morelitea.initiative";
+const APP_ID = "studio.beyonders.initiative";
 
 /** Passed when the computer opens the app at sign-in, to start in the tray. */
 const HIDDEN = "--hidden";

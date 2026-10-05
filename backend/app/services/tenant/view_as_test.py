@@ -61,6 +61,7 @@ async def widget_rows(client, actor, dashboard_id: int, widget_id: str = "w1"):
         headers=actor.headers,
     )
     assert response.status_code == 200, response.text
+    return response.json()["rows"]
 
 
 async def two_people(session, acting_user):

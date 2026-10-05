@@ -505,7 +505,7 @@ async def test_the_app_is_asked_for_the_code_and_keeps_its_refresh_token(
     its refresh token from a cookie it never sees; the app, which presents its
     own origin, is handed one."""
     _user, secret, _codes = await _enrol(client, session, "native@example.com")
-    app = {"Origin": "https://com.morelitea.initiative"}
+    app = {"Origin": "https://studio.beyonders.initiative"}
 
     response = await client.post(
         "/api/v1/auth/token",

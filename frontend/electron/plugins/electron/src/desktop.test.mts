@@ -13,7 +13,7 @@ const { FakeWindow, FakeNotification, Emitter } = vi.hoisted(() => {
   // Hoisted above the imports, so Node's own module is fetched directly.
   const Emitter = process.getBuiltinModule("node:events").EventEmitter;
   class FakeWindow extends Emitter {
-    url = "capacitor://com.morelitea.initiative/";
+    url = "capacitor://studio.beyonders.initiative/";
     webContents = { getURL: () => this.url };
     hide = vi.fn();
     show = vi.fn();
