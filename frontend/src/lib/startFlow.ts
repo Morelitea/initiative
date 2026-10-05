@@ -15,6 +15,7 @@ import { invalidate, q } from "@/api/query-keys";
 import { DEFAULT_GRANTS } from "@/components/access/grants";
 import type { CommunityEntry } from "@/hooks/useCommunities";
 import { asCommunityCategories } from "@/lib/communityCategories";
+import { EMPTY_PLACE, type Place, placeFrom } from "@/lib/directoryNear";
 import { getItem, removeItem, setItem } from "@/lib/storage";
 
 export type StartPath = "invite" | "join" | "personal" | "shared";
@@ -24,6 +25,8 @@ export interface StartAnswers {
   inviteCode: string;
   /** Join: the directory shelves to open on; none opens all of them. */
   categories: CommunityCategory[];
+  /** Join: where they are, to open the directory nearest them first. */
+  near: Place;
   communityName: string;
   description: string;
   initiativeName: string;
@@ -46,6 +49,7 @@ export const freshAnswers = (path: StartPath, inviteCode = ""): StartAnswers => 
   path,
   inviteCode,
   categories: [],
+  near: EMPTY_PLACE,
   communityName: "",
   description: "",
   initiativeName: "",
@@ -76,6 +80,7 @@ const current = (saved: StartAnswers | null): StartAnswers | null => {
       saved.categories ?? (saved as { category?: unknown }).category
     ),
     username: typeof saved.username === "string" ? saved.username : "",
+    near: placeFrom(saved.near),
   };
 };
 

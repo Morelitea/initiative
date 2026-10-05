@@ -2,11 +2,12 @@ import { createFileRoute, lazyRouteComponent } from "@tanstack/react-router";
 
 import type { CommunityCategory } from "@/api/generated/initiativeAPI.schemas";
 import { asCommunityCategories } from "@/lib/communityCategories";
+import { type NearSearch, nearSearchFrom } from "@/lib/directoryNear";
 
 /** What the endpoint accepts, so a hand-typed address cannot ask for more. */
 const MAX_QUERY_LENGTH = 200;
 
-export interface CommunitySearch {
+export interface CommunitySearch extends NearSearch {
   /** Communities on any of these shelves. */
   category?: CommunityCategory[];
   q?: string;
@@ -26,6 +27,8 @@ export const Route = createFileRoute("/_serverRequired/_authenticated/communitie
     return {
       ...(category.length ? { category } : {}),
       ...(raw.trim() ? { q: raw } : {}),
+      // Where the reader is, which sorts the shelf rather than narrowing it.
+      ...nearSearchFrom(search),
     };
   },
   component: lazyRouteComponent(() =>

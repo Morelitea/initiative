@@ -17,7 +17,7 @@ Click any icon to switch. Everything follows you over — sidebar, initiatives, 
 !!! tip "Two communities at once"
     Open Initiative in two browser tabs and each one can sit in a different community, quite happily, simultaneously. Useful on the days when the work team and the volunteer thing both want you and neither will be reasoned with.
 
-Want more than an icon? The double arrow at the foot of the rail, **Expand community list**, opens every community as a card — banner, description, categories, and how many members there are and how many are online. **Reorder** there lets you drag them into whatever order makes sense to you, which is rarely alphabetical.
+Want more than an icon? The double arrow at the foot of the rail, **Expand community list**, opens every community as a card — banner, description, categories, where it is (if it has said), and how many members there are and how many are online. **Reorder** there lets you drag them into whatever order makes sense to you, which is rarely alphabetical.
 
 ![The community rail expanded into cards](../images/communities/rail-cards.png)
 
@@ -25,7 +25,7 @@ The rail also keeps up with itself. If an admin adds you somewhere, or a group l
 
 ## The community front page
 
-Opening a community drops you on its front page. Its tools run across the top as circles — pick one, and you get everything of that kind that's reached **you**: shared with you directly, with a role you hold, or with everyone in an initiative you're in.
+Opening a community drops you on its front page. Its name sits on the banner, with where it is underneath if it has said. Its tools run across the top as circles — pick one, and you get everything of that kind that's reached **you**: shared with you directly, with a role you hold, or with everyone in an initiative you're in.
 
 Only the tools your initiatives actually use turn up, so a community that has never once needed a queue is not given a Queues circle to look at and feel vaguely guilty about.
 
@@ -39,11 +39,15 @@ Community admins get the same page. Their authority is unchanged — open any in
 
 Most communities are private, and you get in by invitation. Some list themselves publicly, and those you can find on your own.
 
-**Join a community** is its own dashed button at the foot of the rail, just below the **+** that makes a new one. It opens the **community directory**: a card per listed community, with its description, categories, member count, and how many are online right now.
+**Join a community** is its own dashed button at the foot of the rail, just below the **+** that makes a new one. It opens the **community directory**: a card per listed community, with its description, categories, where it is, member count, and how many are online right now.
 
-Search by name, browse by category, and **join straight from the card** — no invite, no waiting, no approval queue, no email that arrives four days later. You're a member the moment you click.
+Search by name or by place, browse by category, and **join straight from the card** — no invite, no waiting, no approval queue, no email that arrives four days later. You're a member the moment you click.
 
-What you searched and which shelf you're on live in the address, so a filtered directory view is a link you can send somebody.
+Searching by place covers a city, a neighbourhood, a postcode, or a whole country by name: "Japan" finds everything in Japan, whatever language you type it in.
+
+**Near me**, above the cards, puts the closest communities first: your city, then your region, then your country, then the ones that never said where they are, then everywhere else. It hides nothing; it only sorts. This device remembers it for next time, and the **×** beside it forgets it.
+
+What you searched, which shelf you're on and where you're near all live in the address, so a filtered directory view is a link you can send somebody.
 
 ![The community directory](../images/communities/community-directory.png)
 
@@ -76,6 +80,24 @@ That certification is the entire content rule — if you can't honestly tick it,
     A listed community whose initiatives are all invite-only leaves every newcomer looking at a beautiful, entirely empty page, quietly wondering what they did wrong on the way in.
 
     Initiative spots this and tells you, with the fix attached: mark one initiative **open** so people can join it themselves, or **auto-join** so they simply arrive already inside it. See [How people join an initiative](initiatives.md#how-people-join-an-initiative).
+
+## Saying where your community is (admins)
+
+Some communities are about a place: the allotment, the street, the Thursday quiz at the one pub with parking. **Location**, under **Community settings → Community**, says where. It's optional, and as vague or as exact as you like.
+
+| Give it | The card says |
+|---|---|
+| A country | Japan |
+| A region | Ontario, Canada |
+| A city | Seattle, WA, or Lyon, France |
+| A street address | Still just the city. The street and postcode wait behind a hover or a tap, with a link to a map. |
+
+**Place name** goes in front of all that: "Queen Anne Neighborhood, Seattle, WA". Keep it short. A card gives the whole location one line, and when the line runs out it's your place name that gets trimmed, so the city always survives.
+
+The city list is a suggestion, not a test. If yours isn't on it, type it.
+
+!!! warning "Listed means anyone can see it"
+    A [listed](#listing-your-community-admins) community shows its location to everyone browsing the directory, and the street address to anyone who opens the details. If you meet in somebody's living room, the city is plenty.
 
 ## Inviting people (admins)
 
@@ -128,7 +150,7 @@ Open **Community settings** from the sidebar or the rail:
 | Tab | What's in it |
 |---|---|
 | **Usage** | Storage and members against the community's limits. On a hosted server the tab is **Plan & usage** and also shows the plan: a running trial, the next renewal and its amount, a scheduled cancellation, or a failed payment. Every change to the plan, cancelling included, is made in the billing portal the tab links to. Superadmin only, and where community settings opens for them. |
-| **Community** | Name, description, icon and banner (square, up to 512 KB), and the directory listing. |
+| **Community** | Name, description, [location](#saying-where-your-community-is-admins), icon and banner (square, up to 512 KB), and the directory listing. |
 | **Users** | Members, roles, invite links. A superadmin also sees whose personal API keys reach the community, where the server grants it the security standard. |
 | **Initiatives** | Create and manage the community's initiatives. |
 | **Security** | Who gets in and on what terms: the community's own single sign-on, where its people land, how long a session lasts, and how much a notification says once it leaves the app. Superadmin only, and only where your server has granted it — most communities never see this tab. See [Your community's sign-in and security](../security/community-security.md). |

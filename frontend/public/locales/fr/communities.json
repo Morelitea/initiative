@@ -566,5 +566,42 @@
     "failed": "Les membres de cette communauté n'ont pas pu être chargés.",
     "searchPlaceholder": "Filtrer les membres"
   },
-  "unreadHere": "Activité non lue"
+  "unreadHere": "Activité non lue",
+  "location": {
+    "ariaLabel": "Lieu : {{location}}",
+    "openMap": "Ouvrir dans la carte",
+    "title": "Lieu",
+    "description": "Facultatif. Indiquez où se trouve votre communauté, aussi largement ou précisément que vous le souhaitez. Un pays suffit. Il apparaît sur la page d’accueil de votre communauté et sur sa carte.",
+    "loading": "Chargement…",
+    "noMatches": "Aucun résultat.",
+    "countryLabel": "Pays",
+    "countryPlaceholder": "Choisir un pays",
+    "regionLabel": "État, province ou région",
+    "regionNone": "Non précisé",
+    "cityLabel": "Ville ou commune",
+    "cityPlaceholder": "Non précisé",
+    "citySearch": "Rechercher ou saisir un lieu…",
+    "cityEmpty": "Aucune suggestion. Saisissez le nom.",
+    "cityTyped": "Utiliser « {{value}} »",
+    "addressLabel": "Adresse",
+    "postalLabel": "Code postal",
+    "addressHint": "Facultatif. Affichée uniquement quand quelqu’un ouvre les détails du lieu, jamais sur la carte elle-même.",
+    "labelLabel": "Nom du lieu",
+    "labelPlaceholder": "Queen Anne Neighborhood",
+    "labelHint": "Affiché avant le lieu, par exemple « Queen Anne Neighborhood, Seattle, WA ». Restez bref : les cartes lui réservent une ligne.",
+    "preview": "Aperçu",
+    "listedNote": "Votre communauté est listée dans l’annuaire : toute personne qui le parcourt peut voir ceci, y compris les détails de l’adresse.",
+    "save": "Enregistrer le lieu",
+    "saved": "Lieu enregistré.",
+    "remove": "Supprimer le lieu",
+    "removed": "Lieu supprimé.",
+    "near": {
+      "label": "Près de {{place}}",
+      "add": "Près de moi",
+      "title": "Où êtes-vous ?",
+      "hint": "Les communautés proches passent en premier. Rien n’est masqué, et c’est gardé sur cet appareil pour la prochaine fois.",
+      "apply": "Afficher d’abord les proches",
+      "clear": "Ne plus trier par lieu"
+    }
+  }
 }

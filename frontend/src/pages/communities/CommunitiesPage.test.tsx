@@ -13,6 +13,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { buildBanner, buildPage, buildUser } from "@/__tests__/factories";
 import { renderPage } from "@/__tests__/helpers/render";
 import type { DirectoryCommunityRead } from "@/api/generated/initiativeAPI.schemas";
+import { saveNear } from "@/lib/directoryNear";
 
 import { CommunitiesPage } from "./CommunitiesPage";
 
@@ -42,6 +43,7 @@ const community = (overrides: Partial<DirectoryCommunityRead> = {}): DirectoryCo
   name: "Riverside Players",
   description: "Community theatre.",
   icon_url: null,
+  location: null,
   banner: buildBanner(),
   categories: ["art"],
   member_count: 12,
@@ -78,7 +80,11 @@ const directoryResult = (
 /** What the page says instead of a grid. Exactly one is ever true at a time. */
 const VERDICTS = ["No community directory here", "Directory unavailable", "No communities yet"];
 
+/** Who the directory is rendered for, so a kept place has an owner. */
+const reader = buildUser();
+
 beforeEach(() => {
+  saveNear(null, reader.id);
   vi.clearAllMocks();
   config.communityDirectory = true;
   config.ageGate = true;
@@ -167,6 +173,31 @@ describe("CommunitiesPage", () => {
     expect(screen.getByText("Community theatre.")).toBeInTheDocument();
     expect(screen.getByText("12 members")).toBeInTheDocument();
     expect(screen.getByText("Art & design")).toBeInTheDocument();
+  });
+
+  it("says where a community is, and leaves the street off the card", async () => {
+    directoryFor.mockReturnValue(
+      directoryResult([
+        community({
+          location: {
+            country: "US",
+            region: "Washington",
+            region_code: "WA",
+            city: "Seattle",
+            address: "1 Queen Anne Ave N",
+            postal_code: "98109",
+            label: "Queen Anne Neighborhood",
+          },
+        }),
+      ])
+    );
+
+    renderDirectory();
+
+    expect(
+      await screen.findByRole("button", { name: "Location: Queen Anne Neighborhood, Seattle, WA" })
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/98109/)).not.toBeInTheDocument();
   });
 
   it("puts the community's banner across the top of its card", async () => {
@@ -260,6 +291,52 @@ describe("CommunitiesPage", () => {
         expect.anything()
       )
     );
+  });
+
+  it("sends the countries a search names, so it reaches where communities are", async () => {
+    renderDirectory({ q: "Japan" });
+    await screen.findByText("Riverside Players");
+
+    expect(directoryFor).toHaveBeenCalledWith(
+      expect.objectContaining({ search: "Japan", search_country: ["JP"] }),
+      expect.anything()
+    );
+  });
+
+  it("sends no countries for a search that names none", async () => {
+    renderDirectory({ q: "dice" });
+    await screen.findByText("Riverside Players");
+
+    expect(directoryFor).toHaveBeenCalledWith(
+      expect.objectContaining({ search: "dice", search_country: undefined }),
+      expect.anything()
+    );
+  });
+
+  it("sorts from the place in the address", async () => {
+    renderDirectory({ near_country: "US", near_region: "WA", near_city: "Seattle" });
+    await screen.findByText("Riverside Players");
+
+    expect(directoryFor).toHaveBeenCalledWith(
+      expect.objectContaining({ near_country: "US", near_region: "WA", near_city: "Seattle" }),
+      expect.anything()
+    );
+    expect(screen.getByRole("button", { name: "Near Seattle, WA" })).toBeInTheDocument();
+  });
+
+  it("sorts from the place kept on this device, and forgets it when cleared", async () => {
+    saveNear({ country: "JP", city: "Kyoto" }, reader.id);
+    renderDirectory({}, { user: reader });
+    await screen.findByText("Riverside Players");
+    expect(directoryFor).toHaveBeenLastCalledWith(
+      expect.objectContaining({ near_country: "JP", near_city: "Kyoto" }),
+      expect.anything()
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Stop sorting by location" }));
+
+    await waitFor(() => expect(directoryFor.mock.lastCall?.[0]).not.toHaveProperty("near_country"));
+    expect(screen.getByRole("button", { name: "Near me" })).toBeInTheDocument();
   });
 
   it("says what nothing matched, naming the search it came from", async () => {

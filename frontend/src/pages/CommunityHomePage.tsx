@@ -18,6 +18,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { AppSettingsDialog } from "@/components/apps/AppSettingsDialog";
+import { CommunityLocationLine } from "@/components/communities/CommunityLocationLine";
 import { CommunityBannerBadges } from "@/components/communityHome/CommunityBannerBadges";
 import { CommunityHomeEmptyState } from "@/components/communityHome/CommunityHomeEmptyState";
 import { CommunityRecentComments } from "@/components/communityHome/CommunityRecentComments";
@@ -37,6 +38,7 @@ import { useToolBrowserSearch } from "@/hooks/useToolBrowserSearch";
 import { useToolCounts } from "@/hooks/useToolCounts";
 import { renderableBanner } from "@/lib/banner";
 import { useCommunityPath } from "@/lib/communityUrl";
+import { readableTextShadow } from "@/lib/contrastColor";
 import { DEFAULT_ENABLED_TOOLS, isToolView, TOOLS, type ToolView, toolViews } from "@/lib/tools";
 import { cn } from "@/lib/utils";
 
@@ -136,6 +138,18 @@ export function CommunityHomePage() {
         banner={banner}
         title={activeCommunity?.name ?? t("title")}
         subtitle={activeCommunity?.description ?? t("subtitle")}
+        meta={
+          activeCommunity?.location ? (
+            <CommunityLocationLine
+              location={activeCommunity.location}
+              className="font-medium text-sm sm:text-base"
+              style={{
+                color: banner.text_color,
+                textShadow: readableTextShadow(banner.text_color),
+              }}
+            />
+          ) : null
+        }
         badges={
           activeCommunity ? (
             <CommunityBannerBadges

@@ -1262,7 +1262,7 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             # 0138 revoked INSERT and UPDATE at the table level. UPDATE survives as
             # column grants on the identity columns a community's admin edits (name,
             # description, banner, categories, is_community, has_adult_content,
-            # updated_at — 0138, 0196, 0200).
+            # location, updated_at — 0138, 0196, 0200, 0456).
             # guild_select_routed narrows SELECT to the routed community (0360). 0357
             # took DELETE back: creating, deleting and purging a community run on the
             # system engine.

@@ -6,9 +6,9 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 import logging
 import secrets
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import exists, func, or_, text
+from sqlalchemy import ColumnElement, and_, case, exists, false, func, or_, text, true
 from sqlalchemy.orm import aliased
 from sqlmodel import select, delete
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -97,6 +97,66 @@ class SupportIntakeMissingError(Exception):
 # merely full today, this one can never have room, which is why it is refused
 # outright rather than left to the capacity check at join time.
 MIN_COMMUNITY_SEATS = 2
+
+
+@dataclass(frozen=True)
+class NearPlace:
+    """Where a reader of the directory is: a country, and optionally finer."""
+
+    country: str
+    region_code: str | None = None
+    city: str | None = None
+
+
+def proximity_rank(near: NearPlace) -> ColumnElement[int]:
+    """How close a guild's location is to ``near``, lowest first.
+
+    0 the same city, 1 the same region, 2 the same country, 3 no location at
+    all, 4 somewhere else. Matched on the parts a location names rather than
+    on distance: a location is a place a person picked, not a coordinate.
+    A city counts only within the same country, and within the same region
+    where both say which.
+    """
+    location = Guild.__table__.c.location
+    country = location["country"].astext
+    region = func.upper(location["region_code"].astext)
+    same_country = country == near.country
+    same_region = (
+        and_(same_country, region == near.region_code) if near.region_code else false()
+    )
+    if near.city:
+        region_agrees = (
+            or_(location["region_code"].astext.is_(None), region == near.region_code)
+            if near.region_code
+            else true()
+        )
+        same_city = and_(
+            same_country,
+            region_agrees,
+            func.lower(location["city"].astext) == near.city.lower(),
+        )
+    else:
+        same_city = false()
+    return case(
+        (same_city, 0),
+        (same_region, 1),
+        (same_country, 2),
+        # Either kind of null — SQL or JSON — is no location.
+        (or_(location.is_(None), func.jsonb_typeof(location) == "null"), 3),
+        else_=4,
+    )
+
+
+#: The parts of a guild's location the directory's search reads as text. The
+#: country is matched by code instead (see ``list_community_guilds``).
+LOCATION_SEARCH_PARTS = (
+    "label",
+    "city",
+    "region",
+    "region_code",
+    "address",
+    "postal_code",
+)
 
 
 # Canonical order for a guild's categories: the order they are declared in
@@ -1029,6 +1089,8 @@ async def update_guild(
     has_adult_content_provided: bool = False,
     banner: Mapping[str, str] | None = None,
     banner_provided: bool = False,
+    location: Mapping[str, Any] | None = None,
+    location_provided: bool = False,
     max_storage_bytes: int | None = None,
     max_storage_bytes_provided: bool = False,
     max_users: int | None = None,
@@ -1051,6 +1113,17 @@ async def update_guild(
         normalized_banner = normalize_banner(banner)
         if guild.banner != normalized_banner:
             guild.banner = normalized_banner
+            updated = True
+    if location_provided:
+        # Absent parts are dropped rather than stored as nulls, so two
+        # locations that say the same thing are the same value.
+        normalized_location = (
+            {key: value for key, value in location.items() if value is not None}
+            if location
+            else None
+        )
+        if guild.location != normalized_location:
+            guild.location = normalized_location
             updated = True
     # An explicit ``null`` is meaningless for a boolean opt-in (mirroring
     # ``auth_options`` below), so null and omitted alike are a no-op.
@@ -2209,7 +2282,9 @@ async def list_community_guilds(
     *,
     user_id: int,
     query: str | None = None,
+    query_countries: list[str] | None = None,
     categories: list[str] | None = None,
+    near: NearPlace | None = None,
     page: int = 1,
     page_size: int = 24,
 ) -> tuple[list[tuple[Guild, int, bool]], int]:
@@ -2222,7 +2297,13 @@ async def list_community_guilds(
     Ordered by member count, busiest first, since that is what someone with no
     guild yet is choosing between; ``query`` narrows on name or description
     across the whole directory rather than within a page, so a search reaches
-    guilds no amount of scrolling had loaded.
+    guilds no amount of scrolling had loaded. It reaches the location too: the
+    text parts of it, and ``query_countries`` — the countries the search names,
+    resolved by the caller, since a country is stored as its code.
+
+    ``near`` reorders without narrowing: the reader's own city first, then
+    their region, then their country, then the communities that never said
+    where they are, then everywhere else (``proximity_rank``).
 
     Needs a session that can see every guild's ``guild_memberships`` rows to
     count them (the system engine), the same precondition ``count_members``
@@ -2253,9 +2334,17 @@ async def list_community_guilds(
         # On any of the shelves asked for.
         filters.append(Guild.categories.overlap(categories))
     if query and query.strip():
-        # Case-insensitive across the two fields a card actually shows.
+        # Case-insensitive across what a card shows: its name, its description
+        # and where it is.
         needle = f"%{query.strip()}%"
-        filters.append(or_(Guild.name.ilike(needle), Guild.description.ilike(needle)))
+        location = Guild.__table__.c.location
+        matches = [Guild.name.ilike(needle), Guild.description.ilike(needle)]
+        matches.extend(
+            location[part].astext.ilike(needle) for part in LOCATION_SEARCH_PARTS
+        )
+        if query_countries:
+            matches.append(location["country"].astext.in_(query_countries))
+        filters.append(or_(*matches))
 
     # Every guild has exactly one administration row, created with it, so this
     # is an inner join by construction.
@@ -2275,9 +2364,10 @@ async def list_community_guilds(
     # Busiest first: someone browsing for a community to join is best served by
     # the ones with people already in them. Name and id break ties, so a guild
     # never swaps pages between two requests that saw the same counts.
-    statement = statement.order_by(
-        member_count.desc(), Guild.name.asc(), Guild.id.asc()
-    )
+    ordering = [member_count.desc(), Guild.name.asc(), Guild.id.asc()]
+    if near is not None:
+        ordering.insert(0, proximity_rank(near))
+    statement = statement.order_by(*ordering)
     rows = (await session.exec(apply_pagination(statement, page, page_size))).all()
     return [(guild, int(count), bool(joined)) for guild, count, joined in rows], int(
         total

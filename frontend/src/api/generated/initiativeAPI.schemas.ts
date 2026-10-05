@@ -3168,6 +3168,62 @@ export interface CommunityInviteStatus {
   uses: number | null;
 }
 
+/**
+ * Where a community is, as precisely as its admin cares to say.
+ *
+ * The country is the one required part: everything finer is optional, so a
+ * community can be "Japan", "Ontario, Canada", "Seattle, WA" or a street
+ * address. The parts are generic rather than one country's address form —
+ * ``region`` is whatever the country's first-level division is (a state, a
+ * province, a prefecture, a county), and a country without one leaves it out.
+ *
+ * ``region_code`` is the region's ISO 3166-2 suffix ("WA" for Washington),
+ * which lets a card say "Seattle, WA" where the country writes its regions
+ * that way. ``label`` is the admin's own name for the place
+ * ("Queen Anne Neighborhood"), shown ahead of it.
+ *
+ * The same shape is read and written: the whole location is one value, and a
+ * PATCH replaces it.
+ */
+export interface CommunityLocationInput {
+  /** @pattern ^[A-Za-z]{2}$ */
+  country: string;
+  region?: string | null;
+  region_code?: string | null;
+  city?: string | null;
+  address?: string | null;
+  postal_code?: string | null;
+  label?: string | null;
+}
+
+/**
+ * Where a community is, as precisely as its admin cares to say.
+ *
+ * The country is the one required part: everything finer is optional, so a
+ * community can be "Japan", "Ontario, Canada", "Seattle, WA" or a street
+ * address. The parts are generic rather than one country's address form —
+ * ``region`` is whatever the country's first-level division is (a state, a
+ * province, a prefecture, a county), and a country without one leaves it out.
+ *
+ * ``region_code`` is the region's ISO 3166-2 suffix ("WA" for Washington),
+ * which lets a card say "Seattle, WA" where the country writes its regions
+ * that way. ``label`` is the admin's own name for the place
+ * ("Queen Anne Neighborhood"), shown ahead of it.
+ *
+ * The same shape is read and written: the whole location is one value, and a
+ * PATCH replaces it.
+ */
+export interface CommunityLocationOutput {
+  /** @pattern ^[A-Za-z]{2}$ */
+  country: string;
+  region: string | null;
+  region_code: string | null;
+  city: string | null;
+  address: string | null;
+  postal_code: string | null;
+  label: string | null;
+}
+
 export type CommunityRole = (typeof CommunityRole)[keyof typeof CommunityRole];
 
 export const CommunityRole = {
@@ -3325,6 +3381,7 @@ export interface CommunityRead {
   categories: CommunityCategory[];
   has_adult_content: boolean | null;
   banner: CommunityBannerRead;
+  location: CommunityLocationOutput | null;
   online_count: number;
   icon_url: string | null;
   banner_card_url: string | null;
@@ -3445,6 +3502,7 @@ export interface CommunityUpdate {
   is_community?: boolean | null;
   categories?: CommunityCategory[] | null;
   banner?: CommunityBannerWrite | null;
+  location?: CommunityLocationInput | null;
   has_adult_content?: boolean | null;
 }
 
@@ -4180,6 +4238,7 @@ export interface DirectoryCommunityRead {
   online_count: number;
   already_member: boolean;
   banner: CommunityBannerRead;
+  location: CommunityLocationOutput | null;
 }
 
 /**
@@ -10080,7 +10139,14 @@ export type ExportPlatformUsersCsvParams = {
 
 export type ListDirectoryCommunitiesParams = {
   search?: string | null;
+  /**
+   * @maxItems 50
+   */
+  search_country?: string[];
   category?: CommunityCategory[];
+  near_country?: string | null;
+  near_region?: string | null;
+  near_city?: string | null;
   /**
    * @minimum 1
    */

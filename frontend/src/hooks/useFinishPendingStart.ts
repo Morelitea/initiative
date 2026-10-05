@@ -6,6 +6,7 @@ import { type CommunityCategory, Tool } from "@/api/generated/initiativeAPI.sche
 import { useAuth } from "@/hooks/useAuth";
 import { useCommunities } from "@/hooks/useCommunities";
 import { communityPath } from "@/lib/communityUrl";
+import { type NearPlace, nearOfPlace, nearSearchOf, saveNear } from "@/lib/directoryNear";
 import { toast } from "@/lib/mascotToast";
 import {
   clearStart,
@@ -39,12 +40,21 @@ export const useLandOnStarter = () => {
 /** The directory, on the shelves they picked. */
 export const useOpenDirectory = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  // Read when the directory opens, which can be just after the account that
+  // is opening it was signed in.
+  const userRef = useRef(user);
+  userRef.current = user;
   return useCallback(
-    (categories: CommunityCategory[]) =>
-      navigate({
+    (categories: CommunityCategory[], near: NearPlace | null = null) => {
+      // Kept for next time too, so the directory keeps opening near them. The
+      // address carries it either way.
+      if (near) saveNear(near, userRef.current?.id ?? null);
+      return navigate({
         to: "/communities",
-        search: categories.length ? { category: categories } : {},
-      }),
+        search: { ...(categories.length ? { category: categories } : {}), ...nearSearchOf(near) },
+      });
+    },
     [navigate]
   );
 };
@@ -87,7 +97,7 @@ export const useFinishPendingStart = (): void => {
       void (async () => {
         await clearStart();
         if (answers.path === "join" && !user.age_below_minimum_at) {
-          await openDirectory(answers.categories);
+          await openDirectory(answers.categories, nearOfPlace(answers.near));
         }
       })();
       return;

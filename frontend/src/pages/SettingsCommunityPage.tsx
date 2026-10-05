@@ -5,6 +5,7 @@ import { updateCommunity } from "@/api/generated/communities/communities";
 import type { CommunityRead } from "@/api/generated/initiativeAPI.schemas";
 import { CommunityArtworkPanel } from "@/components/communities/CommunityArtworkPanel";
 import { CommunityDiscoveryPanel } from "@/components/communities/CommunityDiscoveryPanel";
+import { CommunityLocationPanel } from "@/components/communities/CommunityLocationPanel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -97,6 +98,7 @@ export const SettingsCommunityPage = () => {
           </form>
         </CardContent>
       </Card>
+      <CommunityLocationPanel />
       <CommunityArtworkPanel community={activeCommunity} />
       <CommunityDiscoveryPanel />
     </div>
