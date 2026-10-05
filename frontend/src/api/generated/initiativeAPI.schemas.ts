@@ -1051,6 +1051,33 @@ export interface AppSurfaceSummary {
   name: AppSurfaceSummaryName;
 }
 
+export type AppUsageFigureLabel = { [key: string]: string };
+
+/**
+ * One figure an installed app reports on the community's Usage tab.
+ */
+export interface AppUsageFigure {
+  key: string;
+  label?: AppUsageFigureLabel;
+  value?: number | null;
+  limited?: boolean;
+  limit?: number | null;
+}
+
+/**
+ * What one installed app reports of the community's usage.
+ */
+export interface AppUsageEntry {
+  app_id: number;
+  name: string;
+  available?: boolean;
+  figures?: AppUsageFigure[];
+}
+
+export interface AppUsageResponse {
+  items?: AppUsageEntry[];
+}
+
 export type AppWidgetReadMeta = { [key: string]: unknown };
 
 export type AppWidgetReadSampleData = { [key: string]: unknown };

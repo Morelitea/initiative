@@ -12,6 +12,7 @@ const state = vi.hoisted(() => ({
   usage: { usage_bytes: 0 } as { usage_bytes: number } | undefined,
   usageError: false,
   usageEnabled: [] as boolean[],
+  appUsage: undefined as { items: unknown[] } | undefined,
 }));
 
 vi.mock("@/hooks/useCommunities", async () => {
@@ -22,6 +23,9 @@ vi.mock("@/hooks/useCommunities", async () => {
 });
 vi.mock("@/hooks/useAppConfig", () => ({
   useAppConfig: () => ({ billing: state.billing }),
+}));
+vi.mock("@/api/generated/apps/apps", () => ({
+  useReadAppUsage: () => ({ data: state.appUsage }),
 }));
 vi.mock("@/api/generated/storage/storage", () => ({
   useReadStorageUsage: (_communityId: number, options: { query: { enabled: boolean } }) => {
@@ -49,14 +53,15 @@ describe("CommunityUsagePanel", () => {
     state.usage = { usage_bytes: 500 };
     state.usageError = false;
     state.usageEnabled = [];
+    state.appUsage = undefined;
   });
 
   it("renders storage and member usage against caps (FOSS, billing absent)", () => {
     renderWithProviders(<CommunityUsagePanel />);
     expect(screen.getByText("Storage")).toBeInTheDocument();
-    expect(screen.getByText("Members")).toBeInTheDocument();
-    // Members: 4 of 10 — the usage number renders from the community's own row.
-    expect(screen.getByText("4 of 10")).toBeInTheDocument();
+    expect(screen.getByText("Seats")).toBeInTheDocument();
+    // Seats: 4/10 — the usage number renders from the community's own row.
+    expect(screen.getByText("4/10")).toBeInTheDocument();
   });
 
   it("shows no plan or portal UI, even to the seat of a billed deployment", () => {
@@ -96,7 +101,7 @@ describe("CommunityUsagePanel", () => {
     expect(screen.getByText("Unavailable right now")).toBeInTheDocument();
     expect(screen.queryByText(/^0 B/)).not.toBeInTheDocument();
     // The member figure needs no request and still shows.
-    expect(screen.getByText("4 of 10")).toBeInTheDocument();
+    expect(screen.getByText("4/10")).toBeInTheDocument();
   });
 
   it("shows no storage figure while it is still loading", () => {
@@ -120,5 +125,86 @@ describe("CommunityUsagePanel", () => {
     renderWithProviders(<CommunityUsagePanel />);
     expect(state.usageEnabled.every(Boolean)).toBe(true);
     expect(screen.getByText(/500 B/)).toBeInTheDocument();
+  });
+
+  it("renders what each installed app reports, by the app's own labels", () => {
+    state.appUsage = {
+      items: [
+        {
+          app_id: 3,
+          name: "Automations",
+          available: true,
+          figures: [
+            {
+              key: "monthly_runs_remaining",
+              label: { en: "Monthly runs remaining" },
+              value: 320,
+              limited: true,
+              limit: 500,
+            },
+            {
+              key: "run_credits",
+              label: { en: "Run credits" },
+              value: 1200,
+              limited: false,
+              limit: null,
+            },
+          ],
+        },
+      ],
+    };
+    renderWithProviders(<CommunityUsagePanel />);
+    expect(screen.getByText("Automations")).toBeInTheDocument();
+    expect(screen.getByText("Monthly runs remaining")).toBeInTheDocument();
+    expect(screen.getByText("320/500")).toBeInTheDocument();
+    expect(screen.getByText("Run credits")).toBeInTheDocument();
+    expect(screen.getByText("1,200")).toBeInTheDocument();
+  });
+
+  it("says unlimited for a figure whose limit is null", () => {
+    state.appUsage = {
+      items: [
+        {
+          app_id: 3,
+          name: "Automations",
+          available: true,
+          figures: [
+            {
+              key: "monthly_runs_remaining",
+              label: { en: "Monthly runs remaining" },
+              value: null,
+              limited: true,
+              limit: null,
+            },
+          ],
+        },
+      ],
+    };
+    state.community = buildCommunity({ id: 7, role: "superadmin", max_users: 10, member_count: 4 });
+    renderWithProviders(<CommunityUsagePanel />);
+    expect(screen.getByText("Monthly runs remaining").nextSibling).toHaveTextContent("Unlimited");
+  });
+
+  it("names an app it could not read rather than showing zeros", () => {
+    state.appUsage = {
+      items: [
+        {
+          app_id: 3,
+          name: "Automations",
+          available: false,
+          figures: [
+            {
+              key: "run_credits",
+              label: { en: "Run credits" },
+              value: null,
+              limited: false,
+              limit: null,
+            },
+          ],
+        },
+      ],
+    };
+    renderWithProviders(<CommunityUsagePanel />);
+    expect(screen.getByText("Run credits").nextSibling).toHaveTextContent("Unavailable right now");
   });
 });

@@ -25,6 +25,7 @@ import type {
   AppParamOptionsResponse,
   AppPlacementRead,
   AppPlacementUpdate,
+  AppUsageResponse,
   AppWidgetCatalogResponse,
   CommunityAppConfigUpdate,
   CommunityAppConnectStart,
@@ -200,6 +201,137 @@ export function useReadAppWidgetCatalog<
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions = getReadAppWidgetCatalogQueryOptions(communityId, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * What this community's installed apps report it has used.
+ *
+ * Read on the settings surface by its admin rung, like the storage figure
+ * beside it: an administrator, or a settings grant at either rung. That rung
+ * is the gate for the endpoints' own ``admin_only`` too — the page is the
+ * seat's, and a support grantee holding it reads what an admin reads.
+ *
+ * One entry per enabled install declaring a usage endpoint
+ * (:func:`~app.services.marketplace.app_data.usage_endpoints`). An app that
+ * does not answer is listed as unavailable rather than failing the page.
+ * @summary Read App Usage
+ */
+export const readAppUsage = (
+  communityId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<AppUsageResponse>(
+    { url: `/api/v1/c/${communityId}/apps/usage`, method: "GET", signal },
+    options
+  );
+};
+
+export const getReadAppUsageQueryKey = (communityId: number) => {
+  return [`/api/v1/c/${communityId}/apps/usage`] as const;
+};
+
+export const getReadAppUsageQueryOptions = <
+  TData = Awaited<ReturnType<typeof readAppUsage>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  communityId: number,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readAppUsage>>, TError, TData>>;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getReadAppUsageQueryKey(communityId);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof readAppUsage>>> = ({ signal }) =>
+    readAppUsage(communityId, requestOptions, signal);
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: communityId !== null && communityId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<Awaited<ReturnType<typeof readAppUsage>>, TError, TData> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+};
+
+export type ReadAppUsageQueryResult = NonNullable<Awaited<ReturnType<typeof readAppUsage>>>;
+export type ReadAppUsageQueryError = ErrorType<HTTPValidationError>;
+
+export function useReadAppUsage<
+  TData = Awaited<ReturnType<typeof readAppUsage>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  communityId: number,
+  options: {
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof readAppUsage>>, TError, TData>> &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof readAppUsage>>,
+          TError,
+          Awaited<ReturnType<typeof readAppUsage>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadAppUsage<
+  TData = Awaited<ReturnType<typeof readAppUsage>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  communityId: number,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readAppUsage>>, TError, TData>> &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof readAppUsage>>,
+          TError,
+          Awaited<ReturnType<typeof readAppUsage>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadAppUsage<
+  TData = Awaited<ReturnType<typeof readAppUsage>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  communityId: number,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readAppUsage>>, TError, TData>>;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Read App Usage
+ */
+
+export function useReadAppUsage<
+  TData = Awaited<ReturnType<typeof readAppUsage>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  communityId: number,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readAppUsage>>, TError, TData>>;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getReadAppUsageQueryOptions(communityId, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;

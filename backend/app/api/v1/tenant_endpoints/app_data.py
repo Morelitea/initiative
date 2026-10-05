@@ -1,6 +1,6 @@
 """External data reaching a dashboard widget.
 
-Three reads, all guild-scoped, all under the caller's own session.
+Four reads, all guild-scoped, all under the caller's own session.
 
 ``/apps/widget-catalog`` is the palette: which installed apps contribute
 widgets, what each widget draws, and the module the browser will run in its
@@ -29,6 +29,10 @@ read here with no dashboard on it, because it exists to fill in a form for a
 widget nobody has placed yet — and what stands in for that gate is that the
 caller cannot name what gets called: the source comes from the app's own
 declaration, and it is fetched on the caller's own credentials.
+
+``/apps/usage`` is the community's Usage tab: each installed app's usage
+endpoint, read on the settings surface by the same rung as the storage and seat
+figures beside it.
 """
 
 from typing import Annotated, Any, Optional
@@ -41,6 +45,8 @@ from app.api.deps import (
     RLSSessionDep,
     GuildContextDep,
     CurrentUser,
+    SettingsAdminContextDep,
+    SettingsRLSSessionDep,
 )
 from app.core.messages import AppDataMessages
 from app.core.tools import Tool
@@ -54,6 +60,9 @@ from app.schemas.tenant.app_data import (
     AppEndpointRead,
     AppParamOption,
     AppParamOptionsResponse,
+    AppUsageEntry,
+    AppUsageFigure,
+    AppUsageResponse,
     AppWidgetCatalogEntry,
     AppWidgetCatalogResponse,
     AppWidgetRead,
@@ -201,6 +210,71 @@ async def read_app_widget_catalog(
             )
         )
     return AppWidgetCatalogResponse(items=items)
+
+
+# Also a literal path, declared before ``/{app_id}`` for the same reason.
+@router.get("/usage", response_model=AppUsageResponse)
+async def read_app_usage(
+    session: SettingsRLSSessionDep,
+    current_user: CurrentUser,
+    guild_context: SettingsAdminContextDep,
+) -> AppUsageResponse:
+    """What this community's installed apps report it has used.
+
+    Read on the settings surface by its admin rung, like the storage figure
+    beside it: an administrator, or a settings grant at either rung. That rung
+    is the gate for the endpoints' own ``admin_only`` too — the page is the
+    seat's, and a support grantee holding it reads what an admin reads.
+
+    One entry per enabled install declaring a usage endpoint
+    (:func:`~app.services.marketplace.app_data.usage_endpoints`). An app that
+    does not answer is listed as unavailable rather than failing the page.
+    """
+    apps = (
+        await session.exec(select(GuildApp).order_by(GuildApp.name, GuildApp.id))
+    ).all()
+
+    items: list[AppUsageEntry] = []
+    for app in apps:
+        if not app.enabled:
+            continue
+        endpoints = app_data_service.usage_endpoints(app.definition)
+        if not endpoints:
+            continue
+        available = True
+        figures: list[AppUsageFigure] = []
+        for endpoint in endpoints:
+            values: dict[str, Any] | None
+            try:
+                result = await app_data_service.fetch_app_source(
+                    session,
+                    app=app,
+                    endpoint_id=endpoint["id"],
+                    raw_params=None,
+                    user_id=current_user.id,
+                    is_guild_admin=True,
+                )
+                values = result.values
+            except app_data_service.AppDataError:
+                available = False
+                values = None
+            figures.extend(
+                AppUsageFigure(
+                    key=figure.key,
+                    label=figure.label,
+                    value=figure.value,
+                    limited=figure.limited,
+                    limit=figure.limit,
+                )
+                for figure in app_data_service.usage_figures(endpoint, values)
+            )
+        if figures:
+            items.append(
+                AppUsageEntry(
+                    app_id=app.id, name=app.name, available=available, figures=figures
+                )
+            )
+    return AppUsageResponse(items=items)
 
 
 @router.get("/{app_id}/endpoints/{endpoint_id}", response_model=AppDataResponse)

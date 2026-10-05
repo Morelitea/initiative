@@ -114,6 +114,8 @@ __all__ = [
     "row_columns",
     "project_returns",
     "resolve_param_options",
+    "usage_endpoints",
+    "usage_figures",
     "validate_params",
 ]
 
@@ -289,6 +291,108 @@ def project_returns(
         for index in range(length)
     ]
     return rows, values
+
+
+# --- usage figures ----------------------------------------------------------
+#
+# An app can report what a community has used of something it meters — runs,
+# credits, calls — on the community's Usage tab, beside storage and seats. It
+# does that with an ordinary read endpoint: ``group: "usage"`` (the group is the
+# consumer's vocabulary, and this is ours), ``admin_only``, no required
+# parameters. Each single ``int`` return is one figure, labelled by the return's
+# own label; a return named ``<key>_limit`` is the limit of ``<key>`` rather
+# than a figure of its own, and a null limit means unlimited.
+
+#: The endpoint group the Usage tab reads.
+USAGE_GROUP = "usage"
+
+#: What a return is named to be another return's limit.
+USAGE_LIMIT_SUFFIX = "_limit"
+
+
+@dataclass(frozen=True)
+class UsageFigure:
+    """One figure an app reported, read through the return that declared it."""
+
+    key: str
+    label: dict[str, str]
+    value: Optional[int]
+    #: Whether the endpoint declares a limit for this figure. ``limit`` None
+    #: beside it is unlimited; without it, the figure is a count on its own.
+    limited: bool = False
+    limit: Optional[int] = None
+
+
+def usage_endpoints(definition: Mapping[str, Any] | None) -> list[dict[str, Any]]:
+    """The read endpoints of a pinned definition the Usage tab draws.
+
+    Admin-only, because a community's consumption is the seat's business, and
+    taking no required parameter, because nothing on that page could supply one.
+    """
+    found: list[dict[str, Any]] = []
+    for endpoint in _endpoints(definition):
+        if (
+            endpoint.get("direction") != "read"
+            or endpoint.get("group") != USAGE_GROUP
+            or not isinstance(endpoint.get("id"), str)
+            or not is_admin_only(endpoint)
+        ):
+            continue
+        params = endpoint.get("params")
+        if isinstance(params, list) and any(
+            isinstance(param, dict) and param.get("required") is True
+            for param in params
+        ):
+            continue
+        found.append(endpoint)
+    return found
+
+
+def _usage_int(value: Any) -> Optional[int]:
+    """An int as sent, or None — a bool is not a count."""
+    return value if isinstance(value, int) and not isinstance(value, bool) else None
+
+
+def usage_figures(
+    endpoint: Mapping[str, Any], values: Mapping[str, Any] | None
+) -> list[UsageFigure]:
+    """The figures one usage endpoint declares, with what it answered.
+
+    ``values`` is None when the app did not answer: the figures are still the
+    declared ones, each with no value, so the page can name what it could not
+    read. A declared figure the app left out of an answer is dropped.
+    """
+    declared = {
+        entry["key"]: entry
+        for entry in _declared_returns(endpoint)
+        if entry.get("type") == "int" and entry.get("list") is not True
+    }
+    figures: list[UsageFigure] = []
+    for key, entry in declared.items():
+        if (
+            key.endswith(USAGE_LIMIT_SUFFIX)
+            and key[: -len(USAGE_LIMIT_SUFFIX)] in declared
+        ):
+            continue
+        if values is not None and key not in values:
+            continue
+        limit_key = f"{key}{USAGE_LIMIT_SUFFIX}"
+        limited = limit_key in declared
+        label = entry.get("label")
+        figures.append(
+            UsageFigure(
+                key=key,
+                label=dict(label) if isinstance(label, dict) else {},
+                value=None if values is None else _usage_int(values.get(key)),
+                limited=limited,
+                limit=(
+                    _usage_int(values.get(limit_key))
+                    if limited and values is not None
+                    else None
+                ),
+            )
+        )
+    return figures
 
 
 # --- parameters -------------------------------------------------------------

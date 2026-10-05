@@ -1515,3 +1515,155 @@ class TestDeclarative:
 
         assert response.status_code == 502
         assert response.json()["detail"] == AppDataMessages.SERVICE_UNAVAILABLE
+
+
+# ---------------------------------------------------------------------------
+# The Usage tab
+# ---------------------------------------------------------------------------
+
+RUN_USAGE = f"app.{PUBLIC_ID}.run-usage"
+
+
+def _usage_definition(**usage_overrides) -> dict:
+    """A service app reporting two figures: one with a limit, one without."""
+    return {
+        "app_kind": "service",
+        "service": {"public_id": PUBLIC_ID, "protocol": 1},
+        "features": ["endpoints"],
+        "endpoints": [
+            {
+                "id": RUN_USAGE,
+                "direction": "read",
+                "group": "usage",
+                "admin_only": True,
+                "returns": [
+                    {"key": "monthly", "type": "int", "label": {"en": "Monthly"}},
+                    {
+                        "key": "monthly_limit",
+                        "type": "int",
+                        "label": {"en": "Monthly allowance"},
+                    },
+                    {"key": "credits", "type": "int", "label": {"en": "Credits"}},
+                ],
+                **usage_overrides,
+            },
+            # Not for the Usage tab: an ordinary read beside it.
+            {
+                "id": ORDERS_SUMMARY,
+                "direction": "read",
+                "returns": [{"key": "total", "type": "int"}],
+            },
+        ],
+    }
+
+
+async def _usage_workspace(session: AsyncSession, acting_user, **overrides):
+    a = await acting_user(guild_role=CommunityRole.admin)
+    await _register(session)
+    app = await create_guild_app(
+        session,
+        a.guild,
+        a.user,
+        definition=overrides.pop("definition", None) or _usage_definition(),
+        listing_uid=APP_UID,
+        name="Shop",
+        **overrides,
+    )
+    return a, app
+
+
+class TestUsage:
+    async def test_an_admin_reads_each_figure_beside_its_limit(
+        self, client, acting_user, session, upstream
+    ):
+        a, app = await _usage_workspace(session, acting_user)
+        upstream.values = {"monthly": 320, "monthly_limit": 500, "credits": 1200}
+
+        response = await client.get(a.g("/apps/usage"), headers=a.headers)
+        assert response.status_code == 200, response.text
+        assert response.json() == {
+            "items": [
+                {
+                    "app_id": app.id,
+                    "name": "Shop",
+                    "available": True,
+                    "figures": [
+                        {
+                            "key": "monthly",
+                            "label": {"en": "Monthly"},
+                            "value": 320,
+                            "limited": True,
+                            "limit": 500,
+                        },
+                        {
+                            "key": "credits",
+                            "label": {"en": "Credits"},
+                            "value": 1200,
+                            "limited": False,
+                            "limit": None,
+                        },
+                    ],
+                }
+            ]
+        }
+        # One call, for the usage endpoint alone.
+        assert upstream.count == 1
+        assert json.loads(upstream.calls[0].content)["endpoint"] == RUN_USAGE
+
+    async def test_a_null_limit_is_unlimited(
+        self, client, acting_user, session, upstream
+    ):
+        a, _ = await _usage_workspace(session, acting_user)
+        upstream.values = {"monthly": None, "monthly_limit": None, "credits": 0}
+
+        response = await client.get(a.g("/apps/usage"), headers=a.headers)
+        assert response.status_code == 200, response.text
+        monthly = response.json()["items"][0]["figures"][0]
+        assert monthly["limited"] is True
+        assert monthly["value"] is None
+        assert monthly["limit"] is None
+
+    async def test_an_app_that_does_not_answer_is_listed_as_unavailable(
+        self, client, acting_user, session, upstream
+    ):
+        a, _ = await _usage_workspace(session, acting_user)
+        upstream.error = app_data_service.AppDataError(
+            AppDataMessages.SERVICE_UNAVAILABLE, 502
+        )
+
+        response = await client.get(a.g("/apps/usage"), headers=a.headers)
+        assert response.status_code == 200, response.text
+        entry = response.json()["items"][0]
+        assert entry["available"] is False
+        assert [f["key"] for f in entry["figures"]] == ["monthly", "credits"]
+        assert all(f["value"] is None for f in entry["figures"])
+
+    async def test_a_member_reads_nothing(self, client, acting_user, session, upstream):
+        a, _ = await _usage_workspace(session, acting_user)
+        member = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
+
+        response = await client.get(member.g("/apps/usage"), headers=member.headers)
+        assert response.status_code == 403
+        assert upstream.count == 0
+
+    async def test_an_endpoint_not_for_admins_alone_is_not_read(
+        self, client, acting_user, session, upstream
+    ):
+        a, _ = await _usage_workspace(
+            session, acting_user, definition=_usage_definition(admin_only=False)
+        )
+
+        response = await client.get(a.g("/apps/usage"), headers=a.headers)
+        assert response.status_code == 200, response.text
+        assert response.json() == {"items": []}
+        assert upstream.count == 0
+
+    async def test_a_disabled_install_is_left_out(
+        self, client, acting_user, session, upstream
+    ):
+        a, _ = await _usage_workspace(session, acting_user, enabled=False)
+
+        response = await client.get(a.g("/apps/usage"), headers=a.headers)
+        assert response.status_code == 200, response.text
+        assert response.json() == {"items": []}
+        assert upstream.count == 0
