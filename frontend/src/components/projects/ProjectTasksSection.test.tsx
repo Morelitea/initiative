@@ -21,11 +21,11 @@ import {
   buildTask,
   buildTaskListResponse,
 } from "@/__tests__/factories";
-import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
 import { ProjectTasksSection } from "@/components/projects/ProjectTasksSection";
-import { toast } from "@/lib/chesterToast";
+import { toast } from "@/lib/mascotToast";
 import { fireTaskCompletionFeedback } from "@/lib/taskCompletionFeedback";
 
 vi.mock("@/lib/taskCompletionFeedback", async (importOriginal) => ({
@@ -41,7 +41,7 @@ let lastConditions: Condition[] = [];
 const captureTaskRequests = () => {
   lastConditions = [];
   server.use(
-    guildHttp.get("/tasks/", ({ request }) => {
+    communityHttp.get("/tasks/", ({ request }) => {
       const raw = new URL(request.url).searchParams.get("conditions");
       if (raw) lastConditions = JSON.parse(raw) as Condition[];
       return HttpResponse.json(buildTaskListResponse([]));
@@ -66,10 +66,10 @@ const section = (options: { routerSearch?: Record<string, unknown> } = {}) =>
 
 const fieldsUsed = () => lastConditions.map((entry) => entry.field ?? `group:${entry.logic}`);
 
-/** The guild's tags, which the default handler leaves empty. */
+/** The community's tags, which the default handler leaves empty. */
 const withTags = (ids: number[]) => {
   server.use(
-    guildHttp.get("/tags/", () =>
+    communityHttp.get("/tags/", () =>
       HttpResponse.json(ids.map((id) => buildTag({ id, name: `Tag ${id}` })))
     )
   );
@@ -294,7 +294,7 @@ describe("ProjectTasksSection presets", () => {
     // An id that cannot be checked may be hiding every task in the project.
     // Showing more than was asked for is recoverable; an unexplained empty
     // list is not.
-    server.use(guildHttp.get("/tags/", () => new HttpResponse(null, { status: 500 })));
+    server.use(communityHttp.get("/tags/", () => new HttpResponse(null, { status: 500 })));
     rememberFilters({ tag_ids: [7] });
     section();
 
@@ -314,7 +314,7 @@ describe("ProjectTasksSection presets", () => {
 
   it("hides the curation affordances from someone who may not curate", async () => {
     server.use(
-      guildHttp.get("/projects/:projectId/filter-presets/", () =>
+      communityHttp.get("/projects/:projectId/filter-presets/", () =>
         HttpResponse.json({ items: [], can_manage: false })
       )
     );
@@ -376,7 +376,7 @@ describe("ProjectTasksSection presets", () => {
 
   it("offers the way back even to someone who may not curate presets", async () => {
     server.use(
-      guildHttp.get("/projects/:projectId/filter-presets/", () =>
+      communityHttp.get("/projects/:projectId/filter-presets/", () =>
         HttpResponse.json({ items: buildDefaultFilterPresets(1), can_manage: false })
       )
     );
@@ -434,8 +434,8 @@ describe("ProjectTasksSection ticking tasks off", () => {
       })
     );
     server.use(
-      guildHttp.get("/tasks/", () => HttpResponse.json(buildTaskListResponse(tasks))),
-      guildHttp.patch(
+      communityHttp.get("/tasks/", () => HttpResponse.json(buildTaskListResponse(tasks))),
+      communityHttp.patch(
         "/tasks/:taskId",
         () => new Promise<Response>((resolve) => replies.push(resolve))
       )

@@ -37,8 +37,8 @@ import {
   useWiki,
   useWikiPages,
 } from "@/hooks/useWikis";
-import { toast } from "@/lib/chesterToast";
-import { useGuildPath } from "@/lib/guildUrl";
+import { useCommunityPath } from "@/lib/communityUrl";
+import { toast } from "@/lib/mascotToast";
 import { TOOL_ICONS, toolSettingsRoute, wikiDocumentRoute, wikiPageRoute } from "@/lib/tools";
 
 // Adding a document to a wiki is named by the documents tool itself, so the row
@@ -73,7 +73,7 @@ export const WikiSidebarContent = ({
   onBack,
 }: WikiSidebarContentProps) => {
   const { t } = useTranslation("wikis");
-  const gp = useGuildPath();
+  const gp = useCommunityPath();
   const navigate = useNavigate();
 
   const wikiQuery = useWiki(wikiId);

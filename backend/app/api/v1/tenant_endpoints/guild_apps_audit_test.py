@@ -17,7 +17,7 @@ from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.audit_events import AuditEventType
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.testing import (
     create_app_service_registration,
     create_guild_app,
@@ -85,7 +85,7 @@ class TestInstalling:
     async def test_an_install_records_its_listing_and_how_it_arrived(
         self, client: AsyncClient, acting_user, calendar_app, capfd
     ):
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
         capfd.readouterr()
         app = await _install(client, a)
 
@@ -106,8 +106,8 @@ class TestInstalling:
     ):
         """The seat is the gate, and a request that never got past it did not
         install anything to write down."""
-        a = await acting_user(guild_role=GuildRole.superadmin)
-        member = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
+        member = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
         capfd.readouterr()
 
         response = await client.post(
@@ -126,7 +126,7 @@ class TestManaging:
     ):
         """A name is a string, so the record says it moved and stops there;
         a flag is copied, because its type rules out anything else."""
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
         app = await _install(client, a)
         capfd.readouterr()
 
@@ -150,7 +150,7 @@ class TestManaging:
     async def test_a_patch_that_moves_nothing_records_nothing(
         self, client: AsyncClient, acting_user, calendar_app, capfd
     ):
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
         app = await _install(client, a)
         capfd.readouterr()
 
@@ -174,7 +174,7 @@ class TestManaging:
             version="1.0.0",
             definition=_tool_definition(),
         )
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
         installed = await client.post(
             a.g("/apps/"), headers=a.headers, json={"listing_uid": UPGRADE_APP_UID}
         )
@@ -215,7 +215,7 @@ class TestConfiguring:
     async def test_config_records_the_field_names_and_none_of_the_values(
         self, client: AsyncClient, session: AsyncSession, acting_user, capfd
     ):
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
         app = await create_guild_app(
             session, a.guild, a.user, definition=SERVICE_DEFINITION
         )
@@ -249,7 +249,7 @@ class TestUninstalling:
     async def test_removal_records_what_went_with_it(
         self, client: AsyncClient, acting_user, calendar_app, capfd
     ):
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
         app = await _install(client, a)
         capfd.readouterr()
 

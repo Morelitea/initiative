@@ -21,9 +21,9 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
-  GuildNarrowingPending,
+  CommunityNarrowingPending,
   HTTPValidationError,
-  ListPlacementCommunitiesApiV1SettingsPlacementCommunitiesGetParams,
+  ListPlacementCommunitiesParams,
   PlacementCommunityRead,
   PlacementEverywhereUpdate,
   PlacementInitiativeRead,
@@ -57,7 +57,7 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
  * Every provider, its rules, and whether rules apply everywhere.
  * @summary List Provider Placement
  */
-export const listProviderPlacementApiV1SettingsPlacementGet = (
+export const listProviderPlacement = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
@@ -67,62 +67,51 @@ export const listProviderPlacementApiV1SettingsPlacementGet = (
   );
 };
 
-export const getListProviderPlacementApiV1SettingsPlacementGetQueryKey = () => {
+export const getListProviderPlacementQueryKey = () => {
   return [`/api/v1/settings/placement/`] as const;
 };
 
-export const getListProviderPlacementApiV1SettingsPlacementGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof listProviderPlacementApiV1SettingsPlacementGet>>,
+export const getListProviderPlacementQueryOptions = <
+  TData = Awaited<ReturnType<typeof listProviderPlacement>>,
   TError = ErrorType<HTTPValidationError>,
 >(options?: {
   query?: Partial<
-    UseQueryOptions<
-      Awaited<ReturnType<typeof listProviderPlacementApiV1SettingsPlacementGet>>,
-      TError,
-      TData
-    >
+    UseQueryOptions<Awaited<ReturnType<typeof listProviderPlacement>>, TError, TData>
   >;
   request?: SecondParameter<typeof apiMutator>;
 }) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey =
-    queryOptions?.queryKey ?? getListProviderPlacementApiV1SettingsPlacementGetQueryKey();
+  const queryKey = queryOptions?.queryKey ?? getListProviderPlacementQueryKey();
 
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof listProviderPlacementApiV1SettingsPlacementGet>>
-  > = ({ signal }) => listProviderPlacementApiV1SettingsPlacementGet(requestOptions, signal);
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listProviderPlacement>>> = ({ signal }) =>
+    listProviderPlacement(requestOptions, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof listProviderPlacementApiV1SettingsPlacementGet>>,
+    Awaited<ReturnType<typeof listProviderPlacement>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ListProviderPlacementApiV1SettingsPlacementGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof listProviderPlacementApiV1SettingsPlacementGet>>
+export type ListProviderPlacementQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listProviderPlacement>>
 >;
-export type ListProviderPlacementApiV1SettingsPlacementGetQueryError =
-  ErrorType<HTTPValidationError>;
+export type ListProviderPlacementQueryError = ErrorType<HTTPValidationError>;
 
-export function useListProviderPlacementApiV1SettingsPlacementGet<
-  TData = Awaited<ReturnType<typeof listProviderPlacementApiV1SettingsPlacementGet>>,
+export function useListProviderPlacement<
+  TData = Awaited<ReturnType<typeof listProviderPlacement>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options: {
     query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listProviderPlacementApiV1SettingsPlacementGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof listProviderPlacement>>, TError, TData>
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listProviderPlacementApiV1SettingsPlacementGet>>,
+          Awaited<ReturnType<typeof listProviderPlacement>>,
           TError,
-          Awaited<ReturnType<typeof listProviderPlacementApiV1SettingsPlacementGet>>
+          Awaited<ReturnType<typeof listProviderPlacement>>
         >,
         "initialData"
       >;
@@ -130,23 +119,19 @@ export function useListProviderPlacementApiV1SettingsPlacementGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListProviderPlacementApiV1SettingsPlacementGet<
-  TData = Awaited<ReturnType<typeof listProviderPlacementApiV1SettingsPlacementGet>>,
+export function useListProviderPlacement<
+  TData = Awaited<ReturnType<typeof listProviderPlacement>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listProviderPlacementApiV1SettingsPlacementGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof listProviderPlacement>>, TError, TData>
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listProviderPlacementApiV1SettingsPlacementGet>>,
+          Awaited<ReturnType<typeof listProviderPlacement>>,
           TError,
-          Awaited<ReturnType<typeof listProviderPlacementApiV1SettingsPlacementGet>>
+          Awaited<ReturnType<typeof listProviderPlacement>>
         >,
         "initialData"
       >;
@@ -154,17 +139,13 @@ export function useListProviderPlacementApiV1SettingsPlacementGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListProviderPlacementApiV1SettingsPlacementGet<
-  TData = Awaited<ReturnType<typeof listProviderPlacementApiV1SettingsPlacementGet>>,
+export function useListProviderPlacement<
+  TData = Awaited<ReturnType<typeof listProviderPlacement>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listProviderPlacementApiV1SettingsPlacementGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof listProviderPlacement>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
@@ -174,23 +155,19 @@ export function useListProviderPlacementApiV1SettingsPlacementGet<
  * @summary List Provider Placement
  */
 
-export function useListProviderPlacementApiV1SettingsPlacementGet<
-  TData = Awaited<ReturnType<typeof listProviderPlacementApiV1SettingsPlacementGet>>,
+export function useListProviderPlacement<
+  TData = Awaited<ReturnType<typeof listProviderPlacement>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listProviderPlacementApiV1SettingsPlacementGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof listProviderPlacement>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListProviderPlacementApiV1SettingsPlacementGetQueryOptions(options);
+  const queryOptions = getListProviderPlacementQueryOptions(options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -204,73 +181,61 @@ export function useListProviderPlacementApiV1SettingsPlacementGet<
  * they named is theirs. Answered on the community's own narrowing route.
  * @summary List Placement Requests
  */
-export const listPlacementRequestsApiV1SettingsPlacementRequestsGet = (
+export const listPlacementRequests = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<GuildNarrowingPending[]>(
+  return apiMutator<CommunityNarrowingPending[]>(
     { url: `/api/v1/settings/placement/requests`, method: "GET", signal },
     options
   );
 };
 
-export const getListPlacementRequestsApiV1SettingsPlacementRequestsGetQueryKey = () => {
+export const getListPlacementRequestsQueryKey = () => {
   return [`/api/v1/settings/placement/requests`] as const;
 };
 
-export const getListPlacementRequestsApiV1SettingsPlacementRequestsGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof listPlacementRequestsApiV1SettingsPlacementRequestsGet>>,
+export const getListPlacementRequestsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listPlacementRequests>>,
   TError = ErrorType<HTTPValidationError>,
 >(options?: {
   query?: Partial<
-    UseQueryOptions<
-      Awaited<ReturnType<typeof listPlacementRequestsApiV1SettingsPlacementRequestsGet>>,
-      TError,
-      TData
-    >
+    UseQueryOptions<Awaited<ReturnType<typeof listPlacementRequests>>, TError, TData>
   >;
   request?: SecondParameter<typeof apiMutator>;
 }) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey =
-    queryOptions?.queryKey ?? getListPlacementRequestsApiV1SettingsPlacementRequestsGetQueryKey();
+  const queryKey = queryOptions?.queryKey ?? getListPlacementRequestsQueryKey();
 
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof listPlacementRequestsApiV1SettingsPlacementRequestsGet>>
-  > = ({ signal }) =>
-    listPlacementRequestsApiV1SettingsPlacementRequestsGet(requestOptions, signal);
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listPlacementRequests>>> = ({ signal }) =>
+    listPlacementRequests(requestOptions, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof listPlacementRequestsApiV1SettingsPlacementRequestsGet>>,
+    Awaited<ReturnType<typeof listPlacementRequests>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ListPlacementRequestsApiV1SettingsPlacementRequestsGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof listPlacementRequestsApiV1SettingsPlacementRequestsGet>>
+export type ListPlacementRequestsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listPlacementRequests>>
 >;
-export type ListPlacementRequestsApiV1SettingsPlacementRequestsGetQueryError =
-  ErrorType<HTTPValidationError>;
+export type ListPlacementRequestsQueryError = ErrorType<HTTPValidationError>;
 
-export function useListPlacementRequestsApiV1SettingsPlacementRequestsGet<
-  TData = Awaited<ReturnType<typeof listPlacementRequestsApiV1SettingsPlacementRequestsGet>>,
+export function useListPlacementRequests<
+  TData = Awaited<ReturnType<typeof listPlacementRequests>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options: {
     query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listPlacementRequestsApiV1SettingsPlacementRequestsGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof listPlacementRequests>>, TError, TData>
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listPlacementRequestsApiV1SettingsPlacementRequestsGet>>,
+          Awaited<ReturnType<typeof listPlacementRequests>>,
           TError,
-          Awaited<ReturnType<typeof listPlacementRequestsApiV1SettingsPlacementRequestsGet>>
+          Awaited<ReturnType<typeof listPlacementRequests>>
         >,
         "initialData"
       >;
@@ -278,23 +243,19 @@ export function useListPlacementRequestsApiV1SettingsPlacementRequestsGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListPlacementRequestsApiV1SettingsPlacementRequestsGet<
-  TData = Awaited<ReturnType<typeof listPlacementRequestsApiV1SettingsPlacementRequestsGet>>,
+export function useListPlacementRequests<
+  TData = Awaited<ReturnType<typeof listPlacementRequests>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listPlacementRequestsApiV1SettingsPlacementRequestsGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof listPlacementRequests>>, TError, TData>
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listPlacementRequestsApiV1SettingsPlacementRequestsGet>>,
+          Awaited<ReturnType<typeof listPlacementRequests>>,
           TError,
-          Awaited<ReturnType<typeof listPlacementRequestsApiV1SettingsPlacementRequestsGet>>
+          Awaited<ReturnType<typeof listPlacementRequests>>
         >,
         "initialData"
       >;
@@ -302,17 +263,13 @@ export function useListPlacementRequestsApiV1SettingsPlacementRequestsGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListPlacementRequestsApiV1SettingsPlacementRequestsGet<
-  TData = Awaited<ReturnType<typeof listPlacementRequestsApiV1SettingsPlacementRequestsGet>>,
+export function useListPlacementRequests<
+  TData = Awaited<ReturnType<typeof listPlacementRequests>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listPlacementRequestsApiV1SettingsPlacementRequestsGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof listPlacementRequests>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
@@ -322,24 +279,19 @@ export function useListPlacementRequestsApiV1SettingsPlacementRequestsGet<
  * @summary List Placement Requests
  */
 
-export function useListPlacementRequestsApiV1SettingsPlacementRequestsGet<
-  TData = Awaited<ReturnType<typeof listPlacementRequestsApiV1SettingsPlacementRequestsGet>>,
+export function useListPlacementRequests<
+  TData = Awaited<ReturnType<typeof listPlacementRequests>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listPlacementRequestsApiV1SettingsPlacementRequestsGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof listPlacementRequests>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions =
-    getListPlacementRequestsApiV1SettingsPlacementRequestsGetQueryOptions(options);
+  const queryOptions = getListPlacementRequestsQueryOptions(options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -353,7 +305,7 @@ export function useListPlacementRequestsApiV1SettingsPlacementRequestsGet<
  * that accepted them. Recorded on every change.
  * @summary Set Provider Placement Everywhere
  */
-export const setProviderPlacementEverywhereApiV1SettingsPlacementEverywherePut = (
+export const setProviderPlacementEverywhere = (
   placementEverywhereUpdate: BodyType<PlacementEverywhereUpdate>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
@@ -370,28 +322,27 @@ export const setProviderPlacementEverywhereApiV1SettingsPlacementEverywherePut =
   );
 };
 
-export const getSetProviderPlacementEverywhereApiV1SettingsPlacementEverywherePutMutationKey = () =>
-  ["setProviderPlacementEverywhereApiV1SettingsPlacementEverywherePut"] as const;
+export const getSetProviderPlacementEverywhereMutationKey = () =>
+  ["setProviderPlacementEverywhere"] as const;
 
-export const getSetProviderPlacementEverywhereApiV1SettingsPlacementEverywherePutMutationOptions = <
+export const getSetProviderPlacementEverywhereMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof setProviderPlacementEverywhereApiV1SettingsPlacementEverywherePut>>,
+    Awaited<ReturnType<typeof setProviderPlacementEverywhere>>,
     TError,
-    SetProviderPlacementEverywhereApiV1SettingsPlacementEverywherePutMutationVariables,
+    SetProviderPlacementEverywhereMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof setProviderPlacementEverywhereApiV1SettingsPlacementEverywherePut>>,
+  Awaited<ReturnType<typeof setProviderPlacementEverywhere>>,
   TError,
-  SetProviderPlacementEverywhereApiV1SettingsPlacementEverywherePutMutationVariables,
+  SetProviderPlacementEverywhereMutationVariables,
   TContext
 > => {
-  const mutationKey =
-    getSetProviderPlacementEverywhereApiV1SettingsPlacementEverywherePutMutationKey();
+  const mutationKey = getSetProviderPlacementEverywhereMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -399,63 +350,57 @@ export const getSetProviderPlacementEverywhereApiV1SettingsPlacementEverywherePu
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof setProviderPlacementEverywhereApiV1SettingsPlacementEverywherePut>>,
-    SetProviderPlacementEverywhereApiV1SettingsPlacementEverywherePutMutationVariables
+    Awaited<ReturnType<typeof setProviderPlacementEverywhere>>,
+    SetProviderPlacementEverywhereMutationVariables
   > = (props) => {
     const { data } = props ?? {};
 
-    return setProviderPlacementEverywhereApiV1SettingsPlacementEverywherePut(data, requestOptions);
+    return setProviderPlacementEverywhere(data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type SetProviderPlacementEverywhereApiV1SettingsPlacementEverywherePutMutationResult =
-  NonNullable<
-    Awaited<ReturnType<typeof setProviderPlacementEverywhereApiV1SettingsPlacementEverywherePut>>
-  >;
-export type SetProviderPlacementEverywhereApiV1SettingsPlacementEverywherePutMutationBody =
-  BodyType<PlacementEverywhereUpdate>;
-export type SetProviderPlacementEverywhereApiV1SettingsPlacementEverywherePutMutationError =
-  ErrorType<HTTPValidationError>;
-export type SetProviderPlacementEverywhereApiV1SettingsPlacementEverywherePutMutationVariables = {
+export type SetProviderPlacementEverywhereMutationResult = NonNullable<
+  Awaited<ReturnType<typeof setProviderPlacementEverywhere>>
+>;
+export type SetProviderPlacementEverywhereMutationBody = BodyType<PlacementEverywhereUpdate>;
+export type SetProviderPlacementEverywhereMutationError = ErrorType<HTTPValidationError>;
+export type SetProviderPlacementEverywhereMutationVariables = {
   data: BodyType<PlacementEverywhereUpdate>;
 };
 
 /**
  * @summary Set Provider Placement Everywhere
  */
-export const useSetProviderPlacementEverywhereApiV1SettingsPlacementEverywherePut = <
+export const useSetProviderPlacementEverywhere = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof setProviderPlacementEverywhereApiV1SettingsPlacementEverywherePut>>,
+      Awaited<ReturnType<typeof setProviderPlacementEverywhere>>,
       TError,
-      SetProviderPlacementEverywhereApiV1SettingsPlacementEverywherePutMutationVariables,
+      SetProviderPlacementEverywhereMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof setProviderPlacementEverywhereApiV1SettingsPlacementEverywherePut>>,
+  Awaited<ReturnType<typeof setProviderPlacementEverywhere>>,
   TError,
-  SetProviderPlacementEverywhereApiV1SettingsPlacementEverywherePutMutationVariables,
+  SetProviderPlacementEverywhereMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getSetProviderPlacementEverywhereApiV1SettingsPlacementEverywherePutMutationOptions(options),
-    queryClient
-  );
+  return useMutation(getSetProviderPlacementEverywhereMutationOptions(options), queryClient);
 };
 /**
  * Communities a rule for this provider may name, by name.
  * @summary List Placement Communities
  */
-export const listPlacementCommunitiesApiV1SettingsPlacementCommunitiesGet = (
-  params: ListPlacementCommunitiesApiV1SettingsPlacementCommunitiesGetParams,
+export const listPlacementCommunities = (
+  params: ListPlacementCommunitiesParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
@@ -465,70 +410,56 @@ export const listPlacementCommunitiesApiV1SettingsPlacementCommunitiesGet = (
   );
 };
 
-export const getListPlacementCommunitiesApiV1SettingsPlacementCommunitiesGetQueryKey = (
-  params?: ListPlacementCommunitiesApiV1SettingsPlacementCommunitiesGetParams
-) => {
+export const getListPlacementCommunitiesQueryKey = (params?: ListPlacementCommunitiesParams) => {
   return [`/api/v1/settings/placement/communities`, ...(params ? [params] : [])] as const;
 };
 
-export const getListPlacementCommunitiesApiV1SettingsPlacementCommunitiesGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof listPlacementCommunitiesApiV1SettingsPlacementCommunitiesGet>>,
+export const getListPlacementCommunitiesQueryOptions = <
+  TData = Awaited<ReturnType<typeof listPlacementCommunities>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params: ListPlacementCommunitiesApiV1SettingsPlacementCommunitiesGetParams,
+  params: ListPlacementCommunitiesParams,
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listPlacementCommunitiesApiV1SettingsPlacementCommunitiesGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof listPlacementCommunities>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   }
 ) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey =
-    queryOptions?.queryKey ??
-    getListPlacementCommunitiesApiV1SettingsPlacementCommunitiesGetQueryKey(params);
+  const queryKey = queryOptions?.queryKey ?? getListPlacementCommunitiesQueryKey(params);
 
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof listPlacementCommunitiesApiV1SettingsPlacementCommunitiesGet>>
-  > = ({ signal }) =>
-    listPlacementCommunitiesApiV1SettingsPlacementCommunitiesGet(params, requestOptions, signal);
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listPlacementCommunities>>> = ({
+    signal,
+  }) => listPlacementCommunities(params, requestOptions, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof listPlacementCommunitiesApiV1SettingsPlacementCommunitiesGet>>,
+    Awaited<ReturnType<typeof listPlacementCommunities>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ListPlacementCommunitiesApiV1SettingsPlacementCommunitiesGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof listPlacementCommunitiesApiV1SettingsPlacementCommunitiesGet>>
+export type ListPlacementCommunitiesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listPlacementCommunities>>
 >;
-export type ListPlacementCommunitiesApiV1SettingsPlacementCommunitiesGetQueryError =
-  ErrorType<HTTPValidationError>;
+export type ListPlacementCommunitiesQueryError = ErrorType<HTTPValidationError>;
 
-export function useListPlacementCommunitiesApiV1SettingsPlacementCommunitiesGet<
-  TData = Awaited<ReturnType<typeof listPlacementCommunitiesApiV1SettingsPlacementCommunitiesGet>>,
+export function useListPlacementCommunities<
+  TData = Awaited<ReturnType<typeof listPlacementCommunities>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params: ListPlacementCommunitiesApiV1SettingsPlacementCommunitiesGetParams,
+  params: ListPlacementCommunitiesParams,
   options: {
     query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listPlacementCommunitiesApiV1SettingsPlacementCommunitiesGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof listPlacementCommunities>>, TError, TData>
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listPlacementCommunitiesApiV1SettingsPlacementCommunitiesGet>>,
+          Awaited<ReturnType<typeof listPlacementCommunities>>,
           TError,
-          Awaited<ReturnType<typeof listPlacementCommunitiesApiV1SettingsPlacementCommunitiesGet>>
+          Awaited<ReturnType<typeof listPlacementCommunities>>
         >,
         "initialData"
       >;
@@ -536,24 +467,20 @@ export function useListPlacementCommunitiesApiV1SettingsPlacementCommunitiesGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListPlacementCommunitiesApiV1SettingsPlacementCommunitiesGet<
-  TData = Awaited<ReturnType<typeof listPlacementCommunitiesApiV1SettingsPlacementCommunitiesGet>>,
+export function useListPlacementCommunities<
+  TData = Awaited<ReturnType<typeof listPlacementCommunities>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params: ListPlacementCommunitiesApiV1SettingsPlacementCommunitiesGetParams,
+  params: ListPlacementCommunitiesParams,
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listPlacementCommunitiesApiV1SettingsPlacementCommunitiesGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof listPlacementCommunities>>, TError, TData>
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listPlacementCommunitiesApiV1SettingsPlacementCommunitiesGet>>,
+          Awaited<ReturnType<typeof listPlacementCommunities>>,
           TError,
-          Awaited<ReturnType<typeof listPlacementCommunitiesApiV1SettingsPlacementCommunitiesGet>>
+          Awaited<ReturnType<typeof listPlacementCommunities>>
         >,
         "initialData"
       >;
@@ -561,18 +488,14 @@ export function useListPlacementCommunitiesApiV1SettingsPlacementCommunitiesGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListPlacementCommunitiesApiV1SettingsPlacementCommunitiesGet<
-  TData = Awaited<ReturnType<typeof listPlacementCommunitiesApiV1SettingsPlacementCommunitiesGet>>,
+export function useListPlacementCommunities<
+  TData = Awaited<ReturnType<typeof listPlacementCommunities>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params: ListPlacementCommunitiesApiV1SettingsPlacementCommunitiesGetParams,
+  params: ListPlacementCommunitiesParams,
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listPlacementCommunitiesApiV1SettingsPlacementCommunitiesGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof listPlacementCommunities>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
@@ -582,27 +505,20 @@ export function useListPlacementCommunitiesApiV1SettingsPlacementCommunitiesGet<
  * @summary List Placement Communities
  */
 
-export function useListPlacementCommunitiesApiV1SettingsPlacementCommunitiesGet<
-  TData = Awaited<ReturnType<typeof listPlacementCommunitiesApiV1SettingsPlacementCommunitiesGet>>,
+export function useListPlacementCommunities<
+  TData = Awaited<ReturnType<typeof listPlacementCommunities>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params: ListPlacementCommunitiesApiV1SettingsPlacementCommunitiesGetParams,
+  params: ListPlacementCommunitiesParams,
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listPlacementCommunitiesApiV1SettingsPlacementCommunitiesGet>>,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof listPlacementCommunities>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListPlacementCommunitiesApiV1SettingsPlacementCommunitiesGetQueryOptions(
-    params,
-    options
-  );
+  const queryOptions = getListPlacementCommunitiesQueryOptions(params, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -616,145 +532,83 @@ export function useListPlacementCommunitiesApiV1SettingsPlacementCommunitiesGet<
  * in, for a community this provider's rules apply to.
  * @summary List Placement Targets
  */
-export const listPlacementTargetsApiV1SettingsPlacementProvidersProviderIdCommunitiesGuildIdInitiativesGet =
-  (
-    providerId: number,
-    guildId: number,
-    options?: SecondParameter<typeof apiMutator>,
-    signal?: AbortSignal
-  ) => {
-    return apiMutator<PlacementInitiativeRead[]>(
-      {
-        url: `/api/v1/settings/placement/providers/${providerId}/communities/${guildId}/initiatives`,
-        method: "GET",
-        signal,
-      },
-      options
-    );
-  };
+export const listPlacementTargets = (
+  providerId: number,
+  communityId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<PlacementInitiativeRead[]>(
+    {
+      url: `/api/v1/settings/placement/providers/${providerId}/communities/${communityId}/initiatives`,
+      method: "GET",
+      signal,
+    },
+    options
+  );
+};
 
-export const getListPlacementTargetsApiV1SettingsPlacementProvidersProviderIdCommunitiesGuildIdInitiativesGetQueryKey =
-  (providerId: number, guildId: number) => {
-    return [
-      `/api/v1/settings/placement/providers/${providerId}/communities/${guildId}/initiatives`,
-    ] as const;
-  };
+export const getListPlacementTargetsQueryKey = (providerId: number, communityId: number) => {
+  return [
+    `/api/v1/settings/placement/providers/${providerId}/communities/${communityId}/initiatives`,
+  ] as const;
+};
 
-export const getListPlacementTargetsApiV1SettingsPlacementProvidersProviderIdCommunitiesGuildIdInitiativesGetQueryOptions =
-  <
-    TData = Awaited<
-      ReturnType<
-        typeof listPlacementTargetsApiV1SettingsPlacementProvidersProviderIdCommunitiesGuildIdInitiativesGet
-      >
-    >,
-    TError = ErrorType<HTTPValidationError>,
-  >(
-    providerId: number,
-    guildId: number,
-    options?: {
-      query?: Partial<
-        UseQueryOptions<
-          Awaited<
-            ReturnType<
-              typeof listPlacementTargetsApiV1SettingsPlacementProvidersProviderIdCommunitiesGuildIdInitiativesGet
-            >
-          >,
-          TError,
-          TData
-        >
-      >;
-      request?: SecondParameter<typeof apiMutator>;
-    }
-  ) => {
-    const { query: queryOptions, request: requestOptions } = options ?? {};
-
-    const queryKey =
-      queryOptions?.queryKey ??
-      getListPlacementTargetsApiV1SettingsPlacementProvidersProviderIdCommunitiesGuildIdInitiativesGetQueryKey(
-        providerId,
-        guildId
-      );
-
-    const queryFn: QueryFunction<
-      Awaited<
-        ReturnType<
-          typeof listPlacementTargetsApiV1SettingsPlacementProvidersProviderIdCommunitiesGuildIdInitiativesGet
-        >
-      >
-    > = ({ signal }) =>
-      listPlacementTargetsApiV1SettingsPlacementProvidersProviderIdCommunitiesGuildIdInitiativesGet(
-        providerId,
-        guildId,
-        requestOptions,
-        signal
-      );
-
-    return {
-      queryKey,
-      queryFn,
-      enabled:
-        providerId !== null &&
-        providerId !== undefined &&
-        guildId !== null &&
-        guildId !== undefined,
-      ...queryOptions,
-    } as UseQueryOptions<
-      Awaited<
-        ReturnType<
-          typeof listPlacementTargetsApiV1SettingsPlacementProvidersProviderIdCommunitiesGuildIdInitiativesGet
-        >
-      >,
-      TError,
-      TData
-    > & { queryKey: DataTag<QueryKey, TData, TError> };
-  };
-
-export type ListPlacementTargetsApiV1SettingsPlacementProvidersProviderIdCommunitiesGuildIdInitiativesGetQueryResult =
-  NonNullable<
-    Awaited<
-      ReturnType<
-        typeof listPlacementTargetsApiV1SettingsPlacementProvidersProviderIdCommunitiesGuildIdInitiativesGet
-      >
-    >
-  >;
-export type ListPlacementTargetsApiV1SettingsPlacementProvidersProviderIdCommunitiesGuildIdInitiativesGetQueryError =
-  ErrorType<HTTPValidationError>;
-
-export function useListPlacementTargetsApiV1SettingsPlacementProvidersProviderIdCommunitiesGuildIdInitiativesGet<
-  TData = Awaited<
-    ReturnType<
-      typeof listPlacementTargetsApiV1SettingsPlacementProvidersProviderIdCommunitiesGuildIdInitiativesGet
-    >
-  >,
+export const getListPlacementTargetsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listPlacementTargets>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   providerId: number,
-  guildId: number,
+  communityId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listPlacementTargets>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListPlacementTargetsQueryKey(providerId, communityId);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listPlacementTargets>>> = ({ signal }) =>
+    listPlacementTargets(providerId, communityId, requestOptions, signal);
+
+  return {
+    queryKey,
+    queryFn,
+    enabled:
+      providerId !== null &&
+      providerId !== undefined &&
+      communityId !== null &&
+      communityId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<Awaited<ReturnType<typeof listPlacementTargets>>, TError, TData> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+};
+
+export type ListPlacementTargetsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listPlacementTargets>>
+>;
+export type ListPlacementTargetsQueryError = ErrorType<HTTPValidationError>;
+
+export function useListPlacementTargets<
+  TData = Awaited<ReturnType<typeof listPlacementTargets>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  providerId: number,
+  communityId: number,
   options: {
     query: Partial<
-      UseQueryOptions<
-        Awaited<
-          ReturnType<
-            typeof listPlacementTargetsApiV1SettingsPlacementProvidersProviderIdCommunitiesGuildIdInitiativesGet
-          >
-        >,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof listPlacementTargets>>, TError, TData>
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<
-            ReturnType<
-              typeof listPlacementTargetsApiV1SettingsPlacementProvidersProviderIdCommunitiesGuildIdInitiativesGet
-            >
-          >,
+          Awaited<ReturnType<typeof listPlacementTargets>>,
           TError,
-          Awaited<
-            ReturnType<
-              typeof listPlacementTargetsApiV1SettingsPlacementProvidersProviderIdCommunitiesGuildIdInitiativesGet
-            >
-          >
+          Awaited<ReturnType<typeof listPlacementTargets>>
         >,
         "initialData"
       >;
@@ -762,41 +616,21 @@ export function useListPlacementTargetsApiV1SettingsPlacementProvidersProviderId
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListPlacementTargetsApiV1SettingsPlacementProvidersProviderIdCommunitiesGuildIdInitiativesGet<
-  TData = Awaited<
-    ReturnType<
-      typeof listPlacementTargetsApiV1SettingsPlacementProvidersProviderIdCommunitiesGuildIdInitiativesGet
-    >
-  >,
+export function useListPlacementTargets<
+  TData = Awaited<ReturnType<typeof listPlacementTargets>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   providerId: number,
-  guildId: number,
+  communityId: number,
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<
-          ReturnType<
-            typeof listPlacementTargetsApiV1SettingsPlacementProvidersProviderIdCommunitiesGuildIdInitiativesGet
-          >
-        >,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof listPlacementTargets>>, TError, TData>
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<
-            ReturnType<
-              typeof listPlacementTargetsApiV1SettingsPlacementProvidersProviderIdCommunitiesGuildIdInitiativesGet
-            >
-          >,
+          Awaited<ReturnType<typeof listPlacementTargets>>,
           TError,
-          Awaited<
-            ReturnType<
-              typeof listPlacementTargetsApiV1SettingsPlacementProvidersProviderIdCommunitiesGuildIdInitiativesGet
-            >
-          >
+          Awaited<ReturnType<typeof listPlacementTargets>>
         >,
         "initialData"
       >;
@@ -804,27 +638,15 @@ export function useListPlacementTargetsApiV1SettingsPlacementProvidersProviderId
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListPlacementTargetsApiV1SettingsPlacementProvidersProviderIdCommunitiesGuildIdInitiativesGet<
-  TData = Awaited<
-    ReturnType<
-      typeof listPlacementTargetsApiV1SettingsPlacementProvidersProviderIdCommunitiesGuildIdInitiativesGet
-    >
-  >,
+export function useListPlacementTargets<
+  TData = Awaited<ReturnType<typeof listPlacementTargets>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   providerId: number,
-  guildId: number,
+  communityId: number,
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<
-          ReturnType<
-            typeof listPlacementTargetsApiV1SettingsPlacementProvidersProviderIdCommunitiesGuildIdInitiativesGet
-          >
-        >,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof listPlacementTargets>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
@@ -834,38 +656,21 @@ export function useListPlacementTargetsApiV1SettingsPlacementProvidersProviderId
  * @summary List Placement Targets
  */
 
-export function useListPlacementTargetsApiV1SettingsPlacementProvidersProviderIdCommunitiesGuildIdInitiativesGet<
-  TData = Awaited<
-    ReturnType<
-      typeof listPlacementTargetsApiV1SettingsPlacementProvidersProviderIdCommunitiesGuildIdInitiativesGet
-    >
-  >,
+export function useListPlacementTargets<
+  TData = Awaited<ReturnType<typeof listPlacementTargets>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   providerId: number,
-  guildId: number,
+  communityId: number,
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<
-          ReturnType<
-            typeof listPlacementTargetsApiV1SettingsPlacementProvidersProviderIdCommunitiesGuildIdInitiativesGet
-          >
-        >,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof listPlacementTargets>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions =
-    getListPlacementTargetsApiV1SettingsPlacementProvidersProviderIdCommunitiesGuildIdInitiativesGetQueryOptions(
-      providerId,
-      guildId,
-      options
-    );
+  const queryOptions = getListPlacementTargetsQueryOptions(providerId, communityId, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -877,7 +682,7 @@ export function useListPlacementTargetsApiV1SettingsPlacementProvidersProviderId
 /**
  * @summary Create Provider Placement Rule
  */
-export const createProviderPlacementRuleApiV1SettingsPlacementRulesPost = (
+export const createProviderPlacementRule = (
   providerPlacementRuleCreate: BodyType<ProviderPlacementRuleCreate>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
@@ -894,27 +699,27 @@ export const createProviderPlacementRuleApiV1SettingsPlacementRulesPost = (
   );
 };
 
-export const getCreateProviderPlacementRuleApiV1SettingsPlacementRulesPostMutationKey = () =>
-  ["createProviderPlacementRuleApiV1SettingsPlacementRulesPost"] as const;
+export const getCreateProviderPlacementRuleMutationKey = () =>
+  ["createProviderPlacementRule"] as const;
 
-export const getCreateProviderPlacementRuleApiV1SettingsPlacementRulesPostMutationOptions = <
+export const getCreateProviderPlacementRuleMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof createProviderPlacementRuleApiV1SettingsPlacementRulesPost>>,
+    Awaited<ReturnType<typeof createProviderPlacementRule>>,
     TError,
-    CreateProviderPlacementRuleApiV1SettingsPlacementRulesPostMutationVariables,
+    CreateProviderPlacementRuleMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof createProviderPlacementRuleApiV1SettingsPlacementRulesPost>>,
+  Awaited<ReturnType<typeof createProviderPlacementRule>>,
   TError,
-  CreateProviderPlacementRuleApiV1SettingsPlacementRulesPostMutationVariables,
+  CreateProviderPlacementRuleMutationVariables,
   TContext
 > => {
-  const mutationKey = getCreateProviderPlacementRuleApiV1SettingsPlacementRulesPostMutationKey();
+  const mutationKey = getCreateProviderPlacementRuleMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -922,60 +727,55 @@ export const getCreateProviderPlacementRuleApiV1SettingsPlacementRulesPostMutati
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof createProviderPlacementRuleApiV1SettingsPlacementRulesPost>>,
-    CreateProviderPlacementRuleApiV1SettingsPlacementRulesPostMutationVariables
+    Awaited<ReturnType<typeof createProviderPlacementRule>>,
+    CreateProviderPlacementRuleMutationVariables
   > = (props) => {
     const { data } = props ?? {};
 
-    return createProviderPlacementRuleApiV1SettingsPlacementRulesPost(data, requestOptions);
+    return createProviderPlacementRule(data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type CreateProviderPlacementRuleApiV1SettingsPlacementRulesPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof createProviderPlacementRuleApiV1SettingsPlacementRulesPost>>
+export type CreateProviderPlacementRuleMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createProviderPlacementRule>>
 >;
-export type CreateProviderPlacementRuleApiV1SettingsPlacementRulesPostMutationBody =
-  BodyType<ProviderPlacementRuleCreate>;
-export type CreateProviderPlacementRuleApiV1SettingsPlacementRulesPostMutationError =
-  ErrorType<HTTPValidationError>;
-export type CreateProviderPlacementRuleApiV1SettingsPlacementRulesPostMutationVariables = {
+export type CreateProviderPlacementRuleMutationBody = BodyType<ProviderPlacementRuleCreate>;
+export type CreateProviderPlacementRuleMutationError = ErrorType<HTTPValidationError>;
+export type CreateProviderPlacementRuleMutationVariables = {
   data: BodyType<ProviderPlacementRuleCreate>;
 };
 
 /**
  * @summary Create Provider Placement Rule
  */
-export const useCreateProviderPlacementRuleApiV1SettingsPlacementRulesPost = <
+export const useCreateProviderPlacementRule = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof createProviderPlacementRuleApiV1SettingsPlacementRulesPost>>,
+      Awaited<ReturnType<typeof createProviderPlacementRule>>,
       TError,
-      CreateProviderPlacementRuleApiV1SettingsPlacementRulesPostMutationVariables,
+      CreateProviderPlacementRuleMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof createProviderPlacementRuleApiV1SettingsPlacementRulesPost>>,
+  Awaited<ReturnType<typeof createProviderPlacementRule>>,
   TError,
-  CreateProviderPlacementRuleApiV1SettingsPlacementRulesPostMutationVariables,
+  CreateProviderPlacementRuleMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getCreateProviderPlacementRuleApiV1SettingsPlacementRulesPostMutationOptions(options),
-    queryClient
-  );
+  return useMutation(getCreateProviderPlacementRuleMutationOptions(options), queryClient);
 };
 /**
  * @summary Update Provider Placement Rule
  */
-export const updateProviderPlacementRuleApiV1SettingsPlacementRulesRuleIdPatch = (
+export const updateProviderPlacementRule = (
   ruleId: number,
   providerPlacementRuleUpdate: BodyType<ProviderPlacementRuleUpdate>,
   options?: SecondParameter<typeof apiMutator>,
@@ -993,28 +793,27 @@ export const updateProviderPlacementRuleApiV1SettingsPlacementRulesRuleIdPatch =
   );
 };
 
-export const getUpdateProviderPlacementRuleApiV1SettingsPlacementRulesRuleIdPatchMutationKey = () =>
-  ["updateProviderPlacementRuleApiV1SettingsPlacementRulesRuleIdPatch"] as const;
+export const getUpdateProviderPlacementRuleMutationKey = () =>
+  ["updateProviderPlacementRule"] as const;
 
-export const getUpdateProviderPlacementRuleApiV1SettingsPlacementRulesRuleIdPatchMutationOptions = <
+export const getUpdateProviderPlacementRuleMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof updateProviderPlacementRuleApiV1SettingsPlacementRulesRuleIdPatch>>,
+    Awaited<ReturnType<typeof updateProviderPlacementRule>>,
     TError,
-    UpdateProviderPlacementRuleApiV1SettingsPlacementRulesRuleIdPatchMutationVariables,
+    UpdateProviderPlacementRuleMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof updateProviderPlacementRuleApiV1SettingsPlacementRulesRuleIdPatch>>,
+  Awaited<ReturnType<typeof updateProviderPlacementRule>>,
   TError,
-  UpdateProviderPlacementRuleApiV1SettingsPlacementRulesRuleIdPatchMutationVariables,
+  UpdateProviderPlacementRuleMutationVariables,
   TContext
 > => {
-  const mutationKey =
-    getUpdateProviderPlacementRuleApiV1SettingsPlacementRulesRuleIdPatchMutationKey();
+  const mutationKey = getUpdateProviderPlacementRuleMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1022,30 +821,23 @@ export const getUpdateProviderPlacementRuleApiV1SettingsPlacementRulesRuleIdPatc
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof updateProviderPlacementRuleApiV1SettingsPlacementRulesRuleIdPatch>>,
-    UpdateProviderPlacementRuleApiV1SettingsPlacementRulesRuleIdPatchMutationVariables
+    Awaited<ReturnType<typeof updateProviderPlacementRule>>,
+    UpdateProviderPlacementRuleMutationVariables
   > = (props) => {
     const { ruleId, data } = props ?? {};
 
-    return updateProviderPlacementRuleApiV1SettingsPlacementRulesRuleIdPatch(
-      ruleId,
-      data,
-      requestOptions
-    );
+    return updateProviderPlacementRule(ruleId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type UpdateProviderPlacementRuleApiV1SettingsPlacementRulesRuleIdPatchMutationResult =
-  NonNullable<
-    Awaited<ReturnType<typeof updateProviderPlacementRuleApiV1SettingsPlacementRulesRuleIdPatch>>
-  >;
-export type UpdateProviderPlacementRuleApiV1SettingsPlacementRulesRuleIdPatchMutationBody =
-  BodyType<ProviderPlacementRuleUpdate>;
-export type UpdateProviderPlacementRuleApiV1SettingsPlacementRulesRuleIdPatchMutationError =
-  ErrorType<HTTPValidationError>;
-export type UpdateProviderPlacementRuleApiV1SettingsPlacementRulesRuleIdPatchMutationVariables = {
+export type UpdateProviderPlacementRuleMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateProviderPlacementRule>>
+>;
+export type UpdateProviderPlacementRuleMutationBody = BodyType<ProviderPlacementRuleUpdate>;
+export type UpdateProviderPlacementRuleMutationError = ErrorType<HTTPValidationError>;
+export type UpdateProviderPlacementRuleMutationVariables = {
   ruleId: number;
   data: BodyType<ProviderPlacementRuleUpdate>;
 };
@@ -1053,35 +845,32 @@ export type UpdateProviderPlacementRuleApiV1SettingsPlacementRulesRuleIdPatchMut
 /**
  * @summary Update Provider Placement Rule
  */
-export const useUpdateProviderPlacementRuleApiV1SettingsPlacementRulesRuleIdPatch = <
+export const useUpdateProviderPlacementRule = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof updateProviderPlacementRuleApiV1SettingsPlacementRulesRuleIdPatch>>,
+      Awaited<ReturnType<typeof updateProviderPlacementRule>>,
       TError,
-      UpdateProviderPlacementRuleApiV1SettingsPlacementRulesRuleIdPatchMutationVariables,
+      UpdateProviderPlacementRuleMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof updateProviderPlacementRuleApiV1SettingsPlacementRulesRuleIdPatch>>,
+  Awaited<ReturnType<typeof updateProviderPlacementRule>>,
   TError,
-  UpdateProviderPlacementRuleApiV1SettingsPlacementRulesRuleIdPatchMutationVariables,
+  UpdateProviderPlacementRuleMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getUpdateProviderPlacementRuleApiV1SettingsPlacementRulesRuleIdPatchMutationOptions(options),
-    queryClient
-  );
+  return useMutation(getUpdateProviderPlacementRuleMutationOptions(options), queryClient);
 };
 /**
  * @summary Delete Provider Placement Rule
  */
-export const deleteProviderPlacementRuleApiV1SettingsPlacementRulesRuleIdDelete = (
+export const deleteProviderPlacementRule = (
   ruleId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
@@ -1092,89 +881,74 @@ export const deleteProviderPlacementRuleApiV1SettingsPlacementRulesRuleIdDelete 
   );
 };
 
-export const getDeleteProviderPlacementRuleApiV1SettingsPlacementRulesRuleIdDeleteMutationKey =
-  () => ["deleteProviderPlacementRuleApiV1SettingsPlacementRulesRuleIdDelete"] as const;
+export const getDeleteProviderPlacementRuleMutationKey = () =>
+  ["deleteProviderPlacementRule"] as const;
 
-export const getDeleteProviderPlacementRuleApiV1SettingsPlacementRulesRuleIdDeleteMutationOptions =
-  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
-    mutation?: UseMutationOptions<
-      Awaited<
-        ReturnType<typeof deleteProviderPlacementRuleApiV1SettingsPlacementRulesRuleIdDelete>
-      >,
-      TError,
-      DeleteProviderPlacementRuleApiV1SettingsPlacementRulesRuleIdDeleteMutationVariables,
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  }): UseMutationOptions<
-    Awaited<ReturnType<typeof deleteProviderPlacementRuleApiV1SettingsPlacementRulesRuleIdDelete>>,
+export const getDeleteProviderPlacementRuleMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteProviderPlacementRule>>,
     TError,
-    DeleteProviderPlacementRuleApiV1SettingsPlacementRulesRuleIdDeleteMutationVariables,
+    DeleteProviderPlacementRuleMutationVariables,
     TContext
-  > => {
-    const mutationKey =
-      getDeleteProviderPlacementRuleApiV1SettingsPlacementRulesRuleIdDeleteMutationKey();
-    const { mutation: mutationOptions, request: requestOptions } = options
-      ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-        ? options
-        : { ...options, mutation: { ...options.mutation, mutationKey } }
-      : { mutation: { mutationKey }, request: undefined };
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteProviderPlacementRule>>,
+  TError,
+  DeleteProviderPlacementRuleMutationVariables,
+  TContext
+> => {
+  const mutationKey = getDeleteProviderPlacementRuleMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
 
-    const mutationFn: MutationFunction<
-      Awaited<
-        ReturnType<typeof deleteProviderPlacementRuleApiV1SettingsPlacementRulesRuleIdDelete>
-      >,
-      DeleteProviderPlacementRuleApiV1SettingsPlacementRulesRuleIdDeleteMutationVariables
-    > = (props) => {
-      const { ruleId } = props ?? {};
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteProviderPlacementRule>>,
+    DeleteProviderPlacementRuleMutationVariables
+  > = (props) => {
+    const { ruleId } = props ?? {};
 
-      return deleteProviderPlacementRuleApiV1SettingsPlacementRulesRuleIdDelete(
-        ruleId,
-        requestOptions
-      );
-    };
-
-    return { mutationFn, ...mutationOptions };
+    return deleteProviderPlacementRule(ruleId, requestOptions);
   };
 
-export type DeleteProviderPlacementRuleApiV1SettingsPlacementRulesRuleIdDeleteMutationResult =
-  NonNullable<
-    Awaited<ReturnType<typeof deleteProviderPlacementRuleApiV1SettingsPlacementRulesRuleIdDelete>>
-  >;
-
-export type DeleteProviderPlacementRuleApiV1SettingsPlacementRulesRuleIdDeleteMutationError =
-  ErrorType<HTTPValidationError>;
-export type DeleteProviderPlacementRuleApiV1SettingsPlacementRulesRuleIdDeleteMutationVariables = {
-  ruleId: number;
+  return { mutationFn, ...mutationOptions };
 };
+
+export type DeleteProviderPlacementRuleMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteProviderPlacementRule>>
+>;
+
+export type DeleteProviderPlacementRuleMutationError = ErrorType<HTTPValidationError>;
+export type DeleteProviderPlacementRuleMutationVariables = { ruleId: number };
 
 /**
  * @summary Delete Provider Placement Rule
  */
-export const useDeleteProviderPlacementRuleApiV1SettingsPlacementRulesRuleIdDelete = <
+export const useDeleteProviderPlacementRule = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<
-        ReturnType<typeof deleteProviderPlacementRuleApiV1SettingsPlacementRulesRuleIdDelete>
-      >,
+      Awaited<ReturnType<typeof deleteProviderPlacementRule>>,
       TError,
-      DeleteProviderPlacementRuleApiV1SettingsPlacementRulesRuleIdDeleteMutationVariables,
+      DeleteProviderPlacementRuleMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof deleteProviderPlacementRuleApiV1SettingsPlacementRulesRuleIdDelete>>,
+  Awaited<ReturnType<typeof deleteProviderPlacementRule>>,
   TError,
-  DeleteProviderPlacementRuleApiV1SettingsPlacementRulesRuleIdDeleteMutationVariables,
+  DeleteProviderPlacementRuleMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getDeleteProviderPlacementRuleApiV1SettingsPlacementRulesRuleIdDeleteMutationOptions(options),
-    queryClient
-  );
+  return useMutation(getDeleteProviderPlacementRuleMutationOptions(options), queryClient);
 };

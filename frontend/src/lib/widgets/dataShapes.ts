@@ -28,10 +28,16 @@
  */
 export type ColumnType = "text" | "number" | "date" | "boolean" | "enum" | "reference";
 
+/** The period a date column is rounded to, when the statement rounded it. */
+export type ColumnGrain = "day" | "week" | "month" | "quarter" | "year";
+
 /** One output column: what it is called, and what it holds. */
 export interface DataColumn {
   name: string;
   type: ColumnType;
+  /** For a date the statement rounded with `date_trunc`, the unit it rounded
+   *  to. A chart labels its points by this; absent means a plain date. */
+  grain?: ColumnGrain;
 }
 
 /** A cell. Dates are epoch milliseconds, like every other timestamp here. */

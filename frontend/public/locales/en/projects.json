@@ -1,6 +1,5 @@
 {
   "title": "Projects",
-  "subtitle": "Track initiatives and collaborate with your community.",
   "addProject": "Add Project",
   "loading": "Loading projects…",
   "loadError": "Unable to load projects.",
@@ -66,7 +65,13 @@
     "unassigned": "Unassigned",
     "archived": "Archived",
     "statusCategory": "Status category",
-    "savePresetDescription": "Everyone in this project will see this preset."
+    "savePresetDescription": "Everyone in this project will see this preset.",
+    "seededPresets": {
+      "all": "All",
+      "incomplete": "Incomplete",
+      "unassigned": "Unassigned",
+      "mine": "Mine"
+    }
   },
   "templates": {
     "loading": "Loading templates…",
@@ -113,20 +118,17 @@
     "notFound": "Project not found",
     "notFoundDescription": "This project may have been deleted or you may have followed a broken link.",
     "noAccess": "Access denied",
-    "noAccessDescription": "You don’t have permission to view this project. Ask a project manager to grant you access.",
-    "projectSettings": "Project Settings",
-    "openProjectSettings": "Open project settings"
+    "noAccessDescription": "You don’t have permission to view this project. Ask a project manager to grant you access."
   },
   "overview": {
-    "archived": "Archived",
-    "active": "Active",
-    "template": "Template",
     "templateInfo": "This project is a template. Use it to create new projects from the Templates tab.",
     "archivedInfo": "This project is archived. Unarchive it from settings to add or update tasks.",
-    "scheduleLabel": "Project dates",
     "scheduleRange": "{{start}} – {{end}}",
     "scheduleStartOnly": "Starts {{start}}",
-    "scheduleEndOnly": "Ends {{end}}"
+    "scheduleEndOnly": "Ends {{end}}",
+    "progressLabel": "Progress",
+    "progress": "{{completed}} of {{total}} done",
+    "datesLabel": "Dates"
   },
   "schedule": {
     "startLabel": "Start date",
@@ -165,7 +167,6 @@
     "you": "You"
   },
   "statuses": {
-    "title": "Task statuses",
     "description": "Reorder, rename, or change category for the task columns used by this project.",
     "noManagePermission": "Only project managers can modify task statuses. Contact a project manager if you need changes.",
     "addStatus": "Add status",
@@ -215,7 +216,6 @@
     "breadcrumbSettings": "Settings",
     "tabTaskStatuses": "Task statuses",
     "details": {
-      "title": "Project details",
       "description": "Update the icon, name, and description shown across the workspace.",
       "identityHeading": "Identity",
       "identityDescription": "Give the project a recognizable name and emoji.",
@@ -248,15 +248,6 @@
       "viewAllTemplates": "View all templates",
       "markedAsTemplate": "Project marked as template",
       "removedFromTemplates": "Project removed from templates"
-    },
-    "duplicate": {
-      "title": "Duplicate project",
-      "description": "Clone this project, including its initiative and tasks, to jumpstart new work.",
-      "duplicated": "Project duplicated",
-      "promptName": "Name for duplicated project",
-      "duplicating": "Duplicating...",
-      "duplicateButton": "Duplicate project",
-      "noWriteAccess": "You need write access to duplicate this project."
     },
     "tabFilterPresets": "Views",
     "filterPresetsHeading": "Filter presets",

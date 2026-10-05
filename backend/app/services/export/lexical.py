@@ -14,7 +14,7 @@ subclasses); unknown containers recurse into their children; embeds
 callout holding its name; anything else is dropped silently. A new
 editor node can never break an export, it just exports as its text.
 
-Images: only same-guild uploads (``/uploads/{guild_id}/…``) are collected as
+Images: only same-guild uploads (``/uploads/{community_id}/…``) are collected as
 assets and embedded — an external URL is never fetched; it renders as a plain
 link instead.
 """

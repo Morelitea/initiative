@@ -20,7 +20,7 @@ from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.tenant.app_placement import AppPlacement
 from app.models.tenant.guild_app import GuildApp
 from app.services.marketplace.registration_lookup import invalidate_registrations
@@ -177,7 +177,7 @@ class TestBackfill:
         creator = await create_user(session, email="old@example.com")
         guild = await create_guild(session, creator=creator, name="Existing guild")
         await create_guild_membership(
-            session, user=creator, guild=guild, role=GuildRole.admin
+            session, user=creator, guild=guild, role=CommunityRole.admin
         )
 
         result = await backfill_mandatory_apps()
@@ -201,7 +201,7 @@ class TestBackfill:
             creator = await create_user(session, email=f"many{index}@example.com")
             guild = await create_guild(session, creator=creator, name=f"Guild {index}")
             await create_guild_membership(
-                session, user=creator, guild=guild, role=GuildRole.admin
+                session, user=creator, guild=guild, role=CommunityRole.admin
             )
             guilds.append(guild)
 
@@ -220,7 +220,7 @@ class TestBackfill:
         creator = await create_user(session, email="twice@example.com")
         guild = await create_guild(session, creator=creator, name="Twice guild")
         await create_guild_membership(
-            session, user=creator, guild=guild, role=GuildRole.admin
+            session, user=creator, guild=guild, role=CommunityRole.admin
         )
 
         await backfill_mandatory_apps()
@@ -235,7 +235,7 @@ class TestBackfill:
         creator = await create_user(session, email="none@example.com")
         guild = await create_guild(session, creator=creator, name="Untouched")
         await create_guild_membership(
-            session, user=creator, guild=guild, role=GuildRole.admin
+            session, user=creator, guild=guild, role=CommunityRole.admin
         )
 
         result = await backfill_mandatory_apps()
@@ -252,7 +252,7 @@ class TestBackfill:
         creator = await create_user(session, email="cleared@example.com")
         guild = await create_guild(session, creator=creator, name="Cleared guild")
         await create_guild_membership(
-            session, user=creator, guild=guild, role=GuildRole.admin
+            session, user=creator, guild=guild, role=CommunityRole.admin
         )
         await backfill_mandatory_apps()
 
@@ -274,7 +274,7 @@ class TestPlacement:
         creator = await create_user(session, email="placed@example.com")
         guild = await create_guild(session, creator=creator, name="Placed guild")
         await create_guild_membership(
-            session, user=creator, guild=guild, role=GuildRole.admin
+            session, user=creator, guild=guild, role=CommunityRole.admin
         )
         before = await create_initiative(session, guild, creator, name="Before")
 
@@ -306,7 +306,7 @@ class TestPlacement:
         creator = await create_user(session, email="late@example.com")
         guild = await create_guild(session, creator=creator, name="Late guild")
         await create_guild_membership(
-            session, user=creator, guild=guild, role=GuildRole.admin
+            session, user=creator, guild=guild, role=CommunityRole.admin
         )
         await create_initiative(session, guild, creator, name="Existing")
         await create_guild_app(
@@ -366,7 +366,7 @@ class TestScopes:
         creator = await create_user(session, email="scoped@example.com")
         guild = await create_guild(session, creator=creator, name="Scoped guild")
         await create_guild_membership(
-            session, user=creator, guild=guild, role=GuildRole.admin
+            session, user=creator, guild=guild, role=CommunityRole.admin
         )
 
         await backfill_mandatory_apps()
@@ -380,7 +380,7 @@ class TestScopes:
         creator = await create_user(session, email="unscoped@example.com")
         guild = await create_guild(session, creator=creator, name="Unscoped guild")
         await create_guild_membership(
-            session, user=creator, guild=guild, role=GuildRole.admin
+            session, user=creator, guild=guild, role=CommunityRole.admin
         )
 
         await backfill_mandatory_apps()
@@ -428,7 +428,7 @@ class TestScopesOnAnInstallAlreadyThere:
         creator = await create_user(session, email=email)
         guild = await create_guild(session, creator=creator, name=email)
         await create_guild_membership(
-            session, user=creator, guild=guild, role=GuildRole.admin
+            session, user=creator, guild=guild, role=CommunityRole.admin
         )
         app = await create_guild_app(
             session,

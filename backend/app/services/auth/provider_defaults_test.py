@@ -9,7 +9,7 @@ from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.auth_context import set_satisfied_claims, set_satisfied_providers
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.platform.user import UserRole
 from app.schemas.platform.settings import PlatformProviderDefaultUpdate
 from app.services.auth import guild_provider_connections as connections
@@ -119,7 +119,7 @@ async def test_only_the_operator_answers(client: AsyncClient, session: AsyncSess
     admin = await create_user(session)
     guild = await create_guild(session, creator=admin)
     await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.superadmin
+        session, user=admin, guild=guild, role=CommunityRole.superadmin
     )
     path = f"/api/v1/settings/auth/providers/{provider.id}/default"
 

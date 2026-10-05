@@ -16,9 +16,12 @@ from pydantic import BaseModel
 from app.api.deps import SessionDep
 from app.core.cookie_categories import active_cookie_categories
 from app.core.config import settings
-from app.core.security import billing_support_handoff_enabled
+from app.core.security import (
+    billing_insights_handoff_enabled,
+    billing_support_handoff_enabled,
+)
 from app.services.platform.billing import billing_managed
-from app.core.version import get_min_native_version
+from app.core.version import get_min_desktop_version, get_min_native_version
 from app.services import captcha as captcha_service
 from app.services.platform import app_settings as app_settings_service
 from app.services.platform import auth_posture
@@ -61,6 +64,9 @@ class BillingConfig(BaseModel):
     # entitlements. The Guilds tab then shows them read-only and offers only
     # a suspension as a status change.
     manages_plans: bool = False
+    # Whether the billing service's insights page can be opened from here:
+    # the operator dashboard's Billing tab shows its button only then.
+    insights: bool = False
 
 
 class AppConfig(BaseModel):
@@ -68,6 +74,13 @@ class AppConfig(BaseModel):
 
     captcha: Optional[CaptchaConfig] = None
     billing: Optional[BillingConfig] = None
+    # Where the SPA sends page views, errors and Web Vitals, once a browser
+    # has granted the ``analytics`` category. ``None`` (the default) ⇒ the SPA
+    # loads no measurement at all.
+    faro_collector_url: Optional[str] = None
+    # Whether the SPA reports each page it opens to ``/page-views``. True only
+    # where Prometheus reads the counts (``METRICS_TOKEN`` is set).
+    count_page_views: bool = False
     # The upload size cap the server enforces on file endpoints. The SPA reads
     # it for pre-flight checks so the number lives in exactly one place.
     max_upload_bytes: int
@@ -111,6 +124,8 @@ class AppConfig(BaseModel):
     # the release CI attached an APK to, so the landing page can offer that
     # download by version without asking anybody's release listing.
     min_native_version: str
+    # The same for the desktop app: the release its installers are attached to.
+    min_desktop_version: str
 
 
 @router.get("/config", response_model=AppConfig)
@@ -138,6 +153,7 @@ async def get_app_config(session: SessionDep) -> AppConfig:
             url=settings.BILLING_URL,
             operator_handoff=billing_support_handoff_enabled(),
             manages_plans=billing_managed(),
+            insights=billing_insights_handoff_enabled(),
         )
         if settings.BILLING_URL
         else None
@@ -148,6 +164,8 @@ async def get_app_config(session: SessionDep) -> AppConfig:
     return AppConfig(
         captcha=captcha,
         billing=billing,
+        faro_collector_url=settings.FARO_COLLECTOR_URL,
+        count_page_views=settings.METRICS_TOKEN is not None,
         max_upload_bytes=MAX_DOCUMENT_FILE_SIZE,
         community_directory_enabled=app_settings.community_directory_enabled,
         community_age_gate_enabled=app_settings.community_age_gate_enabled,
@@ -160,4 +178,5 @@ async def get_app_config(session: SessionDep) -> AppConfig:
             m.value for m in auth_posture.methods_from_row(app_settings)
         ),
         min_native_version=get_min_native_version(),
+        min_desktop_version=get_min_desktop_version(),
     )

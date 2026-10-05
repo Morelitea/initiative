@@ -7,7 +7,7 @@ ignores the caller, and that the ignore list never answers the other direction.
 
 from sqlalchemy import text
 
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.platform.user_dm_settings import DmPolicy
 from app.models.platform.user_ignore import UserIgnore
 from app.testing import (
@@ -32,13 +32,13 @@ async def _set_policy(session, user, policy: DmPolicy) -> None:
 async def test_settings_come_back_with_every_community_switched_on(
     client, session, acting_user
 ):
-    a = await acting_user(guild_role=GuildRole.member)
+    a = await acting_user(guild_role=CommunityRole.member)
 
     response = await client.get("/api/v1/me/dm-settings", headers=a.headers)
     assert response.status_code == 200, response.text
     body = response.json()
     assert body["dm_policy"] == "private"
-    assert [c["guild_id"] for c in body["communities"]] == [a.guild.id]
+    assert [c["community_id"] for c in body["communities"]] == [a.guild.id]
     assert body["communities"][0]["enabled"] is True
 
 
@@ -68,12 +68,12 @@ async def test_staying_private_needs_no_age_answer(client, session, acting_user)
 
 
 async def test_switching_a_community_off_and_on(client, session, acting_user):
-    a = await acting_user(guild_role=GuildRole.member)
+    a = await acting_user(guild_role=CommunityRole.member)
     guild = a.guild
 
     off = await client.patch(
         "/api/v1/me/dm-settings",
-        json={"communities": [{"guild_id": guild.id, "enabled": False}]},
+        json={"communities": [{"community_id": guild.id, "enabled": False}]},
         headers=a.headers,
     )
     assert off.status_code == 200, off.text
@@ -81,7 +81,7 @@ async def test_switching_a_community_off_and_on(client, session, acting_user):
 
     on = await client.patch(
         "/api/v1/me/dm-settings",
-        json={"communities": [{"guild_id": guild.id, "enabled": True}]},
+        json={"communities": [{"community_id": guild.id, "enabled": True}]},
         headers=a.headers,
     )
     assert on.json()["communities"][0]["enabled"] is True
@@ -95,7 +95,7 @@ async def test_a_community_you_are_not_in_is_refused(client, session, acting_use
 
     response = await client.patch(
         "/api/v1/me/dm-settings",
-        json={"communities": [{"guild_id": elsewhere.id, "enabled": False}]},
+        json={"communities": [{"community_id": elsewhere.id, "enabled": False}]},
         headers=a.headers,
     )
     assert response.status_code == 422
@@ -118,13 +118,13 @@ async def test_ignoring_is_idempotent_and_reversible(client, session, acting_use
     listing = await client.get("/api/v1/me/ignored", headers=a.headers)
     assert listing.status_code == 200
     assert [row["user_id"] for row in listing.json()["items"]] == [target.id]
-    assert listing.json()["total"] == 1
+    assert listing.json()["total_count"] == 1
 
     assert (
         await client.delete(f"/api/v1/me/ignored/{target.id}", headers=a.headers)
     ).status_code == 204
     assert (await client.get("/api/v1/me/ignored", headers=a.headers)).json()[
-        "total"
+        "total_count"
     ] == 0
 
 
@@ -180,7 +180,8 @@ async def test_the_list_never_answers_the_other_direction(client, session, actin
     assert [r["user_id"] for r in mine.json()["items"]] == [bram.user.id]
 
     theirs = await client.get("/api/v1/me/ignored", headers=bram.headers)
-    assert theirs.json() == {"items": [], "total": 0}
+    assert theirs.json()["items"] == []
+    assert theirs.json()["total_count"] == 0
 
 
 # -------------------------------------------------------------- permission ---
@@ -199,8 +200,8 @@ async def test_permission_is_identical_across_being_ignored(
     client, session, acting_user
 ):
     """The oracle guard, end to end: same body, same status, before and after."""
-    ada = await acting_user(guild_role=GuildRole.member)
-    bram = await acting_user(guild_role=GuildRole.member, guild=ada.guild)
+    ada = await acting_user(guild_role=CommunityRole.member)
+    bram = await acting_user(guild_role=CommunityRole.member, guild=ada.guild)
     await _set_policy(session, ada.user, DmPolicy.community)
     await _set_policy(session, bram.user, DmPolicy.community)
 
@@ -214,8 +215,8 @@ async def test_permission_is_identical_across_being_ignored(
 
 
 async def test_a_private_target_is_denied(client, session, acting_user):
-    ada = await acting_user(guild_role=GuildRole.member)
-    bram = await acting_user(guild_role=GuildRole.member, guild=ada.guild)
+    ada = await acting_user(guild_role=CommunityRole.member)
+    bram = await acting_user(guild_role=CommunityRole.member, guild=ada.guild)
     await _set_policy(session, ada.user, DmPolicy.private)
     await _set_policy(session, bram.user, DmPolicy.community)
 
@@ -347,8 +348,8 @@ async def test_a_request_from_an_ignored_account_is_never_surfaced(
 async def test_removing_a_connection_keeps_a_community_channel(
     client, session, acting_user
 ):
-    ada = await acting_user(guild_role=GuildRole.member)
-    bram = await acting_user(guild_role=GuildRole.member, guild=ada.guild)
+    ada = await acting_user(guild_role=CommunityRole.member)
+    bram = await acting_user(guild_role=CommunityRole.member, guild=ada.guild)
     await _set_policy(session, ada.user, DmPolicy.community)
     await _set_policy(session, bram.user, DmPolicy.community)
 
@@ -406,8 +407,8 @@ async def test_may_connect_says_nothing_about_being_ignored(
     asks whether each account is reachable at all, which is a fact about each
     of them rather than about the pair.
     """
-    ada = await acting_user(guild_role=GuildRole.member)
-    bram = await acting_user(guild_role=GuildRole.member, guild=ada.guild)
+    ada = await acting_user(guild_role=CommunityRole.member)
+    bram = await acting_user(guild_role=CommunityRole.member, guild=ada.guild)
     await _set_policy(session, ada.user, DmPolicy.community)
     await _set_policy(session, bram.user, DmPolicy.community)
 
@@ -423,9 +424,9 @@ async def test_may_connect_says_nothing_about_being_ignored(
 async def test_permissions_answer_for_a_page_of_people(client, session, acting_user):
     """One request for a page of people, and the same two answers per person
     as asking about each alone."""
-    ada = await acting_user(guild_role=GuildRole.member)
-    bram = await acting_user(guild_role=GuildRole.member, guild=ada.guild)
-    cleo = await acting_user(guild_role=GuildRole.member, guild=ada.guild)
+    ada = await acting_user(guild_role=CommunityRole.member)
+    bram = await acting_user(guild_role=CommunityRole.member, guild=ada.guild)
+    cleo = await acting_user(guild_role=CommunityRole.member, guild=ada.guild)
     await _set_policy(session, ada.user, DmPolicy.community)
     await _set_policy(session, bram.user, DmPolicy.private)
     await _set_policy(session, cleo.user, DmPolicy.community)

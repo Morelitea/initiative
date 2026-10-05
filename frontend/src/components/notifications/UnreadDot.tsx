@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
  * badge on the avatar; this is the inline mark for a row of text.
  */
 export const UnreadDot = ({ className }: { className?: string }) => {
-  const { t } = useTranslation("guilds");
+  const { t } = useTranslation("communities");
   return (
     <span
       role="img"

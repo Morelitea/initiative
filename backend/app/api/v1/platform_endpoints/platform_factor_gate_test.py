@@ -17,13 +17,12 @@ from sqlalchemy import text
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.login_methods import SecondFactorRequirement
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.platform.user import UserRole
 from app.models.platform.api_key import UserApiKey
 from app.models.platform.user_totp import UserTotp
 from app.services.platform import api_keys as api_keys_service
 from app.services.platform import app_settings as app_settings_service
-from app.services.platform import user_tokens
 from app.testing.factories import (
     create_guild,
     create_guild_membership,
@@ -33,7 +32,7 @@ from app.testing.factories import (
 )
 
 
-ME_URL = "/api/v1/users/me"
+ME_URL = "/api/v1/me"
 GUILDS_URL = "/api/v1/communities/"
 
 
@@ -55,7 +54,7 @@ async def _member_of_a_guild(session: AsyncSession, **overrides):
     user = await create_user(session, **overrides)
     guild = await create_guild(session)
     await create_guild_membership(
-        session, user=user, guild=guild, role=GuildRole.member
+        session, user=user, guild=guild, role=CommunityRole.member
     )
     return user, guild
 
@@ -225,24 +224,6 @@ async def test_a_personal_api_key_works_once_its_owner_holds_one(
 
     answered = await client.get(GUILDS_URL, headers=headers)
 
-    assert answered.status_code == 200, answered.text
-
-
-async def test_the_app_on_a_phone_waits_for_its_owner_too(
-    client: AsyncClient, session: AsyncSession
-):
-    user = await create_user(session)
-    device_token = await user_tokens.create_device_token(
-        session, user_id=user.id, device_name="phone"
-    )
-    await session.commit()
-    await _ask(session, SecondFactorRequirement.everyone)
-    headers = {"Authorization": f"DeviceToken {device_token}"}
-
-    _refused(await client.get(GUILDS_URL, headers=headers))
-
-    await _enrol(session, user)
-    answered = await client.get(GUILDS_URL, headers=headers)
     assert answered.status_code == 200, answered.text
 
 

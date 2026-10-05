@@ -21,15 +21,15 @@ import { useAuth } from "@/hooks/useAuth";
 import { useMarkReadOnScreen, usePostReadTracker } from "@/hooks/usePostReadTracker";
 import { useMarkPostUnread, useSetPostPin, useUpdatePost } from "@/hooks/usePosts";
 import { useUnreadTree } from "@/hooks/useUnreadTree";
-import { toast } from "@/lib/chesterToast";
+import { useCommunityPath } from "@/lib/communityUrl";
 import { formatDateTime } from "@/lib/formatDate";
-import { useGuildPath } from "@/lib/guildUrl";
+import { toast } from "@/lib/mascotToast";
 import { toolDetailRoute } from "@/lib/tools";
 import { cn } from "@/lib/utils";
 
 interface PostCardProps {
   post: PostRead;
-  /** Whether this reader may pin — guild admin or an initiative manager. The
+  /** Whether this reader may pin — community admin or an initiative manager. The
    *  server decides again on the request; this only decides what is offered. */
   canPin?: boolean;
   className?: string;
@@ -53,7 +53,7 @@ interface PostCardProps {
  */
 const PostCardInner = ({ post, canPin = false, className }: PostCardProps) => {
   const { t } = useTranslation(["posts", "common"]);
-  const gp = useGuildPath();
+  const gp = useCommunityPath();
   const setPin = useSetPostPin(post.id, {
     onSuccess: (updated) =>
       toast.success(updated.is_pinned ? t("pin.pinnedToast") : t("pin.unpinnedToast")),
@@ -152,7 +152,7 @@ const PostCardInner = ({ post, canPin = false, className }: PostCardProps) => {
             <Link to={detailRoute} className="hover:underline">
               {post.name}
             </Link>
-            {unread.hasResource(post.guild_id, Tool.post, post.id) ? (
+            {unread.hasResource(post.community_id, Tool.post, post.id) ? (
               <UnreadDot className="ml-2 inline-block align-middle" />
             ) : null}
           </CardTitle>

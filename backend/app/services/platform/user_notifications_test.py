@@ -21,7 +21,7 @@ async def _line(session: AsyncSession, user_id: int, *, guild_id: int, **data):
         user_id=user_id,
         notification_type=NotificationType.comment_reaction,
         data={
-            "guild_id": guild_id,
+            "community_id": guild_id,
             "target_type": "comment",
             "target_id": 5,
             **data,
@@ -70,7 +70,7 @@ async def test_find_unread_by_data_matches_every_key(session: AsyncSession):
         session,
         user_id=user.id,
         notification_type=NotificationType.comment_reaction,
-        match={"guild_id": guild.id, "target_type": "comment", "target_id": 5},
+        match={"community_id": guild.id, "target_type": "comment", "target_id": 5},
     )
     assert found is not None and found.id == wanted.id
 
@@ -79,7 +79,11 @@ async def test_find_unread_by_data_matches_every_key(session: AsyncSession):
             session,
             user_id=user.id,
             notification_type=NotificationType.comment_reaction,
-            match={"guild_id": guild.id + 1, "target_type": "comment", "target_id": 5},
+            match={
+                "community_id": guild.id + 1,
+                "target_type": "comment",
+                "target_id": 5,
+            },
         )
         is None
     )
@@ -91,7 +95,7 @@ async def test_find_unread_by_data_matches_every_key(session: AsyncSession):
             session,
             user_id=user.id,
             notification_type=NotificationType.comment_reaction,
-            match={"guild_id": guild.id, "target_type": "comment", "target_id": 5},
+            match={"community_id": guild.id, "target_type": "comment", "target_id": 5},
         )
         is None
     )

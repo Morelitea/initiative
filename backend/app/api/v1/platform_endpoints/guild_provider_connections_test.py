@@ -11,7 +11,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.messages import AuthProviderMessages
 from app.models.platform.guild_auth_policy import GuildAuthPolicy
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.testing.factories import (
     create_auth_provider,
     create_guild,
@@ -28,7 +28,7 @@ async def _seat(session: AsyncSession, *, auth_options: list[str] | None = None)
     kwargs = {} if auth_options is None else {"auth_options": auth_options}
     guild = await create_guild(session, creator=admin, **kwargs)
     await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.superadmin
+        session, user=admin, guild=guild, role=CommunityRole.superadmin
     )
     return admin, guild
 
@@ -178,7 +178,7 @@ async def test_an_ordinary_admin_reads_but_does_not_connect(
     admin = await create_user(session)
     guild = await create_guild(session, creator=admin)
     await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
+        session, user=admin, guild=guild, role=CommunityRole.admin
     )
     provider = await create_auth_provider(session, slug="google")
     headers = get_auth_headers(admin)

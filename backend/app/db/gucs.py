@@ -198,7 +198,6 @@ SESSION_AMR = Guc("app.session_amr", Kind.NAMES)
 
 # --- What narrows the read ----------------------------------------------------
 SCOPE_INITIATIVE_ID = Guc("app.scope_initiative_id", Kind.INT)
-VIA_DASHBOARD_ID = Guc("app.via_dashboard_id", Kind.INT)
 #: The statement is reader-written, on the query surface.
 QUERY = Guc("app.query", Kind.BOOL, read_once=True)
 
@@ -207,6 +206,13 @@ INSTALL_ID = Guc("app.current_install_id", Kind.INT)
 TOKEN_CLIENT_ID = Guc("app.token_client_id", Kind.TEXT)
 TOKEN_SCOPES = Guc("app.token_scopes", Kind.NAMES)
 TOKEN_PURPOSE = Guc("app.token_purpose", Kind.TEXT)
+
+# --- Somebody who filed a case ------------------------------------------------
+#: The tasks of the cases the routed account filed, read by the filer seam
+#: through the filer role's own row on ``intake_cases``. What the filer
+#: policies on a case's task and its comments admit, so neither has to read
+#: ``intake_cases`` back — whose own policy reads ``tasks``.
+FILER_CASES = Guc("app.filer_cases", Kind.IDS, read_once=True)
 
 # --- The standing -------------------------------------------------------------
 #: The community the standing was computed for.
@@ -280,7 +286,6 @@ REQUEST_GUCS: tuple[Guc, ...] = (
     PLATFORM_FACTOR,
     BILLING_GUILD_ID,
     SCOPE_INITIATIVE_ID,
-    VIA_DASHBOARD_ID,
     QUERY,
     GUILD_AUTH_OK,
     INSTALL_ID,
@@ -301,6 +306,7 @@ REQUEST_GUCS: tuple[Guc, ...] = (
     INSTALL_READ,
     INSTALL_WRITE,
     CONTENT_HOLD,
+    FILER_CASES,
 )
 
 STANDING: tuple[Guc, ...] = tuple(g for g in REQUEST_GUCS if g.standing)

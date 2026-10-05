@@ -28,24 +28,24 @@ So two people can open the same dashboard and correctly see different numbers, a
 
 The access rules you set on projects and documents follow straight through into the reporting — which means a dashboard is never the accidental side door to something somebody wasn't supposed to see.
 
-## Published figures
+## Run dashboard as
 
 There is one case where that's wrong, and it's the case dashboards get built for: the number everybody in the room is supposed to be looking at. A total that's smaller for half the meeting isn't a total, it's an argument.
 
-So under **Settings → Published figures** you can name a project the dashboard should show the same way to everyone who can open it. Name it once, and the tiles stop answering per person for those rows.
+So under **Settings → Details**, **Run dashboard as** has two choices:
 
-Four things hold:
+- **Individual** — the default. Everyone sees only what they can open, so numbers can differ from person to person.
+- **Initiative** — everyone sees the same numbers, with full read access to the initiative, whatever their own permissions. Use it with care: people will see figures from things they can't open themselves.
 
-- You can only publish what you can open yourself. It hands on your reach, never more.
-- Whoever owns the project sees the share sitting on it, and can take it back whenever they like.
-- If you lose access, leave, or your account is suspended, it stops — the tiles go back to showing each person their own.
-- The dashboard says when it's on, so nobody has to wonder whose numbers they're reading.
+**Initiative** is the dashboard's own access, not a person's. It doesn't change when whoever turned it on leaves or changes role, and it only ever reads — nothing on a dashboard can change your data.
+
+Who may turn it on is a role permission, **Run dashboards as Initiative**, under **Initiative settings → Roles**. Managers always can. Changing the tiles of a dashboard that runs as Initiative takes the same permission, since the tiles decide what everybody sees; anyone else who can edit it can switch it back to **Individual** first.
 
 ## Building one
 
-From an initiative's sidebar: **Dashboards → New dashboard**. Add tiles, point each at what it should read, arrange them on the canvas.
+From the initiative's **Dashboards** tab: **New Dashboard**. Add tiles, point each at what it should read, arrange them on the canvas. In the list, each dashboard's card is a small copy of it, so you can pick the right one by its shape.
 
-Or skip the building entirely. The [marketplace](apps-and-marketplace.md) has ready-made dashboards you add in a couple of clicks and then adjust.
+Or skip the building entirely. **Browse the marketplace**, in the list's **More actions** menu — or beside **Create Your First Dashboard** while there are none — has ready-made dashboards you add in a couple of clicks and then adjust. See [Apps & the marketplace](apps-and-marketplace.md).
 
 Usually faster than starting from a blank canvas, and often better, because somebody else has already spent a year discovering which four numbers actually matter and which nine just look impressive.
 
@@ -64,7 +64,9 @@ Either way you can reach what a thing is *attached to* without writing a join. T
 
 ### Narrowing it
 
-The **Filters** rows say which rows a tile is about. Pick a field, how to compare it, what to compare it against. Bracket a few as *any of these* when "high or urgent, and mine" is the actual question.
+The **Filters** say which rows a tile is about. Pick a field, how to compare it, what to compare it against. With more than one, choose whether rows must match **all** of them or **any**, and add a group for the other kind when "high or urgent, and mine" is the actual question.
+
+Archived work and templates are left out to start with. **Archived** and **Templates** above the filters each say **Leave out**, **Include** or **Only** — so "everything we archived this year" is one click away. Deleted things are never counted, on any dashboard, for anyone.
 
 Dates are asked as distances rather than as dates. A tile set to *the next 30 days* still means that next month, which is the whole difference between a dashboard and a screenshot.
 
@@ -74,7 +76,11 @@ Wherever a filter wants a person, one of the choices is **Me**.
 
 That doesn't mean you. It means whoever is looking at the tile. Place *My open tasks* once and everybody who opens that dashboard sees theirs — one tile, not one per person, and nobody's name stored inside it.
 
-(A tile like that can't also be a published figure. A number that's different for everyone can't be the same for everyone.)
+(On a dashboard that runs as **Initiative**, *Me* is still whoever is looking — the tile counts across the whole initiative, then narrows to them.)
+
+### Grouping by time
+
+Group a date by **day**, **week**, **month**, **quarter** or **year** and a chart labels each point that way — "Mar 2026", "Q1 2026" — in order, oldest first. A heatmap draws months and quarters as a row per year, and weeks and years as a single strip.
 
 ### Boards
 
@@ -90,7 +96,7 @@ Some marketplace tiles are custom **widgets**. They run in an isolated sandbox a
 
 ## Where they show up
 
-Dashboards live inside an initiative, next to its projects and documents, and share the same way — **Viewer**, **Editor**, **Owner**, or the whole initiative. Since "look at this" is the entire use case, they're often the one thing a group opens right up.
+Dashboards live inside an initiative, next to its projects and documents, and share the same way — **Viewer**, **Editor**, **Owner**, or the whole initiative. Everything else every tool has, they have too; see [Tools](tools.md). Since "look at this" is the entire use case, they're often the one thing a group opens right up.
 
 Each dashboard has its own comment thread, which is an excellent place to argue about what a number actually means. Switch it off under **Settings → Details** if you'd rather that argument happened somewhere else.
 

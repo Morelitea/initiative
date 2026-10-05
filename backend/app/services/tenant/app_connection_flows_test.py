@@ -11,6 +11,7 @@ and ending a connection ends the grant at the vendor.
 from __future__ import annotations
 
 import asyncio
+import base64
 import time
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
@@ -33,6 +34,7 @@ from app.core.security import SESSION_COOKIE_NAME
 from app.core.encryption import SALT_APP_CONFIG, decrypt_field, encrypt_field
 from app.core.messages import AccessGrantMessages, AppChannelMessages
 from app.db import cohorts
+from app.services.marketplace.registration_lookup import invalidate_registrations
 from app.db.session import set_rls_context
 from app.models.platform.access_grant import (
     AccessGrant,
@@ -40,13 +42,16 @@ from app.models.platform.access_grant import (
     AccessLevel,
     SettingsLevel,
 )
-from app.models.platform.guild import GuildMembership, GuildRole
+from app.models.platform.guild import GuildMembership, CommunityRole
 from app.models.platform.app_install import AppInstall
+from app.models.platform.app_service_registration import RegistrationKind
+from app.models.tenant.app_event_outbox import AppEventOutbox
 from app.models.tenant.app_hook_delivery import AppHookDelivery
 from app.models.tenant.app_schedule_run import AppScheduleRun
 from app.models.tenant.guild_app import GuildApp
 from app.models.tenant.guild_app_secret import GuildAppSecret
 from app.models.tenant.guild_app_user_connection import GuildAppUserConnection
+from app.services.marketplace import expressions
 from app.services.marketplace.registration_lookup import load_registrations
 from app.services.tenant import app_connection_flows, app_revocation, app_schedules
 from app.testing import (
@@ -57,7 +62,7 @@ from app.testing import (
     route_session_to_guild,
     sealed_vendor_values,
 )
-from app.testing.fake_vendor import FakeVendor
+from app.testing.fake_vendor import FakeVendor, declarative_github
 from app.db.request_context import SystemGuild
 
 
@@ -369,7 +374,7 @@ class TestMemberFlow:
         """The whole trip: the member is sent to the vendor, comes back with a
         code, and Initiative exchanges it, asks the app who connected, and
         keeps the tokens."""
-        a = await acting_user(guild_role=GuildRole.member)
+        a = await acting_user(guild_role=CommunityRole.member)
         app = await _install(session, a)
 
         start = await _start(client, a, app, "account")
@@ -420,7 +425,7 @@ class TestMemberFlow:
     async def test_reconnecting_keeps_the_handle(
         self, client: AsyncClient, acting_user, session, vendor, registration
     ):
-        a = await acting_user(guild_role=GuildRole.member)
+        a = await acting_user(guild_role=CommunityRole.member)
         app = await _install(session, a)
 
         refs = []
@@ -439,7 +444,7 @@ class TestMemberFlow:
         """The code is bound to the challenge the authorization request sent; a
         verifier that does not answer it is refused by the vendor, and nothing
         is stored."""
-        a = await acting_user(guild_role=GuildRole.member)
+        a = await acting_user(guild_role=CommunityRole.member)
         app = await _install(session, a)
         start = await _start(client, a, app, "account")
         assert start["code_challenge_method"] == "S256"
@@ -453,7 +458,7 @@ class TestMemberFlow:
     async def test_a_tampered_state_is_refused(
         self, client: AsyncClient, acting_user, session, vendor, registration
     ):
-        a = await acting_user(guild_role=GuildRole.member)
+        a = await acting_user(guild_role=CommunityRole.member)
         app = await _install(session, a)
         start = await _start(client, a, app, "account")
         code = vendor.authorize(start["code_challenge"])
@@ -475,7 +480,7 @@ class TestMemberFlow:
         registration,
         monkeypatch,
     ):
-        a = await acting_user(guild_role=GuildRole.member)
+        a = await acting_user(guild_role=CommunityRole.member)
         app = await _install(session, a)
         start = await _start(client, a, app, "account")
         code = vendor.authorize(start["code_challenge"])
@@ -490,7 +495,7 @@ class TestMemberFlow:
     async def test_the_vendor_saying_no_reads_as_refused(
         self, client: AsyncClient, acting_user, session, vendor, registration
     ):
-        a = await acting_user(guild_role=GuildRole.member)
+        a = await acting_user(guild_role=CommunityRole.member)
         app = await _install(session, a)
         start = await _start(client, a, app, "account")
 
@@ -504,7 +509,7 @@ class TestMemberFlow:
         self, client: AsyncClient, acting_user, session, vendor, registration
     ):
         vendor.after_connect_answer = {"refuse": True}
-        a = await acting_user(guild_role=GuildRole.member)
+        a = await acting_user(guild_role=CommunityRole.member)
         app = await _install(session, a)
         start = await _start(client, a, app, "account")
         code = vendor.authorize(start["code_challenge"])
@@ -518,7 +523,7 @@ class TestMemberFlow:
         self, client: AsyncClient, acting_user, session, vendor, registration
     ):
         vendor.hook_status = 500
-        a = await acting_user(guild_role=GuildRole.member)
+        a = await acting_user(guild_role=CommunityRole.member)
         app = await _install(session, a)
         start = await _start(client, a, app, "account")
         code = vendor.authorize(start["code_challenge"])
@@ -534,8 +539,8 @@ class TestMemberFlow:
         """A flow is finished only by the person who started it; anyone else
         is told to finish it where that person is signed in, and the code is
         never exchanged."""
-        a = await acting_user(guild_role=GuildRole.member)
-        other = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+        a = await acting_user(guild_role=CommunityRole.member)
+        other = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
         app = await _install(session, a)
         start = await _start(client, a, app, "account")
         code = vendor.authorize(start["code_challenge"])
@@ -550,7 +555,7 @@ class TestMemberFlow:
     async def test_no_session_cannot_finish_it(
         self, client: AsyncClient, acting_user, session, vendor, registration
     ):
-        a = await acting_user(guild_role=GuildRole.member)
+        a = await acting_user(guild_role=CommunityRole.member)
         app = await _install(session, a)
         start = await _start(client, a, app, "account")
         code = vendor.authorize(start["code_challenge"])
@@ -574,7 +579,7 @@ class TestInstallationStyleFlow:
             "values": {"owner": "acme", "installation_id": "42"},
             "account_label": "acme",
         }
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
         app = await _install(session, a)
 
         start = await _start(client, a, app, "workspace")
@@ -619,7 +624,7 @@ class TestInstallationStyleFlow:
     ):
         """A community connection is finished only while its starter still
         holds the seat."""
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
         app = await _install(session, a)
         start = await _start(client, a, app, "workspace")
 
@@ -631,7 +636,7 @@ class TestInstallationStyleFlow:
                 )
             )
         ).one()
-        membership.role = GuildRole.member
+        membership.role = CommunityRole.member
         session.add(membership)
         await session.commit()
 
@@ -665,7 +670,7 @@ class TestInstallationStyleFlow:
     async def test_a_lent_seat_beside_a_read_grant_cannot_start_it(
         self, client: AsyncClient, acting_user, session, vendor, registration
     ):
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
         app = await _install(session, a)
         support = await self._lent_seat(session, acting_user, a, content="read")
 
@@ -682,7 +687,7 @@ class TestInstallationStyleFlow:
     ):
         """The flow is finished only while its starter may still change what
         the seat holds."""
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
         app = await _install(session, a)
         support = await self._lent_seat(session, acting_user, a, content="read_write")
         start = await _start(client, support, app, "workspace")
@@ -709,7 +714,7 @@ class TestInstallationStyleFlow:
     async def test_an_install_awaiting_approval_says_so(
         self, client: AsyncClient, acting_user, session, vendor, registration
     ):
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
         app = await _install(session, a)
         start = await _start(client, a, app, "workspace")
 
@@ -726,7 +731,7 @@ class TestInstallationStyleFlow:
     async def test_an_authorize_state_is_not_a_setup_state(
         self, client: AsyncClient, acting_user, session, vendor, registration
     ):
-        a = await acting_user(guild_role=GuildRole.member)
+        a = await acting_user(guild_role=CommunityRole.member)
         app = await _install(session, a)
         start = await _start(client, a, app, "account")
 
@@ -748,7 +753,7 @@ class TestTokens:
     async def test_a_members_token_by_reference(
         self, client: AsyncClient, acting_user, session, vendor, registration
     ):
-        a = await acting_user(guild_role=GuildRole.member)
+        a = await acting_user(guild_role=CommunityRole.member)
         app = await _install(session, a)
         row = await _connected_row(session, a, app, expires_in=3600)
 
@@ -771,7 +776,7 @@ class TestTokens:
         Two sessions of their own, as two requests in two workers would have;
         the test client shares one session per role, so it cannot overlap
         two requests."""
-        a = await acting_user(guild_role=GuildRole.member)
+        a = await acting_user(guild_role=CommunityRole.member)
         app = await _install(session, a)
         row = await _connected_row(session, a, app, expires_in=30)
 
@@ -813,7 +818,7 @@ class TestTokens:
     ):
         """The vendor is asked without holding the member's row, and what it
         answered is dropped when the row changed meanwhile."""
-        a = await acting_user(guild_role=GuildRole.member)
+        a = await acting_user(guild_role=CommunityRole.member)
         app = await _install(session, a)
         row = await _connected_row(session, a, app, expires_in=30)
 
@@ -852,7 +857,7 @@ class TestTokens:
     ):
         """The install's row is locked only to store the refreshed token, so a
         disconnect lands while the vendor is being asked, and wins."""
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
         app = await create_guild_app(
             session,
             a.guild,
@@ -891,7 +896,7 @@ class TestTokens:
         self, client: AsyncClient, acting_user, session, vendor, registration
     ):
         vendor.refuse_refresh = True
-        a = await acting_user(guild_role=GuildRole.member)
+        a = await acting_user(guild_role=CommunityRole.member)
         app = await _install(session, a)
         row = await _connected_row(session, a, app, expires_in=30)
 
@@ -916,7 +921,7 @@ class TestTokens:
     ):
         """A ``jwt_bearer`` connection's token is minted with the vendor key and
         reused until shortly before it expires."""
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
         app = await _install(
             session,
             a,
@@ -947,10 +952,10 @@ class TestTokens:
     async def test_a_ref_of_another_install_is_not_found(
         self, client: AsyncClient, acting_user, session, vendor, registration
     ):
-        a = await acting_user(guild_role=GuildRole.member)
+        a = await acting_user(guild_role=CommunityRole.member)
         app = await _install(session, a)
         row = await _connected_row(session, a, app, expires_in=3600)
-        b = await acting_user(guild_role=GuildRole.member)
+        b = await acting_user(guild_role=CommunityRole.member)
         other = await _install(session, b)
 
         response = await client.post(
@@ -964,7 +969,7 @@ class TestTokens:
     async def test_a_blocked_member_gets_no_token(
         self, client: AsyncClient, acting_user, session, vendor, registration
     ):
-        a = await acting_user(guild_role=GuildRole.member)
+        a = await acting_user(guild_role=CommunityRole.member)
         app = await _install(session, a)
         row = await _connected_row(session, a, app, expires_in=3600)
         await route_session_to_guild(session, a.guild.id)
@@ -984,7 +989,7 @@ class TestTokens:
     async def test_the_config_dump_holds_no_flow_secrets(
         self, client: AsyncClient, acting_user, session, vendor, registration
     ):
-        a = await acting_user(guild_role=GuildRole.member)
+        a = await acting_user(guild_role=CommunityRole.member)
         app = await _install(
             session,
             a,
@@ -1013,7 +1018,7 @@ class TestTokens:
     async def test_the_write_back_route_is_gone(
         self, client: AsyncClient, acting_user, session, vendor, registration
     ):
-        a = await acting_user(guild_role=GuildRole.member)
+        a = await acting_user(guild_role=CommunityRole.member)
         app = await _install(session, a)
 
         response = await client.put(
@@ -1034,7 +1039,7 @@ class TestRevocation:
     async def test_uninstall_calls_the_revoke_url(
         self, client: AsyncClient, acting_user, session, vendor, registration
     ):
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
         app = await _install(session, a)
         await _connected_row(session, a, app, expires_in=3600)
 
@@ -1054,7 +1059,7 @@ class TestRevocation:
         self, client: AsyncClient, acting_user, session, vendor, registration
     ):
         vendor.revoke_status = 503
-        a = await acting_user(guild_role=GuildRole.member)
+        a = await acting_user(guild_role=CommunityRole.member)
         app = await _install(session, a)
         await _connected_row(session, a, app, expires_in=3600)
 
@@ -1064,6 +1069,150 @@ class TestRevocation:
 
         assert response.status_code == 204
         assert len(vendor.revocations) == app_revocation.REVOKE_ATTEMPTS
+
+    @staticmethod
+    def _grant_intent(**overrides) -> app_revocation.RevocationIntent:
+        """A member connection whose grant GitHub ends by its access token."""
+        return app_revocation.RevocationIntent(
+            **{
+                "guild_id": 1,
+                "app_id": 1,
+                "listing_uid": LISTING_UID,
+                "connection_id": "account",
+                "public_id": PUBLIC_ID,
+                "flow": {
+                    **FLOW,
+                    "revoke": "github_grant",
+                    "revoke_url": (
+                        "https://github.test/applications/{vendor.client_id}/grant"
+                    ),
+                },
+                "sealed_tokens": {
+                    "access_token": encrypt_field("gho_stored", SALT_APP_CONFIG),
+                    "refresh_token": encrypt_field("ghr_stored", SALT_APP_CONFIG),
+                },
+                "expires_at": int(time.time()) + 3600,
+                **overrides,
+            }
+        )
+
+    @staticmethod
+    def _deletion(access_token: str) -> tuple:
+        basic = base64.b64encode(b"client-123:client-secret-456").decode()
+        return (
+            "DELETE",
+            "/applications/client-123/grant",
+            f"Basic {basic}",
+            {"access_token": access_token},
+        )
+
+    @pytest.mark.parametrize(
+        ("status", "tries"), [(204, 1), (503, app_revocation.REVOKE_ATTEMPTS)]
+    )
+    async def test_a_github_grant_is_deleted_with_the_client_credentials(
+        self, vendor, registration, status, tries
+    ):
+        vendor.grant_status = status
+
+        await app_revocation._deliver(self._grant_intent())
+
+        assert vendor.grant_deletions == [self._deletion("gho_stored")] * tries
+        assert vendor.refreshes == 0
+
+    async def test_a_declarative_apps_grant_is_deleted_under_its_listings_name(
+        self, session, vendor, registration
+    ):
+        """It names no service: the registration its listing applied says
+        which vendor client ends the grant."""
+        registration.kind = RegistrationKind.DECLARATIVE
+        session.add(registration)
+        await session.commit()
+        invalidate_registrations()
+        granted = self._grant_intent()
+        intent = app_revocation._intent_for(
+            guild_id=1,
+            app_id=1,
+            listing_uid=LISTING_UID,
+            definition={
+                "app_kind": "service",
+                "hosts": ["api.github.test"],
+                "connections": [
+                    {"id": "account", "scope": "interactive", "flow": granted.flow}
+                ],
+            },
+            connection_id="account",
+            config={"expires_at": granted.expires_at},
+            secrets=granted.sealed_tokens,
+            reason="disconnected",
+        )
+        assert intent.public_id is None
+
+        await app_revocation._deliver(intent)
+
+        assert vendor.grant_deletions == [self._deletion("gho_stored")]
+
+    async def test_a_lapsed_github_token_is_refreshed_before_the_deletion(
+        self, vendor, registration
+    ):
+        await app_revocation._deliver(
+            self._grant_intent(expires_at=int(time.time()) - 60)
+        )
+
+        assert vendor.refreshes == 1
+        assert vendor.token_requests[-1]["refresh_token"] == "ghr_stored"
+        assert vendor.grant_deletions == [self._deletion("gho_access_1")]
+
+    async def test_a_token_github_no_longer_accepts_is_refreshed_once(
+        self, vendor, registration
+    ):
+        vendor.lapsed_tokens = {"gho_stored"}
+
+        await app_revocation._deliver(self._grant_intent())
+
+        assert vendor.refreshes == 1
+        assert vendor.grant_deletions == [
+            self._deletion("gho_stored"),
+            self._deletion("gho_access_1"),
+        ]
+
+    async def test_a_lapsed_github_token_with_no_refresh_token_is_dropped(
+        self, vendor, registration
+    ):
+        await app_revocation._deliver(
+            self._grant_intent(
+                expires_at=int(time.time()) - 60,
+                sealed_tokens={
+                    "access_token": encrypt_field("gho_stored", SALT_APP_CONFIG)
+                },
+            )
+        )
+
+        assert vendor.refreshes == 0
+        assert vendor.grant_deletions == []
+
+    async def test_a_github_grant_with_no_access_token_sends_nothing(
+        self, vendor, registration
+    ):
+        await app_revocation._deliver(self._grant_intent(sealed_tokens={}))
+
+        assert vendor.grant_deletions == []
+
+    async def test_a_github_grant_with_no_client_secret_sends_nothing(
+        self, session: AsyncSession, vendor
+    ):
+        await create_app_service_registration(
+            session,
+            public_id=PUBLIC_ID,
+            listing_uid=LISTING_UID,
+            base_url="https://app.example.test",
+            vendor_values=sealed_vendor_values(
+                {k: v for k, v in VENDOR_VALUES.items() if k != "client_secret"}
+            ),
+        )
+
+        await app_revocation._deliver(self._grant_intent())
+
+        assert vendor.grant_deletions == []
 
     async def test_revocations_are_sent_together(self, monkeypatch):
         """Each delivery waits for the other, so both finish only when they run
@@ -1090,7 +1239,7 @@ class TestRevocation:
     async def test_a_hook_revocation_hands_the_app_the_tokens(
         self, client: AsyncClient, acting_user, session, vendor, registration
     ):
-        a = await acting_user(guild_role=GuildRole.member)
+        a = await acting_user(guild_role=CommunityRole.member)
         app = await _install(session, a)
         await _connected_row(
             session, a, app, expires_in=3600, connection_id="hooked", ref="cr_hooked"
@@ -1200,7 +1349,9 @@ class TestVendorWebhooks:
         A delivery for 42 is forwarded to each of the two at once, on a
         lifecycle token naming that install, and a redelivery forwards
         nothing."""
-        seats = [await acting_user(guild_role=GuildRole.superadmin) for _ in range(3)]
+        seats = [
+            await acting_user(guild_role=CommunityRole.superadmin) for _ in range(3)
+        ]
         apps = [
             await _install(session, seat, config=_connected(value))
             for seat, value in zip(seats, ("42", "42", "7"))
@@ -1233,7 +1384,7 @@ class TestVendorWebhooks:
             apps[1].id,
         ]
         assert {claim["hook"] for claim in claims} == {"webhook"}
-        assert claims[0]["guild_ref"] != claims[1]["guild_ref"]
+        assert claims[0]["community_ref"] != claims[1]["community_ref"]
         call = forwarded[0][0]
         assert call["connection"] == "workspace"
         assert call["body"] == body.decode()
@@ -1250,7 +1401,7 @@ class TestVendorWebhooks:
     async def test_nothing_is_forwarded_or_stored_for_a_delivery_it_cannot_route(
         self, client: AsyncClient, acting_user, session, vendor, listing, problem
     ):
-        seat = await acting_user(guild_role=GuildRole.superadmin)
+        seat = await acting_user(guild_role=CommunityRole.superadmin)
         await _install(session, seat, config=_connected("42"))
         installation = 999 if problem == "unroutable" else 42
         body, headers = vendor.webhook({"installation": {"id": installation}})
@@ -1268,7 +1419,7 @@ class TestVendorWebhooks:
     ):
         """A community whose app did not accept a delivery records nothing, so
         the vendor's redelivery reaches it."""
-        seat = await acting_user(guild_role=GuildRole.superadmin)
+        seat = await acting_user(guild_role=CommunityRole.superadmin)
         await _install(session, seat, config=_connected("42"))
         body, headers = vendor.webhook({"installation": {"id": 42}})
 
@@ -1283,11 +1434,40 @@ class TestVendorWebhooks:
         [recorded] = await _deliveries(session, seat.guild.id)
         assert recorded.delivery_id == "delivery-1"
 
+    async def test_a_delivery_is_described_by_the_version_each_install_pinned(
+        self, client: AsyncClient, acting_user, session, vendor, registration
+    ):
+        """The listing has moved on and calls its connection something else;
+        the install's delivery still names the connection its version does."""
+        moved = {
+            **DEFINITION,
+            "connections": [ACCOUNT, HOOKED, {**WORKSPACE, "id": "installation"}],
+            "webhooks": {
+                **DEFINITION["webhooks"],
+                "route": {
+                    **DEFINITION["webhooks"]["route"],
+                    "connection": "installation",
+                },
+            },
+        }
+        await create_marketplace_listing(
+            session, uid=LISTING_UID, public_id=PUBLIC_ID, kind="app", definition=moved
+        )
+        seat = await acting_user(guild_role=CommunityRole.superadmin)
+        await _install(session, seat, config=_connected("42"))
+        body, headers = vendor.webhook({"installation": {"id": 42}})
+
+        response = await client.post(HOOK_ROUTE, content=body, headers=headers)
+
+        assert response.status_code == 202, response.text
+        [(name, call, _)] = vendor.hooks
+        assert (name, call["connection"]) == ("webhook", "workspace")
+
     async def test_disconnecting_and_uninstalling_remove_the_route(
         self, client: AsyncClient, acting_user, session, vendor, registration
     ):
         """And uninstalling removes the install's schedules."""
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
         app = await _install(session, a, config=_connected("42"))
         assert (await _indexed(session, a.guild.id, app.id)).hook_route == "42"
         assert set(await _runs(session, a.guild.id)) == {"check-installation"}
@@ -1351,7 +1531,7 @@ class TestSchedules:
     async def test_two_workers_run_a_due_schedule_once(
         self, acting_user, session, role_session, vendor, registration
     ):
-        seat = await acting_user(guild_role=GuildRole.superadmin)
+        seat = await acting_user(guild_role=CommunityRole.superadmin)
         app = await _install(session, seat)
         await _due(session, seat.guild.id)
 
@@ -1368,7 +1548,7 @@ class TestSchedules:
     ):
         """A success is next due one interval later, plus up to a tenth of it,
         and a failure after it leaves ``since`` where the success put it."""
-        seat = await acting_user(guild_role=GuildRole.superadmin)
+        seat = await acting_user(guild_role=CommunityRole.superadmin)
         guild_id = seat.guild.id
         await _install(session, seat)
         worker = await role_session()
@@ -1393,7 +1573,7 @@ class TestSchedules:
     async def test_a_switched_off_install_is_not_called(
         self, acting_user, session, role_session, vendor, registration
     ):
-        seat = await acting_user(guild_role=GuildRole.superadmin)
+        seat = await acting_user(guild_role=CommunityRole.superadmin)
         await _install(session, seat, enabled=False)
         await _due(session, seat.guild.id)
 
@@ -1406,7 +1586,7 @@ class TestSchedules:
     async def test_a_failing_schedule_backs_off_to_ten_intervals(
         self, acting_user, session, role_session, vendor, registration
     ):
-        seat = await acting_user(guild_role=GuildRole.superadmin)
+        seat = await acting_user(guild_role=CommunityRole.superadmin)
         guild_id = seat.guild.id
         await _install(session, seat)
         worker = await role_session()
@@ -1422,3 +1602,361 @@ class TestSchedules:
             waits.append((run.failures, minutes))
 
         assert waits == [(1, 30), (2, 60), (3, 120), (4, 150)]
+
+
+# ---------------------------------------------------------------------------
+# A declarative app: Initiative runs its connection and maps its deliveries
+# ---------------------------------------------------------------------------
+
+DECLARATIVE_ID = "tests.ghd"
+DECLARATIVE_UID = "TESTAPP0000010"
+DECLARATIVE = declarative_github(DECLARATIVE_ID)
+ISSUE_OPENED = f"app.{DECLARATIVE_ID}.issue-opened"
+DECLARATIVE_HOOKS = f"/api/v1/app-hooks/{DECLARATIVE_ID}"
+
+
+@pytest.fixture
+async def declarative(session: AsyncSession):
+    return await create_app_service_registration(
+        session,
+        public_id=DECLARATIVE_ID,
+        listing_uid=DECLARATIVE_UID,
+        base_url=None,
+        allowed_origins=[],
+        jwks={},
+        kind="declarative",
+        vendor_values=sealed_vendor_values(VENDOR_VALUES),
+    )
+
+
+async def _declarative_listing(session: AsyncSession, definition: dict = DECLARATIVE):
+    return await create_marketplace_listing(
+        session,
+        uid=DECLARATIVE_UID,
+        public_id=DECLARATIVE_ID,
+        kind="app",
+        definition=definition,
+    )
+
+
+async def _declarative_install(session: AsyncSession, actor, **overrides) -> GuildApp:
+    return await create_guild_app(
+        session,
+        actor.guild,
+        actor.user,
+        listing_uid=DECLARATIVE_UID,
+        **{"definition": DECLARATIVE, **overrides},
+    )
+
+
+def _installations(*owners: tuple[int, str]) -> dict:
+    """One page of the person's installations, as GitHub lists them."""
+    return {
+        "body": {
+            "installations": [
+                {"id": number, "account": {"login": login}} for number, login in owners
+            ]
+        }
+    }
+
+
+async def _events(session: AsyncSession, guild_id: int) -> list[tuple]:
+    await route_session_to_guild(session, guild_id)
+    session.expunge_all()
+    rows = (await session.exec(select(AppEventOutbox))).all()
+    return [(row.event_type, row.initiative_id, row.payload) for row in rows]
+
+
+def _issue(**issue) -> dict:
+    return {
+        "action": "opened",
+        "installation": {"id": 42},
+        "repository": {"full_name": "acme/web"},
+        "issue": {"number": 12, "title": "Broken build", **issue},
+    }
+
+
+class TestDeclarativeApps:
+    async def _connect(self, client: AsyncClient, actor, app: GuildApp, vendor):
+        """The install page, then one authorization, returning installation
+        42."""
+        start = await _start(client, actor, app, "workspace")
+        setup = await client.get(
+            "/api/v1/app-connections/setup",
+            headers=_cookie(actor),
+            params={
+                "state": start["state"],
+                "installation_id": "42",
+                "setup_action": "install",
+            },
+        )
+        assert setup.status_code == 303, setup.text
+        query = {
+            key: values[0]
+            for key, values in parse_qs(
+                urlparse(setup.headers["location"]).query
+            ).items()
+        }
+        code = vendor.authorize(query["code_challenge"])
+        return await _callback(client, actor, state=query["state"], code=code)
+
+    async def test_after_connect_finds_the_installation_among_the_persons(
+        self, client: AsyncClient, acting_user, session, vendor, declarative
+    ):
+        """Initiative lists the person's installations, every page, with the
+        token it just obtained, and keeps the one the install page returned."""
+        vendor.api_answers = [
+            _installations((7, "other"), (8, "else")),
+            _installations((42, "acme")),
+        ]
+        a = await acting_user(guild_role=CommunityRole.superadmin)
+        app = await _declarative_install(session, a)
+
+        landing = await self._connect(client, a, app, vendor)
+
+        assert landing["outcome"] == "connected"
+        assert vendor.hooks == []
+        assert [request["url"] for request in vendor.api_requests] == [
+            "https://api.github.test/user/installations?page=1&per_page=2",
+            "https://api.github.test/user/installations?page=2&per_page=2",
+        ]
+        assert vendor.api_requests[0]["headers"]["authorization"].startswith(
+            "Bearer gho_access_"
+        )
+        stored = await _reload(session, a.guild.id, app.id)
+        assert stored.config["workspace"] == {"owner": "acme", "installation_id": "42"}
+        assert (await _indexed(session, a.guild.id, app.id)).hook_route == "42"
+
+    async def test_after_connect_refuses_an_installation_not_the_persons(
+        self, client: AsyncClient, acting_user, session, vendor, declarative
+    ):
+        vendor.api_answers = [_installations((7, "other"))]
+        a = await acting_user(guild_role=CommunityRole.superadmin)
+        app = await _declarative_install(session, a)
+
+        landing = await self._connect(client, a, app, vendor)
+
+        assert landing["outcome"] == "refused"
+        stored = await _reload(session, a.guild.id, app.id)
+        assert "workspace" not in (stored.config or {})
+        assert (await _indexed(session, a.guild.id, app.id)).hook_route is None
+
+    async def test_an_opened_issue_is_emitted_once(
+        self, client: AsyncClient, acting_user, session, vendor, declarative
+    ):
+        """The delivery becomes the app's event, through the outbox a
+        container's emission is kept in, and is never forwarded to a hook. A
+        redelivery emits nothing."""
+        await _declarative_listing(session)
+        seat = await acting_user(guild_role=CommunityRole.superadmin)
+        await _declarative_install(session, seat, config=_connected("42"))
+        body, headers = vendor.webhook(_issue())
+
+        for _ in range(2):
+            response = await client.post(
+                DECLARATIVE_HOOKS, content=body, headers=headers
+            )
+            assert response.status_code == 202, response.text
+
+        assert await _events(session, seat.guild.id) == [
+            (
+                ISSUE_OPENED,
+                None,
+                {"repository": "acme/web", "number": 12, "title": "Broken build"},
+            )
+        ]
+        assert vendor.hooks == []
+        [recorded] = await _deliveries(session, seat.guild.id)
+        assert recorded.delivery_id == "delivery-1"
+
+    async def test_a_pull_request_is_not_an_opened_issue(
+        self, client: AsyncClient, acting_user, session, vendor, declarative
+    ):
+        await _declarative_listing(session)
+        seat = await acting_user(guild_role=CommunityRole.superadmin)
+        await _declarative_install(session, seat, config=_connected("42"))
+        body, headers = vendor.webhook(_issue(pull_request={"url": "https://x"}))
+
+        response = await client.post(DECLARATIVE_HOOKS, content=body, headers=headers)
+
+        assert response.status_code == 202, response.text
+        assert await _events(session, seat.guild.id) == []
+        assert vendor.hooks == []
+
+    async def test_an_installation_event_sets_the_connections_state(
+        self, client: AsyncClient, acting_user, session, vendor, declarative
+    ):
+        await _declarative_listing(session)
+        seat = await acting_user(guild_role=CommunityRole.superadmin)
+        app = await _declarative_install(session, seat, config=_connected("42"))
+
+        states = []
+        for serial, action in enumerate(("deleted", "unsuspend")):
+            body, headers = vendor.webhook(
+                {"action": action, "installation": {"id": 42}},
+                delivery=f"delivery-{serial}",
+            )
+            headers["X-GitHub-Event"] = "installation"
+            response = await client.post(
+                DECLARATIVE_HOOKS, content=body, headers=headers
+            )
+            assert response.status_code == 202, response.text
+            stored = await _reload(session, seat.guild.id, app.id)
+            states.append((stored.config_state, stored.config_state_detail))
+
+        assert states == [("invalid", "workspace_removed"), ("ok", None)]
+        assert await _events(session, seat.guild.id) == []
+
+    async def test_the_pinned_mapping_is_used_when_the_listing_moved_on(
+        self, client: AsyncClient, acting_user, session, vendor, declarative
+    ):
+        moved = declarative_github(DECLARATIVE_ID)
+        moved["webhooks"]["events"][0]["map"] = (
+            '{"repository": "moved/on", "number": payload.issue.number}'
+        )
+        await _declarative_listing(session, moved)
+        seat = await acting_user(guild_role=CommunityRole.superadmin)
+        await _declarative_install(session, seat, config=_connected("42"))
+        body, headers = vendor.webhook(_issue())
+
+        response = await client.post(DECLARATIVE_HOOKS, content=body, headers=headers)
+
+        assert response.status_code == 202, response.text
+        [(_, _, payload)] = await _events(session, seat.guild.id)
+        assert payload["repository"] == "acme/web"
+
+    async def test_a_mapping_that_may_answer_later_is_asked_again(
+        self,
+        client: AsyncClient,
+        acting_user,
+        session,
+        vendor,
+        declarative,
+        monkeypatch,
+    ):
+        """No evaluator answered: nothing is recorded and the vendor is told
+        to send it again, and the delivery maps when it comes back."""
+        await _declarative_listing(session)
+        seat = await acting_user(guild_role=CommunityRole.superadmin)
+        await _declarative_install(session, seat, config=_connected("42"))
+        holds = expressions.holds
+        busy = [True]
+
+        async def once_busy(*args, **kwargs):
+            if busy.pop() if busy else False:
+                raise expressions.ExpressionError("no evaluator", transient=True)
+            return await holds(*args, **kwargs)
+
+        monkeypatch.setattr(expressions, "holds", once_busy)
+        body, headers = vendor.webhook(_issue())
+
+        first = await client.post(DECLARATIVE_HOOKS, content=body, headers=headers)
+        assert first.status_code == 503, first.text
+        assert await _deliveries(session, seat.guild.id) == []
+
+        again = await client.post(DECLARATIVE_HOOKS, content=body, headers=headers)
+        assert again.status_code == 202, again.text
+        assert [event for event, _, _ in await _events(session, seat.guild.id)] == [
+            ISSUE_OPENED
+        ]
+
+    async def test_a_mapping_that_cannot_answer_is_logged_and_the_state_kept(
+        self, client: AsyncClient, acting_user, session, vendor, declarative, caplog
+    ):
+        """The event's payload does not fit its returns, which no redelivery
+        changes: the delivery is recorded, the failure logged, and the status
+        row it also matched still sets the state."""
+        broken = declarative_github(DECLARATIVE_ID)
+        broken["webhooks"]["events"][0].update(
+            when="$exists(payload.action)", map='{"number": "twelve"}'
+        )
+        await _declarative_listing(session, broken)
+        seat = await acting_user(guild_role=CommunityRole.superadmin)
+        app = await _declarative_install(
+            session, seat, definition=broken, config=_connected("42")
+        )
+        body, headers = vendor.webhook(
+            {"action": "deleted", "installation": {"id": 42}}
+        )
+        headers["X-GitHub-Event"] = "installation"
+
+        for _ in range(2):
+            response = await client.post(
+                DECLARATIVE_HOOKS, content=body, headers=headers
+            )
+            assert response.status_code == 202, response.text
+
+        assert await _events(session, seat.guild.id) == []
+        stored = await _reload(session, seat.guild.id, app.id)
+        assert stored.config_state_detail == "workspace_removed"
+        [recorded] = await _deliveries(session, seat.guild.id)
+        assert recorded.delivery_id == "delivery-1"
+        logged = [
+            record.getMessage()
+            for record in caplog.records
+            if "could not map delivery delivery-1" in record.getMessage()
+        ]
+        assert len(logged) == 1 and DECLARATIVE_ID in logged[0]
+
+    async def test_an_install_pinned_to_an_older_route_is_still_reached(
+        self, client: AsyncClient, acting_user, session, vendor, declarative
+    ):
+        """The listing now routes by a header; an install still pinned to the
+        version that read the body is found by it, and its own mapping runs."""
+        await _declarative_listing(session)
+        moved = declarative_github(DECLARATIVE_ID)
+        moved["webhooks"]["route"] = {
+            "header": "X-Installation-Target",
+            "connection": "workspace",
+            "field": "installation_id",
+        }
+        await create_marketplace_listing(
+            session,
+            uid=DECLARATIVE_UID,
+            public_id=DECLARATIVE_ID,
+            kind="app",
+            version="2.0.0",
+            definition=moved,
+        )
+        seat = await acting_user(guild_role=CommunityRole.superadmin)
+        await _declarative_install(session, seat, config=_connected("42"))
+        body, headers = vendor.webhook(_issue())
+
+        response = await client.post(DECLARATIVE_HOOKS, content=body, headers=headers)
+
+        assert response.status_code == 202, response.text
+        assert [event for event, _, _ in await _events(session, seat.guild.id)] == [
+            ISSUE_OPENED
+        ]
+
+    async def test_health_reports_a_failure_read_twice_and_recovery_at_once(
+        self, acting_user, session, role_session, vendor, declarative
+    ):
+        """The check runs with the installation's own token. One answer that
+        the installation is gone is not reported; two in a row are, and the
+        first answer that it works again is."""
+        seat = await acting_user(guild_role=CommunityRole.superadmin)
+        app = await _declarative_install(session, seat, config=_connected("42"))
+        assert set(await _runs(session, seat.guild.id)) == {"workspace"}
+        worker = await role_session()
+
+        states = []
+        for answer in ({"status": 404}, {"status": 404}, {"body": {}}):
+            vendor.api_answers = [answer]
+            await _due(session, seat.guild.id)
+            await _run_due(worker, seat.guild.id)
+            stored = await _reload(session, seat.guild.id, app.id)
+            states.append((stored.config_state, stored.config_state_detail))
+
+        assert states == [
+            ("unverified", None),
+            ("invalid", "workspace_removed"),
+            ("ok", None),
+        ]
+        assert {request["url"] for request in vendor.api_requests} == {
+            "https://api.github.test/installation/repositories"
+        }
+        assert vendor.api_requests[0]["headers"]["authorization"].startswith(
+            "Bearer ghs_installation_"
+        )
+        assert vendor.hooks == []

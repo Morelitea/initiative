@@ -3,7 +3,7 @@
  *
  * Two readings that are easy to get wrong. A definition pinned before surfaces
  * could say where they belong carries no scopes, and every one of those is
- * guild-wide — getting that wrong would empty the app pages of every install
+ * community-wide — getting that wrong would empty the app pages of every install
  * that predates it. And who may open a surface is the server's answer
  * (`surface_access`), so a surface the server did not say opens here is not
  * offered, whatever the definition declares.
@@ -13,9 +13,9 @@ import { describe, expect, it } from "vitest";
 
 import {
   appEmbeds,
+  communityAppPath,
   declaredEmbeds,
   embedAllow,
-  guildAppPath,
   initiativeAppPath,
   placedIn,
   type SurfaceAccess,
@@ -31,9 +31,9 @@ const embed = (id: string, scopes?: string[], adminOnly?: boolean) => ({
 
 const access = (
   surface_id: string,
-  openable_guild_wide: boolean,
+  openable_community_wide: boolean,
   openable_initiatives: number[] = []
-): SurfaceAccess => ({ surface_id, openable_guild_wide, openable_initiatives });
+): SurfaceAccess => ({ surface_id, openable_community_wide, openable_initiatives });
 
 describe("embedAllow", () => {
   it("grants a surface exactly what it asked for", () => {
@@ -56,31 +56,31 @@ describe("embedAllow", () => {
 });
 
 describe("declaredEmbeds", () => {
-  it("reads a surface that says nothing as guild-wide", () => {
+  it("reads a surface that says nothing as community-wide", () => {
     const definition = { embeds: [embed("board")] };
-    expect(declaredEmbeds(definition, "guild").map((e) => e.id)).toEqual(["board"]);
+    expect(declaredEmbeds(definition, "community").map((e) => e.id)).toEqual(["board"]);
     expect(declaredEmbeds(definition, "initiative")).toEqual([]);
   });
 
   it("offers a surface in both places when it asked for both", () => {
-    const definition = { embeds: [embed("runs", ["guild", "initiative"])] };
-    expect(declaredEmbeds(definition, "guild").map((e) => e.id)).toEqual(["runs"]);
+    const definition = { embeds: [embed("runs", ["community", "initiative"])] };
+    expect(declaredEmbeds(definition, "community").map((e) => e.id)).toEqual(["runs"]);
     expect(declaredEmbeds(definition, "initiative").map((e) => e.id)).toEqual(["runs"]);
   });
 
   it("ignores entries that are not surfaces", () => {
     const definition = { embeds: [{ id: "no-path" }, null, "board", embed("real")] };
-    expect(declaredEmbeds(definition, "guild").map((e) => e.id)).toEqual(["real"]);
+    expect(declaredEmbeds(definition, "community").map((e) => e.id)).toEqual(["real"]);
   });
 
   it("has nothing when the app declares no embeds", () => {
-    expect(declaredEmbeds({}, "guild")).toEqual([]);
-    expect(declaredEmbeds(null, "guild")).toEqual([]);
+    expect(declaredEmbeds({}, "community")).toEqual([]);
+    expect(declaredEmbeds(null, "community")).toEqual([]);
   });
 });
 
 describe("appEmbeds", () => {
-  it("offers a guild-wide surface only where the server says it opens", () => {
+  it("offers a community-wide surface only where the server says it opens", () => {
     const definition = { embeds: [embed("board")] };
     expect(
       appEmbeds({ definition, surface_access: [access("board", true)] }).map((e) => e.id)
@@ -89,14 +89,14 @@ describe("appEmbeds", () => {
   });
 
   it("offers an initiative surface in the initiatives the server listed", () => {
-    const definition = { embeds: [embed("runs", ["guild", "initiative"])] };
+    const definition = { embeds: [embed("runs", ["community", "initiative"])] };
     const app = { definition, surface_access: [access("runs", false, [4])] };
     expect(appEmbeds(app, 4).map((e) => e.id)).toEqual(["runs"]);
     expect(appEmbeds(app, 5)).toEqual([]);
     expect(appEmbeds(app)).toEqual([]);
   });
 
-  it("keeps an initiative-only surface off the guild page", () => {
+  it("keeps an initiative-only surface off the community page", () => {
     // Even if an answer said otherwise, the surface never asked to render there.
     const definition = { embeds: [embed("runs", ["initiative"])] };
     const app = { definition, surface_access: [access("runs", true, [4])] };
@@ -112,10 +112,10 @@ describe("appEmbeds", () => {
   });
 });
 
-describe("guildAppPath", () => {
+describe("communityAppPath", () => {
   it("gives an app with a surface this reader opens a page", () => {
     expect(
-      guildAppPath({
+      communityAppPath({
         id: 7,
         definition: { embeds: [embed("board")] },
         surface_access: [access("board", true)],
@@ -125,17 +125,17 @@ describe("guildAppPath", () => {
 
   it("gives a reader no page when no surface opens for them", () => {
     expect(
-      guildAppPath({
+      communityAppPath({
         id: 7,
-        definition: { embeds: [embed("console", ["guild"], true)] },
+        definition: { embeds: [embed("console", ["community"], true)] },
         surface_access: [access("console", false)],
       })
     ).toBeNull();
   });
 
-  it("gives an app with only initiative surfaces no guild page", () => {
+  it("gives an app with only initiative surfaces no community page", () => {
     expect(
-      guildAppPath({
+      communityAppPath({
         id: 7,
         definition: { embeds: [embed("runs", ["initiative"])] },
         surface_access: [access("runs", false, [4])],
@@ -145,7 +145,7 @@ describe("guildAppPath", () => {
 
   it("sends a tool-instance app to the tool it mounted", () => {
     expect(
-      guildAppPath({ id: 7, tool: "calendar", artifacts: [{ type: "calendar", id: 3 }] })
+      communityAppPath({ id: 7, tool: "calendar", artifacts: [{ type: "calendar", id: 3 }] })
     ).toBe("/calendars");
   });
 
@@ -160,7 +160,7 @@ describe("guildAppPath", () => {
         { type: "calendar", id: 4 },
       ],
     };
-    expect(guildAppPath(app)).toBe("/calendars");
+    expect(communityAppPath(app)).toBe("/calendars");
   });
 });
 
@@ -177,7 +177,7 @@ describe("initiativeAppPath", () => {
     expect(initiativeAppPath(app([]), 4)).toBeNull();
   });
 
-  it("gives no row to an app with only a guild-wide surface", () => {
+  it("gives no row to an app with only a community-wide surface", () => {
     expect(
       initiativeAppPath(
         {

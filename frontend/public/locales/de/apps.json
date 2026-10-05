@@ -62,7 +62,7 @@
   },
   "connections": {
     "none": "Diese App verlangt keine Einrichtung.",
-    "guildScope": "Zugangsdaten der Community",
+    "communityScope": "Zugangsdaten der Community",
     "personalScope": "Dein Konto",
     "set": "Hinterlegt",
     "notSet": "Nicht hinterlegt",
@@ -76,7 +76,7 @@
     "cleared": "Zugangsdaten gelöscht.",
     "memberSet": "Eine Community-Administration hat das eingerichtet.",
     "memberNotSet": "Eine Community-Administration muss das noch einrichten.",
-    "guildFlowExplainer": "Diese wird beim Anbieter erteilt statt eingetippt. Beim Verbinden öffnet sich dessen Installationsseite, wo du das Konto wählst und was diese App sehen darf.",
+    "communityFlowExplainer": "Diese wird beim Anbieter erteilt statt eingetippt. Beim Verbinden öffnet sich dessen Installationsseite, wo du das Konto wählst und was diese App sehen darf.",
     "personalExplainer": "Hier meldest du dich als du selbst an, deshalb verbindet jedes Mitglied sein eigenes Konto. Deins sieht sonst niemand.",
     "connect": "Verbinden",
     "reconnect": "Neu verbinden",
@@ -229,7 +229,7 @@
       "sharing": "Freigaben",
       "members": "Mitglieder",
       "initiatives": "Initiativen",
-      "guild": "Community"
+      "community": "Community"
     },
     "sentences": {
       "projects": {
@@ -285,13 +285,13 @@
         "write": "Sehen und ändern, wer worauf Zugriff hat"
       },
       "members": {
-        "read": "Sehen, wer in deiner Community ist"
+        "read": "Sehen, wer in deiner Community ist, mit Namen"
       },
       "initiatives": {
         "read": "Die Initiativen deiner Community sehen",
         "moderate": "In den Initiativen, in denen sie platziert ist, als Moderator handeln"
       },
-      "guild": {
+      "community": {
         "admin": "In deiner gesamten Community als Administrator handeln"
       },
       "fallback": {

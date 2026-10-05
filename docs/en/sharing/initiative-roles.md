@@ -37,15 +37,17 @@ So a "Contributor" might view and create projects and documents, while a "Guest"
 
 ![A role's permissions](../images/sharing/role-permissions.png)
 
-## The two built-in roles
+## The built-in roles { #the-two-built-in-roles }
 
-Every initiative arrives with two roles you didn't make and can't delete.
+Every initiative arrives with three roles you didn't make and can't delete.
 
-**Manager** (also called project manager, or PM) is the lead role: every tool permission, fixed, and whoever creates an initiative starts as one. Per-item sharing still applies to them — a Manager can create documents all day and still not see the one three people are quietly working on.
+**Manager** (also called project manager, or PM) is the lead role: every tool permission, fixed, and whoever creates an initiative starts as one, unless they're a community admin. Per-item sharing still applies to them — a Manager can create documents all day and still not see the one three people are quietly working on.
 
-**Moderator** is the role that overrides sharing. A Moderator reaches everything in the initiative whether or not it was ever shared with them, and can change who else has access. That's what **full access** means, and no other role gets it — not a custom one, not Manager. It isn't a setting you've failed to find.
+**Moderator** is the role that overrides sharing. A Moderator reaches everything in the initiative whether or not it was ever shared with them, and can change who else has access. That's what **full access** means, and no other role gets it — not a custom one, not Manager. It isn't a setting you've failed to find. Moderators also get the initiative's [Moderation](../guides/initiatives.md#moderation) page, where reports land.
 
-Handing out Moderator is a community admin's job, and so is taking it back. Managers staff everything else. Admins who join an initiative arrive as Moderators, because that's the standing they already had.
+Handing out Moderator is a community admin's job, and so is taking it back. Managers staff everything else. Admins who join an initiative arrive as Moderators, because that's the standing they already had, and somebody promoted to community admin moves up to Moderator in every initiative where they aren't already a Manager.
+
+**Member** is where everybody else starts, and the one built-in whose permissions are yours to set. Making the initiative asked what members can do; the answer lives here, and you can change it whenever you like.
 
 !!! warning "Moderators see everything. Everything."
     Because Moderator overrides per-item sharing, anything kept private to a few people is still perfectly visible to one.
@@ -55,7 +57,7 @@ Handing out Moderator is a community admin's job, and so is taking it back. Mana
 ## Making your own roles
 
 1. Open the initiative's **settings → Roles**.
-2. **Add a role** and name it something your group will actually recognise: "Director", "Cast", "Editor", "Observer".
+2. **Add custom role** and name it something your group will actually recognise: "Director", "Cast", "Editor", "Observer".
 3. Tick what it should be allowed to do.
 4. Save. It's available next time you add or edit a member.
 

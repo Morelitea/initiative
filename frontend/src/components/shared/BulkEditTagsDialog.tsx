@@ -2,7 +2,7 @@ import { Loader2 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 
 import type { TagSummary, TagTarget } from "@/api/generated/initiativeAPI.schemas";
-import { bulkEditTagsApiV1CGuildIdTagsBulkPost } from "@/api/generated/tags/tags";
+import { bulkEditTags } from "@/api/generated/tags/tags";
 import { TagPicker } from "@/components/tags/TagPicker";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,8 +14,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Tabs, TabsBar, TabsContent, TabsTrigger } from "@/components/ui/tabs";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 import type { DialogWithSuccessProps } from "@/types/dialog";
 
 /** Any entity that has an `id` and optional `tags`. */
@@ -28,7 +28,7 @@ interface BulkEditTagsDialogProps<T extends TaggableItem> extends DialogWithSucc
   items: T[];
   /** Entity type for the server-side bulk endpoint. */
   targetType: TagTarget;
-  guildId: number;
+  communityId: number;
   /** Called after the bulk call succeeds to invalidate relevant caches. */
   onInvalidate: () => void;
   /** i18n labels — each dialog can provide its own strings. */
@@ -55,7 +55,7 @@ export function BulkEditTagsDialog<T extends TaggableItem>({
   onOpenChange,
   items,
   targetType,
-  guildId,
+  communityId,
   onInvalidate,
   onSuccess,
   labels,
@@ -102,7 +102,7 @@ export function BulkEditTagsDialog<T extends TaggableItem>({
       // One atomic server-side call: adds/removals are computed against
       // current DB state, so a stale client cache can't corrupt the merge,
       // and a mid-batch failure can't leave items half-edited.
-      await bulkEditTagsApiV1CGuildIdTagsBulkPost(guildId, {
+      await bulkEditTags(communityId, {
         target_type: targetType,
         target_ids: items.map((item) => item.id),
         add_tag_ids: mode === "add" ? tagsToAdd.map((t) => t.id) : [],
@@ -130,7 +130,7 @@ export function BulkEditTagsDialog<T extends TaggableItem>({
     tagsToRemove,
     items,
     targetType,
-    guildId,
+    communityId,
     onInvalidate,
     resetState,
     onOpenChange,

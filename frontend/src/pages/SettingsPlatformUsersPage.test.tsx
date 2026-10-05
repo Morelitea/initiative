@@ -24,6 +24,7 @@ const state = vi.hoisted(() => ({
   roster: [] as OperatorUserRead[],
   search: undefined as string | null | undefined,
   clearSecondFactor: vi.fn(),
+  revokeApiKeys: vi.fn(),
   authenticatorAskedAtSignIn: true,
   passwordLoginEnabled: true,
 }));
@@ -51,6 +52,7 @@ vi.mock("@/hooks/useOperatorUsers", () => ({
   useOperatorRestoreUser: () => ({ mutate: vi.fn(), isPending: false }),
   useOperatorUpdatePlatformRole: () => ({ mutate: vi.fn(), isPending: false }),
   useOperatorRemoveAvatar: () => ({ mutate: vi.fn(), isPending: false }),
+  useOperatorRevokeApiKeys: () => ({ mutate: state.revokeApiKeys, isPending: false }),
   useExportPlatformUsersCsv: () => ({ mutate: vi.fn() }),
 }));
 
@@ -71,10 +73,11 @@ const renderRoster = (
   return renderPage(() => <SettingsPlatformUsersPage />, { auth: { user: viewer } });
 };
 
-/** Open the sheet for the row at `index`. */
-const openSheet = async (index = 1) => {
-  const buttons = await screen.findAllByRole("button", { name: /manage account/i });
-  await userEvent.click(buttons[index]);
+/** Open the sheet for the account with this handle. */
+const openSheet = async (handle = "member-one") => {
+  await userEvent.click(
+    await screen.findByRole("button", { name: new RegExp(`manage account @?${handle}`, "i") })
+  );
   return screen.findByRole("dialog");
 };
 
@@ -91,7 +94,6 @@ describe("SettingsPlatformUsersPage", () => {
 
   it("identifies an account by its handle, and shows no address or name", async () => {
     const rows = masked();
-    rows[1].full_name = "Wilhelmina Fitzgerald";
     renderRoster(rows);
 
     await screen.findByText("owner");
@@ -103,8 +105,6 @@ describe("SettingsPlatformUsersPage", () => {
     // A row is identified by handle, which is what the filter box searches.
     expect(screen.getByText("owner")).toBeInTheDocument();
     expect(screen.getByPlaceholderText(/filter by handle/i)).toBeInTheDocument();
-    // The name somebody filled in is theirs, and an operator needs none of it.
-    expect(screen.queryByText("Wilhelmina Fitzgerald")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /^Name/ })).not.toBeInTheDocument();
   });
 
@@ -247,6 +247,44 @@ describe("SettingsPlatformUsersPage manage sheet", () => {
 
     for (const name of shown) expect(lever(sheet, name)).toBeInTheDocument();
     for (const name of hidden) expect(lever(sheet, name)).not.toBeInTheDocument();
+  });
+
+  it.each<[string, UserRole, number, boolean]>([
+    ["a moderator revokes the keys that still work", "moderator", 2, true],
+    ["nothing to revoke on an account without working keys", "moderator", 0, false],
+  ])("%s", async (_label, role, count, offered) => {
+    state.revokeApiKeys.mockClear();
+    const rows = masked();
+    rows[1].api_key_count = count;
+    renderRoster(rows, buildUser({ role }));
+
+    const sheet = await openSheet();
+    const revoke = within(sheet).queryByRole("button", { name: "Revoke" });
+    if (!offered) {
+      expect(revoke).not.toBeInTheDocument();
+      return;
+    }
+
+    // Whatever runs on them stops at once, so it asks first.
+    await userEvent.click(revoke as HTMLElement);
+    const dialog = await screen.findByRole("alertdialog");
+    expect(state.revokeApiKeys).not.toHaveBeenCalled();
+    await userEvent.click(within(dialog).getByRole("button", { name: "Revoke" }));
+    expect(state.revokeApiKeys).toHaveBeenCalledWith(rows[1].id);
+  });
+
+  it("offers nothing on an account above the viewer's own rung", async () => {
+    renderRoster(masked(), buildUser({ role: "moderator" }));
+
+    // Every action on an account is refused above the actor's rung, so the
+    // owner's row offers a moderator nothing to open, while the member's does.
+    await screen.findByText("owner");
+    expect(
+      screen.queryByRole("button", { name: /manage account @?owner/i })
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /manage account @?member-one/i })
+    ).toBeInTheDocument();
   });
 
   it("offers support no way in at all, holding none of the three", async () => {

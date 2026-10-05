@@ -37,9 +37,9 @@ from app.models.tenant.initiative import (
     JoinRequestStatus,
     LOCKED_PERMISSION_ROLE_NAMES,
 )
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.platform.notification import NotificationType
-from app.models.platform.user import User
+from app.models.platform.user import Presence, User
 from app.models.platform.user_profile_view import MemberProfile
 from app.schemas.tenant.initiative import (
     InitiativeCreate,
@@ -63,6 +63,7 @@ from app.schemas.platform.user import UserSummaryListResponse
 from app.db.query import (
     MAX_ID_FILTER_VALUES,
     build_paginated_response,
+    ids_in,
     paginated_query,
 )
 from app.services import audit as audit_service
@@ -72,6 +73,7 @@ from app.services.platform import accounts as accounts_service
 from app.services.tenant import initiatives as initiatives_service
 from app.services.tenant.names import ensure_name_free
 from app.services.platform import guilds as guilds_service
+from app.services.platform import presence
 from app.services.platform import users as users_service
 from app.services.content_sockets import sockets as content_sockets
 from app.services import rls as rls_service
@@ -292,18 +294,18 @@ async def list_initiatives(
     scope: Annotated[InitiativeListScope, Query()] = InitiativeListScope.member,
 ) -> List[InitiativeRead]:
     """The initiatives the caller belongs to, or — for a guild admin asking for
-    ``scope=guild`` — every initiative in the guild.
+    ``scope=community`` — every initiative in the guild.
 
     The default is the caller's own workspace: what the sidebar and the
     initiative pickers show. A guild admin's authority over their whole guild is
     unchanged; it simply no longer decides what appears in their navigation.
     They bring an initiative into it by taking the project manager role from the
-    guild-settings initiative table, which is also what ``scope=guild`` feeds.
+    guild-settings initiative table, which is also what ``scope=community`` feeds.
     """
-    if scope is InitiativeListScope.guild and not guild_context.is_admin:
+    if scope is InitiativeListScope.community and not guild_context.is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=GuildMessages.GUILD_ADMIN_REQUIRED,
+            detail=GuildMessages.COMMUNITY_ADMIN_REQUIRED,
         )
 
     # `initiatives` is a structural table (not initiative-RLS-gated), so scope it
@@ -316,7 +318,7 @@ async def list_initiatives(
     # its standing carries.
     if current_user is None:
         scope_clause = Initiative.id.in_(guild_context.member_initiatives)
-    elif scope is InitiativeListScope.guild or guild_context.is_pam:
+    elif scope is InitiativeListScope.community or guild_context.is_pam:
         scope_clause = initiative_scope_clause(current_user.id, Initiative.id)
     else:
         scope_clause = Initiative.id.in_(
@@ -353,7 +355,7 @@ async def list_initiative_directory(
     Initiatives whose policy is ``private`` are listed only to their own
     members, guild admins included: an admin's authority over the guild is
     unchanged, but the front page shows what they are in and what is on offer,
-    read the same way for everyone. ``/initiatives/?scope=guild`` is the
+    read the same way for everyone. ``/initiatives/?scope=community`` is the
     whole-guild listing, and guild settings is where it is managed.
 
     Declared before ``/{initiative_id}`` so the literal path wins the match.
@@ -766,7 +768,7 @@ async def create_initiative(
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: Annotated[
-        GuildContext, Depends(require_guild_roles(GuildRole.admin))
+        GuildContext, Depends(require_guild_roles(CommunityRole.admin))
     ],
 ) -> InitiativeRead:
     guild_id = guild_context.guild_id
@@ -870,7 +872,7 @@ async def update_initiative(
             )
         if join_policy is not None:
             update_data["join_policy"] = join_policy
-    if "name" in update_data and update_data["name"] is not None:
+    if "name" in update_data:
         await ensure_name_free(
             session,
             Initiative.name,
@@ -902,11 +904,6 @@ async def delete_initiative(
     from app.services.tenant.soft_delete import trash
 
     initiative = await _get_initiative_or_404(initiative_id, session)
-    if initiative.is_default:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=InitiativeMessages.CANNOT_DELETE_DEFAULT,
-        )
     members = await _member_ids(session, initiative_id)
     retention_days = await trash(
         session,
@@ -1212,7 +1209,6 @@ def _roster_where(
     statement: _S,
     *,
     initiative_id: int,
-    guild_context: GuildContext,
     search: Optional[str],
 ) -> tuple[_S, tuple[ColumnElement, ...]]:
     """``statement`` (which joins ``InitiativeMember`` to ``MemberProfile``)
@@ -1223,13 +1219,12 @@ def _roster_where(
         InitiativeMember.initiative_id == initiative_id,
         users_service.visible_to_other_people(),
     )
-    shows_names = bool(guild_context.guild.show_member_names)
     closest = None
     if search and (term := search.strip()):
-        matches, closest = users_service.member_match(term, shows_names=shows_names)
+        matches, closest = users_service.member_match(term)
         statement = statement.where(matches)
     order = (
-        *users_service.member_order(closest, shows_names=shows_names),
+        *users_service.member_order(closest),
         MemberProfile.username.asc(),
         MemberProfile.discriminator.asc(),
         MemberProfile.id.asc(),
@@ -1251,6 +1246,10 @@ async def get_initiative_members(
         default=None,
         description="Only the members whose role is (or is not) a manager role.",
     ),
+    online: bool = Query(
+        default=False,
+        description="Only the members who appear online, idle or busy right now.",
+    ),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
 ) -> InitiativeMemberListResponse:
@@ -1266,13 +1265,15 @@ async def get_initiative_members(
             InitiativeRoleModel, InitiativeRoleModel.id == InitiativeMember.role_id
         ),
         initiative_id=initiative_id,
-        guild_context=guild_context,
         search=search,
     )
     if is_manager is not None:
         base = base.where(
             func.coalesce(InitiativeRoleModel.is_manager, False).is_(is_manager)
         )
+    shown = presence.online.shown()
+    if online:
+        base = base.where(ids_in(MemberProfile.id, shown))
 
     count_stmt = select(func.count()).select_from(base.subquery())
     data_stmt = base.order_by(*order).options(
@@ -1284,7 +1285,10 @@ async def get_initiative_members(
     )
     return InitiativeMemberListResponse(
         **build_paginated_response(
-            [serialize_initiative_member(m) for m in memberships],
+            [
+                serialize_initiative_member(m, shown.get(m.user_id, Presence.offline))
+                for m in memberships
+            ],
             total_count,
             actual_page,
             page_size,
@@ -1324,7 +1328,6 @@ async def search_initiative_members(
             InitiativeMember, InitiativeMember.user_id == MemberProfile.id
         ),
         initiative_id=initiative_id,
-        guild_context=guild_context,
         search=search,
     )
     if user_id:

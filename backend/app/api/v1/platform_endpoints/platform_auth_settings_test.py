@@ -90,7 +90,7 @@ async def test_read_reports_every_method_and_its_cost(
         "totp",
         "passkey",
     }
-    assert got.json()["guilds_requiring_sign_in"] == 0
+    assert got.json()["communities_requiring_sign_in"] == 0
 
 
 async def test_at_least_one_way_in_must_remain(
@@ -174,11 +174,11 @@ async def test_withdrawing_sso_waits_for_guild_requirements(
 
     refused = await client.patch(URL, headers=headers, json={"methods": ["password"]})
     assert refused.status_code == 409
-    assert refused.json()["detail"] == "SETTINGS_LOGIN_METHODS_GUILD_POLICIES"
+    assert refused.json()["detail"] == "SETTINGS_LOGIN_METHODS_COMMUNITY_POLICIES"
     assert refused.headers["X-Affected-Count"] == "1"
 
     got = await client.get(URL, headers=headers)
-    assert got.json()["guilds_requiring_sign_in"] == 1
+    assert got.json()["communities_requiring_sign_in"] == 1
 
     await session.delete(policy)
     await session.commit()
@@ -278,25 +278,12 @@ async def test_withdrawing_password_closes_its_routes(
     assert token.status_code == 403
     assert token.json()["detail"] == "SETTINGS_LOGIN_METHOD_NOT_PERMITTED"
 
-    # The app's password sign-in is the same door.
-    device = await client.post(
-        "/api/v1/auth/device-token",
-        json={
-            "email": "someone@example.com",
-            "password": "whatever",
-            "device_name": "Phone",
-        },
-    )
-    assert device.status_code == 403
-    assert device.json()["detail"] == "SETTINGS_LOGIN_METHOD_NOT_PERMITTED"
-
     register = await client.post(
         "/api/v1/auth/register",
         json={
             "email": "new@example.com",
             "username": "newperson",
             "password": "a-long-enough-password-1",
-            "full_name": "New Person",
         },
     )
     assert register.status_code == 403
@@ -383,7 +370,7 @@ async def test_withdrawing_sso_counts_a_guild_that_requires_a_method(
 
     refused = await client.patch(URL, headers=headers, json={"methods": ["password"]})
     assert refused.status_code == 409, refused.text
-    assert refused.json()["detail"] == "SETTINGS_LOGIN_METHODS_GUILD_POLICIES"
+    assert refused.json()["detail"] == "SETTINGS_LOGIN_METHODS_COMMUNITY_POLICIES"
     assert refused.headers["X-Affected-Count"] == "1"
 
 

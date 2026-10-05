@@ -2,7 +2,7 @@
   "title": "Mes initiatives",
   "subtitle": "Ouvrez une initiative pour gérer les documents, projets et membres.",
   "newInitiative": "Nouvelle initiative",
-  "selectGuild": "Sélectionner une communauté",
+  "selectCommunity": "Sélectionner une communauté",
   "loading": "Chargement des initiatives…",
   "loadError": "Impossible de charger les initiatives pour l'instant.",
   "noDescription": "Aucune description pour l'instant.",
@@ -36,7 +36,6 @@
     "resolveError": "Impossible de répondre à cette demande pour le moment."
   },
   "manage": {
-    "title": "Initiatives",
     "description": "Désignez les chefs de projet d'une initiative, archivez-la pour la masquer de la barre latérale sans la supprimer, accordez un accès complet aux chefs de projet ou supprimez une initiative en la plaçant dans la corbeille. Désignez-vous comme chef de projet pour travailler dans une initiative depuis votre propre barre latérale.",
     "adminRequired": "Vous devez être administrateur de la communauté pour gérer les initiatives.",
     "loading": "Chargement des initiatives…",
@@ -59,11 +58,9 @@
     "managersUnavailable": "Impossible de charger les rôles de cette initiative — actualisez la page.",
     "active": "Active",
     "archived": "Archivée",
-    "default": "Par défaut",
     "archive": "Archiver",
     "unarchive": "Restaurer",
     "delete": "Supprimer",
-    "deleteDefaultHint": "L’initiative par défaut ne peut pas être supprimée.",
     "archivedToast": "Initiative « {{name}} » archivée.",
     "unarchivedToast": "Initiative « {{name}} » restaurée.",
     "deletedToast": "Initiative « {{name}} » déplacée dans la corbeille."
@@ -88,10 +85,10 @@
     "notFound": "Initiative introuvable",
     "notFoundDescription": "L'initiative que vous recherchez n'existe pas ou vous n'y avez plus accès.",
     "noAccess": "Vous n'avez accès à aucune fonctionnalité de cette initiative. Contactez un gestionnaire d'initiative pour obtenir de l'aide.",
-    "default": "Par défaut",
     "member_one": "{{count}} membre",
     "member_other": "{{count}} membres",
-    "updated": "Mis à jour {{date}}",
+    "online_one": "{{count}} en ligne",
+    "online_other": "{{count}} en ligne",
     "initiativeSettings": "Paramètres de l'initiative",
     "documents": "Documents",
     "projects": "Projets",
@@ -105,7 +102,6 @@
   },
   "settings": {
     "title": "Paramètres de l'initiative",
-    "subtitle": "Mettez à jour les détails, gérez les membres et les rôles, et contrôlez les actions dangereuses.",
     "breadcrumbSettings": "Paramètres",
     "loadingInitiative": "Chargement de l'initiative...",
     "backToInitiatives": "← Retour à mes initiatives",
@@ -119,7 +115,6 @@
     "rolesTab": "Rôles",
     "dangerTab": "Zone de danger",
     "exportTab": "Export",
-    "detailsTitle": "Détails de l'initiative",
     "detailsDescription": "Renommer, décrire ou rechoisir la couleur de cette initiative.",
     "nameLabel": "Nom",
     "colorLabel": "Couleur",
@@ -148,12 +143,17 @@
       "lockedNote": "Un administrateur de communauté a activé l’adhésion automatique pour cette initiative, elle doit donc rester ouverte à tous. Demandez à un administrateur de la désactiver avant de changer ceci.",
       "turnedOff": "L’adhésion automatique est désactivée : elle n’est possible que tant que tout le monde peut rejoindre."
     },
+    "keepContentIn": {
+      "title": "Garder le contenu dans cette initiative",
+      "label": "Bloquer les exports, et les copies et déplacements vers d’autres initiatives",
+      "help": "Tant que c’est activé, personne ne peut exporter quoi que ce soit de cette initiative, ni le copier ou le déplacer vers une autre initiative, y compris les responsables et les admins de la communauté. Copier et déplacer au sein de cette initiative fonctionnent toujours, tout comme l’export de l’initiative ci-dessous."
+    },
     "membersTitle": "Membres",
     "membersDescription": "Les chefs de projet et les administrateurs de la communauté peuvent gérer les membres.",
     "filterByName": "Filtrer par nom",
     "nameColumn": "Nom",
     "roleColumn": "Rôle",
-    "guildAdminRole": "Admin",
+    "communityAdminRole": "Admin",
     "sourceColumn": "Source",
     "sourceOidc": "OIDC",
     "sourceManual": "Manuel",
@@ -178,7 +178,6 @@
     "manager": "Gestionnaire",
     "fullAccess": "Accès complet",
     "moderatorDescription": "Les modérateurs peuvent utiliser tous les outils de cette initiative et ouvrir, modifier et partager chaque élément, quel que soit son partage. Les administrateurs de la communauté rejoignent en tant que modérateurs.",
-    "dangerTitle": "Zone de danger",
     "dangerDescription": "Supprimer une initiative l'envoie à la corbeille avec ses projets, tâches et documents. Ils peuvent être restaurés avant la fin de la période de rétention.",
     "archiveInitiative": "Archiver l'initiative",
     "unarchiveInitiative": "Restaurer l'initiative",
@@ -186,7 +185,6 @@
     "archivedDescription": "Cette initiative est archivée et masquée de la barre latérale.",
     "deleteInitiative": "Supprimer l'initiative",
     "deletingInitiative": "Suppression en cours...",
-    "defaultCannotDelete": "L'initiative par défaut ne peut pas être supprimée.",
     "contactAdmin": "Contactez un administrateur de la communauté pour supprimer cette initiative.",
     "deleted": "Initiative supprimée.",
     "deleteError": "Impossible de supprimer l'initiative pour l'instant.",
@@ -251,7 +249,8 @@
       "viewShort": "Voir",
       "createShort": "Créer",
       "viewWikis": "Voir les wikis",
-      "createWikis": "Créer des wikis"
+      "createWikis": "Créer des wikis",
+      "dashboards_run_as_initiative": "Exécuter les tableaux de bord en tant qu'Initiative"
     },
     "handleColumn": "Identifiant",
     "toolAudience": {

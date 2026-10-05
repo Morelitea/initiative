@@ -14,7 +14,7 @@ from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.audit_events import AuditEventType
-from app.models.platform.guild import Guild, GuildRole
+from app.models.platform.guild import Guild, CommunityRole
 from app.testing import emitted
 from app.testing.factories import (
     create_auth_provider,
@@ -35,7 +35,7 @@ async def _seat(session: AsyncSession) -> tuple[int | None, Guild, dict[str, str
     admin = await create_user(session)
     guild = await create_guild(session, creator=admin)
     await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.superadmin
+        session, user=admin, guild=guild, role=CommunityRole.superadmin
     )
     return admin.id, guild, get_auth_headers(admin)
 
@@ -148,7 +148,7 @@ async def test_a_refused_connection_write_records_nothing(
     _, guild, _ = await _seat(session)
     ordinary = await create_user(session)
     await create_guild_membership(
-        session, user=ordinary, guild=guild, role=GuildRole.admin
+        session, user=ordinary, guild=guild, role=CommunityRole.admin
     )
     provider = await create_auth_provider(session, slug="google")
     capfd.readouterr()
@@ -184,7 +184,7 @@ async def test_a_communitys_own_rule_is_recorded_through_its_life(
         json={
             "provider_id": provider_id,
             "claim_value": GROUP_CLAIM_VALUE,
-            "guild_role": "member",
+            "community_role": "member",
         },
     )
     assert created.status_code == 201, created.text

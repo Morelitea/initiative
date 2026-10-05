@@ -3,16 +3,16 @@
  *
  * The load-bearing details are that the filter rail actually narrows the
  * request (rather than filtering client-side, which would only ever narrow the
- * current page), and that a guild the caller is already in offers a way in
+ * current page), and that a community the caller is already in offers a way in
  * rather than a second way to join.
  */
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { buildBanner, buildUser } from "@/__tests__/factories";
+import { buildBanner, buildPage, buildUser } from "@/__tests__/factories";
 import { renderPage } from "@/__tests__/helpers/render";
-import type { CommunityGuildRead } from "@/api/generated/initiativeAPI.schemas";
+import type { DirectoryCommunityRead } from "@/api/generated/initiativeAPI.schemas";
 import { saveNear } from "@/lib/directoryNear";
 
 import { CommunitiesPage } from "./CommunitiesPage";
@@ -21,9 +21,9 @@ const directoryFor = vi.fn();
 const join = vi.fn();
 const fetchNextPage = vi.fn();
 
-vi.mock("@/hooks/useCommunities", () => ({
-  useCommunityGuilds: (params: unknown, options?: unknown) => directoryFor(params, options),
-  useJoinCommunityGuild: () => ({ mutateAsync: join, isPending: false }),
+vi.mock("@/hooks/useCommunityDirectory", () => ({
+  useDirectoryCommunities: (params: unknown, options?: unknown) => directoryFor(params, options),
+  useJoinDirectoryCommunity: () => ({ mutateAsync: join, isPending: false }),
 }));
 
 // Whether this deployment has a directory at all is the platform owner's
@@ -38,7 +38,7 @@ vi.mock("@/hooks/useAppConfig", () => ({
   }),
 }));
 
-const community = (overrides: Partial<CommunityGuildRead> = {}): CommunityGuildRead => ({
+const community = (overrides: Partial<DirectoryCommunityRead> = {}): DirectoryCommunityRead => ({
   id: 1,
   name: "Riverside Players",
   description: "Community theatre.",
@@ -64,8 +64,11 @@ const renderDirectory = (
 
 /** The infinite-query shape the page reads: pages of items plus the paging
  *  flags. `total` is how many matched, so it can exceed what is loaded. */
-const directoryResult = (items: CommunityGuildRead[], overrides: Record<string, unknown> = {}) => ({
-  data: { pages: [{ items, total: items.length }] },
+const directoryResult = (
+  items: DirectoryCommunityRead[],
+  overrides: Record<string, unknown> = {}
+) => ({
+  data: { pages: [buildPage(items)] },
   isLoading: false,
   isError: false,
   hasNextPage: false,
@@ -146,7 +149,7 @@ describe("CommunitiesPage", () => {
       "Directory unavailable",
     ],
     [
-      "says nobody has listed a guild when the directory is genuinely empty",
+      "says nobody has listed a community when the directory is genuinely empty",
       {},
       "No communities yet",
     ],
@@ -194,7 +197,7 @@ describe("CommunitiesPage", () => {
     expect(screen.queryByText(/98109/)).not.toBeInTheDocument();
   });
 
-  it("puts the guild's banner across the top of its card", async () => {
+  it("puts the community's banner across the top of its card", async () => {
     directoryFor.mockReturnValue(
       directoryResult([
         community({ banner: buildBanner({ image_url: "/api/v1/communities/1/image/abc" }) }),
@@ -206,15 +209,19 @@ describe("CommunitiesPage", () => {
     await screen.findByText("Riverside Players");
     const banner = container.querySelector('img[src="/api/v1/communities/1/image/abc"]');
     expect(banner).not.toBeNull();
-    // Decorative: the card already says the guild's name beneath it.
+    // Decorative: the card already says the community's name beneath it.
     expect(banner).toHaveAttribute("alt", "");
   });
 
-  // A card with no artwork still has a banner: whatever colour its guild set,
+  // A card with no artwork still has a banner: whatever colour its community set,
   // or the one it wears by default.
   it.each([
-    ["the colour its guild set instead", buildBanner({ color: "#2a9d8f" }), "rgb(42, 157, 143)"],
-    ["the colour its guild wears by default", buildBanner(), "rgb(37, 99, 235)"],
+    [
+      "the colour its community set instead",
+      buildBanner({ color: "#2a9d8f" }),
+      "rgb(42, 157, 143)",
+    ],
+    ["the colour its community wears by default", buildBanner(), "rgb(37, 99, 235)"],
   ])("gives a card with no artwork %s", async (_label, banner, colour) => {
     directoryFor.mockReturnValue(directoryResult([community({ banner })]));
 
@@ -226,11 +233,11 @@ describe("CommunitiesPage", () => {
     expect(container.querySelectorAll("img")).toHaveLength(1);
   });
 
-  // "0 online" reads as a verdict on the guild rather than on the moment, so a
-  // guild nobody is in says nothing about presence at all.
+  // "0 online" reads as a verdict on the community rather than on the moment, so a
+  // community nobody is in says nothing about presence at all.
   it.each([
     ["says who is there now beside how many there are", 3, "3 online"],
-    ["says nothing about presence in a guild nobody is in", 0, null],
+    ["says nothing about presence in a community nobody is in", 0, null],
   ])("%s", async (_label, online_count, online) => {
     directoryFor.mockReturnValue(directoryResult([community({ online_count })]));
     renderDirectory();
@@ -249,7 +256,7 @@ describe("CommunitiesPage", () => {
 
     await screen.findByText("Riverside Players");
     expect(directoryFor).toHaveBeenCalledWith(
-      { q: undefined, category: undefined },
+      { search: undefined, category: undefined },
       { enabled: true }
     );
   });
@@ -259,7 +266,7 @@ describe("CommunitiesPage", () => {
   it.each([
     ["category", { category: "ttrpg" }, { category: ["ttrpg"] }],
     ["categories", { category: ["ttrpg", "gaming"] }, { category: ["ttrpg", "gaming"] }],
-    ["search", { q: "dice" }, { q: "dice" }],
+    ["search", { q: "dice" }, { search: "dice" }],
   ])("narrows the request to the %s in the address", async (_label, search, asked) => {
     renderDirectory(search);
 
@@ -277,7 +284,7 @@ describe("CommunitiesPage", () => {
 
     await waitFor(() =>
       expect(directoryFor).toHaveBeenCalledWith(
-        expect.objectContaining({ q: "dice" }),
+        expect.objectContaining({ search: "dice" }),
         expect.anything()
       )
     );
@@ -288,7 +295,7 @@ describe("CommunitiesPage", () => {
     await screen.findByText("Riverside Players");
 
     expect(directoryFor).toHaveBeenCalledWith(
-      expect.objectContaining({ q: "Japan", q_country: ["JP"] }),
+      expect.objectContaining({ search: "Japan", search_country: ["JP"] }),
       expect.anything()
     );
   });
@@ -298,7 +305,7 @@ describe("CommunitiesPage", () => {
     await screen.findByText("Riverside Players");
 
     expect(directoryFor).toHaveBeenCalledWith(
-      expect.objectContaining({ q: "dice", q_country: undefined }),
+      expect.objectContaining({ search: "dice", search_country: undefined }),
       expect.anything()
     );
   });
@@ -392,7 +399,7 @@ describe("CommunitiesPage", () => {
     expect(screen.queryByText("How old are you?")).not.toBeInTheDocument();
   });
 
-  it("offers a way in, not a second join, for a guild already joined", async () => {
+  it("offers a way in, not a second join, for a community already joined", async () => {
     directoryFor.mockReturnValue(directoryResult([community({ already_member: true })]));
     renderDirectory();
 

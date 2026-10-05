@@ -49,15 +49,40 @@ class Submitter(str, Enum):
     member = "member"
 
 
+class Conversation(str, Enum):
+    """Whether the people handling a case and the person who filed it talk."""
+
+    #: Nobody writes back. The filer is told the case arrived, and nothing of
+    #: what is decided — a report, which is not a conversation.
+    none = "none"
+    #: The filer may answer once somebody handling it has written to them.
+    staff_first = "staff_first"
+    #: Either side may write first.
+    open = "open"
+
+
 @dataclass(frozen=True)
 class IntakeStreamMeta:
-    """What a stream is fed by, and the blueprint that sets its project up."""
+    """What a stream is fed by, how people file into it, and the blueprint
+    that sets its project up."""
 
     sources: frozenset[Source]
     submitter: Submitter
     #: Filename under ``app/blueprints/intake/`` holding the export envelope
     #: that "set this up for me" imports.
     blueprint: str
+    conversation: Conversation
+    #: How often one account may file into the stream, as a ``limits`` string.
+    #: Each filing is something a person reads.
+    filing_rate: str
+    #: How many of one account's cases may be open at once, or ``None`` for no
+    #: cap — where every filing is about something different, a cap would turn
+    #: away the second thing somebody saw.
+    max_open_per_filer: int | None
+    #: Whether the stream's cases keep an initiative to themselves. Membership
+    #: of an initiative is what lets staff read a case, so a stream whose
+    #: cases name people at risk binds where no other stream's staff work.
+    isolated: bool = False
 
 
 #: Every stream, declared once. ``intake_test`` holds the enum and this map in
@@ -67,21 +92,37 @@ STREAMS: dict[IntakeStream, IntakeStreamMeta] = {
         sources=frozenset({Source.alerted, Source.manual}),
         submitter=Submitter.system,
         blueprint="security.json",
+        conversation=Conversation.open,
+        filing_rate="5/day",
+        max_open_per_filer=10,
+        isolated=True,
     ),
     IntakeStream.moderation: IntakeStreamMeta(
         sources=frozenset({Source.submitted, Source.manual}),
         submitter=Submitter.member,
         blueprint="moderation.json",
+        conversation=Conversation.none,
+        filing_rate="30/hour",
+        max_open_per_filer=None,
+        isolated=True,
     ),
     IntakeStream.support: IntakeStreamMeta(
-        sources=frozenset({Source.submitted, Source.manual}),
+        # Alerted too: a community claiming sign-in claim values opens a
+        # support case on its own, with nobody filing it.
+        sources=frozenset({Source.submitted, Source.alerted, Source.manual}),
         submitter=Submitter.member,
         blueprint="support.json",
+        conversation=Conversation.open,
+        filing_rate="10/hour",
+        max_open_per_filer=5,
     ),
     IntakeStream.feedback: IntakeStreamMeta(
         sources=frozenset({Source.submitted, Source.manual}),
         submitter=Submitter.member,
         blueprint="feedback.json",
+        conversation=Conversation.staff_first,
+        filing_rate="5/day",
+        max_open_per_filer=None,
     ),
 }
 

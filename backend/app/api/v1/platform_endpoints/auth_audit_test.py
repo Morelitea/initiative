@@ -106,12 +106,9 @@ async def test_password_endpoints_finalize_unknown_account_refusals_without_iden
     capfd.readouterr()
     login_response = await _sign_in(client, "nobody-at-all@example.com")
     device_response = await client.post(
-        "/api/v1/auth/device-token",
-        json={
-            "email": "still-nobody@example.com",
-            "password": PASSWORD,
-            "device_name": "test-phone",
-        },
+        "/api/v1/auth/token",
+        data={"username": "still-nobody@example.com", "password": PASSWORD},
+        headers={"Origin": "https://com.morelitea.initiative"},
     )
     assert login_response.status_code == device_response.status_code == 400
 
@@ -146,7 +143,7 @@ async def test_changing_a_password_is_recorded_with_how(
     user_id = user.id
     capfd.readouterr()
     response = await client.patch(
-        "/api/v1/users/me",
+        "/api/v1/me",
         headers=get_auth_headers(user),
         json={"current_password": PASSWORD, "password": "a-new-longer-secret-1"},
     )

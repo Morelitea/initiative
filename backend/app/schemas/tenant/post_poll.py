@@ -133,7 +133,7 @@ class PollVoter(SanitizedBaseModel):
     id: int
     username: str
     discriminator: int
-    full_name: Optional[str] = None
+    display_name: Optional[str] = None
     avatar_url: Optional[str] = None
     profile_decorations: ProfileDecorations = Field(default_factory=ProfileDecorations)
 
@@ -171,7 +171,7 @@ def poll_voter(profile: Any) -> PollVoter:
         id=profile.id,
         username=profile.username,
         discriminator=profile.discriminator,
-        full_name=getattr(profile, "full_name", None),
+        display_name=getattr(profile, "display_name", None),
         avatar_url=getattr(profile, "avatar_url", None),
         profile_decorations=ProfileDecorations.model_validate(
             getattr(profile, "profile_decorations", None) or {}

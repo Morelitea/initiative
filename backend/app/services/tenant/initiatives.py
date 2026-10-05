@@ -574,7 +574,7 @@ async def list_directory_entries(
     One reading for everyone, guild admin included: their authority still
     reaches every initiative, but the front page lists the ones they are in and
     the ones on offer, the same as anyone else. The whole-guild listing is
-    ``scope=guild`` on the initiatives endpoint, which backs guild settings.
+    ``scope=community`` on the initiatives endpoint, which backs guild settings.
 
     Managers additionally get the size of their own join-request queue, so the
     guild home needs no second call to badge it. A guild admin gets it for the
@@ -1086,6 +1086,22 @@ async def list_join_requests(
         )
         for request, user, denials in rows
     ]
+
+
+async def keeps_content_in(
+    session: AsyncSession, initiative_ids: Iterable[int | None]
+) -> bool:
+    """Whether any of ``initiative_ids`` keeps its content in
+    (``Initiative.keep_content_in``)."""
+    ids = {initiative_id for initiative_id in initiative_ids if initiative_id}
+    if not ids:
+        return False
+    found = await session.exec(
+        select(Initiative.id)
+        .where(ids_in(Initiative.id, ids), Initiative.keep_content_in)
+        .limit(1)
+    )
+    return found.first() is not None
 
 
 def validate_join_settings(

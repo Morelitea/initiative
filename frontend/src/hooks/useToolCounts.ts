@@ -12,17 +12,17 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import type {
-  GetToolCountsApiV1CGuildIdToolsToolCountsGetParams,
+  GetToolCountsParams,
   Tool,
   ToolCountsResponse,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
-  getGetToolCountsApiV1CGuildIdToolsToolCountsGetQueryKey,
-  getGetToolCountsByInitiativeApiV1CGuildIdToolsCountsByInitiativeGetQueryKey,
-  getToolCountsApiV1CGuildIdToolsToolCountsGet,
-  getToolCountsByInitiativeApiV1CGuildIdToolsCountsByInitiativeGet,
+  getGetToolCountsByInitiativeQueryKey,
+  getGetToolCountsQueryKey,
+  getToolCounts,
+  getToolCountsByInitiative,
 } from "@/api/generated/tools/tools";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { TOOLS } from "@/lib/tools";
 
 /** One tool's counts, by initiative id. */
@@ -49,10 +49,10 @@ const toCountMap = (counts: Record<string, number> | undefined): Map<number, num
 };
 
 export function useToolCountsByInitiative(options?: UseToolCountsOptions): ToolCountsByInitiative {
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   const query = useQuery({
-    queryKey: getGetToolCountsByInitiativeApiV1CGuildIdToolsCountsByInitiativeGetQueryKey(guildId),
-    queryFn: () => getToolCountsByInitiativeApiV1CGuildIdToolsCountsByInitiativeGet(guildId),
+    queryKey: getGetToolCountsByInitiativeQueryKey(communityId),
+    queryFn: () => getToolCountsByInitiative(communityId),
     enabled: options?.enabled ?? true,
     staleTime: options?.staleTime ?? 30_000,
   });
@@ -71,12 +71,14 @@ export function useToolCountsByInitiative(options?: UseToolCountsOptions): ToolC
  *  the next view's arrives, so the badges do not blank out. */
 export const useToolCounts = (
   tool: Tool,
-  params: GetToolCountsApiV1CGuildIdToolsToolCountsGetParams
+  params: GetToolCountsParams,
+  options?: { enabled?: boolean }
 ) => {
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   return useQuery<ToolCountsResponse>({
-    queryKey: getGetToolCountsApiV1CGuildIdToolsToolCountsGetQueryKey(guildId, tool, params),
-    queryFn: () => getToolCountsApiV1CGuildIdToolsToolCountsGet(guildId, tool, params),
+    queryKey: getGetToolCountsQueryKey(communityId, tool, params),
+    queryFn: () => getToolCounts(communityId, tool, params),
     placeholderData: keepPreviousData,
+    enabled: options?.enabled ?? true,
   });
 };

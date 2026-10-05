@@ -1,6 +1,6 @@
 {
-  "selectGuild": "Select a Community",
-  "guildSettings": "Community Settings",
+  "selectCommunity": "Select a Community",
+  "communitySettings": "Community Settings",
   "initiatives": "Initiatives",
   "tags": "Tags",
   "people": "People",
@@ -21,6 +21,7 @@
   "myTools": "My Tools",
   "myMessages": "My Messages",
   "myCalendar": "My Calendar",
+  "myTickets": "My Tickets",
   "myStats": "My Stats",
   "mySettings": "My Settings",
   "platformSettings": "Platform Settings",
@@ -76,7 +77,7 @@
   "navigate": {
     "signInRequired": "Please sign in again to follow this link.",
     "missingDestination": "This link is missing destination details.",
-    "invalidGuildId": "Invalid community id in link.",
+    "invalidCommunityId": "Invalid community id in link.",
     "noAccess": "You don't have access to this community.",
     "switchError": "Unable to switch community for this link.",
     "redirecting": "Redirecting you to the right community…",
@@ -85,6 +86,7 @@
   },
   "operatorDashboard": "Operator Dashboard",
   "pastAnnouncements": "Past announcements",
+  "documentation": "Documentation",
   "requestsWaiting_one": "{{count}} waiting",
   "requestsWaiting_other": "{{count}} waiting",
   "posts": "Posts",

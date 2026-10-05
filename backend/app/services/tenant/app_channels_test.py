@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from types import SimpleNamespace
 
 
-from app.services.tenant.app_channels import owns_install
+from app.services.tenant.app_channels import owns_install, set_connection_state
 
 
 SHOP_UID = "TESTAPP0000001"
@@ -70,8 +70,28 @@ class TestOwnsInstall:
         registration speaks for it however its uid lines up."""
         assert owns_install(_app(app_kind="embed"), _registration()) is False
 
-    def test_a_definition_without_a_service_block_is_not_ours(self):
+    def test_a_declarative_install_is_its_listings(self):
+        """A definition with no service block is a declarative app, named by
+        its listing: the listing is the one statement there is."""
         app = _app()
-        app.definition = {"app_kind": "service"}
+        app.definition = {"app_kind": "service", "hosts": ["api.test"]}
+        theirs = _app(listing_uid="TESTAPP0000002")
+        theirs.definition = app.definition
 
-        assert owns_install(app, _registration()) is False
+        assert owns_install(app, _registration()) is True
+        assert owns_install(theirs, _registration()) is False
+
+
+def test_a_connections_recovery_clears_only_its_own_verdict():
+    """``foo`` working again says nothing about ``foo_bar``, whose name it
+    begins."""
+    app = SimpleNamespace(
+        config_state="unverified", config_state_detail=None, updated_at=None
+    )
+
+    assert set_connection_state(app, "foo_bar", "removed")
+    assert not set_connection_state(app, "foo", "ok")
+    assert (app.config_state, app.config_state_detail) == ("invalid", "foo_bar_removed")
+
+    assert set_connection_state(app, "foo_bar", "ok")
+    assert (app.config_state, app.config_state_detail) == ("ok", None)

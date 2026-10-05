@@ -27,11 +27,73 @@ const ACCOUNT = "account";
 const DEVICE_ID = "device-id";
 const SESSION_PREFIX = "session:";
 const READ_PREFIX = "last-read:";
+const DEVICE_OWNER = "device-owner";
+const DEVICE_SERVER = "device-server";
 
 /** Where a wipe of this store is announced to every other realm. */
 const DROPPED = "initiative-dm-dropped";
 
 let connection: Promise<IDBDatabase> | null = null;
+
+/** Settled once the store holds nothing of an account but the one signed in. */
+let ownerSettled: Promise<void> = Promise.resolve();
+let settledFor: string | null = null;
+/** The server the signed-in account is on, written beside the owner whenever it is. */
+let servedServer: string | null = null;
+
+/**
+ * The account signed in here, on this server, which is the only one this store
+ * may serve. An account id names somebody only on its own server.
+ *
+ * A device keeps its store when its session lapses, so the next account to sign
+ * in may not be the one that wrote it. Anybody else's store is wiped before
+ * anything reads or writes it: every call through `open` waits for this. A
+ * store from before the server was recorded takes the first one it is served on.
+ */
+export function serveAccount(server: string, userId: number): void {
+  const account = `${server}\n${userId}`;
+  servedServer = server;
+  if (settledFor === account) return;
+  settledFor = account;
+  ownerSettled = (async () => {
+    const db = await connect();
+    const [owner, ownerServer] = await Promise.all([
+      get<number>(db, DEVICE_OWNER),
+      get<string>(db, DEVICE_SERVER),
+    ]);
+    const someoneElse =
+      (owner !== undefined && owner !== userId) ||
+      (ownerServer !== undefined && ownerServer !== server);
+    if (someoneElse) await clear(db);
+    await new Promise<void>((resolve, reject) => {
+      const request = db
+        .transaction(STORE, "readwrite")
+        .objectStore(STORE)
+        .put(server, DEVICE_SERVER);
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+  })().catch((error: unknown) => {
+    // Asked again at the next sign-in; until then nothing reads the store.
+    settledFor = null;
+    throw error;
+  });
+  ownerSettled.catch(() => undefined);
+}
+
+function get<T>(db: IDBDatabase, key: string): Promise<T | undefined> {
+  return new Promise((resolve, reject) => {
+    const request = db.transaction(STORE, "readonly").objectStore(STORE).get(key);
+    request.onsuccess = () => resolve(request.result as T | undefined);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+/** The database, once it is known to hold only the signed-in account's store. */
+async function open(): Promise<IDBDatabase> {
+  await ownerSettled;
+  return connect();
+}
 
 /**
  * The database, opened once per realm rather than on every read and write.
@@ -39,7 +101,7 @@ let connection: Promise<IDBDatabase> | null = null;
  * connection they are on. The connection is let go when another needs the
  * database to itself, or the browser closes it, and the next call reopens.
  */
-function open(): Promise<IDBDatabase> {
+function connect(): Promise<IDBDatabase> {
   if (connection !== null) return connection;
   const opening = new Promise<IDBDatabase>((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
@@ -71,12 +133,7 @@ function open(): Promise<IDBDatabase> {
 }
 
 async function read<T>(key: string): Promise<T | undefined> {
-  const db = await open();
-  return new Promise((resolve, reject) => {
-    const request = db.transaction(STORE, "readonly").objectStore(STORE).get(key);
-    request.onsuccess = () => resolve(request.result as T | undefined);
-    request.onerror = () => reject(request.error);
-  });
+  return get<T>(await open(), key);
 }
 
 async function write(key: string, value: unknown): Promise<void> {
@@ -162,12 +219,21 @@ async function update<T>(
 }
 
 async function drop(): Promise<void> {
-  const db = await open();
+  await clear(await open());
+}
+
+/** Empty the store and tell every other realm, which drops what it read from it. */
+async function clear(db: IDBDatabase): Promise<void> {
   await new Promise<void>((resolve, reject) => {
     const request = db.transaction(STORE, "readwrite").objectStore(STORE).clear();
     request.onsuccess = () => resolve();
     request.onerror = () => reject(request.error);
   });
+  announceDropped();
+}
+
+/** Tell every other realm the store was emptied, so it drops what it read. */
+function announceDropped(): void {
   if (typeof BroadcastChannel !== "undefined") {
     const channel = new BroadcastChannel(DROPPED);
     channel.postMessage(null);
@@ -301,16 +367,42 @@ export const deviceClaim = {
   /**
    * Give up on a device the server no longer knows, so it can be replaced.
    *
-   * Only a settled claim naming that exact device is reopened. One already
-   * being registered under is left alone: two tabs noticing the same revocation
-   * still produce one device between them, rather than one each.
+   * The device was removed from the account, so what it held goes with it: its
+   * keys and the messages only it had. Copies its owner's other devices hold
+   * are theirs, and a fresh device can ask them for its history.
+   *
+   * Only a settled claim naming that exact device is reopened, and the store is
+   * emptied in the same transaction. A store from before claims were recorded
+   * has the device id alone, which is read in the same transaction instead. One
+   * already being registered under is left alone: two tabs noticing the same
+   * removal still produce one device between them, and neither empties the
+   * other's new one.
    */
   invalidate: async (deviceId: string): Promise<void> => {
-    await update<DeviceClaim>(DEVICE_CLAIM, (current) =>
-      current?.status === "ready" && current.deviceId === deviceId
-        ? { status: "claiming", at: 0, token: "" }
-        : undefined
-    );
+    const db = await open();
+    const cleared = await new Promise<boolean>((resolve, reject) => {
+      const transaction = db.transaction(STORE, "readwrite");
+      const store = transaction.objectStore(STORE);
+      const claim = store.get(DEVICE_CLAIM);
+      const recorded = store.get(DEVICE_ID);
+      let emptied = false;
+      recorded.onsuccess = () => {
+        const current = claim.result as DeviceClaim | undefined;
+        const named = current
+          ? current.status === "ready" && current.deviceId === deviceId
+          : recorded.result === deviceId;
+        if (!named) return;
+        store.clear();
+        store.put({ status: "claiming", at: 0, token: "" } satisfies DeviceClaim, DEVICE_CLAIM);
+        emptied = true;
+      };
+      claim.onerror = () => reject(claim.error);
+      recorded.onerror = () => reject(recorded.error);
+      transaction.oncomplete = () => resolve(emptied);
+      transaction.onerror = () => reject(transaction.error);
+      transaction.onabort = () => reject(transaction.error);
+    });
+    if (cleared) announceDropped();
   },
 
   /** Let go of a turn this caller could not finish, if it is still theirs. */
@@ -355,8 +447,12 @@ export const deviceId = {
  * this account's, and the account's own devices are checked against it.
  */
 export const deviceOwner = {
-  get: () => read<number>("device-owner"),
-  set: (userId: number) => write("device-owner", userId),
+  get: () => read<number>(DEVICE_OWNER),
+  /** With the server beside it, so an owner never stands without one. */
+  set: async (userId: number) => {
+    await write(DEVICE_OWNER, userId);
+    if (servedServer !== null) await write(DEVICE_SERVER, servedServer);
+  },
 };
 
 /**
@@ -1189,11 +1285,11 @@ export const sessionPickle = {
 /**
  * Forget everything on this device.
  *
- * What sign-out calls on the web, unless the person asked to be remembered. The
- * wrapping key belongs to this browser profile, so the store only ever means
- * anything on this machine. Losing history is the right outcome on a shared
- * computer and a surprise on a private one, which is why it is a choice offered
- * at sign-out rather than a setting.
+ * What signing out calls, and a browser's session ending: a browser may be a
+ * shared computer. The phone and desktop apps keep the store through a lapse,
+ * so the same person signing back in finds their history. The wrapping key
+ * belongs to this browser profile or app, so the store only ever means anything
+ * on this machine.
  */
 export async function forgetDevice(): Promise<void> {
   await drop();

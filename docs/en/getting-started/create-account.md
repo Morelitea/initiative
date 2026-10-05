@@ -12,13 +12,12 @@ Signing up is a few short questions, then the account. Every question has an ans
 
 Two ways you've probably arrived:
 
-- **Somebody sent you an invite link.** Click it. It already knows which group you're joining, so it skips straight to your name and your account, and you land inside the group. This is the easy path and we wholeheartedly recommend it.
+- **Somebody sent you an invite link.** Click it. It already knows which group you're joining, so it skips straight to your handle and your account, and you land inside the group. This is the easy path and we wholeheartedly recommend it.
 - **Somebody sent you a web address.** Something like `initiative.yourteam.com`. Open it and press **Start a community** — it asks first, so this works even if you only came to join one.
 
 ![The Initiative sign-in screen](../images/getting-started/sign-in-screen.png)
 
-!!! screenshot "Wanted: the first question"
-    The **What brings you here?** screen with all four answers showing. Save as `docs/en/images/getting-started/what-brings-you-here.png`.
+![What brings you here? The four ways to start](../images/getting-started/what-brings-you-here.png)
 
 ## Step 2: Say what you're here for
 

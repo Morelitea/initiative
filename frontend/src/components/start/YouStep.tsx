@@ -1,9 +1,9 @@
 import { keepPreviousData } from "@tanstack/react-query";
-import { Sparkles } from "lucide-react";
+import { Dices } from "lucide-react";
 import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { useSuggestUsernamesApiV1AuthUsernameSuggestionsGet } from "@/api/generated/auth/auth";
+import { useSuggestUsernames } from "@/api/generated/auth/auth";
 import { BirthdateField } from "@/components/auth/BirthdateField";
 import type { useAgeConfirmation } from "@/components/auth/useAgeConfirmation";
 import { ContinueButton, StepField } from "@/components/start/stepParts";
@@ -30,7 +30,7 @@ const HandleSuggestions = ({
 }) => {
   const { t } = useTranslation("auth");
   const seed = useDebouncedValue(typed.trim(), SEED_SETTLES_MS);
-  const { data } = useSuggestUsernamesApiV1AuthUsernameSuggestionsGet(seed ? { seed } : undefined, {
+  const { data } = useSuggestUsernames(seed ? { seed } : undefined, {
     query: { placeholderData: keepPreviousData, retry: false },
   });
   const names = (data?.suggestions ?? []).filter((name) => name !== current.trim());
@@ -49,7 +49,7 @@ const HandleSuggestions = ({
             onClick={() => onPick(name)}
             disabled={disabled}
           >
-            <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+            <Dices className="h-3.5 w-3.5" aria-hidden="true" />
             {name}
           </Button>
         ))}

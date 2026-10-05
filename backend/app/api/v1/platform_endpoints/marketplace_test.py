@@ -15,7 +15,7 @@ import pytest
 
 from app.core.config import settings
 from app.core.messages import MarketplaceMessages
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.testing.tuf_repository import service_app_definition
 
 
@@ -72,7 +72,7 @@ class TestOperatorRescan:
         )
         # An operator who is also in a guild, so the listing can be read back
         # from the marketplace the way anyone would meet it.
-        actor = await acting_user("owner", guild_role=GuildRole.admin)
+        actor = await acting_user("owner", guild_role=CommunityRole.admin)
 
         response = await client.post(RESCAN_URL, headers=actor.headers)
 
@@ -198,7 +198,7 @@ class TestUploadingAListingFile:
     async def test_the_owner_publishes_a_file_as_a_local_listing(
         self, client, acting_user
     ):
-        owner = await acting_user("owner", guild_role=GuildRole.member)
+        owner = await acting_user("owner", guild_role=CommunityRole.member)
 
         response = await client.post(
             UPLOAD_URL, json={"manifest": _counter_manifest()}, headers=owner.headers

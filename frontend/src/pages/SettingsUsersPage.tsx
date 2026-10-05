@@ -1,22 +1,23 @@
 import { Link } from "@tanstack/react-router";
 import type { PaginationState } from "@tanstack/react-table";
-import { Copy, Download, HandCoins, RefreshCcw, Trash2, UserMinus } from "lucide-react";
+import { Copy, Download, HandCoins, IdCard, RefreshCcw, Trash2, UserMinus } from "lucide-react";
 import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
-  createGuildInviteApiV1CommunitiesGuildIdInvitesPost,
-  deleteGuildInviteApiV1CommunitiesGuildIdInvitesInviteIdDelete,
-  listGuildInvitesApiV1CommunitiesGuildIdInvitesGet,
+  createCommunityInvite,
+  deleteCommunityInvite,
+  listCommunityInvites,
 } from "@/api/generated/communities/communities";
 import type {
-  GuildInviteRead,
-  GuildRole,
-  UserGuildMember,
+  CommunityInviteRead,
+  CommunityRole,
+  UserCommunityMember,
 } from "@/api/generated/initiativeAPI.schemas";
-import { RemoveGuildMemberDialog } from "@/components/guilds/RemoveGuildMemberDialog";
-import { TransferContentOwnershipDialog } from "@/components/guilds/TransferContentOwnershipDialog";
-import { UnownedContentCard } from "@/components/guilds/UnownedContentCard";
+import { MemberDisplayNameDialog } from "@/components/communities/MemberDisplayNameDialog";
+import { RemoveCommunityMemberDialog } from "@/components/communities/RemoveCommunityMemberDialog";
+import { TransferContentOwnershipDialog } from "@/components/communities/TransferContentOwnershipDialog";
+import { UnownedContentCard } from "@/components/communities/UnownedContentCard";
 import {
   FormSkeleton,
   ListSkeleton,
@@ -38,22 +39,29 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/hooks/useAuth";
 import { useBillingPortal } from "@/hooks/useBillingPortal";
+import { useCommunities } from "@/hooks/useCommunities";
+import { useCommunityAuthSettings } from "@/hooks/useCommunityAuthPolicy";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import { useGuilds } from "@/hooks/useGuilds";
 import { useRelativeTime } from "@/hooks/useRelativeTime";
-import { useExportGuildUsersCsv, useUpdateGuildMembership, useUsers } from "@/hooks/useUsers";
-import { toast } from "@/lib/chesterToast";
+import {
+  useExportCommunityUsersCsv,
+  useSetMemberApiAccess,
+  useUpdateCommunityMembership,
+  useUsers,
+} from "@/hooks/useUsers";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 import type { AppColumnDef } from "@/lib/table";
 import { getUrlHandle, getUserDisplayName, getUserHandle } from "@/lib/userDisplay";
 
 //: What this community's roles are, in the order the picker offers them. The
 //: seat is only on the list for somebody who already holds it — an admin can
 //: neither appoint nor demote one, and the server says so too.
-const GUILD_ROLE_OPTIONS: GuildRole[] = ["admin", "member"];
-const SEAT_ROLE_OPTIONS: GuildRole[] = ["superadmin", "admin", "member"];
+const COMMUNITY_ROLE_OPTIONS: CommunityRole[] = ["admin", "member"];
+const SEAT_ROLE_OPTIONS: CommunityRole[] = ["superadmin", "admin", "member"];
 const inviteLinkForCode = (code: string) => {
   const base = import.meta.env.VITE_APP_URL?.trim() || window.location.origin;
   const normalizedBase = base.endsWith("/") ? base.slice(0, -1) : base;
@@ -73,7 +81,7 @@ const InviteUsesLine = ({
   maxUses: number | null;
   expiresAt: string | null;
 }) => {
-  const { t } = useTranslation("guilds");
+  const { t } = useTranslation("communities");
   const relativeExpiry = useRelativeTime(expiresAt);
   const expires = expiresAt != null ? relativeExpiry : t("users.neverExpires");
   return (
@@ -85,32 +93,41 @@ const InviteUsesLine = ({
 
 export const SettingsUsersPage = () => {
   const { user } = useAuth();
-  const { t } = useTranslation("guilds");
+  const { t } = useTranslation("communities");
 
-  const { activeGuild } = useGuilds();
+  const { activeCommunity } = useCommunities();
   const { canSell, openPortal } = useBillingPortal();
   // Running the community, not reaching its work: the roster and its
-  // invites answer to the guild's own ladder, and to a settings grant
+  // invites answer to the community's own ladder, and to a settings grant
   // standing in on it. Platform role has nothing to do with it.
-  const isGuildAdmin = Boolean(activeGuild?.can.administer);
+  const isCommunityAdmin = Boolean(activeCommunity?.can.administer);
   // Invites are handed out by whoever may change the roster, so a rung that
   // only reads it does not list them.
-  const managesInvites = Boolean(activeGuild?.can.configure);
-  const roleOptions = activeGuild?.can.seat ? SEAT_ROLE_OPTIONS : GUILD_ROLE_OPTIONS;
+  const managesInvites = Boolean(activeCommunity?.can.configure);
+  const roleOptions = activeCommunity?.can.seat ? SEAT_ROLE_OPTIONS : COMMUNITY_ROLE_OPTIONS;
 
-  const activeGuildId = activeGuild?.id ?? null;
+  const activeCommunityId = activeCommunity?.id ?? null;
 
-  // Seat cap, admin-only on the payload and null when uncapped. A full guild
+  // Whose personal API keys reach the community is the seat's to say, and only
+  // while the operator has granted the community ``restrictions``: without it
+  // every member's keys reach it, so there is nothing to set.
+  const isSeat = Boolean(activeCommunity?.can.seat);
+  const authSettings = useCommunityAuthSettings(activeCommunityId ?? 0, {
+    enabled: isSeat && activeCommunityId != null,
+  }).data;
+  const showsApiAccess = isSeat && (authSettings?.auth_options ?? []).includes("restrictions");
+
+  // Seat cap, admin-only on the payload and null when uncapped. A full community
   // mints no invite (the server refuses), so the form says so up front instead
   // of failing on submit. Where a billing portal exists the cap travels with
   // the plan — raising it is an upgrade, not a request to an operator — so the
   // message and its action differ from the self-hosted one.
-  const maxUsers = activeGuild?.max_users ?? null;
-  const usedSeats = activeGuild?.member_count ?? 0;
+  const maxUsers = activeCommunity?.max_users ?? null;
+  const usedSeats = activeCommunity?.member_count ?? 0;
   const atUserLimit = maxUsers !== null && usedSeats >= maxUsers;
-  const planName = activeGuild?.tier_name ?? null;
+  const planName = activeCommunity?.tier_name ?? null;
 
-  const [invites, setInvites] = useState<GuildInviteRead[]>([]);
+  const [invites, setInvites] = useState<CommunityInviteRead[]>([]);
   const [invitesLoading, setInvitesLoading] = useState(false);
   const [invitesError, setInvitesError] = useState<string | null>(null);
   const [inviteSubmitting, setInviteSubmitting] = useState(false);
@@ -121,21 +138,22 @@ export const SettingsUsersPage = () => {
     email: string;
   } | null>(null);
   // `member: null` opens the dialog in "claim everything unowned" mode.
-  const [transferTarget, setTransferTarget] = useState<{ member: UserGuildMember | null } | null>(
-    null
-  );
+  const [namingMember, setNamingMember] = useState<UserCommunityMember | null>(null);
+  const [transferTarget, setTransferTarget] = useState<{
+    member: UserCommunityMember | null;
+  } | null>(null);
 
   const loadInvites = useCallback(async () => {
-    if (!activeGuildId) {
+    if (!activeCommunityId) {
       setInvites([]);
       return;
     }
     setInvitesLoading(true);
     setInvitesError(null);
     try {
-      const data = await (listGuildInvitesApiV1CommunitiesGuildIdInvitesGet(
-        activeGuildId
-      ) as unknown as Promise<GuildInviteRead[]>);
+      const data = await (listCommunityInvites(activeCommunityId) as unknown as Promise<
+        CommunityInviteRead[]
+      >);
       setInvites(data);
     } catch (error) {
       console.error("Failed to load invites", error);
@@ -143,7 +161,7 @@ export const SettingsUsersPage = () => {
     } finally {
       setInvitesLoading(false);
     }
-  }, [activeGuildId, t]);
+  }, [activeCommunityId, t]);
 
   useEffect(() => {
     if (managesInvites) {
@@ -161,21 +179,28 @@ export const SettingsUsersPage = () => {
   const [pageSize, setPageSize] = useState(20);
   const usersQuery = useUsers(
     { search: search.trim() || undefined, page, page_size: pageSize },
-    { enabled: isGuildAdmin }
+    { enabled: isCommunityAdmin }
   );
   const rows = usersQuery.data?.items ?? [];
   const totalCount = usersQuery.data?.total_count ?? 0;
 
-  const updateGuildMembership = useUpdateGuildMembership({
+  const updateCommunityMembership = useUpdateCommunityMembership({
     onError: (error: unknown) => {
-      const message = getErrorMessage(error, "guilds:users.failedToUpdateRole");
+      const message = getErrorMessage(error, "communities:users.failedToUpdateRole");
       toast.error(message);
     },
   });
 
-  const handleRoleChange = (userId: number, role: GuildRole) => {
-    // Update guild membership role
-    updateGuildMembership.mutate({ guildId: activeGuildId!, userId, role });
+  const setMemberApiAccess = useSetMemberApiAccess({
+    onSuccess: () => toast.success(t("users.apiAccessSaved")),
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error, "communities:users.apiAccessError"));
+    },
+  });
+
+  const handleRoleChange = (userId: number, role: CommunityRole) => {
+    // Update community membership role
+    updateCommunityMembership.mutate({ communityId: activeCommunityId!, userId, role });
   };
 
   const handleDeleteUser = (userId: number, email: string) => {
@@ -183,30 +208,33 @@ export const SettingsUsersPage = () => {
     setDeleteUserConfirm({ userId, email });
   };
 
-  const exportGuildUsers = useExportGuildUsersCsv({
+  const exportCommunityUsers = useExportCommunityUsersCsv({
     onError: (err) => {
-      toast.error(getErrorMessage(err, "guilds:users.exportError"));
+      toast.error(getErrorMessage(err, "communities:users.exportError"));
     },
   });
 
-  const exportUserCsv = (guildMember: UserGuildMember) => {
-    const safeHandle = guildMember.username.replace(/[^a-zA-Z0-9._-]+/g, "_");
-    exportGuildUsers.mutate({
-      params: { user_id: [guildMember.id] },
-      filename: `user-${guildMember.id}-${safeHandle}.csv`,
+  const exportUserCsv = (communityMember: UserCommunityMember) => {
+    const safeHandle = communityMember.username.replace(/[^a-zA-Z0-9._-]+/g, "_");
+    exportCommunityUsers.mutate({
+      params: { user_id: [communityMember.id] },
+      filename: `user-${communityMember.id}-${safeHandle}.csv`,
     });
   };
 
   const exportAllUsersCsv = () => {
-    const safeGuildName = (activeGuild?.name ?? "guild").replace(/[^a-zA-Z0-9._-]+/g, "_");
+    const safeCommunityName = (activeCommunity?.name ?? "community").replace(
+      /[^a-zA-Z0-9._-]+/g,
+      "_"
+    );
     const datestamp = new Date().toISOString().slice(0, 10);
-    exportGuildUsers.mutate({
+    exportCommunityUsers.mutate({
       params: {},
-      filename: `${safeGuildName}-users-${datestamp}.csv`,
+      filename: `${safeCommunityName}-users-${datestamp}.csv`,
     });
   };
 
-  if (!isGuildAdmin) {
+  if (!isCommunityAdmin) {
     return <p className="text-muted-foreground text-sm">{t("users.adminRequired")}</p>;
   }
 
@@ -223,12 +251,11 @@ export const SettingsUsersPage = () => {
     return <p className="text-destructive text-sm">{t("users.unableToLoadSettings")}</p>;
   }
 
-  // The handle leads: every guild has one for every member. A guild that
-  // renders handles sends no names, so that column would be a full one of
-  // em-dashes.
-  const showsNames = Boolean(activeGuild?.show_member_names);
+  // The handle leads: every member has one. A name is only the display name
+  // somebody set here, so the column shows once someone on the page has one.
+  const showsNames = rows.some((row) => row.display_name?.trim());
 
-  const userColumns: AppColumnDef<UserGuildMember>[] = [
+  const userColumns: AppColumnDef<UserCommunityMember>[] = [
     {
       accessorKey: "id",
       header: t("users.userIdColumn"),
@@ -239,7 +266,7 @@ export const SettingsUsersPage = () => {
     {
       id: "username",
       // The whole handle, as the cell draws it — see the platform roster.
-      accessorFn: (row: UserGuildMember) => getUserHandle(row),
+      accessorFn: (row: UserCommunityMember) => getUserHandle(row),
       header: t("users.handleColumn"),
       // The handle is what identifies someone, so it is also what opens them.
       cell: ({ row }) => (
@@ -259,25 +286,27 @@ export const SettingsUsersPage = () => {
             header: t("users.userColumn"),
             cell: ({ row }) => (
               <div>
-                <p className="font-medium">{row.original.full_name?.trim() || "—"}</p>
+                <p className="font-medium">{row.original.display_name?.trim() || "—"}</p>
               </div>
             ),
-          } satisfies AppColumnDef<UserGuildMember>,
+          } satisfies AppColumnDef<UserCommunityMember>,
         ]
       : []),
     {
-      accessorKey: "guild_role",
-      header: t("users.guildRoleColumn"),
+      accessorKey: "community_role",
+      header: t("users.communityRoleColumn"),
       cell: ({ row }) => {
-        const guildMember = row.original;
-        const isSelf = guildMember.id === user?.id;
-        const currentGuildRole = guildMember.guild_role ?? "member";
+        const communityMember = row.original;
+        const isSelf = communityMember.id === user?.id;
+        const currentCommunityRole = communityMember.community_role ?? "member";
         return (
           <div className="flex flex-col gap-1">
             <Select
-              value={currentGuildRole}
-              onValueChange={(value) => handleRoleChange(guildMember.id, value as GuildRole)}
-              disabled={isSelf || updateGuildMembership.isPending}
+              value={currentCommunityRole}
+              onValueChange={(value) =>
+                handleRoleChange(communityMember.id, value as CommunityRole)
+              }
+              disabled={isSelf || updateCommunityMembership.isPending}
             >
               <SelectTrigger disabled={isSelf} className="min-w-40">
                 <SelectValue />
@@ -285,7 +314,7 @@ export const SettingsUsersPage = () => {
               <SelectContent>
                 {roleOptions.map((roleOption) => (
                   <SelectItem key={roleOption} value={roleOption}>
-                    {t(`users.guildRole.${roleOption}` as never)}
+                    {t(`users.communityRole.${roleOption}` as never)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -294,6 +323,33 @@ export const SettingsUsersPage = () => {
         );
       },
     },
+    ...(showsApiAccess
+      ? [
+          {
+            accessorKey: "api_keys_allowed",
+            header: t("users.apiAccessColumn"),
+            cell: ({ row }) => {
+              const communityMember = row.original;
+              return (
+                <Switch
+                  checked={communityMember.api_keys_allowed ?? true}
+                  aria-label={t("users.apiAccessLabel", {
+                    name: getUserDisplayName(communityMember),
+                  })}
+                  disabled={setMemberApiAccess.isPending}
+                  onCheckedChange={(allowed) =>
+                    setMemberApiAccess.mutate({
+                      communityId: activeCommunityId!,
+                      userId: communityMember.id,
+                      allowed,
+                    })
+                  }
+                />
+              );
+            },
+          } satisfies AppColumnDef<UserCommunityMember>,
+        ]
+      : []),
     {
       accessorKey: "oidc_managed",
       header: t("users.sourceColumn"),
@@ -311,28 +367,34 @@ export const SettingsUsersPage = () => {
       id: "actions",
       header: t("users.actionsColumn"),
       cell: ({ row }) => {
-        const guildMember = row.original;
-        const isSelf = guildMember.id === user?.id;
+        const communityMember = row.original;
+        const isSelf = communityMember.id === user?.id;
         return (
-          <RowActionsMenu subject={getUserDisplayName(guildMember)}>
-            <DropdownMenuItem onSelect={() => exportUserCsv(guildMember)}>
+          <RowActionsMenu subject={getUserDisplayName(communityMember)}>
+            <DropdownMenuItem onSelect={() => exportUserCsv(communityMember)}>
               <Download className="h-4 w-4" />
               {t("users.exportUser")}
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => setTransferTarget({ member: guildMember })}>
+            <DropdownMenuItem onSelect={() => setNamingMember(communityMember)}>
+              <IdCard className="h-4 w-4" />
+              {t("displayName.adminAction")}
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => setTransferTarget({ member: communityMember })}>
               <HandCoins className="h-4 w-4" />
               {t("transferOwnership.action")}
             </DropdownMenuItem>
-            {/* Removing somebody from the guild is the destructive one, and
+            {/* Removing somebody from the community is the destructive one, and
                 the only one you cannot aim at yourself. */}
             <DropdownMenuSeparator />
             <DropdownMenuItem
               className="text-destructive"
-              onSelect={() => handleDeleteUser(guildMember.id, getUserDisplayName(guildMember))}
+              onSelect={() =>
+                handleDeleteUser(communityMember.id, getUserDisplayName(communityMember))
+              }
               disabled={isSelf}
             >
               <UserMinus className="h-4 w-4" />
-              {t("users.removeFromGuild")}
+              {t("users.removeFromCommunity")}
             </DropdownMenuItem>
           </RowActionsMenu>
         );
@@ -342,7 +404,7 @@ export const SettingsUsersPage = () => {
 
   const createInvite = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!activeGuildId || atUserLimit) {
+    if (!activeCommunityId || atUserLimit) {
       return;
     }
     setInviteSubmitting(true);
@@ -356,25 +418,25 @@ export const SettingsUsersPage = () => {
         max_uses: inviteMaxUses > 0 ? inviteMaxUses : null,
         expires_at: expiresAt,
       };
-      await createGuildInviteApiV1CommunitiesGuildIdInvitesPost(
-        activeGuildId,
-        payload as Parameters<typeof createGuildInviteApiV1CommunitiesGuildIdInvitesPost>[1]
+      await createCommunityInvite(
+        activeCommunityId,
+        payload as Parameters<typeof createCommunityInvite>[1]
       );
       await loadInvites();
     } catch (error) {
       console.error(error);
-      setInvitesError(getErrorMessage(error, "guilds:users.unableToCreateInvite"));
+      setInvitesError(getErrorMessage(error, "communities:users.unableToCreateInvite"));
     } finally {
       setInviteSubmitting(false);
     }
   };
 
   const deleteInvite = async (inviteId: number) => {
-    if (!activeGuildId) {
+    if (!activeCommunityId) {
       return;
     }
     try {
-      await deleteGuildInviteApiV1CommunitiesGuildIdInvitesInviteIdDelete(activeGuildId, inviteId);
+      await deleteCommunityInvite(activeCommunityId, inviteId);
       await loadInvites();
     } catch (error) {
       console.error(error);
@@ -433,14 +495,14 @@ export const SettingsUsersPage = () => {
                 </Button>
               </div>
             </form>
-            {atUserLimit && canSell && activeGuildId && activeGuild?.can.seat ? (
+            {atUserLimit && canSell && activeCommunityId && activeCommunity?.can.seat ? (
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <p className="text-muted-foreground text-sm">
                   {planName
                     ? t("users.inviteSeatsFullPlan", { plan: planName, count: maxUsers ?? 0 })
                     : t("users.inviteSeatsFullUpgrade", { count: maxUsers ?? 0 })}
                 </p>
-                <Button size="sm" onClick={() => void openPortal(activeGuildId, "upgrade")}>
+                <Button size="sm" onClick={() => void openPortal(activeCommunityId, "upgrade")}>
                   {t("usagePanel.upgrade")}
                 </Button>
               </div>
@@ -496,10 +558,11 @@ export const SettingsUsersPage = () => {
           </CardContent>
         </Card>
       ) : null}
-      <Card className="shadow-sm">
+      <Card>
         <CardHeader className="flex flex-row items-start justify-between gap-4">
           <div>
-            <CardTitle>{t("users.usersTitle")}</CardTitle>
+            {/* Named only beside the invites card; alone, the tab names it. */}
+            {managesInvites ? <CardTitle>{t("users.usersTitle")}</CardTitle> : null}
             <CardDescription>{t("users.usersDescription")}</CardDescription>
             {/* Three words that get mixed up constantly, explained where the
                 choice is actually made rather than in the help centre. */}
@@ -507,11 +570,17 @@ export const SettingsUsersPage = () => {
               {roleOptions.map((roleOption) => (
                 <div key={roleOption} className="flex gap-1.5">
                   <dt className="font-medium text-foreground">
-                    {t(`users.guildRole.${roleOption}` as never)}
+                    {t(`users.communityRole.${roleOption}` as never)}
                   </dt>
-                  <dd>{t(`users.guildRoleHelp.${roleOption}` as never)}</dd>
+                  <dd>{t(`users.communityRoleHelp.${roleOption}` as never)}</dd>
                 </div>
               ))}
+              {showsApiAccess ? (
+                <div className="flex gap-1.5">
+                  <dt className="font-medium text-foreground">{t("users.apiAccessColumn")}</dt>
+                  <dd>{t("users.apiAccessHelp")}</dd>
+                </div>
+              ) : null}
             </dl>
           </div>
           <Button
@@ -556,12 +625,24 @@ export const SettingsUsersPage = () => {
 
       <UnownedContentCard onClaim={() => setTransferTarget({ member: null })} />
 
-      <RemoveGuildMemberDialog
+      <RemoveCommunityMemberDialog
         open={deleteUserConfirm !== null}
         onOpenChange={(open) => !open && setDeleteUserConfirm(null)}
         userId={deleteUserConfirm?.userId ?? null}
         email={deleteUserConfirm?.email ?? ""}
       />
+
+      {activeCommunityId ? (
+        <MemberDisplayNameDialog
+          open={namingMember !== null}
+          onOpenChange={(open) => !open && setNamingMember(null)}
+          communityId={activeCommunityId}
+          member={
+            namingMember ? { id: namingMember.id, name: getUserHandle(namingMember) } : undefined
+          }
+          current={namingMember?.display_name}
+        />
+      ) : null}
 
       <TransferContentOwnershipDialog
         open={transferTarget !== null}

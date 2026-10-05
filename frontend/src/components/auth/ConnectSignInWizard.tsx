@@ -23,8 +23,8 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type {
+  CommunityProviderConnectionRead,
   ConnectableProviderRead,
-  GuildProviderConnectionRead,
 } from "@/api/generated/initiativeAPI.schemas";
 import { ProviderMark } from "@/components/auth/ProviderMark";
 import { Badge } from "@/components/ui/badge";
@@ -41,15 +41,15 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { WizardDialog } from "@/components/ui/wizard-dialog";
 import {
+  useCommunityProviderConnections,
   useConnectableProviders,
   useConnectProvider,
   useCreateClaimRule,
-  useGuildProviderConnections,
-  useUpdateGuildAuthSettings,
-} from "@/hooks/useGuildAuthPolicy";
+  useUpdateCommunityAuthSettings,
+} from "@/hooks/useCommunityAuthPolicy";
 import { useWizard } from "@/hooks/useWizard";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 
 /** Which claim narrows which provider. Each one spells "our tenant"
  *  differently, and only the provider knows which word it uses. */
@@ -70,7 +70,7 @@ const splitValues = (raw: string): string[] =>
     .filter(Boolean);
 
 export interface ConnectSignInWizardProps {
-  guildId: number;
+  communityId: number;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** Whether this reader may also make the provider the way in. */
@@ -82,7 +82,7 @@ export interface ConnectSignInWizardProps {
 }
 
 export const ConnectSignInWizard = ({
-  guildId,
+  communityId,
   open,
   onOpenChange,
   canRequire,
@@ -91,11 +91,11 @@ export const ConnectSignInWizard = ({
   const { t } = useTranslation(["settings", "common"]);
   const { step, go, back, canGoBack, reset } = useWizard<Step>("provider");
 
-  const availableQuery = useConnectableProviders(guildId);
-  const connectionsQuery = useGuildProviderConnections(guildId);
-  const connect = useConnectProvider(guildId);
-  const createRule = useCreateClaimRule(guildId);
-  const updatePolicy = useUpdateGuildAuthSettings(guildId);
+  const availableQuery = useConnectableProviders(communityId);
+  const connectionsQuery = useCommunityProviderConnections(communityId);
+  const connect = useConnectProvider(communityId);
+  const createRule = useCreateClaimRule(communityId);
+  const updatePolicy = useUpdateCommunityAuthSettings(communityId);
 
   const [providerId, setProviderId] = useState<number | null>(startOn);
   // The wizard stays mounted between openings, so a provider chosen for it
@@ -113,7 +113,7 @@ export const ConnectSignInWizard = ({
   const [insist, setInsist] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const connections: GuildProviderConnectionRead[] = connectionsQuery.data ?? [];
+  const connections: CommunityProviderConnectionRead[] = connectionsQuery.data ?? [];
   // A provider the community merely inherits stays choosable: connecting to it
   // is how the deployment's arrangement is taken over. Only what the community
   // said itself leaves the grid.
@@ -181,7 +181,7 @@ export const ConnectSignInWizard = ({
         await createRule.mutateAsync({
           provider_id: providerId,
           claim_value: group,
-          guild_role: ruleRole,
+          community_role: ruleRole,
         });
       }
       if (insist) {
@@ -189,12 +189,12 @@ export const ConnectSignInWizard = ({
           auth_policy: { policy: "required", provider_id: providerId, require_methods: [] },
         });
       }
-      toast.success(t("settings:guildAuth.connections.connected"));
+      toast.success(t("settings:communityAuth.connections.connected"));
       closeWizard();
     } catch (error) {
       // The answers stay on screen: whichever call failed, the step somebody
       // is standing on is the one to try again from.
-      toast.error(getErrorMessage(error, "settings:guildAuth.connections.connectError"));
+      toast.error(getErrorMessage(error, "settings:communityAuth.connections.connectError"));
       setSaving(false);
     }
   };
@@ -207,17 +207,17 @@ export const ConnectSignInWizard = ({
   );
 
   const stepTitle: Record<Step, string> = {
-    provider: t("settings:guildAuth.wizard.steps.provider.title"),
-    narrowing: t("settings:guildAuth.wizard.steps.narrowing.title"),
-    landing: t("settings:guildAuth.wizard.steps.landing.title"),
-    insist: t("settings:guildAuth.wizard.steps.insist.title"),
+    provider: t("settings:communityAuth.wizard.steps.provider.title"),
+    narrowing: t("settings:communityAuth.wizard.steps.narrowing.title"),
+    landing: t("settings:communityAuth.wizard.steps.landing.title"),
+    insist: t("settings:communityAuth.wizard.steps.insist.title"),
   };
 
   const stepDescription: Record<Step, string> = {
-    provider: t("settings:guildAuth.wizard.steps.provider.prompt"),
-    narrowing: t("settings:guildAuth.wizard.steps.narrowing.prompt"),
-    landing: t("settings:guildAuth.wizard.steps.landing.prompt"),
-    insist: t("settings:guildAuth.wizard.steps.insist.prompt"),
+    provider: t("settings:communityAuth.wizard.steps.provider.prompt"),
+    narrowing: t("settings:communityAuth.wizard.steps.narrowing.prompt"),
+    landing: t("settings:communityAuth.wizard.steps.landing.prompt"),
+    insist: t("settings:communityAuth.wizard.steps.insist.prompt"),
   };
 
   return (
@@ -235,7 +235,7 @@ export const ConnectSignInWizard = ({
       {step === "provider" &&
         (choosable.length === 0 ? (
           <p className="text-muted-foreground text-sm">
-            {t("settings:guildAuth.connections.noneOffered")}
+            {t("settings:communityAuth.connections.noneOffered")}
           </p>
         ) : (
           <div className="grid grid-cols-2 gap-2">
@@ -251,10 +251,14 @@ export const ConnectSignInWizard = ({
                 <div className="min-w-0 space-y-1">
                   <div className="truncate font-medium text-sm">{row.display_name}</div>
                   {!row.login_ready && (
-                    <Badge variant="outline">{t("settings:guildAuth.connections.notReady")}</Badge>
+                    <Badge variant="outline">
+                      {t("settings:communityAuth.connections.notReady")}
+                    </Badge>
                   )}
                   {row.login_ready && inheritedByProvider.has(row.id) && (
-                    <Badge variant="outline">{t("settings:guildAuth.connections.inherited")}</Badge>
+                    <Badge variant="outline">
+                      {t("settings:communityAuth.connections.inherited")}
+                    </Badge>
                   )}
                 </div>
               </button>
@@ -265,9 +269,11 @@ export const ConnectSignInWizard = ({
       {step === "narrowing" && (
         <div className="space-y-4">
           <div className="space-y-2 rounded-md border bg-muted/40 p-3">
-            <Label htmlFor="wizard-claim">{t("settings:guildAuth.connections.claimLabel")}</Label>
+            <Label htmlFor="wizard-claim">
+              {t("settings:communityAuth.connections.claimLabel")}
+            </Label>
             <p className="text-muted-foreground text-xs">
-              {t("settings:guildAuth.connections.claimHelp")}
+              {t("settings:communityAuth.connections.claimHelp")}
             </p>
             <Select
               value={customClaim ? OTHER_CLAIM : claim}
@@ -277,23 +283,25 @@ export const ConnectSignInWizard = ({
               }}
             >
               <SelectTrigger id="wizard-claim">
-                <SelectValue placeholder={t("settings:guildAuth.connections.claimPlaceholder")} />
+                <SelectValue
+                  placeholder={t("settings:communityAuth.connections.claimPlaceholder")}
+                />
               </SelectTrigger>
               <SelectContent>
                 {NARROWING_CLAIMS.map((name) => (
                   <SelectItem key={name} value={name}>
-                    {t(`settings:guildAuth.connections.claimOptions.${name}`)}
+                    {t(`settings:communityAuth.connections.claimOptions.${name}`)}
                   </SelectItem>
                 ))}
                 <SelectItem value={OTHER_CLAIM}>
-                  {t("settings:guildAuth.connections.claimOptions.other")}
+                  {t("settings:communityAuth.connections.claimOptions.other")}
                 </SelectItem>
               </SelectContent>
             </Select>
             {customClaim && (
               <Input
-                aria-label={t("settings:guildAuth.connections.claimNameLabel")}
-                placeholder={t("settings:guildAuth.connections.claimNamePlaceholder")}
+                aria-label={t("settings:communityAuth.connections.claimNameLabel")}
+                placeholder={t("settings:communityAuth.connections.claimNamePlaceholder")}
                 value={claim}
                 onChange={(event) => setClaim(event.target.value)}
               />
@@ -302,8 +310,8 @@ export const ConnectSignInWizard = ({
                 beside "anyone" would be asking which of nobody counts. */}
             {(customClaim || claim !== "") && (
               <Input
-                aria-label={t("settings:guildAuth.connections.claimValuesLabel")}
-                placeholder={t("settings:guildAuth.connections.claimValuesPlaceholder")}
+                aria-label={t("settings:communityAuth.connections.claimValuesLabel")}
+                placeholder={t("settings:communityAuth.connections.claimValuesPlaceholder")}
                 value={claimValues}
                 onChange={(event) => setClaimValues(event.target.value)}
               />
@@ -328,10 +336,10 @@ export const ConnectSignInWizard = ({
           <div className="flex items-start justify-between gap-3 rounded-md border p-3">
             <div className="space-y-1">
               <Label htmlFor="wizard-auto-join">
-                {t("settings:guildAuth.connections.autoJoinLabel")}
+                {t("settings:communityAuth.connections.autoJoinLabel")}
               </Label>
               <p className="text-muted-foreground text-xs">
-                {t("settings:guildAuth.connections.autoJoinHelp")}
+                {t("settings:communityAuth.connections.autoJoinHelp")}
               </p>
             </div>
             <Switch
@@ -343,20 +351,22 @@ export const ConnectSignInWizard = ({
 
           <div className="space-y-3 rounded-md border bg-muted/40 p-3">
             <div className="space-y-1">
-              <Label htmlFor="wizard-rule-group">{t("settings:guildAuth.wizard.ruleTitle")}</Label>
+              <Label htmlFor="wizard-rule-group">
+                {t("settings:communityAuth.wizard.ruleTitle")}
+              </Label>
               <p className="text-muted-foreground text-xs">
-                {t("settings:guildAuth.wizard.ruleHelp")}
+                {t("settings:communityAuth.wizard.ruleHelp")}
               </p>
             </div>
             <Input
               id="wizard-rule-group"
               value={ruleGroup}
-              placeholder={t("settings:guildAuth.rules.groupPlaceholder")}
+              placeholder={t("settings:communityAuth.rules.groupPlaceholder")}
               onChange={(event) => setRuleGroup(event.target.value)}
             />
             <div className="space-y-2">
               <Label htmlFor="wizard-rule-role">
-                {t("settings:guildAuth.rules.standingLabel")}
+                {t("settings:communityAuth.rules.standingLabel")}
               </Label>
               <Select value={ruleRole} onValueChange={setRuleRole}>
                 <SelectTrigger id="wizard-rule-role">
@@ -364,9 +374,11 @@ export const ConnectSignInWizard = ({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="member">
-                    {t("settings:guildAuth.rules.role.member")}
+                    {t("settings:communityAuth.rules.role.member")}
                   </SelectItem>
-                  <SelectItem value="admin">{t("settings:guildAuth.rules.role.admin")}</SelectItem>
+                  <SelectItem value="admin">
+                    {t("settings:communityAuth.rules.role.admin")}
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -391,9 +403,11 @@ export const ConnectSignInWizard = ({
         <div className="space-y-4">
           <div className="flex items-start justify-between gap-3 rounded-md border p-3">
             <div className="space-y-1">
-              <Label htmlFor="wizard-require">{t("settings:guildAuth.wizard.requireLabel")}</Label>
+              <Label htmlFor="wizard-require">
+                {t("settings:communityAuth.wizard.requireLabel")}
+              </Label>
               <p className="text-muted-foreground text-xs">
-                {t("settings:guildAuth.wizard.requireHelp")}
+                {t("settings:communityAuth.wizard.requireHelp")}
               </p>
             </div>
             <Switch

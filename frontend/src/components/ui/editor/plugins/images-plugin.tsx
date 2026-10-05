@@ -1,14 +1,17 @@
 import { createCommand, type LexicalCommand, type LexicalEditor } from "lexical";
-import { type JSX, useEffect, useRef, useState } from "react";
+import { type JSX, useEffect, useId, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { DialogFooter } from "@/components/ui/dialog";
+import { useFeaturedImage } from "@/components/ui/editor/context/featured-image-context";
 import type { ImagePayload } from "@/components/ui/editor/nodes/image-node";
 import { ImagePicker } from "@/components/ui/image-picker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsBar, TabsContent, TabsTrigger } from "@/components/ui/tabs";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { uploadAttachment } from "@/lib/attachmentUtils";
 
 export type InsertImagePayload = Readonly<ImagePayload>;
@@ -67,11 +70,15 @@ export function InsertImageUploadedDialogBody({
 }: {
   onClick: (payload: InsertImagePayload) => void;
 }) {
-  const guildId = useActiveGuildId();
+  const { t } = useTranslation("documents");
+  const communityId = useActiveCommunityId();
+  const featured = useFeaturedImage();
+  const featuredId = useId();
   const [src, setSrc] = useState("");
   const [altText, setAltText] = useState("");
   const [isUploading, setIsUploading] = useState(false);
   const [fileName, setFileName] = useState("");
+  const [makeFeatured, setMakeFeatured] = useState(false);
 
   const isDisabled = src === "" || isUploading;
 
@@ -81,7 +88,7 @@ export function InsertImageUploadedDialogBody({
     setIsUploading(true);
 
     try {
-      const response = await uploadAttachment(guildId, file);
+      const response = await uploadAttachment(communityId, file);
       setSrc(response.url);
     } catch (error) {
       console.error("Failed to upload image:", error);
@@ -115,10 +122,23 @@ export function InsertImageUploadedDialogBody({
           data-test-id="image-modal-alt-text-input"
         />
       </div>
+      {featured ? (
+        <div className="flex items-center gap-2">
+          <Checkbox
+            id={featuredId}
+            checked={makeFeatured}
+            onCheckedChange={(checked) => setMakeFeatured(checked === true)}
+          />
+          <Label htmlFor={featuredId}>{t("featuredImage.makeFeatured")}</Label>
+        </div>
+      ) : null}
       <Button
         type="submit"
         disabled={isDisabled}
-        onClick={() => onClick({ altText, src })}
+        onClick={() => {
+          if (makeFeatured) featured?.set(src);
+          onClick({ altText, src });
+        }}
         data-test-id="image-modal-file-upload-btn"
       >
         {isUploading ? "Uploading..." : "Confirm"}

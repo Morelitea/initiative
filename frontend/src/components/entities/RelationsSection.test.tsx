@@ -17,7 +17,7 @@ import {
   buildUser,
   initiativeCan,
 } from "@/__tests__/factories";
-import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
 import {
@@ -65,7 +65,7 @@ vi.mock("sigma/rendering", () => ({ drawDiscNodeLabel: () => {} }));
 const uploadDocumentFile = vi.hoisted(() => vi.fn());
 vi.mock("@/api/generated/documents/documents", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/api/generated/documents/documents")>()),
-  uploadDocumentFileApiV1CGuildIdDocumentsUploadPost: uploadDocumentFile,
+  uploadDocumentFile: uploadDocumentFile,
 }));
 
 import { RelationsSection } from "./RelationsSection";
@@ -142,7 +142,7 @@ const renderSection = (
   canEdit = true,
   defaultLayout: Layout = "tiles"
 ) => {
-  server.use(guildHttp.get("/relationships/", () => HttpResponse.json(rows)));
+  server.use(communityHttp.get("/relationships/", () => HttpResponse.json(rows)));
   return mount(canEdit, defaultLayout);
 };
 
@@ -156,8 +156,8 @@ const mountUploader = ({ canCreateDocuments = true, canViewDocuments = true } = 
   uploadDocumentFile.mockReset();
   uploadDocumentFile.mockResolvedValue({ id: 77, name: "Floor plan" });
   server.use(
-    guildHttp.get("/relationships/", () => HttpResponse.json([])),
-    guildHttp.get("/initiatives/", () =>
+    communityHttp.get("/relationships/", () => HttpResponse.json([])),
+    communityHttp.get("/initiatives/", () =>
       HttpResponse.json([
         buildInitiative({
           id: 3,
@@ -168,8 +168,8 @@ const mountUploader = ({ canCreateDocuments = true, canViewDocuments = true } = 
         }),
       ])
     ),
-    guildHttp.put("/documents/:id/grants", () => HttpResponse.json({})),
-    guildHttp.post("/relationships/", async ({ request }) => {
+    communityHttp.put("/documents/:id/grants", () => HttpResponse.json({})),
+    communityHttp.post("/relationships/", async ({ request }) => {
       const body = await request.json();
       writes.links.push(body);
       return HttpResponse.json({
@@ -314,7 +314,7 @@ describe("RelationsSection", () => {
     const user = userEvent.setup();
     const asked: string[] = [];
     server.use(
-      guildHttp.get("/relationships/", ({ request }) => {
+      communityHttp.get("/relationships/", ({ request }) => {
         const entity = new URL(request.url).searchParams.get("entity") ?? "";
         asked.push(entity);
         return HttpResponse.json(
@@ -372,7 +372,7 @@ describe("RelationsSection", () => {
         initiative_name: "Farmhands",
       });
     server.use(
-      guildHttp.get("/search/recent", () =>
+      communityHttp.get("/search/recent", () =>
         HttpResponse.json([offered(11, 1, "Harvest"), offered(12, 2, "Winterhold")])
       )
     );
@@ -405,7 +405,7 @@ describe("RelationsSection", () => {
       other: { ...built.other, type: SearchEntityType.project, id: 7 },
     };
     server.use(
-      guildHttp.get("/smart-chips/", () =>
+      communityHttp.get("/smart-chips/", () =>
         HttpResponse.json({
           items: [
             {
@@ -461,7 +461,7 @@ describe("RelationsSection", () => {
   it("writes the link out as a sentence naming both ends", async () => {
     const user = userEvent.setup();
     server.use(
-      guildHttp.get("/search/recent", () =>
+      communityHttp.get("/search/recent", () =>
         HttpResponse.json([
           buildSearchSuggestion({
             entity_type: SearchEntityType.document,
@@ -574,7 +574,7 @@ describe("RelationsSection", () => {
       const writes = mountUploader();
       let refused = false;
       server.use(
-        guildHttp.post("/relationships/", async ({ request }) => {
+        communityHttp.post("/relationships/", async ({ request }) => {
           if (!refused) {
             refused = true;
             return HttpResponse.json({ detail: "nope" }, { status: 500 });

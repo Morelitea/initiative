@@ -10,9 +10,9 @@ If you only ever learn one part of Initiative, make it this one. It's where basi
 
 ## Making a project
 
-1. Open the initiative it belongs in and click **Create Project**.
+1. Open the initiative it belongs in and click **Add Project**.
 2. Fill in:
-    - **Project name** — the only required bit.
+    - **Name** — the only required bit.
     - **Icon** — an emoji, so you can find it at a glance.
     - **Description** — optional.
     - **Initiative** — which folder it lives in.
@@ -20,6 +20,8 @@ If you only ever learn one part of Initiative, make it this one. It's where basi
 3. Create it. The board opens, empty and radiating potential.
 
 ![Creating a project](../images/projects/create-project.png)
+
+The top of the project shows how far along it is and its dates, beside its status, tags and properties — the same [header every tool has](tools.md#the-top-of-every-tool-page).
 
 ### Favourites and pinning
 
@@ -30,7 +32,7 @@ Both are just for you. Starring something doesn't inflict it on anybody else.
 
 ## Adding tasks
 
-Click **Create task**. The quick form wants a **title** and maybe a description. That's enough. You can fill the rest in later, or never, and nothing will nag you about it.
+Click **Add task**. The quick form wants a **title** and maybe a description. That's enough. You can fill the rest in later, or never, and nothing will nag you about it.
 
 Need more detail now? Expand **Advanced details** for everything else, sorted into **Tracking**, **Schedule**, **People & labels**, and any custom **Properties** your initiative uses.
 
@@ -108,7 +110,7 @@ Deleting from here on ends the repeat. Deleting all of them sends the finished o
 
 Finish a task that's assigned to you and Initiative marks the occasion — confetti, a "+1 Heart", a "Natural 20", or a shower of gold coins.
 
-Pick your preferred celebration in **User settings → Interface**, or set it to **None** if you'd rather your accomplishments passed in dignified silence.
+Pick your preferred celebration in **My Settings → Preferences**, or set it to **None** if you'd rather your accomplishments passed in dignified silence.
 
 There's optional sound and vibration too, for anyone who wants the full experience. No judgement. Some weeks you need the coins.
 
@@ -175,10 +177,11 @@ Your choice is yours alone and it's remembered, so you can settle into one witho
 
 ## Project settings
 
-- **Details** — icon, name, description, tags.
+- **Details** — icon, name, description, dates, tags.
 - **Access** — who can see or edit it. See [Sharing](../sharing/sharing-projects-and-documents.md).
+- **Views** — the saved filter sets everyone in the project can pick from, and which view it opens on.
 - **Task statuses** — your workflow.
-- **Advanced** — save as a template, duplicate, archive, delete.
+- **Advanced** — save as a template, [duplicate](tools.md#duplicating) it here or into another initiative, export, archive, delete.
 
 ### Moving a task to another project
 
@@ -186,11 +189,15 @@ You can move a task from its menu. One thing that catches people out: because ev
 
 Nothing's broken and you haven't lost anything. Set the new status and carry on.
 
+### Duplicating a task
+
+**Duplicate task**, in the task's menu, makes another beside it with "(Copy)" on its name, keeping its links to other tasks. Its checklist comes across unticked, because the copy hasn't done any of it yet.
+
 ## Templates
 
-Set a project up exactly how you like it, then save it as a **template** — from **Project settings → Advanced**, or by ticking **Save as template** when you create one.
+Set a project up exactly how you like it, then make it a **template** — from **Status** at the top of the project, from **Project settings → Advanced**, or by ticking **Save as template** when you create one.
 
-Next time, start *from* it and skip the fiddling. Ideal for anything you do more than once: every new client, every event, every production. Nobody forgets the step at the end, because the step at the end is already there.
+Next time, start *from* it and skip the fiddling. Its checklists arrive exactly as the template has them, ticks and all; duplicating an ordinary project starts them over. Ideal for anything you do more than once: every new client, every event, every production. Nobody forgets the step at the end, because the step at the end is already there.
 
 ## Exporting a project
 
@@ -201,8 +208,6 @@ The task list's own **Export** — the tasks you've filtered to, or the ones you
 !!! note "People are named by handle"
     An export identifies assignees, event attendees and person-type fields by **handle** (`foobar#1234`), because a handle is the same in every community and an email address isn't.
 
-    Anything exported before that was true won't match its people on the way back in. Export it again and the new file will.
-
 ## Archiving and deleting
 
 - **Archive** hides a finished project without losing anything. Unarchive whenever.
@@ -210,6 +215,6 @@ The task list's own **Export** — the tasks you've filtered to, or the ones you
 
 ## Related
 
-- [Mentions & links](mentions-and-links.md#relations) — saying a task is blocked by another.
+- [Mentions & links](mentions-and-links.md#connections) — saying a task is blocked by another.
 - [Tags](tags.md) — labelling and filtering.
 - [Your space](your-space.md) — all your tasks, from every project and community at once.

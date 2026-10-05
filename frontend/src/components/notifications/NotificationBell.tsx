@@ -39,7 +39,7 @@ export const NotificationBell = () => {
   const { user } = useAuth();
   // "exports" is loaded alongside so the export download's cross-namespace
   // toast keys (exports:export.*) are available when clicked from the bell.
-  const { t } = useTranslation(["guilds", "exports"]);
+  const { t } = useTranslation(["communities", "exports"]);
   const isEnabled = Boolean(user);
   const streamConnected = useNotificationStreamConnected();
 
@@ -102,7 +102,7 @@ export const NotificationBell = () => {
     if (exportTarget) {
       setOpen(false);
       await downloadExportArtifact(
-        exportTarget.guildId,
+        exportTarget.communityId,
         exportTarget.jobId,
         t as (key: string, options?: Record<string, unknown>) => string,
         exportTarget.source,
@@ -202,17 +202,14 @@ export const NotificationBell = () => {
             // each get a dot instead.
             <Badge
               aria-hidden
-              className="absolute -top-1 -right-1 h-5 min-w-5 justify-center rounded-full px-1 py-0 text-[11px]"
+              className="absolute -top-1 -right-1 h-5 min-w-5 justify-center rounded-full px-1 py-0 text-2xs"
             >
               {unreadCount > 99 ? "99+" : unreadCount}
             </Badge>
           ) : null}
         </Button>
       </PopoverTrigger>
-      <PopoverContent
-        collisionPadding={8}
-        className="flex max-h-[var(--radix-popover-content-available-height)] w-80 flex-col overflow-hidden"
-      >
+      <PopoverContent collisionPadding={8} className="flex w-80 flex-col overflow-hidden">
         <div className="flex shrink-0 items-center justify-between border-b pb-2">
           <p className="font-semibold text-sm">{t("notifications.title")}</p>
           <Button

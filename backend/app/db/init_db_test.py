@@ -36,7 +36,6 @@ async def test_init_owner_cleans_up_when_guild_seed_fails(engine, monkeypatch):
     email = "init-boot-seedfail@example.com"
     monkeypatch.setattr(settings, "FIRST_OWNER_EMAIL", email)
     monkeypatch.setattr(settings, "FIRST_OWNER_PASSWORD", "securepassword123")
-    monkeypatch.setattr(settings, "FIRST_OWNER_FULL_NAME", "Boot Fail")
 
     async def _boom(seed_session, *, guild_id, **kwargs):
         # Provision and route into the community, then abort the transaction

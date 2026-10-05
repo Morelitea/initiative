@@ -1,21 +1,26 @@
 """The two identity types, with and without an installed app's boundary.
 
-For a person both are ``int``, schema and all. Under an install's boundary
-they read references in its input phase, stay ``int`` in its handler phase,
-and write markers (or the community's known reference) in its response phase.
+For a person both are ``int``, schema and all, the schema marked with what
+each names. Under an install's boundary they read references in its input
+phase, stay ``int`` in its handler phase, and write markers (or the
+community's known reference) in its response phase.
 """
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import Annotated, Any, Optional
 
 import pytest
 from pydantic import BaseModel, ValidationError
 from pydantic_core import PydanticSerializationError
 
+from app.core.config import settings
 from app.core.identity_boundary import (
     UNKNOWN_REFERENCE_ERROR,
     BoundaryPhase,
+    LEXICAL_MENTIONS,
+    MARKDOWN_MENTIONS,
+    UPLOAD_PATH,
     GuildId,
     InstallBoundary,
     PersonId,
@@ -26,8 +31,7 @@ from app.core.identity_boundary import (
 from app.core.messages import AppMessages
 from app.db.guild_standing import named_ref_candidates
 from app.models.platform.identity_ref import IdentityEntity
-from app.schemas.platform.user import AppMemberRead, UserPublic
-from app.services.platform.user_avatars import avatar_url
+from app.schemas.platform.user import UserPublic
 
 
 _GUILD = 7
@@ -76,9 +80,17 @@ def _errors(exc: ValidationError) -> list[tuple[str, str]]:
 
 
 @pytest.mark.parametrize("mode", ["validation", "serialization"])
-def test_the_published_schema_is_an_integer(mode):
+def test_the_published_schema_is_a_marked_integer(mode):
     ours = _Payload.model_json_schema(mode=mode)
     plain = _Plain.model_json_schema(mode=mode)
+    properties = ours["properties"]
+    for schema, identity in (
+        (properties["guild_id"], "community"),
+        (properties["owner"], "person"),
+        (properties["helpers"]["items"], "person"),
+        (properties["reviewer"]["anyOf"][0], "person"),
+    ):
+        assert schema.pop("x-identity") == identity
     ours.pop("title")
     plain.pop("title")
     assert ours == plain
@@ -225,6 +237,139 @@ def test_the_slot_closes_with_the_request():
 
 
 # ---------------------------------------------------------------------------
+# Mentions
+# ---------------------------------------------------------------------------
+
+
+class _Body(BaseModel):
+    text: Annotated[str, MARKDOWN_MENTIONS]
+    state: Annotated[dict[str, Any], LEXICAL_MENTIONS] = {}
+
+
+def _mention(person: int | str | None, name: str) -> dict[str, Any]:
+    return {
+        "type": "mention",
+        "mentionUserId": person,
+        "mentionName": name,
+        "text": name,
+    }
+
+
+def test_a_person_s_mention_is_stored_by_id_with_no_name():
+    """A mention of somebody without an account keeps the name it has."""
+    body = _Body.model_validate(
+        {
+            "text": "@[Ada](11), @[Bo]() on #task[Fix it](3)",
+            "state": {
+                "root": {"children": [_mention(11, "Ada"), _mention(None, "Bo")]}
+            },
+        }
+    )
+    assert body.text == "@[](11), @[Bo]() on #task[Fix it](3)"
+    assert body.state == {
+        "root": {"children": [_mention(11, ""), _mention(None, "Bo")]}
+    }
+
+
+_PICTURE = f"/uploads/{_GUILD}/pasted-ab12.png?size=small"
+_FILE = f"https://initiative.example/uploads/{_GUILD}/notes.pdf#page=2"
+_ELSEWHERE = f"https://pictures.example/uploads/{_GUILD}/logo.png?v=2"
+
+
+@pytest.fixture
+def own_origin(monkeypatch):
+    """This deployment is served at ``initiative.example``."""
+    monkeypatch.setattr(settings, "APP_URL", "https://initiative.example")
+
+
+def _image(src: str) -> dict[str, Any]:
+    return {"type": "image", "src": src, "altText": "chart", "width": 640}
+
+
+def _shown(text: str, picture: str, file: str) -> dict[str, Any]:
+    """A body mentioning somebody, showing a stored picture and file, and a
+    linked picture from another site."""
+    elsewhere = f"[![logo]({_ELSEWHERE})]({_ELSEWHERE})"
+    return {
+        "text": f"{text} ![chart]({picture}) [notes.pdf]({file}) {elsewhere}",
+        "state": {
+            "root": {
+                "children": [
+                    _mention(11, ""),
+                    _image(picture),
+                    {"type": "link", "url": file, "children": []},
+                    _image(_ELSEWHERE),
+                ]
+            }
+        },
+    }
+
+
+def test_a_person_s_stored_files_pass_through():
+    body = _shown("@[](11) on #task[Fix it](3)", _PICTURE, _FILE)
+    assert _Body.model_validate(body).model_dump(mode="json") == body
+
+
+def test_an_install_s_mention_is_stored_by_row_id():
+    with boundary_scope():
+        admit_install(_boundary(members=frozenset({11})))
+        body = _Body.model_validate(
+            {
+                "text": f"@[anyone]({_PERSON_REF}) on #task[Fix it](3)",
+                "state": {"root": _mention(_PERSON_REF, "anyone")},
+            }
+        )
+    assert body.text == "@[](11) on #task[Fix it](3)"
+    assert body.state == {"root": _mention(11, "")}
+
+
+def test_an_install_reads_a_mention_and_no_stored_file_s_path(own_origin):
+    body = _Body.model_validate(_shown("@[](11)", _PICTURE, _FILE))
+    with boundary_scope():
+        boundary = _boundary()
+        admit_install(boundary)
+        boundary.phase = BoundaryPhase.response
+        dumped = body.model_dump(mode="json")
+    expected = _shown(f"@[]({boundary.nonce}:u:11)", "", "")
+    expected["state"]["root"]["children"][0]["mentionUserId"] = f"{boundary.nonce}:u:11"
+    assert dumped == expected
+
+
+class _Files(BaseModel):
+    picture: Annotated[str, UPLOAD_PATH]
+    file: Annotated[Optional[str], UPLOAD_PATH] = None
+    cover: Annotated[Optional[str], UPLOAD_PATH] = None
+    missing: Annotated[Optional[str], UPLOAD_PATH] = None
+
+
+def test_an_install_reads_a_stored_file_as_an_empty_string(own_origin):
+    files = _Files(picture=_PICTURE, file=_FILE, cover=_ELSEWHERE)
+    shown = {"picture": _PICTURE, "file": _FILE, "cover": _ELSEWHERE, "missing": None}
+    assert files.model_dump(mode="json") == shown
+    with boundary_scope():
+        boundary = _boundary()
+        admit_install(boundary)
+        boundary.phase = BoundaryPhase.response
+        dumped = files.model_dump(mode="json")
+    assert dumped == shown | {"picture": "", "file": ""}
+
+
+@pytest.mark.parametrize("named", ["11", "uapp_nobody-here", _GUILD_REF, _OTHER_REF])
+def test_a_mention_of_nobody_named_here_is_refused(named):
+    with boundary_scope():
+        admit_install(_boundary(members=frozenset({11})))
+        for body in (
+            {"text": f"@[Ada]({named})"},
+            {"text": "", "state": {"root": _mention(named, "Ada")}},
+        ):
+            with pytest.raises(ValidationError) as caught:
+                _Body.model_validate(body)
+            assert _errors(caught.value) == [
+                (UNKNOWN_REFERENCE_ERROR, AppMessages.REFERENCE_UNKNOWN)
+            ]
+
+
+# ---------------------------------------------------------------------------
 # What the standing statement is asked about
 # ---------------------------------------------------------------------------
 
@@ -245,38 +390,41 @@ def test_only_app_references_are_candidates():
 
 
 # ---------------------------------------------------------------------------
-# members:read
+# A person, as an install receives them
 # ---------------------------------------------------------------------------
 
 
-def test_a_member_for_an_install_is_a_reference_a_handle_a_name_and_a_picture():
-    public = UserPublic(
-        id=11,
-        username="ada",
-        discriminator=1234,
-        full_name="Ada Lovelace",
-        avatar_url="https://pictures.example/ada.png",
-    )
-    member = AppMemberRead.from_public(public)
-    assert set(AppMemberRead.model_fields) == {
-        "id",
-        "username",
-        "discriminator",
-        "full_name",
-        "avatar_url",
-    }
-    assert member.avatar_url == "https://pictures.example/ada.png"
+_ADA = UserPublic(
+    id=11,
+    username="ada",
+    discriminator=1234,
+    display_name="Ada Lovelace",
+    avatar_url="https://pictures.example/ada.png",
+)
+
+
+@pytest.mark.parametrize(
+    ("reads_names", "names"),
+    [
+        (
+            True,
+            {"username": "ada", "discriminator": 1234, "display_name": "Ada Lovelace"},
+        ),
+        (False, {}),
+    ],
+)
+def test_a_person_reaches_an_install_by_reference_and_by_name_under_members_read(
+    reads_names, names
+):
     with boundary_scope():
-        boundary = _boundary()
+        boundary = _boundary(reads_names=reads_names)
         admit_install(boundary)
         boundary.phase = BoundaryPhase.response
-        dumped = member.model_dump(mode="json")
-    assert dumped["id"] == f"{boundary.nonce}:u:11"
-    assert "email" not in dumped
+        dumped = _ADA.model_dump(mode="json")
+    assert dumped == {"id": f"{boundary.nonce}:u:11", **names}
 
 
-def test_a_picture_this_api_serves_is_not_passed_to_an_install():
-    public = UserPublic(
-        id=11, username="ada", discriminator=1234, avatar_url=avatar_url(11, "ab" * 32)
-    )
-    assert AppMemberRead.from_public(public).avatar_url is None
+def test_a_person_reads_a_person_whole():
+    dumped = _ADA.model_dump(mode="json")
+    assert dumped["id"] == 11
+    assert dumped["avatar_url"] == "https://pictures.example/ada.png"

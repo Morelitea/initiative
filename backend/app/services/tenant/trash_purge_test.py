@@ -188,7 +188,7 @@ async def test_auto_purge_skips_non_active_guilds(session: AsyncSession, role_se
     not keep destroying its trashed rows while a billing/moderation hold is
     unresolved. Purging resumes (original ``purge_at`` stamps) once the guild
     returns to active."""
-    from app.models.platform.guild import GuildStatus
+    from app.models.platform.guild import CommunityStatus
 
     user = await create_user(session)
     guild = await create_guild(session, creator=user)
@@ -206,7 +206,7 @@ async def test_auto_purge_skips_non_active_guilds(session: AsyncSession, role_se
     refreshed.purge_at = datetime.now(timezone.utc) - timedelta(days=2)
     session.add(refreshed)
 
-    guild.status = GuildStatus.suspended.value
+    guild.status = CommunityStatus.suspended.value
     session.add(guild)
     await session.commit()
     initiative_id = initiative.id
@@ -226,7 +226,7 @@ async def test_auto_purge_skips_non_active_guilds(session: AsyncSession, role_se
     assert count == 1, "suspended guild's trash must NOT be purged"
 
     # Back to active: the same due row is swept on the next pass.
-    guild.status = GuildStatus.active.value
+    guild.status = CommunityStatus.active.value
     session.add(guild)
     await session.commit()
 

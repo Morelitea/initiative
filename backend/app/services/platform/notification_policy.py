@@ -42,7 +42,7 @@ from app.core.notification_categories import NotificationCategory, category_of
 from app.models.platform.app_setting import AppSetting
 from app.models.platform.guild import Guild
 from app.models.platform.notification import NotificationType
-from app.core.guild_auth_options import GuildAuthOption
+from app.core.guild_auth_options import CommunityAuthOption
 from app.services.platform import guild_entitlements
 
 
@@ -102,7 +102,9 @@ async def resolve(session: AsyncSession, guild_id: int | None) -> NotificationPo
         await session.exec(select(Guild).where(Guild.id == guild_id))
     ).one_or_none()
     held = await session.scalar(
-        select(guild_entitlements.holds_option(guild_id, GuildAuthOption.restrictions))
+        select(
+            guild_entitlements.holds_option(guild_id, CommunityAuthOption.restrictions)
+        )
     )
     return platform.stricter_than(_guild_policy(guild, lapsed=not held))
 
@@ -126,7 +128,7 @@ async def resolve_many(
                 select(
                     Guild,
                     guild_entitlements.holds_option(
-                        Guild.id, GuildAuthOption.restrictions
+                        Guild.id, CommunityAuthOption.restrictions
                     ),
                 ).where(Guild.id.in_(named))
             )

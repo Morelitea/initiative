@@ -5,8 +5,8 @@ import type { Presence, UserSelfUpdate } from "@/api/generated/initiativeAPI.sch
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { PresenceDot } from "@/components/user/PresenceDot";
 import { useUpdateCurrentUser } from "@/hooks/useUsers";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 import { PRESENCE_ORDER, presenceHelpKey, presenceLabelKey } from "@/lib/presence";
 
 interface PresenceMenuItemsProps {

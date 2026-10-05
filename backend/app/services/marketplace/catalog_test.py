@@ -8,12 +8,20 @@ guild's schema and the canvas that renders it knows nothing about where it came
 from.
 """
 
+import json
+import subprocess
+from pathlib import Path
+
 import pytest
 from sqlmodel import select
 
 from app.models.platform.marketplace import MarketplaceListing
 from app.services.marketplace import catalog as service
 from app.services.marketplace.catalog import CatalogError
+from app.services.marketplace.definitions import (
+    normalize_listing_definition,
+    normalize_listing_example,
+)
 from app.testing import create_marketplace_listing
 
 
@@ -394,6 +402,23 @@ class TestVersions:
                 session, _manifest(min_app_version="999.0.0"), source="builtin"
             )
 
+    async def test_a_version_saved_before_a_format_default_is_the_same_version(
+        self, session
+    ):
+        """A field the definition format gains takes its default on reading,
+        so a version saved before it is not "different content"."""
+        listing = await service.upsert_listing(session, _manifest(), source="builtin")
+        [stored] = await service.listing_versions(session, listing.id)
+        definition = dict(stored.definition)
+        assert definition.pop("properties") == []
+        stored.definition = definition
+        session.add(stored)
+        await session.flush()
+
+        await service.upsert_listing(session, _manifest(), source="builtin")
+
+        assert len(await service.listing_versions(session, listing.id)) == 1
+
     async def test_listing_metadata_stays_editable_without_a_new_version(self, session):
         """A publisher fixing a typo in their blurb should not need a release —
         the name, description and artwork belong to the listing, not the
@@ -542,3 +567,54 @@ class TestInstallsCount:
         # Best-effort by design: the bump happens after an install has already
         # committed, so it must never raise.
         await service.bump_installs_count(session, 999_999)
+
+
+def _body(manifest: dict) -> tuple:
+    definition = normalize_listing_definition(
+        manifest["kind"], manifest.get("definition")
+    )
+    example = normalize_listing_example(
+        manifest["kind"], manifest.get("example"), definition
+    )
+    return (
+        definition,
+        example,
+        manifest.get("release_notes"),
+        manifest.get("min_app_version"),
+    )
+
+
+def test_a_shipped_version_keeps_its_content():
+    """A built-in listing whose content changed since the last release carries a
+    new version: an install keeps the content it first saw under a version, so
+    the change would never reach it."""
+    catalog = Path(__file__).resolve().parents[2] / "marketplace_catalog"
+    git = ["git", "-C", str(catalog)]
+    try:
+        tags = subprocess.run(
+            [*git, "tag", "--merged", "HEAD", "--list", "v*", "--sort=-v:refname"],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.split()
+    except (OSError, subprocess.CalledProcessError):
+        pytest.skip("no git history here")
+    if not tags:
+        pytest.skip("no release tag in this checkout's history")
+    prefix = subprocess.run(
+        [*git, "rev-parse", "--show-prefix"], capture_output=True, text=True, check=True
+    ).stdout.strip()
+
+    changed = []
+    for path in sorted(catalog.glob("*.json")):
+        shipped = subprocess.run(
+            [*git, "show", f"{tags[0]}:{prefix}{path.name}"],
+            capture_output=True,
+            text=True,
+        )
+        if shipped.returncode != 0:
+            continue  # not in that release
+        then, now = json.loads(shipped.stdout), json.loads(path.read_text())
+        if then["version"] == now["version"] and _body(then) != _body(now):
+            changed.append(f"{path.name} {now['version']}")
+    assert changed == [], f"changed since {tags[0]} without a new version: {changed}"

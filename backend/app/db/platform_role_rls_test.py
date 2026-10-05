@@ -63,7 +63,7 @@ async def test_no_tier_updates_another_account(session, tier):
 
     async with as_role(session, platform_role_name(tier), actor.id):
         res = await session.exec(
-            text("UPDATE users SET full_name = 'sx' WHERE id = :id"),
+            text("UPDATE users SET timezone = 'UTC' WHERE id = :id"),
             params={"id": target.id},
         )
     assert res.rowcount == 0
@@ -76,7 +76,7 @@ async def test_every_tier_updates_its_own_account(session, tier):
 
     async with as_role(session, platform_role_name(tier), actor.id):
         res = await session.exec(
-            text("UPDATE users SET full_name = 'mine' WHERE id = :id"),
+            text("UPDATE users SET timezone = 'UTC' WHERE id = :id"),
             params={"id": actor.id},
         )
     assert res.rowcount == 1

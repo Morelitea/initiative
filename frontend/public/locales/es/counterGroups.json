@@ -39,15 +39,6 @@
   "sortNameDesc": "Nombre (Z→A)",
   "sortCountAsc": "Valor (menor→mayor)",
   "sortCountDesc": "Valor (mayor→menor)",
-  "duplicate": {
-    "title": "Duplicar grupo",
-    "description": "Crea una copia de este grupo con todos sus contadores y sus valores actuales.",
-    "action": "Duplicar",
-    "dialogDescription": "Asigna un nombre a la nueva copia. Se copian todos los contadores y sus valores.",
-    "defaultName": "{{name}} (copia)",
-    "duplicating": "Duplicando…",
-    "success": "Grupo duplicado"
-  },
   "noCounters": "No hay contadores en este grupo",
   "noCountersDescription": "Añade contadores para empezar a llevar el control de los valores.",
   "reorder": "Reordenar",
@@ -69,8 +60,6 @@
   "noAccessDescription": "No tienes permiso para ver este grupo de contadores.",
   "backToGroups": "Volver a los grupos de contadores",
   "backToGroup": "Volver al grupo",
-  "counterCount_one": "{{count}} contador",
-  "counterCount_other": "{{count}} contadores",
   "focus": {
     "openFocus": "Abrir pantalla completa",
     "exit": "Salir de la pantalla completa",
@@ -80,7 +69,6 @@
     "notFound": "Contador no encontrado en este grupo"
   },
   "createFirst": "Crea tu primer grupo de contadores",
-  "settings": "Configuración",
   "details": "Detalles",
   "access": "Acceso",
   "advanced": "Avanzado",

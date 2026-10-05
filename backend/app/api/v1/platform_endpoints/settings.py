@@ -2,35 +2,41 @@ import logging
 from datetime import datetime
 from typing import Any, Literal
 
+import httpx
 from fastapi import APIRouter, HTTPException, Query, Request, status
 from sqlalchemy import func
 from sqlmodel import select
 
 from app.api.deps import (
+    CommunityIdPath,
     UserSessionDep,
     SystemSessionDep,
 )
 from app.api.v1.platform_endpoints.access_grants import check_second_factor
-from app.api.v1.platform_endpoints.operator import ConfigManageDep, GuildsManageDep
+from app.api.v1.platform_endpoints.operator import (
+    BillingInsightsDep,
+    ConfigManageDep,
+    GuildsManageDep,
+)
 from app.api.v1.platform_endpoints.session_opening import MOBILE_CALLBACK_URI
 from app.core.audit_events import AuditEventType
 from app.core.config import API_V1_STR
 from app.core.config import settings as app_config
-from app.core.rate_limit import limiter
+from app.core.intake import IntakeStream
 from app.db.query import build_paginated_response, paginated_query
 from app.models.platform.app_setting import AppSetting
 from app.models.platform.app_setting_secret import AppSettingSecret
 from app.models.platform.guild import (
     Guild,
     GuildMembership,
-    GuildRole,
+    CommunityRole,
 )
 from app.models.platform.guild_administration import GuildAdministration
 from app.schemas.platform.settings import (
     NotificationSettingsResponse,
     NotificationSettingsUpdate,
-    GuildNarrowingAgreement,
-    GuildNarrowingPending,
+    CommunityNarrowingAgreement,
+    CommunityNarrowingPending,
     CommunitySettingsResponse,
     CommunitySettingsUpdate,
     EmailSettingsResponse,
@@ -53,12 +59,12 @@ from app.schemas.platform.settings import (
     StorageSettingsUpdate,
     StorageTestResponse,
 )
-from app.models.platform.guild import GuildStatus, operator_status_choices
+from app.models.platform.guild import CommunityStatus, operator_status_choices
 from app.schemas.platform.guild import (
-    PlatformGuildRestore,
-    PlatformGuildStorageListResponse,
-    PlatformGuildStorageRead,
-    PlatformGuildStorageUpdate,
+    PlatformCommunityRestore,
+    PlatformCommunityStorageListResponse,
+    PlatformCommunityStorageRead,
+    PlatformCommunityStorageUpdate,
 )
 from app.models.platform.access_grant import AccessGrantPurpose, AccessLevel
 from app.schemas.platform.access_grant import BreakGlassCreate, SecondFactorAnswer
@@ -71,6 +77,8 @@ from app.core.messages import (
 )
 from app.core.security import (
     BillingSupportHandoffNotConfiguredError,
+    HandoffSigningNotConfiguredError,
+    create_billing_insights_handoff_token,
     create_billing_support_handoff_token,
 )
 from app.services.platform.identity_refs import billing_refs, billing_user_ref
@@ -85,13 +93,14 @@ from app.core.login_methods import (
 )
 from app.services.platform import auth_posture
 from app.services.platform import app_settings as app_settings_service
-from app.services.platform import push_config
+from app.services.platform import push_config, push_relay
 from app.services import captcha as captcha_service
 from app.services.captcha_config import ResolvedCaptchaConfig
 from app.services.platform import billing as billing_service
 from app.services.platform import billing_ping
 from app.services.platform import guild_purge
 from app.services.platform import guilds as guilds_service
+from app.services.platform.intake import stream_is_bound
 from app.services import audit as audit_service
 from app.services import email as email_service
 from app.services import storage_backfill, storage_config
@@ -193,7 +202,9 @@ async def _platform_auth_payload(session) -> PlatformAuthSettingsResponse:
             )
             for method in LoginMethod
         ],
-        guilds_requiring_sign_in=await auth_posture.guilds_requiring_sign_in(session),
+        communities_requiring_sign_in=await auth_posture.guilds_requiring_sign_in(
+            session
+        ),
         factor_methods_permitted=bool(permitted.intersection(FACTOR_METHODS)),
         session_max_hours=row.session_max_hours,
         session_idle_minutes=row.session_idle_minutes,
@@ -233,9 +244,7 @@ async def update_platform_auth_settings(
     echoes that exact number back in ``acknowledge_stranded``.
 
     Nobody is signed out. A session already open keeps the terms it was
-    opened under; a device token is brought under a new session limit now,
-    measured from when it was issued, so shortening the limit can end one on
-    the spot.
+    opened under.
     """
     changes: dict[str, object] = {
         key: getattr(payload, key)
@@ -284,7 +293,7 @@ async def update_notification_settings(
     Every community is held to this as a ceiling: one may decline a channel the
     deployment permits, and none may take back one the deployment has declined.
 
-    Switching push off drops the device tokens this deployment was holding, and
+    Switching push off drops the push tokens this deployment was holding, and
     the registration endpoint declines while it stays off — so the deployment
     stops sending and stops keeping the addresses it was sending to. Devices
     register again the next time the app starts, which is what restores
@@ -739,7 +748,6 @@ async def update_push_settings(
 
 
 @router.get("/fcm-config", response_model=FCMConfigResponse)
-@limiter.limit("20/minute")
 async def get_fcm_config(request: Request) -> FCMConfigResponse:
     """Get public FCM configuration for mobile app initialization.
 
@@ -749,6 +757,11 @@ async def get_fcm_config(request: Request) -> FCMConfigResponse:
 
     Rate limited to 20 requests per minute to prevent abuse.
 
+    With no service account configured, pushes go through Morelitea's push
+    relay, and the Firebase settings served are the relay's (fetched with this
+    server's relay key and cached); if the relay cannot say, ``enabled`` is
+    served alone.
+
     Read from the settings row (``push_config``), not the environment: an owner
     who turns push on in Settings has the mobile clients pick it up on their
     next launch rather than on the next redeploy. The resolver opens its own
@@ -756,12 +769,28 @@ async def get_fcm_config(request: Request) -> FCMConfigResponse:
     unauthenticated and sessionless.
     """
     cfg = await push_config.ensure_push_config_fresh()
+    if not cfg.enabled:
+        return FCMConfigResponse(enabled=False)
+    if cfg.service_account_json:
+        return FCMConfigResponse(
+            enabled=True,
+            project_id=cfg.project_id,
+            application_id=cfg.application_id,
+            api_key=cfg.api_key,
+            sender_id=cfg.sender_id,
+        )
+    # No service account: Android pushes go through the push relay, so the app
+    # starts Firebase with the relay's project. An iPhone needs only `enabled`.
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        relay = await push_relay.android_config(client)
+    if relay is None:
+        return FCMConfigResponse(enabled=True)
     return FCMConfigResponse(
-        enabled=cfg.enabled,
-        project_id=cfg.project_id if cfg.enabled else None,
-        application_id=cfg.application_id if cfg.enabled else None,
-        api_key=cfg.api_key if cfg.enabled else None,
-        sender_id=cfg.sender_id if cfg.enabled else None,
+        enabled=True,
+        project_id=relay.project_id,
+        application_id=relay.application_id,
+        api_key=relay.api_key,
+        sender_id=relay.sender_id,
     )
 
 
@@ -776,7 +805,7 @@ def _guild_purge_at(guild: Guild, retention: int | None) -> datetime | None:
     is the deployment's window; None there means it keeps deleted communities,
     and a community that is never destroyed has no date to show.
     """
-    if guild.status != GuildStatus.deleted.value or guild.status_changed_at is None:
+    if guild.status != CommunityStatus.deleted.value or guild.status_changed_at is None:
         return None
     if retention is None:
         return None
@@ -790,15 +819,15 @@ def _guild_storage_read(
     member_count: int,
     has_seat: bool,
     retention: int | None,
-) -> PlatformGuildStorageRead:
+) -> PlatformCommunityStorageRead:
     """One row of the Guilds tab.
 
     ``administration`` is None only for a guild missing its companion row,
     which is listed with blank caps rather than dropped.
     """
-    current = GuildStatus(guild.status)
+    current = CommunityStatus(guild.status)
     recorded = administration.billing_status if administration else None
-    return PlatformGuildStorageRead(
+    return PlatformCommunityStorageRead(
         id=guild.id,
         name=guild.name,
         member_count=member_count,
@@ -814,7 +843,7 @@ def _guild_storage_read(
         status_choices=list(
             operator_status_choices(
                 current,
-                billing_status=GuildStatus(recorded) if recorded else None,
+                billing_status=CommunityStatus(recorded) if recorded else None,
                 billing_managed=billing_service.billing_managed(),
             )
         ),
@@ -855,7 +884,7 @@ async def _member_tallies(
                     select(GuildMembership.guild_id)
                     .where(
                         GuildMembership.guild_id.in_(guild_ids),
-                        GuildMembership.role == GuildRole.superadmin,
+                        GuildMembership.role == CommunityRole.superadmin,
                     )
                     .distinct()
                 )
@@ -867,8 +896,8 @@ async def _member_tallies(
 _GUILD_SORT_FIELDS = {"id": Guild.id, "name": Guild.name}
 
 
-@router.get("/communities", response_model=PlatformGuildStorageListResponse)
-async def list_platform_guild_storage(
+@router.get("/communities", response_model=PlatformCommunityStorageListResponse)
+async def list_platform_community_storage(
     session: UserSessionDep,
     _operator: GuildsManageDep,
     search: str | None = Query(default=None, description="Matches the name."),
@@ -876,13 +905,13 @@ async def list_platform_guild_storage(
     sort_dir: Literal["asc", "desc"] = "asc",
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
-) -> PlatformGuildStorageListResponse:
+) -> PlatformCommunityStorageListResponse:
     """One page of the deployment's guilds with their storage caps, for the
     Operator dashboard Guilds tab.
 
-    Operator/owner (``guilds.manage``). Reads only shared ``public`` tables. The
+    Operator/owner (``communities.manage``). Reads only shared ``public`` tables. The
     guilds and their administration rows are read on the caller's platform
-    tier, under the ``guilds.manage`` policies on both; the caps join in a
+    tier, under the ``communities.manage`` policies on both; the caps join in a
     single pass. Member counts and seats are totals read on the system engine
     (``_member_tallies``), one grouped query each for the page.
     """
@@ -918,18 +947,21 @@ async def list_platform_guild_storage(
         )
         for g, administration in rows
     ]
-    return PlatformGuildStorageListResponse(
-        **build_paginated_response(items, total_count, actual_page, page_size)
+    return PlatformCommunityStorageListResponse(
+        **build_paginated_response(items, total_count, actual_page, page_size),
+        support_bound=await stream_is_bound(IntakeStream.support),
     )
 
 
-@router.patch("/communities/{guild_id}", response_model=PlatformGuildStorageRead)
-async def update_platform_guild_storage(
-    guild_id: int,
-    payload: PlatformGuildStorageUpdate,
+@router.patch(
+    "/communities/{community_id}", response_model=PlatformCommunityStorageRead
+)
+async def update_platform_community_storage(
+    guild_id: CommunityIdPath,
+    payload: PlatformCommunityStorageUpdate,
     session: SystemSessionDep,
     operator: GuildsManageDep,
-) -> PlatformGuildStorageRead:
+) -> PlatformCommunityStorageRead:
     """Set a guild's storage/member caps and/or lifecycle status. Operator/owner.
 
     Writes only shared ``public`` columns — the caps and the sign-in entitlement
@@ -959,7 +991,7 @@ async def update_platform_guild_storage(
     ):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=GuildMessages.GUILD_PLAN_SET_BY_BILLING,
+            detail=GuildMessages.COMMUNITY_PLAN_SET_BY_BILLING,
         )
     before: dict[str, Any] = {}
     status_before: str | None = None
@@ -985,17 +1017,17 @@ async def update_platform_guild_storage(
                 await guilds_service.get_administration(session, guild_id=guild_id)
             ).billing_status
             choices = operator_status_choices(
-                GuildStatus(guild.status),
-                billing_status=GuildStatus(recorded) if recorded else None,
+                CommunityStatus(guild.status),
+                billing_status=CommunityStatus(recorded) if recorded else None,
                 billing_managed=managed,
             )
             if payload.status not in choices:
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
                     detail=(
-                        GuildMessages.GUILD_STATUS_SET_BY_BILLING
+                        GuildMessages.COMMUNITY_STATUS_SET_BY_BILLING
                         if managed
-                        else GuildMessages.GUILD_STATUS_NOT_SETTABLE
+                        else GuildMessages.COMMUNITY_STATUS_NOT_SETTABLE
                     ),
                 )
             logger.info(
@@ -1017,14 +1049,14 @@ async def update_platform_guild_storage(
             detail=GuildMessages.SUPPORT_INTAKE_NOT_CONFIGURED,
         ) from exc
     except ValueError as exc:
-        # update_guild -> get_guild raises ValueError(GUILD_NOT_FOUND) when the row
+        # update_guild -> get_guild raises ValueError(COMMUNITY_NOT_FOUND) when the row
         # is gone. Letting it own the existence check (rather than a separate
         # pre-SELECT) closes the TOCTOU window where a concurrent delete between
         # the two queries would otherwise surface as an unhandled 500.
-        if str(exc) == GuildMessages.GUILD_NOT_FOUND:
+        if str(exc) == GuildMessages.COMMUNITY_NOT_FOUND:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=GuildMessages.GUILD_NOT_FOUND,
+                detail=GuildMessages.COMMUNITY_NOT_FOUND,
             ) from exc
         raise
     administration = await guilds_service.get_administration(session, guild_id=guild_id)
@@ -1056,7 +1088,7 @@ async def update_platform_guild_storage(
         # Billing reads the new status for itself: a suspended community's
         # subscription is paused, and one that comes back is resumed.
         billing_ping.notify_lifecycle_changed(guild_id)
-        if status_after == GuildStatus.on_hold.value:
+        if status_after == CommunityStatus.on_hold.value:
             await guilds_service.announce_on_hold(session, guild_id)
             guild = await guilds_service.get_guild(session, guild_id=guild_id)
     return _guild_storage_read(
@@ -1069,17 +1101,18 @@ async def update_platform_guild_storage(
 
 
 @router.get(
-    "/communities/{guild_id}/narrowings", response_model=list[GuildNarrowingPending]
+    "/communities/{community_id}/narrowings",
+    response_model=list[CommunityNarrowingPending],
 )
-async def read_guild_narrowings(
-    guild_id: int,
+async def read_community_narrowings(
+    guild_id: CommunityIdPath,
     session: SystemSessionDep,
     operator: GuildsManageDep,
-) -> list[GuildNarrowingPending]:
+) -> list[CommunityNarrowingPending]:
     """What this community says its own arrivals look like, and whether
     anybody has agreed.
 
-    Operator/owner (``guilds.manage``). The community writes these values itself
+    Operator/owner (``communities.manage``). The community writes these values itself
     and nothing here can tell whether it holds the domain or tenant they name,
     so the answer is the deployment's. Support answers through the case raised
     when they are written; this is the same question where a deployment runs
@@ -1089,16 +1122,16 @@ async def read_guild_narrowings(
 
 
 @router.put(
-    "/communities/{guild_id}/narrowings/{connection_id}",
-    response_model=GuildNarrowingPending,
+    "/communities/{community_id}/narrowings/{connection_id}",
+    response_model=CommunityNarrowingPending,
 )
-async def agree_guild_narrowing(
-    guild_id: int,
+async def agree_community_narrowing(
+    guild_id: CommunityIdPath,
     connection_id: int,
-    payload: GuildNarrowingAgreement,
+    payload: CommunityNarrowingAgreement,
     session: SystemSessionDep,
     operator: GuildsManageDep,
-) -> GuildNarrowingPending:
+) -> CommunityNarrowingPending:
     """Agree that these values are this community's, or withdraw that.
 
     Agreeing lets arrivals it counts as its own join on sight where the
@@ -1114,16 +1147,18 @@ async def agree_guild_narrowing(
     )
 
 
-@router.post("/communities/{guild_id}/restore", response_model=PlatformGuildStorageRead)
-async def restore_platform_guild(
-    guild_id: int,
-    payload: PlatformGuildRestore,
+@router.post(
+    "/communities/{community_id}/restore", response_model=PlatformCommunityStorageRead
+)
+async def restore_platform_community(
+    guild_id: CommunityIdPath,
+    payload: PlatformCommunityRestore,
     session: SystemSessionDep,
     operator: GuildsManageDep,
-) -> PlatformGuildStorageRead:
+) -> PlatformCommunityStorageRead:
     """Bring a deleted guild back before its retention window runs out.
 
-    Operator/owner (``guilds.manage``). Deleting a guild keeps it — the shared
+    Operator/owner (``communities.manage``). Deleting a guild keeps it — the shared
     rows, the ``guild_<id>`` schema and the stored blobs all stay until
     ``guild_purge`` destroys them — so restoring is a status write plus, where
     the roster was emptied, seating somebody who can run the community again.
@@ -1149,13 +1184,13 @@ async def restore_platform_guild(
         )
     except ValueError as exc:
         code = str(exc)
-        if code == GuildMessages.GUILD_NOT_FOUND:
+        if code == GuildMessages.COMMUNITY_NOT_FOUND:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail=code
             ) from exc
         if code in (
-            GuildMessages.GUILD_NOT_DELETED,
-            GuildMessages.GUILD_RESTORE_STATUS_SET_BY_BILLING,
+            GuildMessages.COMMUNITY_NOT_DELETED,
+            GuildMessages.COMMUNITY_RESTORE_STATUS_SET_BY_BILLING,
         ):
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT, detail=code
@@ -1179,11 +1214,11 @@ async def restore_platform_guild(
 
 
 @router.post(
-    "/communities/{guild_id}/billing/service-handoff",
+    "/communities/{community_id}/billing/service-handoff",
     response_model=BillingPortalHandoffResponse,
 )
-async def create_platform_guild_billing_service_handoff(
-    guild_id: int,
+async def create_platform_community_billing_service_handoff(
+    guild_id: CommunityIdPath,
     session: SystemSessionDep,
     operator: GuildsManageDep,
     console: Literal["support", "operator"] = "support",
@@ -1191,7 +1226,7 @@ async def create_platform_guild_billing_service_handoff(
 ) -> BillingPortalHandoffResponse:
     """Mint the operator handoff into the billing portal for one guild.
 
-    Backs the Guilds tab's billing buttons. Operator/owner (``guilds.manage``).
+    Backs the Guilds tab's billing buttons. Operator/owner (``communities.manage``).
     The token names the ``access_grants`` row that authorises the visit: a
     live billing grant is reused, otherwise one is self-issued — after the
     account's second factor, as breaking glass takes it — so the visit is
@@ -1205,13 +1240,13 @@ async def create_platform_guild_billing_service_handoff(
             detail=BillingMessages.PORTAL_NOT_CONFIGURED,
         )
 
-    guild_name = (
-        await session.exec(select(Guild.name).where(Guild.id == guild_id))
+    found = (
+        await session.exec(select(Guild.id).where(Guild.id == guild_id))
     ).one_or_none()
-    if guild_name is None:
+    if found is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=GuildMessages.GUILD_NOT_FOUND,
+            detail=GuildMessages.COMMUNITY_NOT_FOUND,
         )
 
     grant = await access_grants_service.get_live_grant(
@@ -1234,7 +1269,7 @@ async def create_platform_guild_billing_service_handoff(
                 # A visit to the portal, and nothing in the guild.
                 level=AccessLevel.read.value,
                 payload=BreakGlassCreate(
-                    guild_id=guild_id,
+                    community_id=guild_id,
                     reason=BILLING_PORTAL_GRANT_REASON,
                 ),
                 # Belonging to the guild says nothing about billing authority,
@@ -1247,6 +1282,20 @@ async def create_platform_guild_billing_service_handoff(
                 status_code=status.HTTP_409_CONFLICT,
                 detail=BillingMessages.PORTAL_GRANT_UNAVAILABLE,
             ) from exc
+        # Recorded like every other grant somebody issues themselves.
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.ACCESS_GRANT_SELF_ISSUED,
+            actor_user_id=operator.id,
+            guild_id=grant.guild_id,
+            target_type="access_grant",
+            target_id=grant.id,
+            detail={
+                "purpose": grant.purpose,
+                "level": grant.access_level,
+                "self_approved": True,
+            },
+        )
 
     try:
         user_ref, guild_ref = await billing_refs(user_id=operator.id, guild_id=guild_id)
@@ -1254,7 +1303,6 @@ async def create_platform_guild_billing_service_handoff(
             grant_id=grant.id,
             user_ref=user_ref,
             guild_ref=guild_ref,
-            guild_name=guild_name,
             approver_ref=(
                 await billing_user_ref(user_id=grant.approved_by_id)
                 if grant.approved_by_id is not None
@@ -1275,6 +1323,47 @@ async def create_platform_guild_billing_service_handoff(
         operator.role.value,
         guild_id,
         grant.id,
+    )
+    return BillingPortalHandoffResponse(
+        handoff_token=token,
+        expires_in_seconds=expires_in_seconds,
+    )
+
+
+@router.post(
+    "/billing/insights-handoff",
+    response_model=BillingPortalHandoffResponse,
+)
+async def create_billing_insights_handoff(
+    operator: BillingInsightsDep,
+) -> BillingPortalHandoffResponse:
+    """Mint the handoff into the billing service's insights page.
+
+    Backs the operator dashboard's Billing tab (``billing.insights``). Unlike
+    the console handoffs above it names no community and needs no access
+    grant: the page shows Paddle's account-wide figures and counts that name
+    no community, and billing reads them as a role that can see nothing else.
+    The person is named by billing's pairwise reference, which is what billing
+    records the visit under.
+    """
+    if not app_config.BILLING_URL:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=BillingMessages.PORTAL_NOT_CONFIGURED,
+        )
+    try:
+        token, expires_in_seconds = create_billing_insights_handoff_token(
+            user_ref=await billing_user_ref(user_id=operator.id),
+        )
+    except HandoffSigningNotConfiguredError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=BillingMessages.PORTAL_SIGNING_NOT_CONFIGURED,
+        ) from exc
+    logger.info(
+        "billing insights: operator %s (%s) opened the insights page",
+        operator.id,
+        operator.role.value,
     )
     return BillingPortalHandoffResponse(
         handoff_token=token,

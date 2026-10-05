@@ -993,10 +993,10 @@ def surface_renders_in(embed: dict[str, Any], scope: str) -> bool:
     """Whether a surface asked to render in ``scope``.
 
     Definitions pinned before a surface could say where it belongs carry no
-    ``scopes``, and every one of those is guild-wide.
+    ``scopes``, and every one of those is community-wide.
     """
     scopes = embed.get("scopes")
-    return scope in scopes if isinstance(scopes, list) else scope == "guild"
+    return scope in scopes if isinstance(scopes, list) else scope == "community"
 
 
 def surface_access(
@@ -1024,7 +1024,7 @@ def surface_access(
     A role belongs to one initiative and a placement names only its own
     initiative's roles, so meeting one of them here is holding it here.
     """
-    scope = "guild" if initiative_id is None else "initiative"
+    scope = "community" if initiative_id is None else "initiative"
     if not surface_renders_in(embed, scope):
         return SurfaceAccess.not_here
     if initiative_id is not None and placement_role_ids is None:

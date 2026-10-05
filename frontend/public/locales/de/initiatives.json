@@ -2,7 +2,7 @@
   "title": "Meine Initiativen",
   "subtitle": "Öffne eine Initiative, um Dokumente, Projekte und Mitgliedschaften zu verwalten.",
   "newInitiative": "Neue Initiative",
-  "selectGuild": "Community auswählen",
+  "selectCommunity": "Community auswählen",
   "loading": "Initiativen werden geladen…",
   "loadError": "Initiativen können derzeit nicht geladen werden.",
   "noDescription": "Noch keine Beschreibung.",
@@ -36,7 +36,6 @@
     "resolveError": "Die Anfrage kann derzeit nicht beantwortet werden."
   },
   "manage": {
-    "title": "Initiativen",
     "description": "Lege die Projektmanager einer Initiative fest, archiviere eine Initiative, um sie ohne Löschen aus der Seitenleiste auszublenden, gewähre Projektmanagern vollen Zugriff oder verschiebe eine Initiative in den Papierkorb. Mache dich selbst zum Projektmanager, um eine Initiative über deine eigene Seitenleiste zu bearbeiten.",
     "adminRequired": "Du musst Community-Administrator sein, um Initiativen zu verwalten.",
     "loading": "Initiativen werden geladen…",
@@ -59,11 +58,9 @@
     "managersUnavailable": "Die Rollen dieser Initiative konnten nicht geladen werden — bitte aktualisieren.",
     "active": "Aktiv",
     "archived": "Archiviert",
-    "default": "Standard",
     "archive": "Archivieren",
     "unarchive": "Wiederherstellen",
     "delete": "Löschen",
-    "deleteDefaultHint": "Die Standard-Initiative kann nicht gelöscht werden.",
     "archivedToast": "Initiative \"{{name}}\" archiviert.",
     "unarchivedToast": "Initiative \"{{name}}\" wiederhergestellt.",
     "deletedToast": "Initiative \"{{name}}\" in den Papierkorb verschoben."
@@ -88,10 +85,10 @@
     "notFound": "Initiative nicht gefunden",
     "notFoundDescription": "Die gesuchte Initiative existiert nicht oder du hast keinen Zugriff mehr darauf.",
     "noAccess": "Du hast auf keine Funktionen in dieser Initiative Zugriff. Wende dich an einen Initiative-Manager, um Hilfe zu erhalten.",
-    "default": "Standard",
     "member_one": "{{count}} Mitglied",
     "member_other": "{{count}} Mitglieder",
-    "updated": "Aktualisiert am {{date}}",
+    "online_one": "{{count}} online",
+    "online_other": "{{count}} online",
     "initiativeSettings": "Initiative-Einstellungen",
     "documents": "Dokumente",
     "projects": "Projekte",
@@ -105,7 +102,6 @@
   },
   "settings": {
     "title": "Initiative-Einstellungen",
-    "subtitle": "Aktualisiere Details, verwalte Mitglieder und Rollen und steuere gefährliche Aktionen.",
     "breadcrumbSettings": "Einstellungen",
     "loadingInitiative": "Initiative wird geladen...",
     "backToInitiatives": "← Zurück zu 'Meine Initiativen'",
@@ -119,7 +115,6 @@
     "rolesTab": "Rollen",
     "dangerTab": "Gefahrenzone",
     "exportTab": "Export",
-    "detailsTitle": "Initiative-Details",
     "detailsDescription": "Benenne diese Initiative um, beschreibe sie oder ändere ihre Farbe.",
     "nameLabel": "Name",
     "colorLabel": "Farbe",
@@ -148,12 +143,17 @@
       "lockedNote": "Ein Community-Admin hat den automatischen Beitritt für diese Initiative aktiviert, deshalb muss sie für alle offen bleiben. Bitte einen Admin, den automatischen Beitritt zuerst zu deaktivieren.",
       "turnedOff": "Automatischer Beitritt ist aus — er ist nur möglich, solange alle beitreten können."
     },
+    "keepContentIn": {
+      "title": "Inhalte in dieser Initiative behalten",
+      "label": "Exporte sowie Kopien und Verschiebungen in andere Initiativen sperren",
+      "help": "Solange dies aktiv ist, kann niemand etwas aus dieser Initiative exportieren oder in eine andere Initiative kopieren oder verschieben, auch Manager und Community-Admins nicht. Kopien und Verschiebungen innerhalb dieser Initiative funktionieren weiterhin, ebenso der Initiativen-Export unten."
+    },
     "membersTitle": "Mitglieder",
     "membersDescription": "Initiative-Projektmanager und Community-Administratoren können die Mitgliedschaft verwalten.",
     "filterByName": "Nach Name filtern",
     "nameColumn": "Name",
     "roleColumn": "Rolle",
-    "guildAdminRole": "Admin",
+    "communityAdminRole": "Admin",
     "sourceColumn": "Quelle",
     "sourceOidc": "OIDC",
     "sourceManual": "Manuell",
@@ -178,7 +178,6 @@
     "manager": "Manager",
     "fullAccess": "Vollzugriff",
     "moderatorDescription": "Moderatoren können jedes Tool dieser Initiative nutzen und jedes Element darin öffnen, bearbeiten und teilen, unabhängig davon, wie es freigegeben ist. Community-Administratoren treten als Moderatoren bei.",
-    "dangerTitle": "Gefahrenzone",
     "dangerDescription": "Beim Löschen einer Initiative werden alle ihre Projekte, Aufgaben und Dokumente entfernt.",
     "archiveInitiative": "Initiative archivieren",
     "unarchiveInitiative": "Initiative wiederherstellen",
@@ -186,7 +185,6 @@
     "archivedDescription": "Diese Initiative ist archiviert und aus der Seitenleiste ausgeblendet.",
     "deleteInitiative": "Initiative löschen",
     "deletingInitiative": "Wird gelöscht...",
-    "defaultCannotDelete": "Die Standard-Initiative kann nicht gelöscht werden.",
     "contactAdmin": "Wende dich an einen Community-Administrator, um diese Initiative zu löschen.",
     "deleted": "Initiative gelöscht.",
     "deleteError": "Initiative kann derzeit nicht gelöscht werden.",
@@ -251,7 +249,8 @@
       "viewShort": "Ansehen",
       "createShort": "Erstellen",
       "viewWikis": "Wikis ansehen",
-      "createWikis": "Wikis erstellen"
+      "createWikis": "Wikis erstellen",
+      "dashboards_run_as_initiative": "Dashboards als Initiative ausführen"
     },
     "handleColumn": "Handle",
     "toolAudience": {

@@ -9,13 +9,7 @@ import {
   useStopIgnoring,
 } from "@/hooks/useDirectMessages";
 
-/**
- * The accounts this person has chosen not to hear from.
- *
- * The lead line is four clauses because the word invites three wrong
- * expectations: that only notifications stop, that it runs both ways, and that
- * it hides them. It says nothing about what the other account sees.
- */
+/** The accounts this person has chosen not to hear from. */
 export const IgnoredAccountsSection = () => {
   const { t } = useTranslation("settings");
   const { data } = useIgnoredAccounts();
@@ -26,7 +20,6 @@ export const IgnoredAccountsSection = () => {
 
   return (
     <div className="space-y-3">
-      <p className="text-muted-foreground text-sm">{t("privacy.ignored.description")}</p>
       <HandleField
         label={t("privacy.ignored.add")}
         placeholder={t("privacy.connections.addPlaceholder")}

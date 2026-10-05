@@ -28,30 +28,34 @@ import { SortHeader } from "@/components/SortIcon";
 import { TagBadgeList } from "@/components/tags/TagBadge";
 import { DataTable } from "@/components/ui/data-table";
 import { RelativeTime } from "@/components/ui/relative-time";
-import { guildPath } from "@/lib/guildUrl";
+import { MentionText } from "@/components/user/MentionText";
+import { MentionedPeopleScope, ReportMentionedPeople } from "@/hooks/useMentionedPeople";
+import { communityPath } from "@/lib/communityUrl";
 import type { AppColumn, AppColumnDef } from "@/lib/table";
-import type { ToolRow } from "@/lib/toolRows";
+import { TOOL_HAS_DETAIL, type ToolRow } from "@/lib/toolRows";
 import { initiativeRoute, toolCamelPlural } from "@/lib/tools";
 
-/** The leaf keys under `guildHome.columns.detail` — one per tool. */
-type DetailColumnKey = Extract<ParseKeys<"guildHome">, `columns.detail.${string}`>;
+/** The leaf keys under `communityHome.columns.detail` — one per tool that has the
+ *  column. */
+type DetailColumnKey = Extract<ParseKeys<"communityHome">, `columns.detail.${string}`>;
 
-/** guildHome.json header key for a tool's own column, e.g.
- *  `columns.detail.counterGroups` — derived the same way as the nav labels in
- *  `lib/tools`, and pinned for every tool by the tool-registry drift test. */
+/** communityHome.json header key for a tool's own column, e.g.
+ *  `columns.detail.projects` — derived the same way as the nav labels in
+ *  `lib/tools`, and pinned for every tool that has one by the tool-registry
+ *  drift test. */
 const detailColumnKey = (tool: Tool): DetailColumnKey =>
   `columns.detail.${toolCamelPlural(tool)}` as DetailColumnKey;
 
 /** An initiative, wherever it lives: ids repeat across communities, so the
  *  community is half the key. */
-const initiativeKey = (guildId: number | null, initiativeId: number) =>
-  `${guildId}:${initiativeId}`;
+const initiativeKey = (communityId: number | null, initiativeId: number) =>
+  `${communityId}:${initiativeId}`;
 
 const NameCell = ({ row }: { row: ToolRow }) => (
   <div className="flex min-w-[220px] items-center gap-2 sm:min-w-0">
     {row.glyph}
     <Link
-      to={guildPath(row.guildId, row.href)}
+      to={communityPath(row.communityId, row.href)}
       className="truncate font-medium text-primary hover:underline"
     >
       {row.name}
@@ -66,12 +70,12 @@ const CommunityCell = ({
   row: ToolRow;
   communities: Map<number, string>;
 }) => {
-  const name = communities.get(row.guildId);
+  const name = communities.get(row.communityId);
   if (!name) {
     return <span className="text-muted-foreground text-sm">—</span>;
   }
   return (
-    <Link to={guildPath(row.guildId, "/")} className="text-sm hover:underline">
+    <Link to={communityPath(row.communityId, "/")} className="text-sm hover:underline">
       {name}
     </Link>
   );
@@ -84,17 +88,17 @@ const InitiativeCell = ({
   row: ToolRow;
   initiatives: Map<string, InitiativeRead>;
 }) => {
-  const { t } = useTranslation("guildHome");
+  const { t } = useTranslation("communityHome");
   if (row.initiativeId === null) {
-    return <span className="text-muted-foreground text-sm">{t("guildWide")}</span>;
+    return <span className="text-muted-foreground text-sm">{t("communityWide")}</span>;
   }
-  const initiative = initiatives.get(initiativeKey(row.guildId, row.initiativeId));
+  const initiative = initiatives.get(initiativeKey(row.communityId, row.initiativeId));
   if (!initiative) {
     return <span className="text-muted-foreground text-sm">—</span>;
   }
   return (
     <Link
-      to={guildPath(row.guildId, initiativeRoute(initiative.id))}
+      to={communityPath(row.communityId, initiativeRoute(initiative.id))}
       className="text-sm hover:underline"
     >
       {initiative.name}
@@ -102,12 +106,23 @@ const InitiativeCell = ({
   );
 };
 
+/** The tool's own column. Where it is words, they can mention people, who
+ *  read as who they are now in the row's own community. */
+const DetailCell = ({ row }: { row: ToolRow }) => {
+  if (!row.detail) return <span className="text-muted-foreground">—</span>;
+  if (typeof row.detail !== "string") return row.detail;
+  return <MentionText text={row.detail} communityId={row.communityId} />;
+};
+
 const TagsCell = ({ row }: { row: ToolRow }) => {
   if (row.tags.length === 0) {
     return <span className="text-muted-foreground text-sm">—</span>;
   }
   return (
-    <TagBadgeList tags={row.tags} tagHref={(tag) => guildPath(row.guildId, `/tags/${tag.id}`)} />
+    <TagBadgeList
+      tags={row.tags}
+      tagHref={(tag) => communityPath(row.communityId, `/tags/${tag.id}`)}
+    />
   );
 };
 
@@ -116,12 +131,12 @@ export const TOOL_SORT_FIELDS = ["name", "initiative", "updated_at"] as const;
 export type ToolSortField = (typeof TOOL_SORT_FIELDS)[number];
 
 /**
- * What a cross-guild list can order by. One short of the full set: ordering by
+ * What a cross-community list can order by. One short of the full set: ordering by
  * initiative means ordering by its name, which a merged list — assembled in
  * Python from summaries that carry an initiative id and not its name — has no
  * way to do. So that header does not sort on My Tools.
  */
-export const CROSS_GUILD_TOOL_SORT_FIELDS = ["name", "updated_at"] as const;
+export const CROSS_COMMUNITY_TOOL_SORT_FIELDS = ["name", "updated_at"] as const;
 
 /** Table column id → the field name the endpoints take, and back. */
 const SORT_FIELD_BY_COLUMN: Record<string, ToolSortField> = {
@@ -186,7 +201,7 @@ export const ToolTable = ({
   onSortChange,
   sortFields = TOOL_SORT_FIELDS,
 }: ToolTableProps) => {
-  const { t } = useTranslation("guildHome");
+  const { t } = useTranslation("communityHome");
 
   const pageCount = Math.max(1, Math.ceil(totalCount / pageSize));
   // A bookmarked page outlives the rows it pointed at, and a hand-typed one may
@@ -200,12 +215,23 @@ export const ToolTable = ({
     () =>
       new Map(
         initiatives.map((initiative) => [
-          initiativeKey(initiative.guild_id, initiative.id),
+          initiativeKey(initiative.community_id, initiative.id),
           initiative,
         ])
       ),
     [initiatives]
   );
+
+  // The people the rows' words mention, asked about once per community on the
+  // page rather than once per row.
+  const detailsByCommunity = useMemo(() => {
+    const byCommunity = new Map<number, string[]>();
+    for (const row of rows) {
+      if (typeof row.detail !== "string") continue;
+      byCommunity.set(row.communityId, [...(byCommunity.get(row.communityId) ?? []), row.detail]);
+    }
+    return [...byCommunity];
+  }, [rows]);
 
   const columns = useMemo<AppColumnDef<ToolRow>[]>(() => {
     /** A header that sorts where the page allows it, and plain text where it
@@ -240,18 +266,23 @@ export const ToolTable = ({
         cell: ({ row }) => <InitiativeCell row={row.original} initiatives={initiativesByKey} />,
         enableSorting: sortFields.includes("initiative"),
       },
-      {
-        id: "detail",
-        // Each tool names this column in its own terms ("Progress", "Items",
-        // …), and each means something different by it, so there is no one
-        // ordering for the endpoints to agree on. It does not sort.
-        header: t(detailColumnKey(tool)),
-        cell: ({ row }) => (
-          <span className="text-sm">
-            {row.original.detail || <span className="text-muted-foreground">—</span>}
-          </span>
-        ),
-      },
+      ...(TOOL_HAS_DETAIL[tool]
+        ? [
+            {
+              id: "detail",
+              // Each tool names this column in its own terms ("Progress",
+              // "Type", …), and each means something different by it, so there
+              // is no one ordering for the endpoints to agree on. It does not
+              // sort.
+              header: t(detailColumnKey(tool)),
+              cell: ({ row }) => (
+                <span className="text-sm">
+                  <DetailCell row={row.original} />
+                </span>
+              ),
+            } satisfies AppColumnDef<ToolRow>,
+          ]
+        : []),
       {
         id: "tags",
         header: t("columns.tags"),
@@ -270,43 +301,48 @@ export const ToolTable = ({
   }, [t, tool, initiativesByKey, communities, sortFields]);
 
   return (
-    <DataTable
-      columns={columns}
-      data={rows}
-      // Ids repeat across communities, so the community is half the row key.
-      getRowId={(row: ToolRow) => `${row.guildId}:${row.id}`}
-      enableFilterInput
-      filterInputPlaceholder={t("searchPlaceholder")}
-      filterValue={search}
-      onFilterValueChange={onSearchChange}
-      enableColumnVisibilityDropdown
-      manualSorting
-      // Controlled, not seeded: the order lives in the address, so the back
-      // button can change it after this mounts and the headers have to follow.
-      sorting={[{ id: COLUMN_BY_SORT_FIELD[sortBy], desc: sortDir === "desc" }]}
-      onSortingChange={(sorting) => {
-        // Clearing the sort altogether lands back on the page's own default
-        // rather than on whatever each endpoint would do unsorted.
-        const next = sorting[0];
-        const field = next ? SORT_FIELD_BY_COLUMN[next.id] : undefined;
-        if (!field) {
-          onSortChange("updated_at", "desc");
-          return;
-        }
-        onSortChange(field, next.desc ? "desc" : "asc");
-      }}
-      enablePagination
-      manualPagination
-      pageCount={pageCount}
-      rowCount={totalCount}
-      pageIndex={page - 1}
-      onPaginationChange={(pagination: PaginationState) => {
-        if (pagination.pageSize !== pageSize) {
-          onPageSizeChange(pagination.pageSize);
-        } else {
-          onPageChange(pagination.pageIndex + 1);
-        }
-      }}
-    />
+    <MentionedPeopleScope>
+      {detailsByCommunity.map(([communityId, texts]) => (
+        <ReportMentionedPeople key={communityId} communityId={communityId} texts={texts} />
+      ))}
+      <DataTable
+        columns={columns}
+        data={rows}
+        // Ids repeat across communities, so the community is half the row key.
+        getRowId={(row: ToolRow) => `${row.communityId}:${row.id}`}
+        enableFilterInput
+        filterInputPlaceholder={t("searchPlaceholder")}
+        filterValue={search}
+        onFilterValueChange={onSearchChange}
+        enableColumnVisibilityDropdown
+        manualSorting
+        // Controlled, not seeded: the order lives in the address, so the back
+        // button can change it after this mounts and the headers have to follow.
+        sorting={[{ id: COLUMN_BY_SORT_FIELD[sortBy], desc: sortDir === "desc" }]}
+        onSortingChange={(sorting) => {
+          // Clearing the sort altogether lands back on the page's own default
+          // rather than on whatever each endpoint would do unsorted.
+          const next = sorting[0];
+          const field = next ? SORT_FIELD_BY_COLUMN[next.id] : undefined;
+          if (!field) {
+            onSortChange("updated_at", "desc");
+            return;
+          }
+          onSortChange(field, next.desc ? "desc" : "asc");
+        }}
+        enablePagination
+        manualPagination
+        pageCount={pageCount}
+        rowCount={totalCount}
+        pageIndex={page - 1}
+        onPaginationChange={(pagination: PaginationState) => {
+          if (pagination.pageSize !== pageSize) {
+            onPageSizeChange(pagination.pageSize);
+          } else {
+            onPageChange(pagination.pageIndex + 1);
+          }
+        }}
+      />
+    </MentionedPeopleScope>
   );
 };

@@ -7,7 +7,7 @@ reaching a socket.
 
 import pytest
 
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.services.platform import account_stream, user_stream
 from app.services.platform import app_settings as app_settings_service
 from app.services.platform import guilds as guilds_service
@@ -122,7 +122,7 @@ async def test_being_added_to_a_guild_pokes_the_arrival(
     tab = account_socket(user.id)
 
     await guilds_service.ensure_membership(
-        session, guild_id=guild.id, user_id=user.id, role=GuildRole.member
+        session, guild_id=guild.id, user_id=user.id, role=CommunityRole.member
     )
     await session.commit()
     await settle()
@@ -141,7 +141,7 @@ async def test_re_adding_an_existing_member_pokes_nobody(
     tab = account_socket(user.id)
 
     await guilds_service.ensure_membership(
-        session, guild_id=guild.id, user_id=user.id, role=GuildRole.member
+        session, guild_id=guild.id, user_id=user.id, role=CommunityRole.member
     )
     await session.commit()
     await settle()
@@ -212,7 +212,7 @@ async def test_deleting_a_guild_tells_the_people_who_were_in_it(
     guild = await create_guild(session, creator=owner)
     member = await create_user(session)
     await create_guild_membership(
-        session, user=member, guild=guild, role=GuildRole.member
+        session, user=member, guild=guild, role=CommunityRole.member
     )
     await session.commit()
 

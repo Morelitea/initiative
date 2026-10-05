@@ -35,11 +35,11 @@ import {
 } from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useCommunities } from "@/hooks/useCommunities";
+import { useCommunityApps } from "@/hooks/useCommunityApps";
 import { useWidgetCatalog } from "@/hooks/useDashboards";
-import { useGuildApps } from "@/hooks/useGuildApps";
-import { useGuilds } from "@/hooks/useGuilds";
 import { useMarketplaceListing } from "@/hooks/useMarketplace";
-import { useGuildPath } from "@/lib/guildUrl";
+import { useCommunityPath } from "@/lib/communityUrl";
 import { parseCommunityShelf } from "@/lib/marketplace";
 import { resolveArtworkUrl } from "@/lib/uploadUrl";
 import { readConfig, readDefinition } from "@/lib/widgets/definition";
@@ -48,12 +48,12 @@ export function MarketplaceListingPage() {
   const { t } = useTranslation(["marketplace", "apps"]);
   const { publicId } = useParams({ strict: false }) as { publicId: string };
   const { kind: shelf } = useSearch({ strict: false }) as { kind?: ListingKind };
-  const gp = useGuildPath();
+  const gp = useCommunityPath();
 
   const listingQuery = useMarketplaceListing(publicId ?? null);
   const catalogQuery = useWidgetCatalog();
   const [installing, setInstalling] = useState(false);
-  const { activeGuild } = useGuilds();
+  const { activeCommunity } = useCommunities();
 
   const listing = listingQuery.data;
   const isApp = listing?.kind === ListingKind.app;
@@ -63,18 +63,18 @@ export function MarketplaceListingPage() {
   // marketplace has — so the link is built the same way the browse route reads
   // it, and lands on the default shelf rather than on nothing.
   const backToShelf = { kind: parseCommunityShelf(shelf ?? listing?.kind) };
-  // Installing an app is a guild-admin action; the server enforces it, and the
+  // Installing an app is a community-admin action; the server enforces it, and the
   // button says so rather than failing after the click.
   // Adding an app is the superadmin's consent, so only the seat is offered it.
-  const holdsTheSeat = Boolean(activeGuild?.can.seat);
-  // Whether this guild already has it. Every member may read the installs, so
+  const holdsTheSeat = Boolean(activeCommunity?.can.seat);
+  // Whether this community already has it. Every member may read the installs, so
   // this answers for the person asking as well as the one who could act.
   //
   // Three states, not two: undefined while the answer is still loading or the
   // request failed. "We do not know" and "you do not have it" would otherwise
   // render identically — as an install button and a note telling a member to go
   // ask for something they may already have.
-  const appInstalls = useGuildApps({ enabled: isApp });
+  const appInstalls = useCommunityApps({ enabled: isApp });
   const isInstalled: boolean | undefined =
     isApp && !appInstalls.isLoading && !appInstalls.isError
       ? (appInstalls.data?.items ?? []).some((app) => app.listing_uid === listing?.uid)
@@ -156,7 +156,7 @@ export function MarketplaceListingPage() {
               <Button
                 onClick={() => setInstalling(true)}
                 // Unknown installed state disables it too: offering to add
-                // something the guild may already have is the one action this
+                // something the community may already have is the one action this
                 // page should not take on a guess.
                 disabled={
                   !listing.installable || (isApp && (!holdsTheSeat || isInstalled === undefined))
@@ -224,7 +224,7 @@ export function MarketplaceListingPage() {
               config={readConfig({})}
               catalog={catalogQuery.data}
               // Sample rows, and therefore no initiative: an uninstalled
-              // listing reads nothing from this guild.
+              // listing reads nothing from this community.
               sampleData
               initiativeId={undefined}
               canEdit={false}

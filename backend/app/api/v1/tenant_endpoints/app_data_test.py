@@ -32,6 +32,7 @@ for real.
 """
 
 from datetime import datetime, timezone
+from urllib.parse import quote
 
 import json
 import httpx
@@ -44,13 +45,15 @@ from app.core.config import settings
 from app.core.encryption import SALT_APP_CONFIG, encrypt_field
 from app.core.messages import AppDataMessages, GuildAppMessages
 from app.models.platform.app_service_registration import AppServiceRegistration
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.tenant.guild_app_user_connection import GuildAppUserConnection
 from app.services.marketplace.app_refs import ensure_app_guild_ref
 from app.services.marketplace import app_data as app_data_service
 from app.services.marketplace.context_jwt_test import _PRIVATE_PEM
 from app.services.marketplace.registration_lookup import invalidate_registrations
+from app.services.tenant.app_connection_flows import TokenSet, seal_tokens
 from app.services.tenant.dashboard_definition import normalize_dashboard_definition
+from app.testing.fake_vendor import FakeVendor, declarative_app
 from app.testing import (
     guild_of,
     create_app_service_registration,
@@ -333,7 +336,7 @@ async def _workspace(
 ):
     """A guild admin with a dashboards-enabled initiative, an installed app, a
     live registration, and a dashboard binding the given sources."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     a.initiative.dashboards_enabled = True
     session.add(a.initiative)
     await session.commit()
@@ -401,7 +404,7 @@ class TestGates:
         initiative they are not in, so RLS hides the row and the read is a 404
         before the app is ever contacted."""
         a, app, dashboard = await _workspace(session, acting_user)
-        outsider = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+        outsider = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
 
         response = await client.get(
             _url(outsider, app, ORDERS_SUMMARY, dashboard), headers=outsider.headers
@@ -454,7 +457,7 @@ class TestAdminOnly:
         supplied."""
         a, app, dashboard = await _workspace(session, acting_user, source)
         member = await acting_user(
-            guild_role=GuildRole.member,
+            guild_role=CommunityRole.member,
             guild=a.guild,
             initiative=a.initiative,
             initiative_role="member",
@@ -527,7 +530,7 @@ class TestKillSwitches:
     async def test_an_unregistered_app_is_named_rather_than_guessed_at(
         self, client, acting_user, session, upstream
     ):
-        a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
         a.initiative.dashboards_enabled = True
         session.add(a.initiative)
         await session.commit()
@@ -603,7 +606,7 @@ class TestContextToken:
             algorithms=["RS256"],
         )
         # Named the way this install knows the guild, and by nothing else.
-        assert claims["guild_ref"] == await ensure_app_guild_ref(
+        assert claims["community_ref"] == await ensure_app_guild_ref(
             guild_id=a.guild.id, app_install_id=app.id
         )
         assert "guild_id" not in claims
@@ -698,7 +701,7 @@ class TestConnections:
         definition = _definition()
         definition["endpoints"][0]["requires"] = {"all_of": ["admin"]}
 
-        a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
         a.initiative.dashboards_enabled = True
         session.add(a.initiative)
         await session.commit()
@@ -729,7 +732,7 @@ class TestCache:
         keeps a single-replica community container comfortable."""
         a, app, dashboard = await _workspace(session, acting_user)
         member = await acting_user(
-            guild_role=GuildRole.member,
+            guild_role=CommunityRole.member,
             guild=a.guild,
             initiative=a.initiative,
             initiative_role="member",
@@ -774,7 +777,7 @@ class TestCache:
         """
         a, app, dashboard = await _workspace(session, acting_user, MY_PRS)
         b = await acting_user(
-            guild_role=GuildRole.member,
+            guild_role=CommunityRole.member,
             guild=a.guild,
             initiative=a.initiative,
             initiative_role="member",
@@ -1100,7 +1103,7 @@ class TestParamOptions:
         tile. A member asking for the values of a parameter sourced from an
         admin-only read gets the same answer as one whose app is down."""
         a, app, _ = await _workspace(session, acting_user)
-        member = await acting_user(guild=a.guild, guild_role=GuildRole.member)
+        member = await acting_user(guild=a.guild, guild_role=CommunityRole.member)
 
         response = await client.get(
             _options_url(member, app, ORDERS_SUMMARY, "tier"), headers=member.headers
@@ -1115,7 +1118,7 @@ class TestParamOptions:
         """Refused before the parameter is looked for: the form belongs to an
         endpoint this caller may not read."""
         a, app, _ = await _workspace(session, acting_user)
-        member = await acting_user(guild=a.guild, guild_role=GuildRole.member)
+        member = await acting_user(guild=a.guild, guild_role=CommunityRole.member)
 
         response = await client.get(
             _options_url(member, app, REVENUE, "anything"), headers=member.headers
@@ -1421,3 +1424,94 @@ class TestAStatementOverTheRows:
         assert response.status_code == 200
         # Untransformed, because no widget of that id binds this endpoint.
         assert response.json()["table"] is None
+
+
+# ---------------------------------------------------------------------------
+# A declarative app: Initiative calls the vendor itself
+# ---------------------------------------------------------------------------
+
+
+class TestDeclarative:
+    """No container and no context token: the endpoint is the manifest's
+    request, sent to the vendor with the community's credential, and its map.
+    What reaches the tile is read exactly as a container's answer is."""
+
+    ISSUES = "app.acme.issues.issues"
+
+    async def _workspace(self, session, acting_user, monkeypatch):
+        vendor = FakeVendor()
+        vendor.install(monkeypatch)
+        a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
+        a.initiative.dashboards_enabled = True
+        session.add(a.initiative)
+        await session.commit()
+        await create_app_service_registration(
+            session,
+            public_id="acme.issues",
+            listing_uid=APP_UID,
+            base_url=None,
+            allowed_origins=[],
+            jwks={},
+            kind="declarative",
+        )
+        config, secrets = seal_tokens(
+            TokenSet(access_token="gho_community"), config={}, secrets={}
+        )
+        app = await create_guild_app(
+            session,
+            a.guild,
+            a.user,
+            definition=declarative_app("acme.issues"),
+            listing_uid=APP_UID,
+            name="Issues",
+            config={"workspace": config},
+            secrets={"workspace": secrets},
+        )
+        dashboard = await create_dashboard(
+            session,
+            a.initiative,
+            a.user,
+            definition=_dashboard_definition(self.ISSUES),
+        )
+        url = _url(a, app, self.ISSUES, dashboard, params=quote('{"repo": "acme/web"}'))
+        return a, vendor, url
+
+    async def test_the_vendor_answers_through_the_apps_own_mapping(
+        self, client, acting_user, session, monkeypatch
+    ):
+        a, vendor, url = await self._workspace(session, acting_user, monkeypatch)
+        vendor.api_answers = [{"body": [{"title": "Broken build"}, {"title": "Typo"}]}]
+
+        first = await client.get(url, headers=a.headers)
+        again = await client.get(url, headers=a.headers)
+
+        assert first.status_code == 200, first.text
+        assert first.json()["rows"] == [{"titles": "Broken build"}, {"titles": "Typo"}]
+        assert first.json()["values"] == {"total": 2}
+        assert again.json()["cached"] is True
+        (request,) = vendor.api_requests
+        assert request["url"] == "https://api.github.test/repos/acme/web/issues"
+        assert request["headers"]["authorization"] == "Bearer gho_community"
+
+    async def test_a_vendor_refusal_is_the_endpoints_unavailable_code(
+        self, client, acting_user, session, monkeypatch
+    ):
+        a, vendor, url = await self._workspace(session, acting_user, monkeypatch)
+        vendor.api_answers = [{"status": 404}]
+
+        response = await client.get(url, headers=a.headers)
+
+        assert response.status_code == 200, response.text
+        assert response.json()["rows"] == []
+        assert response.json()["values"] == {"unavailable": "not-found"}
+
+    async def test_a_passing_failure_is_the_app_being_unavailable(
+        self, client, acting_user, session, monkeypatch
+    ):
+        a, vendor, url = await self._workspace(session, acting_user, monkeypatch)
+        vendor.api_answers = [{"status": 503}]
+
+        response = await client.get(url, headers=a.headers)
+
+        assert response.status_code == 502
+        assert response.json()["detail"] == AppDataMessages.SERVICE_UNAVAILABLE

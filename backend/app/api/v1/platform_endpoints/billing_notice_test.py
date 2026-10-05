@@ -23,7 +23,7 @@ from app.api.v1.platform_endpoints.billing_test import (
     _post,
 )
 from app.models.platform.billing import BillingEventLog
-from app.models.platform.guild import GuildRole, GuildStatus
+from app.models.platform.guild import CommunityRole, CommunityStatus
 from app.models.platform.notification import Notification, NotificationType
 from app.core.notification_categories import NotificationCategory
 from app.services.platform import email_outbox, identity_refs, notice_outbox
@@ -58,20 +58,20 @@ async def _community(session: AsyncSession):
     admin = await create_user(session, email="admin@example.com")
     gone = await create_user(session, email="gone@example.com")
     await create_guild_membership(
-        session, user=owner, guild=guild, role=GuildRole.superadmin
+        session, user=owner, guild=guild, role=CommunityRole.superadmin
     )
     await create_guild_membership(
-        session, user=other_seat, guild=guild, role=GuildRole.superadmin
+        session, user=other_seat, guild=guild, role=CommunityRole.superadmin
     )
     await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
+        session, user=admin, guild=guild, role=CommunityRole.admin
     )
     return guild.id, owner.id, other_seat.id, admin.id, gone.id
 
 
 async def _notice(guild_id: int, **fields) -> dict:
     return {
-        "guild_ref": await billing_guild_ref(guild_id),
+        "community_ref": await billing_guild_ref(guild_id),
         "event_id": fields.pop("event_id", f"evt-{secrets.token_hex(6)}"),
         "source": fields.pop("source", "trial_expiry"),
         "kind": fields.pop("kind", "trial_ending"),
@@ -92,8 +92,8 @@ async def _told(session: AsyncSession, user_id: int) -> list[Notification]:
                     Notification.user_id == user_id,
                     Notification.type.in_(  # type: ignore[union-attr]
                         [
-                            NotificationType.guild_trial_ending,
-                            NotificationType.guild_trial_ended,
+                            NotificationType.community_trial_ending,
+                            NotificationType.community_trial_ended,
                         ]
                     ),
                 )
@@ -117,11 +117,11 @@ async def test_the_owner_billing_names_is_told(
     assert response.status_code == 200, response.text
     assert response.json() == {"delivered": True}
     (line,) = await _told(session, owner_id)
-    assert line.type == NotificationType.guild_trial_ending
+    assert line.type == NotificationType.community_trial_ending
     assert line.data == {
         "community": "Acme",
         "trial_ends_on": "2026-10-08",
-        "guild_id": guild_id,
+        "community_id": guild_id,
         "target_path": "/settings/usage",
     }
     assert await _told(session, other_seat_id) == []
@@ -271,7 +271,7 @@ async def test_a_replayed_event_tells_nobody_twice(
     ]
 
 
-@pytest.mark.parametrize("status", [GuildStatus.deleted, GuildStatus.suspended])
+@pytest.mark.parametrize("status", [CommunityStatus.deleted, CommunityStatus.suspended])
 async def test_a_deleted_or_suspended_community_is_recorded_and_told_nothing(
     client: AsyncClient, session: AsyncSession, letters, status
 ):
@@ -368,7 +368,7 @@ async def test_an_unknown_community_is_404_and_consumes_nothing(
     client: AsyncClient, session: AsyncSession, letters
 ):
     payload = {
-        "guild_ref": "gbil_nobody",
+        "community_ref": "gbil_nobody",
         "event_id": "evt-unknown",
         "source": "trial_expiry",
         "kind": "trial_ending",

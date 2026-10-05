@@ -6,7 +6,7 @@ allow-list to add a site to.
 * **What the seam builds is built only in ``app/api/deps.py``**, in anything
   that runs: a person's standing (``GuildContext``) or an installed app's
   (``InstallContext``), the routing shapes that carry one (``Member``,
-  ``ContentGrantee``, ``SettingsGrantee``, ``Install``), and the credential
+  ``ContentGrantee``, ``SettingsGrantee``, ``Install``, ``Filer``), and the credential
   those record (``SignIn``), which is where work on somebody's behalf is
   said. Each is what the lookup found and what the standing statement
   computed; building one anywhere else would be a second answer to a question
@@ -48,6 +48,7 @@ _ESTABLISHED = frozenset(
         "ContentGrantee",
         "SettingsGrantee",
         "Install",
+        "Filer",
         "SignIn",
     }
 )

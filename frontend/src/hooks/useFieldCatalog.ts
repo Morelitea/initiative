@@ -8,13 +8,13 @@
  * second list being edited.
  *
  * The answer describes a dataset's shape rather than anybody's rows: it is the
- * same for every guild and never changes within a deployment, so it is cached
+ * same for every community and never changes within a deployment, so it is cached
  * indefinitely and every consumer of a dataset shares one request.
  */
 
 import { useMemo } from "react";
 
-import { useReadFieldCatalogApiV1FieldsDatasetGet } from "@/api/generated/fields/fields";
+import { useReadFieldCatalog } from "@/api/generated/fields/fields";
 import type {
   DatasetName,
   DefaultFilter,
@@ -36,7 +36,7 @@ const NO_DEFAULTS: DefaultFilter[] = [];
  * in step for no gain.
  */
 export function useFieldCatalog(dataset: DatasetName) {
-  const query = useReadFieldCatalogApiV1FieldsDatasetGet(dataset, {
+  const query = useReadFieldCatalog(dataset, {
     query: {
       staleTime: Number.POSITIVE_INFINITY,
       gcTime: Number.POSITIVE_INFINITY,

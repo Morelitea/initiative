@@ -23,18 +23,18 @@ That's genuinely the whole thing.
 
 ## Finding one yourself
 
-Some communities list themselves publicly so anyone can find them. Hit the **add-a-community** button on the rail and pick **Join a community** — you can browse by category or search by name, then join straight from a community's card. No invite, no waiting for approval.
+Some communities list themselves publicly so anyone can find them. **Join a community** is the dashed button on the rail — you can browse by category or search by name, then join straight from a community's card. No invite, no waiting for approval.
 
-Don't see a **Join a community** option? Then this server hasn't switched that feature on, and everything here works by invitation. Nothing's wrong. More in [Finding a community to join](../guides/communities.md#finding-a-community-to-join).
+Don't see a **Join a community** button? Then this server hasn't switched that feature on, and everything here works by invitation. Nothing's wrong. More in [Finding a community to join](../guides/communities.md#finding-a-community-to-join).
 
 ## Making your own
 
 Starting fresh for your own group? You can create a community yourself, as long as your server allows it.
 
-1. On the **community rail** down the left edge, choose **Create community** (look for the **+**).
-2. Give it a **name** — usually just what your group is actually called. "Fairview Bakery". "PTA Committee". "The Nguyens".
-3. Add an **icon** while you're there. Once you're in three communities, that rail of tiny pictures is the only thing standing between you and posting the surprise party plans in the work one.
-4. Create it. Congratulations, you're its [superadmin](../guides/communities.md#why-superadmin-is-separate), the top seat.
+1. On the **community rail** down the left edge, press the **+** (**Create Community**).
+2. Give it a **Community name** — usually just what your group is actually called. "Fairview Bakery". "PTA Committee". "The Nguyens". A **Description** is optional.
+3. Create it. Congratulations, you're its [superadmin](../guides/communities.md#why-superadmin-is-separate), the top seat.
+4. Give it an **icon** next, under **Community settings → Community**. Once you're in three communities, that rail of tiny pictures is the only thing standing between you and posting the surprise party plans in the work one.
 
 ![Creating a new community](../images/getting-started/create-community.png)
 
@@ -45,12 +45,12 @@ Starting fresh for your own group? You can create a community yourself, as long 
 
 Nothing. Genuinely — it's empty, and the home page's first and only offer is **Create initiative**.
 
-That is on purpose. An initiative is a name for a body of work — "Spring Play", "Engineering", "Tuesday Night D&D" — and a folder called *Default Initiative* is a name for nothing at all. You'd only rename it five minutes later.
+That is on purpose. An initiative is a name for a body of work — "Spring Play", "Engineering", "Tuesday Night D&D" — and only you know what yours is called.
 
 So the first move:
 
-1. Click **Create initiative** and name it after whatever you're actually doing.
-2. Open it, click **Create Project**, give it a name, and there's your first board.
+1. Click **Create initiative**. Four short questions follow: what it's called, what it's made of, who can get in, and what they can do. Any of it can change later.
+2. Open it, go to its **Projects** tab, click **Add Project**, give it a name, and there's your first board. Every tool's tab has one button like that.
 
 Put some tasks on it. That's a working setup — everything else in these guides is optional extra.
 

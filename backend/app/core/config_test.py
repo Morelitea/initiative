@@ -443,14 +443,63 @@ def test_csp_captcha_origins_only_when_configured():
 
 def test_csp_billing_origin_only_when_portal_configured():
     """The landing page fetches the pricing catalog from the billing portal,
-    so its origin is allowed for fetch() only on a deployment that names one —
-    and only the origin, never the path it was configured with."""
+    so its origin is allowed for fetch() only on a deployment that names one,
+    and only the origin, never the path it was configured with. It frames the
+    portal's pricing grid, and that page alone is allowed in a frame."""
     assert "billing.example.com" not in _csp(_settings())
 
     on = _csp(_settings(BILLING_URL="https://billing.example.com/portal/"))
     assert "https://billing.example.com" in _directive(on, "connect-src")
     assert "/portal" not in _directive(on, "connect-src")
+    # One page of the portal may be framed, its pricing grid; not the portal.
+    frames = _directive(on, "frame-src").split()
+    assert "https://billing.example.com/portal/embed/pricing" in frames
+    assert "https://billing.example.com" not in frames
     assert "billing.example.com" not in _directive(on, "script-src")
+
+
+@pytest.mark.parametrize(
+    ("billing_url", "frame"),
+    [
+        ("https://billing.example.com", "https://billing.example.com/embed/pricing"),
+        ("https://billing.example.com/", "https://billing.example.com/embed/pricing"),
+        ("http://localhost:8100", "http://localhost:8100/embed/pricing"),
+    ],
+)
+def test_csp_frames_only_the_billing_pricing_grid(billing_url, frame):
+    frames = _directive(_csp(_settings(BILLING_URL=billing_url)), "frame-src").split()
+    assert frame in frames
+    assert not any(f.startswith(billing_url.rstrip("/")) and f != frame for f in frames)
+
+
+def test_csp_frames_nothing_from_a_billing_url_it_cannot_reduce_safely():
+    on = _csp(_settings(BILLING_URL="https://billing.example.com/a;b"))
+    assert "billing.example.com" not in _directive(on, "frame-src")
+
+
+def test_csp_collector_origin_only_when_one_is_on_another_origin():
+    """The SPA posts measurements to the named collector, so only its origin
+    joins connect-src; a same-origin path needs nothing beyond 'self'."""
+    assert "faro.example.com" not in _csp(_settings())
+
+    on = _csp(_settings(FARO_COLLECTOR_URL="https://faro.example.com/collect"))
+    assert "https://faro.example.com" in _directive(on, "connect-src")
+    assert "/collect" not in _directive(on, "connect-src")
+
+    path = _csp(_settings(FARO_COLLECTOR_URL="/collect"))
+    assert _directive(path, "connect-src") == _directive(
+        _csp(_settings()), "connect-src"
+    )
+
+
+@pytest.mark.parametrize("value", ["faro.example.com", "//faro.example.com", "ftp://x"])
+def test_collector_url_must_be_a_path_or_http_url(value):
+    with pytest.raises(ValidationError, match="FARO_COLLECTOR_URL"):
+        _settings(FARO_COLLECTOR_URL=value)
+
+
+def test_blank_collector_url_is_unset():
+    assert _settings(FARO_COLLECTOR_URL="  ").FARO_COLLECTOR_URL is None
 
 
 def test_docs_csp_allows_swagger_cdn_but_main_csp_does_not():
@@ -493,15 +542,6 @@ def test_app_url_is_https_ignores_substring_scheme():
     # A host that merely contains "https" must not be treated as https — only
     # the URL scheme counts.
     assert _settings(APP_URL="http://https.example.com").app_url_is_https is False
-
-
-def test_enable_api_docs_defaults_true():
-    # Default on for dev ergonomics; operators set it False in production.
-    assert _settings().ENABLE_API_DOCS is True
-
-
-def test_enable_api_docs_can_be_disabled():
-    assert _settings(ENABLE_API_DOCS=False).ENABLE_API_DOCS is False
 
 
 def test_log_level_defaults_to_info():

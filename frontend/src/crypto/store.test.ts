@@ -20,11 +20,13 @@ import {
   accountPickle,
   deviceClaim,
   deviceId,
+  deviceOwner,
   forgetDevice,
   messageLog,
   peerDeviceChanges,
   peerDeviceKeys,
   peerKeyChanges,
+  serveAccount,
   sessionForDevice,
   sessionOrigin,
   sessionPickle,
@@ -306,6 +308,38 @@ describe("the account", () => {
 
     expect(results.filter(Boolean)).toHaveLength(1);
   });
+
+  it("serves the account that wrote it and is wiped for any other", async () => {
+    // A device keeps its store through a lapse, so whoever signs in next may be
+    // somebody else: another account, or the same id on another server.
+    const keep = async () => {
+      await deviceOwner.set(1);
+      await messageLog.append("conv", { id: "a", body: "kept", at: "", mine: true });
+    };
+    const held = async () => (await messageLog.get("conv")).map((entry) => entry.body);
+
+    await keep();
+    serveAccount("https://one.example", 1);
+    expect(await held()).toEqual(["kept"]);
+
+    serveAccount("https://one.example", 2);
+    expect(await held()).toEqual([]);
+    expect(await deviceOwner.get()).toBeUndefined();
+
+    await keep();
+    serveAccount("https://one.example", 1);
+    serveAccount("https://two.example", 1);
+    expect(await held()).toEqual([]);
+
+    // Signed out and back in on the same server: the owner it records next
+    // carries the server, so another server is still somebody else.
+    serveAccount("https://one.example", 1);
+    await forgetDevice();
+    serveAccount("https://one.example", 1);
+    await keep();
+    serveAccount("https://two.example", 1);
+    expect(await held()).toEqual([]);
+  });
 });
 
 describe("which side a session belongs to", () => {
@@ -359,12 +393,28 @@ describe("the device-registration claim", () => {
     expect(await deviceClaim.take()).not.toBeNull();
   });
 
-  it("can be forced open when the recorded device is gone", async () => {
+  it("can be forced open when the recorded device is gone, taking what it held", async () => {
     const turn = await take();
     await deviceClaim.settle(turn, "device-1", "pickle-1");
+    await messageLog.append("conv", { id: "a", body: "only here", at: "", mine: false });
     await deviceClaim.invalidate("device-1");
 
+    // Removed from the account, so its keys and its messages go too.
+    expect(await deviceId.get()).toBeUndefined();
+    expect(await messageLog.get("conv")).toEqual([]);
     expect(await deviceClaim.take()).not.toBeNull();
+  });
+
+  it("empties a store from before claims were recorded, by its device id", async () => {
+    await deviceId.set("device-1");
+    await messageLog.append("conv", { id: "a", body: "only here", at: "", mine: false });
+
+    await deviceClaim.invalidate("device-2");
+    expect(await deviceId.get()).toBe("device-1");
+
+    await deviceClaim.invalidate("device-1");
+    expect(await deviceId.get()).toBeUndefined();
+    expect(await messageLog.get("conv")).toEqual([]);
   });
 
   it("leaves a claim somebody is already registering under alone", async () => {
@@ -389,6 +439,7 @@ describe("the device-registration claim", () => {
 
     expect(await deviceClaim.take()).toBeNull();
     expect(await deviceClaim.read()).toEqual({ status: "ready", deviceId: "device-2" });
+    expect(await deviceId.get()).toBe("device-2");
   });
 
   it("cannot be settled by a caller whose turn was taken over", async () => {

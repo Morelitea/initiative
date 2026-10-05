@@ -13,8 +13,8 @@ import { WizardDialog } from "@/components/ui/wizard-dialog";
 import { useMyDeletionEligibility } from "@/hooks/useOperatorUsers";
 import { useDeleteOwnAccount } from "@/hooks/useUsers";
 import { useWizard } from "@/hooks/useWizard";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 import type { DialogWithSuccessProps } from "@/types/dialog";
 
 /**
@@ -30,7 +30,7 @@ type DeletionStep = "choose-type" | "check-blockers" | "confirm";
 interface DeletionEligibilityResponse {
   can_delete: boolean;
   blockers: string[];
-  sole_superadmin_guilds: string[];
+  sole_superadmin_communities: string[];
 }
 
 interface DeleteAccountDialogProps extends DialogWithSuccessProps {

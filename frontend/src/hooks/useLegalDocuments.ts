@@ -17,10 +17,7 @@
 import { useQuery } from "@tanstack/react-query";
 
 import type { LegalIndexRead } from "@/api/generated/initiativeAPI.schemas";
-import {
-  readLegalDocumentApiV1LegalSlugGet,
-  readLegalIndexApiV1LegalGet,
-} from "@/api/generated/legal/legal";
+import { readLegalDocument, readLegalIndex } from "@/api/generated/legal/legal";
 import { useAppConfig } from "@/hooks/useAppConfig";
 
 /** The two slugs an account cannot exist here without accepting. The server
@@ -40,7 +37,7 @@ export const useLegalIndex = () => {
   const enabled = Boolean(billing);
   const query = useQuery<LegalIndexRead>({
     queryKey: ["legal", "index"],
-    queryFn: () => readLegalIndexApiV1LegalGet(),
+    queryFn: () => readLegalIndex(),
     enabled,
     staleTime: LEGAL_STALE_MS,
     retry: false,
@@ -68,7 +65,7 @@ export const useLegalDocument = (slug: string | undefined) =>
     // The spec declares no body schema for markdown, so the generated fetcher
     // is typed `void`; asked for text, it returns the document as a string.
     queryFn: () =>
-      readLegalDocumentApiV1LegalSlugGet(slug as string, {
+      readLegalDocument(slug as string, {
         responseType: "text",
         headers: { Accept: "text/markdown" },
       }) as unknown as Promise<string>,

@@ -726,8 +726,9 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             # Same: the transport is reached on the authenticated platform-tier
             # path, never before a session is routed.
             app_user=None,
-            # UPDATE is column-scoped to last_seen_at, device_token_id and signature
-            # (migration 0395), so it lives in the column ACL, not here.
+            # UPDATE is column-scoped to last_seen_at, session_id and signature,
+            # so it lives in the column ACL, not here; so is the system engine's
+            # UPDATE of session_id, which follows a key store across renewals.
             platform_base=frozenset({SELECT, INSERT, DELETE}),
         ),
     ),
@@ -884,7 +885,7 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
                 Policy(
                     "guild_administration_guilds_manage_read",
                     SELECT,
-                    Capability.GUILDS_MANAGE,
+                    Capability.COMMUNITIES_MANAGE,
                     using=OPEN,
                 ),
                 # A settings rung routed read-only reads the community it
@@ -1131,7 +1132,8 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             app_admin=DML,
             app_user=frozenset({SELECT}),
             # 0145 revoked UPDATE — ``role`` is the system engine's column — and 0266
-            # re-granted it on ``position`` alone, as a column grant. 0354 took INSERT
+            # re-granted it on ``position`` alone, as a column grant; 0438 added
+            # ``display_name``, the member's own name here. 0354 took INSERT
             # back: joining is the system engine's (invite redemption, a community
             # join, sign-in sync). What remains at the table level is leaving (DELETE
             # of the reader's own row) and reading the routed community's roster
@@ -1232,7 +1234,7 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
                 Policy(
                     "guilds_manage_read",
                     SELECT,
-                    Capability.GUILDS_MANAGE,
+                    Capability.COMMUNITIES_MANAGE,
                     using=OPEN,
                 ),
                 Policy("guilds_pam_read", SELECT, ("public",), using=pam_read("id")),
@@ -1243,12 +1245,6 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
                     SELECT,
                     ("app_guild_base_ro",),
                     using=routed_admin("id"),
-                ),
-                Policy(
-                    "profile_reader_reads_the_name_rule",
-                    SELECT,
-                    ("app_profile_reader",),
-                    using=OPEN,
                 ),
                 # An installed app's standing reads the status of the community it
                 # is routed into (its column grant is id and status alone).
@@ -1266,7 +1262,7 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             # 0138 revoked INSERT and UPDATE at the table level. UPDATE survives as
             # column grants on the identity columns a community's admin edits (name,
             # description, banner, categories, is_community, has_adult_content,
-            # show_member_names, location, updated_at — 0138, 0196, 0200, 0203, 0434).
+            # location, updated_at — 0138, 0196, 0200, 0456).
             # guild_select_routed narrows SELECT to the routed community (0360). 0357
             # took DELETE back: creating, deleting and purging a community run on the
             # system engine.
@@ -2072,8 +2068,8 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
     "user_tokens": SharedTable(
         rls=FORCED_NO_POLICY,
         grants=Grants(
-            # Email-verification, password-reset and device tokens, matched by hash
-            # before the account is known: minted, redeemed, slid, revoked and swept on
+            # Email-verification and password-reset tokens, matched by hash
+            # before the account is known: minted, redeemed and swept on
             # the system engine alone (0358), like auth_sessions and user_api_keys.
             app_admin=DML,
             # 0358: every token path runs on the system engine, pre-routing included.
@@ -2082,6 +2078,17 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             # guild floor reaches neither table.
             app_guild_base=None,
             # 0358: tokens are the system engine's alone.
+            platform_base=None,
+        ),
+    ),
+    "account_change_holds": SharedTable(
+        rls=FORCED_NO_POLICY,
+        grants=Grants(
+            # A change waiting to apply: requested, cancelled and applied on the
+            # system engine, beside the session and credential rows it acts on.
+            app_admin=DML,
+            app_user=None,
+            app_guild_base=None,
             platform_base=None,
         ),
     ),

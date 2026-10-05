@@ -22,8 +22,6 @@
   "noAccess": "Accès refusé",
   "noAccessDescription": "Vous n’avez pas la permission de voir ce wiki.",
   "backToWikis": "Retour aux wikis",
-  "pageCount_one": "{{count}} page",
-  "pageCount_other": "{{count}} pages",
   "pages": {
     "title": "Pages",
     "search": "Rechercher des pages",
@@ -54,11 +52,7 @@
     "groupLabel": "Pages"
   },
   "links": {
-    "title": "Connexions",
-    "outgoing": "Liens depuis cette page",
-    "incoming": "Lié depuis",
-    "noneDescription": "Mentionnez cette page avec [[ depuis n’importe où et elle apparaîtra ici.",
-    "loading": "Chargement des connexions..."
+    "title": "Connexions"
   },
   "card": {
     "comments_one": "{{count}} commentaire",

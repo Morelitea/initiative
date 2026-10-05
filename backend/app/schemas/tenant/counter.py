@@ -5,12 +5,12 @@ from decimal import Decimal
 from enum import Enum
 from typing import Annotated, Any, List, Literal, Optional, TYPE_CHECKING
 
-from pydantic import ConfigDict, Field, model_validator
+from pydantic import AliasChoices, ConfigDict, Field, model_validator
 
 from app.core.identity_boundary import GuildId
 from app.core.messages import CounterMessages
 from app.models.tenant.counter import COUNTER_DIGITS, COUNTER_PLACES, CounterViewMode
-from app.schemas.base import SanitizedBaseModel, TitleStr
+from app.schemas.base import MentionStr, SanitizedBaseModel, TitleStr, reject_null
 from app.schemas.query import PageMeta
 from app.schemas.tenant.property import (
     PropertiesOnCreate,
@@ -81,8 +81,8 @@ class CounterUpdate(SanitizedBaseModel):
     name: Optional[TitleStr] = Field(default=None, min_length=1, max_length=255)
     color: Optional[str] = None
     # ``min``/``max`` are nullable columns — an explicit null clears the bound.
-    # The remaining fields back NOT NULL columns, so a null is meaningless; the
-    # endpoint drops explicit nulls for them. ``gt=0`` rejects a provided step
+    # The remaining fields back NOT NULL columns, so they refuse a null.
+    # ``gt=0`` rejects a provided step
     # of 0/negative with a clean 422. ``position`` allows negatives so a
     # fractional drop-to-front (prev - 1) still validates.
     min: Optional[CounterNumber] = None
@@ -91,6 +91,8 @@ class CounterUpdate(SanitizedBaseModel):
     initial_count: Optional[CounterNumber] = None
     view_mode: Optional[CounterViewMode] = None
     position: Optional[CounterNumber] = None
+
+    _required = reject_null("name", "step", "initial_count", "view_mode", "position")
 
 
 class CounterSetCountRequest(SanitizedBaseModel):
@@ -134,7 +136,9 @@ class CounterRead(SanitizedBaseModel):
 
     id: int
     counter_group_id: int
-    guild_id: GuildId
+    community_id: GuildId = Field(
+        validation_alias=AliasChoices("community_id", "guild_id")
+    )
     name: str
     color: Optional[str] = None
     count: str
@@ -156,7 +160,7 @@ class CounterRead(SanitizedBaseModel):
 
 class CounterGroupBase(SanitizedBaseModel):
     name: str = Field(..., min_length=1, max_length=255)
-    description: Optional[str] = None
+    description: Optional[MentionStr] = None
 
 
 class CounterGroupCreate(CounterGroupBase, PropertiesOnCreate):
@@ -169,21 +173,25 @@ class CounterGroupCreate(CounterGroupBase, PropertiesOnCreate):
 
 class CounterGroupUpdate(SanitizedBaseModel):
     name: Optional[TitleStr] = Field(default=None, min_length=1, max_length=255)
-    description: Optional[str] = None
+    description: Optional[MentionStr] = None
 
 
-class CounterGroupDuplicateRequest(SanitizedBaseModel):
-    name: Optional[TitleStr] = Field(default=None, min_length=1, max_length=255)
+class CounterPreview(SanitizedBaseModel):
+    """One counter as a list's card draws it: its name, colour and count."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    id: int
+    name: str
+    color: Optional[str] = None
+    count: str
 
 
 class CounterGroupSummary(CounterGroupBase, ToolSummaryBase):
-    counter_count: int = 0
+    """A counter group in a list: the group alone, without its counters —
+    unless the list was asked for previews, when its first few come along."""
 
-    @classmethod
-    def derived_fields(
-        cls, row: Any, *, context: ActorContext, user_id: Optional[int]
-    ) -> dict[str, Any]:
-        return {"counter_count": len(_active_counters(row))}
+    preview: Optional[List[CounterPreview]] = None
 
 
 class CounterGroupListResponse(PageMeta):
@@ -209,7 +217,7 @@ class CounterGroupRead(CounterGroupSummary):
 # ---------------------------------------------------------------------------
 
 
-def _format_decimal(value: Decimal) -> str:
+def format_decimal(value: Decimal) -> str:
     """Return a plain decimal string with no exponent and no trailing zeros.
 
     PostgreSQL's ``Numeric(20, 10)`` round-trips zeros as ``Decimal('0E-10')``,
@@ -225,23 +233,23 @@ def _format_decimal(value: Decimal) -> str:
 
 
 def _format_optional_decimal(value: Optional[Decimal]) -> Optional[str]:
-    return _format_decimal(value) if value is not None else None
+    return format_decimal(value) if value is not None else None
 
 
 def serialize_counter(counter: "Counter", *, context: ActorContext) -> CounterRead:
     return CounterRead(
         id=counter.id,
         counter_group_id=counter.counter_group_id,
-        guild_id=context.guild_id,
+        community_id=context.guild_id,
         name=counter.name,
         color=counter.color,
-        count=_format_decimal(counter.count),
+        count=format_decimal(counter.count),
         min=_format_optional_decimal(counter.min),
         max=_format_optional_decimal(counter.max),
-        step=_format_decimal(counter.step),
-        initial_count=_format_decimal(counter.initial_count),
+        step=format_decimal(counter.step),
+        initial_count=format_decimal(counter.initial_count),
         view_mode=counter.view_mode,
-        position=_format_decimal(counter.position),
+        position=format_decimal(counter.position),
         properties=annotated_properties(counter),
         created_at=counter.created_at,
         updated_at=counter.updated_at,

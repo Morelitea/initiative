@@ -20,7 +20,8 @@ Three things happen here and nowhere else:
   the two returns. An installation-style flow (``install_url``) sends the
   person to the vendor's install page first; the vendor returns to the setup
   address with the installation's id, and one authorization trip follows so
-  the app's ``after_connect`` hook can check who installed it.
+  ``after_connect`` (the app's hook, or a declarative app's request) can check
+  who installed it.
 * **Tokens.** :func:`seal_tokens` and :func:`unseal_tokens` hold a token set
   in a connection's stored values under reserved keys; :func:`refresh_tokens`
   renews one; :func:`mint_jwt_bearer` mints a token for a connection that
@@ -35,6 +36,7 @@ address, as an endpoint call does.
 
 from __future__ import annotations
 
+import base64
 import json
 import logging
 import time
@@ -59,7 +61,7 @@ from app.models.platform.guild import (
     LIVE_STATUS_VALUES,
     Guild,
     GuildMembership,
-    GuildStatus,
+    CommunityStatus,
 )
 from app.models.platform.access_grant import AccessLevel
 from app.models.tenant.guild_app import GuildApp
@@ -124,12 +126,15 @@ __all__ = [
     "setup_url",
     "start_url",
     "unseal_tokens",
+    "webhook_url",
 ]
 
 #: Where the vendor returns a person, on this deployment's own address.
 CALLBACK_PATH = "/api/v1/app-connections/callback"
 #: Where an installation-style vendor returns a person from its install page.
 SETUP_PATH = "/api/v1/app-connections/setup"
+#: Where a vendor sends an app's webhooks, followed by the app's public_id.
+WEBHOOK_PATH = "/api/v1/app-hooks"
 
 #: How a flow ended, as the landing page reads it.
 OUTCOMES: frozenset[str] = frozenset(
@@ -179,6 +184,14 @@ class HookError(Exception):
     """The app's hook could not be reached, or answered with something else."""
 
 
+class RevocationAnsweredError(HookError):
+    """The vendor answered a revocation with something other than success."""
+
+    def __init__(self, status: int) -> None:
+        super().__init__(f"revocation answered {status}")
+        self.status = status
+
+
 @dataclass(frozen=True)
 class TokenSet:
     access_token: str
@@ -213,6 +226,11 @@ def setup_url() -> str:
     """The address an installation-style vendor returns to from its install
     page."""
     return f"{_app_url()}{SETUP_PATH}"
+
+
+def webhook_url(public_id: str) -> str:
+    """The address a vendor sends this app's webhooks to."""
+    return f"{_app_url()}{WEBHOOK_PATH}/{public_id}"
 
 
 def return_path(public_id: str, connection_id: str) -> str:
@@ -715,6 +733,18 @@ class AfterConnect:
     refused: bool
     values: dict[str, Any]
     account_label: Optional[str]
+    #: What a declarative refusal answers.
+    code: Optional[str] = None
+
+
+def connected(answer: Mapping[str, Any]) -> AfterConnect:
+    """An ``after_connect`` answer's managed values and account label."""
+    values = answer.get("values") or {}
+    if not isinstance(values, dict):
+        raise HookError("after_connect values is not an object")
+    label = answer.get("account_label")
+    cleaned = label.strip()[:MAX_ACCOUNT_LABEL_LENGTH] if isinstance(label, str) else ""
+    return AfterConnect(refused=False, values=values, account_label=cleaned or None)
 
 
 async def after_connect(
@@ -745,12 +775,7 @@ async def after_connect(
         raise HookError("after_connect answered with something other than an object")
     if answer.get("refuse") is True:
         return AfterConnect(refused=True, values={}, account_label=None)
-    values = answer.get("values") or {}
-    if not isinstance(values, dict):
-        raise HookError("after_connect values is not an object")
-    label = answer.get("account_label")
-    cleaned = label.strip()[:MAX_ACCOUNT_LABEL_LENGTH] if isinstance(label, str) else ""
-    return AfterConnect(refused=False, values=values, account_label=cleaned or None)
+    return connected(answer)
 
 
 # --- finishing --------------------------------------------------------------
@@ -778,7 +803,7 @@ async def _load_for_flow(
     if (
         guild is None
         or guild.status not in LIVE_STATUS_VALUES
-        or guild.status == GuildStatus.read_only.value
+        or guild.status == CommunityStatus.read_only.value
     ):
         return None
     if state.user_id is not None:
@@ -808,7 +833,9 @@ async def _load_for_flow(
     expected = "interactive" if state.user_id is not None else "static"
     if connection.get("scope") != expected:
         return None
-    registration = await registration_lookup.registration_for_definition(app.definition)
+    registration = await registration_lookup.registration_for_definition(
+        app.definition, listing_uid=app.listing_uid
+    )
     if registration is None or not registration.live:
         return None
     return _Loaded(
@@ -952,6 +979,7 @@ async def complete_callback(
             return landing_url(state.return_path, "not_recorded")
         fields = without_tokens((loaded.app.config or {}).get(state.connection_id))
         install_id = loaded.app.id
+        definition = loaded.app.definition
 
     # The vendor and the app are asked with no transaction open. What they
     # answer is stored against the install as it stands once they have.
@@ -973,25 +1001,39 @@ async def complete_callback(
 
     values: dict[str, Any] = {}
     label: Optional[str] = None
-    if loaded.flow.get("after_connect") is True:
+    declared = loaded.flow.get("after_connect")
+    if declared is True or isinstance(declared, dict):
         params: dict[str, str] = {}
         if state.installation_id is not None:
             params["installation_id"] = state.installation_id
         try:
-            answer = await after_connect(
-                public_id=loaded.public_id,
-                base_url=loaded.base_url,
-                guild_id=state.guild_id,
-                install_id=install_id,
-                connection_id=state.connection_id,
-                actor="member" if state.user_id is not None else "installation",
-                access_token=tokens.access_token,
-                params=params,
-            )
+            if isinstance(declared, dict):
+                # Initiative makes a declarative app's request itself.
+                from app.services.marketplace import declarative
+
+                answer = await declarative.after_connect(
+                    definition,
+                    declared,
+                    params=params,
+                    access_token=tokens.access_token,
+                )
+            else:
+                answer = await after_connect(
+                    public_id=loaded.public_id,
+                    base_url=loaded.base_url,
+                    guild_id=state.guild_id,
+                    install_id=install_id,
+                    connection_id=state.connection_id,
+                    actor="member" if state.user_id is not None else "installation",
+                    access_token=tokens.access_token,
+                    params=params,
+                )
         except HookError as exc:
             logger.warning("app connection: after_connect failed (%s)", exc)
             return landing_url(state.return_path, "not_recorded")
         if answer.refused:
+            if answer.code is not None:
+                logger.info("app connection: after_connect refused (%s)", answer.code)
             return landing_url(state.return_path, "refused")
         values = answer.values
         label = answer.account_label
@@ -1376,18 +1418,21 @@ def token_response(tokens: TokenSet) -> dict[str, Any]:
 # --- ending a grant ----------------------------------------------------------
 
 
-async def revoke_request(url: str, form: dict[str, str]) -> None:
-    """One revocation request (RFC 7009 §2.1). A 2xx answer is success,
+async def revoke_request(
+    url: str,
+    *,
+    method: str = "POST",
+    headers: Mapping[str, str],
+    content: bytes,
+) -> None:
+    """One request that ends a grant at the vendor. A 2xx answer is success,
     whatever its body."""
     try:
         response = await request_public_target(
-            "POST",
+            method,
             url,
-            headers={
-                "Accept": "application/json",
-                "Content-Type": "application/x-www-form-urlencoded",
-            },
-            content=urlencode(form).encode("ascii"),
+            headers={"Accept": "application/json", **headers},
+            content=content,
             timeout=VENDOR_TIMEOUT_SECONDS,
             transport=http_transport,
             max_bytes=VENDOR_MAX_RESPONSE_BYTES,
@@ -1399,7 +1444,12 @@ async def revoke_request(url: str, form: dict[str, str]) -> None:
     ) as exc:
         raise HookError(f"revocation could not be sent: {exc}") from exc
     if not 200 <= response.status_code < 300:
-        raise HookError(f"revocation answered {response.status_code}")
+        raise RevocationAnsweredError(response.status_code)
+
+
+#: What GitHub answers a grant deletion whose access token it no longer
+#: accepts with.
+GITHUB_INVALID_TOKEN_STATUSES: frozenset[int] = frozenset({404, 422})
 
 
 async def revocation_sender(
@@ -1412,10 +1462,14 @@ async def revocation_sender(
     guild_id: int,
     install_id: int,
     connection_id: str,
+    expires_at: Optional[int] = None,
 ) -> Optional[Callable[[], Awaitable[None]]]:
     """The request that ends one grant, ready to send, or ``None`` when there
     is nowhere to send it. Raises :class:`ConnectionFlowError` when the vendor
-    values it needs are missing."""
+    values it needs are missing.
+
+    ``expires_at`` is when the stored access token lapses, for a method that
+    names the grant by a live access token."""
     tokens = {
         key: decrypt_field(value, SALT_APP_CONFIG)
         for key, value in sealed_tokens.items()
@@ -1442,9 +1496,74 @@ async def revocation_sender(
             form["client_secret"] = secret
 
         async def send_revocation() -> None:
-            await revoke_request(url, form)
+            # RFC 7009 §2.1: a form post with the client's credentials.
+            await revoke_request(
+                url,
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+                content=urlencode(form).encode("ascii"),
+            )
 
         return send_revocation
+
+    if method == "github_grant":
+        if not tokens.get("access_token"):
+            return None
+        access: str = tokens["access_token"]
+        refresh_token: Optional[str] = tokens.get("refresh_token")
+        lapsed = expires_at is not None and expires_at <= int(time.time())
+        if lapsed and not refresh_token:
+            logger.info(
+                "app credential revocation: app %s connection %s holds a lapsed "
+                "access token and no refresh token; dropped",
+                public_id,
+                connection_id,
+            )
+            return None
+        vendor = await load_vendor_values(public_id)
+        url = _render_url(flow.get("revoke_url"), vendor=vendor, fields=fields)
+        client_id, secret = _client(flow, vendor=vendor, fields=fields)
+        if not secret:
+            raise ConnectionFlowError(GuildAppMessages.CONNECTION_VENDOR_NOT_CONFIGURED)
+        # GitHub's "Delete an app authorization": the client's credentials as
+        # HTTP Basic auth, and the grant's access token in a JSON body.
+        basic = base64.b64encode(f"{client_id}:{secret}".encode()).decode("ascii")
+
+        async def renew() -> None:
+            # GitHub names the grant by a live access token. The connection is
+            # going, so the renewed set serves this request and is not kept.
+            # Once only, and kept across tries: a refresh token is spent by
+            # its first use.
+            nonlocal access, refresh_token
+            if refresh_token is None:
+                return
+            renewed = await refresh_tokens(
+                flow, vendor=vendor, fields=fields, refresh_token=refresh_token
+            )
+            access, refresh_token = renewed.access_token, None
+
+        async def delete_grant() -> None:
+            await revoke_request(
+                url,
+                method="DELETE",
+                headers={
+                    "Authorization": f"Basic {basic}",
+                    "Content-Type": "application/json",
+                },
+                content=json.dumps({"access_token": access}).encode(),
+            )
+
+        async def send_grant_deletion() -> None:
+            if lapsed:
+                await renew()
+            try:
+                await delete_grant()
+            except RevocationAnsweredError as exc:
+                if exc.status not in GITHUB_INVALID_TOKEN_STATUSES or not refresh_token:
+                    raise
+                await renew()
+                await delete_grant()
+
+        return send_grant_deletion
 
     if method != "hook":
         return None

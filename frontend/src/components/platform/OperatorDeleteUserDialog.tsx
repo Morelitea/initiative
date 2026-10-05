@@ -16,8 +16,8 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { WizardDialog } from "@/components/ui/wizard-dialog";
 import { useOperatorDeleteUser, useUserDeletionEligibility } from "@/hooks/useOperatorUsers";
 import { useWizard } from "@/hooks/useWizard";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 import { getUserDisplayName } from "@/lib/userDisplay";
 import type { DialogWithSuccessProps } from "@/types/dialog";
 
@@ -157,7 +157,7 @@ export function OperatorDeleteUserDialog({
       if (result.data) {
         setEligibility(result.data);
 
-        if (!result.data.can_delete && result.data.guild_blockers.length > 0) {
+        if (!result.data.can_delete && result.data.community_blockers.length > 0) {
           go("resolve-blockers");
         } else if (result.data.can_delete) {
           go("confirm");
@@ -180,10 +180,10 @@ export function OperatorDeleteUserDialog({
     deleteUser.mutate({ action: effectiveAction });
   };
 
-  // Holding the only superadmin seat of a guild is the only blocker. Owning content is not
+  // Holding the only superadmin seat of a community is the only blocker. Owning content is not
   // one — ownership is released as the memberships go, and what they owned is
-  // left for a guild admin to claim.
-  const hasBlockers = (eligibility?.guild_blockers.length ?? 0) > 0;
+  // left for a community admin to claim.
+  const hasBlockers = (eligibility?.community_blockers.length ?? 0) > 0;
 
   // Validation
   const canProceedFromChooseType = action !== null;
@@ -308,17 +308,20 @@ export function OperatorDeleteUserDialog({
                 <AlertDescription>{t("operatorDeleteUser.blockersDescription")}</AlertDescription>
               </Alert>
 
-              {eligibility.guild_blockers.map((guildBlocker) => (
-                <div key={guildBlocker.guild_id} className="space-y-3 rounded-lg border p-4">
+              {eligibility.community_blockers.map((communityBlocker) => (
+                <div
+                  key={communityBlocker.community_id}
+                  className="space-y-3 rounded-lg border p-4"
+                >
                   <div className="flex items-center justify-between">
                     <div>
                       <h4 className="font-medium">
-                        {t("operatorDeleteUser.guildBlockerTitle", {
-                          guildName: guildBlocker.guild_name,
+                        {t("operatorDeleteUser.communityBlockerTitle", {
+                          communityName: communityBlocker.community_name,
                         })}
                       </h4>
                       <p className="text-muted-foreground text-sm">
-                        {t("operatorDeleteUser.guildBlockerDescription")}
+                        {t("operatorDeleteUser.communityBlockerDescription")}
                       </p>
                     </div>
                   </div>

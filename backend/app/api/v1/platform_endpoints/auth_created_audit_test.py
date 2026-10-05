@@ -30,7 +30,6 @@ def _registration(email: str = REGISTERED_EMAIL) -> dict:
     return {
         "email": email,
         "username": "registered-audit",
-        "full_name": "Registered Person",
         "password": "securepassword123",
     }
 

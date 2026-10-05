@@ -18,16 +18,17 @@ from dataclasses import dataclass
 from typing import AsyncIterator, Optional
 
 from fastapi import HTTPException, status as http_status
+from sqlalchemy import text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.intake import IntakeStream
+from app.core.intake import Conversation, IntakeStream, meta
 from app.core.tools import Tool
 from app.core.messages import GuildMessages, InitiativeMessages, IntakeMessages
-from app.db import cohorts
-from app.db.session import set_rls_context
+from app.db import cohorts, filer_access
+from app.db.session import routed_guild_id, set_rls_context
 from app.models.platform.app_setting import AppSetting
-from app.models.platform.guild import Guild, GuildStatus
+from app.models.platform.guild import Guild, CommunityStatus
 from app.models.platform.user import User
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.intake import IntakeBinding, IntakeCase
@@ -53,6 +54,14 @@ class BindingView:
     initiative_name: Optional[str]
     default_status_id: Optional[int]
     default_status_name: Optional[str]
+    #: Which status means "waiting on whoever filed it", and which one a case
+    #: returns to when they answer.
+    awaiting_filer_status_id: Optional[int]
+    active_status_id: Optional[int]
+    isolated: bool
+    #: Shares its initiative with another stream where one of the two keeps
+    #: its initiative to itself. Flagged, never undone.
+    shares_initiative: bool
     enabled: bool
     #: The most recent case this stream opened. The monitoring that matters on
     #: this page: is the thing on.
@@ -85,9 +94,9 @@ async def set_operations_guild(
         if guild is None:
             raise HTTPException(
                 status_code=http_status.HTTP_404_NOT_FOUND,
-                detail=GuildMessages.GUILD_NOT_FOUND,
+                detail=GuildMessages.COMMUNITY_NOT_FOUND,
             )
-        if guild.status != GuildStatus.active.value:
+        if guild.status != CommunityStatus.active.value:
             raise HTTPException(
                 status_code=http_status.HTTP_400_BAD_REQUEST,
                 detail=IntakeMessages.GUILD_NOT_ACTIVE,
@@ -97,6 +106,10 @@ async def set_operations_guild(
     row.operations_guild_id = guild_id
     session.add(row)
     await session.commit()
+    # The filer role follows the choice: created in the community chosen,
+    # dropped from the one it replaces. Boot does the same, so a move this
+    # process did not finish is finished there.
+    await filer_access.reconcile_filer_access(guild_id)
     return guild_id
 
 
@@ -187,27 +200,37 @@ async def _write_binding(
     project: Project,
     project_id: int,
     default_status_id: Optional[int],
+    awaiting_filer_status_id: Optional[int] = None,
+    active_status_id: Optional[int] = None,
     enabled: bool,
 ) -> IntakeBinding:
     """Create or update the binding row. Routed session; flushes, no commit.
 
-    A named landing status must belong to the named project; anything else is
+    Every named status must belong to the named project; anything else is
     refused here rather than quietly ignored, because the page that sent it
     showed the owner a list of that project's statuses.
     """
-    if default_status_id is not None:
-        named = (
-            await session.exec(
-                select(TaskStatus.id)
-                .where(TaskStatus.id == default_status_id)
-                .where(TaskStatus.project_id == project.id)
-            )
-        ).one_or_none()
-        if named is None:
+    named = {
+        s
+        for s in (default_status_id, awaiting_filer_status_id, active_status_id)
+        if s is not None
+    }
+    if named:
+        found = set(
+            (
+                await session.exec(
+                    select(TaskStatus.id)
+                    .where(TaskStatus.id.in_(named))  # type: ignore[union-attr]
+                    .where(TaskStatus.project_id == project.id)
+                )
+            ).all()
+        )
+        if found != named:
             raise HTTPException(
                 status_code=http_status.HTTP_400_BAD_REQUEST,
                 detail=IntakeMessages.STATUS_NOT_IN_PROJECT,
             )
+    await _ensure_isolation(session, stream=stream, initiative_id=project.initiative_id)
 
     binding = (
         await session.exec(
@@ -222,10 +245,85 @@ async def _write_binding(
         binding = IntakeBinding(stream=stream, project_id=project_id)
     binding.project_id = project_id
     binding.default_status_id = default_status_id
+    binding.awaiting_filer_status_id = awaiting_filer_status_id
+    binding.active_status_id = active_status_id
     binding.enabled = enabled
     session.add(binding)
     await session.flush()
     return binding
+
+
+async def _isolation_conflicts(
+    session: AsyncSession, *, stream: IntakeStream, initiative_id: int
+) -> list[IntakeStream]:
+    """The other streams bound into ``initiative_id`` that ``stream`` may not
+    share it with: every one, if ``stream`` keeps its initiative to itself,
+    and otherwise the ones that do."""
+    others = (
+        await session.exec(
+            select(IntakeBinding.stream)
+            .join(Project, Project.id == IntakeBinding.project_id)
+            .where(Project.initiative_id == initiative_id)
+            .where(IntakeBinding.stream != stream.value)
+        )
+    ).all()
+    isolated = meta(stream).isolated
+    return [
+        IntakeStream(other)
+        for other in others
+        if isolated or meta(IntakeStream(other)).isolated
+    ]
+
+
+async def _ensure_isolation(
+    session: AsyncSession, *, stream: IntakeStream, initiative_id: int
+) -> None:
+    """Refuse a binding that would put a stream that keeps its initiative to
+    itself beside another stream.
+
+    Bindings are written one at a time: the check holds a transaction lock
+    every binding write in this community takes, so two streams bound into
+    one initiative at once see each other rather than both passing.
+    """
+    await session.exec(
+        text(
+            "SELECT pg_advisory_xact_lock(:guild, hashtext('intake_bindings'))"
+        ).bindparams(guild=routed_guild_id(session))
+    )
+    if await _isolation_conflicts(session, stream=stream, initiative_id=initiative_id):
+        raise HTTPException(
+            status_code=http_status.HTTP_409_CONFLICT,
+            detail=IntakeMessages.INITIATIVE_SHARED,
+        )
+
+
+async def _blueprint_status_roles(
+    session: AsyncSession, stream: IntakeStream, project_id: int
+) -> dict[str, Optional[int]]:
+    """The statuses a project set up from ``stream``'s blueprint plays each
+    role with. None for a stream with no conversation, where nobody is ever
+    waited on."""
+    from app.blueprints.intake import REQUESTER_REPLIED, WAITING_ON_REQUESTER
+
+    roles: dict[str, Optional[int]] = {
+        "awaiting_filer_status_id": None,
+        "active_status_id": None,
+    }
+    if meta(stream).conversation is Conversation.none:
+        return roles
+    rows = (
+        await session.exec(
+            select(TaskStatus.name, TaskStatus.id).where(
+                TaskStatus.project_id == project_id
+            )
+        )
+    ).all()
+    by_name = {name: status_id for name, status_id in rows}
+    # A case can only be waiting on its filer if answering moves it on.
+    if by_name.get(WAITING_ON_REQUESTER) and by_name.get(REQUESTER_REPLIED):
+        roles["awaiting_filer_status_id"] = by_name[WAITING_ON_REQUESTER]
+        roles["active_status_id"] = by_name[REQUESTER_REPLIED]
+    return roles
 
 
 async def bind(
@@ -234,6 +332,8 @@ async def bind(
     stream: IntakeStream,
     project_id: int,
     default_status_id: Optional[int] = None,
+    awaiting_filer_status_id: Optional[int] = None,
+    active_status_id: Optional[int] = None,
     enabled: bool = True,
 ) -> BindingView:
     """Route ``stream`` into ``project_id``, replacing any existing binding.
@@ -250,6 +350,8 @@ async def bind(
             project=project,
             project_id=project_id,
             default_status_id=default_status_id,
+            awaiting_filer_status_id=awaiting_filer_status_id,
+            active_status_id=active_status_id,
             enabled=enabled,
         )
         await routed.commit()
@@ -299,6 +401,10 @@ async def _view(
             initiative_name=None,
             default_status_id=None,
             default_status_name=None,
+            awaiting_filer_status_id=None,
+            active_status_id=None,
+            isolated=meta(stream).isolated,
+            shares_initiative=False,
             enabled=False,
             last_case_at=None,
         )
@@ -337,6 +443,15 @@ async def _view(
         initiative_name=initiative.name if initiative else None,
         default_status_id=binding.default_status_id,
         default_status_name=status_name,
+        awaiting_filer_status_id=binding.awaiting_filer_status_id,
+        active_status_id=binding.active_status_id,
+        isolated=meta(stream).isolated,
+        shares_initiative=bool(
+            initiative is not None
+            and await _isolation_conflicts(
+                session, stream=stream, initiative_id=int(initiative.id)
+            )
+        ),
         enabled=binding.enabled,
         last_case_at=last_case_at.isoformat() if last_case_at else None,
     )
@@ -412,6 +527,8 @@ async def provision_from_blueprint(
                 status_code=http_status.HTTP_404_NOT_FOUND,
                 detail=InitiativeMessages.NOT_FOUND,
             )
+        # Before the import, so a refused stream leaves no project behind.
+        await _ensure_isolation(routed, stream=stream, initiative_id=initiative_id)
 
         result = await import_project(
             routed,
@@ -426,6 +543,7 @@ async def provision_from_blueprint(
             project=project,
             project_id=result.project_id,
             default_status_id=None,
+            **await _blueprint_status_roles(routed, stream, result.project_id),
             enabled=True,
         )
         await routed.commit()

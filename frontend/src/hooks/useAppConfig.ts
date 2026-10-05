@@ -1,9 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 
-import {
-  getAppConfigApiV1ConfigGet,
-  getGetAppConfigApiV1ConfigGetQueryKey,
-} from "@/api/generated/config/config";
+import { getAppConfig, getGetAppConfigQueryKey } from "@/api/generated/config/config";
 import type { AppConfig } from "@/api/generated/initiativeAPI.schemas";
 import type { OptionalConsentCategory } from "@/lib/consent";
 
@@ -34,8 +31,8 @@ const CONFIG_STALE_MS = 5 * 60 * 1000;
 
 export const useAppConfig = () => {
   const query = useQuery<AppConfig>({
-    queryKey: getGetAppConfigApiV1ConfigGetQueryKey(),
-    queryFn: () => getAppConfigApiV1ConfigGet(),
+    queryKey: getGetAppConfigQueryKey(),
+    queryFn: () => getAppConfig(),
     staleTime: CONFIG_STALE_MS,
     gcTime: Infinity,
     retry: 1,
@@ -60,7 +57,7 @@ export const useAppConfig = () => {
      *  directory stays hidden unless the platform owner turned it on. */
     communityDirectoryEnabled: query.data?.community_directory_enabled ?? false,
     /** Whether this deployment asks an account to confirm it is 16 or older
-     *  before it joins a listed guild. True until the config loads, and true is
+     *  before it joins a listed community. True until the config loads, and true is
      *  also the default — the question is the safe thing to ask when we do not
      *  yet know, and the server refuses the join either way. */
     communityAgeGateEnabled: query.data?.community_age_gate_enabled ?? true,

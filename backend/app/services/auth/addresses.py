@@ -583,6 +583,32 @@ async def verify_for_user(
     return row
 
 
+async def proved_a_new_way_in(
+    session: AsyncSession, row: UserEmail | None, *, at: datetime
+) -> bool:
+    """Whether ``row`` was proved at ``at`` on an account that already had a
+    proved address.
+
+    A new way into the account, which it is told about wherever the proof
+    arrives: the emailed link, or a provider at sign-in, on the first assertion
+    or a later one. An account's first proved address is not news.
+    """
+    if row is None or row.verified_at != at:
+        return False
+    others = (
+        await session.exec(
+            select(func.count())
+            .select_from(UserEmail)
+            .where(
+                UserEmail.user_id == row.user_id,
+                UserEmail.id != row.id,
+                UserEmail.verified_at.is_not(None),
+            )
+        )
+    ).one()
+    return others > 0
+
+
 async def remove_for_user(
     session: AsyncSession, *, user_id: int, address_id: int
 ) -> UserEmail:
@@ -592,12 +618,20 @@ async def remove_for_user(
     verified address stays full stop — an account has to keep a way back in
     and a place to be written to.
     """
+    row = await removable(session, user_id=user_id, address_id=address_id)
+    await session.delete(row)
+    return row
+
+
+async def removable(
+    session: AsyncSession, *, user_id: int, address_id: int
+) -> UserEmail:
+    """The address :func:`remove_for_user` would remove, or ``AddressError``."""
     row = await _owned(session, user_id=user_id, address_id=address_id)
     if row.is_primary:
         raise AddressError(AddressMessages.PRIMARY_ADDRESS)
     if row.verified_at is not None and await _verified_count(session, user_id) <= 1:
         raise AddressError(AddressMessages.LAST_VERIFIED_ADDRESS)
-    await session.delete(row)
     return row
 
 
@@ -609,22 +643,39 @@ async def set_primary_for_user(
     Only to one this account has proved it holds: the primary is where a
     password reset lands, so moving it is a change of that destination.
     """
-    row = await _owned(session, user_id=user_id, address_id=address_id)
-    if row.verified_at is None:
-        raise AddressError(AddressMessages.ADDRESS_NOT_VERIFIED)
+    row = await primary_candidate(session, user_id=user_id, address_id=address_id)
     if row.is_primary:
         return row
     # One primary per account is a partial unique index, so two promotions
     # arriving together would both stand the old one down and then raise two.
     # The lock makes them take turns; the second reads the first's result.
     await _lock_addresses(session, user_id)
-    for other in await list_for_user(session, user_id=user_id):
-        if other.is_primary and other.id != row.id:
-            other.is_primary = False
-            session.add(other)
+    # Every primary row, the one minted for an account with no address of its
+    # own included, which the listing leaves out.
+    others = await session.exec(
+        select(UserEmail).where(
+            UserEmail.user_id == user_id,
+            UserEmail.is_primary.is_(True),
+            UserEmail.id != row.id,
+        )
+    )
+    for other in others.all():
+        other.is_primary = False
+        session.add(other)
     await session.flush()
     row.is_primary = True
     session.add(row)
+    return row
+
+
+async def primary_candidate(
+    session: AsyncSession, *, user_id: int, address_id: int
+) -> UserEmail:
+    """The address :func:`set_primary_for_user` would make primary, or
+    ``AddressError``."""
+    row = await _owned(session, user_id=user_id, address_id=address_id)
+    if row.verified_at is None:
+        raise AddressError(AddressMessages.ADDRESS_NOT_VERIFIED)
     return row
 
 

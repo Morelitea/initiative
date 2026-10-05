@@ -24,7 +24,7 @@ from app.db.authorization import (
     _highest_rung_case,
     standing_arg,
 )
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.platform.user import UserRole
 from app.models.tenant.initiative import InitiativeRoleModel
 from app.models.tenant.project import Project
@@ -105,7 +105,7 @@ async def _subject(session, acting_user, a, standing):
     """The account the standing belongs to, with what gives it that standing."""
     if standing == "member":
         b = await acting_user(
-            guild_role=GuildRole.member,
+            guild_role=CommunityRole.member,
             guild=a.guild,
             initiative=a.initiative,
             initiative_role="member",
@@ -113,14 +113,14 @@ async def _subject(session, acting_user, a, standing):
         return b.user
     if standing == "full_access":
         b = await acting_user(
-            guild_role=GuildRole.member,
+            guild_role=CommunityRole.member,
             guild=a.guild,
             initiative=a.initiative,
             initiative_role="moderator",
         )
         return b.user
     if standing == "admin":
-        b = await acting_user(guild_role=GuildRole.admin, guild=a.guild)
+        b = await acting_user(guild_role=CommunityRole.admin, guild=a.guild)
         return b.user
     support = await create_user(session, role=UserRole.support)
     await create_access_grant(
@@ -174,7 +174,9 @@ async def _apply_grant(session, a, shape, subject):
 async def test_the_level_the_gate_and_the_column_agree(
     session, acting_user, role_session, standing, shape
 ):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     if standing == "system":
         s = await role_session("app_admin")
         await route_system(s, guild_id=a.guild.id)
@@ -214,8 +216,10 @@ async def test_a_reader_outside_the_initiative_is_answered_by_the_policy(
 ):
     """The level is asked of a row the policy already admitted; a row the
     reader cannot reach never arrives to be asked about."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
-    outsider = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
+    outsider = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
     await _apply_grant(session, a, "user_owner", outsider.user)
 
     s = await role_session("app_user")

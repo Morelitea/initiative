@@ -1,8 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 
 import {
-  getGetLatestDockerhubVersionApiV1VersionLatestGetQueryKey,
-  getLatestDockerhubVersionApiV1VersionLatestGet,
+  getGetLatestDockerhubVersionQueryKey,
+  getLatestDockerhubVersion,
 } from "@/api/generated/version/version";
 
 /**
@@ -11,10 +11,10 @@ import {
  */
 export const useDockerHubVersion = () => {
   return useQuery<string | null>({
-    queryKey: getGetLatestDockerhubVersionApiV1VersionLatestGetQueryKey(),
+    queryKey: getGetLatestDockerhubVersionQueryKey(),
     queryFn: async () => {
       try {
-        const result = await getLatestDockerhubVersionApiV1VersionLatestGet();
+        const result = await getLatestDockerhubVersion();
         return result.version;
       } catch (error) {
         console.error("Failed to fetch DockerHub version:", error);

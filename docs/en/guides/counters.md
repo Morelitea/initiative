@@ -12,7 +12,7 @@ The reason this is a feature and not just a note in a document is that a number 
 
 Counters live in **groups**, because they almost always come in sets. One counter per table at a fundraiser. One per team. One per collection tin.
 
-Make one from an initiative's sidebar: **Counters → New counter group**, name it, then add counters to it.
+Make one from the initiative's **Counters** tab with **Create Counter Group**, name it, then add counters to it with **Add Counter**. In the list, each group's card shows its first few counters, so you can check the score without opening anything.
 
 ## What a counter can do
 
@@ -38,8 +38,9 @@ Counters take decimals, so a fundraising total in pounds and pence works as well
 ## Using them in the room
 
 - **Increment**, **decrement** and **reset** are one tap each.
-- **Reset all** does the whole group at once — the right button between sessions.
-- **Focus mode** blows one counter up to fill the screen, which is what you want when it's on a projector or a tablet propped up on the door.
+- **Reset All** does the whole group at once — the right button between sessions. It sits in the strip at the top of the group, with **Add Counter**, **Sort**, and the switch between rows and a grid.
+- **Duplicate**, in a counter's menu, makes another one with the same bounds and the same count, at the end of the group. For when the second team turns up.
+- **Focus mode** — **Open full screen** on a counter — blows it up to fill the screen, which is what you want when it's on a projector or a tablet propped up on the door.
 
 !!! tip "Focus mode is the one to remember"
     Counters are usually being read by people who aren't holding the device — which is to say, from the other end of a draughty hall, at an angle, by somebody who left their glasses in the car. Focus mode is for them.
@@ -53,11 +54,11 @@ Counters take decimals, so a fundraising total in pounds and pence works as well
 
 ## Sharing and comments
 
-Counter groups share like every other tool — **Viewer**, **Editor**, **Owner**, or everyone in the initiative — and can be bulk-edited from the list view. Each group has its own comment thread, switchable off under **Settings → Details**.
+Counter groups share like every other tool — **Viewer**, **Editor**, **Owner**, or everyone in the initiative — and take tags, comments, connections and copies the same way too. See [Tools](tools.md).
 
 ## Related
 
 - [Dashboards](dashboards.md) — putting counter values on a screen with everything else.
-- [Tools](tools.md) — the other optional tools.
+- [Tools](tools.md) — what every tool shares.
 - [Sharing projects & documents](../sharing/sharing-projects-and-documents.md) — access levels in full.
 - [Your space](your-space.md#my-tools) — every counter group that's reached you, from every community.

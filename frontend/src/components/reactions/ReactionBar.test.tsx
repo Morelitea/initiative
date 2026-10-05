@@ -4,7 +4,7 @@ import { HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
 
 import { buildReactionGroup } from "@/__tests__/factories/comment.factory";
-import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 import type { ReactionGroup, ReactionToggle } from "@/api/generated/initiativeAPI.schemas";
@@ -20,7 +20,7 @@ const PARTY = "🎉";
 const captureToggle = (reply: ReactionGroup[]) => {
   let received: ReactionToggle | null = null;
   server.use(
-    guildHttp.put("/reactions/:targetType/:targetId", async ({ request }) => {
+    communityHttp.put("/reactions/:targetType/:targetId", async ({ request }) => {
       received = (await request.json()) as ReactionToggle;
       return HttpResponse.json({
         target_type: "comment",
@@ -121,7 +121,7 @@ describe("ReactionBar", () => {
     expect(screen.queryByRole("button", { name: /react with 👍/i })).not.toBeInTheDocument();
   });
 
-  it("renders nothing at all in a read-only guild with no reactions yet", () => {
+  it("renders nothing at all in a read-only community with no reactions yet", () => {
     const { container } = renderBar([], { canReact: false });
     expect(container).toBeEmptyDOMElement();
   });

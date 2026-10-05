@@ -14,11 +14,11 @@ from fastapi import (
     status,
 )
 
-from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.db.session import routed_guild_id
 from app.api.actor_route import ActorRoute
 from app.api.deps import (
+    CommunityIdPath,
     ActorContext,
     ActorSessionDep,
     ActorUserDep,
@@ -28,7 +28,6 @@ from app.api.deps import (
     get_current_active_user,
     GuildContextDep,
 )
-from app.core.messages import CounterMessages
 from app.models.tenant.counter import (
     Counter,
     CounterGroup,
@@ -38,7 +37,6 @@ from app.models.platform.user import User
 from app.schemas.tenant.counter import (
     CounterCreate,
     CounterGroupCreate,
-    CounterGroupDuplicateRequest,
     CounterGroupRead,
     CounterGroupUpdate,
     CounterRead,
@@ -53,7 +51,7 @@ from app.schemas.tenant.tool import serialize_tool
 from app.services.tenant import properties as properties_service
 from app.services.tenant import attachments as attachments_service
 from app.services.tenant import counters as counters_service
-from app.api import resource_access
+from app.api import resource_access, tool_copy
 from app.core.tools import Tool
 from app.services.content_sockets import sockets
 from app.api.content_socket import serve_tool_stream
@@ -61,11 +59,10 @@ from app.api.content_socket import serve_tool_stream
 
 router = APIRouter(route_class=ActorRoute)
 
-#: A counter's own routes, mounted at the guild root: the read-back and the
-#: three count writes. An event envelope names ``(resource_type, id)`` and
-#: nothing else, so the counter has to be addressable by its own id — a nested
-#: path would need a parent the envelope never carries. Editing and removing a
-#: counter stay nested under its group, where the caller is working inside one.
+#: A counter by its own id, mounted at the guild root. An event envelope names
+#: ``(resource_type, id)`` and nothing else, so the counter has to be
+#: addressable by its own id — a nested path would need a parent the envelope
+#: never carries. Only adding one names its group.
 counters_router = APIRouter(route_class=ActorRoute)
 logger = logging.getLogger(__name__)
 
@@ -78,24 +75,6 @@ CounterGroupsWrite = Annotated[ActorContext, Depends(app_scope("counter_groups:w
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-
-async def _get_counter_for_group(
-    session: RLSSessionDep,
-    group_id: int,
-    counter_id: int,
-) -> Counter:
-    counter = await counters_service.get_counter(session, counter_id)
-    if (
-        not counter
-        or counter.counter_group_id != group_id
-        or counter.deleted_at is not None
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=CounterMessages.NOT_FOUND,
-        )
-    return counter
 
 
 async def _refetch_group(session: RLSSessionDep, group_id: int) -> CounterGroup:
@@ -173,66 +152,6 @@ async def create_counter_group(
         CounterGroupRead,
         hydrated,
         user_id=guild_context.user_id,
-        context=guild_context,
-    )
-
-
-@router.post(
-    "/{group_id}/duplicate",
-    response_model=CounterGroupRead,
-    status_code=status.HTTP_201_CREATED,
-)
-async def duplicate_counter_group(
-    group_id: int,
-    payload: CounterGroupDuplicateRequest,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> CounterGroupRead:
-    source = await resource_access.load_authorized(
-        session,
-        Tool.counter_group,
-        group_id,
-        current_user,
-        guild_context,
-        access="write",
-    )
-    await resource_access.prepare_create(
-        session, Tool.counter_group, source.initiative_id, current_user, guild_context
-    )
-
-    new_group = CounterGroup(
-        initiative_id=source.initiative_id,
-        created_by=current_user.id,
-        name=(
-            payload.name.strip()
-            if payload.name and payload.name.strip()
-            else f"{source.name} (Copy)"
-        ),
-        description=source.description,
-    )
-    session.add(new_group)
-    await session.flush()
-    await resource_access.grant_initial_sharing(
-        session,
-        guild_context,
-        Tool.counter_group,
-        user=current_user,
-        resource_id=new_group.id,
-        initiative_id=new_group.initiative_id,
-        payload=payload,
-        grants=resource_access.duplicate_sharing(
-            source, initiative_id=source.initiative_id
-        ),
-    )
-    await counters_service.copy_counters(session, source, new_group)
-    await session.commit()
-
-    hydrated = await _refetch_group(session, new_group.id)
-    return serialize_tool(
-        CounterGroupRead,
-        hydrated,
-        user_id=current_user.id,
         context=guild_context,
     )
 
@@ -330,13 +249,7 @@ async def add_counter(
     await properties_service.write_on_create(session, counter, counter_in.properties)
     await session.commit()
 
-    hydrated = await counters_service.get_counter(
-        session, counter.id, populate_existing=True
-    )
-    if not hydrated:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=CounterMessages.NOT_FOUND
-        )
+    hydrated = await resource_access.reload_child(session, Counter, counter.id)
     result = serialize_counter(hydrated, context=guild_context)
     sockets.signal(
         routed_guild_id(session), Tool.counter_group, group_id, "counter_added"
@@ -344,34 +257,19 @@ async def add_counter(
     return result
 
 
-@router.patch("/{group_id}/counters/{counter_id}", response_model=CounterRead)
+@counters_router.patch("/counters/{counter_id}", response_model=CounterRead)
 async def update_counter(
-    group_id: int,
     counter_id: int,
     counter_in: CounterUpdate,
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> CounterRead:
-    await resource_access.load_authorized(
-        session,
-        Tool.counter_group,
-        group_id,
-        current_user,
-        guild_context,
-        access="write",
+    counter = await resource_access.load_child(
+        session, Counter, counter_id, access="write"
     )
-    counter = await _get_counter_for_group(session, group_id, counter_id)
 
     update_data = counter_in.model_dump(exclude_unset=True)
-
-    # Drop explicit nulls for NOT NULL columns — a null is meaningless on PATCH
-    # for these (only min/max are nullable). This keeps a `{"step": null}`
-    # payload from reaching the constraint check (None <= 0 → TypeError → 500)
-    # or a DB NOT NULL violation, treating it as "field not provided".
-    for field in ("name", "step", "initial_count", "view_mode", "position"):
-        if field in update_data and update_data[field] is None:
-            del update_data[field]
 
     # Compute the prospective new state
     new_min: Optional[Decimal] = (
@@ -427,25 +325,21 @@ async def update_counter(
         session.add(counter)
         await session.commit()
 
-    hydrated = await counters_service.get_counter(
-        session, counter.id, populate_existing=True
-    )
-    if not hydrated:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=CounterMessages.NOT_FOUND
-        )
+    hydrated = await resource_access.reload_child(session, Counter, counter.id)
     result = serialize_counter(hydrated, context=guild_context)
     sockets.signal(
-        routed_guild_id(session), Tool.counter_group, group_id, "counter_updated"
+        routed_guild_id(session),
+        Tool.counter_group,
+        counter.counter_group_id,
+        "counter_updated",
     )
     return result
 
 
-@router.delete(
-    "/{group_id}/counters/{counter_id}", status_code=status.HTTP_204_NO_CONTENT
+@counters_router.delete(
+    "/counters/{counter_id}", status_code=status.HTTP_204_NO_CONTENT
 )
 async def delete_counter(
-    group_id: int,
     counter_id: int,
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
@@ -453,15 +347,9 @@ async def delete_counter(
 ) -> None:
     from app.services.tenant.soft_delete import trash
 
-    await resource_access.load_authorized(
-        session,
-        Tool.counter_group,
-        group_id,
-        current_user,
-        guild_context,
-        access="write",
+    counter = await resource_access.load_child(
+        session, Counter, counter_id, access="write"
     )
-    counter = await _get_counter_for_group(session, group_id, counter_id)
     await trash(
         session,
         counter,
@@ -469,7 +357,10 @@ async def delete_counter(
     )
     await session.commit()
     sockets.signal(
-        routed_guild_id(session), Tool.counter_group, group_id, "counter_removed"
+        routed_guild_id(session),
+        Tool.counter_group,
+        counter.counter_group_id,
+        "counter_removed",
     )
 
 
@@ -486,13 +377,7 @@ async def _commit_and_broadcast_count(
     context: ActorContext,
 ) -> CounterRead:
     await session.commit()
-    hydrated = await counters_service.get_counter(
-        session, counter.id, populate_existing=True
-    )
-    if not hydrated:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=CounterMessages.NOT_FOUND
-        )
+    hydrated = await resource_access.reload_child(session, Counter, counter.id)
     result = serialize_counter(hydrated, context=context)
     sockets.signal(
         routed_guild_id(session), Tool.counter_group, group_id, "count_changed"
@@ -515,46 +400,43 @@ async def read_counter(
     mismatch — and no hand-written deleted check to contradict the request,
     which is what a read-back after a delete depends on.
     """
-    counter = await counters_service.get_counter(session, counter_id)
-    if not counter:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=CounterMessages.NOT_FOUND
-        )
-    await resource_access.load_authorized(
-        session,
-        Tool.counter_group,
-        counter.counter_group_id,
-        current_user,
-        guild_context,
-        access="read",
-    )
+    counter = await resource_access.load_child(session, Counter, counter_id)
     return serialize_counter(counter, context=guild_context)
 
 
-async def _writable_counter(
-    session: AsyncSession,
+@counters_router.post(
+    "/counters/{counter_id}/duplicate",
+    response_model=CounterRead,
+    status_code=status.HTTP_201_CREATED,
+)
+async def duplicate_counter(
     counter_id: int,
-    current_user: User | None,
-    guild_context: ActorContext,
-) -> Counter:
-    """A live counter the caller may write, addressed by its own id.
-
-    Authorized on the group it belongs to, as reading it is.
-    """
-    counter = await counters_service.get_counter(session, counter_id)
-    if counter is None or counter.deleted_at is not None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=CounterMessages.NOT_FOUND
-        )
-    await resource_access.load_authorized(
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: CounterGroupsWrite,
+) -> CounterRead:
+    """Copy the counter to the end of its group as "<name> (Copy)", with its
+    count, tags and properties."""
+    counter = await resource_access.load_child(
+        session, Counter, counter_id, access="write"
+    )
+    copy = await tool_copy.duplicate_child(
         session,
+        counter,
+        position=await counters_service.next_position(
+            session, counter.counter_group_id
+        ),
+    )
+    await session.commit()
+    hydrated = await resource_access.reload_child(session, Counter, copy.id)
+    result = serialize_counter(hydrated, context=guild_context)
+    sockets.signal(
+        routed_guild_id(session),
         Tool.counter_group,
         counter.counter_group_id,
-        current_user,
-        guild_context,
-        access="write",
+        "counter_added",
     )
-    return counter
+    return result
 
 
 @counters_router.post("/counters/{counter_id}/set", response_model=CounterRead)
@@ -566,7 +448,9 @@ async def set_counter_count(
     guild_context: CounterGroupsWrite,
 ) -> CounterRead:
     """Put a counter at a number, held within its bounds."""
-    counter = await _writable_counter(session, counter_id, current_user, guild_context)
+    counter = await resource_access.load_child(
+        session, Counter, counter_id, access="write"
+    )
     await counters_service.set_count(session, counter, payload.count)
     return await _commit_and_broadcast_count(
         session, counter.counter_group_id, counter, context=guild_context
@@ -583,7 +467,9 @@ async def step_counter(
 ) -> CounterRead:
     """Move a counter up or down, by ``amount`` or by its own step, held within
     its bounds. Two steps landing together each count."""
-    counter = await _writable_counter(session, counter_id, current_user, guild_context)
+    counter = await resource_access.load_child(
+        session, Counter, counter_id, access="write"
+    )
     await counters_service.step_counter(
         session, counter.id, up=payload.direction == "up", amount=payload.amount
     )
@@ -600,7 +486,9 @@ async def reset_counter(
     guild_context: CounterGroupsWrite,
 ) -> CounterRead:
     """Put a counter back to the value it starts from."""
-    counter = await _writable_counter(session, counter_id, current_user, guild_context)
+    counter = await resource_access.load_child(
+        session, Counter, counter_id, access="write"
+    )
     await counters_service.reset_counter(session, counter)
     return await _commit_and_broadcast_count(
         session, counter.counter_group_id, counter, context=guild_context
@@ -702,7 +590,7 @@ async def read_after_write(
 
 @router.websocket("/{group_id}/ws")
 async def websocket_counter_group(
-    websocket: WebSocket, guild_id: int, group_id: int
+    websocket: WebSocket, guild_id: CommunityIdPath, group_id: int
 ) -> None:
     """Change signals for one counter group: ``{type, id, timestamp}`` frames and a
     heartbeat. The client refetches on each; see ``serve_tool_stream``."""

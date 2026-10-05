@@ -79,7 +79,6 @@ async def test_registration_seeds_the_row(client, session):
         json={
             "email": "dm-seed@example.com",
             "password": "correct horse battery staple",
-            "full_name": "Seed Tester",
             "username": "seedtester",
         },
     )

@@ -297,7 +297,7 @@ def query_sessionmaker(guild_id: int) -> async_sessionmaker[AsyncSession]:
 
 def addressed_guild_id(path_params: Mapping[str, Any]) -> int | None:
     """The community a request's path addresses, if it addresses one."""
-    raw = path_params.get("guild_id")
+    raw = path_params.get("community_id")
     if raw is None:
         return None
     try:

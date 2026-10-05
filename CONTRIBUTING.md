@@ -261,6 +261,19 @@ npx cap open ios
 
 In the Android emulator the local backend is available at `http://10.0.0.2:8000`.
 
+## Desktop App Development
+
+The desktop app is the same build running in Electron, through the [Capawesome Electron platform](https://github.com/capawesome-team/capacitor-electron). Its project lives in `frontend/electron/` and installs on its own, so installing the frontend never downloads Electron.
+
+```bash
+cd frontend
+pnpm cap:desktop
+```
+
+That builds the web app, installs the Electron project, builds the app's own plugins (`frontend/electron/plugins/`), syncs and opens the app. It signs in like the phone app; a local backend is at `http://localhost:8000`.
+
+After that, `pnpm --dir electron run build:installer` builds the installer for the computer you are on into `frontend/electron/dist/`. Releases build all three (Windows, macOS, Debian) in `.github/workflows/desktop-app.yml`, which also runs on pull requests that change `frontend/electron/`.
+
 ## Reporting Issues
 
 Use the [issue templates](https://github.com/Morelitea/initiative/issues/new/choose) to file bug reports or feature requests.

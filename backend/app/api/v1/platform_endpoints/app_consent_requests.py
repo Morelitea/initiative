@@ -17,7 +17,7 @@ answer here, or from the token endpoint (``consent_required``).
 
 from typing import Annotated, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 
 from app.api.deps import (
     InstallAccessError,
@@ -26,12 +26,8 @@ from app.api.deps import (
     establish_install_access,
     oauth2_scheme,
 )
-from app.core.app_access_token import (
-    AccessTokenError,
-    InstallAccessToken,
-    is_access_token,
-    unseal_access_token,
-)
+from app.core.app_access_token import InstallAccessToken
+from app.core.identify import bearer_app_token
 from app.core.messages import AppMessages, AuthMessages
 from app.core.rate_limit import (
     CONSENT_REQUESTS_PER_INSTALL,
@@ -69,15 +65,10 @@ def _limited() -> HTTPException:
     )
 
 
-def _installation_token(bearer: Optional[str]) -> InstallAccessToken:
+def _installation_token(request: Request) -> InstallAccessToken:
     """The installation token this request carries, or 401. A member token
     acts for somebody and asks nobody. Reads nothing from the database."""
-    if not bearer or not is_access_token(bearer):
-        raise _refuse()
-    try:
-        token = unseal_access_token(bearer)
-    except AccessTokenError as exc:
-        raise _refuse() from exc
+    token = bearer_app_token(request)
     if not isinstance(token, InstallAccessToken) or token.user_id is not None:
         raise _refuse()
     return token
@@ -90,9 +81,11 @@ def _installation_token(bearer: Optional[str]) -> InstallAccessToken:
     responses={200: {"model": AppConsentRequestRead}},
 )
 async def request_member_consent(
+    request: Request,
     response: Response,
     payload: AppConsentRequestCreate,
     session: SessionDep,
+    # Declares the scheme for the API description; read by ``bearer_app_token``.
     bearer: Annotated[Optional[str], Depends(oauth2_scheme)] = None,
 ) -> AppConsentRequestRead:
     """Ask a member to let this app act as them, for one purpose.
@@ -105,7 +98,7 @@ async def request_member_consent(
     Limited per install (30 a minute, repeats included) and per install and
     member (5 new requests an hour); past either the answer is 429.
     """
-    token = _installation_token(bearer)
+    token = _installation_token(request)
     try:
         context = await establish_install_access(
             session,

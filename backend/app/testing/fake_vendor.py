@@ -8,7 +8,8 @@ the host it names.
 
 The vendor side is an OAuth 2.0 authorization server with PKCE, refresh,
 revocation and a GitHub-style installation token exchange, and signs the
-webhooks it sends. The app side answers the hooks.
+webhooks it sends. Its API at ``api_host`` answers a declarative app's calls
+from recorded answers, in order. The app side answers the hooks.
 """
 
 from __future__ import annotations
@@ -29,9 +30,239 @@ import httpx
 from app.services import safe_http
 from app.services.webhook_target_url import ValidatedTarget
 
-__all__ = ["FakeVendor"]
+__all__ = ["FakeVendor", "declarative_app", "declarative_github"]
 
 VENDOR_HOST = "github.test"
+API_HOST = "api.github.test"
+
+
+def declarative_app(public_id: str) -> dict[str, Any]:
+    """A declarative app calling this vendor's API on a community connection:
+    a read of a repository's issues and a write that labels one."""
+    api = f'"https://{API_HOST}/repos/" & params.repo'
+    return {
+        "app_kind": "service",
+        "features": ["endpoints"],
+        "hosts": [API_HOST],
+        "vendor": {
+            "fields": [
+                {
+                    "key": "client_id",
+                    "type": "string",
+                    "required": True,
+                    "label": {"en": "Client id"},
+                }
+            ]
+        },
+        "connections": [
+            {
+                "id": "workspace",
+                "scope": "static",
+                "label": {"en": "Workspace"},
+                "fields": [],
+                "flow": {
+                    "type": "oauth2",
+                    "authorize_url": f"https://{VENDOR_HOST}/login/oauth/authorize",
+                    "token_url": f"https://{VENDOR_HOST}/login/oauth/access_token",
+                    "client_id": "{vendor.client_id}",
+                },
+            }
+        ],
+        "endpoints": [
+            {
+                "id": f"app.{public_id}.issues",
+                "direction": "read",
+                "public": True,
+                "actors": ["installation"],
+                "cache_ttl_seconds": 60,
+                "params": [
+                    {"key": "repo", "type": "string", "label": {"en": "Repository"}}
+                ],
+                "returns": [
+                    {"key": "titles", "type": "string", "list": True},
+                    {"key": "total", "type": "int"},
+                    {"key": "unavailable", "type": "string"},
+                ],
+                "request": {
+                    "method": "GET",
+                    "url": f'{api} & "/issues"',
+                    "connection": "workspace",
+                },
+                "map": '{"titles": response.body.title[], "total": $count(response.body)}',
+            },
+            {
+                "id": f"app.{public_id}.label",
+                "direction": "write",
+                "public": True,
+                "actors": ["installation"],
+                "params": [
+                    {"key": "repo", "type": "string", "label": {"en": "Repository"}},
+                    {"key": "number", "type": "int", "label": {"en": "Issue"}},
+                ],
+                "returns": [{"key": "number", "type": "int"}],
+                "unavailable": ["locked"],
+                "request": {
+                    "method": "PUT",
+                    "url": f'{api} & "/issues/" & params.number & "/labels"',
+                    "body": '{"labels": ["bug"]}',
+                    "connection": "workspace",
+                },
+                "map": '{"number": response.body.number}',
+                "errors": [
+                    {
+                        "status": 422,
+                        "when": 'response.body.message = "locked"',
+                        "code": "locked",
+                    }
+                ],
+            },
+        ],
+    }
+
+
+def declarative_github(public_id: str) -> dict[str, Any]:
+    """:func:`declarative_app` as GitHub's is: its community connection is an
+    installation, found among the person's own by ``after_connect`` and
+    checked by ``health``, and the vendor's deliveries become its
+    ``issue-opened`` event and the installation's state."""
+    app = declarative_app(public_id)
+    issue_opened = f"app.{public_id}.issue-opened"
+    app["vendor"] = {
+        "fields": [
+            {"key": key, "type": "string", "required": True, "label": {"en": key}}
+            for key in (
+                "client_id",
+                "client_secret",
+                "app_slug",
+                "app_id",
+                "private_key",
+                "webhook_secret",
+            )
+        ]
+    }
+    app["connections"] = [
+        {
+            "id": "workspace",
+            "scope": "static",
+            "label": {"en": "Organization"},
+            "fields": [
+                {"key": key, "type": "string", "label": {"en": key}, "managed": True}
+                for key in ("owner", "installation_id")
+            ],
+            "flow": {
+                "type": "oauth2",
+                "authorize_url": f"https://{VENDOR_HOST}/login/oauth/authorize",
+                "token_url": f"https://{VENDOR_HOST}/login/oauth/access_token",
+                "client_id": "{vendor.client_id}",
+                "client_secret": "{vendor.client_secret}",
+                "install_url": (
+                    f"https://{VENDOR_HOST}/apps/{{vendor.app_slug}}/installations/new"
+                ),
+                "after_connect": {
+                    "request": {
+                        "method": "GET",
+                        "url": f'"https://{API_HOST}/user/installations"',
+                        "paging": {
+                            "kind": "page_number",
+                            "page_param": "page",
+                            "per_page_param": "per_page",
+                            "per_page": 2,
+                            "items": "response.body.installations",
+                            "max_pages": 5,
+                            "on_limit": "refuse",
+                        },
+                    },
+                    "map": (
+                        "($i := response.body[$string(id) = $$.params.installation_id][0];"
+                        ' {"values": {"owner": $i.account.login,'
+                        ' "installation_id": $string($i.id)},'
+                        ' "account_label": $i.account.login})'
+                    ),
+                    "refuse_when": "$not($exists(result.values.installation_id))",
+                    "code": "not-your-installation",
+                },
+            },
+            "token": {
+                "type": "jwt_bearer",
+                "exchange_url": (
+                    f"https://{VENDOR_HOST}/app/installations/"
+                    "{installation_id}/access_tokens"
+                ),
+                "iss": "{vendor.app_id}",
+                "key": "{vendor.private_key}",
+            },
+            "health": {
+                "request": {
+                    "method": "GET",
+                    "url": f'"https://{API_HOST}/installation/repositories"',
+                },
+                "every": "15m",
+                "states": [
+                    {"status": 404, "state": "removed"},
+                    {"status": 403, "state": "suspended"},
+                ],
+            },
+        }
+    ]
+    app["endpoints"].append(
+        {
+            "id": issue_opened,
+            "direction": "emit",
+            "label": {"en": "Issue opened"},
+            "returns": [
+                {"key": "repository", "type": "string"},
+                {"key": "number", "type": "int"},
+                {"key": "title", "type": "string"},
+            ],
+        }
+    )
+    installation = 'headers."x-github-event" = "installation" and payload.action = '
+    app["webhooks"] = {
+        "verify": {
+            "scheme": "hmac_sha256",
+            "header": "X-Hub-Signature-256",
+            "prefix": "sha256=",
+            "encoding": "hex",
+            "secret": "{vendor.webhook_secret}",
+        },
+        "dedup": "X-GitHub-Delivery",
+        "route": {
+            "path": "installation.id",
+            "connection": "workspace",
+            "field": "installation_id",
+        },
+        "events": [
+            {
+                "when": (
+                    'headers."x-github-event" = "issues" and payload.action = "opened"'
+                    " and $not($exists(payload.issue.pull_request))"
+                ),
+                "emit": issue_opened,
+                "map": (
+                    '{"repository": payload.repository.full_name,'
+                    ' "number": payload.issue.number, "title": payload.issue.title}'
+                ),
+            }
+        ],
+        "status": [
+            {
+                "when": f'{installation}"deleted"',
+                "connection": "workspace",
+                "state": "removed",
+            },
+            {
+                "when": f'{installation}"suspend"',
+                "connection": "workspace",
+                "state": "suspended",
+            },
+            {
+                "when": f'{installation}"unsuspend"',
+                "connection": "workspace",
+                "state": "ok",
+            },
+        ],
+    }
+    return app
 
 
 def _challenge(verifier: str) -> str:
@@ -58,13 +289,25 @@ class FakeVendor:
     hook_status: int = 200
     #: The status the vendor's revocation endpoint answers with.
     revoke_status: int = 200
+    #: The status GitHub's grant deletion answers with.
+    grant_status: int = 204
     #: What the vendor signs its webhooks with.
     webhook_secret: str = "webhook-secret-789"
+    #: Where its API answers, and what it answers, in order: each a recorded
+    #: answer's ``status`` (200 when left out), ``headers`` and JSON ``body``.
+    api_host: str = API_HOST
+    api_answers: list[dict[str, Any]] = field(default_factory=list)
+    #: Each API request: its method, address, headers and JSON body.
+    api_requests: list[dict[str, Any]] = field(default_factory=list)
 
     codes: dict[str, str] = field(default_factory=dict)
     token_requests: list[dict[str, str]] = field(default_factory=list)
     refreshes: int = 0
     revocations: list[dict[str, str]] = field(default_factory=list)
+    #: Access tokens the grant deletion no longer accepts (answered 404).
+    lapsed_tokens: set[str] = field(default_factory=set)
+    #: Each grant deletion: its method, path, Authorization header and body.
+    grant_deletions: list[tuple[str, str, str, Any]] = field(default_factory=list)
     hooks: list[tuple[str, dict[str, Any], str]] = field(default_factory=list)
     exchanges: list[str] = field(default_factory=list)
     _serial: Any = field(default_factory=lambda: itertools.count(1))
@@ -114,12 +357,27 @@ class FakeVendor:
     def handle(self, request: httpx.Request) -> httpx.Response:
         host = request.headers.get("host", "")
         path = request.url.path
+        if host == self.api_host:
+            return self._api(request, host)
         if host == VENDOR_HOST:
             if path == "/login/oauth/access_token":
                 return self._token(request)
             if path == "/revoke":
                 self.revocations.append(dict(parse_qsl(request.content.decode())))
                 return httpx.Response(self.revoke_status)
+            if path.startswith("/applications/") and path.endswith("/grant"):
+                body = json.loads(request.content or b"null")
+                self.grant_deletions.append(
+                    (
+                        request.method,
+                        path,
+                        request.headers.get("authorization", ""),
+                        body,
+                    )
+                )
+                if (body or {}).get("access_token") in self.lapsed_tokens:
+                    return httpx.Response(404)
+                return httpx.Response(self.grant_status)
             if path.startswith("/app/installations/"):
                 return self._exchange(request)
             return httpx.Response(404)
@@ -138,6 +396,26 @@ class FakeVendor:
                 return httpx.Response(204)
             return httpx.Response(200, json=self.after_connect_answer)
         return httpx.Response(404)
+
+    def _api(self, request: httpx.Request, host: str) -> httpx.Response:
+        self.api_requests.append(
+            {
+                "method": request.method,
+                "url": f"https://{host}{request.url.raw_path.decode('ascii')}",
+                "headers": dict(request.headers),
+                "body": json.loads(request.content) if request.content else None,
+            }
+        )
+        answer = self.api_answers.pop(0)
+        if "body" not in answer:
+            return httpx.Response(
+                answer.get("status", 200), headers=answer.get("headers")
+            )
+        return httpx.Response(
+            answer.get("status", 200),
+            headers=answer.get("headers"),
+            json=answer["body"],
+        )
 
     def _issue(self) -> dict[str, Any]:
         serial = next(self._serial)

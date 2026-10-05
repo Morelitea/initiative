@@ -4,7 +4,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Optional
 
-from pydantic import ConfigDict
+from pydantic import AliasChoices, ConfigDict, Field
 
 from app.core.tools import TRASH_TARGETS
 from app.schemas.base import SanitizedBaseModel
@@ -28,7 +28,7 @@ class TrashItem(SanitizedBaseModel):
     # The guild the entity lives in. Within a single guild's trash this is
     # constant, but the cross-guild ``/me/trash`` view merges several guilds,
     # so the client needs it to address restore/purge (which are guild-scoped).
-    guild_id: int
+    community_id: int = Field(validation_alias=AliasChoices("community_id", "guild_id"))
     name: str
     deleted_at: datetime
     deleted_by_id: Optional[int] = None

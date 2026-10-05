@@ -17,11 +17,13 @@
 import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type {
-  IntakeBindingRead,
-  IntakeInitiativeOption,
-  IntakeSettingsRead,
-  IntakeStream,
+import {
+  Conversation,
+  type IntakeBindingRead,
+  type IntakeBindingUpsert,
+  type IntakeInitiativeOption,
+  type IntakeSettingsRead,
+  type IntakeStream,
 } from "@/api/generated/initiativeAPI.schemas";
 import { AsyncCombobox } from "@/components/ui/async-combobox";
 import { Badge } from "@/components/ui/badge";
@@ -46,13 +48,13 @@ import {
   useIntakeSettings,
   useUpdateIntakeGeneralContact,
   useUpdateIntakeStreamContact,
-  useUpdateOperationsGuild,
+  useUpdateOperationsCommunity,
   useUpsertIntakeBinding,
 } from "@/hooks/useIntakeSettings";
-import { usePlatformGuilds } from "@/hooks/useSettings";
-import { toast } from "@/lib/chesterToast";
+import { usePlatformCommunities } from "@/hooks/useSettings";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { formatDateTime } from "@/lib/formatDate";
+import { toast } from "@/lib/mascotToast";
 import { Capability, hasCapability } from "@/lib/permissions";
 
 /** Sentinel for "no community", which a Select cannot express with "". */
@@ -78,10 +80,10 @@ export const SettingsIntakePage = () => {
   } = useIntakeOptions({ enabled: isOwner });
   // Searched on the server while the picker is open, rather than every
   // community on the deployment loaded up front.
-  const [guildSearch, setGuildSearch] = useState("");
+  const [communitySearch, setCommunitySearch] = useState("");
   const [pickerOpen, setPickerOpen] = useState(false);
-  const guildsQuery = usePlatformGuilds(
-    { search: guildSearch || undefined, sort_by: "name", page_size: 25 },
+  const communitiesQuery = usePlatformCommunities(
+    { search: communitySearch || undefined, sort_by: "name", page_size: 25 },
     { enabled: isOwner && pickerOpen }
   );
 
@@ -92,8 +94,8 @@ export const SettingsIntakePage = () => {
 
   const [clearing, setClearing] = useState(false);
 
-  const updateGuild = useUpdateOperationsGuild({
-    onError: (err) => toast.error(getErrorMessage(err, "intake:guild.saveError")),
+  const updateCommunity = useUpdateOperationsCommunity({
+    onError: (err) => toast.error(getErrorMessage(err, "intake:community.saveError")),
   });
 
   if (!isOwner) {
@@ -105,7 +107,7 @@ export const SettingsIntakePage = () => {
   // current value is known.
   if (failed) {
     return (
-      <Card className="shadow-sm">
+      <Card>
         <CardHeader>
           <CardTitle>{t("loadFailed.title")}</CardTitle>
           <CardDescription>{t("loadFailed.description")}</CardDescription>
@@ -125,38 +127,40 @@ export const SettingsIntakePage = () => {
     );
   }
 
-  const boundGuildId = settings?.operations_guild_id ?? null;
+  const boundCommunityId = settings?.operations_community_id ?? null;
 
   return (
     <div className="space-y-6">
       {settings ? <ContactsCard settings={settings} settled={settled} /> : null}
 
-      <Card className="shadow-sm">
+      <Card>
         <CardHeader>
-          <CardTitle>{t("guild.title")}</CardTitle>
-          <CardDescription>{t("guild.description")}</CardDescription>
+          <CardTitle>{t("community.title")}</CardTitle>
+          <CardDescription>{t("community.description")}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          <Label>{t("guild.label")}</Label>
+          <Label>{t("community.label")}</Label>
           <AsyncCombobox
             className="max-w-md"
-            aria-label={t("guild.label")}
-            value={boundGuildId === null ? NONE : String(boundGuildId)}
+            aria-label={t("community.label")}
+            value={boundCommunityId === null ? NONE : String(boundCommunityId)}
             selectedLabel={
-              boundGuildId === null ? t("guild.none") : (settings?.operations_guild_name ?? null)
+              boundCommunityId === null
+                ? t("community.none")
+                : (settings?.operations_community_name ?? null)
             }
             items={[
-              { value: NONE, label: t("guild.none") },
-              ...(guildsQuery.data?.items ?? []).map((guild) => ({
-                value: String(guild.id),
-                label: guild.name,
+              { value: NONE, label: t("community.none") },
+              ...(communitiesQuery.data?.items ?? []).map((community) => ({
+                value: String(community.id),
+                label: community.name,
               })),
             ]}
-            onSearchChange={setGuildSearch}
+            onSearchChange={setCommunitySearch}
             onOpenChange={setPickerOpen}
-            loading={guildsQuery.isFetching}
-            placeholder={t("guild.placeholder")}
-            disabled={isLoading || !settled || updateGuild.isPending}
+            loading={communitiesQuery.isFetching}
+            placeholder={t("community.placeholder")}
+            disabled={isLoading || !settled || updateCommunity.isPending}
             onValueChange={(value) => {
               // Clearing it stops every stream at once, so it is confirmed;
               // choosing a different one is an ordinary change.
@@ -164,15 +168,15 @@ export const SettingsIntakePage = () => {
                 setClearing(true);
                 return;
               }
-              updateGuild.mutate({ guild_id: Number(value) });
+              updateCommunity.mutate({ community_id: Number(value) });
             }}
           />
-          <p className="text-muted-foreground text-sm">{t("guild.helpText")}</p>
+          <p className="text-muted-foreground text-sm">{t("community.helpText")}</p>
         </CardContent>
       </Card>
 
-      {boundGuildId === null ? (
-        <p className="text-muted-foreground text-sm">{t("streams.chooseGuildFirst")}</p>
+      {boundCommunityId === null ? (
+        <p className="text-muted-foreground text-sm">{t("streams.chooseCommunityFirst")}</p>
       ) : (
         <div className="space-y-4">
           {(settings?.bindings ?? []).map((binding) => (
@@ -189,10 +193,10 @@ export const SettingsIntakePage = () => {
       <ConfirmDialog
         open={clearing}
         onOpenChange={setClearing}
-        title={t("guild.clearTitle")}
-        description={t("guild.clearBody")}
-        confirmLabel={t("guild.clearConfirm")}
-        onConfirm={() => updateGuild.mutate({ guild_id: null })}
+        title={t("community.clearTitle")}
+        description={t("community.clearBody")}
+        confirmLabel={t("community.clearConfirm")}
+        onConfirm={() => updateCommunity.mutate({ community_id: null })}
       />
     </div>
   );
@@ -254,7 +258,7 @@ const ContactsCard = ({
   };
 
   return (
-    <Card className="shadow-sm">
+    <Card>
       <CardHeader>
         <CardTitle>{t("contacts.title")}</CardTitle>
         <CardDescription>{t("contacts.description")}</CardDescription>
@@ -345,13 +349,29 @@ const StreamCard = ({ binding, initiatives, settled }: StreamCardProps) => {
 
   const busy = !settled || importBlueprint.isPending || upsert.isPending || remove.isPending;
 
+  // A PUT replaces the whole binding, so each change carries the rest of it.
+  const save = (changes: Partial<IntakeBindingUpsert>) =>
+    upsert.mutate({
+      stream,
+      body: {
+        project_id: binding.project_id as number,
+        default_status_id: binding.default_status_id ?? null,
+        awaiting_filer_status_id: binding.awaiting_filer_status_id ?? null,
+        active_status_id: binding.active_status_id ?? null,
+        enabled: binding.enabled,
+        ...changes,
+      },
+    });
+  const statusOption = (id: number | null | undefined) => (id ? String(id) : NONE);
+  const statusValue = (value: string) => (value === NONE ? null : Number(value));
+
   // Each stream's card is a landmark named by its own title, so a screen
   // reader announces which stream a control belongs to rather than reading
   // four identical sets of pickers.
   const titleId = `intake-stream-${stream}`;
 
   return (
-    <Card className="shadow-sm" role="region" aria-labelledby={titleId}>
+    <Card role="region" aria-labelledby={titleId}>
       <CardHeader>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
@@ -470,16 +490,7 @@ const StreamCard = ({ binding, initiatives, settled }: StreamCardProps) => {
               <Select
                 value={binding.default_status_id ? String(binding.default_status_id) : NONE}
                 disabled={busy || statuses.length === 0}
-                onValueChange={(value) =>
-                  upsert.mutate({
-                    stream,
-                    body: {
-                      project_id: binding.project_id as number,
-                      default_status_id: value === NONE ? null : Number(value),
-                      enabled: binding.enabled,
-                    },
-                  })
-                }
+                onValueChange={(value) => save({ default_status_id: statusValue(value) })}
               >
                 <SelectTrigger id={`status-${stream}`} className="max-w-xs">
                   <SelectValue />
@@ -495,21 +506,72 @@ const StreamCard = ({ binding, initiatives, settled }: StreamCardProps) => {
               </Select>
             </div>
 
+            {binding.conversation && binding.conversation !== Conversation.none ? (
+              <div className="space-y-3">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor={`awaiting-${stream}`}>{t("stream.awaitingLabel")}</Label>
+                    <Select
+                      value={statusOption(binding.awaiting_filer_status_id)}
+                      disabled={busy || statuses.length === 0}
+                      onValueChange={(value) =>
+                        save({ awaiting_filer_status_id: statusValue(value) })
+                      }
+                    >
+                      <SelectTrigger id={`awaiting-${stream}`}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={NONE}>{t("stream.noStatusRole")}</SelectItem>
+                        {statuses.map((status) => (
+                          <SelectItem key={status.id} value={String(status.id)}>
+                            {status.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor={`active-${stream}`}>{t("stream.activeLabel")}</Label>
+                    <Select
+                      value={statusOption(binding.active_status_id)}
+                      disabled={busy || statuses.length === 0}
+                      onValueChange={(value) => save({ active_status_id: statusValue(value) })}
+                    >
+                      <SelectTrigger id={`active-${stream}`}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={NONE}>{t("stream.noStatusRole")}</SelectItem>
+                        {statuses.map((status) => (
+                          <SelectItem key={status.id} value={String(status.id)}>
+                            {status.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <p className="text-muted-foreground text-xs">
+                  {binding.awaiting_filer_status_id
+                    ? t("stream.statusRolesHelp")
+                    : t("stream.noAwaitingHelp")}
+                </p>
+              </div>
+            ) : null}
+
+            {binding.shares_initiative ? (
+              <p className="text-destructive text-sm">
+                {t(binding.isolated ? "stream.sharesIsolated" : "stream.sharesWithIsolated")}
+              </p>
+            ) : null}
+
             <div className="flex items-center gap-3 border-t pt-4">
               <Switch
                 id={`enabled-${stream}`}
                 checked={binding.enabled}
                 disabled={busy}
-                onCheckedChange={(checked) =>
-                  upsert.mutate({
-                    stream,
-                    body: {
-                      project_id: binding.project_id as number,
-                      default_status_id: binding.default_status_id,
-                      enabled: Boolean(checked),
-                    },
-                  })
-                }
+                onCheckedChange={(checked) => save({ enabled: Boolean(checked) })}
               />
               <Label htmlFor={`enabled-${stream}`}>{t("stream.enabledLabel")}</Label>
             </div>

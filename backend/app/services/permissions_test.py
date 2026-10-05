@@ -26,7 +26,7 @@ from app.db import session as db_session
 from app.db.guild_standing import GuildContext
 from app.db.request_context import Member
 from app.db.session import _RLS_CONTEXT_INFO_KEY
-from app.models.platform.guild import Guild, GuildRole, GuildStatus
+from app.models.platform.guild import Guild, CommunityRole, CommunityStatus
 from app.models.platform.user import UserRole
 from app.models.tenant.calendar_event import CalendarEventAttendee
 from app.models.tenant.document import Document
@@ -139,7 +139,7 @@ class World:
 
 
 async def build_world(session, role_session, acting_user, tool: Tool) -> World:
-    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
     initiative, guild = owner.initiative, owner.guild
     for t in Tool:
         if hasattr(initiative, t.view_permission):
@@ -148,12 +148,12 @@ async def build_world(session, role_session, acting_user, tool: Tool) -> World:
     await session.commit()
 
     co_member = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=guild,
         initiative=initiative,
         initiative_role="member",
     )
-    admin = await acting_user(guild_role=GuildRole.admin, guild=guild)
+    admin = await acting_user(guild_role=CommunityRole.admin, guild=guild)
 
     factory = _TOOL_FACTORIES[tool]
     row = await factory(session, initiative, owner.user)
@@ -182,7 +182,7 @@ def standing(
         guild=guild if not isinstance(guild, int) else Guild(id=guild_id, name="g"),
         user_id=0,
         guild_id=guild_id,
-        guild_role=GuildRole.admin.value if admin else GuildRole.member.value,
+        guild_role=CommunityRole.admin.value if admin else CommunityRole.member.value,
         standing_guild_id=guild_id,
         guild_admin=admin,
         pam_read=grant is not None,
@@ -224,7 +224,7 @@ async def _remove_from_initiative(session, initiative, user) -> None:
 
 
 async def _freeze(session, guild) -> None:
-    guild.status = GuildStatus.read_only.value
+    guild.status = CommunityStatus.read_only.value
     guild.status_changed_at = datetime.now(timezone.utc)
     session.add(guild)
     await session.commit()
@@ -337,7 +337,7 @@ async def test_general_access_covers_the_initiatives_members_only(
     """An all-initiative-members grant reaches every member without naming them,
     and stops at the initiative boundary."""
     w = await build_world(session, role_session, acting_user, Tool.project)
-    outsider = await acting_user(guild_role=GuildRole.member, guild=w.guild)
+    outsider = await acting_user(guild_role=CommunityRole.member, guild=w.guild)
 
     await w.grant("write", everyone=True)
     row, context = await w.as_reader(w.co_member.user)
@@ -657,12 +657,12 @@ async def test_the_audience_is_exactly_who_the_database_admits(
     named = w.co_member
     by_role = w.owner  # the creator holds the manager role
     unnamed = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=w.guild,
         initiative=w.initiative,
         initiative_role="member",
     )
-    departed = await acting_user(guild_role=GuildRole.member, guild=w.guild)
+    departed = await acting_user(guild_role=CommunityRole.member, guild=w.guild)
 
     await w.grant("owner", user=named.user)
     await create_resource_grant(

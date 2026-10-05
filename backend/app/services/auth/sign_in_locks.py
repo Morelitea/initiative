@@ -7,12 +7,15 @@ reset from the emailed link, or a moderator, ends it sooner. Passkeys and
 sessions already open are not affected.
 
 Every function here stages its writes on the caller's system-engine session;
-the caller commits.
+the caller commits. The one exception is the count kept by address
+(``app.core.rate_limit``), which is not in the database: :func:`lift` starts it
+over at once.
 """
 
 from __future__ import annotations
 
 import enum
+import logging
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -23,9 +26,13 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.audit_events import AuditEventType
+from app.core.rate_limit import SIGN_IN_FAILURES
 from app.models.platform.sign_in_lock import SignInLock
 from app.services import audit as audit_service
+from app.services.auth import addresses
 from app.core.clock import utcnow
+
+logger = logging.getLogger(__name__)
 
 LOCK_AFTER_FAILURES = 5
 FAILURE_WINDOW = timedelta(minutes=15)
@@ -133,9 +140,23 @@ async def record_success(session: AsyncSession, user_id: int) -> None:
 
 async def lift(session: AsyncSession, user_id: int) -> bool:
     """Clear everything counted against the account, and any lock. True if it
-    was locked."""
+    was locked.
+
+    The count kept by address starts over too, for each address the account
+    signs in with. It refuses in the same words as the lock, so lifting one and
+    not the other would leave the account refused for the rest of its window.
+    """
     was_closed = _is_closed(await session.get(SignInLock, user_id), utcnow())
     await session.exec(delete(SignInLock).where(SignInLock.user_id == user_id))
+    for address in await addresses.proven_addresses(session, user_id=user_id):
+        try:
+            await SIGN_IN_FAILURES.clear(addresses.normalize(address))
+        except Exception:
+            # The count lapses at the end of its window anyway; the lift and
+            # whatever the caller commits with it go ahead without it.
+            logger.warning(
+                "Could not start an address's sign-in count over", exc_info=True
+            )
     return was_closed
 
 

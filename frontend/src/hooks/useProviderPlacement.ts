@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import type {
-  GuildNarrowingPending,
+  CommunityNarrowingPending,
   PlacementCommunityRead,
   PlacementInitiativeRead,
   ProviderPlacementResponse,
@@ -9,22 +9,22 @@ import type {
   ProviderPlacementRuleUpdate,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
-  createProviderPlacementRuleApiV1SettingsPlacementRulesPost,
-  deleteProviderPlacementRuleApiV1SettingsPlacementRulesRuleIdDelete,
-  getListPlacementCommunitiesApiV1SettingsPlacementCommunitiesGetQueryKey,
-  getListPlacementRequestsApiV1SettingsPlacementRequestsGetQueryKey,
-  getListPlacementTargetsApiV1SettingsPlacementProvidersProviderIdCommunitiesGuildIdInitiativesGetQueryKey,
-  getListProviderPlacementApiV1SettingsPlacementGetQueryKey,
-  listPlacementCommunitiesApiV1SettingsPlacementCommunitiesGet,
-  listPlacementRequestsApiV1SettingsPlacementRequestsGet,
-  listPlacementTargetsApiV1SettingsPlacementProvidersProviderIdCommunitiesGuildIdInitiativesGet,
-  listProviderPlacementApiV1SettingsPlacementGet,
-  setProviderPlacementEverywhereApiV1SettingsPlacementEverywherePut,
-  updateProviderPlacementRuleApiV1SettingsPlacementRulesRuleIdPatch,
+  createProviderPlacementRule,
+  deleteProviderPlacementRule,
+  getListPlacementCommunitiesQueryKey,
+  getListPlacementRequestsQueryKey,
+  getListPlacementTargetsQueryKey,
+  getListProviderPlacementQueryKey,
+  listPlacementCommunities,
+  listPlacementRequests,
+  listPlacementTargets,
+  listProviderPlacement,
+  setProviderPlacementEverywhere,
+  updateProviderPlacementRule,
 } from "@/api/generated/provider-placement/provider-placement";
 import {
-  agreeGuildNarrowingApiV1SettingsCommunitiesGuildIdNarrowingsConnectionIdPut,
-  getReadGuildNarrowingsApiV1SettingsCommunitiesGuildIdNarrowingsGetQueryKey,
+  agreeCommunityNarrowing,
+  getReadCommunityNarrowingsQueryKey,
 } from "@/api/generated/settings/settings";
 import type { QueryOpts } from "@/types/query";
 
@@ -32,8 +32,8 @@ import type { QueryOpts } from "@/types/query";
  *  to every community. */
 export const useProviderPlacement = (options?: QueryOpts<ProviderPlacementResponse>) => {
   return useQuery<ProviderPlacementResponse>({
-    queryKey: getListProviderPlacementApiV1SettingsPlacementGetQueryKey(),
-    queryFn: () => listProviderPlacementApiV1SettingsPlacementGet(),
+    queryKey: getListProviderPlacementQueryKey(),
+    queryFn: () => listProviderPlacement(),
     ...options,
   });
 };
@@ -44,10 +44,10 @@ export const usePlacementCommunities = (
   query: string,
   options?: QueryOpts<PlacementCommunityRead[]>
 ) => {
-  const params = { provider_id: providerId, q: query.trim() || undefined };
+  const params = { provider_id: providerId, search: query.trim() || undefined };
   return useQuery<PlacementCommunityRead[]>({
-    queryKey: getListPlacementCommunitiesApiV1SettingsPlacementCommunitiesGetQueryKey(params),
-    queryFn: () => listPlacementCommunitiesApiV1SettingsPlacementCommunitiesGet(params),
+    queryKey: getListPlacementCommunitiesQueryKey(params),
+    queryFn: () => listPlacementCommunities(params),
     ...options,
   });
 };
@@ -56,21 +56,13 @@ export const usePlacementCommunities = (
  *  people in. */
 export const usePlacementTargets = (
   providerId: number,
-  guildId: number | null,
+  communityId: number | null,
   options?: QueryOpts<PlacementInitiativeRead[]>
 ) => {
   return useQuery<PlacementInitiativeRead[]>({
-    queryKey:
-      getListPlacementTargetsApiV1SettingsPlacementProvidersProviderIdCommunitiesGuildIdInitiativesGetQueryKey(
-        providerId,
-        guildId ?? 0
-      ),
-    queryFn: () =>
-      listPlacementTargetsApiV1SettingsPlacementProvidersProviderIdCommunitiesGuildIdInitiativesGet(
-        providerId,
-        guildId ?? 0
-      ),
-    enabled: guildId !== null,
+    queryKey: getListPlacementTargetsQueryKey(providerId, communityId ?? 0),
+    queryFn: () => listPlacementTargets(providerId, communityId ?? 0),
+    enabled: communityId !== null,
     // A community this provider's rules do not reach answers 404; asking
     // again would not change that.
     retry: false,
@@ -82,7 +74,7 @@ const useInvalidatePlacement = () => {
   const queryClient = useQueryClient();
   return () => {
     void queryClient.invalidateQueries({
-      queryKey: getListProviderPlacementApiV1SettingsPlacementGetQueryKey(),
+      queryKey: getListProviderPlacementQueryKey(),
     });
   };
 };
@@ -91,8 +83,7 @@ const useInvalidatePlacement = () => {
 export const useSetPlacementEverywhere = () => {
   const invalidate = useInvalidatePlacement();
   return useMutation({
-    mutationFn: (enabled: boolean) =>
-      setProviderPlacementEverywhereApiV1SettingsPlacementEverywherePut({ enabled }),
+    mutationFn: (enabled: boolean) => setProviderPlacementEverywhere({ enabled }),
     onSuccess: invalidate,
   });
 };
@@ -100,8 +91,7 @@ export const useSetPlacementEverywhere = () => {
 export const useCreatePlacementRule = () => {
   const invalidate = useInvalidatePlacement();
   return useMutation({
-    mutationFn: (data: ProviderPlacementRuleCreate) =>
-      createProviderPlacementRuleApiV1SettingsPlacementRulesPost(data),
+    mutationFn: (data: ProviderPlacementRuleCreate) => createProviderPlacementRule(data),
     onSuccess: invalidate,
   });
 };
@@ -110,7 +100,7 @@ export const useUpdatePlacementRule = () => {
   const invalidate = useInvalidatePlacement();
   return useMutation({
     mutationFn: ({ ruleId, data }: { ruleId: number; data: ProviderPlacementRuleUpdate }) =>
-      updateProviderPlacementRuleApiV1SettingsPlacementRulesRuleIdPatch(ruleId, data),
+      updateProviderPlacementRule(ruleId, data),
     onSuccess: invalidate,
   });
 };
@@ -118,17 +108,16 @@ export const useUpdatePlacementRule = () => {
 export const useDeletePlacementRule = () => {
   const invalidate = useInvalidatePlacement();
   return useMutation({
-    mutationFn: (ruleId: number) =>
-      deleteProviderPlacementRuleApiV1SettingsPlacementRulesRuleIdDelete(ruleId),
+    mutationFn: (ruleId: number) => deleteProviderPlacementRule(ruleId),
     onSuccess: invalidate,
   });
 };
 
 /** Every community whose claim to a domain or tenant is waiting for an answer. */
-export const usePlacementRequests = (options?: QueryOpts<GuildNarrowingPending[]>) => {
-  return useQuery<GuildNarrowingPending[]>({
-    queryKey: getListPlacementRequestsApiV1SettingsPlacementRequestsGetQueryKey(),
-    queryFn: () => listPlacementRequestsApiV1SettingsPlacementRequestsGet(),
+export const usePlacementRequests = (options?: QueryOpts<CommunityNarrowingPending[]>) => {
+  return useQuery<CommunityNarrowingPending[]>({
+    queryKey: getListPlacementRequestsQueryKey(),
+    queryFn: () => listPlacementRequests(),
     ...options,
   });
 };
@@ -137,19 +126,14 @@ export const usePlacementRequests = (options?: QueryOpts<GuildNarrowingPending[]
 export const useAgreePlacementRequest = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ guildId, connectionId }: { guildId: number; connectionId: number }) =>
-      agreeGuildNarrowingApiV1SettingsCommunitiesGuildIdNarrowingsConnectionIdPut(
-        guildId,
-        connectionId,
-        { agreed: true }
-      ),
-    onSuccess: (_data, { guildId }) => {
+    mutationFn: ({ communityId, connectionId }: { communityId: number; connectionId: number }) =>
+      agreeCommunityNarrowing(communityId, connectionId, { agreed: true }),
+    onSuccess: (_data, { communityId }) => {
       void queryClient.invalidateQueries({
-        queryKey: getListPlacementRequestsApiV1SettingsPlacementRequestsGetQueryKey(),
+        queryKey: getListPlacementRequestsQueryKey(),
       });
       void queryClient.invalidateQueries({
-        queryKey:
-          getReadGuildNarrowingsApiV1SettingsCommunitiesGuildIdNarrowingsGetQueryKey(guildId),
+        queryKey: getReadCommunityNarrowingsQueryKey(communityId),
       });
     },
   });

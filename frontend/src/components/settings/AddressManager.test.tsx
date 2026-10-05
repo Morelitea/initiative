@@ -8,7 +8,7 @@
  * an IdP minted are not shown at all.
  */
 
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -33,8 +33,10 @@ vi.mock("@/hooks/useAddresses", async (importOriginal) => ({
   useMakeAddressPrimary: () => ({ mutate: mocks.makePrimary, isPending: false }),
 }));
 
-const listing = (...items: UserEmailRead[]) => ({
-  data: { items },
+const listing = (...items: UserEmailRead[]) => withPassword(true, ...items);
+
+const withPassword = (passwordRequired: boolean, ...items: UserEmailRead[]) => ({
+  data: { items, password_required: passwordRequired },
   isLoading: false,
   isError: false,
   refetch: vi.fn(),
@@ -145,13 +147,51 @@ describe("AddressManager", () => {
     expect(screen.queryByRole("listitem")).not.toBeInTheDocument();
   });
 
-  it("says the same thing whether or not the address was free", async () => {
+  it("confirms a change with the current password where one is asked for", async () => {
     const user = userEvent.setup();
     renderWithProviders(<AddressManager />);
 
     await user.type(screen.getByLabelText(/add an address/i), "new@example.com");
     await user.click(screen.getByRole("button", { name: /^add$/i }));
+    expect(mocks.add).not.toHaveBeenCalled();
 
-    expect(mocks.add).toHaveBeenCalledWith("new@example.com");
+    const dialog = screen.getByRole("dialog");
+    await user.type(within(dialog).getByLabelText(/current password/i), "hunter22");
+    await user.click(within(dialog).getByRole("button", { name: /^add$/i }));
+
+    expect(mocks.add).toHaveBeenCalledWith({
+      email: "new@example.com",
+      currentPassword: "hunter22",
+    });
+  });
+
+  it("asks for no password where the server does not", async () => {
+    const user = userEvent.setup();
+    const spare = buildUserEmail({
+      email: "spare@example.com",
+      verified: true,
+      is_primary: false,
+    });
+    mocks.list.mockReturnValue(withPassword(false, buildUserEmail(), spare));
+    renderWithProviders(<AddressManager />);
+
+    // Adding and moving the primary go straight through; a recent sign-in
+    // answers for them.
+    await user.type(screen.getByLabelText(/add an address/i), "new@example.com");
+    await user.click(screen.getByRole("button", { name: /^add$/i }));
+    expect(mocks.add).toHaveBeenCalledWith({ email: "new@example.com", currentPassword: null });
+
+    await user.click(screen.getByRole("button", { name: /make primary/i }));
+    expect(mocks.makePrimary).toHaveBeenCalledWith({
+      addressId: spare.id,
+      currentPassword: null,
+    });
+
+    // Removing is still confirmed, without a password field.
+    await user.click(screen.getByLabelText(/spare@example\.com/));
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).queryByLabelText(/current password/i)).not.toBeInTheDocument();
+    await user.click(within(dialog).getByRole("button", { name: /^remove$/i }));
+    expect(mocks.remove).toHaveBeenCalledWith({ addressId: spare.id, currentPassword: null });
   });
 });

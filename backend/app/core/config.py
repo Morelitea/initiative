@@ -18,6 +18,7 @@ from pydantic import (
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import ArgumentError
+from starlette.requests import Request
 
 
 # App identity/shape — deliberately constants, not settings: the SPA, the
@@ -25,14 +26,28 @@ from sqlalchemy.exc import ArgumentError
 # configurable only creates ways to break them.
 PROJECT_NAME = "Initiative API"
 API_V1_STR = "/api/v1"
+#: Where an installed app calls the API from. The ``0`` stands for the
+#: install's own community, which its token names.
+APP_SERVER_URL = f"{API_V1_STR}/c/0"
 
-# Origins used by the Capacitor native mobile app (iOS and Android).
+# Origins used by the Capacitor native apps (iOS, Android and the desktop app).
 # Must always be allowed regardless of CORS_ALLOWED_ORIGINS setting.
 CAPACITOR_NATIVE_ORIGINS = [
     "https://com.morelitea.initiative",  # Capacitor custom hostname (Android + iOS with iosScheme=https)
-    "capacitor://com.morelitea.initiative",  # Capacitor default iOS scheme with custom hostname
+    "capacitor://com.morelitea.initiative",  # Capacitor default iOS scheme with custom hostname; the desktop app
     "capacitor://localhost",  # Capacitor fallback (no custom hostname)
 ]
+
+
+def is_device(request: Request) -> bool:
+    """Whether the request comes from the phone or desktop app.
+
+    The one place that decides. The apps present their own origin, which no
+    page can, and a device keeps its own refresh token and stays signed in
+    longer than a browser.
+    """
+    return request.headers.get("origin") in CAPACITOR_NATIVE_ORIGINS
+
 
 # Third-party origins the built SPA legitimately embeds in iframes, used to build
 # the Content-Security-Policy (pentest MED-001). These are the document
@@ -103,6 +118,26 @@ def _format_csp(directives: dict[str, list[str]]) -> str:
         f"{name} {' '.join(dict.fromkeys(values))}"
         for name, values in directives.items()
     )
+
+
+#: The billing portal's pricing grid, the one page of it the front door frames.
+BILLING_PRICING_EMBED_PATH = "/embed/pricing"
+
+#: Characters a path may carry into a CSP source expression.
+_CSP_PATH = re.compile(r"^[A-Za-z0-9._~/-]*$")
+
+
+def _billing_embed_source(url: str) -> str | None:
+    """The exact address of the billing portal's pricing grid, as a CSP
+    source: its origin and path, so a frame may load that page and no other.
+    None when the portal's URL cannot be reduced to one safely."""
+    origin = _origin_of(url)
+    if not origin:
+        return None
+    base = urlsplit(url.strip()).path.rstrip("/")
+    if not _CSP_PATH.match(base):
+        return None
+    return f"{origin}{base}{BILLING_PRICING_EMBED_PATH}"
 
 
 def _origin_of(url: str) -> str | None:
@@ -599,10 +634,22 @@ class Settings(BaseSettings):
 
         # The landing page reads the public pricing catalog straight from the
         # billing portal, so its origin joins connect-src only on a deployment
-        # that has one. Reduced to an origin the same way as the app frames.
+        # that has one. It also frames the portal's pricing grid, and frame-src
+        # names that one page, not the portal: no other page may be framed.
         billing_origin = _origin_of(self.BILLING_URL) if self.BILLING_URL else None
         if billing_origin:
             connect_src.append(billing_origin)
+            embed = _billing_embed_source(self.BILLING_URL)
+            if embed:
+                frame_src.append(embed)
+
+        # The measurement collector, where one is named on another origin. A
+        # same-origin path is already covered by 'self'.
+        collector_origin = (
+            _origin_of(self.FARO_COLLECTOR_URL) if self.FARO_COLLECTOR_URL else None
+        )
+        if collector_origin:
+            connect_src.append(collector_origin)
 
         # Only the surface being opened. Already canonical origins by the time
         # they are stored on a registration, and re-reduced here so a value that
@@ -658,7 +705,7 @@ class Settings(BaseSettings):
 
     @property
     def docs_content_security_policy(self) -> str:
-        """Relaxed CSP for the Swagger ``/docs`` page ONLY (applied per-route).
+        """Relaxed CSP for the Swagger docs pages ONLY (applied per-route).
 
         Swagger UI loads its bundle/stylesheet from jsDelivr and a Cloudflare
         beacon, which the app-wide ``script-src 'self'`` (pentest MED-001)
@@ -670,9 +717,9 @@ class Settings(BaseSettings):
         a hash would break whenever the title/openapi_url change). ``connect-src``
         allows jsDelivr so the bundle's ``.map`` sourcemap fetch doesn't error;
         Try-It-Out still reaches the same-origin API via ``'self'``. This is
-        confined to the dev-only, ``ENABLE_API_DOCS``-gated docs page — the rest
-        of the app keeps ``script-src 'self'``, ``object-src 'none'``, and
-        ``frame-ancestors 'none'``.
+        confined to the docs pages — the rest of the app keeps
+        ``script-src 'self'``, ``object-src 'none'``, and ``frame-ancestors
+        'none'``.
         """
         return _format_csp(
             {
@@ -807,15 +854,9 @@ class Settings(BaseSettings):
             "FIRST_OWNER_PASSWORD", "FIRST_SUPERUSER_PASSWORD"
         ),
     )
-    FIRST_OWNER_FULL_NAME: str | None = Field(
-        default=None,
-        validation_alias=AliasChoices(
-            "FIRST_OWNER_FULL_NAME", "FIRST_SUPERUSER_FULL_NAME"
-        ),
-    )
     DISABLE_GUILD_CREATION: bool = False
     # Communities one account may create in a day; 0 means no limit. Accounts
-    # holding ``guilds.manage`` are not held to it.
+    # holding ``communities.manage`` are not held to it.
     GUILD_CREATION_DAILY_LIMIT: int = Field(default=5, ge=0)
     # Boot back-fill normally skips guild schemas stamped with the current
     # provisioning-artifact version; set true to force a full sweep once.
@@ -852,6 +893,32 @@ class Settings(BaseSettings):
     CAPTCHA_PROVIDER: str | None = None
     CAPTCHA_SITE_KEY: str | None = None
     CAPTCHA_SECRET_KEY: str | None = None
+    # Optional frontend measurement: where the SPA sends page views, errors
+    # and Web Vitals, in the Grafana Faro format (an Alloy ``faro.receiver``
+    # speaks it). A same-origin path (``/collect``) or an absolute http(s)
+    # URL. Unset (the default) ⇒ the SPA loads nothing and the cookie chooser
+    # offers no analytics switch. Set ⇒ the chooser offers one, and only a
+    # browser that switched it on sends anything.
+    FARO_COLLECTOR_URL: str | None = None
+
+    @field_validator("FARO_COLLECTOR_URL", mode="before")
+    @classmethod
+    def _validate_faro_collector_url(cls, value: object) -> object:
+        if not isinstance(value, str):
+            return value
+        url = value.strip()
+        if not url:
+            return None
+        parts = urlsplit(url)
+        same_origin_path = url.startswith("/") and not url.startswith("//")
+        absolute = parts.scheme in ("http", "https") and bool(parts.netloc)
+        if not (same_origin_path or absolute):
+            raise ValueError(
+                "FARO_COLLECTOR_URL must be a path starting with / or an "
+                f"http(s) URL; got {value!r}"
+            )
+        return url
+
     # RSA private key (PEM) for signing handoff JWTs. Handoff tokens cross a
     # trust boundary — the receiving service verifies them with the matching
     # public key — so signing is always RS256 and no secret is shared across
@@ -866,36 +933,42 @@ class Settings(BaseSettings):
 
     # --- App platform (external app services; default OFF) ----------------
     # An app service is an external container this deployment has wired up
-    # (see the app service registry). Everything below is unset on a default
-    # install, and with it unset the platform simply has no app services: the
-    # registry lists nothing, and the endpoints that would mint credentials for
-    # one fail closed rather than improvising.
+    # (see the app service registry). Everything below is optional: a default
+    # install generates its own signing key, and an owner wires apps up from
+    # the settings pages.
     #
-    # RSA private key (PEM) signing Initiative -> app context JWTs. This is a
-    # DEDICATED keypair with no fallback: an app verifies these against the
-    # published public half, so borrowing another service's key would put two
-    # unrelated trust boundaries on one rotation schedule. Generate one with
-    # ``openssl genrsa -out app-platform.pem 2048``. Unset ⇒ registering and
-    # verifying app services refuse with APP_SERVICE_SIGNING_NOT_CONFIGURED.
+    # RSA private key (PEM) signing what Initiative sends an app. Optional:
+    # unset, Initiative generates one on first start and keeps it in the
+    # database, encrypted under SECRET_KEY, so every replica signs with the same
+    # key. Set it to supply your own (``openssl genrsa -out app-platform.pem
+    # 2048``); while set it wins, and changing it is how the key is rotated.
     APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM: str | None = None
-    # Key id stamped on the JWT header so an app can pick the right verifying
-    # key out of the published JWKS while a rotation is in flight.
+    # Key id stamped on the JWT header for the key above, so an app picks it out
+    # of the published JWKS during a rotation. A generated key uses its RFC 7638
+    # thumbprint instead.
     APP_PLATFORM_SIGNING_KEY_ID: str | None = None
-    # Path to a mounted file of app service registrations, reconciled into the
-    # database at startup so a chart can wire approved apps with no owner
-    # clicks. JSON (or a JSON array in a .json file):
-    #   [{"public_id": "acme.shopify", "listing_uid": "<14-character uid>",
+    # Path to a mounted JSON file (an array of entries) wiring app services at
+    # startup, with no owner clicks. An entry gives the app's ``public_id`` and
+    # this deployment's facts about it; what the app is (its listing) comes
+    # from the marketplace, and an entry naming a listing field is refused:
+    #   [{"public_id": "acme.shopify",
     #     "base_url": "http://shopify:9100",
     #     "embed_origin": "https://shopify.example.com",
-    #     "jwks": {"keys": […]}, "scope_ceiling": ["projects:read"],
-    #     "allowed_origins": ["…"], "mandatory": false}]
-    # ``base_url`` is where this deployment's server calls the app, so it may be
-    # an address only the cluster resolves; ``embed_origin`` is where a browser
-    # loads its iframes and connection pages, and is omitted when the app
-    # answers both at one address.
-    # It holds only public keys, so the file can be a plain ConfigMap.
-    # Unset (the default) ⇒ no reconciliation runs. Reconciliation never
-    # re-enables a registration an operator disabled, and never blocks boot.
+    #     "jwks": {"keys": […]},
+    #     "allowed_origins": ["https://shopify.example.com"],
+    #     "vendor_env": {"client_secret": "SHOPIFY_CLIENT_SECRET"},
+    #     "mandatory": false}]
+    # ``base_url`` is where this server calls the app, so it may be an address
+    # only the container network resolves; ``embed_origin`` is where a browser
+    # loads its pages, omitted when the app answers both at one address. Give
+    # the app's public keys as ``jwks``, or as ``jwks_uri`` when the app serves
+    # them at ``base_url``'s origin (``/.well-known/jwks.json`` for an app built
+    # on the SDK). ``vendor_env`` maps a vendor value to the environment
+    # variable holding it, so the file names no secret and can be a plain
+    # ConfigMap. An entry waits until its app's listing
+    # arrives. Unset (the default) ⇒ nothing is reconciled.
+    # Reconciliation never re-enables a registration an operator disabled, and
+    # never blocks boot.
     APP_SERVICES_CONFIG: str | None = None
 
     # --- Billing (hosted deployments only; default OFF) -------------------
@@ -974,9 +1047,18 @@ class Settings(BaseSettings):
         "https://morelitea.github.io/initiative-developer/public/"
     )
     MARKETPLACE_REGISTRY_ROOT: str | None = None
+    # A bearer token sent with registry requests, for a registry that asks for
+    # one. It goes only to the origin of ``MARKETPLACE_REGISTRY_URL``. Unset
+    # (the default) sends none.
+    MARKETPLACE_REGISTRY_TOKEN: str | None = None
     # How often the background refresh asks for new metadata. ~15 minutes keeps
     # a withdrawal reaching deployments promptly without polling a static host.
     MARKETPLACE_REGISTRY_TTL_SECONDS: int = Field(default=900, ge=60)
+    # How many processes each server process may run to evaluate declarative
+    # apps' expressions at once. Started on first use; an idle one exits after
+    # five minutes. A server process with more evaluations than this waits for
+    # one to come free.
+    EXPRESSION_WORKERS: int = Field(default=2, ge=1, le=16)
 
     # Local-dev only: when true, outbound webhook / custom-AI targets may
     # use http and resolve to private/loopback addresses, for round-tripping
@@ -999,28 +1081,18 @@ class Settings(BaseSettings):
     # throttles the hundreds of rapid requests a test makes from one client IP.
     RATE_LIMIT_DEFAULT: str = "100/minute"
     # Master on/off switch for ALL rate limiting — the global default *and* every
-    # per-route ``@limiter.limit(...)`` cap (e.g. login's ``5/15minutes``). Leave
+    # per-route ``@limiter.limit(...)`` cap (e.g. password reset's ``5/15minutes``). Leave
     # True in any shared/production environment; set ``RATE_LIMIT_ENABLED=false``
     # in a local ``.env`` to stop throttling yourself while testing auth flows.
     # This is the same lever the test suite pulls (``limiter.enabled = False``),
     # surfaced as config; it is evaluated at startup, not per request.
     RATE_LIMIT_ENABLED: bool = True
-    # Storage backend for rate-limit counters. Defaults to in-process memory
-    # (``memory://``), which is per-worker — fine for a single process. For a
-    # multi-worker / multi-replica deployment that needs a shared, accurate
-    # counter, point this at Redis (``redis://host:6379/0``) or Memcached
-    # (``memcached://host:11211``) WITHOUT any code change. See the slowapi /
-    # limits "storage" docs for the full URI scheme list.
+    # Where rate-limit counters are kept. ``memory://`` (the default) counts in
+    # each process, so every process holds its own allowance. A ``redis://``,
+    # ``rediss://``, ``redis+sentinel://`` or ``redis+cluster://`` URI shares
+    # one count across processes. While that storage cannot be reached, each
+    # process counts in memory until it answers again (``rate_limit.build_limiter``).
     RATE_LIMIT_STORAGE_URI: str = "memory://"
-
-    # Expose the interactive API docs (Swagger UI at ``{API_V1_STR}/docs``) and
-    # the raw OpenAPI schema (``{API_V1_STR}/openapi.json``). Defaults to True so
-    # local development keeps its self-documenting API and the frontend's Orval
-    # type generation against a running backend keeps working out of the box.
-    # Operators SHOULD set this to ``False`` in production. The committed
-    # ``frontend/openapi.json`` + ``scripts/export_openapi.py`` path means type
-    # generation never needs a live ``/openapi.json`` in CI or prod.
-    ENABLE_API_DOCS: bool = True
 
     # How much the application says about itself on stderr: one of the
     # standard Python level names (DEBUG, INFO, WARNING, ERROR, CRITICAL).

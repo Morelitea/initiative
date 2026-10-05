@@ -20,6 +20,12 @@ export default defineConfig({
         query: {
           signal: true,
         },
+        // One builder for every multipart body, rather than a loop written
+        // into each endpoint.
+        formData: {
+          path: "./src/api/formData.ts",
+          name: "toFormData",
+        },
       },
     },
   },

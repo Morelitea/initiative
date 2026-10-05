@@ -1,26 +1,21 @@
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Annotated, List, Optional, Sequence
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import case, func
+from sqlalchemy import and_, case, func
 from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.orm import selectinload, undefer
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core import recurrence
 from app.core.relationships import (
-    DERIVED_TYPES,
-    Provenance,
     Related,
     RelationshipType,
-    node_id,
 )
-from app.models.tenant.relationship import EntityRelationship
 from app.core.search import SearchEntityType
 from app.services.permissions import Action
 from app.services.tenant import attachments as attachments_service
-from app.services.tenant import content_references, relationships
+from app.services.tenant import relationships
 from app.api.actor_route import ActorRoute
 from app.api.deps import (
     ActorContext,
@@ -45,19 +40,17 @@ from app.models.tenant.project_activity import ProjectFavorite
 from app.models.tenant.recent_view import RecentView
 from app.models.tenant.task import (
     Task,
-    TaskAssignee,
     TaskStatus,
     TaskStatusCategory,
 )
-from app.models.tenant.comment import Comment
+from app.models.tenant.comment import Comment, in_thread
 from app.models.tenant.initiative import Initiative
-from app.models.platform.notification import NotificationType
 from app.models.platform.user import User
 from app.models.tenant.document import Document
-from app.api import resource_access
+from app.api import resource_access, tool_copy
 from app.core.tools import Tool
+from app.db.query import build_paginated_response, paginated_query
 from app.db.session import require_actor_context, require_guild_context
-from app.services import email as email_service
 from app.services import notifications as notifications_service
 from app.services.tenant import ownership as ownership_service
 from app.services import permissions as permissions_service
@@ -69,14 +62,10 @@ from app.services.tenant import archive as archive_service
 from app.services.tenant import tool_listing
 from app.services.tenant import filter_presets as filter_presets_service
 from app.services.tenant import task_statuses as task_statuses_service
-from app.services.tenant import task_checklist as checklist_service
-from app.services.tenant import task_completion
-from app.services.tenant import task_description as task_description_service
 from app.core.messages import ProjectMessages
 from app.schemas.tenant.project import (
     ProjectCan,
     ProjectCreate,
-    ProjectDuplicateRequest,
     ProjectRead,
     ProjectTaskSummary,
     ProjectReorderRequest,
@@ -199,200 +188,6 @@ async def _get_project_or_404(
             denied=Tool.project.no_access_code,
         )
     return project
-
-
-def _template_task_date_shift(
-    template: Project,
-    new_project: Project,
-    template_tasks: list[Task],
-) -> timedelta | None:
-    """Offset to move template task dates onto the new project's schedule.
-
-    Task dates in a template are relative: a task due three weeks after the
-    template's start should land three weeks after the new project's start.
-    Anchors on the projects' start dates when the new project has one,
-    otherwise on their end dates. A template without an explicit start/end
-    falls back to its earliest/latest task date. Returns None when there is
-    nothing to anchor on, in which case dates are copied as-is.
-    """
-    task_dates = [
-        value.date()
-        for task in template_tasks
-        for value in (task.start_date, task.due_date)
-        if value is not None
-    ]
-    if new_project.start_date is not None:
-        anchor = template.start_date or (min(task_dates) if task_dates else None)
-        if anchor is not None:
-            return new_project.start_date - anchor
-    if new_project.end_date is not None:
-        anchor = template.end_date or (max(task_dates) if task_dates else None)
-        if anchor is not None:
-            return new_project.end_date - anchor
-    return None
-
-
-async def _duplicate_template_tasks(
-    session: SessionDep,
-    template: Project,
-    new_project: Project,
-    *,
-    status_mapping: dict[int, int],
-    fallback_status_ids: dict[TaskStatusCategory, int],
-) -> list[Task]:
-    """Copy the template's tasks into ``new_project``; returns the copies."""
-    task_stmt = (
-        select(Task)
-        .options(
-            selectinload(Task.assignees),
-            selectinload(Task.task_status),
-        )
-        .where(Task.project_id == template.id)
-        .order_by(Task.position.asc(), Task.id.asc())
-    )
-    task_result = await session.exec(task_stmt)
-    template_tasks = task_result.all()
-    if not template_tasks:
-        return []
-
-    now = datetime.now(timezone.utc)
-    categories = await task_completion.status_categories(session, new_project.id)
-    date_shift = _template_task_date_shift(template, new_project, list(template_tasks))
-    copies: list[tuple[Task, Task]] = []
-    for template_task in template_tasks:
-        template_status_id = getattr(template_task, "task_status_id", None)
-        mapped_status_id = None
-        if template_status_id is not None:
-            mapped_status_id = status_mapping.get(template_status_id)
-        if mapped_status_id is None:
-            category = getattr(
-                getattr(template_task, "task_status", None), "category", None
-            )
-            if category is not None:
-                mapped_status_id = fallback_status_ids.get(category)
-        if mapped_status_id is None and fallback_status_ids:
-            mapped_status_id = next(iter(fallback_status_ids.values()))
-        start_date = template_task.start_date
-        due_date = template_task.due_date
-        repeat = template_task.recurrence
-        if date_shift is not None:
-            if start_date is not None:
-                start_date = start_date + date_shift
-            if due_date is not None:
-                due_date = due_date + date_shift
-            if repeat is not None:
-                repeat = recurrence.moved(repeat, date_shift)
-        new_task = Task(
-            project_id=new_project.id,
-            title=template_task.title,
-            description=template_task.description,
-            task_status_id=mapped_status_id,
-            priority=template_task.priority,
-            start_date=start_date,
-            due_date=due_date,
-            recurrence=repeat,
-            recurrence_shift=template_task.recurrence_shift,
-            recurrence_strategy=template_task.recurrence_strategy,
-            position=template_task.position,
-            checklist=checklist_service.cloned(template_task.checklist, keep_done=True),
-        )
-        task_completion.sync_completed_at(
-            new_task, categories.get(mapped_status_id), now=now
-        )
-        session.add(new_task)
-        copies.append((template_task, new_task))
-    await session.flush()
-
-    # Assignees come along only where they can open the new project.
-    can_open = await named_people.readers(
-        session,
-        named_people.Governing.of(Tool.project, new_project),
-        {assignee.id for task, _ in copies for assignee in task.assignees},
-    )
-    for template_task, new_task in copies:
-        session.add_all(
-            TaskAssignee(task_id=new_task.id, user_id=assignee.id)
-            for assignee in template_task.assignees
-            if assignee.id in can_open
-        )
-        if new_task.description:
-            await task_description_service.record_references(
-                session, new_task, author_id=None
-            )
-    copied_ids = {
-        s.id: c.id for s, c in copies if s.id is not None and c.id is not None
-    }
-    await tags_service.copy_entity_tags(
-        session, tags_service.TAG_LINKS["task"], copied_ids
-    )
-    await _copy_task_relationships(session, copied_ids)
-    return [task for _, task in copies]
-
-
-#: Edge types a task copy does not carry. Tags travel through
-#: ``copy_entity_tags``, and a derived edge is read out of a body on save
-#: rather than asserted, so neither is copied here.
-_UNCOPIED_RELATIONSHIP_TYPES = frozenset({RelationshipType.tagged_with}) | DERIVED_TYPES
-
-
-async def _copy_task_relationships(
-    session: SessionDep, task_mapping: dict[int, int]
-) -> None:
-    """Carry the source tasks' relations onto their copies.
-
-    Every live edge touching a source task is re-created on the copy. An end
-    that is itself a source task is remapped to its copy, so a dependency
-    between two template tasks becomes a dependency between the two new tasks;
-    any other end (a document, a task outside the template) is kept as-is.
-
-    Each copy is a link made on the creator's behalf, so it goes through
-    ``relationships.link_many`` like any other, and one it refuses is left behind:
-    a far end the creator cannot open, one in another initiative than the new
-    project, an archived one, or a source they cannot edit.
-    """
-    if not task_mapping or not content_references.records_edges(session):
-        return
-    source_nodes = [node_id(SearchEntityType.task, task_id) for task_id in task_mapping]
-    live = EntityRelationship.removed_at.is_(None)  # type: ignore[union-attr]
-    outbound = await session.exec(
-        select(EntityRelationship).where(
-            EntityRelationship.source_node.in_(source_nodes),  # type: ignore[union-attr]
-            live,
-        )
-    )
-    inbound = await session.exec(
-        select(EntityRelationship).where(
-            EntityRelationship.target_node.in_(source_nodes),  # type: ignore[union-attr]
-            live,
-        )
-    )
-    edges: dict[int, EntityRelationship] = {}
-    for row in [*outbound.all(), *inbound.all()]:
-        if row.id is not None:
-            edges[row.id] = row
-
-    def remapped(kind: str, entity_id: int) -> relationships.Endpoint:
-        entity_kind = SearchEntityType(kind)
-        if entity_kind is SearchEntityType.task:
-            entity_id = task_mapping.get(entity_id, entity_id)
-        return relationships.Endpoint(entity_kind, entity_id)
-
-    await relationships.link_many(
-        session,
-        [
-            relationships.Link(
-                source=remapped(row.source_type, row.source_id),
-                relationship_type=RelationshipType(row.relationship_type),
-                target=remapped(row.target_type, row.target_id),
-                provenance=Provenance(row.provenance),
-                confidence=row.confidence,
-            )
-            for row in sorted(edges.values(), key=lambda r: (r.created_at, r.id or 0))
-            if RelationshipType(row.relationship_type)
-            not in _UNCOPIED_RELATIONSHIP_TYPES
-        ],
-        user_id=require_actor_context(session).user_id,
-    )
 
 
 def project_load_options(*, slim: bool = False) -> list:
@@ -554,7 +349,7 @@ def _slim_project_reads(
                 is_template=project.is_template,
                 archived_at=project.archived_at,
                 pinned_at=project.pinned_at,
-                guild_id=context.guild_id,
+                community_id=context.guild_id,
                 can=_project_can(project, user_id, context=context),
             ).model_copy(
                 # Set after construction: the field's alias keeps
@@ -684,7 +479,7 @@ def _build_project_payload(
         summary = ProjectTaskSummary()
     return payload.model_copy(
         update={
-            "guild_id": context.guild_id,
+            "community_id": context.guild_id,
             "sort_order": sort_order,
             "is_favorited": project_id in favorite_ids,
             "last_viewed_at": view_map.get(project_id),
@@ -744,250 +539,92 @@ async def create_project(
     guild_context: ProjectsWrite,
 ) -> ProjectRead:
     resource_access.refuse_app_sharing(guild_context, project_in, "grants")
-    template_project: Project | None = None
     if project_in.template_id is not None:
         # Reaching the blueprint is settled first: whether it is a blueprint at
         # all is a fact about a project the caller can already read.
-        template_project = await resource_access.load_authorized(
+        template = await resource_access.load_authorized(
             session, Tool.project, project_in.template_id, current_user, guild_context
         )
-        if not template_project.is_template:
+        if not template.is_template:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=ProjectMessages.INVALID_TEMPLATE,
             )
-
-    icon_value = (
-        project_in.icon
-        if project_in.icon is not None
-        else (template_project.icon if template_project else None)
-    )
-    description_value = (
-        project_in.description
-        if project_in.description is not None
-        else (template_project.description if template_project else None)
-    )
-    initiative_id = (
-        project_in.initiative_id
-        if project_in.initiative_id is not None
-        else (template_project.initiative_id if template_project else None)
-    )
-    if initiative_id is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=ProjectMessages.INITIATIVE_REQUIRED,
-        )
-    await resource_access.prepare_create(
-        session, Tool.project, initiative_id, current_user, guild_context
-    )
-    project = Project(
-        name=project_in.name,
-        icon=icon_value,
-        description=description_value,
-        initiative_id=initiative_id,
-        is_template=project_in.is_template,
-        # Deliberately not inherited from the template: a schedule belongs to
-        # the run, not to the blueprint.
-        start_date=project_in.start_date,
-        end_date=project_in.end_date,
-    )
-
-    session.add(project)
-    await session.flush()
-
-    # Sharing before anything that hangs off it: a status, a preset or a task
-    # is reached through the project, so the project has to be reachable first.
-    await resource_access.grant_initial_sharing(
-        session,
-        guild_context,
-        Tool.project,
-        user=current_user,
-        resource_id=project.id,
-        initiative_id=project.initiative_id,
-        payload=project_in,
-        grants=project_in.grants,
-    )
-    await session.flush()
-
-    status_mapping: dict[int, int] = {}
-    if template_project:
-        status_mapping = await task_statuses_service.clone_statuses(
+        # A copy of the template with what the request says on top. The
+        # schedule is deliberately not inherited: it belongs to the run, not
+        # to the blueprint.
+        project = await tool_copy.duplicate(
             session,
-            source_project_id=template_project.id,
-            target_project_id=project.id,
+            Tool.project,
+            template,
+            initiative_id=project_in.initiative_id,
+            name=project_in.name,
+            user=current_user,
+            actor=guild_context,
+            payload=project_in,
+            values={
+                "is_template": project_in.is_template,
+                "start_date": project_in.start_date,
+                "end_date": project_in.end_date,
+                **project_in.model_dump(
+                    include={"icon", "description"}, exclude_none=True
+                ),
+            },
+            grants=project_in.grants,
         )
-
-    statuses = await task_statuses_service.ensure_default_statuses(session, project.id)
-    fallback_status_ids = {status.category: status.id for status in statuses}
-
-    if template_project:
-        await filter_presets_service.clone_presets(
+    else:
+        if project_in.initiative_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=ProjectMessages.INITIATIVE_REQUIRED,
+            )
+        await resource_access.prepare_create(
+            session, Tool.project, project_in.initiative_id, current_user, guild_context
+        )
+        project = Project(
+            name=project_in.name,
+            icon=project_in.icon,
+            description=project_in.description,
+            initiative_id=project_in.initiative_id,
+            is_template=project_in.is_template,
+            start_date=project_in.start_date,
+            end_date=project_in.end_date,
+        )
+        session.add(project)
+        await session.flush()
+        # Sharing before anything that hangs off it: a status or a preset is
+        # reached through the project, so the project has to be reachable first.
+        await resource_access.grant_initial_sharing(
             session,
-            source_project_id=template_project.id,
-            target_project_id=project.id,
-            status_mapping=status_mapping,
+            guild_context,
+            Tool.project,
+            user=current_user,
+            resource_id=project.id,
+            initiative_id=project.initiative_id,
+            payload=project_in,
+            grants=project_in.grants,
         )
-    await filter_presets_service.ensure_default_presets(session, project.id)
-
-    copied: list[Task] = []
-    if template_project:
-        copied = await _duplicate_template_tasks(
-            session,
-            template_project,
-            project,
-            status_mapping=status_mapping,
-            fallback_status_ids=fallback_status_ids,
-        )
-        # Copy tags from template project (active only)
-        await tags_service.copy_entity_tags(
-            session,
-            tags_service.TOOL_TAG_LINKS[Tool.project],
-            {template_project.id: project.id},
-        )
-
-    # One claim for the project and its tasks, so a file they share is copied
-    # into another initiative once.
-    await attachments_service.claim_uploads(session, project, *copied)
+        await session.flush()
+        await task_statuses_service.ensure_default_statuses(session, project.id)
+        await filter_presets_service.ensure_default_presets(session, project.id)
+        await attachments_service.claim_uploads(session, project)
     await properties_service.write_on_create(session, project, project_in.properties)
+    settled = named_people.Governing.of(Tool.project, project)
     await session.commit()
+    if project_in.template_id is not None:
+        # As for any copy: those the new project's sharing does not reach are
+        # let go of its tasks once that sharing is committed.
+        await named_people.sweep(session, settled)
+        await session.commit()
+    project_id = settled.resource_id
 
     project = await _get_project_or_404(
-        project.id, session, guild_context.guild_id, user_id=guild_context.user_id
+        project_id, session, guild_context.guild_id, user_id=guild_context.user_id
     )
     if current_user is not None:
-        await notifications_service.notify(
-            session,
-            NotificationType.project_added,
-            notifications_service.SHARED_WITH,
-            about=(Tool.project.value, project.id),
-            key="project.added",
-            values={"project": project.name, "initiative": project.initiative.name},
-            data={"project_id": project.id},
-            actor=current_user,
-            email=lambda reader: email_service.project_added_pieces(
-                reader,
-                initiative_name=project.initiative.name,
-                project_name=project.name,
-                project_id=project.id,
-            ),
-        )
+        await notifications_service.notify_project_added(session, project, current_user)
         await session.commit()
     return await _project_read_for_user(session, guild_context.user_id, project)
-
-
-@router.post(
-    "/{project_id}/duplicate",
-    response_model=ProjectRead,
-    status_code=status.HTTP_201_CREATED,
-)
-async def duplicate_project(
-    project_id: int,
-    duplicate_in: ProjectDuplicateRequest,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> ProjectRead:
-    source_project = await resource_access.load_authorized(
-        session, Tool.project, project_id, current_user, guild_context, access="write"
-    )
-    initiative_id = source_project.initiative_id
-    await resource_access.prepare_create(
-        session, Tool.project, initiative_id, current_user, guild_context
-    )
-
-    new_name = (
-        duplicate_in.name.strip()
-        if duplicate_in.name and duplicate_in.name.strip()
-        else f"{source_project.name} copy"
-    )
-    new_project = Project(
-        name=new_name,
-        icon=source_project.icon,
-        description=source_project.description,
-        initiative_id=initiative_id,
-        is_template=False,
-        start_date=source_project.start_date,
-        end_date=source_project.end_date,
-    )
-
-    session.add(new_project)
-    await session.flush()
-    await resource_access.grant_initial_sharing(
-        session,
-        guild_context,
-        Tool.project,
-        user=current_user,
-        resource_id=new_project.id,
-        initiative_id=initiative_id,
-        payload=duplicate_in,
-        grants=resource_access.duplicate_sharing(
-            source_project, initiative_id=initiative_id
-        ),
-    )
-
-    # Copy tags from source project (active only)
-    await tags_service.copy_entity_tags(
-        session,
-        tags_service.TOOL_TAG_LINKS[Tool.project],
-        {source_project.id: new_project.id},
-    )
-
-    # Clone task statuses from source project to new project
-    status_mapping = await task_statuses_service.clone_statuses(
-        session,
-        source_project_id=source_project.id,
-        target_project_id=new_project.id,
-    )
-
-    # Ensure default statuses exist and create fallback mapping
-    statuses = await task_statuses_service.ensure_default_statuses(
-        session, new_project.id
-    )
-    fallback_status_ids = {status.category: status.id for status in statuses}
-
-    # Presets travel with the project. Their status-id filters are rewritten
-    # through the clone's status mapping, since those ids are per-project.
-    await filter_presets_service.clone_presets(
-        session,
-        source_project_id=source_project.id,
-        target_project_id=new_project.id,
-        status_mapping=status_mapping,
-    )
-    await filter_presets_service.ensure_default_presets(session, new_project.id)
-
-    await _duplicate_template_tasks(
-        session,
-        source_project,
-        new_project,
-        status_mapping=status_mapping,
-        fallback_status_ids=fallback_status_ids,
-    )
-    await session.commit()
-
-    new_project = await _get_project_or_404(
-        new_project.id, session, guild_context.guild_id, user_id=current_user.id
-    )
-    await notifications_service.notify(
-        session,
-        NotificationType.project_added,
-        notifications_service.SHARED_WITH,
-        about=(Tool.project.value, new_project.id),
-        key="project.added",
-        values={
-            "project": new_project.name,
-            "initiative": new_project.initiative.name,
-        },
-        data={"project_id": new_project.id},
-        actor=current_user,
-        email=lambda reader: email_service.project_added_pieces(
-            reader,
-            initiative_name=new_project.initiative.name,
-            project_name=new_project.name,
-            project_id=new_project.id,
-        ),
-    )
-    await session.commit()
-    return await _project_read_for_user(session, current_user.id, new_project)
 
 
 @router.get("/favorites", response_model=List[ProjectRead])
@@ -1063,21 +700,23 @@ async def project_activity_feed(
     project = await resource_access.load_authorized(
         session, Tool.project, project_id, current_user, guild_context
     )
-    offset = (page - 1) * page_size
-    stmt = (
+    on_project = and_(Task.project_id == project.id, in_thread())
+    rows, total_count, actual_page = await paginated_query(
+        session,
         select(Comment, Task)
         .join(Task, Comment.task_id == Task.id)
-        .where(Task.project_id == project.id)
+        .where(on_project)
         .options(selectinload(Comment.author))
-        .order_by(Comment.created_at.desc(), Comment.id.desc())
-        .limit(page_size + 1)
-        .offset(offset)
+        .order_by(Comment.created_at.desc(), Comment.id.desc()),
+        select(func.count())
+        .select_from(Comment)
+        .join(Task, Comment.task_id == Task.id)
+        .where(on_project),
+        page,
+        page_size,
     )
-    result = await session.exec(stmt)
-    rows = result.all()
-    has_next = len(rows) > page_size
     entries: list[ProjectActivityEntry] = []
-    for comment, task in rows[:page_size]:
+    for comment, task in rows:
         author = comment.author
         author_payload = CommentAuthor.model_validate(author) if author else None
         entries.append(
@@ -1090,8 +729,9 @@ async def project_activity_feed(
                 task_title=task.title,
             )
         )
-    next_page = page + 1 if has_next else None
-    return ProjectActivityResponse(items=entries, next_page=next_page)
+    return ProjectActivityResponse(
+        **build_paginated_response(entries, total_count, actual_page, page_size)
+    )
 
 
 @router.get("/{project_id}", response_model=ProjectRead)

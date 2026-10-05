@@ -5,11 +5,7 @@ import { type FormEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { AUTH_FACTOR_REQUIRED_EVENT, type FactorChallengeDetail } from "@/api/client";
-import {
-  sendStepUpCodeApiV1AuthStepUpEmailOtpSendPost,
-  useListPasskeysApiV1AuthPasskeysGet,
-  useReadSecondFactorApiV1AuthTotpGet,
-} from "@/api/generated/auth/auth";
+import { sendStepUpCode, useListPasskeys, useReadSecondFactor } from "@/api/generated/auth/auth";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -97,14 +93,14 @@ export const SecondFactorStepUpDialog = () => {
   // Only asked once there is something to answer, and only for the factor that
   // was asked for. Both routes are platform-scoped, so neither is itself
   // refused by the community that raised the challenge.
-  const statusQuery = useReadSecondFactorApiV1AuthTotpGet({
+  const statusQuery = useReadSecondFactor({
     query: { enabled: open && !presentsPasskey },
   });
   // Asked on both sides now. On the passkey side it decides what to offer; on
   // the code side it is the other way to answer the same ask — a user-verified
   // passkey records the factor too, so an account with a key and no
   // authenticator app has one already.
-  const passkeyQuery = useListPasskeysApiV1AuthPasskeysGet({
+  const passkeyQuery = useListPasskeys({
     query: { enabled: open && !isNativePlatform },
   });
   // Three states, not two. While the answer is in flight, offer the way in:
@@ -179,7 +175,7 @@ export const SecondFactorStepUpDialog = () => {
     setSubmitting(true);
     setError(null);
     try {
-      const sent = await sendStepUpCodeApiV1AuthStepUpEmailOtpSendPost();
+      const sent = await sendStepUpCode();
       setCode("");
       setEmailChallenge(sent.challenge);
     } catch (err) {

@@ -387,7 +387,7 @@ async def _convert_export(
         # Attachments past the community's storage quota could never be
         # restored, so they are not downloaded either.
         storage_left = (
-            await attachments_service.storage_left(user_session, guild_id=guild_id)
+            await attachments_service.storage_left(guild_id)
             if include_attachments
             else None
         )
@@ -657,7 +657,7 @@ async def _read(
         # Attachments past the community's storage quota could never be
         # restored, so they are not downloaded either.
         storage_left = (
-            await attachments_service.storage_left(user_session, guild_id=guild_id)
+            await attachments_service.storage_left(guild_id)
             if include_attachments
             else None
         )

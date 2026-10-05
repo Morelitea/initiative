@@ -4,7 +4,7 @@ import { memo, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type {
-  GuildAppRead,
+  CommunityAppRead,
   InitiativeRead,
   ProjectRead,
 } from "@/api/generated/initiativeAPI.schemas";
@@ -23,7 +23,7 @@ import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@/components/ui
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useUnreadTree } from "@/hooks/useUnreadTree";
 import { initiativeAppPath } from "@/lib/appSurfaces";
-import { guildPath } from "@/lib/guildUrl";
+import { communityPath } from "@/lib/communityUrl";
 import { getItem, setItem } from "@/lib/storage";
 import {
   initiativeRoute,
@@ -45,10 +45,10 @@ export interface InitiativeSectionProps {
   /** One count per tool. Required keys, not `Partial`: a tool left out of
    *  this map renders a permanent 0 with nothing to catch it. */
   counts: Record<Tool, number>;
-  /** The guild's installed apps. Those declaring a surface for this reader
+  /** The community's installed apps. Those declaring a surface for this reader
    *  inside an initiative get a row here, drawn from the same one install. */
-  apps: GuildAppRead[];
-  activeGuildId: number | null;
+  apps: CommunityAppRead[];
+  activeCommunityId: number | null;
   /** Changing this value re-syncs the open/closed state from storage. */
   collapseKey?: number;
 }
@@ -60,15 +60,16 @@ export const InitiativeSection = memo(
     activeProjectId,
     counts,
     apps,
-    activeGuildId,
+    activeCommunityId,
     collapseKey,
   }: InitiativeSectionProps) => {
     const { t } = useTranslation("nav");
     // The same signal the community rail carries, one level in and then one
     // more: a dot on the initiative, and on the tool inside it.
     const unread = useUnreadTree();
-    // Helper to create guild-scoped paths
-    const gp = (path: string) => (activeGuildId ? guildPath(activeGuildId, path) : path);
+    // Helper to create community-scoped paths
+    const gp = (path: string) =>
+      activeCommunityId ? communityPath(activeCommunityId, path) : path;
     /** Whether a tool's row renders at all. */
     const showTool = (tool: Tool): boolean => initiative.can.view.includes(tool);
 
@@ -79,7 +80,7 @@ export const InitiativeSection = memo(
     // server computed it for them.
     const appRows = apps
       .map((app) => ({ app, path: initiativeAppPath(app, initiative.id) }))
-      .filter((row): row is { app: GuildAppRead; path: string } => row.path !== null);
+      .filter((row): row is { app: CommunityAppRead; path: string } => row.path !== null);
 
     // Load initial state from storage, default to true if not found
     const [isOpen, setIsOpen] = useState(() => {
@@ -148,7 +149,7 @@ export const InitiativeSection = memo(
                 className="flex min-w-0 items-center gap-2"
               >
                 <span className="min-w-0 flex-1 truncate text-left">{initiative.name}</span>
-                {unread.hasInitiative(activeGuildId, initiative.id) ? <UnreadDot /> : null}
+                {unread.hasInitiative(activeCommunityId, initiative.id) ? <UnreadDot /> : null}
               </Link>
             </Button>
           </div>
@@ -232,7 +233,7 @@ export const InitiativeSection = memo(
                 </SidebarMenuItem>
               )}
 
-              {/* Apps first, above the tools, the same way the guild's apps sit
+              {/* Apps first, above the tools, the same way the community's apps sit
                   above its initiatives — and because the tool rows end with
                   projects, whose list has to expand directly beneath them. */}
               {appRows.map(({ app, path }) => (
@@ -270,7 +271,7 @@ export const InitiativeSection = memo(
                           <span className="min-w-0 flex-1 truncate">
                             {t(toolNavLabelKey(tool))}
                           </span>
-                          {unread.hasTool(activeGuildId, initiative.id, tool) ? (
+                          {unread.hasTool(activeCommunityId, initiative.id, tool) ? (
                             <UnreadDot />
                           ) : null}
                           <span className="text-muted-foreground text-xs">{counts[tool] ?? 0}</span>

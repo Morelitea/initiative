@@ -10,7 +10,8 @@ class AppSettingSecret(SQLModel, table=True):
 
     A companion to the settings singleton, read and written only by the system
     engine. The settings row carries everything the settings pages show; this
-    row carries the two credentials they only report as set or not set.
+    row carries the credentials they only report as set or not set, and the
+    app platform's generated signing key, which they do not show at all.
 
     1:1 with the singleton — ``id`` is the PK and an FK to ``app_settings.id``
     (``ON DELETE CASCADE``), so it is ``1`` like the row it belongs to. Each
@@ -58,6 +59,25 @@ class AppSettingSecret(SQLModel, table=True):
     # way from the settings page that accepted it.
     fcm_service_account_json_encrypted: Optional[str] = Field(
         default=None, sa_column=Column(String(8000), nullable=True)
+    )
+
+    # The app platform's signing key as a PEM
+    # (``SALT_APP_PLATFORM_SIGNING_KEY``): generated at the first start that
+    # finds APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM unset, and read by every
+    # process after it. Never shown on a settings page.
+    app_platform_signing_key_encrypted: Optional[str] = Field(
+        default=None, sa_column=Column(String(4000), nullable=True)
+    )
+
+    # This server's registration with the push relay: its id, which is not a
+    # secret, and its key (``SALT_PUSH_RELAY_KEY``). Written by the first push
+    # that goes through the relay, and cleared when the relay no longer knows
+    # the key, so the next push registers again.
+    push_relay_server_id: Optional[str] = Field(
+        default=None, sa_column=Column(String(64), nullable=True)
+    )
+    push_relay_key_encrypted: Optional[str] = Field(
+        default=None, sa_column=Column(String(2000), nullable=True)
     )
 
     created_at: datetime = Field(

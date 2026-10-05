@@ -14,9 +14,9 @@ import {
   buildInitiativeMember,
   buildPage,
   buildUser,
-  buildUserPublic,
+  buildUserSummary,
 } from "@/__tests__/factories";
-import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
 
@@ -26,7 +26,8 @@ const state = vi.hoisted(() => ({
   items: [] as Array<Record<string, unknown>>,
   sharing: [] as Array<Record<string, unknown>>,
   sharingFailed: false,
-  offset: 0,
+  page: 1,
+  hasNext: false,
 }));
 
 const report = (overrides: Record<string, unknown> = {}) => ({
@@ -57,10 +58,15 @@ vi.mock("@/hooks/useModeration", async (importOriginal) => {
       isLoading: false,
       isError: state.sharingFailed,
     }),
-    useModerationReports: (params: { offset?: number }) => {
-      state.offset = params.offset ?? 0;
+    useModerationReports: (params: { page?: number }) => {
+      state.page = params.page ?? 1;
       return {
-        data: { items: state.items, total: state.items.length },
+        data: {
+          items: state.items,
+          page: state.page,
+          has_next: state.hasNext,
+          has_prev: state.page > 1,
+        },
         isLoading: false,
       };
     },
@@ -76,11 +82,10 @@ const shared = (overrides: Record<string, unknown> = {}) => ({
   all_initiative_members: false,
   user_grant_count: 1,
   role_grant_count: 0,
-  via_dashboard: false,
   ...overrides,
 });
 
-vi.mock("@/hooks/useActiveGuildId", () => ({ useActiveGuildId: () => 3 }));
+vi.mock("@/hooks/useActiveCommunityId", () => ({ useActiveCommunityId: () => 3 }));
 
 import { ModerationPage } from "./ModerationPage";
 
@@ -89,8 +94,8 @@ import { ModerationPage } from "./ModerationPage";
 const render = () =>
   renderPage(ModerationPage, {
     auth: { user: buildUser() },
-    initialRoute: "/c/$guildId/i/$initiativeId/moderation",
-    routeParams: { guildId: "3", initiativeId: "7" },
+    initialRoute: "/c/$communityId/i/$initiativeId/moderation",
+    routeParams: { communityId: "3", initiativeId: "7" },
   });
 
 /** Render and open the Sharing tab, which is where the second shape lives. */
@@ -106,7 +111,8 @@ describe("ModerationPage", () => {
     state.items = [];
     state.sharing = [];
     state.sharingFailed = false;
-    state.offset = 0;
+    state.page = 1;
+    state.hasNext = false;
   });
 
   it("says so when nothing has been reported", async () => {
@@ -222,8 +228,9 @@ describe("ModerationPage", () => {
     expect(screen.queryByRole("link", { name: "A comment" })).not.toBeInTheDocument();
   });
 
-  it("offers a further page once one is full", async () => {
+  it("offers a further page while there is one", async () => {
     state.items = Array.from({ length: 50 }, (_, i) => report({ id: i + 1 }));
+    state.hasNext = true;
     render();
     const user = userEvent.setup();
 
@@ -231,7 +238,7 @@ describe("ModerationPage", () => {
     expect(screen.getByRole("button", { name: "Newer" })).toBeDisabled();
 
     await user.click(older);
-    expect(state.offset).toBe(50);
+    expect(state.page).toBe(2);
   });
 
   it("offers no paging when one page holds everything", async () => {
@@ -241,35 +248,18 @@ describe("ModerationPage", () => {
     expect(screen.queryByRole("button", { name: "Older" })).not.toBeInTheDocument();
   });
 
-  it("leaves a way back from a page that came back empty, and claims nothing by it", async () => {
-    // A count that divides exactly by the page size lands here, and without
-    // the way back the only exits are switching tab or reloading.
-    state.items = Array.from({ length: 50 }, (_, i) => report({ id: i + 1 }));
-    render();
-    const user = userEvent.setup();
-
-    await user.click(await screen.findByRole("button", { name: "Older" }));
-    state.items = [];
-    await user.click(screen.getByRole("button", { name: "Older" }));
-
-    expect(await screen.findByText("Nothing further.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Newer" })).toBeEnabled();
-    // Running off the end of the list is not proof that nothing was reported.
-    expect(screen.queryByText("Nothing has been reported.")).not.toBeInTheDocument();
-  });
-
   it("reads the initiative's roster a page at a time, each member with their role", async () => {
     server.use(
-      guildHttp.get("/initiatives/:id/members", ({ request }) => {
+      communityHttp.get("/initiatives/:id/members", ({ request }) => {
         const page = Number(new URL(request.url).searchParams.get("page"));
         const member =
           page === 2
             ? buildInitiativeMember({
-                user: buildUserPublic({ full_name: "Bea Second" }),
+                user: buildUserSummary({ display_name: "Bea Second" }),
                 role_display_name: "Member",
               })
             : buildInitiativeMember({
-                user: buildUserPublic({ full_name: "Ada First" }),
+                user: buildUserSummary({ display_name: "Ada First" }),
                 role_display_name: "Moderator",
                 override_share_restrictions: true,
               });

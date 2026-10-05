@@ -10,6 +10,7 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         // Register custom plugins BEFORE super.onCreate() so they're available to the bridge
         registerPlugin(FirebaseRuntimePlugin.class);
+        registerPlugin(AppEnvironmentPlugin.class);
 
         // Switch from splash theme to main theme with edge-to-edge attributes
         setTheme(R.style.AppTheme_NoActionBar);

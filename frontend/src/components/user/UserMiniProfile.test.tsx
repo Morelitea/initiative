@@ -56,7 +56,7 @@ describe("the card a mention opens", () => {
           id: 12,
           username: "ada",
           discriminator: 7,
-          full_name: "Ada King",
+          display_name: "Ada King",
         })}
       />
     );

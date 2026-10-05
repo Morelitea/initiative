@@ -1,6 +1,5 @@
 {
   "title": "Proyectos",
-  "subtitle": "Haz seguimiento de iniciativas y colabora con tu comunidad.",
   "addProject": "Agregar proyecto",
   "loading": "Cargando proyectos…",
   "loadError": "No se pudieron cargar los proyectos.",
@@ -66,7 +65,13 @@
     "unassigned": "Sin asignar",
     "archived": "Archivadas",
     "statusCategory": "Categoría de estado",
-    "savePresetDescription": "Todos los miembros de este proyecto verán este preajuste."
+    "savePresetDescription": "Todos los miembros de este proyecto verán este preajuste.",
+    "seededPresets": {
+      "all": "Todas",
+      "incomplete": "Pendientes",
+      "unassigned": "Sin asignar",
+      "mine": "Mías"
+    }
   },
   "templates": {
     "loading": "Cargando plantillas…",
@@ -113,20 +118,17 @@
     "notFound": "Proyecto no encontrado",
     "notFoundDescription": "Este proyecto puede haber sido eliminado o el enlace está roto.",
     "noAccess": "Acceso denegado",
-    "noAccessDescription": "No tienes permiso para ver este proyecto. Pide a un administrador del proyecto que te otorgue acceso.",
-    "projectSettings": "Configuración del proyecto",
-    "openProjectSettings": "Abrir configuración del proyecto"
+    "noAccessDescription": "No tienes permiso para ver este proyecto. Pide a un administrador del proyecto que te otorgue acceso."
   },
   "overview": {
-    "archived": "Archivado",
-    "active": "Activo",
-    "template": "Plantilla",
     "templateInfo": "Este proyecto es una plantilla. Úsalo para crear nuevos proyectos desde la pestaña Plantillas.",
     "archivedInfo": "Este proyecto está archivado. Desarchívalo desde la configuración para agregar o actualizar tareas.",
-    "scheduleLabel": "Fechas del proyecto",
     "scheduleRange": "{{start}} – {{end}}",
     "scheduleStartOnly": "Comienza el {{start}}",
-    "scheduleEndOnly": "Termina el {{end}}"
+    "scheduleEndOnly": "Termina el {{end}}",
+    "progressLabel": "Progreso",
+    "progress": "{{completed}} de {{total}} hechas",
+    "datesLabel": "Fechas"
   },
   "schedule": {
     "startLabel": "Fecha de inicio",
@@ -165,7 +167,6 @@
     "you": "Tú"
   },
   "statuses": {
-    "title": "Estados de tarea",
     "description": "Reordena, renombra o cambia la categoría de las columnas de tareas usadas por este proyecto.",
     "noManagePermission": "Solo los administradores de proyecto pueden modificar los estados de tarea. Contacta a un administrador de proyecto si necesitas cambios.",
     "addStatus": "Agregar estado",
@@ -215,7 +216,6 @@
     "breadcrumbSettings": "Configuración",
     "tabTaskStatuses": "Estados de tarea",
     "details": {
-      "title": "Detalles del proyecto",
       "description": "Actualiza el ícono, nombre y descripción que se muestran en el espacio de trabajo.",
       "identityHeading": "Identidad",
       "identityDescription": "Dale al proyecto un nombre y emoji reconocibles.",
@@ -248,15 +248,6 @@
       "viewAllTemplates": "Ver todas las plantillas",
       "markedAsTemplate": "Proyecto marcado como plantilla",
       "removedFromTemplates": "Proyecto eliminado de las plantillas"
-    },
-    "duplicate": {
-      "title": "Duplicar proyecto",
-      "description": "Clona este proyecto, incluyendo su iniciativa y tareas, para iniciar nuevo trabajo.",
-      "duplicated": "Proyecto duplicado",
-      "promptName": "Nombre para el proyecto duplicado",
-      "duplicating": "Duplicando...",
-      "duplicateButton": "Duplicar proyecto",
-      "noWriteAccess": "Necesitas acceso de escritura para duplicar este proyecto."
     },
     "tabFilterPresets": "Vistas",
     "filterPresetsHeading": "Preajustes de filtro",

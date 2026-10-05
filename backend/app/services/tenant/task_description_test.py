@@ -11,7 +11,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.relationships import RelationshipType
 from app.core.search import SearchEntityType
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.platform.notification import Notification, NotificationType
 from app.models.tenant.relationship import EntityRelationship
 from app.services.tenant.relationships import Endpoint
@@ -63,10 +63,10 @@ async def _workspace(acting_user, session: AsyncSession):
     """A writer, and a teammate in the same initiative for them to name, in a
     project every member of it can read."""
     writer = await acting_user(
-        guild_role=GuildRole.member, initiative=True, project=True
+        guild_role=CommunityRole.member, initiative=True, project=True
     )
     teammate = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=writer.guild,
         initiative=writer.initiative,
         initiative_role="member",
@@ -104,7 +104,7 @@ async def test_an_edit_tells_only_the_people_it_adds(
 ):
     writer, teammate = await _workspace(acting_user, session)
     newcomer = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=writer.guild,
         initiative=writer.initiative,
         initiative_role="member",
@@ -121,12 +121,15 @@ async def test_an_edit_tells_only_the_people_it_adds(
         headers=writer.headers,
         json={
             "description": (
-                f"Pair with @[Tea M]({teammate.user.id}) "
-                f"and @[New Comer]({newcomer.user.id})"
+                f"Pair with @[Tea M]({teammate.user.id}) and @[]({newcomer.user.id})"
             )
         },
     )
     assert response.status_code == 200, response.text
+    # Stored by id alone, whoever's mention it is and however it was written.
+    assert response.json()["description"] == (
+        f"Pair with @[]({teammate.user.id}) and @[]({newcomer.user.id})"
+    )
 
     assert await _mentions_for(session, teammate.user.id) == []
     assert len(await _mentions_for(session, newcomer.user.id)) == 1
@@ -137,7 +140,7 @@ async def test_nobody_outside_the_initiative_is_told(
 ):
     """The picker offers nobody else, and the notice would name the task."""
     writer = await acting_user(
-        guild_role=GuildRole.member, initiative=True, project=True
+        guild_role=CommunityRole.member, initiative=True, project=True
     )
     outsider = await create_user(session, email="outsider@example.com")
     await session.commit()
@@ -160,7 +163,7 @@ async def test_naming_yourself_tells_nobody(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     writer = await acting_user(
-        guild_role=GuildRole.member, initiative=True, project=True
+        guild_role=CommunityRole.member, initiative=True, project=True
     )
 
     response = await client.post(
@@ -181,7 +184,7 @@ async def test_a_description_s_hash_becomes_the_task_s_reference(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     writer = await acting_user(
-        guild_role=GuildRole.member, initiative=True, project=True
+        guild_role=CommunityRole.member, initiative=True, project=True
     )
     doc = await create_document(session, writer.initiative, writer.user)
     task = await create_task(session, writer.project)

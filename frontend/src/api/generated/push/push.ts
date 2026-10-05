@@ -30,13 +30,11 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
  * This endpoint registers a new push token or updates an existing one.
  * The token will be used to send push notifications to the user's device.
  *
- * Which installation the token belongs to is read off the credential that
- * made the call, not the body: it is the same handle the device's message key
- * store records, and matching the two is what lets a message wake the phone
- * that can actually read it.
- *
- * So is the session that made it: a device is sent to while the sign-in that
- * registered it stands, and the app registers again each time it starts.
+ * Which installation the token belongs to is read off the session that made
+ * the call, not the body: the device's message key store names the same
+ * sign-in, and matching the two is what lets a message wake the phone that can
+ * actually read it. A device is sent to while that sign-in stands, and the app
+ * registers again each time it starts.
  * Only a sign-in registers one: a device receives the account's notifications
  * from every community, which is more than any key or app is lent.
  *
@@ -45,7 +43,7 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
  * it would be keeping an address this deployment has said it does not send to.
  * @summary Register Push Token
  */
-export const registerPushTokenApiV1PushRegisterPost = (
+export const registerPushToken = (
   pushTokenRegisterRequest: BodyType<PushTokenRegisterRequest>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
@@ -62,27 +60,26 @@ export const registerPushTokenApiV1PushRegisterPost = (
   );
 };
 
-export const getRegisterPushTokenApiV1PushRegisterPostMutationKey = () =>
-  ["registerPushTokenApiV1PushRegisterPost"] as const;
+export const getRegisterPushTokenMutationKey = () => ["registerPushToken"] as const;
 
-export const getRegisterPushTokenApiV1PushRegisterPostMutationOptions = <
+export const getRegisterPushTokenMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof registerPushTokenApiV1PushRegisterPost>>,
+    Awaited<ReturnType<typeof registerPushToken>>,
     TError,
-    RegisterPushTokenApiV1PushRegisterPostMutationVariables,
+    RegisterPushTokenMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof registerPushTokenApiV1PushRegisterPost>>,
+  Awaited<ReturnType<typeof registerPushToken>>,
   TError,
-  RegisterPushTokenApiV1PushRegisterPostMutationVariables,
+  RegisterPushTokenMutationVariables,
   TContext
 > => {
-  const mutationKey = getRegisterPushTokenApiV1PushRegisterPostMutationKey();
+  const mutationKey = getRegisterPushTokenMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -90,53 +87,45 @@ export const getRegisterPushTokenApiV1PushRegisterPostMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof registerPushTokenApiV1PushRegisterPost>>,
-    RegisterPushTokenApiV1PushRegisterPostMutationVariables
+    Awaited<ReturnType<typeof registerPushToken>>,
+    RegisterPushTokenMutationVariables
   > = (props) => {
     const { data } = props ?? {};
 
-    return registerPushTokenApiV1PushRegisterPost(data, requestOptions);
+    return registerPushToken(data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type RegisterPushTokenApiV1PushRegisterPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof registerPushTokenApiV1PushRegisterPost>>
+export type RegisterPushTokenMutationResult = NonNullable<
+  Awaited<ReturnType<typeof registerPushToken>>
 >;
-export type RegisterPushTokenApiV1PushRegisterPostMutationBody = BodyType<PushTokenRegisterRequest>;
-export type RegisterPushTokenApiV1PushRegisterPostMutationError = ErrorType<HTTPValidationError>;
-export type RegisterPushTokenApiV1PushRegisterPostMutationVariables = {
-  data: BodyType<PushTokenRegisterRequest>;
-};
+export type RegisterPushTokenMutationBody = BodyType<PushTokenRegisterRequest>;
+export type RegisterPushTokenMutationError = ErrorType<HTTPValidationError>;
+export type RegisterPushTokenMutationVariables = { data: BodyType<PushTokenRegisterRequest> };
 
 /**
  * @summary Register Push Token
  */
-export const useRegisterPushTokenApiV1PushRegisterPost = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
+export const useRegisterPushToken = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof registerPushTokenApiV1PushRegisterPost>>,
+      Awaited<ReturnType<typeof registerPushToken>>,
       TError,
-      RegisterPushTokenApiV1PushRegisterPostMutationVariables,
+      RegisterPushTokenMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof registerPushTokenApiV1PushRegisterPost>>,
+  Awaited<ReturnType<typeof registerPushToken>>,
   TError,
-  RegisterPushTokenApiV1PushRegisterPostMutationVariables,
+  RegisterPushTokenMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getRegisterPushTokenApiV1PushRegisterPostMutationOptions(options),
-    queryClient
-  );
+  return useMutation(getRegisterPushTokenMutationOptions(options), queryClient);
 };
 /**
  * Unregister a push notification token.
@@ -145,7 +134,7 @@ export const useRegisterPushTokenApiV1PushRegisterPost = <
  * no longer receive push notifications.
  * @summary Unregister Push Token
  */
-export const unregisterPushTokenApiV1PushUnregisterDelete = (
+export const unregisterPushToken = (
   pushTokenUnregisterRequest: BodyType<PushTokenUnregisterRequest>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
@@ -162,27 +151,26 @@ export const unregisterPushTokenApiV1PushUnregisterDelete = (
   );
 };
 
-export const getUnregisterPushTokenApiV1PushUnregisterDeleteMutationKey = () =>
-  ["unregisterPushTokenApiV1PushUnregisterDelete"] as const;
+export const getUnregisterPushTokenMutationKey = () => ["unregisterPushToken"] as const;
 
-export const getUnregisterPushTokenApiV1PushUnregisterDeleteMutationOptions = <
+export const getUnregisterPushTokenMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof unregisterPushTokenApiV1PushUnregisterDelete>>,
+    Awaited<ReturnType<typeof unregisterPushToken>>,
     TError,
-    UnregisterPushTokenApiV1PushUnregisterDeleteMutationVariables,
+    UnregisterPushTokenMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof unregisterPushTokenApiV1PushUnregisterDelete>>,
+  Awaited<ReturnType<typeof unregisterPushToken>>,
   TError,
-  UnregisterPushTokenApiV1PushUnregisterDeleteMutationVariables,
+  UnregisterPushTokenMutationVariables,
   TContext
 > => {
-  const mutationKey = getUnregisterPushTokenApiV1PushUnregisterDeleteMutationKey();
+  const mutationKey = getUnregisterPushTokenMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -190,53 +178,43 @@ export const getUnregisterPushTokenApiV1PushUnregisterDeleteMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof unregisterPushTokenApiV1PushUnregisterDelete>>,
-    UnregisterPushTokenApiV1PushUnregisterDeleteMutationVariables
+    Awaited<ReturnType<typeof unregisterPushToken>>,
+    UnregisterPushTokenMutationVariables
   > = (props) => {
     const { data } = props ?? {};
 
-    return unregisterPushTokenApiV1PushUnregisterDelete(data, requestOptions);
+    return unregisterPushToken(data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type UnregisterPushTokenApiV1PushUnregisterDeleteMutationResult = NonNullable<
-  Awaited<ReturnType<typeof unregisterPushTokenApiV1PushUnregisterDelete>>
+export type UnregisterPushTokenMutationResult = NonNullable<
+  Awaited<ReturnType<typeof unregisterPushToken>>
 >;
-export type UnregisterPushTokenApiV1PushUnregisterDeleteMutationBody =
-  BodyType<PushTokenUnregisterRequest>;
-export type UnregisterPushTokenApiV1PushUnregisterDeleteMutationError =
-  ErrorType<HTTPValidationError>;
-export type UnregisterPushTokenApiV1PushUnregisterDeleteMutationVariables = {
-  data: BodyType<PushTokenUnregisterRequest>;
-};
+export type UnregisterPushTokenMutationBody = BodyType<PushTokenUnregisterRequest>;
+export type UnregisterPushTokenMutationError = ErrorType<HTTPValidationError>;
+export type UnregisterPushTokenMutationVariables = { data: BodyType<PushTokenUnregisterRequest> };
 
 /**
  * @summary Unregister Push Token
  */
-export const useUnregisterPushTokenApiV1PushUnregisterDelete = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
+export const useUnregisterPushToken = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof unregisterPushTokenApiV1PushUnregisterDelete>>,
+      Awaited<ReturnType<typeof unregisterPushToken>>,
       TError,
-      UnregisterPushTokenApiV1PushUnregisterDeleteMutationVariables,
+      UnregisterPushTokenMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof unregisterPushTokenApiV1PushUnregisterDelete>>,
+  Awaited<ReturnType<typeof unregisterPushToken>>,
   TError,
-  UnregisterPushTokenApiV1PushUnregisterDeleteMutationVariables,
+  UnregisterPushTokenMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getUnregisterPushTokenApiV1PushUnregisterDeleteMutationOptions(options),
-    queryClient
-  );
+  return useMutation(getUnregisterPushTokenMutationOptions(options), queryClient);
 };

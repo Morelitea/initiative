@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import ConfigDict, Field
 
+from app.models.tenant.dashboard import DashboardViewMode
 from app.schemas.base import SanitizedBaseModel, TitleStr
 from app.schemas.tenant.property import PropertiesOnCreate
 from app.schemas.query import PageMeta
@@ -80,25 +81,30 @@ class DashboardUpdate(SanitizedBaseModel):
     config: Optional[Dict[str, Any]] = None
 
 
+class DashboardPreview(SanitizedBaseModel):
+    """A dashboard as a list's card draws it: its canvas and its query widgets'
+    answers. Widgets bound to anything else draw from sample data there."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    definition: Dict[str, Any]
+    config: Dict[str, Any]
+    widgets: Dict[str, "DashboardWidgetData"] = Field(default_factory=dict)
+
+
 class DashboardSummary(DashboardBase, ToolSummaryBase):
     # Marketplace provenance; both null for a dashboard authored from scratch.
     listing_uid: Optional[str] = None
     listing_version: Optional[str] = None
+    #: Whose access the query widgets answer from: each viewer's own, or full
+    #: read access to the initiative, the same for everyone.
+    view_mode: DashboardViewMode = DashboardViewMode.individual
+    #: The canvas and its answers, when the list was asked for previews.
+    preview: Optional[DashboardPreview] = None
 
 
 class DashboardListResponse(PageMeta):
     items: List[DashboardSummary]
-
-
-class PublishedOver(SanitizedBaseModel):
-    """One resource this dashboard shows to everybody who can open it."""
-
-    resource_type: str
-    resource_id: int
-    #: What it is called, where the reader of *this* payload may see it named.
-    #: Absent otherwise: a published view discloses that it exists, never what
-    #: it is called to somebody who cannot reach it.
-    name: Optional[str] = None
 
 
 class DashboardRead(DashboardSummary):
@@ -106,36 +112,14 @@ class DashboardRead(DashboardSummary):
     # doesn't render widgets, and definitions are the largest field here.
     definition: Dict[str, Any] = Field(default_factory=dict)
     config: Dict[str, Any] = Field(default_factory=dict)
-    #: What this dashboard publishes over: the resources its tiles read through
-    #: its own grants rather than through the viewer's. Present so a reader can
-    #: be told the numbers are not their own, which is the disclosure the whole
-    #: mechanism rests on.
-    published_over: List[PublishedOver] = Field(default_factory=list)
-    #: Whether those grants are serving right now. A published view rests on
-    #: its author's standing access, and stops when that stops — so the list
-    #: above says what somebody published and this says whether it is what
-    #: anybody is currently seeing. Telling a reader the figures are shared
-    #: when the dashboard has fallen back to their own would be the disclosure
-    #: saying the opposite of what is happening.
-    published_active: bool = False
+    #: Whether the reader may set this dashboard to run as its initiative, or
+    #: change its widgets while it does: an initiative manager, a community
+    #: admin, or a role holding ``dashboards_run_as_initiative``.
+    can_run_as_initiative: bool = False
 
 
-class PublishRequest(SanitizedBaseModel):
-    """What a dashboard should publish over, in full.
-
-    The whole list each time, like the sharing panel: publishing is an explicit
-    act and what it grants over is what somebody looked at when they did it.
-    """
-
-    resources: List["PublishTarget"] = Field(default_factory=list, max_length=50)
-
-
-class PublishTarget(SanitizedBaseModel):
-    resource_type: str = Field(min_length=1, max_length=32)
-    resource_id: int = Field(gt=0)
-
-
-PublishRequest.model_rebuild()
+class DashboardViewModeRequest(SanitizedBaseModel):
+    mode: DashboardViewMode
 
 
 class DashboardWidgetData(SanitizedBaseModel):
@@ -161,6 +145,11 @@ class DashboardDataResponse(SanitizedBaseModel):
 from app.schemas.sql_query import QueryResponse  # noqa: E402
 
 DashboardWidgetData.model_rebuild()
+# The preview names the widget answers declared above it.
+DashboardPreview.model_rebuild()
+DashboardSummary.model_rebuild()
+DashboardListResponse.model_rebuild()
+DashboardRead.model_rebuild()
 
 
 # --- widget catalog --------------------------------------------------------

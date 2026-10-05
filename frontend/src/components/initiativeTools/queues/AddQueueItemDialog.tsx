@@ -22,7 +22,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useCreateQueueItem, useSetQueueItemLinks } from "@/hooks/useQueues";
-import { toast } from "@/lib/chesterToast";
+import { toast } from "@/lib/mascotToast";
 import type { LinkedRef } from "@/lib/relationships";
 import type { DialogProps } from "@/types/dialog";
 
@@ -143,10 +143,10 @@ export const AddQueueItemDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-screen w-full overflow-y-auto rounded-2xl border bg-card shadow-2xl sm:max-w-lg">
+      <DialogContent className="w-full rounded-2xl border bg-card shadow-2xl sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{t("addItem")}</DialogTitle>
-          <DialogDescription>{t("noItemsDescription")}</DialogDescription>
+          <DialogDescription className="sr-only">{t("noItemsDescription")}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">

@@ -16,7 +16,7 @@ from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.tools import Tool
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.testing import (
     strip_non_owner_grants,
     Actor,
@@ -44,7 +44,7 @@ def _path(tool: Tool) -> str:
 def _keyed(response) -> set[tuple[int, int]]:
     """Items keyed by (guild, id): per-schema ids collide across communities,
     which is what callers of a merged list must key by too."""
-    return {(item["guild_id"], item["id"]) for item in response.json()["items"]}
+    return {(item["community_id"], item["id"]) for item in response.json()["items"]}
 
 
 async def _enable_tools(client, actor):
@@ -78,7 +78,7 @@ async def _second_guild(client, session: AsyncSession, actor: Actor) -> Actor:
     The same user and auth, bound to the new guild so ``.g()`` addresses it."""
     guild = await create_guild(session, creator=actor.user, name="Second Guild")
     await create_guild_membership(
-        session, user=actor.user, guild=guild, role=GuildRole.admin
+        session, user=actor.user, guild=guild, role=CommunityRole.admin
     )
     initiative = await create_initiative(session, guild, actor.user, name="Initiative")
     second = Actor(
@@ -102,7 +102,7 @@ async def test_each_list_is_its_tools_live_view_in_every_guild(
     the same totals. What the live view leaves out — the archive, templates, a
     tool switched off, what was never shared — is the guild list's to say, and
     is tested there."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _enable_tools(client, a)
     b = await _second_guild(client, session, a)
     for actor in (a, b):
@@ -129,11 +129,11 @@ async def test_each_list_is_its_tools_live_view_in_every_guild(
         )
         assert response.status_code == 200, response.text
         for item in response.json()["items"]:
-            in_guilds[(item["guild_id"], item["id"])] = item
+            in_guilds[(item["community_id"], item["id"])] = item
 
     mine = await client.get(_path(tool), headers=a.headers, params={"page_size": 50})
     assert mine.status_code == 200, mine.text
-    assert {(i["guild_id"], i["id"]): i for i in mine.json()["items"]} == in_guilds
+    assert {(i["community_id"], i["id"]): i for i in mine.json()["items"]} == in_guilds
     assert mine.json()["total_count"] == len(in_guilds) == 2
 
     counts = await client.get("/api/v1/me/tools/counts", headers=a.headers)
@@ -145,7 +145,7 @@ async def test_the_list_answers_with_what_reaches_the_caller(
     client: AsyncClient, acting_user, tool: Tool
 ):
     """The row a caller just made is in their cross-guild list for that tool."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _enable_tools(client, a)
     row = await _create(client, a, tool, "Standup")
 
@@ -162,8 +162,8 @@ async def test_a_guild_the_caller_is_not_in_contributes_nothing(
     client: AsyncClient, acting_user, tool: Tool
 ):
     """The merge visits the caller's own communities and no others."""
-    outsider = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    stranger = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    outsider = await acting_user(guild_role=CommunityRole.admin, initiative=True)
+    stranger = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _enable_tools(client, stranger)
     theirs = await _create(client, stranger, tool, "Not Yours")
 
@@ -178,10 +178,10 @@ async def test_created_by_me_keeps_only_what_the_caller_wrote(
     client: AsyncClient, acting_user, tool: Tool
 ):
     """The page's other view: authorship, not everything that reaches you."""
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _enable_tools(client, admin)
     other = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=admin.guild,
         initiative=admin.initiative,
         initiative_role="member",
@@ -203,7 +203,7 @@ async def test_guild_ids_narrows_the_merge(
 ):
     """Unfiltered the list spans every community the caller belongs to;
     ``guild_ids`` narrows it to the ones named."""
-    a1 = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a1 = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _enable_tools(client, a1)
     a2 = await _second_guild(client, session, a1)
 
@@ -216,7 +216,7 @@ async def test_guild_ids_narrows_the_merge(
     assert (a2.guild.id, row2["id"]) in _keyed(both)
 
     narrowed = await client.get(
-        f"{_path(tool)}?guild_ids={a1.guild.id}", headers=a1.headers
+        f"{_path(tool)}?community_ids={a1.guild.id}", headers=a1.headers
     )
     assert narrowed.status_code == 200
     assert (a1.guild.id, row1["id"]) in _keyed(narrowed)
@@ -226,7 +226,7 @@ async def test_guild_ids_narrows_the_merge(
 @per_tool
 async def test_search_narrows_by_name(client: AsyncClient, acting_user, tool: Tool):
     """The filter box reads the same index the search page does."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _enable_tools(client, a)
     alpha = await _create(client, a, tool, "Alpha Notes")
     beta = await _create(client, a, tool, "Beta Summary")
@@ -245,7 +245,7 @@ async def test_pagination_walks_the_merged_list(
 ):
     """Each guild orders and limits its own rows, and the pages cut from their
     merge continue one another across guilds: every row once, in order."""
-    a1 = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a1 = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _enable_tools(client, a1)
     a2 = await _second_guild(client, session, a1)
     for actor, name in [
@@ -276,7 +276,7 @@ async def test_pagination_walks_the_merged_list(
         "Delta",
         "Echo",
     ]
-    assert [item["guild_id"] for item in walked] == [
+    assert [item["community_id"] for item in walked] == [
         a1.guild.id,
         a2.guild.id,
         a2.guild.id,
@@ -289,9 +289,9 @@ async def test_a_co_member_reads_what_was_shared_with_the_initiative(
     client: AsyncClient, acting_user
 ):
     """Sharing is what the list answers by, not who made the row."""
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     other = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=admin.guild,
         initiative=admin.initiative,
         initiative_role="member",
@@ -324,10 +324,10 @@ async def test_my_projects_follows_grants_not_guild_admin_standing(
 
     guild = await create_guild(session, creator=owner, name="Shared Guild")
     await create_guild_membership(
-        session, user=owner, guild=guild, role=GuildRole.admin
+        session, user=owner, guild=guild, role=CommunityRole.admin
     )
     await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
+        session, user=admin, guild=guild, role=CommunityRole.admin
     )
 
     elsewhere = await create_initiative(session, guild, owner, name="Not Theirs")
@@ -358,10 +358,10 @@ async def test_an_initiative_listing_still_answers_a_guild_admin_in_full(
 
     guild = await create_guild(session, creator=owner, name="Shared Guild")
     await create_guild_membership(
-        session, user=owner, guild=guild, role=GuildRole.admin
+        session, user=owner, guild=guild, role=CommunityRole.admin
     )
     await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
+        session, user=admin, guild=guild, role=CommunityRole.admin
     )
 
     elsewhere = await create_initiative(session, guild, owner, name="Not Theirs")
@@ -389,9 +389,9 @@ async def test_my_calendars_carry_a_guild_calendar(
     initiative switch and to no initiative membership, and the guild member
     reading it here is in none of the guild's initiatives.
     """
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     calendar = await create_guild_calendar(session, a.guild, a.user)
-    member = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+    member = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
 
     response = await client.get("/api/v1/me/calendars", headers=member.headers)
 
@@ -405,13 +405,13 @@ async def test_my_calendars_merge_across_guilds_and_apply_sharing(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """Sharing is resolved per guild, as the guild is entered."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
     await _enable_tools(client, a)
     shared = await create_calendar(session, a.initiative, a.user, name="Home Cal")
     secret = await create_calendar(session, a.initiative, a.user, name="Secret Cal")
 
     # Second guild the same user belongs to, with its own calendar.
-    b = await acting_user(guild_role=GuildRole.member, initiative=True)
+    b = await acting_user(guild_role=CommunityRole.member, initiative=True)
     await _enable_tools(client, b)
     await create_guild_membership(session, user=a.user, guild=b.guild)
     await create_initiative_member(session, b.initiative, a.user)
@@ -423,7 +423,7 @@ async def test_my_calendars_merge_across_guilds_and_apply_sharing(
     assert {shared.name, secret.name, away.name} <= names
 
     member = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="member",
@@ -444,7 +444,7 @@ async def test_my_calendars_merge_across_guilds_and_apply_sharing(
 
 async def test_my_tool_counts(client: AsyncClient, acting_user):
     """Every tool is answered for, with a zero where the caller has none."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _enable_tools(client, a)
     await _create(client, a, Tool.queue, "Standup")
     await _create(client, a, Tool.queue, "Retro")
@@ -464,10 +464,10 @@ async def test_my_tool_counts(client: AsyncClient, acting_user):
 
 async def test_my_tool_counts_created_by_me(client: AsyncClient, acting_user):
     """The counts follow the view the page is in."""
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _enable_tools(client, admin)
     other = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=admin.guild,
         initiative=admin.initiative,
         initiative_role="member",

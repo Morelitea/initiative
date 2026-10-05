@@ -14,37 +14,28 @@ may this session last" but "how long may it sit untouched". Both are windows
 on a session rather than checks on a request, which is what keeps
 authentication off the per-request path.
 
-The answer is stamped on the chain when the sign-in happens and carried
-through every rotation unchanged, so renewing a session costs no extra read.
-One consequence, and it is the right one: joining a community that asks for
-the stricter standard applies at that person's next sign-in rather than
-shortening the session they are in.
+The absolute limit is stamped on the chain when the sign-in happens and
+carried through every rotation unchanged. One consequence, and it is the right
+one: joining a community that asks for the stricter standard shortens that
+person's next sign-in rather than the session they are in.
+
+The idle window is read again at every renewal, because a renewal is when it
+is applied. So it follows a change of membership, or of the community's
+setting, from the next renewal: joining starts the fifteen minutes there, and
+leaving or lifting the standard ends them there.
 """
 
 from __future__ import annotations
 
 from datetime import datetime, timedelta
 
-from sqlalchemy import Interval, cast, func, literal, update
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.guild_auth_options import GuildAuthOption
+from app.core.guild_auth_options import CommunityAuthOption
 from app.models.platform.guild import Guild, GuildMembership
-from app.models.platform.user_token import UserToken, UserTokenPurpose
 from app.services.platform import app_settings as app_settings_service
 from app.services.platform import guild_entitlements
-from app.core.clock import utcnow
-
-
-def _window(hours: int):
-    """``hours`` as an interval the statement carries as a value.
-
-    Cast rather than left to inference: the only place this is added to a
-    timestamp is inside ``least()``, whose arguments are polymorphic, so the
-    type is stated rather than worked out.
-    """
-    return cast(literal(timedelta(hours=int(hours))), Interval)
 
 
 #: What a community held to the compliance standard asks of its members.
@@ -68,7 +59,7 @@ COMPLIANCE_IDLE_MINUTES = 15
 #: holds the ``restrictions`` option that asking needs.
 _holds_the_standard = Guild.enforce_compliance_session.is_(
     True
-) & guild_entitlements.holds_option(Guild.id, GuildAuthOption.restrictions)
+) & guild_entitlements.holds_option(Guild.id, CommunityAuthOption.restrictions)
 
 
 async def _belongs_to_a_compliance_guild(
@@ -139,60 +130,3 @@ async def chain_deadline(
     """When the chain this sign-in starts must end. ``None`` for no limit."""
     hours = await resolve_max_hours(session, user_id=user_id)
     return None if hours is None else issued + timedelta(hours=hours)
-
-
-async def apply_to_device_tokens(session: AsyncSession) -> None:
-    """Bring device tokens already issued under the limit now in force.
-
-    A session carries its deadline on the row and a device token carries its
-    in ``expires_at``, which is what every request already checks — so this
-    writes the limit in once, when it changes, rather than making every native
-    request read the policy to find out.
-
-    Run when either control moves. A token is only ever brought *in*: this
-    takes the earlier of where it stands and where the limit puts it, so it can
-    shorten a window and never extend one.
-    """
-    row = await app_settings_service.get_app_settings(session)
-    platform_hours = row.session_max_hours
-    now = utcnow()
-
-    if platform_hours is not None:
-        await session.exec(
-            update(UserToken)
-            .where(
-                UserToken.purpose == UserTokenPurpose.device_auth,
-                UserToken.expires_at > now,
-            )
-            .values(
-                expires_at=func.least(
-                    UserToken.expires_at,
-                    UserToken.created_at + _window(platform_hours),
-                )
-            )
-        )
-
-    compliance_hours = (
-        COMPLIANCE_SESSION_HOURS
-        if platform_hours is None
-        else min(COMPLIANCE_SESSION_HOURS, platform_hours)
-    )
-    members = (
-        select(GuildMembership.user_id)
-        .join(Guild, Guild.id == GuildMembership.guild_id)
-        .where(_holds_the_standard)
-    )
-    await session.exec(
-        update(UserToken)
-        .where(
-            UserToken.purpose == UserTokenPurpose.device_auth,
-            UserToken.expires_at > now,
-            UserToken.user_id.in_(members),
-        )
-        .values(
-            expires_at=func.least(
-                UserToken.expires_at,
-                UserToken.created_at + _window(compliance_hours),
-            )
-        )
-    )

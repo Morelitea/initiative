@@ -10,7 +10,7 @@ import { screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { renderPage } from "@/__tests__/helpers/render";
-import type { GuildAppDetail } from "@/api/generated/initiativeAPI.schemas";
+import type { CommunityAppDetail } from "@/api/generated/initiativeAPI.schemas";
 
 import { AppScopesPanel } from "./AppScopesPanel";
 
@@ -23,11 +23,11 @@ const mutate = vi.fn(
   }
 );
 
-vi.mock("@/hooks/useGuildApps", () => ({
+vi.mock("@/hooks/useCommunityApps", () => ({
   useSetAppScopes: () => ({ mutate, isPending: false }),
 }));
 
-const app = (overrides: Partial<GuildAppDetail> = {}) =>
+const app = (overrides: Partial<CommunityAppDetail> = {}) =>
   ({
     id: 7,
     name: "WidgetCo",
@@ -35,7 +35,7 @@ const app = (overrides: Partial<GuildAppDetail> = {}) =>
     grantable_scopes: ["projects:read", "projects:write", "comments:read"],
     granted_scopes: [],
     ...overrides,
-  }) as unknown as GuildAppDetail;
+  }) as unknown as CommunityAppDetail;
 
 /** The row for one resource, by its label. */
 const row = async (label: string) => {
@@ -65,7 +65,7 @@ describe("AppScopesPanel", () => {
   });
 
   it("says acting as a moderator or an admin plainly, on rows of their own", async () => {
-    const standings = ["initiatives:moderate", "guild:admin"];
+    const standings = ["initiatives:moderate", "community:admin"];
     renderPage(() => (
       <AppScopesPanel
         app={app({

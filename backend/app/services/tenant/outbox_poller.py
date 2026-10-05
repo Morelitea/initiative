@@ -296,13 +296,15 @@ def _envelope(
 
     ``app_events`` are the events apps emitted in the transaction, each with
     its emitter's ``public_id``. Each is one entry in ``changes`` carrying its
-    payload.
+    payload, and the initiative it landed in for this subscription: its own,
+    or for one about no initiative, the initiative the subscription is
+    narrowed to (``None`` for the community's).
     """
     first = rows[0] if rows else app_events[0][0]
     return {
         "event_id": _event_id(subscription.id, txn_id),
         "subscription_id": subscription.id,
-        "guild_ref": guild_ref,
+        "community_ref": guild_ref,
         "actor_ref": actor_ref,
         "actor_app": actor_app,
         "occurred_at": first.occurred_at.isoformat(),
@@ -323,7 +325,11 @@ def _envelope(
         + [
             {
                 "event_type": event.event_type,
-                "initiative_id": event.initiative_id,
+                "initiative_id": (
+                    event.initiative_id
+                    if event.initiative_id is not None
+                    else subscription.initiative_id
+                ),
                 "app": emitter,
                 "payload": event.payload,
             }

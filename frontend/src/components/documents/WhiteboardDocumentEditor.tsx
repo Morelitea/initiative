@@ -272,88 +272,6 @@ export function WhiteboardDocumentEditor({
     };
   }, [yDoc]);
 
-  // ── Post-sync bootstrap ──────────────────────────────────────────────
-  // After initial Yjs sync, decide whether to apply the Y.Map state to
-  // Excalidraw. Three cases:
-  //
-  // • Other users connected: the room is live and authoritative — apply
-  //   the Y.Map state regardless of whether our initialScene came from
-  //   cache or REST. A stale local cache (from a previous visit where
-  //   another user kept editing after we left) must NOT be propagated
-  //   to Yjs, or we'd clobber the live room's state for all users.
-  //
-  // • initialSceneFromCache === true AND alone: we have unsaved local
-  //   edits and no one else is here to correct us. Keep the cached scene
-  //   (the Yjs state is likely behind by one edit because the last
-  //   WebSocket message was lost on page unload).
-  //
-  // • initialSceneFromCache === false AND alone: no unsaved local work.
-  //   Apply the Y.Map state if it has anything — it may be more recent
-  //   than the REST content (e.g. from a `persist_room` snapshot that
-  //   happened after the last REST PATCH).
-  //
-  // After the decision, flip writesAllowedRef so subsequent local edits
-  // flow to Yjs, and bootstrapDoneRef so remote updates flow in.
-  useEffect(() => {
-    // Wait for the collaborator roster as well as the sync: the roster
-    // arrives on the socket right after the sync message, and deciding
-    // before it lands would read hasOtherCollaborators as false even in
-    // a live room. Wait for the Excalidraw API too — this effect can win
-    // the race against Excalidraw's mount callback, and completing the
-    // bootstrap without applying the room state would arm writes while
-    // the canvas still shows the REST snapshot: the mount onChange would
-    // then push that older scene into the live room and roll every other
-    // user back to it.
-    if (!yDoc || !isSynced || !collaboratorsReady || !excalidrawAPI) return;
-    if (seededForDocRef.current === yDoc) return;
-    seededForDocRef.current = yDoc;
-
-    const shouldApplyYjsState = hasOtherCollaborators || !initialSceneFromCache;
-
-    if (shouldApplyYjsState) {
-      const yMap = yDoc.getMap<string>("excalidraw");
-      const raw = yMap.get("scene");
-      if (raw) {
-        try {
-          const parsed = JSON.parse(raw) as {
-            elements: readonly OrderedExcalidrawElement[];
-            appState?: Partial<AppState>;
-            files?: BinaryFiles;
-          };
-          prevSerializedRef.current = raw;
-          applyingRemoteRef.current = true;
-          if (parsed.files) {
-            const fileArr = Object.values(parsed.files);
-            if (fileArr.length > 0) {
-              excalidrawAPI.addFiles(fileArr);
-            }
-          }
-          excalidrawAPI.updateScene({
-            elements: parsed.elements,
-            appState: parsed.appState as Partial<AppState> as AppState,
-            captureUpdate: CaptureUpdateAction.NEVER,
-          });
-          queueMicrotask(() => {
-            applyingRemoteRef.current = false;
-          });
-        } catch (err) {
-          console.error("Failed to apply post-sync whiteboard state:", err);
-          applyingRemoteRef.current = false;
-        }
-      }
-    }
-
-    bootstrapDoneRef.current = true;
-    writesAllowedRef.current = true;
-  }, [
-    yDoc,
-    isSynced,
-    initialSceneFromCache,
-    hasOtherCollaborators,
-    collaboratorsReady,
-    excalidrawAPI,
-  ]);
-
   // ── Local change handler ─────────────────────────────────────────────
   // Excalidraw fires onChange on every re-render (unlike Lexical which
   // debounces internally). We must skip Yjs writes when the serialized
@@ -426,6 +344,101 @@ export function WhiteboardDocumentEditor({
     },
     [onSerializedChange]
   );
+
+  // ── Post-sync bootstrap ──────────────────────────────────────────────
+  // After initial Yjs sync, decide whether to apply the Y.Map state to
+  // Excalidraw. Three cases:
+  //
+  // • Other users connected: the room is live and authoritative — apply
+  //   the Y.Map state regardless of whether our initialScene came from
+  //   cache or REST. A stale local cache (from a previous visit where
+  //   another user kept editing after we left) must NOT be propagated
+  //   to Yjs, or we'd clobber the live room's state for all users.
+  //
+  // • initialSceneFromCache === true AND alone: we have unsaved local
+  //   edits and no one else is here to correct us. Keep the cached scene
+  //   (the Yjs state is likely behind by one edit because the last
+  //   WebSocket message was lost on page unload), and write it into the
+  //   room: the room renders the saved scene from its Yjs state, so that
+  //   is what saves it.
+  //
+  // • initialSceneFromCache === false AND alone: no unsaved local work.
+  //   Apply the Y.Map state if it has anything — it may be more recent
+  //   than the REST content (e.g. from a `persist_room` snapshot that
+  //   happened after the last REST PATCH).
+  //
+  // After the decision, flip writesAllowedRef so subsequent local edits
+  // flow to Yjs, and bootstrapDoneRef so remote updates flow in.
+  useEffect(() => {
+    // Wait for the collaborator roster as well as the sync: the roster
+    // arrives on the socket right after the sync message, and deciding
+    // before it lands would read hasOtherCollaborators as false even in
+    // a live room. Wait for the Excalidraw API too — this effect can win
+    // the race against Excalidraw's mount callback, and completing the
+    // bootstrap without applying the room state would arm writes while
+    // the canvas still shows the REST snapshot: the mount onChange would
+    // then push that older scene into the live room and roll every other
+    // user back to it.
+    if (!yDoc || !isSynced || !collaboratorsReady || !excalidrawAPI) return;
+    if (seededForDocRef.current === yDoc) return;
+    seededForDocRef.current = yDoc;
+
+    const shouldApplyYjsState = hasOtherCollaborators || !initialSceneFromCache;
+
+    if (shouldApplyYjsState) {
+      const yMap = yDoc.getMap<string>("excalidraw");
+      const raw = yMap.get("scene");
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw) as {
+            elements: readonly OrderedExcalidrawElement[];
+            appState?: Partial<AppState>;
+            files?: BinaryFiles;
+          };
+          prevSerializedRef.current = raw;
+          applyingRemoteRef.current = true;
+          if (parsed.files) {
+            const fileArr = Object.values(parsed.files);
+            if (fileArr.length > 0) {
+              excalidrawAPI.addFiles(fileArr);
+            }
+          }
+          excalidrawAPI.updateScene({
+            elements: parsed.elements,
+            appState: parsed.appState as Partial<AppState> as AppState,
+            captureUpdate: CaptureUpdateAction.NEVER,
+          });
+          queueMicrotask(() => {
+            applyingRemoteRef.current = false;
+          });
+        } catch (err) {
+          console.error("Failed to apply post-sync whiteboard state:", err);
+          applyingRemoteRef.current = false;
+        }
+      }
+    }
+
+    bootstrapDoneRef.current = true;
+    writesAllowedRef.current = true;
+    if (!shouldApplyYjsState) {
+      // The canvas already shows this scene, so it reads as an echo; clearing
+      // the last one seen sends it.
+      prevSerializedRef.current = "";
+      handleExcalidrawChange(
+        excalidrawAPI.getSceneElementsIncludingDeleted(),
+        excalidrawAPI.getAppState(),
+        excalidrawAPI.getFiles()
+      );
+    }
+  }, [
+    yDoc,
+    isSynced,
+    initialSceneFromCache,
+    hasOtherCollaborators,
+    collaboratorsReady,
+    excalidrawAPI,
+    handleExcalidrawChange,
+  ]);
 
   return (
     <div

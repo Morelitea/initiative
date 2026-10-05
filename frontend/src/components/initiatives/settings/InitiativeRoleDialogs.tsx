@@ -31,7 +31,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useCreateRole, useDeleteRole, useUpdateRole } from "@/hooks/useInitiativeRoles";
-import { toast } from "@/lib/chesterToast";
+import { toast } from "@/lib/mascotToast";
 
 export interface InitiativeRoleDialogsProps {
   initiativeId: number;

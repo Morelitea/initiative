@@ -13,19 +13,19 @@ import type { MarketplaceListingSummary } from "@/api/generated/initiativeAPI.sc
 import { ListingProvenance } from "@/components/marketplace/ListingProvenance";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { useGuildPath } from "@/lib/guildUrl";
+import { useCommunityPath } from "@/lib/communityUrl";
 import { resolveArtworkUrl } from "@/lib/uploadUrl";
 import { cn } from "@/lib/utils";
 
 export interface MarketplaceCardProps {
   listing: MarketplaceListingSummary;
-  /** Set when this guild already has an install of this listing. */
+  /** Set when this community already has an install of this listing. */
   installedCount?: number;
 }
 
 export function MarketplaceCard({ listing, installedCount = 0 }: MarketplaceCardProps) {
   const { t } = useTranslation("marketplace");
-  const gp = useGuildPath();
+  const gp = useCommunityPath();
 
   return (
     <Card className="h-full transition-colors hover:border-primary/50">

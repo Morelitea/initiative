@@ -12,7 +12,6 @@ from app.api.deps import DirectMessagesEnabledDep
 #                          single guild context (see /me routes below).
 from app.api.v1.tenant_endpoints import (
     moderation,
-    support,
     archive,
     query,
     smart_chips,
@@ -61,6 +60,8 @@ from app.api.v1.tenant_endpoints import (
     wikis,
 )
 from app.api.v1.platform_endpoints import (
+    account_change,
+    held_changes,
     field_catalog,
     recurrence,
     access_grants,
@@ -98,6 +99,7 @@ from app.api.v1.platform_endpoints import (
     second_factor,
     sessions,
     settings,
+    tickets,
     user_view_preferences,
     users,
     version,
@@ -126,6 +128,7 @@ api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
 api_router.include_router(second_factor.router, prefix="/auth", tags=["auth"])
 api_router.include_router(passkeys.router, prefix="/auth", tags=["auth"])
 api_router.include_router(passwordless.router, prefix="/auth", tags=["auth"])
+api_router.include_router(account_change.router, prefix="/auth", tags=["auth"])
 api_router.include_router(email_otp.router, prefix="/auth", tags=["auth"])
 api_router.include_router(sessions.router, prefix="/auth", tags=["auth"])
 api_router.include_router(operator.router, prefix="/operator", tags=["operator"])
@@ -143,7 +146,7 @@ api_router.include_router(
 # What this deployment carries: the operator's catalog rescan, the signed
 # registry, and the mirrored listing artwork. A property of the deployment
 # rather than of any guild, so it takes no guild segment. Reading the
-# marketplace is guild-addressed (see /c/{guild_id}/marketplace below).
+# marketplace is guild-addressed (see /c/{community_id}/marketplace below).
 api_router.include_router(
     marketplace.router, prefix="/marketplace", tags=["marketplace"]
 )
@@ -238,11 +241,11 @@ api_router.include_router(
 
 # ---------------------------------------------------------------------------
 # Guild-scoped routes: everything that resolves a single guild's data lives
-# under /c/{guild_id}. The guild is taken from the path (see
+# under /c/{community_id}. The guild is taken from the path (see
 # deps.get_guild_membership); a guild-scoped router mounted outside this prefix
 # fails at startup (missing path param) — a useful guard.
 # ---------------------------------------------------------------------------
-guild_router = APIRouter(prefix="/c/{guild_id}")
+guild_router = APIRouter(prefix="/c/{community_id}")
 guild_router.include_router(webhooks.router, prefix="/webhooks", tags=["webhooks"])
 # Every tool's list, mounted once per Tool at each tool's own path, and the
 # one sidebar-counts route beside them (see tenant_endpoints/tool_lists.py).
@@ -260,7 +263,6 @@ guild_router.include_router(tasks.router, prefix="/tasks", tags=["tasks"])
 guild_router.include_router(moderation.router, tags=["moderation"])
 # Asking whoever runs the deployment for help. Guild-scoped because whether
 # it is offered at all is the community's own setting.
-guild_router.include_router(support.router, prefix="/support", tags=["support"])
 guild_router.include_router(comments.router, prefix="/comments", tags=["comments"])
 guild_router.include_router(reactions.router, prefix="/reactions", tags=["reactions"])
 # Guild-scoped AI config (guild/user levels). Platform AI config is top-level.
@@ -350,9 +352,10 @@ guild_router.include_router(trash.router, prefix="/trash", tags=["trash"])
 # No prefix: the two routes are /archive/{kind}/{id} and /unarchive/{kind}/{id},
 # one pair for every archivable kind (see tenant_endpoints/archive.py).
 guild_router.include_router(archive.router, tags=["archive"])
-# Guild member management (guild-admin). The /me/* + platform user endpoints
-# stay top-level on users.router.
+# Guild member management (guild-admin). The signed-in account's own routes are
+# under /me below; users.router keeps the routes about other people.
 guild_router.include_router(users.guild_router, prefix="/users", tags=["users"])
+guild_router.include_router(users.members_router, prefix="/members", tags=["users"])
 # Recents: the addressed DELETE is guild-scoped (the cross-guild GET list stays
 # top-level — fully separate endpoints, see recents.py).
 guild_router.include_router(recents.guild_router, prefix="/recents", tags=["recents"])
@@ -365,13 +368,14 @@ guild_router.include_router(
 api_router.include_router(guild_router)
 
 # ---------------------------------------------------------------------------
-# Cross-guild "my X" aggregates for the personal/multi-guild pages. User-scoped
-# (no guild context); each routes per the user's member guilds. Tagged per
-# DOMAIN so Orval generates each hook into its existing domain file.
+# Everything about the signed-in account: its profile and settings, and the
+# cross-guild "my X" aggregates for the personal pages, which route per the
+# user's member guilds. No guild context. Tagged per DOMAIN so Orval generates
+# each hook into its existing domain file.
 # ---------------------------------------------------------------------------
 me_router = APIRouter(prefix="/me")
 me_router.include_router(tasks.me_router, tags=["tasks"])
-me_router.include_router(moderation.me_router, tags=["moderation"])
+me_router.include_router(tickets.me_router, tags=["tickets"])
 # The My Tools page: every tool's cross-guild list, mounted once per tool from
 # MY_TOOL_LISTS, plus the tab counts. One tag, because they are one page rather
 # than nine domains reaching across guilds for their own reasons.
@@ -379,7 +383,6 @@ me_router.include_router(me_tools.me_router, tags=["my-tools"])
 me_router.include_router(calendar_entries.me_router, tags=["calendar-entries"])
 me_router.include_router(me_trash.me_router, tags=["trash"])
 me_router.include_router(me_ai.me_router, tags=["ai-settings"])
-me_router.include_router(users.me_router, tags=["users"])
 me_router.include_router(notification_prefs.me_router, tags=["notifications"])
 me_router.include_router(contacts.me_router, tags=["contacts"])
 me_router.include_router(
@@ -391,3 +394,7 @@ me_router.include_router(
     dependencies=[DirectMessagesEnabledDep],
 )
 api_router.include_router(me_router)
+# The account itself (GET/PATCH /me): mounted with its own prefix, since a
+# router included without one cannot carry an empty path.
+api_router.include_router(users.me_router, prefix="/me", tags=["users"])
+api_router.include_router(held_changes.me_router, prefix="/me", tags=["users"])

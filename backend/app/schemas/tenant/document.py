@@ -1,10 +1,20 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Dict, List, Literal, Optional, Sequence, TYPE_CHECKING
+from typing import (
+    Annotated,
+    Any,
+    Dict,
+    List,
+    Literal,
+    Optional,
+    Sequence,
+    TYPE_CHECKING,
+)
 
 from pydantic import ConfigDict, Field
 
+from app.core.identity_boundary import LEXICAL_MENTIONS, UPLOAD_PATH
 from app.core.relationships import Related
 from app.schemas.base import SanitizedBaseModel
 from app.schemas.tenant.property import PropertiesOnCreate
@@ -25,7 +35,8 @@ if TYPE_CHECKING:  # pragma: no cover
         DocumentFileVersion,
     )
 
-LexicalState = Dict[str, Any]
+#: A Lexical editor state: a document's, a post's or a wiki page's body.
+LexicalState = Annotated[Dict[str, Any], LEXICAL_MENTIONS]
 #: One sheet of a workbook, in the canonical shape
 #: ``normalize_spreadsheet_content`` produces.
 SpreadsheetSheet = Dict[str, Any]
@@ -64,14 +75,13 @@ class DocumentCreate(DocumentBase, PropertiesOnCreate):
 class DocumentUpdate(SanitizedBaseModel):
     name: Optional[str] = None
     content: Optional[LexicalState] = None
+    #: The ``content_version`` of the read this ``content`` was made from.
+    #: Given and still current, the write merges in, into a live editing
+    #: session too; given and out of date, it is refused with
+    #: ``*_CONTENT_CHANGED``. Left out, a live session refuses the write.
+    content_version: Optional[str] = None
     featured_image_url: Optional[str] = None
     is_template: Optional[bool] = None
-
-
-class DocumentCopyRequest(SanitizedBaseModel):
-    #: Omitted, the copy lands in the source document's own initiative.
-    target_initiative_id: Optional[int] = None
-    name: Optional[str] = None
 
 
 class DocumentSummary(DocumentBase, ToolSummaryBase):
@@ -89,11 +99,13 @@ class DocumentSummary(DocumentBase, ToolSummaryBase):
     owner_app: Optional[OwnerAppSummary] = Field(
         default=None, validation_alias="owner_app_source"
     )
+    #: ``DocumentBase``'s, marked here: a request takes it as it is.
+    featured_image_url: Annotated[Optional[str], UPLOAD_PATH] = None
     projects: List[DocumentProjectLink] = Field(default_factory=list)
     comment_count: int = 0
     # File document fields
     document_type: DocumentType = DocumentType.native
-    file_url: Optional[str] = None
+    file_url: Annotated[Optional[str], UPLOAD_PATH] = None
     file_content_type: Optional[str] = None
     file_size: Optional[int] = None
     original_filename: Optional[str] = None
@@ -124,6 +136,10 @@ class DocumentListResponse(PageMeta):
 
 class DocumentRead(DocumentSummary):
     content: LexicalState = Field(default_factory=dict)
+    #: The version of ``content`` this read returns. Send it back with a
+    #: ``PATCH`` of ``content`` so the write merges into the body only if
+    #: nobody has changed it since. ``null`` when the body was left out.
+    content_version: Optional[str] = None
 
 
 class DocumentFileVersionRead(SanitizedBaseModel):

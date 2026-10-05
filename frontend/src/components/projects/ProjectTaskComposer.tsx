@@ -45,7 +45,7 @@ export const ProjectTaskComposer = ({
 
   return (
     <DialogContent
-      className="max-h-screen overflow-y-auto bg-card"
+      className="bg-card"
       // Only block a backdrop click while there's unsaved input, so a stray
       // click can't discard an in-progress task. When the form is untouched,
       // clicking outside closes it as usual. Escape and Cancel always close.
@@ -55,7 +55,7 @@ export const ProjectTaskComposer = ({
     >
       <DialogHeader>
         <DialogTitle>{t("taskComposer.title")}</DialogTitle>
-        <DialogDescription>{t("taskComposer.description")}</DialogDescription>
+        <DialogDescription className="sr-only">{t("taskComposer.description")}</DialogDescription>
       </DialogHeader>
       <div>
         {isArchived ? (

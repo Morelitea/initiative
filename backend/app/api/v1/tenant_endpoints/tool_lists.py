@@ -93,6 +93,7 @@ from app.schemas.tenant.counter import (
 from app.schemas.tenant.dashboard import (
     DashboardListResponse,
     DashboardRead,
+    DashboardPreview,
     DashboardSummary,
 )
 from app.schemas.tenant.document import (
@@ -121,6 +122,7 @@ from app.schemas.tenant.wiki import (
     WikiSummary,
 )
 from app.schemas.tenant.tool import ToolSummaryBase, serialize_tool
+from app.services import query as query_service
 from app.services.permissions import Action
 from app.services.tenant import archive as archive_service
 from app.services.tenant import calendars as calendars_service
@@ -476,18 +478,65 @@ async def list_conditions(spec: ToolListSpec, req: ListRequest) -> list:
     ]
 
 
-def _summaries(schema: type[ToolSummaryBase]) -> Callable[..., Awaitable[list]]:
-    """The ordinary page: tag the rows, then turn each into its summary."""
+#: (session, guild_id, rows) -> each row's card preview, keyed by row id.
+PreviewLoader = Callable[[AsyncSession, int, list], Awaitable[Mapping[int, Any]]]
+
+
+def _summaries(
+    schema: type[ToolSummaryBase], preview: Optional[PreviewLoader] = None
+) -> Callable[..., Awaitable[list]]:
+    """The ordinary page: tag the rows, then turn each into its summary. A tool
+    whose card previews what is inside it reads every row's preview for the
+    page at once, and only when the list was asked for them."""
 
     async def serialize(spec: ToolListSpec, req: ListRequest, rows: list) -> list:
         await tags_service.annotate_tags(req.session, rows)
         await properties_service.annotate_properties(req.session, rows)
-        return [
+        items = [
             serialize_tool(schema, row, context=req.guild_context, user_id=req.user_id)
             for row in rows
         ]
+        if preview is not None and req.values.get("include_preview"):
+            previews = await preview(req.session, req.guild_id, rows)
+            for item in items:
+                item.preview = previews.get(item.id)
+        return items
 
     return serialize
+
+
+def _include_preview() -> ListParam:
+    return ListParam(
+        "include_preview",
+        bool,
+        Query(
+            default=False,
+            description=(
+                "Also send what each row's card shows of what is inside it, read "
+                "for the whole page at once."
+            ),
+        ),
+    )
+
+
+async def _dashboard_previews(
+    session: AsyncSession, guild_id: int, rows: list
+) -> dict[int, DashboardPreview]:
+    """Each dashboard's canvas and its query widgets' answers. A canvas the
+    query service refuses — a busy community, a statement past its limits —
+    previews with no answers rather than failing the list."""
+    previews: dict[int, DashboardPreview] = {}
+    for dashboard in rows:
+        try:
+            widgets = await dashboards_endpoints.canvas_widget_data(
+                session, dashboard, guild_id
+            )
+        except query_service.QueryError:
+            widgets = {}
+        previews[dashboard.id] = DashboardPreview(
+            definition=dashboard.definition, config=dashboard.config, widgets=widgets
+        )
+    return previews
 
 
 def _loads(loader: Callable[[], list]) -> Callable[[ListRequest], list]:
@@ -602,7 +651,7 @@ async def _serialize_documents(
 
 async def _calendar_conditions(spec: ToolListSpec, req: ListRequest) -> list:
     conditions = await _default_conditions(spec, req)
-    if req.values.get("scope") == "guild":
+    if req.values.get("scope") == "community":
         # The opposite of the unfiltered list, which is everything in scope, so
         # it is asked for by name rather than inferred from an absent
         # ``initiative_id``.
@@ -840,7 +889,12 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
         response_model=QueueListResponse,
         loader_options=_loads(queues_service.list_loader_options),
         default_order=_order(Queue.updated_at.desc(), Queue.id.desc()),
-        serialize=_summaries(QueueSummary),
+        serialize=_summaries(
+            QueueSummary,
+            preview=lambda session, _guild_id, rows: queues_service.list_previews(
+                session, rows
+            ),
+        ),
         conditions=_queue_conditions,
         params=(
             _initiative_id(),
@@ -858,6 +912,7 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
                     description="Only running queues, or only stopped ones.",
                 ),
             ),
+            _include_preview(),
             page_param(),
             page_size_param(20, ge=1, le=100),
         ),
@@ -882,7 +937,12 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
         response_model=CounterGroupListResponse,
         loader_options=_loads(counters_service.list_loader_options),
         default_order=_order(CounterGroup.updated_at.desc(), CounterGroup.id.desc()),
-        serialize=_summaries(CounterGroupSummary),
+        serialize=_summaries(
+            CounterGroupSummary,
+            preview=lambda session, _guild_id, rows: counters_service.list_previews(
+                session, rows
+            ),
+        ),
         # The counters router carries the wider "counters" tag, which the
         # individual counters underneath these groups share.
         tag="counters",
@@ -894,6 +954,7 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
             _tag_ids(Tool.counter_group),
             _property_filters(),
             _archived(),
+            _include_preview(),
             page_param(),
             page_size_param(20, ge=1, le=100),
         ),
@@ -919,7 +980,7 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
         guild_level_rows=True,
         params=(
             _initiative_id(),
-            ListParam("scope", Optional[Literal["guild"]], Query(default=None)),
+            ListParam("scope", Optional[Literal["community"]], Query(default=None)),
             search_param(),
             sort_by_param(),
             sort_dir_param(),
@@ -933,7 +994,7 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
             "List calendars visible to the current user (guild admins see "
             "all).\n"
             "\n"
-            "``scope=guild`` narrows to the guild's own calendars — the ones the "
+            "``scope=community`` narrows to the guild's own calendars — the ones the "
             "calendar\n"
             "app holds, belonging to no initiative. That is the opposite of the\n"
             "unfiltered list, which is everything in scope, so it is asked for by "
@@ -960,7 +1021,7 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
         response_model=DashboardListResponse,
         loader_options=_loads(dashboards_service.dashboard_loader_options),
         default_order=_order(Dashboard.name.asc(), Dashboard.id.asc()),
-        serialize=_summaries(DashboardSummary),
+        serialize=_summaries(DashboardSummary, preview=_dashboard_previews),
         params=(
             _initiative_id(),
             search_param(),
@@ -969,6 +1030,7 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
             _tag_ids(Tool.dashboard),
             _property_filters(),
             _archived(),
+            _include_preview(),
             page_param(),
             page_size_param(100, ge=1, le=200),
         ),

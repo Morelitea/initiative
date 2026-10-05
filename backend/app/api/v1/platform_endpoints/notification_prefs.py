@@ -26,7 +26,7 @@ from app.models.tenant.reaction_digest import ReactionDigestItem
 from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
 from app.schemas.platform.notification_prefs import (
     EmailSchedule,
-    GuildNotificationSettings,
+    CommunityNotificationSettings,
     NotificationCategoryRead,
     NotificationPreferencesRead,
     NotificationPreferencesUpdate,
@@ -54,7 +54,7 @@ def _registry() -> list[NotificationCategoryRead]:
             category=category,
             group=spec.group,
             personal=spec.personal,
-            guild_scoped=spec.guild_scoped,
+            community_scoped=spec.guild_scoped,
             mutable_channels=[c for c in ALL_CHANNELS if c in spec.mutable_channels],
             defaults={channel: spec.defaults[channel] for channel in ALL_CHANNELS},
         )
@@ -119,9 +119,9 @@ async def read_my_notification_preferences(
     ).all()
     guild_docs = _section(doc, "guilds")
     guilds = [
-        GuildNotificationSettings(
-            guild_id=guild.id,
-            guild_name=guild.name,
+        CommunityNotificationSettings(
+            community_id=guild.id,
+            community_name=guild.name,
             level=prefs_service.level_for(doc, guild.id),
             categories=_section(guild_docs.get(str(guild.id)) or {}, "categories"),
         )
@@ -158,7 +158,7 @@ async def read_my_notification_preferences(
             else None
         ),
         respect_presence=prefs_service.respects_presence(doc),
-        guilds=guilds,
+        communities=guilds,
     )
 
 
@@ -182,11 +182,13 @@ async def update_my_notification_preferences(
             # A channel that cannot be switched off is not an error to ask
             # about — it simply does not move.
             continue
-        if change.guild_id is not None and not spec.guild_scoped:
+        if change.community_id is not None and not spec.guild_scoped:
             continue
         branch = doc
-        if change.guild_id is not None:
-            branch = doc.setdefault("guilds", {}).setdefault(str(change.guild_id), {})
+        if change.community_id is not None:
+            branch = doc.setdefault("guilds", {}).setdefault(
+                str(change.community_id), {}
+            )
         categories = branch.setdefault("categories", {})
         row = categories.setdefault(change.category.value, {})
         if change.enabled == spec.defaults[change.channel]:
@@ -197,7 +199,9 @@ async def update_my_notification_preferences(
             row[change.channel.value] = change.enabled
 
     for level_change in payload.levels:
-        branch = doc.setdefault("guilds", {}).setdefault(str(level_change.guild_id), {})
+        branch = doc.setdefault("guilds", {}).setdefault(
+            str(level_change.community_id), {}
+        )
         if level_change.level is NotificationLevel.everything:
             branch.pop("level", None)
         else:

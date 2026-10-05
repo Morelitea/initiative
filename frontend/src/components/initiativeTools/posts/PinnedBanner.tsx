@@ -15,13 +15,13 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { useSetPostPin } from "@/hooks/usePosts";
-import { toast } from "@/lib/chesterToast";
 import { formatDateTime, fromLocalDateTimeInput, toLocalDateTimeInput } from "@/lib/formatDate";
+import { toast } from "@/lib/mascotToast";
 import { cn } from "@/lib/utils";
 
 interface PinnedBannerProps {
   post: PostRead;
-  /** Whether this reader may pin — guild admin or an initiative manager. */
+  /** Whether this reader may pin — community admin or an initiative manager. */
   canPin?: boolean;
   className?: string;
 }
@@ -88,7 +88,9 @@ export const PinnedBanner = ({ post, canPin = false, className }: PinnedBannerPr
           </DialogHeader>
 
           <div className="space-y-2">
-            <Label htmlFor="pin-expires">{t("pin.expiresLabel")}</Label>
+            <Label htmlFor="pin-expires" className="sr-only">
+              {t("pin.expiresLabel")}
+            </Label>
             <DateTimePicker
               id="pin-expires"
               includeTime

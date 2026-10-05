@@ -84,6 +84,9 @@ _SIDE_EFFECTS: frozenset[str] = frozenset(
         "search_entries",
         # Queued when a task is assigned, cleared when it is unassigned.
         "task_assignment_digest_items",
+        # The files content shows, stored, copied and claimed as a step of
+        # saving that content, by the filenames the saved row shows.
+        "uploads",
     }
 )
 

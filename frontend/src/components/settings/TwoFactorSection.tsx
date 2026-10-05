@@ -3,12 +3,12 @@ import { type FormEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
-  getReadSecondFactorApiV1AuthTotpGetQueryKey,
-  useBeginSecondFactorApiV1AuthTotpEnrollPost,
-  useConfirmSecondFactorApiV1AuthTotpConfirmPost,
-  useDisableSecondFactorApiV1AuthTotpDisablePost,
-  useReadSecondFactorApiV1AuthTotpGet,
-  useRegenerateRecoveryCodesApiV1AuthRecoveryCodesRegeneratePost,
+  getReadSecondFactorQueryKey,
+  useBeginSecondFactor,
+  useConfirmSecondFactor,
+  useDisableSecondFactor,
+  useReadSecondFactor,
+  useRegenerateRecoveryCodes,
 } from "@/api/generated/auth/auth";
 import { RecoveryCodesPanel } from "@/components/settings/RecoveryCodesPanel";
 import { Badge } from "@/components/ui/badge";
@@ -24,10 +24,11 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { WizardDialog } from "@/components/ui/wizard-dialog";
+import { useAnnounceHeld } from "@/hooks/useHeldChange";
 import { useWizard } from "@/hooks/useWizard";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { formatDateTime } from "@/lib/formatDate";
+import { toast } from "@/lib/mascotToast";
 import { queryClient } from "@/lib/queryClient";
 import { classifySecondFactorAnswer } from "@/lib/secondFactorAnswer";
 
@@ -52,9 +53,10 @@ type Errand = "enrol" | "regenerate";
  */
 export const TwoFactorSection = () => {
   const { t } = useTranslation(["settings", "errors"]);
-  const status = useReadSecondFactorApiV1AuthTotpGet();
+  const announceHeld = useAnnounceHeld();
+  const status = useReadSecondFactor();
   const refreshStatus = () =>
-    queryClient.invalidateQueries({ queryKey: getReadSecondFactorApiV1AuthTotpGetQueryKey() });
+    queryClient.invalidateQueries({ queryKey: getReadSecondFactorQueryKey() });
 
   const [enrolOpen, setEnrolOpen] = useState(false);
   const { step, commit, reset } = useWizard<EnrolStep>("password");
@@ -84,7 +86,7 @@ export const TwoFactorSection = () => {
     setError(null);
   };
 
-  const begin = useBeginSecondFactorApiV1AuthTotpEnrollPost({
+  const begin = useBeginSecondFactor({
     mutation: {
       onSuccess: (data) => {
         setSecret(data.secret);
@@ -96,7 +98,7 @@ export const TwoFactorSection = () => {
     },
   });
 
-  const confirm = useConfirmSecondFactorApiV1AuthTotpConfirmPost({
+  const confirm = useConfirmSecondFactor({
     mutation: {
       onSuccess: (data) => {
         setCodes(data.codes);
@@ -111,7 +113,7 @@ export const TwoFactorSection = () => {
     },
   });
 
-  const regenerate = useRegenerateRecoveryCodesApiV1AuthRecoveryCodesRegeneratePost({
+  const regenerate = useRegenerateRecoveryCodes({
     mutation: {
       onSuccess: (data) => {
         setCodes(data.codes);
@@ -130,10 +132,11 @@ export const TwoFactorSection = () => {
     },
   });
 
-  const disable = useDisableSecondFactorApiV1AuthTotpDisablePost({
+  const disable = useDisableSecondFactor({
     mutation: {
-      onSuccess: () => {
-        toast.success(t("twoFactor.turnedOff"));
+      onSuccess: (result) => {
+        if (result.held) announceHeld(result.held);
+        else toast.success(t("twoFactor.turnedOff"));
         setOffOpen(false);
         setOffPassword("");
         setOffCode("");

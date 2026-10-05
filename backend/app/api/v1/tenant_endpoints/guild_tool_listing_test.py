@@ -17,7 +17,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from httpx import AsyncClient
 
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.testing import (
     create_calendar,
     create_counter_group,
@@ -53,7 +53,7 @@ ALL_TOOLS_ON = {
 
 async def _workspace(session, acting_user):
     """A guild admin and an initiative with every tool switched on."""
-    actor = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    actor = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     initiative = await create_initiative(
         session, actor.guild, actor.user, name="Home", **ALL_TOOLS_ON
     )
@@ -109,7 +109,7 @@ async def test_sort_by_initiative(
 ):
     """``sort_by=initiative`` orders by the initiative's *name* — the column
     the table shows — not by its id."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     # Made in the opposite order to their names, so an id ordering would fail.
     zebra = await create_initiative(
         session, a.guild, a.user, name="Zebra", **ALL_TOOLS_ON

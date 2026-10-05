@@ -9,8 +9,8 @@ import { Input } from "@/components/ui/input";
 import { DecorationSwatch } from "@/components/user/DecorationSwatch";
 import { PackContentsDialog, packPieces } from "@/components/user/PackContents";
 import { useDecorationPacks, useRemoveDecorationPack } from "@/hooks/useUsers";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 import { type Decoration, resolveDecoration } from "@/lib/profileDecorations";
 
 /** Above this many, finding one by eye stops working and the filter appears. */

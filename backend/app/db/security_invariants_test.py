@@ -28,11 +28,7 @@ from sqlalchemy import text
 
 from app.core.config import settings
 from app.models.platform.user import UserRole
-from app.db.user_columns import (
-    GUILD_MEMBER_PROFILE_COLUMNS,
-    PUBLIC_PROFILE_COLUMNS,
-    PUBLISHED_COLUMNS,
-)
+from app.db.user_columns import PUBLIC_PROFILE_COLUMNS, PUBLISHED_COLUMNS
 from app.db.public_rls import PUBLIC_RLS, role_name
 from app.db.system_grants import ROLE_GRANTS, tier_table_grants
 
@@ -244,14 +240,13 @@ async def test_the_seat_writes_only_its_own_switches(engine):
     """The seat changes what its community asks of the people reaching it, and
     nothing else about the community.
 
-    Six columns: whether personal API keys are accepted, whether a second
-    factor is required, whether the session standard is held to, and the three
-    that say what a notification may leave carrying. A name, an icon, an owner
+    Five columns: whether a second factor is required, whether the session
+    standard is held to, and the three that say what a notification may leave
+    carrying. A name, an icon, an owner
     or a lifecycle status is not the seat's, and a new column on ``guilds`` is
     not either until a migration says so.
     """
     writable = {
-        "allow_api_keys",
         "require_second_factor",
         "enforce_compliance_session",
         "allow_push_notifications",
@@ -375,8 +370,8 @@ async def test_profile_view_publishes_only_the_public_columns(engine):
             ).all()
             if row[1]
         }
-        # The reader owns both projections, so its column grant is their
-        # union — the profile's eight plus the name the guild view adds.
+        # The reader owns both projections, and both read the profile's
+        # columns of the account and nothing more.
         expected = set(PUBLISHED_COLUMNS)
         assert readable == expected, (
             "app_profile_reader reads columns of public.users that are not "
@@ -384,9 +379,8 @@ async def test_profile_view_publishes_only_the_public_columns(engine):
             f"{sorted(expected - readable)}"
         )
 
-        # The projection reads the name rule off the guild (0280), so the
-        # reader holds one column of ``guilds`` as well. Bound it: that column
-        # and the id it looks up by, and nothing else on the table.
+        # Neither projection reads anything off the guild, so the reader holds
+        # no column of ``guilds`` and no verb on it.
         guild_readable = {
             row[0]
             for row in (
@@ -401,9 +395,9 @@ async def test_profile_view_publishes_only_the_public_columns(engine):
             ).all()
             if row[1]
         }
-        assert guild_readable == {"id", "show_member_names"}, (
-            "app_profile_reader reads columns of public.guilds beyond the name "
-            f"rule: {sorted(guild_readable - {'id', 'show_member_names'})}"
+        assert not guild_readable, (
+            "app_profile_reader reads columns of public.guilds: "
+            f"{sorted(guild_readable)}"
         )
         for verb in ("INSERT", "UPDATE", "DELETE"):
             can_write = (
@@ -630,19 +624,23 @@ async def test_guild_billing_columns_are_not_writable_by_request_roles(engine):
 
 
 async def test_guild_membership_role_is_writable_only_by_the_system_engine(engine):
-    """``position`` is the only membership column a request writes.
+    """``position`` and ``display_name`` are the membership columns a request
+    writes.
 
     A guild membership's ``role`` is changed on the system engine (the
     guild-admin endpoint), as is the OIDC flag; ``guild_id``, ``user_id`` and
     ``joined_at`` are set once, when the row is created. That leaves the guild
-    list's own order, so the request-path floors hold a column-scoped UPDATE of
-    ``position`` alone — enough for the ``SELECT ... FOR UPDATE`` row locks the
-    self-leave and last-admin checks take — and ``app_admin`` keeps the full
-    grant (migrations 0145, 0266)."""
-    request_roles = ["app_guild_base", f"{settings.PLATFORM_ROLE_PREFIX}platform_base"]
+    list's own order, which both request-path floors hold a column-scoped
+    UPDATE of — enough for the ``SELECT ... FOR UPDATE`` row locks the
+    self-leave and last-admin checks take — and the name a member gives
+    themselves in a community, which only the routed guild floor writes.
+    ``app_admin`` keeps the full grant (migrations 0145, 0266, 0438)."""
+    request_roles = {
+        "app_guild_base": {"position", "display_name"},
+        f"{settings.PLATFORM_ROLE_PREFIX}platform_base": {"position"},
+    }
     async with engine.connect() as conn:
-        expected = {"position"}
-        for role in request_roles:
+        for role, expected in request_roles.items():
             rows = (
                 await conn.execute(
                     text(
@@ -661,8 +659,7 @@ async def test_guild_membership_role_is_writable_only_by_the_system_engine(engin
                 "role change is system-engine-only"
             )
             assert writable == expected, (
-                f"{role} UPDATE columns on guild_memberships drifted from "
-                f"'position alone': missing {sorted(expected - writable)}, "
+                f"{role} UPDATE columns on guild_memberships drifted: missing {sorted(expected - writable)}, "
                 f"unexpected {sorted(writable - expected)}"
             )
         admin_can = (
@@ -923,11 +920,11 @@ async def test_guild_member_view_publishes_the_guild_projection(engine):
     """What a guild-routed session may read of a person is a catalog fact.
 
     ``public.guild_member_profiles`` carries the profile's columns plus
-    ``full_name``, and the guild path holds SELECT on the view and nothing
+    ``display_name``, and the guild path holds SELECT on the view and nothing
     else — the schema's default privileges would otherwise have granted all
     four verbs (migration 0220).
     """
-    expected = set(GUILD_MEMBER_PROFILE_COLUMNS)
+    expected = set(PUBLIC_PROFILE_COLUMNS) | {"display_name"}
     base = f"{settings.PLATFORM_ROLE_PREFIX}platform_base"
     async with engine.connect() as conn:
         view_columns = {
@@ -981,6 +978,6 @@ async def test_guild_member_view_publishes_the_guild_projection(engine):
             )
         ).scalar()
         assert not base_can_read, (
-            f"{base} must not read the guild projection — a real name is "
-            "readable inside a guild, not from the platform path"
+            f"{base} must not read the guild projection — a member's name is "
+            "readable inside its guild, not from the platform path"
         )

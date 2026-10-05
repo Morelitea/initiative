@@ -37,6 +37,8 @@ export interface ToolSettingsEntity {
   archived_at: string | null;
   /** What this viewer may do to it, as the server answers it. */
   can: ToolCan;
+  /** Projects and documents only: a template, which read is enough to copy. */
+  is_template?: boolean;
   /**
    * Posts only: reactions hang off comments and off posts and off nothing
    * else, so this is the one tool with a switch of its own for them. Absent
@@ -83,6 +85,9 @@ export interface ToolSettingsContextValue {
   remove: ToolMutation<number>;
   /** Extra cards for the Details section, e.g. a project's dates or a calendar's color. */
   detailsExtra?: ReactNode;
+  /** Extra fields inside the Details card itself, below the description. Each
+   *  saves on its own; the card's Save button is for the name and description. */
+  detailsInline?: ReactNode;
   /** Extra cards for the Advanced section, e.g. duplicate or archive. */
   advancedExtra?: ReactNode;
   /** Overrides for the Advanced section's export card. */

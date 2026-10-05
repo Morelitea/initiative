@@ -11,7 +11,7 @@ declines new ones.
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.platform.push_token import PushToken
 from app.models.platform.user import UserRole
 from app.services.platform import app_settings as app_settings_service
@@ -102,7 +102,6 @@ async def test_switching_push_off_drops_the_tokens_and_declines_new_ones(
         user_id=owner.id,
         push_token="a-device",
         platform="android",
-        device_token_id=None,
     )
     assert len((await session.exec(select(PushToken))).all()) == 1
 
@@ -140,7 +139,6 @@ async def test_email_off_leaves_the_tokens_alone(client, session) -> None:
         user_id=owner.id,
         push_token="kept-device",
         platform="android",
-        device_token_id=None,
     )
 
     response = await client.put(
@@ -159,7 +157,7 @@ async def test_email_off_leaves_the_tokens_alone(client, session) -> None:
 async def test_the_seat_sets_its_communitys_answers(
     client, session, acting_user
 ) -> None:
-    seat = await acting_user(guild_role=GuildRole.superadmin)
+    seat = await acting_user(guild_role=CommunityRole.superadmin)
     await guild_administration(session, seat.guild, auth_options=["restrictions"])
 
     written = await client.patch(
@@ -193,7 +191,7 @@ async def test_the_page_is_told_what_the_deployment_already_asks(
 ) -> None:
     """So a switch with nothing to add says so rather than offering the same
     answer twice."""
-    seat = await acting_user(guild_role=GuildRole.superadmin)
+    seat = await acting_user(guild_role=CommunityRole.superadmin)
     await guild_administration(session, seat.guild, auth_options=["restrictions"])
     row = await app_settings_service.ensure_settings_row(session)
     row.push_notifications_enabled = False
@@ -215,7 +213,7 @@ async def test_the_page_is_told_what_the_deployment_already_asks(
 async def test_one_communitys_answer_does_not_reach_another(
     client, session, acting_user
 ) -> None:
-    seat = await acting_user(guild_role=GuildRole.superadmin)
+    seat = await acting_user(guild_role=CommunityRole.superadmin)
     await guild_administration(session, seat.guild, auth_options=["restrictions"])
     elsewhere = await create_guild(session)
 

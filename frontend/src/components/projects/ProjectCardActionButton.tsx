@@ -36,7 +36,7 @@ export const ProjectCardActionButton = ({
     <button
       type="button"
       className={cn(
-        "inline-flex items-center justify-center rounded-full border bg-background text-muted-foreground transition hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60",
+        "inline-flex items-center justify-center rounded-md text-muted-foreground transition hover:bg-accent hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60",
         iconSize === "sm" ? "h-7 w-7" : "h-9 w-9",
         className
       )}

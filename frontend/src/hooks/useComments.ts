@@ -7,25 +7,27 @@ import {
 } from "@tanstack/react-query";
 
 import {
-  createCommentApiV1CGuildIdCommentsPost,
-  deleteCommentApiV1CGuildIdCommentsCommentIdDelete,
-  getListCommentsApiV1CGuildIdCommentsGetQueryKey,
-  getRecentCommentsApiV1CGuildIdCommentsRecentGetQueryKey,
-  listCommentsApiV1CGuildIdCommentsGet,
-  readCommentApiV1CGuildIdCommentsCommentIdGet,
-  recentCommentsApiV1CGuildIdCommentsRecentGet,
-  updateCommentApiV1CGuildIdCommentsCommentIdPatch,
+  createComment,
+  deleteComment,
+  getListCommentsQueryKey,
+  getRecentCommentsQueryKey,
+  listComments,
+  readComment,
+  recentComments,
+  updateComment,
 } from "@/api/generated/comments/comments";
-import type {
-  CommentListResponse,
-  CommentRead,
-  ListCommentsApiV1CGuildIdCommentsGetParams,
-  RecentActivityEntry,
-  RecentCommentsApiV1CGuildIdCommentsRecentGetParams,
+import {
+  CommentAudience,
+  type CommentListResponse,
+  type CommentRead,
+  type ListCommentsParams,
+  type RecentActivityEntry,
+  type RecentCommentsParams,
 } from "@/api/generated/initiativeAPI.schemas";
 import { invalidate, q } from "@/api/query-keys";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
-import { useGuildMutation } from "@/hooks/useApiMutation";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
+import { useCommunityMutation } from "@/hooks/useApiMutation";
+import { refreshTaskCase } from "@/hooks/useTickets";
 import { getHttpStatus } from "@/lib/errorMessage";
 import { queryClient } from "@/lib/queryClient";
 import { singularOf } from "@/lib/tools";
@@ -39,26 +41,18 @@ const COMMENT_PAGE_SIZE = 20;
 
 /** Which thread: exactly one `{target}_id`. The page size and the cursor are
  *  the query's own, so they stay out of the key. */
-export type CommentThreadParams = Omit<
-  ListCommentsApiV1CGuildIdCommentsGetParams,
-  "limit" | "cursor"
->;
+export type CommentThreadParams = Omit<ListCommentsParams, "limit" | "cursor">;
 
 type CommentThreadData = InfiniteData<CommentListResponse>;
 
-/** The tool entity a thread answers to, where the thread is not that entity's
- *  own: a wiki page's thread is under its wiki, which is what a realtime frame
- *  about one of its comments names. */
-export type CommentThreadOwner = { type: string; id: number };
-
 /** One thread as an infinite query — shared by the hook and the route loaders
  *  that warm it, so both land in the same cache entry. */
-export const commentThreadQueryOptions = (guildId: number, params: CommentThreadParams) =>
+export const commentThreadQueryOptions = (communityId: number, params: CommentThreadParams) =>
   infiniteQueryOptions({
-    queryKey: getListCommentsApiV1CGuildIdCommentsGetQueryKey(guildId, params),
+    queryKey: getListCommentsQueryKey(communityId, params),
     queryFn: ({ pageParam, signal }) =>
-      listCommentsApiV1CGuildIdCommentsGet(
-        guildId,
+      listComments(
+        communityId,
         { ...params, limit: COMMENT_PAGE_SIZE, cursor: pageParam },
         undefined,
         signal
@@ -87,27 +81,23 @@ const flattenThread = (data: CommentThreadData) => {
  * `data` is every comment loaded so far as one list; `fetchNextPage` brings
  * the next older page of conversations.
  */
-export const useComments = (
-  params: CommentThreadParams,
-  options?: { enabled?: boolean; under?: CommentThreadOwner }
-) => {
-  const guildId = useActiveGuildId();
+export const useComments = (params: CommentThreadParams, options?: { enabled?: boolean }) => {
+  const communityId = useActiveCommunityId();
   return useInfiniteQuery({
-    ...commentThreadQueryOptions(guildId, params),
-    meta: options?.under ? { under: options.under } : undefined,
+    ...commentThreadQueryOptions(communityId, params),
     select: flattenThread,
     enabled: options?.enabled,
   });
 };
 
 export const useRecentComments = (
-  params?: RecentCommentsApiV1CGuildIdCommentsRecentGetParams,
+  params?: RecentCommentsParams,
   options?: QueryOpts<RecentActivityEntry[]>
 ) => {
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   return useQuery<RecentActivityEntry[]>({
-    queryKey: getRecentCommentsApiV1CGuildIdCommentsRecentGetQueryKey(guildId, params),
-    queryFn: () => recentCommentsApiV1CGuildIdCommentsRecentGet(guildId, params),
+    queryKey: getRecentCommentsQueryKey(communityId, params),
+    queryFn: () => recentComments(communityId, params),
     staleTime: 30 * 1000,
     ...options,
   });
@@ -157,9 +147,9 @@ const dropComment = (data: CommentThreadData, commentId: number): CommentThreadD
 };
 
 export const useCommentsCache = (params: CommentThreadParams) => {
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   const qc = useQueryClient();
-  const { queryKey } = commentThreadQueryOptions(guildId, params);
+  const { queryKey } = commentThreadQueryOptions(communityId, params);
 
   /** A comment just posted or edited, written straight into the thread. */
   const putComment = (comment: CommentRead) => {
@@ -193,31 +183,36 @@ const COMMENT_TARGETS = [
 ] as const satisfies readonly (keyof CommentThreadParams & keyof CommentRead)[];
 
 const inThread = (comment: CommentRead, params: CommentThreadParams) => {
+  // What is said with whoever filed a case is the case's conversation, read
+  // on the case, never a comment in the task's thread.
+  if (comment.audience === CommentAudience.filer) return false;
   const target = COMMENT_TARGETS.find((key) => comment[key] != null);
   return target !== undefined && params[target] === comment[target];
 };
 
-/** The cached threads a comment under `parent` can be in: the parent's own,
- *  and those opened under it (a wiki's pages). */
-const threadsUnder = (guildId: number, parent: CommentThreadOwner) => {
+/** The cached threads of `parent`. */
+const threadsOf = (communityId: number, parent: { type: string; id: number }) => {
   const param = `${singularOf(parent.type)}_id` as keyof CommentThreadParams;
   return queryClient
     .getQueryCache()
-    .findAll({ queryKey: getListCommentsApiV1CGuildIdCommentsGetQueryKey(guildId) })
+    .findAll({ queryKey: getListCommentsQueryKey(communityId) })
     .filter((query) => {
       const params = query.queryKey[1] as CommentThreadParams | undefined;
-      const under = query.meta?.under as CommentThreadOwner | undefined;
-      if (!params) return false;
-      return params[param] === parent.id || (under?.type === parent.type && under.id === parent.id);
+      return params?.[param] === parent.id;
     });
 };
 
 const readBack = async (
-  guildId: number,
+  communityId: number,
   parent: { type: string; id: number },
   commentIds: readonly number[]
 ) => {
-  const threads = threadsUnder(guildId, parent);
+  if (parent.type === "tasks") {
+    // A comment on a case task may be part of its conversation with the
+    // requester, which the case carries.
+    void refreshTaskCase(parent.id, communityId);
+  }
+  const threads = threadsOf(communityId, parent);
   const refetch = () =>
     Promise.all(
       threads.map((thread) =>
@@ -242,7 +237,7 @@ const readBack = async (
       [...commentIds]
         .sort((a, b) => a - b)
         .map((id) =>
-          readCommentApiV1CGuildIdCommentsCommentIdGet(guildId, id).catch((error: unknown) => {
+          readComment(communityId, id).catch((error: unknown) => {
             if (getHttpStatus(error) === 404) return id;
             throw error;
           })
@@ -287,22 +282,22 @@ let pendingSync: Promise<void> = Promise.resolve();
  * threads again instead.
  */
 export const syncComments = (
-  guildId: number,
+  communityId: number,
   parent: { type: string; id: number },
   commentIds: readonly number[]
 ) => {
-  pendingSync = pendingSync.then(() => readBack(guildId, parent, commentIds));
+  pendingSync = pendingSync.then(() => readBack(communityId, parent, commentIds));
   return pendingSync;
 };
 
 // ── Mutations ───────────────────────────────────────────────────────────────
 
 export const useCreateComment = (
-  options?: MutationOpts<CommentRead, Parameters<typeof createCommentApiV1CGuildIdCommentsPost>[1]>
+  options?: MutationOpts<CommentRead, Parameters<typeof createComment>[1]>
 ) =>
-  useGuildMutation<CommentRead, Parameters<typeof createCommentApiV1CGuildIdCommentsPost>[1]>(
+  useCommunityMutation<CommentRead, Parameters<typeof createComment>[1]>(
     {
-      mutationFn: (guildId, data) => createCommentApiV1CGuildIdCommentsPost(guildId, data),
+      mutationFn: (communityId, data) => createComment(communityId, data),
       invalidate: () => invalidate(q.recentComments(), q.relationships()),
       errorKey: "common:error",
     },
@@ -314,20 +309,19 @@ export const useUpdateComment = (
     CommentRead,
     {
       commentId: number;
-      data: Parameters<typeof updateCommentApiV1CGuildIdCommentsCommentIdPatch>[2];
+      data: Parameters<typeof updateComment>[2];
     }
   >
 ) =>
-  useGuildMutation<
+  useCommunityMutation<
     CommentRead,
     {
       commentId: number;
-      data: Parameters<typeof updateCommentApiV1CGuildIdCommentsCommentIdPatch>[2];
+      data: Parameters<typeof updateComment>[2];
     }
   >(
     {
-      mutationFn: (guildId, { commentId, data }) =>
-        updateCommentApiV1CGuildIdCommentsCommentIdPatch(guildId, commentId, data),
+      mutationFn: (communityId, { commentId, data }) => updateComment(communityId, commentId, data),
       invalidate: () => invalidate(q.recentComments(), q.relationships()),
       errorKey: "common:error",
     },
@@ -335,10 +329,9 @@ export const useUpdateComment = (
   );
 
 export const useDeleteComment = (options?: MutationOpts<void, number>) =>
-  useGuildMutation<void, number>(
+  useCommunityMutation<void, number>(
     {
-      mutationFn: (guildId, commentId) =>
-        deleteCommentApiV1CGuildIdCommentsCommentIdDelete(guildId, commentId),
+      mutationFn: (communityId, commentId) => deleteComment(communityId, commentId),
       invalidate: () => invalidate(q.recentComments(), q.relationships()),
       errorKey: "common:error",
     },

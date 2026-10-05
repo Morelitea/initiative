@@ -4,14 +4,17 @@ import { useTranslation } from "react-i18next";
 import type { TaskListRead, TaskStatusRead } from "@/api/generated/initiativeAPI.schemas";
 import { statusTriggerStyle, TaskStatusOption } from "@/components/tasks/TaskStatusOption";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
-import { toast } from "@/lib/chesterToast";
+import { toast } from "@/lib/mascotToast";
 
 type TaskStatusSelectorProps = {
   task: TaskListRead;
-  activeGuildId: number | null;
+  activeCommunityId: number | null;
   isUpdatingTaskStatus: boolean;
   changeTaskStatusById: (task: TaskListRead, statusId: number) => Promise<void>;
-  fetchProjectStatuses: (projectId: number, guildId: number | null) => Promise<TaskStatusRead[]>;
+  fetchProjectStatuses: (
+    projectId: number,
+    communityId: number | null
+  ) => Promise<TaskStatusRead[]>;
   projectStatusCache: React.MutableRefObject<
     Map<number, { statuses: TaskStatusRead[]; complete: boolean }>
   >;
@@ -19,7 +22,7 @@ type TaskStatusSelectorProps = {
 
 export const TaskStatusSelector = ({
   task,
-  activeGuildId,
+  activeCommunityId,
   isUpdatingTaskStatus,
   changeTaskStatusById,
   fetchProjectStatuses,
@@ -48,12 +51,12 @@ export const TaskStatusSelector = ({
   const handleOpenChange = useCallback(
     async (open: boolean) => {
       if (open) {
-        const guildId = task.guild_id ?? activeGuildId ?? null;
-        const fetchedStatuses = await fetchProjectStatuses(task.project_id, guildId);
+        const communityId = task.community_id ?? activeCommunityId ?? null;
+        const fetchedStatuses = await fetchProjectStatuses(task.project_id, communityId);
         setStatuses(fetchedStatuses);
       }
     },
-    [task, activeGuildId, fetchProjectStatuses]
+    [task, activeCommunityId, fetchProjectStatuses]
   );
 
   const sortedStatuses = useMemo(

@@ -72,15 +72,26 @@ class JoinRequestStatus(str, Enum):
     denied = "denied"
 
 
-# Permission keys for role-based access control — fully derived from the Tool
-# enum: one `{plural}_enabled` + `create_{plural}` pair per tool
+# Permission keys for role-based access control — derived from the Tool enum,
+# one `{plural}_enabled` + `create_{plural}` pair per tool, plus the few
+# EXTRA_PERMISSION_KEYS that are not a tool of their own
 # (documents_enabled, create_documents, …, counter_groups_enabled,
 # create_counter_groups). A new Tool member gets its keys automatically; only
 # the DB CHECK constraint on initiative_role_permissions still needs a guild
 # migration to accept the new values.
+#: Role keys that are not a tool's pair. Each is a capability inside a tool
+#: rather than the tool itself, defaults to off for an ordinary role, and is
+#: held by every manager role.
+EXTRA_PERMISSION_KEYS: tuple[str, ...] = (
+    # Set a dashboard to run as the initiative: everyone who opens it sees
+    # every row in the initiative, whatever their own access.
+    "dashboards_run_as_initiative",
+)
+
 PermissionKey = Enum(
     "PermissionKey",
-    [(name, name) for t in Tool for name in (t.view_permission, t.create_permission)],
+    [(name, name) for t in Tool for name in (t.view_permission, t.create_permission)]
+    + [(name, name) for name in EXTRA_PERMISSION_KEYS],
     type=str,
 )
 
@@ -97,6 +108,7 @@ PermissionKey = Enum(
 DEFAULT_PERMISSION_VALUES: dict["PermissionKey", bool] = {
     **{PermissionKey(t.view_permission): t in DEFAULT_ENABLED_TOOLS for t in Tool},
     **{PermissionKey(t.create_permission): False for t in Tool},
+    **{PermissionKey(name): False for name in EXTRA_PERMISSION_KEYS},
 }
 
 
@@ -390,10 +402,6 @@ class Initiative(
         default=None,
         sa_column=Column(String(length=32), nullable=True),
     )
-    is_default: bool = Field(
-        default=False,
-        sa_column=Column(Boolean, nullable=False, server_default="false"),
-    )
     # See InitiativeJoinPolicy. Guarded by ck_initiatives_join_policy.
     join_policy: str = Field(
         default=InitiativeJoinPolicy.private.value,
@@ -406,6 +414,12 @@ class Initiative(
     # New guild members are enrolled in this initiative automatically. Guild-admin
     # settable, and only on an `open` initiative (ck_initiatives_auto_join_open).
     auto_join: bool = Field(
+        default=False,
+        sa_column=Column(Boolean, nullable=False, server_default="false"),
+    )
+    # Nothing in it is exported on its own or copied to another initiative,
+    # by anyone. The initiative and community backups still take it.
+    keep_content_in: bool = Field(
         default=False,
         sa_column=Column(Boolean, nullable=False, server_default="false"),
     )

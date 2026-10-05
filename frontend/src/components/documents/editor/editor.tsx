@@ -11,6 +11,7 @@ import type * as Y from "yjs";
 
 import type { SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
 import { DocumentOutlineTracker } from "@/components/documents/DocumentOutline";
+import { COLLAB_EXCLUDED_PROPERTIES } from "@/components/ui/editor/nodes/image-node";
 import type { EditorVariant } from "@/components/ui/editor/variant";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
@@ -88,11 +89,6 @@ export function Editor({
 
   const useCollaborativeMode = Boolean(collaborative && providerFactory);
 
-  const initialEditorStateForCollab =
-    useCollaborativeMode && editorSerializedState
-      ? JSON.stringify(editorSerializedState)
-      : undefined;
-
   const showSyncingOverlay = useCollaborativeMode && !hasSynced;
 
   // Capture initial editor configuration at first mount. LexicalExtensionComposer
@@ -167,14 +163,17 @@ export function Editor({
 
               {useCollaborativeMode && providerFactory && (
                 <LexicalCollaboration>
+                  {/* The server makes a document's Yjs state from its saved
+                      content before anyone joins, so the room always arrives
+                      holding the document and no tab fills it. */}
                   <CollaborationPlugin
                     id="main"
                     providerFactory={providerFactory}
-                    initialEditorState={initialEditorStateForCollab}
-                    shouldBootstrap={true}
+                    shouldBootstrap={false}
                     username={userName}
                     cursorColor={userColor.current}
                     cursorsContainerRef={cursorsContainerRef}
+                    excludedProperties={COLLAB_EXCLUDED_PROPERTIES}
                   />
                 </LexicalCollaboration>
               )}

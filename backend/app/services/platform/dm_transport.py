@@ -20,13 +20,13 @@ from __future__ import annotations
 import base64
 import binascii
 import uuid
-from collections.abc import Iterable
+from collections.abc import Collection, Iterable
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import delete, func, insert, text, update
 from sqlalchemy.exc import IntegrityError
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
@@ -252,7 +252,7 @@ async def register_device(
     fallback_key: DmOneTimeKeyUpload,
     one_time_keys: list[DmOneTimeKeyUpload],
     label: str | None,
-    device_token_id: int | None = None,
+    session_id: uuid.UUID | None = None,
 ) -> DmDevice:
     """Publish a new installed client's public keys, signed by the device.
 
@@ -264,11 +264,11 @@ async def register_device(
     prekeys run out becomes unreachable to anyone starting a new conversation,
     and the failure would land on the sender.
 
-    ``device_token_id`` names the installation this key store belongs to, taken
-    from the credential that authenticated the call rather than from the body.
-    It is what lets a message wake this device and no other, so a client that
-    registers without one (the web, which has no device token) simply never
-    holds one -- it is not something a caller may assert about itself.
+    ``session_id`` names the sign-in this key store is collected under, taken
+    from the session that authenticated the call rather than from the body. Its
+    push registration names the same sign-in, which is what lets a message wake
+    this device and no other; it is not something a caller may assert about
+    itself.
     """
     identity = _decode(identity_key, expect=KEY_BYTES)
     fingerprint = _decode(fingerprint_key, expect=KEY_BYTES)
@@ -288,19 +288,16 @@ async def register_device(
             else None
         ),
         label=label,
-        device_token_id=device_token_id,
+        session_id=session_id,
     )
     session.add(device)
     await session.flush()
-    if device_token_id is not None:
+    if session_id is not None:
         # A re-registering installation brings its key store with it. The row it
-        # replaces must not go on naming it, or a push would be aimed at a store
-        # whose private half this browser no longer has.
-        await _claim_device_token(
-            session,
-            user_id=user_id,
-            device_id=device.id,
-            device_token_id=device_token_id,
+        # replaces must not go on naming the sign-in, or a push would be aimed
+        # at a store whose private half this device no longer has.
+        await _claim_session(
+            session, user_id=user_id, device_id=device.id, session_id=session_id
         )
     _add_keys(session, device, fallback_key=fallback_key, one_time_keys=one_time_keys)
     await session.flush()
@@ -401,6 +398,24 @@ async def remove_device(
     await session.flush()
 
 
+async def withdraw_signed_in(
+    session: AsyncSession, *, user_id: int, session_ids: Collection[uuid.UUID]
+) -> None:
+    """Drop the key stores these sign-ins name, and everything queued for them.
+
+    What ending a sign-in from the account's own list does: nothing more is
+    encrypted to a device somebody has cut off, or to a browser whose keys go
+    with its session. Scoped to the account's own rows.
+    """
+    if not session_ids:
+        return
+    await session.exec(
+        delete(DmDevice).where(
+            DmDevice.user_id == user_id, col(DmDevice.session_id).in_(list(session_ids))
+        )
+    )
+
+
 def _session_key(
     device: DmDevice, one_time_key: DmOneTimeKeyUpload | None
 ) -> DmSessionKey:
@@ -413,13 +428,14 @@ def _session_key(
     )
 
 
-async def _devices_of(
+async def devices_of(
     session: AsyncSession,
     user_id: int,
     *,
     except_device: uuid.UUID | None = None,
     only: list[uuid.UUID] | None = None,
 ) -> list[DmDevice]:
+    """The account's key stores, oldest first (all of them, or ``only`` those)."""
     query = select(DmDevice).where(DmDevice.user_id == user_id)
     if except_device is not None:
         query = query.where(DmDevice.id != except_device)
@@ -445,7 +461,7 @@ async def claim_session_keys(
     # than the same one.
     claimed = [
         _session_key(device, await _claim_for(session, device.id))
-        for device in await _devices_of(session, target_id, only=only)
+        for device in await devices_of(session, target_id, only=only)
     ]
     await session.flush()
     return claimed
@@ -484,7 +500,7 @@ async def directory(session: AsyncSession, *, target_id: int) -> list[DmSessionK
     if await _permission(session, target_id) != "open":
         raise DmTransportError(Messages.NOT_REACHABLE)
     return [
-        _session_key(device, None) for device in await _devices_of(session, target_id)
+        _session_key(device, None) for device in await devices_of(session, target_id)
     ]
 
 
@@ -505,7 +521,7 @@ async def own_session_keys(
     """
     return [
         _session_key(device, await _claim_for(session, device.id))
-        for device in await _devices_of(
+        for device in await devices_of(
             session, user_id, except_device=except_device, only=only
         )
     ]
@@ -1097,26 +1113,40 @@ async def send(
     )
 
 
-async def _claim_device_token(
+async def _claim_session(
     session: AsyncSession,
     *,
     user_id: int,
     device_id: uuid.UUID,
-    device_token_id: int,
+    session_id: uuid.UUID,
 ) -> None:
-    """Leave this installation named by exactly one of the account's key stores.
+    """Leave this sign-in named by exactly one of the account's key stores.
 
-    Scoped to the account's own rows: an installation belongs to one account,
-    and the id being claimed is the one that authenticated the call.
+    Scoped to the account's own rows: a sign-in belongs to one account, and the
+    one being claimed is the one that authenticated the call.
     """
     await session.exec(
         update(DmDevice)
         .where(
             DmDevice.user_id == user_id,
             DmDevice.id != device_id,
-            DmDevice.device_token_id == device_token_id,
+            DmDevice.session_id == session_id,
         )
-        .values(device_token_id=None)
+        .values(session_id=None)
+    )
+
+
+async def follow_session(
+    session: AsyncSession, *, from_id: uuid.UUID, to_id: uuid.UUID
+) -> None:
+    """Move the key store one session named to the session taking its place.
+
+    Called wherever a session is succeeded, beside the push registrations, so a
+    key store and its device's push row go on naming the same live sign-in.
+    Does not commit: it lands with the session change.
+    """
+    await session.exec(
+        update(DmDevice).where(DmDevice.session_id == from_id).values(session_id=to_id)
     )
 
 
@@ -1125,7 +1155,7 @@ async def collect(
     *,
     user_id: int,
     device_id: uuid.UUID,
-    device_token_id: int | None = None,
+    session_id: uuid.UUID | None = None,
 ) -> list[DmQueueItemRead]:
     """Everything waiting for one device, oldest first.
 
@@ -1133,27 +1163,23 @@ async def collect(
     message keys, so handing them over in the order they were written is what
     keeps a client able to read them.
 
-    Collecting is also where the key store learns which installation it belongs
-    to. A device registers once and never again, so the link cannot only be
-    written at registration: one made before there was a link to write, or one
-    whose login has been replaced since, would stay unwakeable for the rest of
-    its life. Every poll re-states it instead.
+    Collecting is also where the key store learns which sign-in it is under. A
+    device registers once and never again, so the link cannot only be written
+    at registration: a device signed in again since would stay unwakeable for
+    the rest of its life. Every poll re-states it instead.
 
-    One installation holds one key store, and taking the link moves it rather
-    than copying it. Two devices naming the same installation cannot both be
-    woken -- a push would go to the one installation either way -- so the one
-    that is no longer collecting under it would look linked while silently
-    receiving nothing.
+    One sign-in holds one key store, and taking the link moves it rather than
+    copying it. Two key stores naming the same sign-in cannot both be woken --
+    a push would go to the one device either way -- so the one that is no
+    longer collecting under it would look linked while silently receiving
+    nothing.
     """
     device = await _own_device(session, user_id=user_id, device_id=device_id)
-    if device_token_id is not None and device.device_token_id != device_token_id:
-        await _claim_device_token(
-            session,
-            user_id=user_id,
-            device_id=device_id,
-            device_token_id=device_token_id,
+    if session_id is not None and device.session_id != session_id:
+        await _claim_session(
+            session, user_id=user_id, device_id=device_id, session_id=session_id
         )
-        device.device_token_id = device_token_id
+        device.session_id = session_id
     rows = list(
         (
             await session.exec(

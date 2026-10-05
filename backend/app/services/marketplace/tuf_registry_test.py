@@ -22,6 +22,7 @@ import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+import httpx
 import pytest
 from fastapi import HTTPException
 from sqlmodel import select
@@ -739,6 +740,39 @@ class TestConfiguration:
         assert anchor is not None
         assert anchor.builtin is True
         assert anchor.version == 1
+
+
+# ---------------------------------------------------------------------------
+# Fetching over the network
+# ---------------------------------------------------------------------------
+
+
+class TestFetching:
+    @pytest.mark.parametrize(
+        ("token", "url", "authorization"),
+        [
+            ("t0ken", f"{BASE_URL}metadata/timestamp.json", "Bearer t0ken"),
+            ("t0ken", "https://other.example/metadata/timestamp.json", None),
+            ("t0ken", "https://registry.test:8443/public/metadata/x.json", None),
+            (None, f"{BASE_URL}metadata/timestamp.json", None),
+        ],
+        ids=["registry origin", "another host", "another port", "unset"],
+    )
+    async def test_the_token_goes_only_to_the_registry_origin(
+        self, monkeypatch, token, url, authorization
+    ):
+        sent: dict[str, str] = {}
+
+        async def request(method, target, *, headers, **kwargs):
+            sent.update(headers)
+            return httpx.Response(200, content=b"{}")
+
+        monkeypatch.setattr(tuf_registry, "request_public_target", request)
+        monkeypatch.setattr(settings, "MARKETPLACE_REGISTRY_URL", BASE_URL)
+        monkeypatch.setattr(settings, "MARKETPLACE_REGISTRY_TOKEN", token)
+
+        assert await tuf_registry._get(url) == b"{}"
+        assert sent.get("Authorization") == authorization
 
 
 # ---------------------------------------------------------------------------

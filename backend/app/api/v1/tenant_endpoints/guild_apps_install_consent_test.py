@@ -12,7 +12,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.messages import GuildAppMessages, GuildMessages
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.tenant.guild_app import GuildApp
 from app.services.tenant.initiatives import get_role_by_name
 from app.testing import (
@@ -97,7 +97,7 @@ class TestConsentAtInstall:
     async def test_scopes_placements_and_roles_land_with_the_install(
         self, client: AsyncClient, acting_user, session: AsyncSession, listing
     ):
-        a = await acting_user(guild_role=GuildRole.superadmin, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
         second = await create_initiative(session, a.guild, a.user, name="Second")
 
         response = await _install(
@@ -132,7 +132,7 @@ class TestConsentAtInstall:
     async def test_picked_initiatives_start_with_their_moderators(
         self, client: AsyncClient, acting_user, session: AsyncSession, listing
     ):
-        a = await acting_user(guild_role=GuildRole.superadmin, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
         await create_initiative(session, a.guild, a.user, name="Left out")
 
         response = await _install(client, a, placements=[a.initiative.id])
@@ -147,7 +147,7 @@ class TestConsentAtInstall:
     async def test_an_install_with_no_answers_is_what_it_was(
         self, client: AsyncClient, acting_user, listing
     ):
-        a = await acting_user(guild_role=GuildRole.superadmin, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
 
         response = await _install(client, a)
 
@@ -179,7 +179,7 @@ class TestConsentAtInstall:
         body,
         code,
     ):
-        a = await acting_user(guild_role=GuildRole.superadmin, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
 
         response = await _install(client, a, **body)
 
@@ -190,19 +190,19 @@ class TestConsentAtInstall:
     async def test_only_the_seat_installs(
         self, client: AsyncClient, acting_user, listing
     ):
-        a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
 
         response = await _install(client, a, granted_scopes=["projects:read"])
 
         assert response.status_code == 403
-        assert response.json()["detail"] == GuildMessages.GUILD_SUPERADMIN_REQUIRED
+        assert response.json()["detail"] == GuildMessages.COMMUNITY_SUPERADMIN_REQUIRED
 
 
 class TestTheListingSaysWhatTheDialogAsks:
     async def test_requested_grantable_and_surfaces(
         self, client: AsyncClient, acting_user, listing
     ):
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
 
         response = await client.get(
             a.g(f"/marketplace/listings/by-uid/{SERVICE_UID}"), headers=a.headers
@@ -268,7 +268,7 @@ class TestAnAppAskingToUseAnother:
                 "features": [],
             },
         )
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
 
         detail = await client.get(
             a.g(f"/marketplace/listings/by-uid/{caller_uid}"), headers=a.headers
@@ -339,7 +339,7 @@ class TestUpgradeConsent:
     async def test_the_detail_says_what_the_version_asks_for(
         self, client: AsyncClient, acting_user, session: AsyncSession, listing
     ):
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
         app_id = await self._installed_then_widened(client, session, a, surfaces=True)
 
         read = (await client.get(a.g(f"/apps/{app_id}"), headers=a.headers)).json()
@@ -355,7 +355,7 @@ class TestUpgradeConsent:
     async def test_without_consent_it_answers_with_what_it_asks(
         self, client: AsyncClient, acting_user, session: AsyncSession, listing
     ):
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
         app_id = await self._installed_then_widened(client, session, a)
 
         response = await client.post(a.g(f"/apps/{app_id}/upgrade"), headers=a.headers)
@@ -374,7 +374,7 @@ class TestUpgradeConsent:
     async def test_consent_applies_the_version_and_grants(
         self, client: AsyncClient, acting_user, session: AsyncSession, listing
     ):
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
         app_id = await self._installed_then_widened(client, session, a)
 
         response = await client.post(
@@ -392,7 +392,7 @@ class TestUpgradeConsent:
     async def test_consent_to_another_version_applies_nothing(
         self, client: AsyncClient, acting_user, session: AsyncSession, listing
     ):
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
         app_id = await self._installed_then_widened(client, session, a)
 
         response = await client.post(
@@ -409,7 +409,7 @@ class TestUpgradeConsent:
     async def test_consent_is_held_to_the_ceiling(
         self, client: AsyncClient, acting_user, session: AsyncSession, listing
     ):
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
         app_id = await self._installed_then_widened(client, session, a)
 
         response = await client.post(
@@ -424,7 +424,7 @@ class TestUpgradeConsent:
     async def test_declining_keeps_the_version_and_sticks(
         self, client: AsyncClient, acting_user, session: AsyncSession, listing
     ):
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
         app_id = await self._installed_then_widened(client, session, a)
 
         response = await client.post(
@@ -451,9 +451,9 @@ class TestUpgradeConsent:
     async def test_only_the_seat_declines(
         self, client: AsyncClient, acting_user, session: AsyncSession, listing
     ):
-        a = await acting_user(guild_role=GuildRole.superadmin)
+        a = await acting_user(guild_role=CommunityRole.superadmin)
         app_id = await self._installed_then_widened(client, session, a)
-        admin = await acting_user(guild_role=GuildRole.admin, guild=a.guild)
+        admin = await acting_user(guild_role=CommunityRole.admin, guild=a.guild)
 
         response = await client.post(
             admin.g(f"/apps/{app_id}/upgrade/decline"),

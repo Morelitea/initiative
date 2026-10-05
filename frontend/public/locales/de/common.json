@@ -2,6 +2,8 @@
   "deletedUserName": "Gelöschter Benutzer #{{id}}",
   "user": "Benutzer",
   "userWithId": "Benutzer #{{id}}",
+  "formerMember": "Ehemaliges Mitglied",
+  "mentionNotLoaded": "Dieser Name konnte nicht geladen werden",
   "save": "Speichern",
   "cancel": "Abbrechen",
   "delete": "Löschen",
@@ -112,6 +114,11 @@
   "createAccess": {
     "advancedOptions": "Erweiterte Optionen"
   },
+  "subToolDuplicate": {
+    "action": "Duplizieren",
+    "duplicating": "Wird dupliziert…",
+    "done": "Dupliziert"
+  },
   "toolSettings": {
     "archive": {
       "title": "Archiv",
@@ -124,12 +131,22 @@
       "archived": "„{{name}}“ archiviert",
       "unarchived": "„{{name}}“ ist zurück"
     },
+    "duplicate": {
+      "title": "Duplizieren",
+      "description": "Erstelle eine Kopie mit allem, was darin ist, in dieser oder einer anderen Initiative, in der du es anlegen darfst.",
+      "action": "Duplizieren",
+      "dialogTitle": "„{{name}}“ duplizieren",
+      "initiative": "Initiative",
+      "defaultName": "{{name}} (Kopie)",
+      "duplicating": "Wird dupliziert…",
+      "duplicated": "Nach {{initiative}} kopiert",
+      "error": "Die Kopie konnte nicht erstellt werden."
+    },
     "export": {
       "title": "Exportieren",
       "description": "Eine Kopie herunterladen – als Datei, die sich hier oder auf einem anderen Server importieren lässt, oder als Bericht zum Lesen. Exportieren kann nur, wer dies auch löschen darf."
     },
     "title": "Einstellungen",
-    "description": "Verwalte Details, Zugriff und erweiterte Optionen.",
     "tabDetails": "Details",
     "tabAccess": "Zugriff",
     "tabAdvanced": "Erweitert",
@@ -167,6 +184,9 @@
     "moreActions": "Weitere Aktionen",
     "selectItems": "Elemente auswählen",
     "view": "Ansicht",
+    "viewGrid": "Raster",
+    "viewList": "Liste",
+    "viewTags": "Tags",
     "details": "Details"
   },
   "emojiPicker": {
@@ -258,6 +278,18 @@
     "description": "Unter dieser Adresse gibt es nichts. Der Link ist vielleicht falsch geschrieben, oder die Seite wurde verschoben."
   },
   "nativeUpdate": {
-    "unsigned": "Das Update dieses Servers wurde nicht von Initiative veröffentlicht, deshalb bleibt die App auf Version {{version}}."
+    "unsigned": "Das Update dieses Servers wurde nicht von Initiative veröffentlicht, deshalb bleibt die App auf Version {{version}}.",
+    "desktopReady": "Initiative hat das Update heruntergeladen. Starte neu, um es abzuschließen.",
+    "restart": "Neu starten"
+  },
+  "toolHeader": {
+    "rename": "Umbenennen"
+  },
+  "toolChest": {
+    "status": "Status",
+    "active": "Aktiv",
+    "archived": "Archiviert",
+    "none": "Keine",
+    "template": "Vorlage"
   }
 }

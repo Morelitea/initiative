@@ -6,7 +6,7 @@ icon: lucide/tags
 
 **Tags** are labels you stick on things so that future-you can find them again.
 
-The same tag works across tasks, projects, documents and events — so `urgent`, `client-acme` or `idea` rounds up everything on that subject, regardless of what kind of thing each one happens to be.
+The same tag works on every [tool](tools.md) and most of what's inside them — tasks, events, pictures, wiki pages — so `urgent`, `client-acme` or `idea` rounds up everything on that subject, regardless of what kind of thing each one happens to be.
 
 ## Adding one
 
@@ -24,9 +24,10 @@ Done. It's attached, and now available everywhere else too.
 
 ## Finding things by tag
 
-- **Filter by tag** on a list — tasks in a **Table** view, and the lists of projects, documents, wikis, queues, counter groups, galleries and dashboards.
-- The **Tags** area in the sidebar lists every tag in the community.
-- A tag's **detail page** shows everything carrying it, split into **Tasks**, **Projects** and **Documents**.
+- **Filter by tag** on a list — tasks in a **Table** view, and most tool lists under **Filters**.
+- The **Tags** view on a tool's list browses it by the tag tree. See [Tools](tools.md#lists).
+- The **Tags** tab in the sidebar lists every tag in the community.
+- A tag's **detail page** shows everything carrying it, with one tab per kind of tool and how many are in each. A tagged task sits under **Projects**, a tagged page under **Wikis**.
 
 ![Everything sharing a tag](../images/tags/tag-detail.png)
 

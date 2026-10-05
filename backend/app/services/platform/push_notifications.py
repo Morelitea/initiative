@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import uuid
 from contextlib import nullcontext
 from dataclasses import dataclass
 from typing import Any, AsyncContextManager, Dict, Optional, Sequence
@@ -14,7 +15,7 @@ from app.models.platform.notification import NotificationType
 from app.models.platform.push_token import PushToken
 from app.services.platform import notification_policy, push_tokens
 
-from app.services.platform import push_config
+from app.services.platform import push_config, push_relay
 from app.services.platform.push_config import ResolvedPushConfig
 
 logger = logging.getLogger(__name__)
@@ -77,6 +78,10 @@ PUSH_CHANNELS: dict[NotificationType, str] = {
     NotificationType.access_grant_approved: "access_grants",
     NotificationType.access_grant_denied: "access_grants",
     NotificationType.access_grant_revoked: "access_grants",
+    # Mostly a reply on something the reader wrote, so it rides the comments
+    # channel the installed app already registers rather than asking for a
+    # new one — a new channel id would mean a native release.
+    NotificationType.ticket_updated: "comments",
 }
 
 
@@ -137,16 +142,23 @@ async def send_push_notification(
     body: str,
     data: Optional[Dict[str, Any]] = None,
     channel_id: Optional[str] = None,
+    platform: str = "android",
 ) -> tuple[bool, bool]:
-    """Send a push notification to one device via the FCM HTTP v1 API.
+    """Send a push notification to one device with FCM's HTTP v1 API.
+
+    The message goes to FCM itself, signed with the service account, or to the
+    push relay, which takes the same request with this server's relay key.
+    iPhone tokens always go to the relay; Android tokens go to it only when
+    no service account is configured.
 
     Args:
         client: The HTTP client the whole fan-out shares
-        push_token: FCM registration token
+        push_token: The device's token (FCM for Android, APNs for iPhone)
         title: Notification title
         body: Notification body
         data: Optional data payload (must be string key-value pairs)
         channel_id: Android notification channel to deliver on
+        platform: The device's platform, ``android`` or ``ios``
 
     Returns:
         Tuple of (success, should_delete_token):
@@ -155,19 +167,43 @@ async def send_push_notification(
 
     Error handling:
         - 404/410: Token invalid, should be deleted from database
-        - 401: Credentials issue, logged as error
+        - 401: Credentials issue, logged as error (the relay key is dropped,
+          so the next push registers again)
         - 5xx: Server error, logged as warning
         - Network errors: Logged as warning
     """
     cfg = await push_config.ensure_push_config_fresh()
-    if not cfg.enabled or not cfg.project_id:
+    if not cfg.enabled:
         logger.warning("FCM not enabled, skipping push notification")
         return (False, False)
 
-    access_token = await _get_fcm_access_token(cfg)
-    if not access_token:
-        logger.error("Failed to get FCM access token")
-        return (False, False)
+    via_relay = platform == "ios" or not cfg.service_account_json
+    relay_server_id: Optional[str] = None
+    if via_relay:
+        held = await push_relay.credentials(client)
+        if held is None:
+            logger.error("Push relay credentials unavailable")
+            return (False, False)
+        relay_server_id, relay_key = held
+        url = push_relay.send_url(cfg.project_id)
+        headers = {
+            "Authorization": push_relay.authorization(relay_server_id, relay_key),
+            "Content-Type": "application/json",
+            "X-Push-Platform": platform,
+        }
+    else:
+        if not cfg.project_id:
+            logger.warning("FCM project id not set, skipping push notification")
+            return (False, False)
+        access_token = await _get_fcm_access_token(cfg)
+        if not access_token:
+            logger.error("Failed to get FCM access token")
+            return (False, False)
+        url = FCM_API_URL.format(project_id=cfg.project_id)
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json",
+        }
 
     # Build FCM message
     fcm_message: dict[str, Any] = {
@@ -191,12 +227,7 @@ async def send_push_notification(
     if data:
         fcm_message["data"] = {k: str(v) for k, v in data.items()}
 
-    url = FCM_API_URL.format(project_id=cfg.project_id)
-    headers = {
-        "Authorization": f"Bearer {access_token}",
-        "Content-Type": "application/json",
-    }
-
+    service = "Push relay" if via_relay else "FCM"
     try:
         response = await client.post(url, json=message, headers=headers)
 
@@ -208,27 +239,37 @@ async def send_push_notification(
         elif response.status_code in (404, 410):
             # Token invalid or unregistered - should be deleted
             logger.warning(
-                f"FCM token invalid (status {response.status_code}): {push_token[:20]}..."
+                f"{service} token invalid (status {response.status_code}): "
+                f"{push_token[:20]}..."
             )
             return (False, True)
         elif response.status_code == 401:
             # Credentials issue - don't delete token
             logger.error(
-                f"FCM authentication failed (status {response.status_code}): {response.text}"
+                f"{service} authentication failed (status {response.status_code}): "
+                f"{response.text}"
+            )
+            if relay_server_id is not None:
+                await push_relay.forget(relay_server_id)
+            return (False, False)
+        elif response.status_code == 403 and relay_server_id is not None:
+            logger.error(
+                f"Push relay refused this server (status 403): {response.text}"
             )
             return (False, False)
         else:
             # Other error - don't delete token (might be temporary)
             logger.error(
-                f"FCM request failed (status {response.status_code}): {response.text}"
+                f"{service} request failed (status {response.status_code}): "
+                f"{response.text}"
             )
             return (False, False)
 
     except httpx.TimeoutException:
-        logger.warning(f"FCM request timed out for token: {push_token[:20]}...")
+        logger.warning(f"{service} request timed out for token: {push_token[:20]}...")
         return (False, False)
     except Exception as exc:
-        logger.error(f"Failed to send FCM notification: {exc}", exc_info=True)
+        logger.error(f"Failed to send push notification: {exc}", exc_info=True)
         return (False, False)
 
 
@@ -287,7 +328,7 @@ async def send_push_to_user(
     title: str,
     body: str,
     data: Optional[Dict[str, Any]] = None,
-    only_device_token_ids: Optional[set[int]] = None,
+    only_session_ids: Optional[set[uuid.UUID]] = None,
     guild_id: Optional[int] = None,
     locale: Optional[str] = None,
 ) -> int:
@@ -310,8 +351,9 @@ async def send_push_to_user(
         title: Notification title
         body: Notification body
         data: Optional data payload
-        only_device_token_ids: Restrict delivery to these installations. Used by
-            categories that only make sense on a device set up for them.
+        only_session_ids: Restrict delivery to the devices these sign-ins
+            registered. Used by categories that only make sense on a device set
+            up for them.
         guild_id: The community this notification belongs to, whose own answer
             applies alongside the deployment's. ``None`` for a notification that
             belongs to no community — a message, a connection, an account
@@ -326,10 +368,8 @@ async def send_push_to_user(
         return 0
 
     tokens = await _recipient_tokens(user_id)
-    if only_device_token_ids is not None:
-        tokens = [
-            token for token in tokens if token.device_token_id in only_device_token_ids
-        ]
+    if only_session_ids is not None:
+        tokens = [token for token in tokens if token.session_id in only_session_ids]
 
     if not tokens:
         logger.debug(f"No push tokens found for user {user_id}")
@@ -398,6 +438,7 @@ async def _send_to_devices(
                 body=body,
                 data=data,
                 channel_id=channel_id,
+                platform=token.platform,
             )
 
     results = await asyncio.gather(*(one(token) for token in tokens))

@@ -5,6 +5,7 @@ from hashlib import sha256
 from secrets import token_urlsafe
 from typing import Optional, Sequence, Tuple
 
+from sqlalchemy import ColumnElement, and_, func, or_
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -76,16 +77,18 @@ async def _record_key_event(
     *,
     user_id: int,
     api_key: UserApiKey,
+    actor_user_id: Optional[int] = None,
 ) -> None:
     """Record one key's arrival or departure.
 
-    A key is the account's own credential, so it is both actor and subject. The
-    record carries the key's scope — never its name, its prefix or its hash.
+    A key is the account's own credential, so its holder is the actor unless
+    staff revoked it. The record carries the key's scope — never its name, its
+    prefix or its hash.
     """
     await audit_service.record(
         session,
         event_type=event_type,
-        actor_user_id=user_id,
+        actor_user_id=actor_user_id if actor_user_id is not None else user_id,
         target_user_id=user_id,
         guild_id=api_key.guild_id,
         target_type="user_api_key",
@@ -166,19 +169,48 @@ async def authenticate_api_key(
     return user, api_key
 
 
-async def deactivate_user_api_keys(session: AsyncSession, *, user_id: int) -> int:
-    """Deactivate every active API key for ``user_id`` and return the count.
+def _live(now: datetime) -> ColumnElement[bool]:
+    """A key that would still authenticate: switched on and not yet expired."""
+    return and_(
+        UserApiKey.is_active.is_(True),
+        or_(UserApiKey.expires_at.is_(None), UserApiKey.expires_at > now),
+    )
 
-    Invoked from the credential-reset path so a password change / reset also
-    deactivates outstanding keys. Does not commit — the caller owns the
-    transaction.
+
+async def live_counts(session: AsyncSession, *, user_ids: list[int]) -> dict[int, int]:
+    """How many keys that still work each of these accounts holds. One query
+    for the whole page."""
+    rows = await session.exec(
+        select(UserApiKey.user_id, func.count())
+        .where(UserApiKey.user_id.in_(user_ids), _live(datetime.now(timezone.utc)))
+        .group_by(UserApiKey.user_id)
+    )
+    return {user_id: count for user_id, count in rows.all()}
+
+
+async def deactivate_user_api_keys(
+    session: AsyncSession, *, user_id: int, revoked_by: Optional[int] = None
+) -> int:
+    """Switch off every key of ``user_id`` that still works, and return the count.
+
+    A password change or reset calls this so the account's keys go with the old
+    password. Staff revoking them pass ``revoked_by``, and each key's departure
+    is recorded against them. Does not commit — the caller owns the transaction.
     """
     statement = select(UserApiKey).where(
-        UserApiKey.user_id == user_id, UserApiKey.is_active.is_(True)
+        UserApiKey.user_id == user_id, _live(datetime.now(timezone.utc))
     )
     result = await session.exec(statement)
     keys = result.all()
     for key in keys:
         key.is_active = False
         session.add(key)
+        if revoked_by is not None:
+            await _record_key_event(
+                session,
+                AuditEventType.API_KEY_REVOKED,
+                user_id=user_id,
+                api_key=key,
+                actor_user_id=revoked_by,
+            )
     return len(keys)

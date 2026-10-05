@@ -7,11 +7,16 @@
  * of them edited. It also makes the mention a real chip — a link to their
  * profile, and their card on hover — which a `TextNode` could never host.
  *
- * It still serializes `text`, `mentionName` and `mentionUserId`, and that is
- * deliberate: export renderers degrade any node carrying `text` to its text,
- * the search index reads `$.**.text`, and mention notifications are raised off
- * `mentionUserId` (see `extractMentionUserIds`). Documents written when this
- * was a `TextNode` carry exactly those fields, so they load unchanged.
+ * Somebody with an account is held by id alone: `mentionName` and `text` are
+ * serialized empty, so their name is in neither the saved document nor the
+ * collaboration state, and is read whenever the chip is drawn. Mention
+ * notifications are raised off `mentionUserId` (see `extractMentionUserIds`).
+ * A mention with no id — somebody an import could match to no account — has
+ * nothing to look up, so it keeps the name it was written with.
+ *
+ * Documents written when this was a `TextNode`, or before names were left out,
+ * carry the same three fields with the name filled in. They load as the same
+ * node, and the name is dropped on the way in.
  */
 
 import {
@@ -32,7 +37,7 @@ export type SerializedMentionNode = Spread<
   {
     mentionName: string;
     mentionUserId?: number | null;
-    /** The name as it read when written — the export and index fallback. */
+    /** The same as `mentionName`: what a renderer reading `text` shows. */
     text: string;
   },
   SerializedLexicalNode
@@ -44,8 +49,8 @@ const USER_ID_ATTR = "data-mention-user-id";
 function $convertMentionElement(domNode: HTMLElement): DOMConversionOutput | null {
   const textContent = domNode.textContent;
   if (textContent === null) return null;
-  const userId = Number(domNode.getAttribute(USER_ID_ATTR));
-  return { node: $createMentionNode(textContent, Number.isFinite(userId) ? userId : null) };
+  const userId = domNode.getAttribute(USER_ID_ATTR);
+  return { node: $createMentionNode(textContent, userId ? Number(userId) : null) };
 }
 
 export class MentionNode extends DecoratorNode<JSX.Element> {
@@ -62,17 +67,20 @@ export class MentionNode extends DecoratorNode<JSX.Element> {
 
   static importJSON(serializedNode: SerializedMentionNode): MentionNode {
     // `text` is what a document written before this was a decorator carries,
-    // and it is the same string either way.
+    // and it is the same string either way. Only an id-less mention keeps it.
     return $createMentionNode(
       serializedNode.mentionName ?? serializedNode.text ?? "",
       serializedNode.mentionUserId ?? null
     );
   }
 
+  /** `mentionName` is kept only without an id: a person with an account is
+   *  named when the chip is drawn, never by what the picker or an older
+   *  document said. */
   constructor(mentionName: string, mentionUserId?: number | null, key?: NodeKey) {
     super(key);
-    this.__mention = mentionName;
     this.__mentionUserId = mentionUserId ?? null;
+    this.__mention = this.__mentionUserId === null ? mentionName : "";
   }
 
   exportJSON(): SerializedMentionNode {

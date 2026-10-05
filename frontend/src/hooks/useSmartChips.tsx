@@ -9,12 +9,12 @@ import type {
   SmartChipStateList,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
-  getReadReferenceEmbedsApiV1CGuildIdSmartChipsEmbedsGetQueryKey,
-  getReadSmartChipsApiV1CGuildIdSmartChipsGetQueryKey,
-  readReferenceEmbedsApiV1CGuildIdSmartChipsEmbedsGet,
-  readSmartChipsApiV1CGuildIdSmartChipsGet,
+  getReadReferenceEmbedsQueryKey,
+  getReadSmartChipsQueryKey,
+  readReferenceEmbeds,
+  readSmartChips,
 } from "@/api/generated/smart-chips/smart-chips";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { referenceRef } from "@/lib/smartChips";
 
 /** How long a chip may be behind the thing it is about. */
@@ -58,15 +58,22 @@ const combineBatches = (results: { data?: SmartChipStateList; isFetched: boolean
  *
  * A document with thirty chips makes one call, not thirty: the scope collects
  * the references out of the editor and asks for them together.
+ * `communityIdOverride` reads them in a community other than the page's, for a
+ * surface that spans communities.
  */
-export const useSmartChipStates = (refs: string[], enabled = true) => {
-  const guildId = useActiveGuildId();
+export const useSmartChipStates = (
+  refs: string[],
+  enabled = true,
+  communityIdOverride?: number
+) => {
+  const activeCommunityId = useActiveCommunityId();
+  const communityId = communityIdOverride ?? activeCommunityId;
   const batches = referenceBatches(refs);
   return useQueries({
     queries: batches.map((ref) => ({
-      queryKey: getReadSmartChipsApiV1CGuildIdSmartChipsGetQueryKey(guildId, { ref }),
-      queryFn: () => readSmartChipsApiV1CGuildIdSmartChipsGet(guildId, { ref }),
-      enabled: enabled && guildId != null,
+      queryKey: getReadSmartChipsQueryKey(communityId, { ref }),
+      queryFn: () => readSmartChips(communityId, { ref }),
+      enabled: enabled && communityId != null,
       staleTime: STALE_MS,
       // A chip goes stale because someone else moved something, so it is asked
       // again on a timer rather than waiting for this reader to do anything.
@@ -170,13 +177,13 @@ export const useReferenceTitle = (
  * when the reader comes back to the page rather than every minute.
  */
 export const useReferenceEmbed = (entityType: SearchEntityType, entityId: number) => {
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   const ref = referenceRef(entityType, entityId);
   const params = { ref: [ref] };
   return useQuery({
-    queryKey: getReadReferenceEmbedsApiV1CGuildIdSmartChipsEmbedsGetQueryKey(guildId, params),
-    queryFn: () => readReferenceEmbedsApiV1CGuildIdSmartChipsEmbedsGet(guildId, params),
-    enabled: guildId != null,
+    queryKey: getReadReferenceEmbedsQueryKey(communityId, params),
+    queryFn: () => readReferenceEmbeds(communityId, params),
+    enabled: communityId != null,
     staleTime: STALE_MS,
     select: (data): ReferenceEmbed | null => data.items.find((item) => item.ref === ref) ?? null,
   });

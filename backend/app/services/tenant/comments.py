@@ -39,17 +39,16 @@ from app.db.initiative_rls import (
     COMMENT_PARENTS,
     COMMENT_PARENT_COLUMNS as RLS_COMMENT_PARENT_COLUMNS,
 )
-from app.db.session import install_context
+from app.db.session import guild_context, install_context
 from app.models.tenant._mixins import tool_models
 from app.models.tenant.calendar import Calendar
-from app.models.tenant.comment import Comment
+from app.models.tenant.comment import Comment, CommentAudience, in_thread
 from app.models.platform.notification import NotificationType
 from app.models.tenant.counter import CounterGroup
 from app.models.tenant.dashboard import Dashboard
 from app.models.tenant.post import Post
 from app.models.tenant.gallery import Gallery
 from app.models.tenant.document import Document
-from app.models.platform.guild import GUILD_ADMIN_ROLES, GuildRole
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.project import Project
 from app.models.tenant.queue import Queue
@@ -57,7 +56,6 @@ from app.models.tenant.wiki import Wiki, WikiPage
 from app.models.tenant.task import Task, TaskAssignee
 from app.models.platform.user import User
 from app.services import keyset_cursor
-from app.services import rls as rls_service
 from app.services.tenant import attachments as attachments_service
 from app.services.tenant import content_references
 from app.services import notifications
@@ -232,6 +230,7 @@ async def annotate_comment_counts(
     result = await session.exec(
         select(parent, func.count(Comment.id))
         .where(parent.in_(tuple(ids)))
+        .where(in_thread())
         .group_by(parent)
     )
     counts = dict(result.all())
@@ -493,6 +492,10 @@ def serialize_comment(comment: Comment, *, viewer_id: Optional[int] = None):
     task_project_id = getattr(comment, "_task_project_id", None)
     if task_project_id is not None:
         read.project_id = task_project_id
+    read.can_remove = viewer_id is not None and (
+        comment.created_by == viewer_id
+        or bool(getattr(comment, "_removes_others", False))
+    )
     rows = getattr(comment, "_reactions", None)
     if rows:
         read.reactions = reactions_service.summarize(rows, viewer_id=viewer_id)
@@ -569,14 +572,39 @@ async def _resolved_parent(
     return ctx
 
 
-def _stamp_task_project(ctx: _ParentContext, *comments: Comment) -> None:
-    """Record the task's project on loaded rows for serialization — a plain
-    attribute, never the ``project_id`` column (that names a comment ON a
-    project)."""
-    if ctx.project is None:
-        return
+def removes_others_comments(
+    session: AsyncSession, initiative_id: Optional[int]
+) -> bool:
+    """Whether this request may take down comments other people wrote in
+    ``initiative_id``: a community admin, or a manager of that initiative.
+
+    Read off the standing the seam computed, so it costs no query and answers
+    exactly what the delete route checks. An installed app and granted access
+    take down nobody's words but their own.
+    """
+    context = guild_context(session)
+    if context is None:
+        return False
+    if context.is_admin:
+        return True
+    return initiative_id is not None and initiative_id in context.manager_initiatives
+
+
+def _stamp_parent(
+    session: AsyncSession, ctx: _ParentContext, *comments: Comment
+) -> None:
+    """Record what the parent says about loaded rows, for serialization.
+
+    The task's project — a plain attribute, never the ``project_id`` column
+    (that names a comment ON a project) — and whether this reader may take
+    down other people's comments in the thread, so the client offers Delete
+    exactly where the route allows it.
+    """
+    removes_others = removes_others_comments(session, ctx.initiative_id)
     for comment in comments:
-        object.__setattr__(comment, "_task_project_id", ctx.project.id)
+        object.__setattr__(comment, "_removes_others", removes_others)
+        if ctx.project is not None:
+            object.__setattr__(comment, "_task_project_id", ctx.project.id)
 
 
 async def get_comment_with_parent(
@@ -618,7 +646,7 @@ async def get_comment_with_parent(
         user=user,
         access=access,
     )
-    _stamp_task_project(ctx, comment)
+    _stamp_parent(session, ctx, comment)
     await attach_reactions(session, comment)
     return comment, ctx
 
@@ -642,6 +670,38 @@ async def get_comment(
     return comment
 
 
+async def _ensure_said_to_a_filer(
+    session: AsyncSession,
+    *,
+    person: Optional[User],
+    column: str,
+    entity_id: int,
+) -> None:
+    """Refuse a comment said to a filer anywhere but a case that has one.
+
+    Read on the poster's own session: a person who can comment on the task can
+    read its case row, and nobody else gets this far.
+    """
+    from app.core.intake import Conversation, IntakeStream, meta
+    from app.models.tenant.intake import IntakeCase
+
+    if person is None or column != "task_id":
+        raise CommentValidationError(CommentMessages.NOT_SAID_TO_A_FILER)
+    case = (
+        await session.exec(
+            select(IntakeCase.stream, IntakeCase.filer_user_id).where(
+                IntakeCase.task_id == entity_id
+            )
+        )
+    ).first()
+    if (
+        case is None
+        or case[1] is None
+        or meta(IntakeStream(case[0])).conversation is Conversation.none
+    ):
+        raise CommentValidationError(CommentMessages.NOT_SAID_TO_A_FILER)
+
+
 async def create_comment(
     session: AsyncSession,
     *,
@@ -660,11 +720,16 @@ async def create_comment(
     wiki_id: Optional[int] = None,
     wiki_page_id: Optional[int] = None,
     parent_comment_id: Optional[int] = None,
+    audience: CommentAudience = CommentAudience.members,
 ) -> Comment:
     """Post one comment on one parent, and tell whoever it concerns.
 
     ``author`` is the person posting, or the installed app posting as itself:
     its comment names no author, and the notices name the app.
+
+    ``audience`` is ``filer`` for a reply to whoever filed an operations case:
+    only a person posts one, only on a case task that has a filer, and only
+    where the case's stream holds a conversation.
     """
     person = author if isinstance(author, User) else None
     parent_comment = None
@@ -700,17 +765,27 @@ async def create_comment(
     )
     if parent_comment and getattr(parent_comment, column) != ctx.entity_id:
         raise CommentValidationError(CommentMessages.PARENT_MISMATCH)
+    if parent_comment and parent_comment.audience != audience:
+        raise CommentValidationError(CommentMessages.AUDIENCE_MISMATCH)
+    if audience is CommentAudience.filer:
+        await _ensure_said_to_a_filer(
+            session, person=person, column=column, entity_id=ctx.entity_id
+        )
+        from app.services.platform import ticket_stream
+
+        await ticket_stream.queue_for_case(session, ctx.entity_id)
 
     comment = Comment(
         content=content,
         created_by=author.id,
         parent_comment_id=parent_comment_id,
+        audience=audience,
         **{column: ctx.entity_id},
     )
     session.add(comment)
     await session.flush()
     await session.refresh(comment, attribute_names=["author"])
-    _stamp_task_project(ctx, comment)
+    _stamp_parent(session, ctx, comment)
     await content_references.sync_for_comment(session, comment, author_id=author.id)
     await attachments_service.claim_uploads(session, comment)
 
@@ -735,6 +810,51 @@ async def _task_assignee_ids(session: AsyncSession, task_id: int) -> list[int]:
                 .order_by(TaskAssignee.user_id)
             )
         ).all()
+    )
+
+
+async def notify_task_assignees(
+    session: AsyncSession,
+    *,
+    comment: Comment,
+    author: User | notifications.AppAuthor,
+    task: Task,
+    thread: notifications.Subject | None = None,
+    recipients: Sequence[int] | None = None,
+) -> None:
+    """Tell a task's assignees there is a new comment on it, rolled into
+    their unread line for the task.
+
+    ``recipients`` defaults to every assignee but the author; a caller already
+    telling some of them about the comment another way passes who is left.
+    """
+    if thread is None:
+        thread = await notifications.resolve_subject(session, ("task", task.id))
+        if thread is None:
+            return
+    if recipients is None:
+        recipients = [
+            user_id
+            for user_id in await _task_assignee_ids(session, cast(int, task.id))
+            if user_id != author.id
+        ]
+    name = notifications.actor_name(author)
+    await notifications.notify(
+        session,
+        NotificationType.comment_on_task,
+        recipients,
+        about=thread,
+        key="comment.onTask",
+        values={"actor": name, "task": task.title},
+        data={
+            "comment_id": comment.id,
+            "task_id": task.id,
+            "project_id": task.project_id,
+            "commenter_name": name,
+            "commenter_id": author.id,
+        },
+        actor=author,
+        rollup_key=f"task:{task.id}",
     )
 
 
@@ -836,22 +956,15 @@ async def _process_comment_notifications(
         )
 
     if ctx.task is not None:
-        await notifications.notify(
+        await notify_task_assignees(
             session,
-            NotificationType.comment_on_task,
-            first_time(await _task_assignee_ids(session, cast(int, ctx.task.id))),
-            about=thread,
-            key="comment.onTask",
-            values={"actor": name, "task": ctx.task.title},
-            data={
-                "comment_id": comment.id,
-                "task_id": ctx.task.id,
-                "project_id": ctx.task.project_id,
-                "commenter_name": name,
-                "commenter_id": author.id,
-            },
-            actor=author,
-            rollup_key=f"task:{ctx.task.id}",
+            comment=comment,
+            author=author,
+            task=ctx.task,
+            thread=thread,
+            recipients=first_time(
+                await _task_assignee_ids(session, cast(int, ctx.task.id))
+            ),
         )
 
     # The row the thread hangs off, so a note on a page reaches the page's
@@ -928,6 +1041,7 @@ async def list_comments(
     roots = select(Comment.id, Comment.created_at).where(
         getattr(Comment, column) == ctx.entity_id,
         Comment.parent_comment_id.is_(None),
+        in_thread(),
     )
     position = keyset_cursor.decode(cursor)
     if position is not None:
@@ -952,7 +1066,10 @@ async def list_comments(
     )
     reply = aliased(Comment)
     thread = thread.union_all(
-        select(reply.id).where(reply.parent_comment_id == thread.c.id)
+        select(reply.id).where(
+            reply.parent_comment_id == thread.c.id,
+            reply.audience == CommentAudience.members,
+        )
     )
     stmt = (
         select(Comment)
@@ -961,9 +1078,18 @@ async def list_comments(
         .options(selectinload(Comment.author))
     )
     comments = (await session.exec(stmt)).all()
-    _stamp_task_project(ctx, *comments)
+    _stamp_parent(session, ctx, *comments)
     await attach_reactions(session, *comments)
     return comments, next_cursor
+
+
+async def _tell_the_filer(session: AsyncSession, comment: Comment) -> None:
+    """A change to what is said with whoever filed a case reaches their open
+    ticket pages."""
+    if comment.audience is CommentAudience.filer and comment.task_id is not None:
+        from app.services.platform import ticket_stream
+
+        await ticket_stream.queue_for_case(session, comment.task_id)
 
 
 async def delete_comment(
@@ -972,7 +1098,6 @@ async def delete_comment(
     comment_id: int,
     user: User,
     guild_id: int,
-    guild_role: GuildRole,
 ) -> Comment:
     comment = await _get_comment(session, comment_id=comment_id)
     if not comment:
@@ -985,19 +1110,10 @@ async def delete_comment(
     if ctx is None:
         raise CommentNotFoundError(CommentMessages.NOT_FOUND)
     await _ensure_parent_access(session, ctx, user=user, access="read")
-    _stamp_task_project(ctx, comment)
-    initiative_id = ctx.initiative_id
+    _stamp_parent(session, ctx, comment)
 
     is_author = comment.created_by == user.id
-    is_guild_admin = guild_role in GUILD_ADMIN_ROLES
-    is_initiative_manager = False
-    if not is_author and not is_guild_admin and initiative_id is not None:
-        is_initiative_manager = await rls_service.is_initiative_manager(
-            session,
-            initiative_id=initiative_id,
-        )
-
-    if not (is_author or is_guild_admin or is_initiative_manager):
+    if not (is_author or removes_others_comments(session, ctx.initiative_id)):
         raise CommentPermissionError(CommentMessages.AUTHOR_ONLY_DELETE)
 
     from app.services.tenant.soft_delete import trash
@@ -1012,6 +1128,7 @@ async def delete_comment(
     await content_references.sync_for_comment(
         session, comment, author_id=cast(int, user.id)
     )
+    await _tell_the_filer(session, comment)
     return comment
 
 
@@ -1044,7 +1161,7 @@ async def update_comment(
     if ctx is None:
         raise CommentNotFoundError(CommentMessages.NOT_FOUND)
     await _ensure_parent_access(session, ctx, user=user, access="read")
-    _stamp_task_project(ctx, comment)
+    _stamp_parent(session, ctx, comment)
 
     previous_content = comment.content
     comment.content = content
@@ -1063,6 +1180,7 @@ async def update_comment(
     # carry the reactions the comment still has — serializing without them
     # would blank the chips until the next refetch.
     await attach_reactions(session, comment)
+    await _tell_the_filer(session, comment)
     return comment, let_go
 
 
@@ -1081,6 +1199,7 @@ async def recent_activity(
 
     conditions = [
         Comment.parent_comment_id.is_(None),
+        in_thread(),
     ]
     # A comment is reached through its parent — the task's project, or the
     # tool entity itself — so the sharing gate is applied per kind, each leg a

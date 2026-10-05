@@ -10,7 +10,7 @@ from typing import Any
 import pytest
 from httpx import AsyncClient, Response
 
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.testing import Actor
 
 
@@ -29,7 +29,7 @@ async def author(acting_user) -> Actor:
     tests don't need to be isolated from each other but the validation tests
     do, and a function-scoped fixture is the cheap, consistent default.
     """
-    return await acting_user(guild_role=GuildRole.admin, initiative=True)
+    return await acting_user(guild_role=CommunityRole.admin, initiative=True)
 
 
 async def _create_sheet(
@@ -664,7 +664,7 @@ async def test_import_needs_write_access(
     as far as permission goes — it is their workbook the sheets are for."""
     doc_id = await _stored_id(client, author, name="Inventory")
     reader = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=author.guild,
         initiative=author.initiative,
         initiative_role="member",

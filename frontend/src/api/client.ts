@@ -88,32 +88,31 @@ export interface AgeChallengeDetail {
 }
 
 /** The factors a community can name as its own requirement. */
-export type GuildFactorKind = "totp" | "passkey";
+export type CommunityFactorKind = "totp" | "passkey";
 
 export interface FactorChallengeDetail {
-  guildId: number | null;
+  communityId: number | null;
   /** True when the deployment itself is asking, rather than a community. The
    *  dialog says so, and offers to sign out rather than to carry on: a
    *  platform refusal is every request, not one page's. */
   platform?: boolean;
   /** Which answer the dialog asks for: a code from the authenticator app, a
    *  passkey, or — for a change to the account's own sign-in — a session
-   *  opened a moment ago. Only a community's own two carry a guild. */
-  kind: GuildFactorKind | "proof";
+   *  opened a moment ago. Only a community's own two carry a community. */
+  kind: CommunityFactorKind | "proof";
 }
 
 export interface StepUpEventDetail {
-  /** Slug of the provider the guild requires (X-Auth-Step-Up header). */
+  /** Slug of the provider the community requires (X-Auth-Step-Up header). */
   providerSlug: string;
   /**
-   * Guild whose login flow serves that provider (X-Auth-Step-Up-Guild
-   * header); null on servers that predate guild-addressed login URLs.
+   * Community whose login flow serves that provider (X-Auth-Step-Up-Community
+   * header); null on servers that predate community-addressed login URLs.
    */
-  guildId: number | null;
+  communityId: number | null;
 }
 
 let authToken: string | null = null;
-let isDeviceToken = false;
 // Tracks whether we currently believe a user session is active. On web the
 // in-memory authToken is never set after a page reload (cookie auth is
 // HttpOnly, so there's nothing for JS to restore). The 401 interceptor used
@@ -122,14 +121,10 @@ let isDeviceToken = false;
 // again to land on /welcome. An explicit session flag closes that gap.
 let hasActiveSession = false;
 
-/**
- * Set the authentication token.
- * @param token The token value (JWT or device token)
- * @param deviceToken If true, use "DeviceToken" auth scheme instead of "Bearer"
- */
-export const setAuthToken = (token: string | null, deviceToken = false) => {
+/** Set the access token sent as `Authorization: Bearer`. */
+export const setAuthToken = (token: string | null) => {
   authToken = token;
-  isDeviceToken = deviceToken;
+  if (token) noteSessionClock(token);
 };
 
 export const getAuthToken = (): string | null => authToken;
@@ -141,7 +136,7 @@ export const setHasActiveSession = (value: boolean) => {
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
   // Send cookies for web sessions (HttpOnly cookie auth).
-  // Disabled on native: Capacitor uses Bearer/DeviceToken headers and the
+  // Disabled on native: Capacitor uses Bearer headers and the
   // backend returns Access-Control-Allow-Origin: * which is incompatible
   // with credentialed requests per the CORS spec.
   withCredentials: !Capacitor.isNativePlatform(),
@@ -170,12 +165,123 @@ export const apiClient = axios.create({
 apiClient.interceptors.request.use((config) => {
   if (authToken) {
     config.headers = config.headers ?? {};
-    // Use DeviceToken scheme for device tokens, Bearer for JWTs
-    const scheme = isDeviceToken ? "DeviceToken" : "Bearer";
-    config.headers.Authorization = `${scheme} ${authToken}`;
+    config.headers.Authorization = `Bearer ${authToken}`;
   }
   return config;
 });
+
+// What keeps a session alive is the person, not the app: polling, socket pushes
+// and refetches on focus do not count. Every renewal says how long ago the last
+// input was, and the server runs the idle window from then. Ahead of the access
+// token running out, the app renews only if there has been input since the
+// last renewal, so a session nobody is using ends when its window does.
+//
+// Both times are shared by every window of this origin and kept across a
+// restart: input in any tab is the person being here.
+const LAST_INPUT_KEY = "initiative-last-input";
+const SESSION_CLOCK_KEY = "initiative-session-clock";
+//: How often input is written down; the tab keeps the exact time itself.
+const INPUT_WRITE_EVERY_MS = 10_000;
+//: How long before the access token runs out the app renews.
+const RENEW_AHEAD_MS = 120_000;
+const INPUT_EVENTS = ["pointerdown", "keydown", "wheel", "touchstart"] as const;
+
+interface SessionClock {
+  issuedAt: number;
+  expiresAt: number;
+}
+
+let lastInputHere: number | null = null;
+let renewTimer: ReturnType<typeof setTimeout> | undefined;
+
+const storedInput = (): number => {
+  const stored = Number(getItem(LAST_INPUT_KEY));
+  return Number.isFinite(stored) && stored > 0 ? stored : 0;
+};
+
+const lastInput = (): number | null => Math.max(lastInputHere ?? 0, storedInput()) || null;
+
+/** When the access token in hand was issued and when it runs out, from its claims. */
+function noteSessionClock(token: string): void {
+  try {
+    const claims = JSON.parse(atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))) as {
+      iat?: unknown;
+      exp?: unknown;
+    };
+    if (typeof claims.iat === "number" && typeof claims.exp === "number") {
+      const clock: SessionClock = { issuedAt: claims.iat * 1000, expiresAt: claims.exp * 1000 };
+      setItem(SESSION_CLOCK_KEY, JSON.stringify(clock));
+    }
+  } catch {
+    // Not a token this app can read the times of; the next input renews.
+  }
+}
+
+const sessionClock = (): SessionClock | null => {
+  try {
+    return JSON.parse(getItem(SESSION_CLOCK_KEY) ?? "null") as SessionClock | null;
+  } catch {
+    return null;
+  }
+};
+
+/** Renew if the person has done something since the last renewal and the token is near its end. */
+const renewIfDue = (): void => {
+  clearTimeout(renewTimer);
+  if (!hasActiveSession || !canRenewSession()) return;
+  const input = lastInput();
+  const clock = sessionClock();
+  // Nothing since the last renewal: the next input asks again.
+  if (input === null || (clock !== null && input <= clock.issuedAt)) return;
+  if (clock !== null) {
+    const due = clock.expiresAt - Math.min(RENEW_AHEAD_MS, (clock.expiresAt - clock.issuedAt) / 2);
+    if (Date.now() < due) {
+      renewTimer = setTimeout(renewIfDue, due - Date.now());
+      return;
+    }
+  }
+  void attemptSessionRefresh();
+};
+
+const noteInput = (): void => {
+  const now = Date.now();
+  lastInputHere = now;
+  if (now - storedInput() >= INPUT_WRITE_EVERY_MS) setItem(LAST_INPUT_KEY, String(now));
+  renewIfDue();
+};
+
+/** Count the person's input toward their session while they are signed in. */
+export const watchForActivity = (): (() => void) => {
+  if (typeof window === "undefined") return () => undefined;
+  const onVisible = () => {
+    if (document.visibilityState === "visible") noteInput();
+  };
+  for (const event of INPUT_EVENTS) {
+    window.addEventListener(event, noteInput, { passive: true, capture: true });
+  }
+  document.addEventListener("visibilitychange", onVisible);
+  return () => {
+    clearTimeout(renewTimer);
+    for (const event of INPUT_EVENTS) {
+      window.removeEventListener(event, noteInput, { capture: true });
+    }
+    document.removeEventListener("visibilitychange", onVisible);
+  };
+};
+
+/** Somebody has just signed in, which is them being here. */
+export const startSessionActivity = (): void => {
+  lastInputHere = Date.now();
+  setItem(LAST_INPUT_KEY, String(lastInputHere));
+};
+
+/** Forget both times, for a session that has ended on this device. */
+export const forgetSessionActivity = (): void => {
+  clearTimeout(renewTimer);
+  lastInputHere = null;
+  removeItem(LAST_INPUT_KEY);
+  removeItem(SESSION_CLOCK_KEY);
+};
 
 const emitUnauthorized = () => {
   if (typeof window !== "undefined") {
@@ -183,12 +289,11 @@ const emitUnauthorized = () => {
   }
 };
 
-// Silent session renewal (web only). An expired access cookie is renewable:
-// the HttpOnly refresh cookie issued at login rotates into a fresh session via
-// POST /auth/refresh, so a 401 gets one renewal attempt and a retry before it
-// is surfaced as a signed-out state. Concurrent 401s share a single in-flight
-// refresh. Native is excluded: it authenticates with device tokens and no
-// refresh cookie exists there yet.
+// Silent session renewal. An expired access token is renewable: the refresh
+// token issued at login (an HttpOnly cookie on the web, kept by the app on
+// native) rotates into a fresh session via POST /auth/refresh, so a 401 gets
+// one renewal attempt and a retry before it is surfaced as a signed-out state.
+// Concurrent 401s share a single in-flight refresh.
 let refreshInFlight: Promise<boolean> | null = null;
 
 // Whether a failed renewal is an answer about the session. Only a 401 is: it
@@ -223,13 +328,25 @@ type TurnResult = Renewal | typeof RENEWED_BY_PEER;
 // over — and gets the replacement back the same way, because rotation means the
 // one it holds is spent.
 const renew = async (): Promise<Renewal> => {
-  const stored = isDeviceToken ? null : readRefreshToken();
+  const stored = readRefreshToken();
+  const input = lastInput();
+  const body = {
+    ...(stored ? { refresh_token: stored } : {}),
+    // How long ago the person was last here, which is where the idle window
+    // runs from.
+    ...(input !== null
+      ? { idle_seconds: Math.max(0, Math.floor((Date.now() - input) / 1000)) }
+      : {}),
+  };
   const response = await apiClient.post<{ access_token: string; refresh_token?: string }>(
     "/auth/refresh",
-    stored ? { refresh_token: stored } : undefined
+    Object.keys(body).length > 0 ? body : undefined
   );
   if (response.data?.refresh_token) {
     storeRefreshToken(response.data.refresh_token);
+  }
+  if (response.data?.access_token) {
+    noteSessionClock(response.data.access_token);
   }
   return response;
 };
@@ -294,10 +411,8 @@ const takeRenewalTurn = (): Promise<TurnResult> => {
   return locks ? locks.request(REFRESH_LOCK, renew) : renewTakingTurns();
 };
 
-// Native was excluded from renewal because it had nothing to renew with: one
-// long-lived device token, so a 401 really was the end of the session. An app
-// holding a refresh token is in the same position as the browser and renews the
-// same way; one still in device-token mode is not, and keeps the old answer.
+// The browser always has its refresh cookie to try. The app renews only with a
+// refresh token in hand; without one a 401 really is the end of the session.
 const canRenewSession = (): boolean => !Capacitor.isNativePlatform() || !!readRefreshToken();
 
 const attemptSessionRefresh = (): Promise<boolean> => {
@@ -309,7 +424,7 @@ const attemptSessionRefresh = (): Promise<boolean> => {
         // stale header, which the backend reads before the fresh cookie. When
         // another window renewed, the token it was handed is not ours to hold,
         // so the retry goes on the cookie that window set.
-        if (!isDeviceToken && (authToken || readRefreshToken())) {
+        if (authToken || readRefreshToken()) {
           setAuthToken(result === RENEWED_BY_PEER ? null : result.data?.access_token || null);
         }
         return true;
@@ -347,17 +462,17 @@ export const renewSession = async (): Promise<string | null> =>
 // (recursion), and login/logout, whose 401s mean something other than "the
 // access token expired mid-session".
 const isAuthLifecyclePath = (url: string | undefined): boolean =>
-  !!url && /\/auth\/(token|refresh|logout|device-token)(\?|$)/.test(url);
+  !!url && /\/auth\/(token|refresh|logout)(\?|$)/.test(url);
 
 interface RetriableRequestConfig extends AxiosRequestConfig {
   _sessionRefreshRetried?: boolean;
 }
 
-// A guild step-up 401 means "this guild requires another sign-in factor" —
+// A community step-up 401 means "this community requires another sign-in factor" —
 // the session itself is fine, so it must neither trigger a renewal nor the
 // signed-out toast; the page handles it.
 const isStepUpChallenge = (error: { response?: { data?: { detail?: unknown } } }): boolean =>
-  error.response?.data?.detail === "GUILD_AUTH_STEP_UP_REQUIRED";
+  error.response?.data?.detail === "COMMUNITY_AUTH_STEP_UP_REQUIRED";
 
 // The other half of the same idea: this community wants a factor of the
 // account's own — a code from its authenticator app, or a passkey — which no
@@ -370,8 +485,8 @@ const isStepUpChallenge = (error: { response?: { data?: { detail?: unknown } } }
 // (or signing in again) is what opens. Same handling — the session in hand is
 // not the problem, so nothing renews and nothing reads as signed out.
 const FACTOR_CHALLENGE_KINDS: Record<string, FactorChallengeDetail["kind"]> = {
-  GUILD_AUTH_FACTOR_REQUIRED: "totp",
-  GUILD_AUTH_PASSKEY_REQUIRED: "passkey",
+  COMMUNITY_AUTH_FACTOR_REQUIRED: "totp",
+  COMMUNITY_AUTH_PASSKEY_REQUIRED: "passkey",
   RECENT_PROOF_REQUIRED: "proof",
   // And the deployment's own, answered by the same dialog: a factor of the
   // account's, presented against the session already open.
@@ -390,8 +505,8 @@ const factorChallengeKind = (error: {
   return typeof detail === "string" ? (FACTOR_CHALLENGE_KINDS[detail] ?? null) : null;
 };
 
-// Guild context lives in the request URL (/c/{guildId}/…), per tab — there is
-// no ambient guild context to guard a response against, so the only response
+// Community context lives in the request URL (/c/{communityId}/…), per tab — there is
+// no ambient community context to guard a response against, so the only response
 // concern left is an expired session: try a silent renewal, then surface it.
 apiClient.interceptors.response.use(undefined, async (error) => {
   const config = error.config as RetriableRequestConfig | undefined;
@@ -408,11 +523,14 @@ apiClient.interceptors.response.use(undefined, async (error) => {
     }
     return Promise.reject(error);
   }
-  if (ageDetail === "GUILD_AGE_CONFIRMATION_REQUIRED" || ageDetail === "GUILD_AGE_BELOW_MINIMUM") {
+  if (
+    ageDetail === "COMMUNITY_AGE_CONFIRMATION_REQUIRED" ||
+    ageDetail === "COMMUNITY_AGE_BELOW_MINIMUM"
+  ) {
     if (typeof window !== "undefined") {
       window.dispatchEvent(
         new CustomEvent<AgeChallengeDetail>(AUTH_AGE_REQUIRED_EVENT, {
-          detail: { answerStands: ageDetail === "GUILD_AGE_BELOW_MINIMUM" },
+          detail: { answerStands: ageDetail === "COMMUNITY_AGE_BELOW_MINIMUM" },
         })
       );
     }
@@ -424,17 +542,19 @@ apiClient.interceptors.response.use(undefined, async (error) => {
       // A proof challenge is the account's own business, and so is the
       // deployment's own rule, so neither names a community.
       const platform = isPlatformFactorChallenge(error);
-      const rawGuildId =
+      const rawCommunityId =
         factorKind === "proof" || platform
           ? null
-          : error.response?.headers?.["x-auth-step-up-guild"];
-      const guildId =
-        typeof rawGuildId === "string" && /^\d+$/.test(rawGuildId) ? Number(rawGuildId) : null;
+          : error.response?.headers?.["x-auth-step-up-community"];
+      const communityId =
+        typeof rawCommunityId === "string" && /^\d+$/.test(rawCommunityId)
+          ? Number(rawCommunityId)
+          : null;
       window.dispatchEvent(
         new CustomEvent<FactorChallengeDetail>(AUTH_FACTOR_REQUIRED_EVENT, {
           // Carried only when it is true: a community's ask is the ordinary
           // one, and says nothing about the deployment.
-          detail: { guildId, kind: factorKind, ...(platform ? { platform: true } : {}) },
+          detail: { communityId, kind: factorKind, ...(platform ? { platform: true } : {}) },
         })
       );
     }
@@ -445,13 +565,15 @@ apiClient.interceptors.response.use(undefined, async (error) => {
     // required provider's sign-in; the request itself still rejects (pages
     // render their error state, nothing retries).
     const providerSlug = error.response?.headers?.["x-auth-step-up"];
-    const rawGuildId = error.response?.headers?.["x-auth-step-up-guild"];
-    const guildId =
-      typeof rawGuildId === "string" && /^\d+$/.test(rawGuildId) ? Number(rawGuildId) : null;
+    const rawCommunityId = error.response?.headers?.["x-auth-step-up-community"];
+    const communityId =
+      typeof rawCommunityId === "string" && /^\d+$/.test(rawCommunityId)
+        ? Number(rawCommunityId)
+        : null;
     if (typeof providerSlug === "string" && providerSlug && typeof window !== "undefined") {
       window.dispatchEvent(
         new CustomEvent<StepUpEventDetail>(AUTH_STEP_UP_EVENT, {
-          detail: { providerSlug, guildId },
+          detail: { providerSlug, communityId },
         })
       );
     }

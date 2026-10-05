@@ -100,6 +100,8 @@ export const SkeletonPillRow = ({
 );
 
 export interface PageHeaderSkeletonProps {
+  /** The title row; off where a breadcrumb's last crumb names the page. */
+  title?: boolean;
   /** A colour dot before the title, as an initiative or a tag has. */
   dot?: boolean;
   /** A one-line description under the title (hidden on phones, where the
@@ -116,30 +118,33 @@ export interface PageHeaderSkeletonProps {
 
 /** A page's title block: title, an optional badge, blurb, counts, and tabs. */
 export const PageHeaderSkeleton = ({
+  title = true,
   dot = false,
-  description = true,
+  description = false,
   meta = false,
   action = false,
   tabs = 0,
   className,
 }: PageHeaderSkeletonProps) => (
   <div className={cn("space-y-4 sm:space-y-6", className)}>
-    <div className="flex items-start justify-between gap-4">
-      <div className="min-w-0 flex-1 space-y-2 sm:space-y-4">
-        <div className="flex min-w-0 items-center gap-3">
-          {dot ? <Skeleton className="h-4 w-4 shrink-0 rounded-full" /> : null}
-          <Skeleton className="h-7 w-full max-w-72 sm:h-9 sm:max-w-md" />
-        </div>
-        {description ? <Skeleton className="hidden h-4 w-full max-w-sm sm:block" /> : null}
-        {meta ? (
-          <div className="hidden items-center gap-4 sm:flex">
-            <Skeleton className="h-4 w-20" />
-            <Skeleton className="h-4 w-28" />
+    {title ? (
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0 flex-1 space-y-2 sm:space-y-4">
+          <div className="flex min-w-0 items-center gap-3">
+            {dot ? <Skeleton className="h-4 w-4 shrink-0 rounded-full" /> : null}
+            <Skeleton className="h-7 w-full max-w-72 sm:h-9 sm:max-w-md" />
           </div>
-        ) : null}
+          {description ? <Skeleton className="hidden h-4 w-full max-w-sm sm:block" /> : null}
+          {meta ? (
+            <div className="hidden items-center gap-4 sm:flex">
+              <Skeleton className="h-4 w-20" />
+              <Skeleton className="h-4 w-28" />
+            </div>
+          ) : null}
+        </div>
+        {action ? <Skeleton className="h-9 w-9 shrink-0 sm:w-36" /> : null}
       </div>
-      {action ? <Skeleton className="h-9 w-9 shrink-0 sm:w-36" /> : null}
-    </div>
+    ) : null}
     {tabs > 0 ? (
       <div className="flex w-full gap-1 overflow-hidden rounded-lg bg-muted p-1">
         {keysFor(tabs).map((key) => (
@@ -315,7 +320,7 @@ export const FormSkeleton = ({
   );
   if (!card) return <div className={className}>{body}</div>;
   return (
-    <Card className={cn("shadow-sm", className)}>
+    <Card className={className}>
       <CardHeader className="space-y-2">
         <Skeleton className="h-6 w-48" />
         <Skeleton className="h-4 w-full max-w-sm" />
@@ -330,6 +335,8 @@ export interface DetailPageSkeletonProps {
   breadcrumb?: boolean;
   /** Controls at the trailing end of the breadcrumb row. */
   actions?: number;
+  /** A visible title under the breadcrumb; off where the last crumb names the page. */
+  title?: boolean;
   description?: boolean;
   /** What stands in for the body; defaults to one content card. */
   children?: ReactNode;
@@ -340,6 +347,7 @@ export interface DetailPageSkeletonProps {
 export const DetailPageSkeleton = ({
   breadcrumb = true,
   actions = 2,
+  title = true,
   description = true,
   children,
   className,
@@ -359,10 +367,12 @@ export const DetailPageSkeleton = ({
         {actions > 0 ? <SkeletonPillRow count={actions} pillClassName="h-9 w-24" /> : null}
       </div>
     ) : null}
-    <div className="space-y-2">
-      <Skeleton className="h-8 w-full max-w-md" />
-      {description ? <Skeleton className="h-4 w-full max-w-lg" /> : null}
-    </div>
+    {title || description ? (
+      <div className="space-y-2">
+        {title ? <Skeleton className="h-8 w-full max-w-md" /> : null}
+        {description ? <Skeleton className="h-4 w-full max-w-lg" /> : null}
+      </div>
+    ) : null}
     {children ?? (
       <Card>
         <CardContent className="space-y-3 pt-6">
@@ -399,11 +409,11 @@ export const ToolListSkeleton = ({
 );
 
 /** A whole page with nothing known about it yet — the router's stand-in while
- *  a route's data is on its way. Title, blurb, then a block of content. */
+ *  a route's data is on its way. Title, then a block of content. */
 export const PageSkeleton = ({ label, className }: { label?: string; className?: string }) => (
   <SkeletonRegion label={label} className={className}>
     <div className="space-y-6">
-      <PageHeaderSkeleton description />
+      <PageHeaderSkeleton />
       <CardGridSkeleton count={3} />
     </div>
   </SkeletonRegion>
@@ -517,7 +527,7 @@ export const TaskEditSkeleton = ({ label }: LabelledSkeletonProps) => (
 /** A tag's page: its name and counts, then everything that carries it. */
 export const TagDetailSkeleton = ({ label }: LabelledSkeletonProps) => (
   <SkeletonRegion label={label} className="space-y-6">
-    <PageHeaderSkeleton dot description={false} meta action />
+    <PageHeaderSkeleton dot meta action />
     <ToolbarSkeleton />
     <TableSkeleton rows={6} columns={5} toolbar={false} />
   </SkeletonRegion>
@@ -554,7 +564,7 @@ export const SettingsPaneSkeleton = ({ label }: LabelledSkeletonProps) => (
 
 /** The community front page: its banner, the tool rail rising out of the
  *  tray with the table in it, the initiative directory, and recent comments. */
-export const GuildHomeSkeleton = ({ label }: LabelledSkeletonProps) => (
+export const CommunityHomeSkeleton = ({ label }: LabelledSkeletonProps) => (
   <SkeletonRegion label={label} className="space-y-6">
     {/* Full-bleed like the banner it stands in for. */}
     <div className="-mx-4 -mt-4 md:-mx-8 md:-mt-8">

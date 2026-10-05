@@ -14,7 +14,7 @@ from sqlmodel import select
 from app.core.references import references_in_body, references_in_text
 from app.core.relationships import Provenance, RelationshipType
 from app.core.search import SearchEntityType
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.tenant.relationship import EntityRelationship
 from app.services.tenant import content_references
 from app.services.tenant.relationships import Endpoint
@@ -153,7 +153,7 @@ async def _references(session, entity: Endpoint) -> set[tuple[str, int]]:
 async def test_a_document_does_not_reference_itself(session, acting_user):
     """The page a self-link opens is the page it was written on, and the row
     would list the document among the ones that point at it."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     doc = await create_document(session, a.initiative, a.user)
     other = await create_document(session, a.initiative, a.user)
     anchor = Endpoint(DOCUMENT, doc.id)
@@ -173,7 +173,7 @@ async def test_a_task_showing_its_own_status_does_not_reference_itself(
 ):
     """A chip or an embed of the task a description is on is the same loop a
     self-link is, whatever shape it is written in."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     task = await create_task(session, a.project)
     anchor = Endpoint(TASK, task.id)
 
@@ -191,7 +191,7 @@ async def test_a_task_showing_its_own_status_does_not_reference_itself(
 
 
 async def test_a_body_naming_a_task_records_it(session, acting_user):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     doc = await create_document(session, a.initiative, a.user)
     task = await create_task(session, a.project)
     anchor = Endpoint(DOCUMENT, doc.id)
@@ -208,7 +208,7 @@ async def test_a_reference_to_something_that_is_not_there_is_not_recorded(
 ):
     """An id nothing answers to leaves no edge — the far end has to exist for
     the pair to mean anything."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     doc = await create_document(session, a.initiative, a.user)
     anchor = Endpoint(DOCUMENT, doc.id)
 
@@ -220,7 +220,7 @@ async def test_a_reference_to_something_that_is_not_there_is_not_recorded(
 
 
 async def test_editing_the_sentence_out_takes_the_edge_with_it(session, acting_user):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     doc = await create_document(session, a.initiative, a.user)
     other = await create_document(session, a.initiative, a.user)
     anchor = Endpoint(DOCUMENT, doc.id)
@@ -248,7 +248,7 @@ async def test_editing_the_sentence_out_takes_the_edge_with_it(session, acting_u
 async def test_fixing_content_unresolves_a_link_to_itself(session, acting_user):
     """Asked to repair the content too, it leaves the words and drops the
     pointer — the same treatment a link to a deleted document gets."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     doc = await create_document(session, a.initiative, a.user)
 
     fixed = await content_references.sync_for_entity(
@@ -269,7 +269,7 @@ async def test_fixing_content_unresolves_a_link_to_itself(session, acting_user):
 
 
 async def test_a_comment_records_its_reference_against_its_parent(session, acting_user):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     doc = await create_document(session, a.initiative, a.user)
     task = await create_task(session, a.project)
 
@@ -286,7 +286,7 @@ async def test_one_comment_going_does_not_drop_what_another_still_says(
 ):
     """The recompute reads every source at once, so two people naming the same
     thing hold the edge up between them."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     project = await create_project(session, a.initiative, a.user)
     task = await create_task(session, project)
     doc = await create_document(session, a.initiative, a.user)
@@ -312,7 +312,7 @@ async def test_one_comment_going_does_not_drop_what_another_still_says(
 async def test_the_body_and_the_comments_are_read_together(session, acting_user):
     """A save recomputes from both, so writing a document does not wipe what
     its conversation refers to."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     doc = await create_document(session, a.initiative, a.user)
     other = await create_document(session, a.initiative, a.user)
     task = await create_task(session, a.project)
@@ -336,7 +336,7 @@ async def test_the_body_and_the_comments_are_read_together(session, acting_user)
 async def test_an_edge_a_body_makes_is_marked_as_nobody_s_assertion(
     session, acting_user
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     doc = await create_document(session, a.initiative, a.user)
     other = await create_document(session, a.initiative, a.user)
 
@@ -366,7 +366,7 @@ async def test_saving_the_same_body_twice_changes_nothing(session, acting_user):
     """Two saves racing on the same new mention each read no edge and each go
     on to write it, and the second arriving is the answer being already
     correct."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     doc = await create_document(session, a.initiative, a.user)
     other = await create_document(session, a.initiative, a.user)
     anchor = Endpoint(DOCUMENT, doc.id)
@@ -387,7 +387,7 @@ async def test_an_archived_thing_takes_no_new_reference(session, acting_user):
     — so a mention of one records nothing rather than failing the save."""
     from app.services.tenant.archive import archive_entity
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     doc = await create_document(session, a.initiative, a.user)
     task = await create_task(session, a.project)
     await archive_entity(session, task)
@@ -405,7 +405,7 @@ async def test_archiving_the_far_end_leaves_a_reference_standing(session, acting
     says. A later save does not quietly drop it."""
     from app.services.tenant.archive import archive_entity
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     doc = await create_document(session, a.initiative, a.user)
     task = await create_task(session, a.project)
     anchor = Endpoint(DOCUMENT, doc.id)
@@ -432,7 +432,7 @@ async def test_archiving_the_far_end_leaves_a_reference_standing(session, acting
 async def test_a_task_description_is_read_as_the_task_s_body(session, acting_user):
     """A description is markdown rather than an editor state, and names things
     with the same `#` a comment does."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     doc = await create_document(session, a.initiative, a.user)
     task = await create_task(
         session, a.project, description=f"see #doc[Spec]({doc.id})"
@@ -456,7 +456,7 @@ async def test_a_comment_on_a_task_keeps_what_its_description_says(
 ):
     """A comment's save recomputes its task's edges, and the description is one
     of the things it recomputes from."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     doc = await create_document(session, a.initiative, a.user)
     other = await create_task(session, a.project)
     task = await create_task(session, a.project, description=f"#doc[Spec]({doc.id})")

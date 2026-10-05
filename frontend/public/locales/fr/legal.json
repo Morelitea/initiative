@@ -35,7 +35,7 @@
       },
       "analytics": {
         "name": "Mesure d'audience",
-        "description": "Quelles pages servent et où les gens bloquent, compté globalement pour savoir quoi corriger."
+        "description": "Quelles pages servent, les erreurs que les gens rencontrent et la vitesse de chargement des pages, avec le navigateur et l'appareil concernés. Regroupé par un identifiant aléatoire propre à chaque visite, jamais par votre compte."
       },
       "marketing": {
         "name": "Marketing",

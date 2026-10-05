@@ -10,14 +10,16 @@ Rows encrypted under some *other* key are classified ``failed`` and left untouch
 (no UPDATE), so they can't be corrupted by these tests.
 """
 
+import json
 import secrets
 
 import pytest
 from sqlalchemy import text
 
-from app.core import config
+from app.core import config, security
 from app.core.encryption import (
     SALT_AI_API_KEY,
+    SALT_APP_PLATFORM_SIGNING_KEY,
     SALT_EMAIL,
     decrypt_field,
     encrypt_field,
@@ -33,6 +35,10 @@ from app.db.secret_key_rotation import (
     _rotate_value,
     maybe_rotate_at_startup,
     rotate_secret_key,
+)
+from app.services.platform.app_settings import (
+    load_app_platform_signing_key,
+    seed_app_settings,
 )
 
 # Distinct test-only keys (≥32 chars). Deliberately different from the ambient
@@ -177,6 +183,65 @@ async def test_rotate_user_email_hash_and_fernet_columns(engine, monkeypatch):
                 )
 
 
+async def test_rotate_the_addresses_inside_an_account_letter(engine, monkeypatch):
+    """The removed address and the link's recipient are re-keyed where they sit
+    in the change record; the plain values beside them are left alone."""
+    email = "rot-letter@example.com"
+    user_id = None
+    try:
+        async with engine.begin() as conn:
+            user_id = await _insert_user(conn, email, key=OLD)
+            sealed = encrypt_field(email, SALT_EMAIL, secret_key=OLD)
+            letter = {"notice": "address.removed", "undo": {"email": sealed}}
+            await conn.execute(
+                text(
+                    "INSERT INTO public.email_outbox (user_id, category, security, "
+                    "locale, subject, headline, body, change, created_at, "
+                    "deliver_after) VALUES (:uid, 'account', true, 'en', 's', 'h', "
+                    "'b', CAST(:change AS jsonb), now(), now())"
+                ),
+                {"uid": user_id, "change": json.dumps(letter)},
+            )
+            await conn.execute(
+                text(
+                    "INSERT INTO public.user_tokens (user_id, token, purpose, change, "
+                    "expires_at, created_at) VALUES (:uid, :token, 'account_change', "
+                    "CAST(:change AS jsonb), now() + interval '1 day', now())"
+                ),
+                {
+                    "uid": user_id,
+                    "token": secrets.token_hex(16),
+                    "change": json.dumps({**letter, "recipient": sealed}),
+                },
+            )
+
+        _use_keys(monkeypatch, old=OLD, new=NEW)
+        await rotate_secret_key()
+
+        async with engine.connect() as conn:
+            changes = [
+                await conn.scalar(
+                    text(f"SELECT change FROM public.{table} WHERE user_id = :i"),
+                    {"i": user_id},
+                )
+                for table in ("email_outbox", "user_tokens")
+            ]
+        for change in changes:
+            assert change["notice"] == "address.removed"
+            sealed_now = [change["undo"]["email"], change.get("recipient")]
+            for value in filter(None, sealed_now):
+                assert decrypt_field(value, SALT_EMAIL, secret_key=NEW) == email
+        assert changes[1]["recipient"] is not None
+    finally:
+        if user_id is not None:
+            async with engine.begin() as conn:
+                for table in ("email_outbox", "user_tokens", "user_emails"):
+                    await conn.execute(
+                        text(f"DELETE FROM public.{table} WHERE user_id = :i"),
+                        {"i": user_id},
+                    )
+
+
 async def test_dry_run_reports_but_does_not_write(engine, monkeypatch):
     email = "rot-dry@example.com"
     old_hash = hash_email(email, secret_key=OLD)
@@ -231,6 +296,26 @@ async def test_dry_run_reports_but_does_not_write(engine, monkeypatch):
                 )
 
 
+async def test_rotate_reencrypts_the_generated_app_platform_key(session, monkeypatch):
+    """The key a deployment generated for its apps moves to the new key with
+    the other stored credentials, and still reads back as the same key."""
+    monkeypatch.setattr(config.settings, "SECRET_KEY", OLD)
+    monkeypatch.setattr(config.settings, "APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM", None)
+    monkeypatch.setattr(security, "_stored_app_platform_key", None)
+    await seed_app_settings(session)
+    await load_app_platform_signing_key(session)
+    pem, _, _ = security.resolve_app_platform_signing_material()
+    await session.commit()
+
+    _use_keys(monkeypatch, old=OLD, new=NEW)
+    await rotate_secret_key()
+
+    stored = await session.scalar(
+        text("SELECT app_platform_signing_key_encrypted FROM app_setting_secrets")
+    )
+    assert decrypt_field(stored, SALT_APP_PLATFORM_SIGNING_KEY, secret_key=NEW) == pem
+
+
 async def test_rotate_visits_per_guild_schema_settings(engine, monkeypatch):
     """The guild AI key columns are guild-scoped, so they live in guild_<id>
     schemas — the sweep re-keys them there. This covers both a guild-level table
@@ -266,7 +351,7 @@ async def test_rotate_visits_per_guild_schema_settings(engine, monkeypatch):
                     f'INSERT INTO "{schema}".guild_ai_member_keys '  # noqa: S608
                     "(user_id, connection_scope, connection_id, "
                     " api_key_encrypted, created_at, updated_at) "
-                    "VALUES (1, 'guild', 1, :a, now(), now())"
+                    "VALUES (1, 'community', 1, :a, now(), now())"
                 ),
                 {
                     "a": encrypt_field("member-ai", SALT_AI_API_KEY, secret_key=OLD),

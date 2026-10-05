@@ -108,8 +108,9 @@ _RULES: tuple[tuple[re.Pattern[str], Callable[[], int], str], ...] = (
         re.compile(
             r"^/api/v1/c/\d+/("
             r"documents(/\d+)?"
-            r"|wikis/\d+/pages(/\d+)?"
-            r"|collaboration/(documents/\d+|wikis/\d+/pages/\d+)/collaborate"
+            r"|wikis/\d+/pages"
+            r"|wiki-pages/\d+"
+            r"|collaboration/(documents|wiki-pages)/\d+/collaborate"
             r")/?$"
         ),
         lambda: DOCUMENT_MAX_REQUEST_BYTES,

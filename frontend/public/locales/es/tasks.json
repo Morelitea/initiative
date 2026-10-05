@@ -21,9 +21,9 @@
     "priorityLabel": "Prioridad",
     "allPriorities": "Todas las prioridades",
     "noPriorities": "No hay prioridades disponibles",
-    "filterByGuild": "Filtrar por comunidad",
-    "allGuilds": "Todas las comunidades",
-    "noGuilds": "No hay comunidades disponibles",
+    "filterByCommunity": "Filtrar por comunidad",
+    "allCommunities": "Todas las comunidades",
+    "noCommunities": "No hay comunidades disponibles",
     "filterPlaceholder": "Filtrar tareas..."
   },
   "columns": {
@@ -33,7 +33,7 @@
     "startDate": "Fecha de inicio",
     "dueDate": "Fecha de vencimiento",
     "dateWindow": "Rango de fechas",
-    "guild": "Comunidad",
+    "community": "Comunidad",
     "projectPath": "Ruta del proyecto",
     "priority": "Prioridad",
     "tags": "Etiquetas",
@@ -44,7 +44,7 @@
     "markInProgress": "Marcar tarea como en progreso"
   },
   "errors": {
-    "guildContext": "No se pudo determinar el contexto de la comunidad para esta tarea.",
+    "communityContext": "No se pudo determinar el contexto de la comunidad para esta tarea.",
     "statusUpdate": "No se pudo actualizar el estado de la tarea.",
     "statusNoMatch": "No se pudo actualizar el estado de la tarea. No se encontró un estado coincidente."
   },
@@ -134,15 +134,13 @@
   },
   "myTasks": {
     "title": "Mis tareas",
-    "subtitle": "Todo lo asignado a ti en todos los proyectos.",
-    "noGuild": "Sin comunidad",
+    "noCommunity": "Sin comunidad",
     "loadError": "No se pudieron cargar tus tareas.",
     "groupByDate": "Fecha",
-    "groupByGuild": "Comunidad"
+    "groupByCommunity": "Comunidad"
   },
   "myCalendar": {
-    "title": "Mi calendario",
-    "subtitle": "Tareas y eventos en todos tus comunidades."
+    "title": "Mi calendario"
   },
   "tagTasks": {
     "loadError": "No se pudieron cargar las tareas."
@@ -156,7 +154,6 @@
     "addPlaceholder": "Agregar elemento a la lista",
     "itemPlaceholder": "Elemento de la lista",
     "readOnlyPlaceholder": "Solo lectura",
-    "readOnlyMessage": "Solo tienes acceso de lectura, por lo que los cambios en la lista de verificación están deshabilitados.",
     "aiDialogTitle": "Lista de verificación generada por IA",
     "aiDialogDescription": "Selecciona los pasos que quieres agregar a esta tarea.",
     "addSelected": "Agregar seleccionados ({{count}})",
@@ -214,7 +211,7 @@
   "createWizard": {
     "title": "Agregar tarea",
     "lastUsed": "Último usado",
-    "selectGuild": "Selecciona una comunidad",
+    "selectCommunity": "Selecciona una comunidad",
     "selectInitiative": "Selecciona una iniciativa",
     "selectProject": "Selecciona un proyecto",
     "noInitiatives": "No se encontraron iniciativas en esta comunidad.",

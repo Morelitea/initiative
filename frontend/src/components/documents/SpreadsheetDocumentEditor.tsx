@@ -36,8 +36,8 @@ import {
 import { useSpreadsheetSheets } from "@/components/documents/spreadsheet/useSpreadsheetSheets";
 import { useSpreadsheetStructure } from "@/components/documents/spreadsheet/useSpreadsheetStructure";
 import { matchHistoryShortcut } from "@/hooks/useYjsHistory";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 import { MAX_COLS, MAX_ROWS, sheetGrid } from "@/lib/spreadsheet/bounds";
 import {
   parseSpreadsheetContent,
@@ -93,7 +93,7 @@ interface SpreadsheetDocumentEditorProps {
    *  document in place. */
   hasSynced?: boolean;
   /** Read a file into sheets. Supplied by the host, which knows the document
-   *  and guild this editor is showing; absent when import is unavailable. */
+   *  and community this editor is showing; absent when import is unavailable. */
   onImportFile?: (file: File) => Promise<SpreadsheetSheetContent[]>;
   /** Awareness handle from the same provider as ``yDoc``. Used to
    *  publish / observe selected-cell presence rings. */

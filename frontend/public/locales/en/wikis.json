@@ -22,8 +22,6 @@
   "noAccess": "Access Denied",
   "noAccessDescription": "You do not have permission to view this wiki.",
   "backToWikis": "Back to Wikis",
-  "pageCount_one": "{{count}} page",
-  "pageCount_other": "{{count}} pages",
   "pages": {
     "title": "Pages",
     "search": "Search pages",
@@ -54,11 +52,7 @@
     "groupLabel": "Pages"
   },
   "links": {
-    "title": "Connections",
-    "outgoing": "Links from this page",
-    "incoming": "Linked from",
-    "noneDescription": "Mention this page with [[ from anywhere and it will show up here.",
-    "loading": "Loading connections..."
+    "title": "Connections"
   },
   "card": {
     "comments_one": "{{count}} comment",

@@ -18,7 +18,7 @@ import { screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { renderPage } from "@/__tests__/helpers/render";
-import type { GuildAppDetail } from "@/api/generated/initiativeAPI.schemas";
+import type { CommunityAppDetail } from "@/api/generated/initiativeAPI.schemas";
 
 import { AppPlacementPanel } from "./AppPlacementPanel";
 
@@ -46,8 +46,8 @@ const setRoles = vi.fn(
   }
 );
 
-vi.mock("@/hooks/useGuildApps", () => ({
-  useUpdateGuildApp: () => ({ mutateAsync }),
+vi.mock("@/hooks/useCommunityApps", () => ({
+  useUpdateCommunityApp: () => ({ mutateAsync }),
   useSetAppPlacementRoles: () => ({ mutate: setRoles, isPending: false }),
 }));
 
@@ -90,7 +90,7 @@ const app = (placed: number[], roleIds: number[] = [], page = true) =>
     definition: { embeds: page ? [initiativePage] : [] },
     requested_scopes: ["projects:read"],
     placements: placed.map((initiative_id) => ({ initiative_id, role_ids: roleIds })),
-  }) as unknown as GuildAppDetail;
+  }) as unknown as CommunityAppDetail;
 
 beforeEach(() => {
   sent.length = 0;

@@ -19,7 +19,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlmodel import select
 
 from app.testing.schema_harness import route_session_to_guild
-from app.models.platform.guild import Guild, GuildMembership, GuildRole
+from app.models.platform.guild import Guild, GuildMembership, CommunityRole
 from app.models.platform.notification import Notification, NotificationType
 from app.models.platform.user import UserRole, UserStatus
 from app.models.platform.user_passkey import UserPasskey
@@ -70,14 +70,14 @@ async def test_the_guild_list_is_the_callers_memberships_with_their_roles(
     there — and nothing they do not belong to, whether it is somebody else's or
     nobody's. Which guild is open is the client's business, so no entry says."""
     admin_guild = await create_guild(session, name="Admin Guild")
-    a = await acting_user(guild_role=GuildRole.admin, guild=admin_guild)
+    a = await acting_user(guild_role=CommunityRole.admin, guild=admin_guild)
     member_guild = await create_guild(session, name="Member Guild")
     await create_guild_membership(
-        session, user=a.user, guild=member_guild, role=GuildRole.member
+        session, user=a.user, guild=member_guild, role=CommunityRole.member
     )
     await create_guild(session, name="Nobody's Guild")
     elsewhere = await create_guild(session, name="Somebody Else's Guild")
-    await acting_user(guild_role=GuildRole.admin, guild=elsewhere)
+    await acting_user(guild_role=CommunityRole.admin, guild=elsewhere)
 
     response = await client.get("/api/v1/communities/", headers=a.headers)
 
@@ -90,7 +90,7 @@ async def test_the_guild_list_is_the_callers_memberships_with_their_roles(
     assert "is_active" not in data[0]
 
 
-#: The administration half of ``GuildRead`` — caps, plan label, retention
+#: The administration half of ``CommunityRead`` — caps, plan label, retention
 #: window, lifecycle status, sign-in entitlement. Each backs an admin-only
 #: surface, so a plain member's entry carries ``None`` for all of them.
 ADMIN_ONLY_GUILD_FIELDS = (
@@ -109,8 +109,8 @@ async def test_list_guilds_administration_fields_are_admin_only(
     """The guild list serves two audiences from one schema: every member gets
     the guild's identity, their own membership and the roster size; only guild
     admins get the administration fields."""
-    admin = await acting_user(guild_role=GuildRole.admin)
-    member = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
+    admin = await acting_user(guild_role=CommunityRole.admin)
+    member = await acting_user(guild_role=CommunityRole.member, guild=admin.guild)
 
     await guild_administration(
         session,
@@ -154,7 +154,7 @@ async def test_accepting_an_invite_answers_with_the_member_tier_guild(
     same member-tier payload the list serves: they are not an admin, so the
     administration fields come back ``None``."""
     guild = await create_guild(session, name="Test Guild")
-    admin = await acting_user(guild_role=GuildRole.admin, guild=guild)
+    admin = await acting_user(guild_role=CommunityRole.admin, guild=guild)
     await guild_administration(session, guild, max_users=25, tier_name="Bespoke Plan")
 
     invite = await client.post(
@@ -210,7 +210,7 @@ async def test_create_guild_requires_name(client: AsyncClient, acting_user):
     )
 
     assert response.status_code == 400
-    assert response.json()["detail"] == "GUILD_NAME_REQUIRED"
+    assert response.json()["detail"] == "COMMUNITY_NAME_REQUIRED"
 
 
 # --- one free community each ------------------------------------------------
@@ -317,7 +317,7 @@ async def test_an_account_creates_only_its_daily_allowance_of_guilds(
         "/api/v1/communities/", headers=a.headers, json={"name": "Second"}
     )
     assert second.status_code == 429
-    assert second.json()["detail"] == "GUILD_CREATION_LIMIT_REACHED"
+    assert second.json()["detail"] == "COMMUNITY_CREATION_LIMIT_REACHED"
     made = (await session.exec(select(Guild).where(Guild.name == "Second"))).all()
     assert made == []
 
@@ -399,14 +399,14 @@ async def test_creating_a_guild_for_another_account_seats_them_and_records_both(
         )
     ).all()
     assert [(m.user_id, m.role) for m in memberships] == [
-        (customer.user.id, GuildRole.superadmin)
+        (customer.user.id, CommunityRole.superadmin)
     ]
 
     await drain_notices()
     welcomed = (
         await session.exec(
             select(Notification).where(
-                Notification.type == NotificationType.guild_welcome
+                Notification.type == NotificationType.community_welcome
             )
         )
     ).all()
@@ -417,7 +417,7 @@ async def test_creating_a_guild_for_another_account_seats_them_and_records_both(
     assert line.user_id == customer.user.id
     assert line.data == {
         "community": "Acme",
-        "guild_id": guild.id,
+        "community_id": guild.id,
         "target_path": "/settings/usage",
     }
     ((recipient_id, pieces),) = letters
@@ -472,7 +472,7 @@ async def test_an_ordinary_user_cannot_name_another_owner(
     )
 
     assert response.status_code == 403
-    assert response.json()["detail"] == "GUILD_OWNER_REQUIRES_CAPABILITY"
+    assert response.json()["detail"] == "COMMUNITY_OWNER_REQUIRES_CAPABILITY"
     assert (
         await session.exec(select(Guild).where(Guild.name == "Not yours"))
     ).all() == []
@@ -517,7 +517,7 @@ async def test_an_unusable_owner_is_refused(
     )
 
     assert response.status_code == 404
-    assert response.json()["detail"] == "GUILD_OWNER_NOT_FOUND"
+    assert response.json()["detail"] == "COMMUNITY_OWNER_NOT_FOUND"
 
 
 async def test_update_guild_as_admin(
@@ -525,7 +525,7 @@ async def test_update_guild_as_admin(
 ):
     """Test that admin can update guild."""
     guild = await create_guild(session, name="Old Name", description="Old description")
-    admin = await acting_user(guild_role=GuildRole.admin, guild=guild)
+    admin = await acting_user(guild_role=CommunityRole.admin, guild=guild)
 
     response = await client.patch(
         f"/api/v1/communities/{guild.id}",
@@ -545,7 +545,7 @@ async def test_an_ordinary_admin_cannot_delete_the_community(
     """Deleting a community is the seat's, not an admin's. It is the one
     action an admin could not undo and could not have undone for them."""
     guild = await create_guild(session, name="Not Yours To End")
-    admin = await acting_user(guild_role=GuildRole.admin, guild=guild)
+    admin = await acting_user(guild_role=CommunityRole.admin, guild=guild)
 
     refused = await client.request(
         "DELETE",
@@ -574,14 +574,14 @@ async def test_an_ordinary_admin_cannot_delete_the_community(
             "wrongpassword",
             "DELETE COMMUNITY TO DELETE",
             400,
-            "GUILD_INVALID_PASSWORD",
+            "COMMUNITY_INVALID_PASSWORD",
             id="a password that does not match",
         ),
         pytest.param(
             "testpassword123",
             "To Delete",
             400,
-            "GUILD_CONFIRMATION_MISMATCH",
+            "COMMUNITY_CONFIRMATION_MISMATCH",
             id="a phrase that does not match",
         ),
     ],
@@ -598,7 +598,7 @@ async def test_deleting_a_guild_asks_for_the_password_and_the_phrase(
     """Both answers have to be right. A refusal is 400 rather than 401, which
     is the status the SPA reads as a session ending."""
     guild = await create_guild(session, name="To Delete")
-    admin = await acting_user(guild_role=GuildRole.superadmin, guild=guild)
+    admin = await acting_user(guild_role=CommunityRole.superadmin, guild=guild)
 
     response = await client.request(
         "DELETE",
@@ -623,7 +623,7 @@ async def test_an_admin_holding_no_password_confirms_with_a_recent_sign_in(
     confirmation."""
     guild = await create_guild(session, name="To Delete")
     admin = await acting_user(
-        guild_role=GuildRole.superadmin, guild=guild, hashed_password=None
+        guild_role=CommunityRole.superadmin, guild=guild, hashed_password=None
     )
     if credential == "federated identity":
         await create_federated_identity(session, admin.user, subject="sso-123")
@@ -657,7 +657,7 @@ async def test_delete_guild_linked_admin_holding_a_password_is_asked_for_it(
     """An identity link is not the question: an account can hold both, and one
     that holds a password confirms with it."""
     guild = await create_guild(session, name="To Delete")
-    admin = await acting_user(guild_role=GuildRole.superadmin, guild=guild)
+    admin = await acting_user(guild_role=CommunityRole.superadmin, guild=guild)
     await create_federated_identity(session, admin.user, subject="linked-admin-1")
 
     response = await client.request(
@@ -671,7 +671,7 @@ async def test_delete_guild_linked_admin_holding_a_password_is_asked_for_it(
     )
 
     assert response.status_code == 400
-    assert response.json()["detail"] == "GUILD_INVALID_PASSWORD"
+    assert response.json()["detail"] == "COMMUNITY_INVALID_PASSWORD"
 
 
 @pytest.mark.parametrize(
@@ -690,7 +690,7 @@ async def test_reorder_guilds(
     the same way, and run through ``client`` rather than the superuser session
     so the policy is the thing being exercised.
     """
-    a = await acting_user(role, guild_role=GuildRole.member)
+    a = await acting_user(role, guild_role=CommunityRole.member)
     guild2 = await create_guild(session, name="Guild 2")
     guild3 = await create_guild(session, name="Guild 3")
     for guild in (guild2, guild3):
@@ -698,7 +698,7 @@ async def test_reorder_guilds(
 
     wanted = [guild3.id, a.guild.id, guild2.id]
     response = await client.put(
-        "/api/v1/communities/order", headers=a.headers, json={"guild_ids": wanted}
+        "/api/v1/communities/order", headers=a.headers, json={"community_ids": wanted}
     )
 
     assert response.status_code == 204
@@ -707,9 +707,58 @@ async def test_reorder_guilds(
     assert [g["id"] for g in listing.json()] == wanted
 
 
+async def test_a_member_names_themselves_in_one_community(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """The member's own row, on the routed session: set, read back on the
+    community, and cleared by a blank. Another community keeps no name."""
+    a = await acting_user(guild_role=CommunityRole.member)
+    other = await create_guild(session, name="Elsewhere")
+    await create_guild_membership(session, user=a.user, guild=other)
+    route = f"/api/v1/communities/{a.guild.id}/membership/display-name"
+
+    async def names() -> dict[int, str | None]:
+        listing = await client.get("/api/v1/communities/", headers=a.headers)
+        return {g["id"]: g["display_name"] for g in listing.json()}
+
+    named = await client.put(route, headers=a.headers, json={"display_name": " Ana "})
+    assert named.status_code == 204, named.text
+    assert await names() == {a.guild.id: "Ana", other.id: None}
+
+    cleared = await client.put(route, headers=a.headers, json={"display_name": "  "})
+    assert cleared.status_code == 204, cleared.text
+    assert await names() == {a.guild.id: None, other.id: None}
+
+
+async def test_an_admin_names_a_member(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    admin = await acting_user(guild_role=CommunityRole.admin)
+    member = await acting_user(guild_role=CommunityRole.member, guild=admin.guild)
+    route = (
+        f"/api/v1/communities/{admin.guild.id}/members/{member.user.id}/display-name"
+    )
+
+    named = await client.put(route, headers=admin.headers, json={"display_name": "Bo"})
+    assert named.status_code == 204, named.text
+    roster = await client.get(
+        f"/api/v1/c/{admin.guild.id}/users/", headers=admin.headers
+    )
+    rows = {row["id"]: row for row in roster.json()["items"]}
+    assert rows[member.user.id]["display_name"] == "Bo"
+
+    stranger = await create_user(session)
+    missing = await client.put(
+        f"/api/v1/communities/{admin.guild.id}/members/{stranger.id}/display-name",
+        headers=admin.headers,
+        json={"display_name": "Nobody"},
+    )
+    assert missing.status_code == 404, missing.text
+
+
 async def test_create_guild_invite_as_admin(client: AsyncClient, acting_user):
     """An admin mints an invite, with a use count and an expiry it chooses."""
-    admin = await acting_user(guild_role=GuildRole.admin)
+    admin = await acting_user(guild_role=CommunityRole.admin)
 
     response = await client.post(
         f"/api/v1/communities/{admin.guild.id}/invites",
@@ -723,7 +772,7 @@ async def test_create_guild_invite_as_admin(client: AsyncClient, acting_user):
 
     assert response.status_code == 201, response.text
     data = response.json()
-    assert data["guild_id"] == admin.guild.id
+    assert data["community_id"] == admin.guild.id
     assert data["max_uses"] == 5
     assert data["uses"] == 0
     assert len(data["code"]) == 22
@@ -755,9 +804,9 @@ async def test_minting_an_invite_respects_the_seat_cap(
     a free seat leaves minting untouched, and a ``NULL`` cap is unlimited
     however many members the guild already has."""
     guild = await create_guild(session, max_users=max_users)
-    admin = await acting_user(guild_role=GuildRole.admin, guild=guild)
+    admin = await acting_user(guild_role=CommunityRole.admin, guild=guild)
     for _ in range(extra_members):
-        await acting_user(guild_role=GuildRole.member, guild=guild)
+        await acting_user(guild_role=CommunityRole.member, guild=guild)
 
     response = await client.post(
         f"/api/v1/communities/{guild.id}/invites",
@@ -767,7 +816,7 @@ async def test_minting_an_invite_respects_the_seat_cap(
 
     assert response.status_code == expected_status, response.text
     if expected_status == 403:
-        assert response.json()["detail"] == "GUILD_USER_LIMIT_REACHED"
+        assert response.json()["detail"] == "COMMUNITY_USER_LIMIT_REACHED"
 
 
 async def test_an_admin_lists_and_revokes_the_guilds_invites(
@@ -776,7 +825,7 @@ async def test_an_admin_lists_and_revokes_the_guilds_invites(
     """The two halves of running a guild's invites: see them all, drop one."""
     from app.services.platform import guilds as guild_service
 
-    admin = await acting_user(guild_role=GuildRole.admin)
+    admin = await acting_user(guild_role=CommunityRole.admin)
     invites = [
         await guild_service.create_guild_invite(
             session,
@@ -807,7 +856,7 @@ async def test_get_invite_status_valid(
     from app.services.platform import guilds as guild_service
 
     guild = await create_guild(session, name="Test Guild")
-    admin = await acting_user(guild_role=GuildRole.admin, guild=guild)
+    admin = await acting_user(guild_role=CommunityRole.admin, guild=guild)
     invite = await guild_service.create_guild_invite(
         session, guild_id=guild.id, created_by=admin.user.id, max_uses=5
     )
@@ -818,8 +867,8 @@ async def test_get_invite_status_valid(
     assert response.status_code == 200
     data = response.json()
     assert data["code"] == invite.code
-    assert data["guild_id"] == guild.id
-    assert data["guild_name"] == "Test Guild"
+    assert data["community_id"] == guild.id
+    assert data["community_name"] == "Test Guild"
     assert data["is_valid"] is True
     assert data["max_uses"] == 5
     assert data["uses"] == 0
@@ -850,7 +899,7 @@ async def test_accept_invite_blocked_when_guild_full(
     invite = await guild_service.create_guild_invite(
         session, guild_id=guild.id, created_by=creator.id, max_uses=5
     )
-    await acting_user(guild_role=GuildRole.member, guild=guild)
+    await acting_user(guild_role=CommunityRole.member, guild=guild)
     await session.commit()
 
     response = await client.post(
@@ -860,7 +909,7 @@ async def test_accept_invite_blocked_when_guild_full(
     )
 
     assert response.status_code == 403
-    assert response.json()["detail"] == "GUILD_USER_LIMIT_REACHED"
+    assert response.json()["detail"] == "COMMUNITY_USER_LIMIT_REACHED"
 
 
 @pytest.mark.parametrize(
@@ -885,7 +934,7 @@ async def test_an_invite_that_cannot_be_redeemed_is_refused(
     if kind == "unknown":
         code = "invalidcode123"
     else:
-        admin = await acting_user(guild_role=GuildRole.admin)
+        admin = await acting_user(guild_role=CommunityRole.admin)
         invite = await guild_service.create_guild_invite(
             session,
             guild_id=admin.guild.id,
@@ -922,6 +971,11 @@ ADMIN_ONLY_ROUTES = (
     ("GET", "/api/v1/communities/{guild}/invites", None),
     ("DELETE", "/api/v1/communities/{guild}/invites/{invite}", None),
     ("POST", "/api/v1/communities/{guild}/billing/handoff", None),
+    (
+        "PUT",
+        "/api/v1/communities/{guild}/members/{admin}/display-name",
+        {"display_name": "Renamed"},
+    ),
 )
 
 #: Surfaces any signed-in account may call, listed here for the one caller they
@@ -929,10 +983,15 @@ ADMIN_ONLY_ROUTES = (
 SIGNED_IN_ROUTES = (
     ("GET", "/api/v1/communities/", None),
     ("POST", "/api/v1/communities/", {"name": "Fresh"}),
-    ("PUT", "/api/v1/communities/order", {"guild_ids": []}),
+    ("PUT", "/api/v1/communities/order", {"community_ids": []}),
     ("POST", "/api/v1/communities/invite/accept", {"code": "notarealcode000000"}),
     ("GET", "/api/v1/communities/{guild}/leave/eligibility", None),
     ("DELETE", "/api/v1/communities/{guild}/leave", None),
+    (
+        "PUT",
+        "/api/v1/communities/{guild}/membership/display-name",
+        {"display_name": "Me"},
+    ),
 )
 
 #: Leaving is about a membership, so an account holding none in this guild is
@@ -979,9 +1038,9 @@ async def guild_gate_world(session: AsyncSession, acting_user, monkeypatch):
     from app.services.platform import guilds as guild_service
 
     monkeypatch.setattr(app_settings, "BILLING_URL", "https://billing.example.com")
-    admin = await acting_user(guild_role=GuildRole.admin)
-    member = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
-    stranger = await acting_user(guild_role=GuildRole.admin)
+    admin = await acting_user(guild_role=CommunityRole.admin)
+    member = await acting_user(guild_role=CommunityRole.member, guild=admin.guild)
+    stranger = await acting_user(guild_role=CommunityRole.admin)
     invite = await guild_service.create_guild_invite(
         session, guild_id=admin.guild.id, created_by=admin.user.id
     )
@@ -989,6 +1048,7 @@ async def guild_gate_world(session: AsyncSession, acting_user, monkeypatch):
     return {
         "guild": admin.guild.id,
         "invite": invite.id,
+        "admin": admin.user.id,
         "member": member.headers,
         "stranger": stranger.headers,
         "anonymous": None,
@@ -1013,7 +1073,11 @@ async def test_each_guild_surface_answers_by_what_the_caller_holds(
     """
     response = await client.request(
         method,
-        path.format(guild=guild_gate_world["guild"], invite=guild_gate_world["invite"]),
+        path.format(
+            guild=guild_gate_world["guild"],
+            invite=guild_gate_world["invite"],
+            admin=guild_gate_world["admin"],
+        ),
         headers=guild_gate_world[actor_kind],
         json=body,
     )
@@ -1058,7 +1122,7 @@ async def test_the_billing_handoff_needs_a_portal_and_a_signing_key(
     monkeypatch.setattr(app_settings, "BILLING_URL", billing_url)
     if clear_signing_key:
         monkeypatch.setattr(app_settings, "HANDOFF_SIGNING_PRIVATE_KEY_PEM", None)
-    seat = await acting_user(guild_role=GuildRole.superadmin)
+    seat = await acting_user(guild_role=CommunityRole.superadmin)
 
     response = await client.post(
         f"/api/v1/communities/{seat.guild.id}/billing/handoff", headers=seat.headers
@@ -1077,7 +1141,7 @@ async def test_guild_billing_handoff_succeeds_for_admin(
     import jwt
 
     monkeypatch.setattr(app_settings, "BILLING_URL", "https://billing.example.com")
-    seat = await acting_user(guild_role=GuildRole.superadmin)
+    seat = await acting_user(guild_role=CommunityRole.superadmin)
 
     response = await client.post(
         f"/api/v1/communities/{seat.guild.id}/billing/handoff", headers=seat.headers
@@ -1090,11 +1154,11 @@ async def test_guild_billing_handoff_succeeds_for_admin(
     payload = jwt.decode(body["handoff_token"], options={"verify_signature": False})
     assert payload["aud"] == BILLING_PORTAL_AUDIENCE
     assert payload["iss"] == "initiative"
-    assert payload["guild_role"] == "admin"
+    assert payload["community_role"] == "admin"
     # The pair is named by reference and by nothing else, `sub` included.
     assert payload["sub"] == payload["user_ref"]
     assert payload["user_ref"].startswith("ubil_")
-    assert payload["guild_ref"].startswith("gbil_")
+    assert payload["community_ref"].startswith("gbil_")
     assert "guild_id" not in payload
 
 
@@ -1105,23 +1169,23 @@ async def test_guild_billing_handoff_succeeds_for_admin(
     "leaver_role,other_roles,can_leave,expected_status,expected_detail",
     [
         pytest.param(
-            GuildRole.admin,
-            (GuildRole.superadmin,),
+            CommunityRole.admin,
+            (CommunityRole.superadmin,),
             True,
             204,
             None,
             id="an ordinary admin, the seat still held",
         ),
         pytest.param(
-            GuildRole.superadmin,
-            (GuildRole.member,),
+            CommunityRole.superadmin,
+            (CommunityRole.member,),
             False,
             400,
             "CANNOT_VACATE_LAST_SUPERADMIN",
             id="the only seat, with somebody to strand",
         ),
         pytest.param(
-            GuildRole.superadmin,
+            CommunityRole.superadmin,
             (),
             True,
             204,
@@ -1133,8 +1197,8 @@ async def test_guild_billing_handoff_succeeds_for_admin(
 async def test_a_departure_is_counted_against_the_communitys_last_seat(
     client: AsyncClient,
     acting_user,
-    leaver_role: GuildRole,
-    other_roles: tuple[GuildRole, ...],
+    leaver_role: CommunityRole,
+    other_roles: tuple[CommunityRole, ...],
     can_leave: bool,
     expected_status: int,
     expected_detail: str | None,
@@ -1167,9 +1231,9 @@ async def test_a_departure_is_counted_against_the_communitys_last_seat(
 
 async def test_a_second_seat_frees_the_first(client: AsyncClient, acting_user):
     """Two seats, so either may go; the one left behind then stays."""
-    first = await acting_user(guild_role=GuildRole.superadmin)
-    second = await acting_user(guild_role=GuildRole.superadmin, guild=first.guild)
-    await acting_user(guild_role=GuildRole.member, guild=first.guild)
+    first = await acting_user(guild_role=CommunityRole.superadmin)
+    second = await acting_user(guild_role=CommunityRole.superadmin, guild=first.guild)
+    await acting_user(guild_role=CommunityRole.member, guild=first.guild)
 
     left = await client.delete(
         f"/api/v1/communities/{first.guild.id}/leave", headers=second.headers
@@ -1213,8 +1277,8 @@ async def test_leaving_takes_the_lock_before_it_counts_anyone(
         lambda *a, **k: record("last seat", real_seat, *a, **k),
     )
 
-    seat = await acting_user(guild_role=GuildRole.superadmin)
-    leaving = await acting_user(guild_role=GuildRole.admin, guild=seat.guild)
+    seat = await acting_user(guild_role=CommunityRole.superadmin)
+    leaving = await acting_user(guild_role=CommunityRole.admin, guild=seat.guild)
 
     response = await client.delete(
         f"/api/v1/communities/{seat.guild.id}/leave", headers=leaving.headers

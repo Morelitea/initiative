@@ -10,26 +10,29 @@ New to the idea? [How Initiative is organized](../concepts/index.md) explains th
 
 ## Making one
 
-1. In the sidebar, find **Initiatives** and choose **Add initiative**.
-2. **Name** it after the effort: "Spring Play", "2026 Budget", "Onboarding".
-3. Pick a **colour**. It follows the initiative's projects around, so you can tell at a glance what belongs to what without reading a single word.
-4. Add a **description** if you like.
-5. Create it.
+In the sidebar, find **Initiatives** and choose **Add initiative**. **New initiative** walks you through four questions:
 
-It shows up in the sidebar. Expand it to see its projects and documents.
+1. **What is it called?** Name it after the effort — "Spring Play", "2026 Budget", "Onboarding" — and pick a **colour**. The colour follows its tools around, so you can tell at a glance what belongs to what without reading a single word. A description is optional.
+2. **What is it made of?** Pick the [tools](tools.md) it needs. Projects and documents start ticked; at least one has to stay.
+3. **Who can get in?** Invite only, by request, or anyone in the community. See [How people join an initiative](#how-people-join-an-initiative).
+4. **What can they do?** What an ordinary member may do with those tools: **Make things**, **See things**, or **Managers only**, for work that should stay with a few people until you say otherwise.
+
+Every answer can be changed later, and turning a tool off never deletes what's in it. So if you're stuck on question two, guess. Nobody is marking this.
+
+The new initiative shows up in the sidebar. Expand it to see its tools.
 
 ![Creating an initiative](../images/initiatives/create-initiative.png)
 
 !!! info "Your first one"
     A new community arrives empty, and the home page asks you to make the first initiative before anything else. That is deliberate: an initiative is a *name for a body of work*, and only you know what this community's work is called.
 
-    Older communities may still have a **Default Initiative** from before this changed. It behaves like any other, except it can't be deleted.
+    Some communities carry one called **Default Initiative**. There's nothing special about it. Rename it, archive it or delete it like any other.
 
-## The initiative dashboard
+## The initiative page
 
-Clicking an initiative's **title** opens its dashboard: how the projects are getting on, what's coming up, what's changed lately.
+Click an initiative's name to open it. Its name sits beside a rule in its colour, with the description under it, and then one quiet line: your role here, then the faces of whoever's online right now. Point at a face to see who it is; open the member count for everybody, searchable.
 
-It's the quick answer to "how's this going?" — the question you'd otherwise answer by opening five things and doing arithmetic in your head.
+Under that is one tab per tool, each with one main button for making a new one. **Initiative settings** sits top right, for the people who run it.
 
 ## Adding members
 
@@ -61,7 +64,7 @@ Anything that isn't invite-only appears in the **Initiatives** section of the co
 
 ![The initiative list on a community's front page](../images/initiatives/community-home-initiatives.png)
 
-However somebody arrives, they land on the built-in **member** role, which is view-only on the tools an initiative starts with, and sharing still decides each individual project and document inside.
+However somebody arrives, they land on the built-in **Member** role, and sharing still decides each individual project and document inside.
 
 So opening an initiative up doesn't suddenly expose anything that was private within it. It only changes who's allowed to walk in.
 
@@ -107,11 +110,11 @@ None of this changes what an admin may *do*. Open any initiative and they see al
 
 Each member holds a **role**, which decides which *kinds of tools* they can use here — whether they can make projects, or only look at them.
 
-Initiative ships two roles with fixed permissions — **Manager** (think project lead) and **Moderator** — and you build your own on top: "Coordinator". "Volunteer". "Client". "Guest". "Person Who Only Needs To See The Rota".
+Every initiative comes with three: **Manager** (think project lead) and **Moderator**, whose permissions are fixed, and **Member**, whose you set. You build your own on top: "Coordinator". "Volunteer". "Client". "Guest". "Person Who Only Needs To See The Rota".
 
 Name them after how your group actually talks about itself, not after anything Initiative expects. Nobody has ever introduced themselves at a committee meeting as a view-only contributor.
 
-Permissions are grouped by tool — **Projects**, **Documents**, **Queues**, **Counters**, **Events**, **Dashboards**, **Posts** — each offering **View** and **Create**. So "Volunteer" might view projects and documents but create nothing, while "Coordinator" creates everything.
+Permissions are grouped by tool — **Projects**, **Documents**, **Queues**, **Counters**, **Events**, **Dashboards**, **Posts**, **Galleries**, **Wikis** — each offering **View** and **Create**. So "Volunteer" might view projects and documents but create nothing, while "Coordinator" creates everything.
 
 ![Setting permissions for an initiative role](../images/initiatives/roles.png)
 
@@ -122,13 +125,27 @@ There's a full walkthrough in [Initiative roles](../sharing/initiative-roles.md)
 
     So hand it to the people who genuinely need the whole picture. Not as a thank-you for being helpful, and not because somebody's been around a long time and it felt rude not to.
 
+## Moderation
+
+Moderators and community admins see one more entry at the top of the initiative in the sidebar: **Moderation**. Nobody else does, and nothing turns it off.
+
+| Tab | What's in it |
+|---|---|
+| **Reports** | What people have [reported](communities.md#reporting-something) here, **Open** and **Settled**. Each shows what was reported, how many people reported it, and what they said. |
+| **Members** | Who's in, and what each of them may do. |
+| **Sharing** | How widely each thing here is shared. Open one to change it. |
+
+Open the reported thing to see it where it lives, then come back and settle it: **Dismiss**, **Content removed**, **Member warned**, or **Escalate**, with a note on why if you like. Settling records your decision. It doesn't do the deed — if something needs taking down, take it down first.
+
+**Escalate** is for the report that isn't this community's to settle. It goes to whoever runs the server, carrying what the reporters wrote.
+
 ## Initiative settings
 
-- **Details** — name, colour, description, and which tools it offers.
+- **Details** — name, colour, description, and the **Tools** card, where you choose which tools it offers.
 - **Members** — **Joining**, any waiting requests, and who's in with their roles.
 - **Roles** — make roles and set what they can do.
-- **Properties** — custom fields this initiative's tasks, documents and events can carry.
-- **Export** — download the initiative's data (managers and above).
+- **Properties** — custom fields anything in this initiative can carry.
+- **Export** — download the initiative's data (managers and above). **Keep content in this initiative** stops anyone, managers and community admins included, from exporting things from it one at a time, or copying or moving them to another initiative. Copies and moves inside it, this whole-initiative download and the community's own export carry on as normal.
 - **Danger zone** — archive, unarchive, delete.
 
 ### Archiving vs. deleting

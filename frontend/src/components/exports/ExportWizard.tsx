@@ -2,7 +2,7 @@ import { AlertTriangle, CheckCircle2, ChevronDown, Filter, Loader2, XCircle } fr
 import { type ReactNode, useEffect, useId, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { useEstimateAggregateExportApiV1CGuildIdExportsEstimateGet } from "@/api/generated/exports/exports";
+import { useEstimateAggregateExport } from "@/api/generated/exports/exports";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import type { ExportExtraAction, ExportFormatOption } from "@/components/exports/ExportButton";
 import {
@@ -30,7 +30,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { WizardDialog } from "@/components/ui/wizard-dialog";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useExportJob } from "@/hooks/useExportJob";
 import { useWizard } from "@/hooks/useWizard";
@@ -48,7 +48,7 @@ import { cn } from "@/lib/utils";
  *  entities of one tool (a tool's export card, a bulk selection). */
 export type ExportWizardScope =
   | { kind: "initiative"; initiativeId: number }
-  | { kind: "guild" }
+  | { kind: "community" }
   | {
       kind: "entities";
       tool: Tool;
@@ -179,7 +179,7 @@ function TaskFiltersField({ value, onChange, initiativeId }: ContentFieldProps) 
       <p className="font-medium text-xs">{t("wizard.filter.tasks")}</p>
       <ProjectTasksFilters
         memberScope={
-          initiativeId == null ? { type: "guild" } : { type: "initiative", initiativeId }
+          initiativeId == null ? { type: "community" } : { type: "initiative", initiativeId }
         }
         taskStatuses={[]}
         initiativeId={initiativeId}
@@ -464,7 +464,7 @@ function AggregateExportWizard({
   onOpenChange,
 }: ExportWizardProps & { scope: AggregateScope }) {
   const { t } = useTranslation(["exports", "nav"]);
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   const describeFilters = useDescribeFilters();
 
   const [mode, setMode] = useState<"backup" | "report">("backup");
@@ -505,10 +505,10 @@ function AggregateExportWizard({
   // A keystroke in a search box is not a request.
   const estimateFilters = useDebouncedValue(filtersParam, 300);
 
-  const estimateQuery = useEstimateAggregateExportApiV1CGuildIdExportsEstimateGet(
-    guildId,
+  const estimateQuery = useEstimateAggregateExport(
+    communityId,
     {
-      scope: scope.kind,
+      scope: scope.kind === "community" ? "community" : scope.kind,
       initiative_id: scope.kind === "initiative" ? scope.initiativeId : null,
       include_uploads: includeUploads,
       ...(estimateFilters ? { filters: estimateFilters } : {}),
@@ -588,7 +588,7 @@ function AggregateExportWizard({
     }
     commit("progress");
     void exportJob.start({
-      endpoint: scope.kind === "guild" ? "/exports/community" : "/exports/initiative",
+      endpoint: scope.kind === "community" ? "/exports/community" : "/exports/initiative",
       params,
       fallbackFilename: `${scope.kind}-export.zip`,
     });
@@ -618,7 +618,7 @@ function AggregateExportWizard({
       open={open}
       onOpenChange={onOpenChange}
       className="max-h-[85vh] overflow-y-auto sm:max-w-lg"
-      title={scope.kind === "guild" ? t("wizard.titleGuild") : t("wizard.titleInitiative")}
+      title={scope.kind === "community" ? t("wizard.titleCommunity") : t("wizard.titleInitiative")}
       description={stepDescription}
       progress={position === null ? undefined : { current: position, total: 3 }}
       onBack={canGoBack ? back : undefined}

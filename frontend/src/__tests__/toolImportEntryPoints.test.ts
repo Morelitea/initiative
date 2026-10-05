@@ -32,11 +32,11 @@ const SURFACES = [
   },
   {
     what: "the projects page",
-    source: read("../pages/ProjectsPage.tsx"),
+    source: read("../pages/initiativeTools/projects/ProjectsPage.tsx"),
   },
   {
     what: "the documents page",
-    source: read("../pages/DocumentsPage.tsx"),
+    source: read("../pages/initiativeTools/documents/DocumentsPage.tsx"),
   },
   {
     what: "the calendars page",

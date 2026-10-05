@@ -13,7 +13,7 @@ import {
 import { normalizeOptionList, typeRequiresOptions } from "@/components/properties/propertyHelpers";
 import { iconForPropertyType } from "@/components/properties/propertyTypeIcons";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
 import { ColorPickerPopover } from "@/components/ui/color-picker-popover";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
@@ -41,7 +41,7 @@ import {
   useProperties,
   useUpdateProperty,
 } from "@/hooks/useProperties";
-import { toast } from "@/lib/chesterToast";
+import { toast } from "@/lib/mascotToast";
 
 const PROPERTY_TYPE_OPTIONS: PropertyTypeValue[] = [
   PropertyType.text,
@@ -305,7 +305,6 @@ export const InitiativeSettingsPropertiesTab = ({ initiativeId }: { initiativeId
       <Card>
         <CardHeader className="flex flex-row items-start justify-between gap-4">
           <div>
-            <CardTitle>{t("properties:manager.title")}</CardTitle>
             <CardDescription>{t("properties:manager.description")}</CardDescription>
           </div>
           <Button onClick={handleOpenCreate}>

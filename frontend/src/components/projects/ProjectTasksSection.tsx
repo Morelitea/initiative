@@ -76,13 +76,14 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Dialog } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { useAuth } from "@/hooks/useAuth";
 import {
   useCreateFilterPreset,
   useFilterPresets,
   useUpdateFilterPreset,
 } from "@/hooks/useFilterPresets";
+import { useInitiative } from "@/hooks/useInitiatives";
 import { useTags } from "@/hooks/useTags";
 import {
   type UpdateTaskVariables,
@@ -96,7 +97,6 @@ import {
   useUpdateTask,
 } from "@/hooks/useTasks";
 import { useViewPreference } from "@/hooks/useViewPreference";
-import { toast } from "@/lib/chesterToast";
 import { resolvePresetState } from "@/lib/filters/presets";
 import {
   buildTaskConditions,
@@ -111,6 +111,7 @@ import {
   taskFilterCount,
   taskFiltersEqual,
 } from "@/lib/filters/taskFilters";
+import { toast } from "@/lib/mascotToast";
 import { getProjectColor } from "@/lib/projectColor";
 import { rulePayload } from "@/lib/recurrence";
 import { getItem, setItem } from "@/lib/storage";
@@ -238,7 +239,9 @@ export const ProjectTasksSection = ({
   onComposerOpenChange,
 }: ProjectTasksSectionProps) => {
   const { t } = useTranslation("projects");
-  const guildId = useActiveGuildId();
+  // Nothing is exported from an initiative that keeps its content in.
+  const keepsContentIn = Boolean(useInitiative(initiativeId).data?.keep_content_in);
+  const communityId = useActiveCommunityId();
   const sortedTaskStatuses = useMemo(() => {
     return [...taskStatuses].sort((a, b) => {
       if (a.position === b.position) {
@@ -269,7 +272,7 @@ export const ProjectTasksSection = ({
   );
 
   // The project's shared presets. `can_manage` is computed server-side — a
-  // project manager, the project owner, or a guild admin — and is what gates
+  // project manager, the project owner, or a community admin — and is what gates
   // every curation affordance below.
   const navigate = useNavigate();
   const search = useSearch({ strict: false }) as { preset?: string; view?: ViewMode };
@@ -309,7 +312,7 @@ export const ProjectTasksSection = ({
     [search, presets, stored, filtersLoaded, projectDefaultViewMode]
   );
 
-  // Fetch guild tags for filtering
+  // Fetch community tags for filtering
   const { data: tags = [], isSuccess: tagsLoaded, isError: tagsFailed } = useTags();
 
   /**
@@ -579,7 +582,10 @@ export const ProjectTasksSection = ({
     onSuccess: (newTask) => {
       setComposerValue(emptyTaskFormValue({ statusId: defaultStatusId }));
       setIsComposerOpen(false);
-      setLocalOverride((prev) => [...(prev ?? projectTasks), taskReadToListRow(newTask, guildId)]);
+      setLocalOverride((prev) => [
+        ...(prev ?? projectTasks),
+        taskReadToListRow(newTask, communityId),
+      ]);
       toast.success(t("tasks.taskCreated"));
     },
   });
@@ -650,13 +656,13 @@ export const ProjectTasksSection = ({
         if (!base.length) return prev;
         if (stillMatchesFilters(updatedTask)) {
           return base.map((task) =>
-            task.id === updatedTask.id ? taskReadToListRow(updatedTask, guildId, task) : task
+            task.id === updatedTask.id ? taskReadToListRow(updatedTask, communityId, task) : task
           );
         }
         return base.filter((task) => task.id !== updatedTask.id);
       });
     },
-    [projectTasks, stillMatchesFilters, guildId]
+    [projectTasks, stillMatchesFilters, communityId]
   );
 
   // Status changes shown before the server confirms them, keyed by task. Each
@@ -1075,7 +1081,11 @@ export const ProjectTasksSection = ({
       {scopePrompt.dialog}
       <Tabs value={viewMode} onValueChange={handleViewModeChange} className="space-y-4">
         <ToolListToolbar
-          heading={<h2 className="truncate font-semibold text-xl">{t("tasks.projectTasks")}</h2>}
+          heading={
+            <h2 className="truncate font-semibold text-xl tracking-tight">
+              {t("tasks.projectTasks")}
+            </h2>
+          }
           filters={{
             open: filtersOpen,
             onOpenChange: setFiltersOpen,
@@ -1101,13 +1111,15 @@ export const ProjectTasksSection = ({
           trailing={
             /* resumePending: this is the view's single adopter of a stored
                in-flight job (the selection button must not double-handle it). */
-            <ExportTasksButton
-              params={{
-                conditions: buildTaskConditions(appliedSpec, { projectId }),
-                include_archived: appliedSpec.include_archived,
-              }}
-              resumePending
-            />
+            keepsContentIn ? undefined : (
+              <ExportTasksButton
+                params={{
+                  conditions: buildTaskConditions(appliedSpec, { projectId }),
+                  include_archived: appliedSpec.include_archived,
+                }}
+                resumePending
+              />
+            )
           }
           actions={
             canEditTaskDetails ? (
@@ -1235,12 +1247,18 @@ export const ProjectTasksSection = ({
           {selectedTasks.length > 0 && canEditTaskDetails && (
             <TaskBulkEditPanel
               selectedTasks={selectedTasks}
-              exportParams={{
-                conditions: [{ field: "id", op: "in_", value: selectedTasks.map((t) => t.id) }],
-                // Selection came from the visible list, which may include
-                // archived rows when the toggle is on.
-                include_archived: appliedSpec.include_archived,
-              }}
+              exportParams={
+                keepsContentIn
+                  ? undefined
+                  : {
+                      conditions: [
+                        { field: "id", op: "in_", value: selectedTasks.map((t) => t.id) },
+                      ],
+                      // Selection came from the visible list, which may include
+                      // archived rows when the toggle is on.
+                      include_archived: appliedSpec.include_archived,
+                    }
+              }
               onEdit={() => setIsBulkEditDialogOpen(true)}
               onEditTags={() => setIsBulkEditTagsDialogOpen(true)}
               onArchive={() => bulkArchiveTasks.mutate(selectedTasks.map((t) => t.id))}

@@ -117,7 +117,7 @@ class ManifestInitiative(SanitizedBaseModel):
     target_initiative_id: Optional[int] = None
 
 
-class ManifestGuildSection(SanitizedBaseModel):
+class ManifestCommunitySection(SanitizedBaseModel):
     """One guild-level file in the archive — what the community owns directly
     rather than through an initiative.
 
@@ -133,7 +133,7 @@ class ManifestGuildSection(SanitizedBaseModel):
     count: int = 0
 
 
-class ManifestGuild(SanitizedBaseModel):
+class ManifestCommunity(SanitizedBaseModel):
     """The community the archive came from.
 
     A model rather than a loose dict because a backup that cannot say what
@@ -154,11 +154,11 @@ class BackupManifest(SanitizedBaseModel):
     exported_at: datetime
     exported_by_handle: Optional[str] = None
     source_instance_url: Optional[str] = None
-    guild: ManifestGuild
+    guild: ManifestCommunity
     include_uploads: bool
     initiatives: list[ManifestInitiative]
     # Guild-level files: what the community owns outside its initiatives.
-    guild_sections: list[ManifestGuildSection] = []
+    guild_sections: list[ManifestCommunitySection] = []
     entries: list[ManifestEntry]
     assets: list[ManifestAsset]
     skipped: list[ManifestSkipped]

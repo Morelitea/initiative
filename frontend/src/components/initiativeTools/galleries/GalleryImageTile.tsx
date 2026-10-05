@@ -84,7 +84,7 @@ const GalleryImageTileInner = ({
       )}
       {image.version_count > 1 && (
         <span
-          className="absolute top-2 right-2 inline-flex items-center gap-1 rounded-full bg-black/60 px-1.5 py-0.5 text-[0.65rem] text-white"
+          className="absolute top-2 right-2 inline-flex items-center gap-1 rounded-full bg-black/60 px-1.5 py-0.5 text-3xs text-white"
           title={t("tile.versions", { count: image.version_count })}
         >
           <Layers className="size-3" aria-hidden />

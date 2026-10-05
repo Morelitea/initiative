@@ -22,7 +22,7 @@ import {
 } from "react-grid-layout";
 import { useTranslation } from "react-i18next";
 
-import type { WidgetCatalog } from "@/api/generated/initiativeAPI.schemas";
+import type { DashboardWidgetData, WidgetCatalog } from "@/api/generated/initiativeAPI.schemas";
 import { cn } from "@/lib/utils";
 import {
   applyLayout,
@@ -69,7 +69,7 @@ export interface DashboardCanvasProps {
   catalog: WidgetCatalog | undefined;
   /** The dashboard's own initiative. Every widget reads within it. */
   initiativeId: number | undefined;
-  /** The dashboard row. Only `app` widgets need it — their data is guild-level,
+  /** The dashboard row. Only `app` widgets need it — their data is community-level,
    *  so the proxy is told which initiative-scoped surface is asking. A preview
    *  has none, which is one of the reasons it fetches nothing. */
   dashboardId?: number;
@@ -78,6 +78,9 @@ export interface DashboardCanvasProps {
   /** Render every widget from the sample library instead of its binding — the
    *  marketplace preview's mode. Nothing is fetched; see `DashboardWidget`. */
   sampleData?: boolean;
+  /** A list card's preview: its query widgets' answers, read with the list.
+   *  Draws those, and every other widget from sample data; fetches nothing. */
+  previewAnswers?: Record<string, DashboardWidgetData>;
   /** The dashboard row is still on its way. The canvas is the only region that
    *  shows this — the page around it is already correct and must not flicker. */
   isLoading?: boolean;
@@ -94,6 +97,7 @@ export function DashboardCanvas({
   dashboardId,
   canEdit,
   sampleData,
+  previewAnswers,
   isLoading,
   onLayoutChange,
   onConfigureWidget,
@@ -222,7 +226,8 @@ export function DashboardCanvas({
                     initiativeId={initiativeId}
                     dashboardId={dashboardId}
                     canEdit={canEdit}
-                    sampleData={sampleData}
+                    sampleData={sampleData || previewAnswers !== undefined}
+                    answer={previewAnswers ? (previewAnswers[widget.id] ?? null) : undefined}
                     onConfigure={onConfigureWidget}
                     onRemove={onRemoveWidget}
                   />

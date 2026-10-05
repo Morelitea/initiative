@@ -29,7 +29,7 @@ def _parse(body: bytes) -> list[list[str]]:
 def test_build_csv_neutralizes_formula_triggers(trigger: str) -> None:
     """A cell starting with any trigger character is prefixed with a quote."""
     payload = f'{trigger}HYPERLINK("http://evil","x")'
-    body = csv_export.build_csv(["full_name"], [[payload]])
+    body = csv_export.build_csv(["display_name"], [[payload]])
     rows = _parse(body)
 
     assert rows[1][0] == f"'{payload}"
@@ -87,7 +87,7 @@ def test_build_csv_stringifies_non_string_values() -> None:
 
 def test_build_csv_treats_none_as_empty() -> None:
     """``None`` is rendered as an empty cell, not the string 'None'."""
-    body = csv_export.build_csv(["full_name"], [[None]])
+    body = csv_export.build_csv(["display_name"], [[None]])
     rows = _parse(body)
 
     assert rows[1][0] == ""

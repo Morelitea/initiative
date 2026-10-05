@@ -1,8 +1,8 @@
 import type {
   Capability,
   OwnedDecoration,
+  UserCommunityMember,
   UserEmailRead,
-  UserGuildMember,
   UserProfile,
   UserPublic,
   UserRead,
@@ -34,9 +34,10 @@ const ROLE_CAPABILITIES: Record<UserRole, Capability[]> = {
     "access.approve",
     "access.request",
     "announcements.manage",
+    "billing.insights",
     "content.moderate",
     "data.bypass",
-    "guilds.manage",
+    "communities.manage",
     "roles.assign",
     "users.age_unblock",
     "users.delete",
@@ -47,10 +48,11 @@ const ROLE_CAPABILITIES: Record<UserRole, Capability[]> = {
     "access.approve",
     "announcements.manage",
     "apps.manage",
+    "billing.insights",
     "config.manage",
     "content.moderate",
     "data.bypass",
-    "guilds.manage",
+    "communities.manage",
     "roles.assign",
     "users.age_unblock",
     "users.delete",
@@ -69,7 +71,7 @@ export function buildUserPublic(overrides: Partial<UserPublic> = {}): UserPublic
     id: counter,
     username: `user-${counter}`,
     discriminator: 1000 + counter,
-    full_name: `User ${counter}`,
+    display_name: `User ${counter}`,
     avatar_url: null,
     status: "active",
     ...overrides,
@@ -85,11 +87,11 @@ export function buildUserSummary(overrides: Partial<UserSummary> = {}): UserSumm
     id: counter,
     username: `user-${counter}`,
     discriminator: 1000 + counter,
-    full_name: `User ${counter}`,
+    display_name: `User ${counter}`,
     avatar_url: null,
     status: "active",
     profile_decorations: null,
-    guild_role: null,
+    community_role: null,
     ...overrides,
   };
 }
@@ -132,11 +134,10 @@ export function buildUser(overrides: Partial<UserRead> = {}): UserRead {
     // account that has not.
     legal_acceptance_required: false,
     age_below_minimum_at: null,
-    full_name: `User ${counter}`,
     avatar_url: null,
     role: "member",
     capabilities: capabilitiesForRole(role),
-    can_create_guilds: true,
+    can_create_communities: true,
     status: "active",
     presence: "offline",
     cookie_consent: null,
@@ -175,17 +176,20 @@ export function buildUser(overrides: Partial<UserRead> = {}): UserRead {
   };
 }
 
-export function buildUserGuildMember(overrides: Partial<UserGuildMember> = {}): UserGuildMember {
+export function buildUserCommunityMember(
+  overrides: Partial<UserCommunityMember> = {}
+): UserCommunityMember {
   counter++;
-  const guildRole = overrides.guild_role ?? "member";
+  const communityRole = overrides.community_role ?? "member";
   return {
     id: counter,
     username: `user-${counter}`,
     discriminator: 1000 + counter,
-    full_name: `User ${counter}`,
+    display_name: `User ${counter}`,
     avatar_url: null,
-    guild_role: guildRole,
+    community_role: communityRole,
     oidc_managed: false,
+    api_keys_allowed: null,
     status: "active",
     created_at: "2026-01-15T00:00:00.000Z",
     initiative_roles: [],
@@ -193,7 +197,7 @@ export function buildUserGuildMember(overrides: Partial<UserGuildMember> = {}): 
   };
 }
 
-/** A member's profile, as the rest of their guild sees them. Bare by default —
+/** A member's profile, as the rest of their community sees them. Bare by default —
  *  no status and nothing worn — so a test that asserts on a decoration has to
  *  have put it there. */
 export function buildUserProfile(overrides: Partial<UserProfile> = {}): UserProfile {

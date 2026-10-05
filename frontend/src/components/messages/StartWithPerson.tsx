@@ -10,7 +10,7 @@ import {
   useMessageRequests,
   useRequestMessage,
 } from "@/hooks/useDirectMessages";
-import { toast } from "@/lib/chesterToast";
+import { toast } from "@/lib/mascotToast";
 
 /**
  * Somebody you were sent here to talk to, and cannot yet.

@@ -23,11 +23,11 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import { useServerForm } from "@/hooks/useServerForm";
 import { getProvidersForScope } from "@/lib/ai-providers";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 import { Capability, hasCapability } from "@/lib/permissions";
 
-const MODES: AIConfigMode[] = ["disabled", "platform", "guild"];
+const MODES: AIConfigMode[] = ["disabled", "platform", "community"];
 
 export const SettingsAIPage = () => {
   const { t } = useTranslation("settings");
@@ -91,7 +91,7 @@ export const SettingsAIPage = () => {
 
   return (
     <div className="space-y-6">
-      <Card className="shadow-sm">
+      <Card>
         <CardHeader>
           <CardTitle>{t("platformAI.title")}</CardTitle>
           <CardDescription>{t("platformAI.description")}</CardDescription>
@@ -125,7 +125,7 @@ export const SettingsAIPage = () => {
       </Card>
 
       {savedMode === "platform" && (
-        <Card className="shadow-sm">
+        <Card>
           <CardHeader>
             <CardTitle>{t("platformAI.connectionsTitle")}</CardTitle>
             <CardDescription>{t("platformAI.connectionsDescription")}</CardDescription>

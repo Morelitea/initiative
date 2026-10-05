@@ -790,7 +790,7 @@ def _place_references(
             and node.get("mentionName") in mentioned
         ):
             changed = True
-            return {**node, "mentionUserId": mentioned[node["mentionName"]]}
+            return place_mention_node(node, mentioned[node["mentionName"]])
         children = node.get("children")
         if isinstance(children, list):
             walked = [walk(child) for child in children]

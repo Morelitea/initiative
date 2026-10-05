@@ -13,7 +13,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { renderWithProviders } from "@/__tests__/helpers/render";
-import { toast } from "@/lib/chesterToast";
+import { toast } from "@/lib/mascotToast";
 
 const mocks = vi.hoisted(() => ({
   list: vi.fn(),
@@ -27,7 +27,7 @@ const mocks = vi.hoisted(() => ({
   browserSupportsWebAuthn: vi.fn(() => true),
 }));
 
-vi.mock("@/lib/chesterToast", () => ({
+vi.mock("@/lib/mascotToast", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 
@@ -38,9 +38,9 @@ vi.mock("@simplewebauthn/browser", () => ({
 }));
 
 vi.mock("@/api/generated/auth/auth", () => ({
-  getListPasskeysApiV1AuthPasskeysGetQueryKey: () => ["/api/v1/auth/passkeys"],
-  useListPasskeysApiV1AuthPasskeysGet: () => mocks.list(),
-  useBeginPasskeyRegistrationApiV1AuthPasskeysRegisterBeginPost: (options?: {
+  getListPasskeysQueryKey: () => ["/api/v1/auth/passkeys"],
+  useListPasskeys: () => mocks.list(),
+  useBeginPasskeyRegistration: (options?: {
     mutation?: { onSuccess?: (data: unknown) => void | Promise<void> };
   }) => ({
     mutate: (vars: unknown) => {
@@ -49,7 +49,7 @@ vi.mock("@/api/generated/auth/auth", () => ({
     },
     isPending: false,
   }),
-  useFinishPasskeyRegistrationApiV1AuthPasskeysRegisterFinishPost: (options?: {
+  useFinishPasskeyRegistration: (options?: {
     mutation?: { onSuccess?: (data: unknown) => void };
   }) => ({
     mutate: (vars: unknown) => {
@@ -58,17 +58,15 @@ vi.mock("@/api/generated/auth/auth", () => ({
     },
     isPending: false,
   }),
-  useRenamePasskeyApiV1AuthPasskeysPasskeyIdPatch: (options?: {
-    mutation?: { onSuccess?: (data: unknown) => void };
-  }) => ({
+  useRenamePasskey: (options?: { mutation?: { onSuccess?: (data: unknown) => void } }) => ({
     mutate: (vars: unknown) => {
       mocks.rename(vars);
       options?.mutation?.onSuccess?.({ id: "pk-1" });
     },
     isPending: false,
   }),
-  useRemovePasskeyApiV1AuthPasskeysPasskeyIdRemovePost: (options?: {
-    mutation?: { onSuccess?: () => void; onError?: (err: unknown) => void };
+  useRemovePasskey: (options?: {
+    mutation?: { onSuccess?: (data: unknown) => void; onError?: (err: unknown) => void };
   }) => ({
     mutate: (vars: unknown) => {
       mocks.remove(vars);
@@ -77,7 +75,8 @@ vi.mock("@/api/generated/auth/auth", () => ({
         options?.mutation?.onError?.(refusal);
         return;
       }
-      options?.mutation?.onSuccess?.();
+      // What the endpoint answers: the change was made, with nothing held.
+      options?.mutation?.onSuccess?.({ held: null });
     },
     isPending: false,
   }),

@@ -2,211 +2,26 @@
  * Plans, as the billing portal describes them.
  *
  * Only on a deployment with a billing portal, and never in the phone app;
- * anywhere else the address goes back to the front page. Names, prices,
- * limits and copy are all the portal's words, from the catalog it serves.
- *
- * The free plan every account comes with leads, as a band across the width:
- * it is where most people start. The plans that compare against each other
- * sit in the row under it, the enterprise conversation follows, and running
- * it yourself closes the list as one quiet line.
+ * anywhere else the address goes back to the front page. The plans themselves
+ * are the portal's grid, framed (`PricingGridFrame`): the same cards in the
+ * same steps as the portal's own pricing page, in the reader's language and
+ * currency. This page reads the catalog only for its headline, and to know
+ * there is a price book to show.
  */
 
 import { Link, Navigate } from "@tanstack/react-router";
 import type { LucideIcon } from "lucide-react";
-import {
-  ArrowUpRight,
-  Code2,
-  Database,
-  Headset,
-  Layers,
-  Server,
-  ShieldCheck,
-  Users,
-  Zap,
-} from "lucide-react";
+import { ArrowUpRight, Code2, Layers, ShieldCheck } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
-import { type CatalogTier, portalPricingUrl } from "@/hooks/useBillingCatalog";
-import { docsUrl } from "@/lib/links";
-import { cn } from "@/lib/utils";
+import { portalPricingUrl } from "@/hooks/useBillingCatalog";
 
 import { DarkBand } from "./DarkBand";
 import { LandingShell } from "./LandingShell";
+import { PricingGridFrame } from "./PricingGridFrame";
 import { useFrontDoor } from "./useFrontDoor";
 import { usePageMeta } from "./usePageMeta";
-
-/** Never more than four abreast, however many the portal sells. */
-const MAX_COLUMNS = 4;
-
-const SELF_HOST_GUIDE = docsUrl("running-a-server/installation/");
-
-/** Where a tier's button goes. Signing up is this app's own door; buying,
- *  talking and hosting it yourself each live somewhere else. */
-const TierAction = ({
-  tier,
-  portalUrl,
-  registrationOpen,
-}: {
-  tier: CatalogTier;
-  portalUrl: string;
-  registrationOpen: boolean;
-}) => {
-  const variant = tier.highlight ? "default" : "outline";
-  if (tier.cta.kind === "signup") {
-    return (
-      <Button variant={variant} className="w-full" asChild>
-        <Link to={registrationOpen ? "/start" : "/login"}>{tier.cta.label}</Link>
-      </Button>
-    );
-  }
-  const href = tier.cta.kind === "external" ? SELF_HOST_GUIDE : portalPricingUrl(portalUrl);
-  return (
-    <Button variant={variant} className="w-full" asChild>
-      <a href={href} target="_blank" rel="noopener noreferrer">
-        {tier.cta.label}
-        <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
-      </a>
-    </Button>
-  );
-};
-
-const Limit = ({
-  icon: Icon,
-  label,
-  value,
-}: {
-  icon: LucideIcon;
-  label: string;
-  value: string | null | undefined;
-}) => {
-  if (!value) return null;
-  return (
-    <li className="flex items-center gap-2 text-sm">
-      <Icon className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
-      <span className="sr-only">{label}: </span>
-      <span>{value}</span>
-    </li>
-  );
-};
-
-/** What the plan gives you, in the portal's own words. */
-const TierLimits = ({ tier, className }: { tier: CatalogTier; className: string }) => {
-  const { t } = useTranslation("landing");
-  return (
-    <ul className={className}>
-      <Limit icon={Users} label={t("pricing.members")} value={tier.limits.members_display} />
-      <Limit icon={Database} label={t("pricing.storage")} value={tier.limits.storage_display} />
-      <Limit icon={Zap} label={t("pricing.automations")} value={tier.limits.automations_display} />
-      <Limit icon={Headset} label={t("pricing.support")} value={tier.support} />
-    </ul>
-  );
-};
-
-const TierBadge = ({ tier }: { tier: CatalogTier }) =>
-  tier.badge ? (
-    <span className="rounded-full bg-amber-100 px-2.5 py-0.5 font-bold text-amber-800 text-xs leading-tight dark:bg-amber-900/40 dark:text-amber-200">
-      {tier.badge}
-    </span>
-  ) : null;
-
-interface TierProps {
-  tier: CatalogTier;
-  portalUrl: string;
-  registrationOpen: boolean;
-}
-
-/** One of the plans that compare against each other: a column in the row. */
-const TierCard = ({ tier, portalUrl, registrationOpen }: TierProps) => (
-  <li
-    className={cn(
-      "flex flex-col rounded-2xl border bg-card p-6",
-      tier.highlight && "border-2 border-primary shadow-primary/20 shadow-xl"
-    )}
-    data-tier={tier.id}
-    data-layout="card"
-  >
-    {/* The badge row is reserved even when empty so every name sits on the
-        same line. */}
-    <div className="mb-3 flex min-h-[1.375rem] items-start">
-      <TierBadge tier={tier} />
-    </div>
-    <h3 className="font-bold text-xl">{tier.name}</h3>
-    <p className="mt-3 font-extrabold text-4xl tracking-tight">{tier.price.display}</p>
-    {tier.price.sub_display && (
-      <p className="mt-1 text-muted-foreground text-sm">{tier.price.sub_display}</p>
-    )}
-    <p className="mt-4 font-semibold">{tier.tagline}</p>
-    <p className="mt-1 text-muted-foreground text-sm">{tier.audience}</p>
-    <TierLimits tier={tier} className="mt-5 space-y-2 border-t pt-5" />
-    <div className="mt-6 flex flex-1 flex-col justify-end gap-2">
-      <TierAction tier={tier} portalUrl={portalUrl} registrationOpen={registrationOpen} />
-      {tier.cta.note && (
-        <p className="text-center text-muted-foreground text-xs">{tier.cta.note}</p>
-      )}
-    </div>
-  </li>
-);
-
-/** A plan that doesn't belong in the row: a band across the width. */
-const TierBanner = ({ tier, portalUrl, registrationOpen }: TierProps) => (
-  <li
-    className="col-span-full flex flex-col gap-6 rounded-2xl border bg-card p-6 shadow-lg md:flex-row md:items-center md:gap-10 md:p-8"
-    data-tier={tier.id}
-    data-layout="banner"
-  >
-    <div className="min-w-0 flex-1">
-      <div className="flex flex-wrap items-center gap-3">
-        <h3 className="font-bold text-2xl">{tier.name}</h3>
-        <TierBadge tier={tier} />
-      </div>
-      <p className="mt-2 font-semibold">{tier.tagline}</p>
-      <p className="mt-1 text-muted-foreground text-sm">{tier.audience}</p>
-      <TierLimits tier={tier} className="mt-4 flex flex-wrap gap-x-6 gap-y-2" />
-    </div>
-    <div className="flex shrink-0 flex-col gap-3 md:w-60 md:items-end">
-      <div className="md:text-right">
-        <p className="font-extrabold text-3xl tracking-tight">{tier.price.display}</p>
-        {tier.price.sub_display && (
-          <p className="mt-1 text-muted-foreground text-sm">{tier.price.sub_display}</p>
-        )}
-      </div>
-      <TierAction tier={tier} portalUrl={portalUrl} registrationOpen={registrationOpen} />
-      {tier.cta.note && (
-        <p className="text-muted-foreground text-xs md:text-right">{tier.cta.note}</p>
-      )}
-    </div>
-  </li>
-);
-
-/** Running it yourself: one line at the foot of the list. */
-const SelfHostLine = ({ tier }: { tier: CatalogTier }) => {
-  const { t } = useTranslation("landing");
-  return (
-    <li
-      className="col-span-full flex flex-wrap items-center gap-4 rounded-2xl border border-dashed bg-muted/40 px-5 py-4 md:flex-nowrap md:px-6"
-      data-tier={tier.id}
-      data-layout="line"
-    >
-      <Server className="h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
-      <div className="min-w-0 flex-1">
-        <h3 className="font-bold">
-          {tier.name}, {tier.price.display}
-        </h3>
-        <p className="text-muted-foreground text-sm">{t("pricing.selfHostBody")}</p>
-      </div>
-      <a
-        href={SELF_HOST_GUIDE}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="inline-flex items-center gap-1.5 font-semibold text-primary hover:underline"
-      >
-        {tier.cta.label}
-        <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
-      </a>
-    </li>
-  );
-};
 
 const Fact = ({ icon: Icon, title, body }: { icon: LucideIcon; title: string; body: string }) => (
   <li className="flex items-start gap-3.5 rounded-2xl bg-muted/60 p-5">
@@ -228,13 +43,6 @@ export const PricingPage = () => {
     return <Navigate to="/welcome" replace />;
   }
 
-  const tiers = catalog.data?.tiers ?? [];
-  const lead = tiers.filter((tier) => tier.kind === "free_hosted");
-  const row = tiers.filter((tier) => tier.kind === "paid");
-  const trail = tiers.filter((tier) => tier.kind === "enterprise");
-  const selfHosted = tiers.filter((tier) => tier.kind === "free_self_hosted");
-  // The row sets the grid, and the bands span whatever it came to.
-  const columns = Math.min(Math.max(row.length, 1), MAX_COLUMNS);
   const portalUrl = billing?.url ?? "";
 
   return (
@@ -265,42 +73,10 @@ export const PricingPage = () => {
               <Link to="/welcome">{t("pricing.back")}</Link>
             </Button>
           </div>
-        ) : catalog.data ? (
-          <ul
-            className="relative -mt-12 grid grid-cols-1 gap-4 lg:grid-cols-[var(--tier-columns)] lg:gap-5"
-            style={
-              { "--tier-columns": `repeat(${columns}, minmax(0, 1fr))` } as React.CSSProperties
-            }
-            aria-label={t("pricing.tierListAria")}
-          >
-            {lead.map((tier) => (
-              <TierBanner
-                key={tier.id}
-                tier={tier}
-                portalUrl={portalUrl}
-                registrationOpen={registrationOpen}
-              />
-            ))}
-            {row.map((tier) => (
-              <TierCard
-                key={tier.id}
-                tier={tier}
-                portalUrl={portalUrl}
-                registrationOpen={registrationOpen}
-              />
-            ))}
-            {trail.map((tier) => (
-              <TierBanner
-                key={tier.id}
-                tier={tier}
-                portalUrl={portalUrl}
-                registrationOpen={registrationOpen}
-              />
-            ))}
-            {selfHosted.map((tier) => (
-              <SelfHostLine key={tier.id} tier={tier} />
-            ))}
-          </ul>
+        ) : catalog.data && portalUrl ? (
+          <div className="relative -mt-12">
+            <PricingGridFrame portalUrl={portalUrl} registrationOpen={registrationOpen} />
+          </div>
         ) : (
           <p
             className="relative -mt-8 text-center text-muted-foreground text-sm"

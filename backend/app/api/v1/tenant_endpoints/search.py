@@ -1,4 +1,4 @@
-"""`/api/v1/c/{guild_id}/search` — one query across everything in a guild.
+"""`/api/v1/c/{community_id}/search` — one query across everything in a guild.
 
 Guild-scoped like any other content endpoint: the guild comes from the path and
 ``RLSSessionDep`` routes into its schema, so the index answers under the same
@@ -70,11 +70,11 @@ _TYPE_DESCRIPTION = (
 
 
 @router.get("/", response_model=SearchResults)
-async def search_guild(
+async def search_community(
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
-    q: str = Query(description="What to search for.", max_length=1000),
+    search: str = Query(description="What to search for.", max_length=1000),
     types: Optional[List[SearchEntityType]] = Query(
         default=None, description=_TYPE_DESCRIPTION
     ),
@@ -85,30 +85,30 @@ async def search_guild(
     is_template: Optional[bool] = Query(
         default=None, description=_TEMPLATE_DESCRIPTION
     ),
-    limit: int = Query(default=20, ge=1, le=search_service.MAX_LIMIT),
-    offset: int = Query(default=0, ge=0),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=search_service.MAX_PAGE_SIZE),
 ) -> SearchResults:
     """Ranked matches across the guild's tools, comments and tags.
 
-    ``total`` counts entities the caller may see, so it is what a pager should
-    show rather than an estimate to correct later.
+    ``total_count`` counts entities the caller may see, so it is what a pager
+    should show rather than an estimate to correct later.
     """
     return await search_service.search(
         session,
-        query=q,
+        query=search,
         filters=search_service.Filters(
             types=types,
             initiative_id=initiative_id,
             include_archived=include_archived,
             template=is_template,
         ),
-        limit=limit,
-        offset=offset,
+        page=page,
+        page_size=page_size,
     )
 
 
 @router.get("/recent", response_model=List[SearchSuggestion])
-async def recent_guild(
+async def recent_community(
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
@@ -144,10 +144,10 @@ async def recent_guild(
 
 
 @router.get("/suggest", response_model=List[SearchSuggestion])
-async def suggest_guild(
+async def suggest_community(
     session: ActorSessionDep,
     guild_context: SuggestByEntityType,
-    q: str = Query(description="What to jump to.", max_length=200),
+    search: str = Query(description="What to jump to.", max_length=200),
     types: Optional[List[SearchEntityType]] = Query(
         default=None, description=_TYPE_DESCRIPTION
     ),
@@ -174,7 +174,7 @@ async def suggest_guild(
     try:
         return await search_service.suggest(
             session,
-            query=q,
+            query=search,
             user_id=guild_context.user_id,
             filters=search_service.Filters(
                 types=types,

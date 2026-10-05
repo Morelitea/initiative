@@ -35,7 +35,7 @@
       },
       "analytics": {
         "name": "Analítica",
-        "description": "Qué páginas se usan y dónde se atasca la gente, contado en conjunto para saber qué arreglar."
+        "description": "Qué páginas se usan, los errores con los que se topa la gente y lo rápido que cargan las páginas, con el navegador y el dispositivo donde ocurren. Agrupado por un identificador aleatorio de cada visita, nunca por tu cuenta."
       },
       "marketing": {
         "name": "Marketing",

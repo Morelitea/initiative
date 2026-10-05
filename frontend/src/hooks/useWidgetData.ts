@@ -87,7 +87,7 @@ export interface WidgetDataResult {
  * `initiativeId` is the dashboard's own — every fetch below is scoped to it, and
  * a binding cannot say otherwise: dashboards are an initiative's tool, so a
  * widget reads that initiative and nothing else. Without an initiative nothing
- * is fetched at all (unbound, not guild-wide), and a document fetched by id is
+ * is fetched at all (unbound, not community-wide), and a document fetched by id is
  * held against the initiative afterwards, so an id pointing into another one
  * resolves to absent — the same rendering as a deleted or unshared target.
  *
@@ -101,7 +101,7 @@ export interface WidgetDataResult {
  * here says what to run.
  *
  * `dashboardId` is the row the widget sits on, and only the `app` source needs
- * it: an app's data is guild-level, so the proxy is told which
+ * it: an app's data is community-level, so the proxy is told which
  * initiative-scoped surface is asking and decides the read against *that* row's
  * gates.
  */
@@ -154,7 +154,7 @@ export function useWidgetData(
     scoped && source === "sheet_range" ? (binding.document_id ?? null) : null
   );
 
-  // The app palette is one request per guild, shared by every app widget on the
+  // The app palette is one request per community, shared by every app widget on the
   // canvas. It is what turns a binding's `app_uid` into an install id and tells
   // us what freshness the source asks for.
   const isApp = source === "app";
@@ -285,7 +285,7 @@ export function useWidgetData(
         }
         // The catalog answered and the app is not in it: uninstalled, or
         // switched off. Said plainly rather than rendered as an access outcome
-        // — the definition is the guild's and stays stored, and the tile
+        // — the definition is the community's and stays stored, and the tile
         // becomes the surface that asks for the app to be reconnected.
         const appInstalled = (appCatalogQuery.data?.items ?? []).some(
           (item) => item.app_uid === binding.app_uid

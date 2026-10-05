@@ -41,15 +41,15 @@ class NotificationType(str, Enum):
     account_unsuspended = "account_unsuspended"
     #: A community this account holds the seat of was put on hold. Written once,
     #: on the way in, naming whom to contact.
-    guild_on_hold = "guild_on_hold"
+    community_on_hold = "community_on_hold"
     #: A community this account holds the seat of — or owns, by billing's
     #: account — is near the end of its trial, or past it. Written once per
     #: notice billing sends.
-    guild_trial_ending = "guild_trial_ending"
-    guild_trial_ended = "guild_trial_ended"
+    community_trial_ending = "community_trial_ending"
+    community_trial_ended = "community_trial_ended"
     #: A community made for this account, by them or by staff on their behalf.
     #: Written once, where billing sets plans, inviting them to set up its plan.
-    guild_welcome = "guild_welcome"
+    community_welcome = "community_welcome"
     connection_requested = "connection_requested"
     connection_accepted = "connection_accepted"
     message_request_received = "message_request_received"
@@ -64,6 +64,10 @@ class NotificationType(str, Enum):
     #: holds, and waits for the community's seat. Written once per version to
     #: each seat holder; it links to where they accept or decline it.
     app_update_pending = "app_update_pending"
+    #: A case this account filed moved: somebody answered it, or it is now
+    #: waiting on them, in progress or closed. Names the case and its state,
+    #: never what was said.
+    ticket_updated = "ticket_updated"
 
 
 class Notification(SQLModel, table=True):

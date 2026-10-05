@@ -7,10 +7,7 @@ import type {
   ProfileDecorationsOutput,
   UserSelfUpdate,
 } from "@/api/generated/initiativeAPI.schemas";
-import {
-  deleteMyAvatarApiV1UsersMeAvatarDelete,
-  uploadMyAvatarApiV1UsersMeAvatarPut,
-} from "@/api/generated/users/users";
+import { deleteMyAvatar, uploadMyAvatar } from "@/api/generated/users/users";
 import { Button } from "@/components/ui/button";
 import { ImagePicker } from "@/components/ui/image-picker";
 import { Input } from "@/components/ui/input";
@@ -18,9 +15,9 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Tabs, TabsBar, TabsContent, TabsTrigger } from "@/components/ui/tabs";
 import { ProfileAvatar } from "@/components/user/ProfileAvatar";
 import { useUpdateCurrentUser } from "@/hooks/useUsers";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { ImageRenditionError, renderAvatar } from "@/lib/imageRenditions";
+import { toast } from "@/lib/mascotToast";
 import type { AvatarSourceUser, DisplayableUser } from "@/lib/userDisplay";
 
 /** Where this server serves an uploaded picture from. A linked one — from a
@@ -108,7 +105,7 @@ export const ProfilePicture = ({
   };
 
   const pick = (file: File) => {
-    void run(async () => uploadMyAvatarApiV1UsersMeAvatarPut({ file: await renderAvatar(file) }));
+    void run(async () => uploadMyAvatar({ file: await renderAvatar(file) }));
   };
 
   const avatar = (
@@ -158,7 +155,7 @@ export const ProfilePicture = ({
                 variant="ghost"
                 size="sm"
                 disabled={busy}
-                onClick={() => void run(() => deleteMyAvatarApiV1UsersMeAvatarDelete())}
+                onClick={() => void run(() => deleteMyAvatar())}
               >
                 {t("settings:profile.removeUploadedAvatar")}
               </Button>

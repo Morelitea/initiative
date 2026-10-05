@@ -1,14 +1,12 @@
 import { keepPreviousData } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import type {
-  ListProjectsApiV1CGuildIdProjectsGetParams,
-  Tool,
-} from "@/api/generated/initiativeAPI.schemas";
+import type { ListProjectsParams, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { parsePropertyFilters } from "@/components/properties/PropertyFilter";
 import type { ToolListFilters } from "@/components/tools/ToolFilterFields";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useProjects } from "@/hooks/useProjects";
+import { useTagTreeSelection } from "@/hooks/useTagTreeSelection";
 import { useViewPreference } from "@/hooks/useViewPreference";
 
 export type ProjectSortMode = "custom" | "updated" | "created" | "alphabetical" | "recently_viewed";
@@ -24,7 +22,7 @@ const SORT_MODES: ProjectSortMode[] = [
 type UseProjectListViewOptions = {
   /** Which list this tab reads — its initiative, and active, template, or
    *  archived projects. The search and tags are added here. */
-  params: ListProjectsApiV1CGuildIdProjectsGetParams;
+  params: ListProjectsParams;
   /** View-preference namespace, e.g. `project:list` or `project:archive`. */
   storagePrefix: string;
   /**
@@ -84,12 +82,15 @@ export const useProjectListView = ({
     [setPersistedSortMode]
   );
 
-  const viewMode: "grid" | "list" =
-    persistedViewMode === "list" || persistedViewMode === "grid" ? persistedViewMode : "grid";
+  const viewMode: "grid" | "list" | "tags" =
+    persistedViewMode === "list" || persistedViewMode === "grid" || persistedViewMode === "tags"
+      ? persistedViewMode
+      : "grid";
   const setViewMode = useCallback(
-    (next: "grid" | "list") => setPersistedViewMode(next),
+    (next: "grid" | "list" | "tags") => setPersistedViewMode(next),
     [setPersistedViewMode]
   );
+  const tagTree = useTagTreeSelection(viewMode === "tags");
 
   const tagFilters = Array.isArray(persistedTagFilters)
     ? persistedTagFilters.filter((n): n is number => typeof n === "number" && Number.isFinite(n))
@@ -102,11 +103,14 @@ export const useProjectListView = ({
   );
 
   const search = useDebouncedValue(searchQuery, 300).trim();
+  // A tag picked in the tree narrows by it; with none picked, the filter
+  // panel's tags still apply.
+  const queryTagIds = tagTree.tagIds.length > 0 ? tagTree.tagIds : tagFilters;
   const query = useProjects(
     {
       ...params,
       ...(search ? { search } : {}),
-      ...(tagFilters.length > 0 ? { tag_ids: tagFilters } : {}),
+      ...(queryTagIds.length > 0 ? { tag_ids: queryTagIds } : {}),
       ...(propertyFilters ? { property_filters: propertyFilters } : {}),
     },
     // The cards stay on screen while a changed search is in flight.
@@ -230,7 +234,9 @@ export const useProjectListView = ({
     isError: query.isError,
     /** The list shows only some of the projects a manual order covers:
      *  narrowed by the server's search or tags, or to favourites. */
-    narrowed: Boolean(search) || tagFilters.length > 0 || Boolean(propertyFilters) || favoritesOnly,
+    narrowed:
+      Boolean(search) || queryTagIds.length > 0 || Boolean(propertyFilters) || favoritesOnly,
+    tagTree,
     filteredProjects,
     pinnedProjects,
     sortedProjects,

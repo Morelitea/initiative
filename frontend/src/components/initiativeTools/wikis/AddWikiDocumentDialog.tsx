@@ -13,8 +13,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { useDocumentsList } from "@/hooks/useDocuments";
 import { useAddWikiDocument } from "@/hooks/useWikis";
-import { toast } from "@/lib/chesterToast";
 import { documentIcon } from "@/lib/documentIcon";
+import { toast } from "@/lib/mascotToast";
 import { cn } from "@/lib/utils";
 
 interface AddWikiDocumentDialogProps {

@@ -136,7 +136,7 @@ Initiative takes two perfectly ordinary words and gives them specific jobs. Sorr
 And yes, the app is also called Initiative. We know. The [glossary](reference/glossary.md) covers the other words we've bent to our own purposes.
 
 ??? techspec "For the technically minded — what this actually is"
-    Initiative is a web application you can run yourself. A single-page web app talking to a Python service backed by PostgreSQL. Each community gets its **own database schema**, so a request in one community cannot address another community's tables at all; the finer layers inside a community — which effort, which role, which item — are enforced by the database's own row-level security rather than by application code. There's a companion mobile app for iOS and Android. More in [Security & privacy](security/index.md) and the [server guide](running-a-server/index.md).
+    Initiative is a web application you can run yourself. A single-page web app talking to a Python service backed by PostgreSQL. Each community gets its **own database schema**, so a request in one community cannot address another community's tables at all; the finer layers inside a community — which effort, which role, which item — are enforced by the database's own row-level security rather than by application code. There are companion apps for Android and for Windows, Mac and Linux, and the web app installs itself on an iPhone or iPad from the browser. More in [Security & privacy](security/index.md) and the [server guide](running-a-server/index.md).
 
 ## Built in the open
 

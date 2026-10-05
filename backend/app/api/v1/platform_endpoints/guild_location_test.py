@@ -9,14 +9,14 @@ import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.services.platform import app_settings as app_settings_service
 from app.testing.factories import create_guild
 
 
 async def _admin(session: AsyncSession, acting_user):
     guild = await create_guild(session, name="Queen Anne Gardeners")
-    admin = await acting_user(guild_role=GuildRole.admin, guild=guild)
+    admin = await acting_user(guild_role=CommunityRole.admin, guild=guild)
     return guild, admin
 
 
@@ -163,7 +163,7 @@ async def test_a_member_cannot_set_the_location(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     guild = await create_guild(session, name="Queen Anne Gardeners")
-    member = await acting_user(guild_role=GuildRole.member, guild=guild)
+    member = await acting_user(guild_role=CommunityRole.member, guild=guild)
 
     response = await _patch(
         client, guild.id, member.headers, {"location": {"country": "US"}}
@@ -185,9 +185,8 @@ async def test_members_and_the_directory_read_the_location(
         name="Queen Anne Gardeners",
         location={"country": "US", "region_code": "WA", "city": "Seattle"},
     )
-    member = await acting_user(guild_role=GuildRole.member, guild=guild)
+    member = await acting_user(guild_role=CommunityRole.member, guild=guild)
     guild.is_community = True
-    guild.show_member_names = False
     guild.categories = ["other"]
     guild.has_adult_content = False
     session.add(guild)
@@ -213,7 +212,6 @@ async def test_members_and_the_directory_read_the_location(
 async def _listed_at(session: AsyncSession, name: str, location: dict | None):
     guild = await create_guild(session, name=name, location=location)
     guild.is_community = True
-    guild.show_member_names = False
     guild.categories = ["other"]
     guild.has_adult_content = False
     session.add(guild)
@@ -253,17 +251,17 @@ async def located_directory(session: AsyncSession):
 @pytest.mark.parametrize(
     "params,expected",
     [
-        ({"q": "seattle"}, {"Gardeners"}),
-        ({"q": "Queen Anne"}, {"Gardeners"}),
-        ({"q": "washington"}, {"Gardeners"}),
-        ({"q": "98109"}, {"Gardeners"}),
-        ({"q": "kyoto"}, {"Go Club"}),
+        ({"search": "seattle"}, {"Gardeners"}),
+        ({"search": "Queen Anne"}, {"Gardeners"}),
+        ({"search": "washington"}, {"Gardeners"}),
+        ({"search": "98109"}, {"Gardeners"}),
+        ({"search": "kyoto"}, {"Go Club"}),
         # A country is stored as a code: the client names the codes the
         # search text means, and either is enough.
-        ({"q": "Japan", "q_country": ["jp"]}, {"Go Club"}),
-        ({"q": "Japan"}, set()),
+        ({"search": "Japan", "search_country": ["jp"]}, {"Go Club"}),
+        ({"search": "Japan"}, set()),
         # A malformed code is ignored rather than refused.
-        ({"q": "Japan", "q_country": ["japan"]}, set()),
+        ({"search": "Japan", "search_country": ["japan"]}, set()),
     ],
 )
 async def test_the_directory_searches_where_a_community_is(
@@ -281,10 +279,10 @@ async def test_the_directory_searches_where_a_community_is(
 async def test_a_country_alone_does_not_filter_without_a_search(
     client: AsyncClient, acting_user, located_directory
 ):
-    """``q_country`` widens a search; it is not a filter of its own."""
+    """``search_country`` widens a search; it is not a filter of its own."""
     browser = await acting_user("member")
 
-    names = await _directory_names(client, browser.headers, q_country=["JP"])
+    names = await _directory_names(client, browser.headers, search_country=["JP"])
 
     assert names == {"Gardeners", "Go Club", "Choir"}
 

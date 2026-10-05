@@ -1,15 +1,13 @@
 {
   "title": "Moderación",
   "subtitle": "Lo que se ha denunciado aquí y qué se hizo al respecto.",
-  "open": "Abierta",
   "tabs": {
     "open": "Abiertas",
     "settled": "Resueltas"
   },
   "empty": {
     "open": "No se ha denunciado nada.",
-    "settled": "Todavía no se ha resuelto nada.",
-    "noFurther": "Nada más."
+    "settled": "Todavía no se ha resuelto nada."
   },
   "reportedCount_one": "Denunciado por {{count}} persona",
   "reportedCount_other": "Denunciado por {{count}} personas",
@@ -84,7 +82,6 @@
     "description": "Hasta dónde llega el acceso a cada cosa. Ábrela para cambiarlo.",
     "empty": "Aquí no se ha compartido nada con nadie en concreto.",
     "everyone": "Todo el mundo aquí",
-    "viaDashboard": "A través de un panel",
     "people_one": "{{count}} persona",
     "people_other": "{{count}} personas",
     "roles_one": "{{count}} rol",

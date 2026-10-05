@@ -37,6 +37,7 @@ export {
   type PeerKeyChange,
   peerDeviceChanges,
   type StoredMessage,
+  serveAccount,
 } from "./store";
 export { wantThreadHistory } from "./threadHistory";
 export { ownDeviceWaiting } from "./trust";

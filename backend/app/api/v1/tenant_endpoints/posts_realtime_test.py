@@ -16,7 +16,7 @@ from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.tenant.post import Post
 from app.services.content_sockets import sockets
 from app.testing.sockets import FakeWebSocket, settle, watch_events_bus
@@ -87,7 +87,7 @@ class _Room:
 async def test_posting_a_notice_tells_the_room(
     client: AsyncClient, acting_user, session
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _posts_enabled(session, a.initiative)
 
     async with _Room(a.guild.id, a.initiative.id) as room:
@@ -123,7 +123,7 @@ async def test_a_scheduled_draft_says_nothing_until_it_goes_up(
     client: AsyncClient, acting_user, session
 ):
     """A draft is nobody else's business, so no board is told to refetch."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _posts_enabled(session, a.initiative)
     later = datetime.now(timezone.utc) + timedelta(days=1)
 
@@ -146,7 +146,7 @@ async def test_a_scheduled_draft_says_nothing_until_it_goes_up(
 async def test_publishing_a_draft_now_tells_the_room(
     client: AsyncClient, acting_user, session
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _posts_enabled(session, a.initiative)
     later = datetime.now(timezone.utc) + timedelta(days=1)
     created = await client.post(
@@ -182,7 +182,7 @@ async def test_publishing_a_draft_now_tells_the_room(
 async def test_editing_pinning_and_deleting_each_tell_the_room(
     client: AsyncClient, acting_user, session
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _posts_enabled(session, a.initiative)
     post = await create_post(session, a.initiative, a.user)
 
@@ -211,7 +211,7 @@ async def test_editing_pinning_and_deleting_each_tell_the_room(
 async def test_answering_a_poll_tells_the_room_the_tallies_moved(
     client: AsyncClient, acting_user, session
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _posts_enabled(session, a.initiative)
     post = await create_post(session, a.initiative, a.user)
     written = await client.put(
@@ -253,10 +253,10 @@ async def test_a_notice_never_reaches_another_initiatives_room(
     watching their own other board is told about their own notice, correctly,
     and is the wrong person to ask this question of.
     """
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _posts_enabled(session, a.initiative)
     elsewhere = await create_initiative(session, a.guild, a.user)
-    outsider = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+    outsider = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
 
     async with _Room(a.guild.id, elsewhere.id, user_id=outsider.user.id) as room:
         response = await client.post(

@@ -6,7 +6,7 @@ import { HttpResponse } from "msw";
 import { useMemo } from "react";
 import { describe, expect, it } from "vitest";
 
-import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
 import { documentExtension } from "@/components/documents/editor/document-extension";
@@ -55,7 +55,7 @@ describe("a read-only document's smart chips", () => {
   it("asks for the state of what it refers to", async () => {
     asked = [];
     server.use(
-      guildHttp.get("/smart-chips", ({ request }) => {
+      communityHttp.get("/smart-chips", ({ request }) => {
         asked = new URL(request.url).searchParams.getAll("ref");
         return HttpResponse.json({ items: [] });
       })

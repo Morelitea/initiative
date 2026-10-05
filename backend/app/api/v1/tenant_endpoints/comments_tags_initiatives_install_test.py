@@ -16,7 +16,7 @@ from sqlmodel import select
 from app.core.messages import AppMessages
 from app.core.relationships import RelationshipType
 from app.core.search import SearchEntityType
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.platform.notification import Notification
 from app.models.tenant.comment import Comment
 from app.models.tenant.relationship import EntityRelationship
@@ -140,7 +140,7 @@ async def test_posts_as_itself_and_the_notices_name_the_app(
     scopes = ["comments:write", "documents:read"]
     installed = await install_app(session, acting_user, role_session, granted=scopes)
     member = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=installed.guild,
         initiative=installed.placed,
         initiative_role="member",
@@ -218,7 +218,7 @@ async def test_lists_the_tags_naming_the_community_by_reference(
     )
     assert listed.status_code == 200, listed.text
     assert [t["name"] for t in listed.json()] == ["alpha", "beta"]
-    assert all(isinstance(t["guild_id"], str) for t in listed.json())
+    assert all(isinstance(t["community_id"], str) for t in listed.json())
     assert_names_nobody(listed.text, [installed.seat.user.id, installed.guild.id])
 
 
@@ -362,7 +362,7 @@ async def test_reads_the_initiatives_it_is_placed_in(
     assert listed.status_code == 200, listed.text
     [only] = listed.json()
     assert only["id"] == installed.placed.id
-    assert isinstance(only["guild_id"], str)
+    assert isinstance(only["community_id"], str)
     # Neither the list nor one initiative's read names a roster.
     assert "members" not in only
     assert_names_nobody(listed.text, [installed.seat.user.id, guild_id])
@@ -385,7 +385,7 @@ async def test_reads_the_initiatives_it_is_placed_in(
     assert other.status_code == 404, other.text
 
     whole_guild = await client.get(
-        guild_url(guild_id, "/initiatives/?scope=guild"), headers=headers
+        guild_url(guild_id, "/initiatives/?scope=community"), headers=headers
     )
     assert whole_guild.status_code == 403, whole_guild.text
 

@@ -1,9 +1,9 @@
 import { HttpResponse } from "msw";
 
-import { guildHttp } from "../guildHttp";
+import { communityHttp } from "../communityHttp";
 
 export const tagHandlers = [
-  guildHttp.get("/tags/", () => {
+  communityHttp.get("/tags/", () => {
     return HttpResponse.json([]);
   }),
 ];

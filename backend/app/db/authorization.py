@@ -57,7 +57,7 @@ from app.models.platform.access_grant import (
     AccessGrantStatus,
     SettingsLevel,
 )
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.platform.user import UserRole
 from app.models.tenant.initiative import DEFAULT_PERMISSION_VALUES, PermissionKey
 from app.models.tenant.resource_grant import (
@@ -461,7 +461,6 @@ STANDING_FIELDS: tuple[tuple[str, str, str], ...] = (
     _read(gucs.ROLE_GRANTS),
     _read(gucs.ROLE_DENIES),
     _read(gucs.ENABLED_TOOLS),
-    _read(gucs.VIA_DASHBOARD_ID),
     # An installed app acting in the community: which install, and the
     # resources its scopes let it read and write. Unset on every request a
     # person makes.
@@ -821,9 +820,8 @@ p_tool IS NULL
 #: The grant rows on ``(p_tool, p_resource_id)`` that reach this reader: one
 #: naming them, one on an initiative role they hold, one shared with every
 #: member of an initiative they are in (or of the community, on a row that
-#: belongs to no initiative), the dashboard a published view is read through,
-#: or one naming the installed app the request is for. Written over the row
-#: alias ``g``.
+#: belongs to no initiative), or one naming the installed app the request is
+#: for. Written over the row alias ``g``.
 GRANT_REACHES_READER = f"""\
 g.resource_type = p_tool
               AND g.resource_id = p_resource_id
@@ -835,8 +833,6 @@ g.resource_type = p_tool
                     AND {_B.this_guild}
                     AND (g.initiative_id IS NULL
                          OR g.initiative_id = ANY ({_B.field("member_initiatives")})))
-                OR (g.dashboard_id IS NOT NULL
-                    AND g.dashboard_id = {_B.field("via_dashboard_id")})
                 OR (g.app_install_id IS NOT NULL
                     AND g.app_install_id = {_B.install_id})
               )"""
@@ -954,8 +950,9 @@ _SHARES = f"""(v_level = '{_OWNER}'
 #: - ``share``: as delete, and see ``_SHARES`` above.
 #: - ``configure`` (projects): owner or a manager of the initiative, and the
 #:   row can be changed.
-#: - ``export``: owner. Allowed even when archived, since exporting changes
-#:   nothing.
+#: - ``export``: owner, on a row of no initiative or of one the request reads
+#:   that does not keep its content in. Allowed even when archived, since
+#:   exporting changes nothing.
 #: - ``unarchive``: as edit, for a row that was archived on its own. A row
 #:   archived because its initiative was archived comes back with the
 #:   initiative instead.
@@ -972,7 +969,10 @@ BEGIN
     IF v_level IS NULL THEN
         RETURN v_actions;
     END IF;
-    IF v_level = '{_OWNER}' THEN
+    IF v_level = '{_OWNER}'
+       AND (p_initiative_id IS NULL
+            OR EXISTS (SELECT 1 FROM initiatives i
+                       WHERE i.id = p_initiative_id AND NOT i.keep_content_in)) THEN
         v_actions := v_actions || 'export'::text;
     END IF;
     IF {_MAY_CHANGE} THEN
@@ -1225,7 +1225,7 @@ AS $function$
         FROM public.guild_memberships m
         WHERE m.guild_id = p_guild_id
           AND m.user_id = p_user_id
-          AND m.role = '{GuildRole.superadmin.value}'
+          AND m.role = '{CommunityRole.superadmin.value}'
     )
     -- A live superadmin settings grant satisfies the same predicate.
     OR EXISTS (

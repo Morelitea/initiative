@@ -1,9 +1,8 @@
 {
   "page": {
     "title": "Mis estadísticas",
-    "subtitle": "Rastrea tu productividad y métricas de finalización de tareas",
-    "guildFilterPlaceholder": "Seleccionar comunidad",
-    "allGuilds": "Todas las comunidades",
+    "communityFilterPlaceholder": "Seleccionar comunidad",
+    "allCommunities": "Todas las comunidades",
     "loading": "Cargando estadísticas\u2026",
     "error": "No se pudieron cargar las estadísticas. Inténtalo más tarde."
   },
@@ -33,7 +32,7 @@
     "assigned": "Asignadas",
     "completed": "Completadas"
   },
-  "guildBreakdown": {
+  "communityBreakdown": {
     "title": "Tareas por comunidad",
     "description": "Desglose de tareas completadas por comunidad",
     "noData": "No hay datos de comunidad disponibles"

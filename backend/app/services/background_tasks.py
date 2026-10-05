@@ -187,6 +187,18 @@ def start_background_tasks() -> list[asyncio.Task]:
         process_jti_blocklist_purges,
         JTI_PURGE_POLL_SECONDS,
     )
+    from app.services.platform.access_grants import (
+        GRANT_EXPIRY_POLL_SECONDS,
+        process_grant_expiry,
+    )
+    from app.services.auth.held_changes import (
+        HOLD_SWEEP_POLL_SECONDS,
+        process_due_holds,
+    )
+    from app.services.platform.ticket_notices import (
+        TICKET_NOTICE_POLL_SECONDS,
+        process_ticket_notices,
+    )
     from app.services.marketplace.tuf_registry import (
         process_registry_refresh,
         registry_available,
@@ -279,6 +291,19 @@ def start_background_tasks() -> list[asyncio.Task]:
                 process_dead_session_purge,
                 SESSION_PURGE_POLL_SECONDS,
                 "session-purge",
+            )
+        ),
+        asyncio.create_task(
+            _loop_worker(
+                process_grant_expiry, GRANT_EXPIRY_POLL_SECONDS, "grant-expiry"
+            )
+        ),
+        asyncio.create_task(
+            _loop_worker(process_due_holds, HOLD_SWEEP_POLL_SECONDS, "held-changes")
+        ),
+        asyncio.create_task(
+            _loop_worker(
+                process_ticket_notices, TICKET_NOTICE_POLL_SECONDS, "ticket-notices"
             )
         ),
     ]

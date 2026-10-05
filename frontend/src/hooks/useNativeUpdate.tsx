@@ -1,4 +1,5 @@
 import { App } from "@capacitor/app";
+import { Capacitor } from "@capacitor/core";
 import { SplashScreen } from "@capacitor/splash-screen";
 import { type BundleInfo, CapacitorUpdater } from "@capgo/capacitor-updater";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -6,8 +7,10 @@ import { useTranslation } from "react-i18next";
 
 import { compareVersions } from "@/hooks/useDockerHubVersion";
 import { useServer } from "@/hooks/useServer";
-import { toast } from "@/lib/chesterToast";
-import { verifiedStatement } from "@/lib/otaTrust";
+import { autoUpdateConsented, desktopCanUpdate } from "@/lib/desktopUpdates";
+import { toast } from "@/lib/mascotToast";
+import { type UpdateStatement, verifiedStatement } from "@/lib/otaTrust";
+import DesktopUpdater from "@/plugins/desktopUpdater";
 
 const CURRENT_VERSION = __APP_VERSION__;
 
@@ -24,6 +27,8 @@ interface NativeBundleManifest {
 interface PromptState {
   show: boolean;
   version: string;
+  /** The app version the bundle needs, which names the release holding it. */
+  minNativeVersion?: string;
 }
 
 const HIDDEN: PromptState = { show: false, version: "" };
@@ -37,13 +42,33 @@ export const buildBundleDownloadUrl = (serverUrl: string, manifestUrl: string): 
   new URL(manifestUrl, new URL(serverUrl).origin).toString();
 
 /**
+ * The oldest app this device's kind of app may be to run the bundle. The
+ * desktop app has a floor of its own; a statement from before it names only
+ * the phone app's.
+ */
+export const floorFor = (statement: UpdateStatement, platform: string): string =>
+  platform === "electron"
+    ? (statement.minDesktopVersion ?? statement.minNativeVersion)
+    : statement.minNativeVersion;
+
+/** The `major.minor.patch` of a version, without any `-suffix`. */
+const coreOf = (version: string): string => version.split("-")[0];
+
+/** Whether two versions share a major and minor number. */
+const sameMinor = (a: string, b: string): boolean =>
+  coreOf(a).split(".").slice(0, 2).join(".") === coreOf(b).split(".").slice(0, 2).join(".");
+
+/**
  * Decide what to do with a served bundle, given the running web bundle version, the installed
  * native shell version, and the bundle's requirements. Pure so it can be unit-tested.
  *
- * - `up-to-date`: the running bundle already matches the server (any version difference,
- *   including a downgrade, is "not up to date" and triggers a download).
+ * - `up-to-date`: the running bundle already matches the server.
+ * - `older-than-app`: the bundle is older than the one the installed app shipped with, so the app
+ *   keeps what it has. Only the `major.minor.patch` counts, so a suffixed build of the shipped
+ *   version still installs.
  * - `native-required`: the bundle needs a newer native app than the one installed → the user
- *   must update from the store; an OTA can't add native code.
+ *   must update from the store; an OTA can't add native code. On iOS a bundle from another
+ *   minor release also comes through the App Store, so only patch releases arrive over the air.
  * - `download`: fetch and offer the new bundle.
  */
 export const decideNativeUpdate = (args: {
@@ -51,11 +76,18 @@ export const decideNativeUpdate = (args: {
   currentVersion: string;
   nativeVersion: string;
   minNativeVersion: string;
-}): "up-to-date" | "native-required" | "download" => {
+  platform?: string;
+}): "up-to-date" | "older-than-app" | "native-required" | "download" => {
   if (compareVersions(args.manifestVersion, args.currentVersion) === 0) {
     return "up-to-date";
   }
+  if (compareVersions(coreOf(args.manifestVersion), coreOf(args.nativeVersion)) < 0) {
+    return "older-than-app";
+  }
   if (compareVersions(args.nativeVersion, args.minNativeVersion) < 0) {
+    return "native-required";
+  }
+  if (args.platform === "ios" && !sameMinor(args.manifestVersion, args.nativeVersion)) {
     return "native-required";
   }
   return "download";
@@ -123,7 +155,9 @@ const awaitReadyBundle = async (version: string, timeoutMs = 60_000): Promise<Bu
  *    A server whose bundle is unsigned is told about once and left on the current bundle.
  *  - Native compatibility: if the bundle needs a newer native shell than the installed
  *    APK/IPA (`minNativeVersion` > `current().native`), we skip the OTA and surface a
- *    "update from the store" prompt instead — a web bundle can't add native code.
+ *    "update from the store" prompt instead — a web bundle can't add native code. On iOS
+ *    that also applies to a bundle from another minor release.
+ *  - Floor: a bundle older than the one the installed app shipped with is never installed.
  *  - Rollback: `notifyAppReady()` (called in `main.tsx`) lets the updater revert a bundle
  *    that fails to boot.
  *
@@ -175,20 +209,48 @@ export const useNativeUpdate = () => {
       }
 
       const { native } = await CapacitorUpdater.current();
+      const minNativeVersion = floorFor(statement, Capacitor.getPlatform());
       const decision = decideNativeUpdate({
         manifestVersion: statement.version,
         currentVersion: CURRENT_VERSION,
         nativeVersion: native,
-        minNativeVersion: statement.minNativeVersion,
+        minNativeVersion,
+        platform: Capacitor.getPlatform(),
       });
       if (decision === "up-to-date") {
+        return;
+      }
+      if (decision === "older-than-app") {
+        handledVersionRef.current = statement.version;
         return;
       }
       if (decision === "native-required") {
         // Mark handled so we don't re-prompt on every foreground resume this session
         // (re-checked on the next cold start).
         handledVersionRef.current = statement.version;
-        setNativeUpdateRequired({ show: true, version: statement.version });
+        // Where the person allowed it, the desktop app fetches its replacement
+        // itself and only asks to restart. Otherwise, or if that fails, it asks.
+        if (autoUpdateConsented() && (await desktopCanUpdate())) {
+          try {
+            await DesktopUpdater.download({ version: minNativeVersion });
+            // Stays until answered: this release does not prompt again this session.
+            toast.info(t("nativeUpdate.desktopReady"), {
+              duration: Number.POSITIVE_INFINITY,
+              action: {
+                label: t("nativeUpdate.restart"),
+                onClick: () => void DesktopUpdater.install(),
+              },
+            });
+            return;
+          } catch (error) {
+            console.debug("Desktop app update failed:", error);
+          }
+        }
+        setNativeUpdateRequired({
+          show: true,
+          version: statement.version,
+          minNativeVersion,
+        });
         return;
       }
 

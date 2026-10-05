@@ -2,7 +2,7 @@
  * How one install takes new versions, and the button for when it does not.
  *
  * Automatic is where an install starts, so the switch here is the way *out* of
- * it rather than something to find and turn on. Turned off, the guild reads
+ * it rather than something to find and turn on. Turned off, the community reads
  * each version first and applies it with the button beside it — the same re-pin
  * the server's sweep would have done, asked for by hand.
  *
@@ -18,7 +18,7 @@
  * version; declining keeps the current version and stops the asking until a
  * newer one is published.
  *
- * Guild admins only — the caller decides that, since this renders inside a
+ * Community admins only — the caller decides that, since this renders inside a
  * section that has already made the call.
  */
 
@@ -26,19 +26,22 @@ import { isAxiosError } from "axios";
 import { Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
-import type { GuildAppDetail, GuildAppUpgradeAsks } from "@/api/generated/initiativeAPI.schemas";
+import type {
+  CommunityAppDetail,
+  CommunityAppUpgradeAsks,
+} from "@/api/generated/initiativeAPI.schemas";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { useDeclineAppUpgrade, useUpgradeApp } from "@/hooks/useGuildAppDetail";
-import { useUpdateGuildApp } from "@/hooks/useGuildApps";
+import { useDeclineAppUpgrade, useUpgradeApp } from "@/hooks/useCommunityAppDetail";
+import { useUpdateCommunityApp } from "@/hooks/useCommunityApps";
 import { type AppNames, scopeSentence } from "@/lib/appScopes";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 import { localized } from "@/lib/widgets/widgetMeta";
 
-export function AppUpdatesPanel({ app }: { app: GuildAppDetail }) {
+export function AppUpdatesPanel({ app }: { app: CommunityAppDetail }) {
   const { t } = useTranslation(["apps", "common"]);
-  const update = useUpdateGuildApp(app.id);
+  const update = useUpdateCommunityApp(app.id);
   const upgrade = useUpgradeApp(app.id);
   const pending = app.update_version ?? null;
   const asks = app.pending_update ?? null;
@@ -106,7 +109,7 @@ function PendingUpdate({
   appNames,
 }: {
   appId: number;
-  asks: GuildAppUpgradeAsks;
+  asks: CommunityAppUpgradeAsks;
   appNames?: AppNames;
 }) {
   const { t, i18n } = useTranslation(["apps", "common", "nav"]);

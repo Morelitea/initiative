@@ -4,6 +4,8 @@ import { getAuthToken } from "@/api/client";
 import { invalidate, q } from "@/api/query-keys";
 import { useAuth } from "@/hooks/useAuth";
 import { refreshNotifications } from "@/hooks/useNotifications";
+import { refreshFiledTickets } from "@/hooks/useTickets";
+import { type AlertFrame, receiveAlert } from "@/lib/desktopAlerts";
 import { openLiveSocket } from "@/lib/liveSocket";
 import { buildApiWsUrl } from "@/lib/wsUrl";
 
@@ -72,9 +74,9 @@ export const useNotificationStreamConnected = (): boolean =>
 /**
  * Subscribe to the signed-in user's notification channel.
  *
- * The inbox is personal and cross-guild, so this socket is addressed by
+ * The inbox is personal and cross-community, so this socket is addressed by
  * nothing but the credential — unlike `useRealtimeUpdates`, whose socket is
- * per-guild and only exists inside a `/c/{guildId}` route. It therefore stays
+ * per-community and only exists inside a `/c/{communityId}` route. It therefore stays
  * open on personal routes too, which is exactly where the bell still lives.
  *
  * Every frame is a content-free "your inbox changed"; the response is to
@@ -140,6 +142,7 @@ export const useNotificationStream = () => {
     refreshAccount();
     refreshContacts();
     void invalidate(q.directMessages());
+    void refreshFiledTickets();
   }, [refreshAccount, refreshContacts]);
 
   useEffect(
@@ -173,7 +176,7 @@ export const useNotificationStream = () => {
         }
       },
       onFrame: (payload) => {
-        const frame = payload as { resource?: string; action?: string };
+        const frame = payload as { resource?: string; action?: string } & AlertFrame;
         // Several channels over one socket. A frame carries nothing but which
         // one it is; what it means is a refetch, and the refetch is where
         // anything is actually decided.
@@ -186,10 +189,17 @@ export const useNotificationStream = () => {
           resync();
         } else if (frame.resource === "notification") {
           void refreshNotifications(frame.action);
+        } else if (frame.resource === "alert") {
+          // The desktop app's system notifications; nothing else reads them.
+          receiveAlert(frame);
         } else if (frame.resource === "account") {
           refreshAccount();
         } else if (frame.resource === "contacts") {
           refreshContacts();
+        } else if (frame.resource === "tickets") {
+          // One of the tickets this person filed moved: the team answered, or
+          // its state changed. The open ticket page reads it again.
+          void refreshFiledTickets();
         } else if (frame.resource === "dm") {
           // A direct-message frame says only that there is something to
           // collect. The page that owns the mailbox does the reading.

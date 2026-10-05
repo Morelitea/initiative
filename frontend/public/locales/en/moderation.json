@@ -1,15 +1,13 @@
 {
   "title": "Moderation",
   "subtitle": "What people have reported here, and what was done about it.",
-  "open": "Open",
   "tabs": {
     "open": "Open",
     "settled": "Settled"
   },
   "empty": {
     "open": "Nothing has been reported.",
-    "settled": "Nothing has been settled yet.",
-    "noFurther": "Nothing further."
+    "settled": "Nothing has been settled yet."
   },
   "reportedCount_one": "Reported by {{count}} person",
   "reportedCount_other": "Reported by {{count}} people",
@@ -84,7 +82,6 @@
     "description": "How widely each thing here is reached. Open one to change it.",
     "empty": "Nothing here has been shared with anybody in particular.",
     "everyone": "Everyone here",
-    "viaDashboard": "Through a dashboard",
     "people_one": "{{count}} person",
     "people_other": "{{count}} people",
     "roles_one": "{{count}} role",

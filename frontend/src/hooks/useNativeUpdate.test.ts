@@ -1,7 +1,44 @@
+import { Capacitor } from "@capacitor/core";
 import type { BundleInfo } from "@capgo/capacitor-updater";
-import { describe, expect, it } from "vitest";
+import { renderHook, waitFor } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { buildBundleDownloadUrl, decideNativeUpdate, findReadyBundle } from "./useNativeUpdate";
+import {
+  buildBundleDownloadUrl,
+  decideNativeUpdate,
+  findReadyBundle,
+  floorFor,
+  useNativeUpdate,
+} from "./useNativeUpdate";
+
+// A desktop app on 0.74.0 whose server's update needs the 0.80.0 app.
+const native = vi.hoisted(() => ({
+  consent: true,
+  download: vi.fn(),
+  install: vi.fn(),
+  toast: vi.fn(),
+}));
+vi.mock("@/hooks/useServer", () => ({
+  useServer: () => ({ serverUrl: "https://s.example/api/v1", isNativePlatform: true }),
+}));
+vi.mock("@/lib/otaTrust", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/otaTrust")>()),
+  verifiedStatement: async (statement: string) => JSON.parse(statement),
+}));
+vi.mock("@capgo/capacitor-updater", () => ({
+  CapacitorUpdater: { current: async () => ({ native: "0.74.0" }) },
+}));
+vi.mock("@capacitor/app", () => ({
+  App: { addListener: async () => ({ remove: () => undefined }) },
+}));
+vi.mock("@/lib/desktopUpdates", () => ({
+  autoUpdateConsented: () => native.consent,
+  desktopCanUpdate: async () => true,
+}));
+vi.mock("@/plugins/desktopUpdater", () => ({
+  default: { download: native.download, install: native.install },
+}));
+vi.mock("@/lib/mascotToast", () => ({ toast: { info: native.toast } }));
 
 const bundle = (over: Partial<BundleInfo>): BundleInfo => ({
   id: "1",
@@ -37,6 +74,22 @@ describe("buildBundleDownloadUrl", () => {
   });
 });
 
+describe("floorFor", () => {
+  const statement = { v: 1, version: "0.75.0", sha256: "", minNativeVersion: "0.73.0" } as const;
+
+  it("holds the phone app to the phone floor", () => {
+    expect(floorFor({ ...statement, minDesktopVersion: "0.75.0" }, "android")).toBe("0.73.0");
+  });
+
+  it("holds the desktop app to its own floor", () => {
+    expect(floorFor({ ...statement, minDesktopVersion: "0.75.0" }, "electron")).toBe("0.75.0");
+  });
+
+  it("falls back to the phone floor for a statement made before the desktop had one", () => {
+    expect(floorFor(statement, "electron")).toBe("0.73.0");
+  });
+});
+
 describe("decideNativeUpdate", () => {
   const base = { currentVersion: "0.48.0", nativeVersion: "0.48.0", minNativeVersion: "0.48.0" };
 
@@ -51,8 +104,35 @@ describe("decideNativeUpdate", () => {
     expect(decideNativeUpdate({ ...base, manifestVersion: "0.49.0" })).toBe("download");
   });
 
-  it("downloads when the server is older (downgrade to match is desired)", () => {
-    expect(decideNativeUpdate({ ...base, manifestVersion: "0.47.0" })).toBe("download");
+  it("goes back to an older bundle that is still no older than the app shipped with", () => {
+    expect(
+      decideNativeUpdate({ ...base, currentVersion: "0.49.0", manifestVersion: "0.48.1" })
+    ).toBe("download");
+  });
+
+  it("never installs a bundle older than the one the app shipped with", () => {
+    expect(decideNativeUpdate({ ...base, manifestVersion: "0.47.9" })).toBe("older-than-app");
+    expect(
+      decideNativeUpdate({ ...base, currentVersion: "0.49.0", manifestVersion: "0.47.0" })
+    ).toBe("older-than-app");
+  });
+
+  it("still installs a suffixed build of the version the app shipped with", () => {
+    expect(
+      decideNativeUpdate({ ...base, currentVersion: "0.48.1", manifestVersion: "0.48.0-dev-abc" })
+    ).toBe("download");
+  });
+
+  it("takes only patch releases over the air on iOS", () => {
+    const ios = { ...base, platform: "ios" };
+    expect(decideNativeUpdate({ ...ios, manifestVersion: "0.48.3" })).toBe("download");
+    expect(decideNativeUpdate({ ...ios, manifestVersion: "0.48.3-dev-abc" })).toBe("download");
+    expect(decideNativeUpdate({ ...ios, manifestVersion: "0.49.0" })).toBe("native-required");
+    expect(decideNativeUpdate({ ...ios, manifestVersion: "1.48.0" })).toBe("native-required");
+    // Other platforms keep taking feature releases.
+    expect(decideNativeUpdate({ ...base, platform: "android", manifestVersion: "0.49.0" })).toBe(
+      "download"
+    );
   });
 
   it("requires a native update when the bundle needs a newer shell than installed", () => {
@@ -125,5 +205,58 @@ describe("findReadyBundle", () => {
 
   it("returns null when no bundles are present", () => {
     expect(findReadyBundle([], "0.49.0")).toBeNull();
+  });
+});
+
+describe("useNativeUpdate on a desktop app that may update itself", () => {
+  beforeEach(() => {
+    native.consent = true;
+    vi.spyOn(Capacitor, "getPlatform").mockReturnValue("electron");
+    const statement = JSON.stringify({
+      v: 1,
+      version: "0.81.0",
+      sha256: "",
+      minNativeVersion: "0.73.0",
+      minDesktopVersion: "0.80.0",
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({ version: "0.81.0", url: "/api/v1/x", statement, signature: "s" })
+          )
+      )
+    );
+  });
+
+  it("fetches the new app in the background and offers a restart that stays", async () => {
+    native.download.mockResolvedValue({ version: "0.80.0" });
+    const { result } = renderHook(() => useNativeUpdate());
+
+    await waitFor(() => expect(native.toast).toHaveBeenCalled());
+    expect(native.download).toHaveBeenCalledWith({ version: "0.80.0" });
+    const [, options] = native.toast.mock.calls[0];
+    expect(options.duration).toBe(Number.POSITIVE_INFINITY);
+    options.action.onClick();
+    expect(native.install).toHaveBeenCalled();
+    expect(result.current.nativeUpdateRequired.show).toBe(false);
+  });
+
+  it("asks instead when the background download fails", async () => {
+    native.download.mockRejectedValue(new Error("offline"));
+    const { result } = renderHook(() => useNativeUpdate());
+
+    await waitFor(() => expect(result.current.nativeUpdateRequired.show).toBe(true));
+    expect(result.current.nativeUpdateRequired.minNativeVersion).toBe("0.80.0");
+    expect(native.toast).not.toHaveBeenCalled();
+  });
+
+  it("asks without consent, downloading nothing", async () => {
+    native.consent = false;
+    const { result } = renderHook(() => useNativeUpdate());
+
+    await waitFor(() => expect(result.current.nativeUpdateRequired.show).toBe(true));
+    expect(native.download).not.toHaveBeenCalled();
   });
 });

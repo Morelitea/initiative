@@ -5,7 +5,7 @@ from sqlalchemy.dialects.postgresql import ENUM as PGEnum
 from sqlmodel import Field, SQLModel, Relationship
 from pydantic import ConfigDict
 
-from app.core.guild_auth_options import GuildAuthOption
+from app.core.guild_auth_options import CommunityAuthOption
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.platform.guild import Guild
@@ -76,7 +76,9 @@ class GuildAdministration(SQLModel, table=True):
     auth_options: list[str] = Field(
         default_factory=list,
         sa_column=Column(
-            ARRAY(PGEnum(GuildAuthOption, name="guild_auth_option", create_type=False)),
+            ARRAY(
+                PGEnum(CommunityAuthOption, name="guild_auth_option", create_type=False)
+            ),
             nullable=False,
             server_default="{}",
         ),

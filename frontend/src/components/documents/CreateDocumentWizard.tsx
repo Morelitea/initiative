@@ -4,8 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { WizardDialog } from "@/components/ui/wizard-dialog";
-import { type Choice, useGuildInitiativeSteps } from "@/hooks/useGuildInitiativeSteps";
-import { guildPath } from "@/lib/guildUrl";
+import { type Choice, useCommunityInitiativeSteps } from "@/hooks/useCommunityInitiativeSteps";
+import { communityPath } from "@/lib/communityUrl";
 import { getItem, setItem } from "@/lib/storage";
 import { toolListRoute } from "@/lib/tools";
 
@@ -22,6 +22,7 @@ export function getOpenCreateDocumentWizard() {
 const STORAGE_KEY = "initiative-last-doc-initiative";
 
 interface LastUsedInitiative {
+  // Stored on the device under these names, so a saved shortcut still reads.
   guildId: number;
   guildName: string;
   initiativeId: number;
@@ -56,12 +57,12 @@ export const CreateDocumentWizard = () => {
   }, []);
 
   const handoff = useCallback(
-    (guild: Choice, initiative: Choice) => {
+    (community: Choice, initiative: Choice) => {
       setItem(
         STORAGE_KEY,
         JSON.stringify({
-          guildId: guild.id,
-          guildName: guild.name,
+          guildId: community.id,
+          guildName: community.name,
           initiativeId: initiative.id,
           initiativeName: initiative.name,
         } satisfies LastUsedInitiative)
@@ -72,14 +73,14 @@ export const CreateDocumentWizard = () => {
       // the flow without re-mounting the creation UI. The initiative is in the
       // path now rather than a search param.
       void router.navigate({
-        to: guildPath(guild.id, toolListRoute(Tool.document, initiative.id)),
+        to: communityPath(community.id, toolListRoute(Tool.document, initiative.id)),
         search: { create: "true" },
       });
     },
     [router]
   );
 
-  const steps = useGuildInitiativeSteps({
+  const steps = useCommunityInitiativeSteps({
     ns: "documents",
     open,
     authors: Tool.document,

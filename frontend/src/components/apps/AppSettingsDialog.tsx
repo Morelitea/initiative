@@ -4,7 +4,7 @@
  * **Every installed app has this**, whether or not it has a page of its own —
  * there is always something a person may want to check or take back. For an app
  * whose whole purpose is a credential it opens where the member clicked rather
- * than sending them to hunt through guild settings; for an app with a page it
+ * than sending them to hunt through community settings; for an app with a page it
  * is the gear beside its entry.
  *
  * What shows is scoped to what the viewer actually controls, which is not the
@@ -12,11 +12,11 @@
  *
  * - **Everyone** gets the two answers that are theirs — whether the app may act
  *   as them, and their own half of any connection. Nobody else's appears.
- * - **The seat** additionally gets what the guild owns: the guild-wide
+ * - **The seat** additionally gets what the community owns: the community-wide
  *   credential, where the app appears, and the governance view of what every
  *   member has given it.
  *
- * This is deliberately not the guild-settings page. That one is about the
+ * This is deliberately not the community-settings page. That one is about the
  * install — adding, renaming, turning off, removing — and belongs to admins.
  * This one is about a person's own relationship with an app that is already
  * there.
@@ -37,45 +37,45 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
-import { useGuildAppDetail } from "@/hooks/useGuildAppDetail";
-import { useGuilds } from "@/hooks/useGuilds";
+import { useCommunities } from "@/hooks/useCommunities";
+import { useCommunityAppDetail } from "@/hooks/useCommunityAppDetail";
 import { declaredEmbeds } from "@/lib/appSurfaces";
 
 export interface AppSettingsDialogProps {
   appId: number;
   /** Where the app appears is an admin's to choose. */
-  isGuildAdmin: boolean;
+  isCommunityAdmin: boolean;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
 export function AppSettingsDialog({
   appId,
-  isGuildAdmin,
+  isCommunityAdmin,
   open,
   onOpenChange,
 }: AppSettingsDialogProps) {
   const { t } = useTranslation(["apps", "common"]);
-  const { activeGuild } = useGuilds();
-  const detail = useGuildAppDetail(appId);
+  const { activeCommunity } = useCommunities();
+  const detail = useCommunityAppDetail(appId);
   const app = detail.data;
 
   // Placement is where the app has a page and where it may reach content, so
   // an app with either has one to choose.
   const showsPlacement =
-    isGuildAdmin &&
+    isCommunityAdmin &&
     !!app &&
     (declaredEmbeds(app.definition, "initiative").length > 0 ||
       (app.requested_scopes ?? []).length > 0);
   // Install management, which the seat holds — not the manifest's
   // admin-visible surfaces above, which ask whether you administer the
   // community and are a different question.
-  const holdsTheSeat = Boolean(activeGuild?.can.seat);
+  const holdsTheSeat = Boolean(activeCommunity?.can.seat);
   const showsAdminSection = holdsTheSeat && !!app;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
+      <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{app?.name ?? t("apps:title")}</DialogTitle>
           <DialogDescription>{t("apps:settings.description")}</DialogDescription>
@@ -88,7 +88,7 @@ export function AppSettingsDialog({
         ) : (
           <div className="space-y-6">
             {/* Yours first. An app that acts as people asks everybody, admins
-                included — a guild admin's own name is not something their role
+                included — a community admin's own name is not something their role
                 answers for. */}
             {(app.consents?.length ?? 0) > 0 && (
               <section className="rounded-lg border p-4">
@@ -115,7 +115,7 @@ export function AppSettingsDialog({
                     {t("apps:settings.adminDescription")}
                   </p>
                 </div>
-                {/* Where the app goes is the guild's call, and only for an app
+                {/* Where the app goes is the community's call, and only for an app
                     that has somewhere to go. */}
                 {showsPlacement && <AppPlacementPanel app={app} />}
                 <AppMembersPanel appId={app.id} enabled />

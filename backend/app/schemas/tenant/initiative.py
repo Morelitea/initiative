@@ -2,11 +2,16 @@ from datetime import datetime
 from enum import Enum
 from typing import Dict, List, Optional, TYPE_CHECKING
 
-from pydantic import ConfigDict, Field, create_model
+from pydantic import AliasChoices, ConfigDict, Field, create_model
 
 from app.core.identity_boundary import GuildId
 from app.core.tools import DEFAULT_ENABLED_TOOLS, Tool
-from app.schemas.base import RichTextStr, SanitizedBaseModel, TitleStr
+from app.schemas.base import (
+    RichMentionStr,
+    SanitizedBaseModel,
+    TitleStr,
+    reject_null,
+)
 
 from app.models.tenant.initiative import (
     DEFAULT_PERMISSION_VALUES,
@@ -14,7 +19,8 @@ from app.models.tenant.initiative import (
     JoinRequestStatus,
     PermissionKey,
 )
-from app.schemas.platform.user import UserPublic, UserSummary
+from app.models.platform.user import Presence
+from app.schemas.platform.user import UserSummary
 from app.schemas.query import PageMeta
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -40,12 +46,12 @@ class InitiativeListScope(str, Enum):
     ``member`` — the caller's own workspace: the initiatives they hold a
     membership in. This is what the sidebar and every initiative picker show.
 
-    ``guild`` — every initiative in the guild, for the guild-settings
+    ``community`` — every initiative in the community, for the guild-settings
     management table. Guild admins only.
     """
 
     member = "member"
-    guild = "guild"
+    community = "community"
 
 
 # Derived bases: one `{tool.plural}_enabled` master-switch field per Tool. A new
@@ -69,7 +75,7 @@ _InitiativeToolSwitchesPatch = create_model(
 
 class InitiativeBase(_InitiativeToolSwitches):
     name: str
-    description: Optional[RichTextStr] = None
+    description: Optional[RichMentionStr] = None
     color: Optional[str] = Field(default=None, pattern=HEX_COLOR_PATTERN)
 
 
@@ -82,7 +88,7 @@ class InitiativeCreate(InitiativeBase):
 
 class InitiativeUpdate(_InitiativeToolSwitchesPatch):
     name: Optional[TitleStr] = None
-    description: Optional[RichTextStr] = None
+    description: Optional[RichMentionStr] = None
     color: Optional[str] = Field(default=None, pattern=HEX_COLOR_PATTERN)
     # Settable by whoever may already update the initiative (managers, guild
     # admins).
@@ -90,6 +96,16 @@ class InitiativeUpdate(_InitiativeToolSwitchesPatch):
     # Guild admins only — enforced in the endpoint, and only valid alongside a
     # resulting join_policy of 'open'.
     auto_join: Optional[bool] = None
+    # Settable by whoever may already update the initiative.
+    keep_content_in: Optional[bool] = None
+
+    _required = reject_null(
+        "name",
+        "join_policy",
+        "auto_join",
+        "keep_content_in",
+        *(t.view_permission for t in Tool),
+    )
 
 
 # Role schemas
@@ -174,7 +190,8 @@ class InitiativeMemberRead(SanitizedBaseModel):
         from_attributes=True, json_schema_serialization_defaults_required=True
     )
 
-    user: UserPublic
+    #: With what they have put around their picture, which a roster draws.
+    user: UserSummary
     role_id: Optional[int] = None
     role_name: Optional[str] = None
     role_display_name: Optional[str] = None
@@ -186,6 +203,8 @@ class InitiativeMemberRead(SanitizedBaseModel):
     override_share_restrictions: bool = False
     joined_at: datetime
     oidc_managed: bool = False
+    #: How they appear right now, public as it is on their profile.
+    presence: Presence = Presence.offline
 
 
 class InitiativeMemberListResponse(PageMeta):
@@ -222,14 +241,17 @@ class InitiativeRead(InitiativeBase):
     #: The community this initiative was read in. Set by
     #: :func:`serialize_initiative`; a payload pydantic builds while validating
     #: another carries none until that serializer replaces it.
-    guild_id: Optional[GuildId] = None
-    is_default: bool = False
+    community_id: Optional[GuildId] = Field(
+        default=None, validation_alias=AliasChoices("community_id", "guild_id")
+    )
     # Hidden from the main sidebar once set (see Initiative.archived_at).
     archived_at: Optional[datetime] = None
     # How guild members may join (see InitiativeJoinPolicy). Never consulted by
     # RLS — it governs how a membership row comes to exist, nothing more.
     join_policy: InitiativeJoinPolicy = InitiativeJoinPolicy.private
     auto_join: bool = False
+    #: Nothing in it is exported on its own or copied to another initiative.
+    keep_content_in: bool = False
     created_at: datetime
     updated_at: datetime
     can: InitiativeCan = Field(default_factory=InitiativeCan)
@@ -370,16 +392,16 @@ def serialize_initiative(
     row undefers them."""
     return InitiativeRead(
         id=initiative.id,
-        guild_id=context.guild_id,
+        community_id=context.guild_id,
         name=initiative.name,
         description=initiative.description,
         color=initiative.color,
-        is_default=initiative.is_default,
         archived_at=getattr(initiative, "archived_at", None),
         join_policy=getattr(
             initiative, "join_policy", InitiativeJoinPolicy.private.value
         ),
         auto_join=getattr(initiative, "auto_join", False),
+        keep_content_in=initiative.keep_content_in,
         created_at=initiative.created_at,
         updated_at=initiative.updated_at,
         can=initiative_can(initiative),
@@ -392,12 +414,15 @@ def serialize_initiative(
     )
 
 
-def serialize_initiative_member(membership: "InitiativeMember") -> InitiativeMemberRead:
-    """One roster row: the member, and the role they hold. Reads
-    ``membership.user`` and ``membership.role_ref``, so the loader brings both."""
+def serialize_initiative_member(
+    membership: "InitiativeMember", presence: Presence = Presence.offline
+) -> InitiativeMemberRead:
+    """One roster row: the member, the role they hold and how they appear.
+    Reads ``membership.user`` and ``membership.role_ref``, so the loader brings
+    both."""
     role = membership.role_ref
     return InitiativeMemberRead(
-        user=UserPublic.model_validate(membership.user),
+        user=UserSummary.model_validate(membership.user),
         role_id=membership.role_id,
         role_name=role.name if role else None,
         role_display_name=role.display_name if role else None,
@@ -407,4 +432,5 @@ def serialize_initiative_member(membership: "InitiativeMember") -> InitiativeMem
         ),
         joined_at=membership.joined_at,
         oidc_managed=membership.oidc_provider_id is not None,
+        presence=presence,
     )

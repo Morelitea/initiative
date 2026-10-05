@@ -15,7 +15,6 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.sql import text
-from sqlalchemy.orm import validates
 from sqlmodel import Field, Index, SQLModel, Enum as SQLEnum, Relationship
 from pydantic import ConfigDict
 
@@ -24,11 +23,15 @@ if TYPE_CHECKING:  # pragma: no cover
     from app.models.platform.guild_administration import GuildAdministration
 
 
-class GuildStatus(str, Enum):
+#: The longest name a member may give themselves in one community.
+MEMBER_DISPLAY_NAME_MAX_LENGTH = 64
+
+
+class CommunityStatus(str, Enum):
     """Lifecycle status of a guild.
 
     The first four are operator-set from the platform Guilds tab (platform
-    `guilds.manage`) and are freely interchangeable:
+    `communities.manage`) and are freely interchangeable:
 
     - ``active``: normal operation.
     - ``read_only``: members keep read access to content but writes are denied
@@ -78,34 +81,34 @@ class GuildStatus(str, Enum):
 #: Stated once, as a set, because the question is asked in a dozen places and
 #: every one of them should have the same answer.
 #: ``guild_soft_delete_test`` holds the set and the resolver together.
-LIVE_STATUSES: frozenset[GuildStatus] = frozenset(
-    {GuildStatus.active, GuildStatus.read_only}
+LIVE_STATUSES: frozenset[CommunityStatus] = frozenset(
+    {CommunityStatus.active, CommunityStatus.read_only}
 )
 
 #: The statuses an operator may set from the Guilds tab, in the order the
 #: control lists them (least → most restrictive). ``deleted`` is absent by
 #: derivation rather than by a second hand-written list.
-OPERATOR_SETTABLE_STATUSES: tuple[GuildStatus, ...] = (
-    GuildStatus.active,
-    GuildStatus.read_only,
-    GuildStatus.on_hold,
-    GuildStatus.suspended,
+OPERATOR_SETTABLE_STATUSES: tuple[CommunityStatus, ...] = (
+    CommunityStatus.active,
+    CommunityStatus.read_only,
+    CommunityStatus.on_hold,
+    CommunityStatus.suspended,
 )
 
 #: The statuses the billing service may write. ``suspended`` is the platform
 #: operator's time out and ``deleted`` belongs to deletion, so neither is here —
 #: and a guild already in either takes no status write from billing at all.
-BILLING_SETTABLE_STATUSES: frozenset[GuildStatus] = frozenset(
-    {GuildStatus.active, GuildStatus.read_only, GuildStatus.on_hold}
+BILLING_SETTABLE_STATUSES: frozenset[CommunityStatus] = frozenset(
+    {CommunityStatus.active, CommunityStatus.read_only, CommunityStatus.on_hold}
 )
 
 
 def operator_status_choices(
-    status: GuildStatus,
+    status: CommunityStatus,
     *,
-    billing_status: GuildStatus | None,
+    billing_status: CommunityStatus | None,
     billing_managed: bool,
-) -> tuple[GuildStatus, ...]:
+) -> tuple[CommunityStatus, ...]:
     """The statuses the operator may move a guild at ``status`` to.
 
     Where billing sets plans, the operator's one status is the time out: into
@@ -114,20 +117,20 @@ def operator_status_choices(
     restoring it is not a status change. The triggers of migration 0364 hold
     the database to the same rule.
     """
-    if status is GuildStatus.deleted:
+    if status is CommunityStatus.deleted:
         return ()
     if not billing_managed:
         return OPERATOR_SETTABLE_STATUSES
-    if status is GuildStatus.suspended:
-        return (billing_status or GuildStatus.active, GuildStatus.suspended)
-    return (status, GuildStatus.suspended)
+    if status is CommunityStatus.suspended:
+        return (billing_status or CommunityStatus.active, CommunityStatus.suspended)
+    return (status, CommunityStatus.suspended)
 
 
 def restore_status_choices(
     *,
-    billing_status: GuildStatus | None,
+    billing_status: CommunityStatus | None,
     billing_managed: bool,
-) -> tuple[GuildStatus, ...]:
+) -> tuple[CommunityStatus, ...]:
     """The statuses a deleted guild may be restored at.
 
     The choices that lift a suspension: where billing sets plans, the status
@@ -136,7 +139,7 @@ def restore_status_choices(
     holds the database to the same rule.
     """
     return operator_status_choices(
-        GuildStatus.suspended,
+        CommunityStatus.suspended,
         billing_status=billing_status,
         billing_managed=billing_managed,
     )
@@ -145,8 +148,8 @@ def restore_status_choices(
 #: The statuses whose guild is absent from every member's guild list, its
 #: admins' included. A suspended guild is not here: its admins keep a closed
 #: entry.
-UNLISTED_STATUSES: frozenset[GuildStatus] = frozenset(
-    {GuildStatus.on_hold, GuildStatus.deleted}
+UNLISTED_STATUSES: frozenset[CommunityStatus] = frozenset(
+    {CommunityStatus.on_hold, CommunityStatus.deleted}
 )
 
 #: :data:`LIVE_STATUSES` as the strings the column stores, so one set answers
@@ -155,7 +158,7 @@ UNLISTED_STATUSES: frozenset[GuildStatus] = frozenset(
 LIVE_STATUS_VALUES: frozenset[str] = frozenset(s.value for s in LIVE_STATUSES)
 
 
-class GuildCategory(str, Enum):
+class CommunityCategory(str, Enum):
     """A subject a guild can file itself under in the community directory.
 
     A closed vocabulary rather than free-form tags: the directory's job is to
@@ -284,7 +287,7 @@ class Guild(SQLModel, table=True):
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),
     )
-    # Lifecycle status (see GuildStatus). Stored as a plain string with a CHECK
+    # Lifecycle status (see CommunityStatus). Stored as a plain string with a CHECK
     # constraint (the access_grants pattern) rather than a Postgres enum.
     #
     # Alone among the operator-set fields it lives here rather than on
@@ -292,9 +295,9 @@ class Guild(SQLModel, table=True):
     # read_only -> frozen writes) off a guild row the request already loads, so
     # moving it would buy a join on the hottest path in the app.
     status: str = Field(
-        default=GuildStatus.active.value,
+        default=CommunityStatus.active.value,
         sa_column=Column(
-            String(16), nullable=False, server_default=GuildStatus.active.value
+            String(16), nullable=False, server_default=CommunityStatus.active.value
         ),
     )
     # When the status last changed; NULL until the first operator change.
@@ -309,16 +312,7 @@ class Guild(SQLModel, table=True):
         default=False,
         sa_column=Column(Boolean, nullable=False, server_default="false"),
     )
-    # Whether this guild renders members' real names. On by default, which is
-    # what a private workspace expects; off renders handles instead and is the
-    # only option for a listed guild — ck_guilds_community_member_names makes
-    # that structural, so the effective rule is this one column rather than a
-    # pair to reconcile.
-    show_member_names: bool = Field(
-        default=True,
-        sa_column=Column(Boolean, nullable=False, server_default="true"),
-    )
-    # Which shelves the guild files itself under (see GuildCategory). A listed
+    # Which shelves the guild files itself under (see CommunityCategory). A listed
     # guild must be on at least one — a card nobody can find by browsing is not
     # a listing — which the ck_guilds_community_categories CHECK enforces.
     categories: List[str] = Field(
@@ -338,29 +332,16 @@ class Guild(SQLModel, table=True):
     has_adult_content: Optional[bool] = Field(
         default=None, sa_column=Column(Boolean, nullable=True)
     )
-    # Whether a personal API key may be used against this guild. True by
-    # default. False means the guild declines that credential: no key can be
-    # minted into it, and a request authenticated by one does not reach it —
-    # pinned to this guild or not.
-    #
-    # Here rather than on ``GuildAuthPolicy`` for the same reason ``status`` is
-    # here: the guild-access gate already holds this row, and the answer has to
-    # survive a guild lifting its sign-in requirement (which deletes the policy
-    # row). Read by the gate, by key creation, and by the cross-guild
-    # aggregates.
-    allow_api_keys: bool = Field(
-        default=True,
-        sa_column=Column(Boolean, nullable=False, server_default="true"),
-    )
     # Whether this guild's members are held to the compliance session standard:
     # they sign in again every ``COMPLIANCE_SESSION_HOURS``, whatever the
     # deployment's own limit says. A single standard rather than a number per
     # guild, so somebody in two of them has one answer and not a comparison.
     #
-    # Here for the same reason as the line above: it says what is asked of a
-    # session reaching this community, and the answer has to survive the guild
-    # lifting its sign-in requirement. Set by the guild's superadmin; read when
-    # a sign-in is stamped with its deadline.
+    # Here rather than on ``GuildAuthPolicy`` for the same reason ``status`` is
+    # here: it says what is asked of a session reaching this community, and the
+    # answer has to survive the guild lifting its sign-in requirement (which
+    # deletes the policy row). Set by the guild's superadmin; read when a
+    # sign-in is stamped with its deadline.
     enforce_compliance_session: bool = Field(
         default=False,
         sa_column=Column(Boolean, nullable=False, server_default="false"),
@@ -369,7 +350,7 @@ class Guild(SQLModel, table=True):
     # asks for one; which kinds exist, and which providers' word counts as
     # having presented one, are the deployment's answers.
     #
-    # Here for the reason the two above are: it says what is asked of a session
+    # Here for the reason the one above is: it says what is asked of a session
     # reaching this community, and the answer has to survive the guild lifting
     # its sign-in requirement. Set by the guild's superadmin; read by the
     # guild-access gate.
@@ -382,7 +363,7 @@ class Guild(SQLModel, table=True):
     # stricter of the pair applies, so a community can decline what the
     # deployment permits and never the reverse.
     #
-    # Here rather than on ``GuildAdministration`` for the reason the three above
+    # Here rather than on ``GuildAdministration`` for the reason the two above
     # are: it says what is done on this community's behalf, and the answer has
     # to survive the guild lifting its sign-in requirement. Set by the guild's
     # superadmin; read where a notification is sent.
@@ -425,21 +406,8 @@ class Guild(SQLModel, table=True):
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
 
-    @validates("is_community")
-    def _listing_a_guild_renders_handles(self, _key: str, listed: bool) -> bool:
-        """Listing a guild turns its real names off, in the same write.
 
-        ``ck_guilds_community_member_names`` says a listed guild renders
-        handles. Doing it here rather than at each caller means the one place
-        that sets ``is_community`` is the place it happens, and the constraint
-        has nothing left to catch.
-        """
-        if listed:
-            self.show_member_names = False
-        return listed
-
-
-class GuildRole(str, Enum):
+class CommunityRole(str, Enum):
     admin = "admin"
     member = "member"
     # Above ``admin``: everything an admin reaches, plus the guild's sign-in
@@ -463,7 +431,7 @@ class GuildRole(str, Enum):
     # and the ``superadmin`` settings grant beside it is read separately.
     support = "support"
 
-    def reaches(self, rung: "GuildRole") -> bool:
+    def reaches(self, rung: "CommunityRole") -> bool:
         """Whether this rung carries what ``rung`` carries.
 
         The community's ladder asked as a comparison rather than as a set per
@@ -480,26 +448,26 @@ class GuildRole(str, Enum):
 #: community, and nothing it holds comes from being on this list.
 #:
 #: One ordering, in one place. Asking whether a rung carries another's
-#: authority is :meth:`GuildRole.reaches`, and every set below derives from it
+#: authority is :meth:`CommunityRole.reaches`, and every set below derives from it
 #: rather than restating which rungs are which.
-GUILD_LADDER: tuple[GuildRole, ...] = (
-    GuildRole.support,
-    GuildRole.member,
-    GuildRole.admin,
-    GuildRole.superadmin,
+GUILD_LADDER: tuple[CommunityRole, ...] = (
+    CommunityRole.support,
+    CommunityRole.member,
+    CommunityRole.admin,
+    CommunityRole.superadmin,
 )
 
 #: Roles that carry a guild admin's authority — the ladder from ``admin`` up.
 #: Kept as a set because that is how most callers ask; it is derived, so the
 #: day a rung is added between them there is nothing here to remember.
-GUILD_ADMIN_ROLES: frozenset[GuildRole] = frozenset(
-    role for role in GuildRole if role.reaches(GuildRole.admin)
+GUILD_ADMIN_ROLES: frozenset[CommunityRole] = frozenset(
+    role for role in CommunityRole if role.reaches(CommunityRole.admin)
 )
 
 #: What an ordinary guild admin may hand out. ``support`` is never persisted at
 #: all, and ``superadmin`` is passed on only by somebody already holding it.
-GUILD_ASSIGNABLE_ROLES: frozenset[GuildRole] = frozenset(
-    {GuildRole.admin, GuildRole.member}
+GUILD_ASSIGNABLE_ROLES: frozenset[CommunityRole] = frozenset(
+    {CommunityRole.admin, CommunityRole.member}
 )
 
 
@@ -507,10 +475,12 @@ GUILD_ASSIGNABLE_ROLES: frozenset[GuildRole] = frozenset(
 #: for the length of a PAM request and never stored, so it is the one value
 #: that is not here — derived rather than listed, so a role added to the enum
 #: is a stored role unless it is deliberately excluded.
-GUILD_STORED_ROLES: frozenset[GuildRole] = frozenset(GuildRole) - {GuildRole.support}
+GUILD_STORED_ROLES: frozenset[CommunityRole] = frozenset(CommunityRole) - {
+    CommunityRole.support
+}
 
 
-def assignable_roles(by: GuildRole) -> frozenset[GuildRole]:
+def assignable_roles(by: CommunityRole) -> frozenset[CommunityRole]:
     """Which roles ``by`` may set on somebody else inside the guild.
 
     A superadmin passes the seat on; an ordinary admin cannot, and cannot
@@ -518,8 +488,8 @@ def assignable_roles(by: GuildRole) -> frozenset[GuildRole]:
     superadmin settings grant seats somebody the same way a superadmin
     membership does.
     """
-    if by == GuildRole.superadmin:
-        return GUILD_ASSIGNABLE_ROLES | {GuildRole.superadmin}
+    if by == CommunityRole.superadmin:
+        return GUILD_ASSIGNABLE_ROLES | {CommunityRole.superadmin}
     return GUILD_ASSIGNABLE_ROLES
 
 
@@ -535,12 +505,12 @@ class GuildMembership(SQLModel, table=True):
 
     guild_id: int = Field(foreign_key="guilds.id", ondelete="CASCADE", primary_key=True)
     user_id: int = Field(foreign_key="users.id", ondelete="CASCADE", primary_key=True)
-    role: GuildRole = Field(
-        default=GuildRole.member,
+    role: CommunityRole = Field(
+        default=CommunityRole.member,
         sa_column=Column(
-            SQLEnum(GuildRole, name="guild_role"),
+            SQLEnum(CommunityRole, name="guild_role"),
             nullable=False,
-            server_default=GuildRole.member.value,
+            server_default=CommunityRole.member.value,
         ),
     )
     joined_at: datetime = Field(
@@ -550,6 +520,22 @@ class GuildMembership(SQLModel, table=True):
     position: int = Field(
         default=0,
         sa_column=Column(Integer, nullable=False, server_default="0"),
+    )
+    #: What this person is called in this community, set by them or by its
+    #: administrators. NULL — the usual case — leaves their handle.
+    #: ``guild_member_profiles`` answers with it (0438).
+    display_name: Optional[str] = Field(
+        default=None,
+        sa_column=Column(String(MEMBER_DISPLAY_NAME_MAX_LENGTH), nullable=True),
+    )
+    #: Whether this person's personal API keys reach this community. True
+    #: unless its superadmin turned it off for them, and read only while the
+    #: community holds the ``restrictions`` option: without it every member's
+    #: keys reach it. Read by the guild-access gate, by key creation and by the
+    #: cross-guild aggregates, so turning it off stops a key already made.
+    api_keys_allowed: bool = Field(
+        default=True,
+        sa_column=Column(Boolean, nullable=False, server_default="true"),
     )
     #: The provider whose claims put this person here, and the only one whose
     #: sign-in may take it away again. NULL is a membership nobody manages —

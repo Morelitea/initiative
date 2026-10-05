@@ -21,13 +21,20 @@ import { apiClient } from "@/api/client";
 import type { EmailOtpRegister, Token } from "@/api/generated/initiativeAPI.schemas";
 import { CaptchaWidget } from "@/components/auth/CaptchaWidget";
 import { LegalNotice } from "@/components/auth/LegalNotice";
+import { ServerChip } from "@/components/auth/ServerChoice";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useAuth } from "@/hooks/useAuth";
-import { useServer } from "@/hooks/useServer";
 import { getErrorMessage } from "@/lib/errorMessage";
 
 type Step = "address" | "code" | "handle";
@@ -42,10 +49,7 @@ interface Props {
   inviteCode?: string | null;
   /** What the start flow already asked: the handle fills the last step, and
    *  the rest is sent with the account the code makes. */
-  registration?: Omit<
-    Partial<EmailOtpRegister>,
-    "registration_ticket" | "invite_code" | "full_name"
-  >;
+  registration?: Omit<Partial<EmailOtpRegister>, "registration_ticket" | "invite_code">;
 }
 
 /** Strip the spaces a pasted code brings with it. */
@@ -54,7 +58,6 @@ const compact = (value: string) => value.replace(/\s+/g, "");
 export const EmailOtpCard = ({ onCancel, onSignedIn, inviteCode, registration }: Props) => {
   const { t } = useTranslation("auth");
   const { applyEmailOtpSignIn } = useAuth();
-  const { isNativePlatform } = useServer();
   // Null on the deployments that run no captcha, which is most of them.
   const { captcha } = useAppConfig();
 
@@ -82,7 +85,6 @@ export const EmailOtpCard = ({ onCancel, onSignedIn, inviteCode, registration }:
     try {
       const { data } = await apiClient.post<{ challenge: string }>("/auth/email-otp/send", {
         email: email.toLowerCase().trim(),
-        native: isNativePlatform,
         ...(inviteCode ? { invite_code: inviteCode } : {}),
         ...(captcha ? { captcha_token: captchaToken } : {}),
       });
@@ -267,6 +269,9 @@ export const EmailOtpCard = ({ onCancel, onSignedIn, inviteCode, registration }:
           </form>
         ) : null}
       </CardContent>
+      <CardFooter>
+        <ServerChip />
+      </CardFooter>
     </Card>
   );
 };

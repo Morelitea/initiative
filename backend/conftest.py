@@ -31,10 +31,13 @@ from httpx import ASGITransport, AsyncClient
 from starlette.requests import HTTPConnection
 from sqlalchemy import event, text
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, create_async_engine
+from sqlalchemy.pool import NullPool
+from starlette.testclient import TestClient
 from sqlmodel import SQLModel
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
+from app.api import content_socket
 from app.core.rate_limit import limiter
 from app.db import cohorts
 from app.db.session import (
@@ -1187,6 +1190,43 @@ async def client(session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
             await session.rollback()
 
 
+def _unpooled(bind: AsyncEngine) -> AsyncEngine:
+    return create_async_engine(bind.url, poolclass=NullPool)
+
+
+@pytest.fixture
+def socket_client(client: AsyncClient, monkeypatch: pytest.MonkeyPatch) -> TestClient:
+    """Starlette's ``TestClient``, which drives the app's sockets.
+
+    It serves the app on an event loop of its own. The pools the socket
+    endpoints draw from are swapped, for the test, for ones that open a
+    connection per checkout, so a connection opened on one loop is never handed
+    to the other. A quiet socket beats at once, so an admitted one says so
+    without the test waiting out the interval.
+    """
+    import app.db.session as db_session
+
+    monkeypatch.setattr(content_socket, "HEARTBEAT_SECONDS", 0.05)
+    for name in ("_request_makers", "_system_makers"):
+        makers = getattr(cohorts, name)
+        monkeypatch.setattr(
+            cohorts,
+            name,
+            cohorts._cohort_makers([_unpooled(m.kw["bind"]) for m in makers]),
+        )
+    monkeypatch.setattr(
+        db_session,
+        "AsyncSessionLocal",
+        async_sessionmaker(
+            bind=_unpooled(db_session.engine),
+            autoflush=False,
+            expire_on_commit=False,
+            class_=AsyncSession,
+        ),
+    )
+    return TestClient(app)
+
+
 @pytest.fixture
 async def acting_user(session):
     """Mint an authenticated test identity at explicit platform/guild roles —
@@ -1196,14 +1236,14 @@ async def acting_user(session):
 
         a = await acting_user()                                  # platform owner
         a = await acting_user("support")                         # tier ceilings
-        a = await acting_user(guild_role=GuildRole.admin,
+        a = await acting_user(guild_role=CommunityRole.admin,
                               initiative=True, project=True)     # workspace
-        b = await acting_user(guild_role=GuildRole.member, guild=a.guild,
+        b = await acting_user(guild_role=CommunityRole.member, guild=a.guild,
                               initiative=a.initiative, initiative_role="member")
         await client.get(a.g("/projects/"), headers=a.headers)
 
     With the real-role ``client`` fixture the request runs AS the actor's
-    platform tier (public path) or guild role (``/c/{guild_id}`` path) on a
+    platform tier (public path) or guild role (``/c/{community_id}`` path) on a
     real ``app_user`` connection — RLS enforced, like production.
     """
     from app.testing.actor import make_actor
@@ -1241,7 +1281,7 @@ def rate_limit_of_one_per_minute(client, monkeypatch):
     """
     from slowapi.wrappers import LimitGroup
 
-    from app.core.rate_limit import get_real_client_ip
+    from app.core.rate_limit import get_user_or_ip_key
 
     monkeypatch.setattr(limiter, "enabled", True)
     monkeypatch.setattr(
@@ -1250,7 +1290,7 @@ def rate_limit_of_one_per_minute(client, monkeypatch):
         [
             LimitGroup(
                 limit_provider="1/minute",
-                key_function=get_real_client_ip,
+                key_function=get_user_or_ip_key,
                 scope=None,
                 per_method=False,
                 methods=None,

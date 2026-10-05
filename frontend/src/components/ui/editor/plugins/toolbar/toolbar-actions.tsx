@@ -52,8 +52,8 @@ import {
   IndentIncreaseIcon,
   ItalicIcon,
   PenTool,
+  RectangleEllipsis,
   ScissorsIcon,
-  Sparkles,
   StrikethroughIcon,
   SubscriptIcon,
   SuperscriptIcon,
@@ -414,7 +414,7 @@ export const useBlockInsertActions = ({
     actions.push({
       id: "smart-chip",
       label: t("smartChips.insert"),
-      icon: <Sparkles className="size-4" />,
+      icon: <RectangleEllipsis className="size-4" />,
       run: () =>
         showModal(t("smartChips.insert"), (onClose) => (
           <SmartChipInsertDialog

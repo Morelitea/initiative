@@ -33,7 +33,6 @@
   "monthly": "Mensual",
   "yearly": "Anual",
   "permissions": "Permisos",
-  "settings": "Configuración",
   "details": "Detalles",
   "access": "Acceso",
   "advanced": "Avanzado",
@@ -43,7 +42,8 @@
     "heading": "Filtros",
     "dates": "Fechas",
     "searchLabel": "Nombre o descripción",
-    "searchCalendars": "Buscar calendarios..."
+    "searchCalendars": "Buscar calendarios...",
+    "tasks": "Tareas"
   },
   "loading": "Cargando...",
   "loadError": "Error al cargar eventos",
@@ -102,15 +102,22 @@
     "projectTasks": "Tareas de proyectos",
     "calendarSettings": "Configuración de {{name}}"
   },
-  "guildScope": {
-    "title": "Calendario de la comunidad",
+  "picker": {
+    "all": "Todos los calendarios",
+    "none": "Ningún calendario",
+    "some_one": "{{count}} calendario",
+    "some_other": "{{count}} calendarios",
+    "label": "Elige qué calendarios mostrar"
+  },
+  "communityScope": {
     "empty": "Aún no hay calendarios.",
     "emptyHint": "Crea uno para los días festivos, para una reunión periódica o solo para ti."
   },
   "scope": {
     "title": {
       "edit": "Cambiar un evento periódico",
-      "delete": "Eliminar un evento periódico"
+      "delete": "Eliminar un evento periódico",
+      "duplicate": "Duplicar un evento periódico"
     },
     "description": "Este evento se repite. ¿A qué eventos se aplica?",
     "this": "Solo este evento",
@@ -118,7 +125,8 @@
     "all": "Todos los eventos de la serie",
     "confirm": {
       "edit": "Guardar",
-      "delete": "Eliminar"
+      "delete": "Eliminar",
+      "duplicate": "Duplicar"
     }
   },
   "occurrence": {

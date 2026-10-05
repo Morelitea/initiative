@@ -5,7 +5,7 @@
  * an admin adds an app, and a member browses the same shelf to see what exists
  * and who to ask for it. What differs is the invitation at the bottom.
  *
- * Disabled apps belong in guild settings, not here — the sidebar shows what is
+ * Disabled apps belong in community settings, not here — the sidebar shows what is
  * on.
  *
  * An admin-only app is hidden from members for the same reason an empty section
@@ -20,20 +20,20 @@ import { screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { renderPage } from "@/__tests__/helpers/render";
-import type { GuildAppRead } from "@/api/generated/initiativeAPI.schemas";
+import type { CommunityAppRead } from "@/api/generated/initiativeAPI.schemas";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
 import { AppsSection } from "./AppsSection";
 
-let apps: Partial<GuildAppRead>[] = [];
+let apps: Partial<CommunityAppRead>[] = [];
 
-vi.mock("@/hooks/useGuildApps", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/hooks/useGuildApps")>()),
-  useGuildApps: () => ({ data: { items: apps }, isLoading: false }),
+vi.mock("@/hooks/useCommunityApps", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/hooks/useCommunityApps")>()),
+  useCommunityApps: () => ({ data: { items: apps }, isLoading: false }),
 }));
 
-const app = (overrides: Partial<GuildAppRead> = {}) =>
+const app = (overrides: Partial<CommunityAppRead> = {}) =>
   ({
     id: 1,
     name: "Community calendar",
@@ -41,15 +41,15 @@ const app = (overrides: Partial<GuildAppRead> = {}) =>
     enabled: true,
     artifacts: [{ type: "calendar", id: 12 }],
     ...overrides,
-  }) as GuildAppRead;
+  }) as CommunityAppRead;
 
 // The section is built from sidebar primitives, so it needs the providers it
 // would have in the real shell.
-const render = (isGuildAdmin: boolean) =>
+const render = (isCommunityAdmin: boolean) =>
   renderPage(() => (
     <TooltipProvider>
       <SidebarProvider>
-        <AppsSection isGuildAdmin={isGuildAdmin} open onOpenChange={() => {}} />
+        <AppsSection isCommunityAdmin={isCommunityAdmin} open onOpenChange={() => {}} />
       </SidebarProvider>
     </TooltipProvider>
   ));
@@ -59,7 +59,7 @@ beforeEach(() => {
 });
 
 describe("AppsSection", () => {
-  it("points a member at the store when the guild has no apps", async () => {
+  it("points a member at the store when the community has no apps", async () => {
     // They cannot add one, but they can look and ask, so the shelf is worth
     // pointing at rather than hiding.
     render(false);
@@ -68,7 +68,7 @@ describe("AppsSection", () => {
     expect(screen.queryByText("Add an app")).toBeNull();
   });
 
-  it("invites an admin to add one when the guild has no apps", async () => {
+  it("invites an admin to add one when the community has no apps", async () => {
     render(true);
     expect(await screen.findByText("Apps")).toBeInTheDocument();
     expect(screen.getByText("Add an app")).toBeInTheDocument();
@@ -79,7 +79,7 @@ describe("AppsSection", () => {
     apps = [app()];
     render(false);
     expect(await screen.findByText("Community calendar")).toBeInTheDocument();
-    // No add affordance: installing is a guild-admin action.
+    // No add affordance: installing is a community-admin action.
     expect(screen.queryByText("Add an app")).toBeNull();
     expect(screen.getByText("Browse the app store")).toBeInTheDocument();
   });
@@ -104,7 +104,7 @@ describe("AppsSection", () => {
   });
 
   it("hides a disabled app", async () => {
-    // Turned off means gone from the sidebar; guild settings is where it comes
+    // Turned off means gone from the sidebar; community settings is where it comes
     // back, which is also the only place the switch lives.
     apps = [app({ enabled: false })];
     render(true);
@@ -127,9 +127,9 @@ describe("AppsSection", () => {
         tool: null,
         artifacts: [],
         definition: { embeds: [{ id: "automations", path: "/embed" }] },
-        // The server's answer for this reader: the surface opens guild-wide.
+        // The server's answer for this reader: the surface opens community-wide.
         surface_access: [
-          { surface_id: "automations", openable_guild_wide: true, openable_initiatives: [] },
+          { surface_id: "automations", openable_community_wide: true, openable_initiatives: [] },
         ],
       }),
     ];

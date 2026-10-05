@@ -35,7 +35,9 @@ function saveExpandedState(state: Record<string, boolean>) {
 interface TagTreeViewProps {
   tags: TagSummary[];
   tagCounts: Record<number, number>;
-  untaggedCount: number;
+  /** Offers "Not tagged" with this count; left off for a list that cannot be
+   *  narrowed to the untagged. */
+  untaggedCount?: number | null;
   selectedTagPaths: Set<string>;
   onToggleTag: (fullPath: string, ctrlKey: boolean) => void;
 }
@@ -72,19 +74,21 @@ export const TagTreeView = ({
     return (
       <ScrollArea className="h-full">
         <div className="space-y-0.5 p-2">
-          <button
-            type="button"
-            onClick={(e) => onToggleTag(UNTAGGED_PATH, e.ctrlKey || e.metaKey)}
-            className={cn(
-              "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
-              "hover:bg-accent",
-              selectedTagPaths.has(UNTAGGED_PATH) && "bg-accent"
-            )}
-          >
-            <CircleOff className="h-3 w-3 shrink-0 text-muted-foreground" />
-            <span className="min-w-0 flex-1 truncate text-left">{t("tree.notTagged")}</span>
-            <span className="shrink-0 text-muted-foreground text-xs">{untaggedCount}</span>
-          </button>
+          {untaggedCount != null ? (
+            <button
+              type="button"
+              onClick={(e) => onToggleTag(UNTAGGED_PATH, e.ctrlKey || e.metaKey)}
+              className={cn(
+                "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
+                "hover:bg-accent",
+                selectedTagPaths.has(UNTAGGED_PATH) && "bg-accent"
+              )}
+            >
+              <CircleOff className="h-3 w-3 shrink-0 text-muted-foreground" />
+              <span className="min-w-0 flex-1 truncate text-left">{t("tree.notTagged")}</span>
+              <span className="shrink-0 text-muted-foreground text-xs">{untaggedCount}</span>
+            </button>
+          ) : null}
         </div>
       </ScrollArea>
     );
@@ -105,20 +109,24 @@ export const TagTreeView = ({
             onToggleTag={onToggleTag}
           />
         ))}
-        <div className="my-1 border-muted border-t" />
-        <button
-          type="button"
-          onClick={(e) => onToggleTag(UNTAGGED_PATH, e.ctrlKey || e.metaKey)}
-          className={cn(
-            "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
-            "hover:bg-accent",
-            selectedTagPaths.has(UNTAGGED_PATH) && "bg-accent"
-          )}
-        >
-          <CircleOff className="h-3 w-3 shrink-0 text-muted-foreground" />
-          <span className="min-w-0 flex-1 truncate text-left">{t("tree.notTagged")}</span>
-          <span className="shrink-0 text-muted-foreground text-xs">{untaggedCount}</span>
-        </button>
+        {untaggedCount != null ? (
+          <>
+            <div className="my-1 border-muted border-t" />
+            <button
+              type="button"
+              onClick={(e) => onToggleTag(UNTAGGED_PATH, e.ctrlKey || e.metaKey)}
+              className={cn(
+                "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
+                "hover:bg-accent",
+                selectedTagPaths.has(UNTAGGED_PATH) && "bg-accent"
+              )}
+            >
+              <CircleOff className="h-3 w-3 shrink-0 text-muted-foreground" />
+              <span className="min-w-0 flex-1 truncate text-left">{t("tree.notTagged")}</span>
+              <span className="shrink-0 text-muted-foreground text-xs">{untaggedCount}</span>
+            </button>
+          </>
+        ) : null}
       </div>
     </ScrollArea>
   );

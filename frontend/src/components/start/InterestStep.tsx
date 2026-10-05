@@ -1,16 +1,16 @@
 import { Check } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
-import type { GuildCategory } from "@/api/generated/initiativeAPI.schemas";
-import { PlacePicker } from "@/components/guilds/PlacePicker";
+import type { CommunityCategory } from "@/api/generated/initiativeAPI.schemas";
+import { PlacePicker } from "@/components/communities/PlacePicker";
 import { ContinueButton, SkipButton } from "@/components/start/stepParts";
 import { Button } from "@/components/ui/button";
+import { COMMUNITY_CATEGORIES, communityCategoryLabel } from "@/lib/communityCategories";
 import type { Place } from "@/lib/directoryNear";
-import { GUILD_CATEGORIES, guildCategoryLabel } from "@/lib/guildCategories";
 
 /** Each shelf's own colour, spread evenly around the wheel. */
 const shelfColour = (index: number): string =>
-  `oklch(0.7 0.16 ${Math.round((index * 360) / GUILD_CATEGORIES.length)})`;
+  `oklch(0.7 0.16 ${Math.round((index * 360) / COMMUNITY_CATEGORIES.length)})`;
 
 /**
  * Where they are, if they like, and the directory shelves to open on, as many
@@ -25,22 +25,22 @@ export const InterestStep = ({
   onSkip,
   disabled,
 }: {
-  value: GuildCategory[];
-  onChange: (categories: GuildCategory[]) => void;
+  value: CommunityCategory[];
+  onChange: (categories: CommunityCategory[]) => void;
   near: Place;
   onNearChange: (near: Place) => void;
   onContinue: () => void;
   onSkip: () => void;
   disabled?: boolean;
 }) => {
-  const { t } = useTranslation(["guilds", "common"]);
+  const { t } = useTranslation(["communities", "common"]);
   const { t: tAuth } = useTranslation("auth");
-  const toggle = (category: GuildCategory) =>
+  const toggle = (category: CommunityCategory) =>
     onChange(
       value.includes(category)
         ? value.filter((picked) => picked !== category)
         : // Kept in the directory's own order, whatever order they were tapped in.
-          GUILD_CATEGORIES.filter((item) => item === category || value.includes(item))
+          COMMUNITY_CATEGORIES.filter((item) => item === category || value.includes(item))
     );
   return (
     <>
@@ -51,7 +51,7 @@ export const InterestStep = ({
       </fieldset>
       <p className="font-medium text-sm">{tAuth("start.interest.whatTitle")}</p>
       <div className="flex flex-wrap gap-2">
-        {GUILD_CATEGORIES.map((category, index) => {
+        {COMMUNITY_CATEGORIES.map((category, index) => {
           const picked = value.includes(category);
           return (
             <Button
@@ -72,7 +72,7 @@ export const InterestStep = ({
                   style={{ backgroundColor: shelfColour(index) }}
                 />
               )}
-              {guildCategoryLabel(category, t)}
+              {communityCategoryLabel(category, t)}
             </Button>
           );
         })}

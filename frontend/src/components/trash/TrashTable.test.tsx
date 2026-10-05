@@ -4,14 +4,14 @@ import { HttpResponse, http } from "msw";
 import { describe, expect, it, vi } from "vitest";
 
 import { buildTrashItem, buildTrashListResponse } from "@/__tests__/factories/trash.factory";
-import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 
 import { TrashTable } from "./TrashTable";
 
 // Hoist toast spy so we can assert on it without pulling the whole module.
-vi.mock("@/lib/chesterToast", () => {
+vi.mock("@/lib/mascotToast", () => {
   const success = vi.fn();
   const error = vi.fn();
   return {
@@ -19,11 +19,11 @@ vi.mock("@/lib/chesterToast", () => {
   };
 });
 
-// variant="user" -> cross-guild GET /api/v1/me/trash (no guild segment).
+// variant="user" -> cross-community GET /api/v1/me/trash (no community segment).
 const myTrashEndpoint = "/api/v1/me/trash";
-// variant="guild" -> GET /api/v1/c/:guildId/trash/ (guild-admin view).
-const guildTrashEndpoint = "/trash/";
-// restore/purge stay guild-scoped, addressed by each item's guild_id.
+// variant="community" -> GET /api/v1/c/:communityId/trash/ (community-admin view).
+const communityTrashEndpoint = "/trash/";
+// restore/purge stay community-scoped, addressed by each item's community_id.
 const restoreEndpoint = "/trash/:type/:id/restore";
 const purgeEndpoint = "/trash/:type/:id/purge";
 
@@ -38,7 +38,7 @@ describe("TrashTable", () => {
 
   it("renders one row per trashed item with type badge + name", async () => {
     server.use(
-      guildHttp.get(guildTrashEndpoint, () =>
+      communityHttp.get(communityTrashEndpoint, () =>
         HttpResponse.json(
           buildTrashListResponse([
             buildTrashItem({ entity_type: "project", entity_id: 5, name: "Lost Mines" }),
@@ -48,7 +48,7 @@ describe("TrashTable", () => {
       )
     );
 
-    renderWithProviders(<TrashTable variant="guild" showPurgeAction />);
+    renderWithProviders(<TrashTable variant="community" showPurgeAction />);
 
     expect(await screen.findByText("Lost Mines")).toBeInTheDocument();
     expect(screen.getByText("Find the cleric")).toBeInTheDocument();
@@ -107,7 +107,7 @@ describe("TrashTable", () => {
   });
 
   it("clicking Restore POSTs to the restore endpoint and shows a success toast", async () => {
-    const { toast } = await import("@/lib/chesterToast");
+    const { toast } = await import("@/lib/mascotToast");
     const restoreCalls: string[] = [];
 
     server.use(
@@ -118,7 +118,7 @@ describe("TrashTable", () => {
           ])
         )
       ),
-      guildHttp.post(restoreEndpoint, ({ params }) => {
+      communityHttp.post(restoreEndpoint, ({ params }) => {
         restoreCalls.push(`${params.type}/${params.id}`);
         return HttpResponse.json({ restored: true });
       })
@@ -134,24 +134,24 @@ describe("TrashTable", () => {
   });
 
   it("clicking Delete now opens a destructive confirmation and DELETEs on confirm", async () => {
-    const { toast } = await import("@/lib/chesterToast");
+    const { toast } = await import("@/lib/mascotToast");
     const purgeCalls: string[] = [];
 
     server.use(
-      guildHttp.get(guildTrashEndpoint, () =>
+      communityHttp.get(communityTrashEndpoint, () =>
         HttpResponse.json(
           buildTrashListResponse([
             buildTrashItem({ entity_type: "tag", entity_id: 9, name: "old-tag" }),
           ])
         )
       ),
-      guildHttp.delete(purgeEndpoint, ({ params }) => {
+      communityHttp.delete(purgeEndpoint, ({ params }) => {
         purgeCalls.push(`${params.type}/${params.id}`);
         return new HttpResponse(null, { status: 204 });
       })
     );
 
-    renderWithProviders(<TrashTable variant="guild" showPurgeAction />);
+    renderWithProviders(<TrashTable variant="community" showPurgeAction />);
 
     await screen.findByText("old-tag");
     await userEvent.click(screen.getByRole("button", { name: /Delete now/i }));

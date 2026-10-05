@@ -24,7 +24,7 @@ from app.models.platform.user import (
 )
 from app.models.platform.user_notification_prefs import UserNotificationPrefs
 from app.models.platform.user_profile_view import MemberProfile
-from app.models.platform.guild import GuildMembership, GuildRole
+from app.models.platform.guild import GuildMembership, CommunityRole
 from app.services import audit as audit_service
 from app.services import email as email_service
 from app.services.auth import addresses
@@ -32,6 +32,7 @@ from app.services.auth import identity as identity_service
 from app.services.auth import sessions as session_service
 from app.services.auth import challenges as challenge_service
 from app.services.auth import totp as totp_service
+from app.services.platform import api_keys as api_keys_service
 from app.services.platform import billing_ping
 from app.services.platform import identity_refs
 from app.services.platform import user_avatars as user_avatars_service
@@ -49,6 +50,7 @@ if TYPE_CHECKING:  # pragma: no cover - typing only
     from app.schemas.platform.user import OperatorUserRead, UserRead, UserSummary
 from app.models.tenant.ai_member_pref import GuildAIMemberPref
 from app.models.platform.api_key import UserApiKey
+from app.models.platform.account_change_hold import AccountChangeHold
 from app.models.platform.user_token import UserToken
 from app.models.tenant.event_reminder_dispatch import EventReminderDispatch
 from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
@@ -84,7 +86,7 @@ async def _hold_seats_or_refuse(session: AsyncSession, user_id: int) -> None:
             await session.exec(
                 select(GuildMembership.guild_id).where(
                     GuildMembership.user_id == user_id,
-                    GuildMembership.role == GuildRole.superadmin,
+                    GuildMembership.role == CommunityRole.superadmin,
                 )
             )
         ).all()
@@ -607,7 +609,6 @@ async def soft_delete_user(
     # Strip the rest of the PII surface. The IdP subject and refresh token
     # live on the identity links — remove the links themselves.
     await identity_service.delete_user_identities(session, user_id=user_id)
-    user.full_name = None
     user.avatar_url = None
     # The picture is a row of its own now, so nulling the column is not enough
     # — the husk must not keep a face.
@@ -632,6 +633,9 @@ async def soft_delete_user(
     # rows so they don't sit in the DB attributed to a "Deleted user".
     await session.exec(delete(UserApiKey).where(UserApiKey.user_id == user_id))
     await session.exec(delete(UserToken).where(UserToken.user_id == user_id))
+    await session.exec(
+        delete(AccountChangeHold).where(AccountChangeHold.user_id == user_id)
+    )
     await session.exec(delete(PushToken).where(PushToken.user_id == user_id))
     # The session rows too: a husk keeps no record of the devices, addresses
     # and user agents its account signed in from. A hard delete gets this from
@@ -952,13 +956,13 @@ async def summaries_with_guild_role(
         summary = UserSummary.model_validate(user)
         role = roles.get(user.id)
         if role is not None:
-            summary.guild_role = role.value
+            summary.community_role = role.value
         summaries.append(summary)
     return summaries
 
 
 def name_closeness(
-    term: str, *, shows_names: bool, profile=MemberProfile
+    term: str, *, match_names: bool = True, profile=MemberProfile
 ) -> ColumnElement[float]:
     """How close a member's name is to what was typed, as a rankable number.
 
@@ -967,26 +971,27 @@ def name_closeness(
     that substring matching cannot — and its real work is the ORDER, putting the
     nearest name at the top of a page rather than whoever sorts first.
 
-    ``shows_names`` is the guild's own setting, so a real name is matched
-    exactly where it is shown and nowhere else.
+    ``match_names`` reads the profile's ``display_name`` too: on the guild
+    projection, the name the member set there, so a name is matched exactly
+    where it is shown and nowhere else.
     """
     closest = func.word_similarity(term, profile.username)
-    if shows_names:
+    if match_names:
         closest = func.greatest(
             closest,
-            func.word_similarity(term, func.coalesce(profile.full_name, "")),
+            func.word_similarity(term, func.coalesce(profile.display_name, "")),
         )
     return closest
 
 
 def member_match(
-    term: str, *, shows_names: bool, profile=MemberProfile
+    term: str, *, match_names: bool = True, profile=MemberProfile
 ) -> tuple[ColumnElement[bool], ColumnElement[float] | None]:
     """How a typed name selects members, and what to order the answer by.
 
     One implementation for every surface that looks people up — the guild
     roster, an initiative's, a project's, the picker behind an @mention. The
-    handle always; the real name alongside it where the guild shows names; a
+    handle always; the name alongside it where the guild shows one; a
     whole ``foobar#1234`` pinning the one person who owns it; and a name typed
     nearly right still finding them.
 
@@ -1005,19 +1010,22 @@ def member_match(
             None,
         )
     matches = profile.username.ilike(f"%{name_part}%")
-    if shows_names:
-        matches = or_(matches, profile.full_name.ilike(f"%{name_part}%"))
-    closest = name_closeness(name_part, shows_names=shows_names, profile=profile)
+    if match_names:
+        matches = or_(matches, profile.display_name.ilike(f"%{name_part}%"))
+    closest = name_closeness(name_part, match_names=match_names, profile=profile)
     return or_(matches, closest >= MEMBER_MATCH_THRESHOLD), closest
 
 
 def member_order(
-    closest: ColumnElement[float] | None, *, shows_names: bool
+    closest: ColumnElement[float] | None, *, match_names: bool = True
 ) -> tuple[ColumnElement, ...]:
-    """Nearest first while searching, alphabetical while reading a roster."""
+    """Nearest first while searching, alphabetical by the name shown while
+    reading a roster."""
     if closest is not None:
         return (closest.desc(),)
-    return (MemberProfile.full_name.asc(),) if shows_names else ()
+    if not match_names:
+        return ()
+    return (func.coalesce(MemberProfile.display_name, MemberProfile.username).asc(),)
 
 
 def visible_to_other_people(status_column=None):
@@ -1070,14 +1078,16 @@ async def _reach(user_ids: List[int]) -> tuple[dict[int, str], set[int]]:
         )
 
 
-async def _sign_in_state(
+async def _credential_state(
     user_ids: List[int],
-) -> tuple[dict[int, "SignInLock"], set[int]]:
-    """The sign-in locks standing on these accounts, and which of them hold a
-    second factor, on the system engine.
+) -> tuple[dict[int, "SignInLock"], set[int], dict[int, int]]:
+    """The sign-in locks standing on these accounts, which of them hold a
+    second factor, and how many working API keys each holds, on the system
+    engine.
 
-    ``sign_in_locks`` and ``user_totp`` carry no request-path grants, for the
-    reason ``user_emails`` does not. One query each for the whole page.
+    ``sign_in_locks``, ``user_totp`` and ``user_api_keys`` carry no
+    request-path grants, for the reason ``user_emails`` does not. One query
+    each for the whole page.
     """
     from app.db.session import SystemSessionLocal
     from app.services.auth import sign_in_locks
@@ -1086,6 +1096,7 @@ async def _sign_in_state(
         return (
             await sign_in_locks.closed(system_session, user_ids),
             await totp_service.enrolled_among(system_session, user_ids=user_ids),
+            await api_keys_service.live_counts(system_session, user_ids=user_ids),
         )
 
 
@@ -1117,7 +1128,7 @@ async def to_operator_read(users: List[User]) -> List["OperatorUserRead"]:
     from app.schemas.platform.user import OperatorUserRead
 
     primary, proven = await _reach([u.id for u in users])
-    locks, enrolled = await _sign_in_state([u.id for u in users])
+    locks, enrolled, key_counts = await _credential_state([u.id for u in users])
     # Only asked when somebody on this page is actually waiting out a window,
     # which on an ordinary roster is nobody.
     retention = (
@@ -1132,6 +1143,7 @@ async def to_operator_read(users: List[User]) -> List["OperatorUserRead"]:
         payload.email_verified = user.id in proven
         payload.purge_at = _erase_at(user, retention)
         payload.second_factor_enrolled = user.id in enrolled
+        payload.api_key_count = key_counts.get(user.id, 0)
         lock = locks.get(user.id)
         if lock is not None:
             payload.sign_in_locked_until = lock.locked_until

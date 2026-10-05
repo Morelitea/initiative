@@ -2,6 +2,8 @@
   "deletedUserName": "Deleted user #{{id}}",
   "user": "User",
   "userWithId": "User #{{id}}",
+  "formerMember": "Former member",
+  "mentionNotLoaded": "Couldn't load this name",
   "save": "Save",
   "cancel": "Cancel",
   "delete": "Delete",
@@ -112,6 +114,11 @@
   "createAccess": {
     "advancedOptions": "Advanced options"
   },
+  "subToolDuplicate": {
+    "action": "Duplicate",
+    "duplicating": "Duplicating…",
+    "done": "Duplicated"
+  },
   "toolSettings": {
     "archive": {
       "title": "Archive",
@@ -124,12 +131,22 @@
       "archived": "“{{name}}” archived",
       "unarchived": "“{{name}}” is back"
     },
+    "duplicate": {
+      "title": "Duplicate",
+      "description": "Make a copy with everything inside it, in this initiative or another one where you can create it.",
+      "action": "Duplicate",
+      "dialogTitle": "Duplicate “{{name}}”",
+      "initiative": "Initiative",
+      "defaultName": "{{name}} (Copy)",
+      "duplicating": "Duplicating…",
+      "duplicated": "Copied to {{initiative}}",
+      "error": "The copy could not be made."
+    },
     "export": {
       "title": "Export",
       "description": "Download a copy — a file you can import here or on another server, or a report to read. Only whoever can delete this can export it."
     },
     "title": "Settings",
-    "description": "Manage details, access, and advanced options.",
     "tabDetails": "Details",
     "tabAccess": "Access",
     "tabAdvanced": "Advanced",
@@ -167,6 +184,9 @@
     "moreActions": "More actions",
     "selectItems": "Select items",
     "view": "View",
+    "viewGrid": "Grid",
+    "viewList": "List",
+    "viewTags": "Tags",
     "details": "Details"
   },
   "emojiPicker": {
@@ -258,6 +278,18 @@
     "description": "Nothing is at this address. The link may be mistyped, or the page may have moved."
   },
   "nativeUpdate": {
-    "unsigned": "This server's update isn't one Initiative published, so the app stays on version {{version}}."
+    "unsigned": "This server's update isn't one Initiative published, so the app stays on version {{version}}.",
+    "desktopReady": "Initiative has downloaded its update. Restart to finish.",
+    "restart": "Restart"
+  },
+  "toolHeader": {
+    "rename": "Rename"
+  },
+  "toolChest": {
+    "status": "Status",
+    "active": "Active",
+    "archived": "Archived",
+    "none": "None",
+    "template": "Template"
   }
 }

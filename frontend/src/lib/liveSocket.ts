@@ -1,7 +1,7 @@
 /**
  * One authenticated WebSocket, kept open.
  *
- * Every push channel — the per-guild events bus, the personal notification
+ * Every push channel — the per-community events bus, the personal notification
  * stream, a queue's or counter group's change signal and a document's Yjs
  * room — needs the same connection underneath: authenticate in the first
  * frame, reconnect with jittered backoff, try again at once when the network

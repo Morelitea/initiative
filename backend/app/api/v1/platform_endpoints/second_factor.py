@@ -13,6 +13,7 @@ from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi.responses import JSONResponse
 
 from app.api.deps import (
     FactorExemptUser,
@@ -23,11 +24,17 @@ from app.api.deps import (
 from app.core.audit_events import AuditEventType
 from app.core.login_methods import LoginMethod
 from app.core.messages import AuthMessages
-from app.core.rate_limit import get_user_or_ip_key, limiter
+from app.core.rate_limit import limiter
 from app.core.security import has_usable_password
 from app.api.v1.platform_endpoints.password_recheck import (
     password_confirms,
     require_password_or_recent_proof,
+)
+from app.api.v1.platform_endpoints.change_assessment import is_risky
+from app.api.v1.platform_endpoints.held_changes import (
+    HELD_OUTCOME,
+    held_response,
+    hold_change,
 )
 from app.api.v1.platform_endpoints.session_opening import (
     count_wrong_answer,
@@ -36,6 +43,7 @@ from app.api.v1.platform_endpoints.session_opening import (
 )
 
 from app.schemas.platform.token import Token
+from app.schemas.platform.user import HeldChangeOutcome
 from app.schemas.platform.second_factor import (
     SecondFactorStepUpAnswer,
     RecoveryCodes,
@@ -49,13 +57,12 @@ from app.schemas.platform.second_factor import (
 from app.services import audit as audit_service
 from app.services import email as email_service
 from app.services.auth import addresses
-from app.services.auth import challenges as challenge_service
+from app.models.platform.account_change_hold import HeldChangeKind
+from app.services.auth import held_changes
 from app.services.auth import sign_in_locks
 from app.services.auth import totp as totp_service
 from app.services.platform import auth_posture
-from app.services.auth import sessions as session_service
 from app.services.auth.assurance import SECOND_FACTOR_AMR
-from app.services.content_sockets import sockets as content_sockets
 
 router = APIRouter()
 
@@ -114,7 +121,7 @@ async def read_second_factor(
 
 
 @router.post("/totp/enroll", response_model=SecondFactorEnrolment)
-@limiter.limit("10/hour", key_func=get_user_or_ip_key)
+@limiter.limit("10/hour")
 async def begin_second_factor(
     request: Request,
     current_user: FactorExemptUser,
@@ -214,20 +221,26 @@ async def confirm_second_factor(
     return RecoveryCodes(codes=codes)
 
 
-@router.post("/totp/disable", status_code=status.HTTP_204_NO_CONTENT)
-@limiter.limit("10/15minutes", key_func=get_user_or_ip_key)
+@router.post(
+    "/totp/disable",
+    response_model=HeldChangeOutcome,
+    responses=HELD_OUTCOME,
+)
+@limiter.limit("10/15minutes")
 async def disable_second_factor(
     request: Request,
     current_user: CurrentUser,
     system_session: SystemSessionDep,
     payload: SecondFactorDisable,
     _first_party: str = FirstPartyOnly,
-) -> None:
+) -> HeldChangeOutcome | JSONResponse:
     """Remove the factor, its seed and its recovery codes.
 
     Asks for the password — or, where the password is not asked for, a
     recent sign-in — and for the factor itself: a live code, or one of the
-    recovery codes. Every other session goes with it; this one stays.
+    recovery codes. Every other session goes with it; this one stays. Asked
+    for from somewhere the account does not yet know, it waits two days
+    (``202``).
     """
     if not await totp_service.is_enrolled(system_session, user_id=current_user.id):
         raise HTTPException(
@@ -260,31 +273,26 @@ async def disable_second_factor(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=refusal)
 
     await sign_in_locks.record_success(system_session, current_user.id)
-    await totp_service.disable(system_session, user_id=current_user.id)
-    await challenge_service.revoke_for_user(system_session, user_id=current_user.id)
+    if await is_risky(request, system_session, current_user):
+        held = await hold_change(
+            request,
+            system_session,
+            current_user,
+            kind=HeldChangeKind.second_factor_off,
+        )
+        return held_response(HeldChangeOutcome(held=held))
     # Every other session, and not this one: the change was made from a page
     # that should still be signed in when it finishes.
-    await session_service.revoke_all_for_user(
+    await held_changes.turn_off_second_factor(
         system_session,
-        user_id=current_user.id,
-        except_session_id=getattr(request.state, "session_id", None),
+        current_user,
+        kept_session_id=getattr(request.state, "session_id", None),
     )
-    await audit_service.record(
-        system_session,
-        event_type=AuditEventType.AUTH_SECOND_FACTOR_DISABLED,
-        actor_user_id=current_user.id,
-        detail={"method": "totp"},
-    )
-    await system_session.commit()
-    # Connections opened on the ended sessions close; this one's stay.
-    await content_sockets.revoke_user_everywhere(current_user.id)
-    await email_service.announce_second_factor_change(
-        system_session, current_user, enabled=False
-    )
+    return HeldChangeOutcome()
 
 
 @router.post("/step-up/totp", response_model=Token)
-@limiter.limit("10/15minutes", key_func=get_user_or_ip_key)
+@limiter.limit("10/15minutes")
 async def step_up_with_factor(
     request: Request,
     response: Response,
@@ -345,7 +353,7 @@ async def step_up_with_factor(
 
 
 @router.post("/recovery-codes/regenerate", response_model=RecoveryCodes)
-@limiter.limit("5/hour", key_func=get_user_or_ip_key)
+@limiter.limit("5/hour")
 async def regenerate_recovery_codes(
     request: Request,
     current_user: CurrentUser,

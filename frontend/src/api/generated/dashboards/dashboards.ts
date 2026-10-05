@@ -27,12 +27,13 @@ import type {
   DashboardListResponse,
   DashboardRead,
   DashboardUpdate,
+  DashboardViewModeRequest,
   HTTPValidationError,
-  ListDashboardsApiV1CGuildIdDashboardsGetParams,
-  PublishRequest,
+  ListDashboardsParams,
   QueryResponse,
-  ReadDashboardApiV1CGuildIdDashboardsDashboardIdGetParams,
+  ReadDashboardParams,
   ResourceGrantSchema,
+  ToolDuplicateRequest,
   WidgetCatalog,
 } from "../initiativeAPI.schemas";
 
@@ -60,88 +61,66 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
  * List dashboards visible to the current user (guild admins see all).
  * @summary List Dashboards
  */
-export const listDashboardsApiV1CGuildIdDashboardsGet = (
-  guildId: number,
-  params?: ListDashboardsApiV1CGuildIdDashboardsGetParams,
+export const listDashboards = (
+  communityId: number,
+  params?: ListDashboardsParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<DashboardListResponse>(
-    { url: `/api/v1/c/${guildId}/dashboards/`, method: "GET", params, signal },
+    { url: `/api/v1/c/${communityId}/dashboards/`, method: "GET", params, signal },
     options
   );
 };
 
-export const getListDashboardsApiV1CGuildIdDashboardsGetQueryKey = (
-  guildId: number,
-  params?: ListDashboardsApiV1CGuildIdDashboardsGetParams
-) => {
-  return [`/api/v1/c/${guildId}/dashboards/`, ...(params ? [params] : [])] as const;
+export const getListDashboardsQueryKey = (communityId: number, params?: ListDashboardsParams) => {
+  return [`/api/v1/c/${communityId}/dashboards/`, ...(params ? [params] : [])] as const;
 };
 
-export const getListDashboardsApiV1CGuildIdDashboardsGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof listDashboardsApiV1CGuildIdDashboardsGet>>,
+export const getListDashboardsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listDashboards>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
-  params?: ListDashboardsApiV1CGuildIdDashboardsGetParams,
+  communityId: number,
+  params?: ListDashboardsParams,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listDashboardsApiV1CGuildIdDashboardsGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listDashboards>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   }
 ) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey =
-    queryOptions?.queryKey ?? getListDashboardsApiV1CGuildIdDashboardsGetQueryKey(guildId, params);
+  const queryKey = queryOptions?.queryKey ?? getListDashboardsQueryKey(communityId, params);
 
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof listDashboardsApiV1CGuildIdDashboardsGet>>
-  > = ({ signal }) =>
-    listDashboardsApiV1CGuildIdDashboardsGet(guildId, params, requestOptions, signal);
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listDashboards>>> = ({ signal }) =>
+    listDashboards(communityId, params, requestOptions, signal);
 
   return {
     queryKey,
     queryFn,
-    enabled: guildId !== null && guildId !== undefined,
+    enabled: communityId !== null && communityId !== undefined,
     ...queryOptions,
-  } as UseQueryOptions<
-    Awaited<ReturnType<typeof listDashboardsApiV1CGuildIdDashboardsGet>>,
-    TError,
-    TData
-  > & { queryKey: DataTag<QueryKey, TData, TError> };
+  } as UseQueryOptions<Awaited<ReturnType<typeof listDashboards>>, TError, TData> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 };
 
-export type ListDashboardsApiV1CGuildIdDashboardsGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof listDashboardsApiV1CGuildIdDashboardsGet>>
->;
-export type ListDashboardsApiV1CGuildIdDashboardsGetQueryError = ErrorType<HTTPValidationError>;
+export type ListDashboardsQueryResult = NonNullable<Awaited<ReturnType<typeof listDashboards>>>;
+export type ListDashboardsQueryError = ErrorType<HTTPValidationError>;
 
-export function useListDashboardsApiV1CGuildIdDashboardsGet<
-  TData = Awaited<ReturnType<typeof listDashboardsApiV1CGuildIdDashboardsGet>>,
+export function useListDashboards<
+  TData = Awaited<ReturnType<typeof listDashboards>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
-  params: undefined | ListDashboardsApiV1CGuildIdDashboardsGetParams,
+  communityId: number,
+  params: undefined | ListDashboardsParams,
   options: {
-    query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listDashboardsApiV1CGuildIdDashboardsGet>>,
-        TError,
-        TData
-      >
-    > &
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof listDashboards>>, TError, TData>> &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listDashboardsApiV1CGuildIdDashboardsGet>>,
+          Awaited<ReturnType<typeof listDashboards>>,
           TError,
-          Awaited<ReturnType<typeof listDashboardsApiV1CGuildIdDashboardsGet>>
+          Awaited<ReturnType<typeof listDashboards>>
         >,
         "initialData"
       >;
@@ -149,25 +128,19 @@ export function useListDashboardsApiV1CGuildIdDashboardsGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListDashboardsApiV1CGuildIdDashboardsGet<
-  TData = Awaited<ReturnType<typeof listDashboardsApiV1CGuildIdDashboardsGet>>,
+export function useListDashboards<
+  TData = Awaited<ReturnType<typeof listDashboards>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
-  params?: ListDashboardsApiV1CGuildIdDashboardsGetParams,
+  communityId: number,
+  params?: ListDashboardsParams,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listDashboardsApiV1CGuildIdDashboardsGet>>,
-        TError,
-        TData
-      >
-    > &
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listDashboards>>, TError, TData>> &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listDashboardsApiV1CGuildIdDashboardsGet>>,
+          Awaited<ReturnType<typeof listDashboards>>,
           TError,
-          Awaited<ReturnType<typeof listDashboardsApiV1CGuildIdDashboardsGet>>
+          Awaited<ReturnType<typeof listDashboards>>
         >,
         "initialData"
       >;
@@ -175,20 +148,14 @@ export function useListDashboardsApiV1CGuildIdDashboardsGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListDashboardsApiV1CGuildIdDashboardsGet<
-  TData = Awaited<ReturnType<typeof listDashboardsApiV1CGuildIdDashboardsGet>>,
+export function useListDashboards<
+  TData = Awaited<ReturnType<typeof listDashboards>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
-  params?: ListDashboardsApiV1CGuildIdDashboardsGetParams,
+  communityId: number,
+  params?: ListDashboardsParams,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listDashboardsApiV1CGuildIdDashboardsGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listDashboards>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
@@ -197,29 +164,19 @@ export function useListDashboardsApiV1CGuildIdDashboardsGet<
  * @summary List Dashboards
  */
 
-export function useListDashboardsApiV1CGuildIdDashboardsGet<
-  TData = Awaited<ReturnType<typeof listDashboardsApiV1CGuildIdDashboardsGet>>,
+export function useListDashboards<
+  TData = Awaited<ReturnType<typeof listDashboards>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
-  params?: ListDashboardsApiV1CGuildIdDashboardsGetParams,
+  communityId: number,
+  params?: ListDashboardsParams,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listDashboardsApiV1CGuildIdDashboardsGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listDashboards>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListDashboardsApiV1CGuildIdDashboardsGetQueryOptions(
-    guildId,
-    params,
-    options
-  );
+  const queryOptions = getListDashboardsQueryOptions(communityId, params, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -233,15 +190,15 @@ export function useListDashboardsApiV1CGuildIdDashboardsGet<
  * initiative (or guild admin); the creator gets the owner grant.
  * @summary Create Dashboard
  */
-export const createDashboardApiV1CGuildIdDashboardsPost = (
-  guildId: number,
+export const createDashboard = (
+  communityId: number,
   dashboardCreate: BodyType<DashboardCreate>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<DashboardRead>(
     {
-      url: `/api/v1/c/${guildId}/dashboards/`,
+      url: `/api/v1/c/${communityId}/dashboards/`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
       data: dashboardCreate,
@@ -251,27 +208,26 @@ export const createDashboardApiV1CGuildIdDashboardsPost = (
   );
 };
 
-export const getCreateDashboardApiV1CGuildIdDashboardsPostMutationKey = () =>
-  ["createDashboardApiV1CGuildIdDashboardsPost"] as const;
+export const getCreateDashboardMutationKey = () => ["createDashboard"] as const;
 
-export const getCreateDashboardApiV1CGuildIdDashboardsPostMutationOptions = <
+export const getCreateDashboardMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof createDashboardApiV1CGuildIdDashboardsPost>>,
+    Awaited<ReturnType<typeof createDashboard>>,
     TError,
-    CreateDashboardApiV1CGuildIdDashboardsPostMutationVariables,
+    CreateDashboardMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof createDashboardApiV1CGuildIdDashboardsPost>>,
+  Awaited<ReturnType<typeof createDashboard>>,
   TError,
-  CreateDashboardApiV1CGuildIdDashboardsPostMutationVariables,
+  CreateDashboardMutationVariables,
   TContext
 > => {
-  const mutationKey = getCreateDashboardApiV1CGuildIdDashboardsPostMutationKey();
+  const mutationKey = getCreateDashboardMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -279,55 +235,48 @@ export const getCreateDashboardApiV1CGuildIdDashboardsPostMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof createDashboardApiV1CGuildIdDashboardsPost>>,
-    CreateDashboardApiV1CGuildIdDashboardsPostMutationVariables
+    Awaited<ReturnType<typeof createDashboard>>,
+    CreateDashboardMutationVariables
   > = (props) => {
-    const { guildId, data } = props ?? {};
+    const { communityId, data } = props ?? {};
 
-    return createDashboardApiV1CGuildIdDashboardsPost(guildId, data, requestOptions);
+    return createDashboard(communityId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type CreateDashboardApiV1CGuildIdDashboardsPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof createDashboardApiV1CGuildIdDashboardsPost>>
+export type CreateDashboardMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createDashboard>>
 >;
-export type CreateDashboardApiV1CGuildIdDashboardsPostMutationBody = BodyType<DashboardCreate>;
-export type CreateDashboardApiV1CGuildIdDashboardsPostMutationError =
-  ErrorType<HTTPValidationError>;
-export type CreateDashboardApiV1CGuildIdDashboardsPostMutationVariables = {
-  guildId: number;
+export type CreateDashboardMutationBody = BodyType<DashboardCreate>;
+export type CreateDashboardMutationError = ErrorType<HTTPValidationError>;
+export type CreateDashboardMutationVariables = {
+  communityId: number;
   data: BodyType<DashboardCreate>;
 };
 
 /**
  * @summary Create Dashboard
  */
-export const useCreateDashboardApiV1CGuildIdDashboardsPost = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
+export const useCreateDashboard = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof createDashboardApiV1CGuildIdDashboardsPost>>,
+      Awaited<ReturnType<typeof createDashboard>>,
       TError,
-      CreateDashboardApiV1CGuildIdDashboardsPostMutationVariables,
+      CreateDashboardMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof createDashboardApiV1CGuildIdDashboardsPost>>,
+  Awaited<ReturnType<typeof createDashboard>>,
   TError,
-  CreateDashboardApiV1CGuildIdDashboardsPostMutationVariables,
+  CreateDashboardMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getCreateDashboardApiV1CGuildIdDashboardsPostMutationOptions(options),
-    queryClient
-  );
+  return useMutation(getCreateDashboardMutationOptions(options), queryClient);
 };
 /**
  * Which marketplace listings this guild has installed, and how many of each.
@@ -340,103 +289,69 @@ export const useCreateDashboardApiV1CGuildIdDashboardsPost = <
  * can see.
  * @summary Read Installed Listings
  */
-export const readInstalledListingsApiV1CGuildIdDashboardsInstalledListingsGet = (
-  guildId: number,
+export const readInstalledListings = (
+  communityId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<DashboardInstalledListings>(
-    { url: `/api/v1/c/${guildId}/dashboards/installed-listings`, method: "GET", signal },
+    { url: `/api/v1/c/${communityId}/dashboards/installed-listings`, method: "GET", signal },
     options
   );
 };
 
-export const getReadInstalledListingsApiV1CGuildIdDashboardsInstalledListingsGetQueryKey = (
-  guildId: number
-) => {
-  return [`/api/v1/c/${guildId}/dashboards/installed-listings`] as const;
+export const getReadInstalledListingsQueryKey = (communityId: number) => {
+  return [`/api/v1/c/${communityId}/dashboards/installed-listings`] as const;
 };
 
-export const getReadInstalledListingsApiV1CGuildIdDashboardsInstalledListingsGetQueryOptions = <
-  TData = Awaited<
-    ReturnType<typeof readInstalledListingsApiV1CGuildIdDashboardsInstalledListingsGet>
-  >,
+export const getReadInstalledListingsQueryOptions = <
+  TData = Awaited<ReturnType<typeof readInstalledListings>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<
-          ReturnType<typeof readInstalledListingsApiV1CGuildIdDashboardsInstalledListingsGet>
-        >,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof readInstalledListings>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   }
 ) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey =
-    queryOptions?.queryKey ??
-    getReadInstalledListingsApiV1CGuildIdDashboardsInstalledListingsGetQueryKey(guildId);
+  const queryKey = queryOptions?.queryKey ?? getReadInstalledListingsQueryKey(communityId);
 
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof readInstalledListingsApiV1CGuildIdDashboardsInstalledListingsGet>>
-  > = ({ signal }) =>
-    readInstalledListingsApiV1CGuildIdDashboardsInstalledListingsGet(
-      guildId,
-      requestOptions,
-      signal
-    );
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof readInstalledListings>>> = ({ signal }) =>
+    readInstalledListings(communityId, requestOptions, signal);
 
   return {
     queryKey,
     queryFn,
-    enabled: guildId !== null && guildId !== undefined,
+    enabled: communityId !== null && communityId !== undefined,
     ...queryOptions,
-  } as UseQueryOptions<
-    Awaited<ReturnType<typeof readInstalledListingsApiV1CGuildIdDashboardsInstalledListingsGet>>,
-    TError,
-    TData
-  > & { queryKey: DataTag<QueryKey, TData, TError> };
+  } as UseQueryOptions<Awaited<ReturnType<typeof readInstalledListings>>, TError, TData> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 };
 
-export type ReadInstalledListingsApiV1CGuildIdDashboardsInstalledListingsGetQueryResult =
-  NonNullable<
-    Awaited<ReturnType<typeof readInstalledListingsApiV1CGuildIdDashboardsInstalledListingsGet>>
-  >;
-export type ReadInstalledListingsApiV1CGuildIdDashboardsInstalledListingsGetQueryError =
-  ErrorType<HTTPValidationError>;
+export type ReadInstalledListingsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof readInstalledListings>>
+>;
+export type ReadInstalledListingsQueryError = ErrorType<HTTPValidationError>;
 
-export function useReadInstalledListingsApiV1CGuildIdDashboardsInstalledListingsGet<
-  TData = Awaited<
-    ReturnType<typeof readInstalledListingsApiV1CGuildIdDashboardsInstalledListingsGet>
-  >,
+export function useReadInstalledListings<
+  TData = Awaited<ReturnType<typeof readInstalledListings>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   options: {
     query: Partial<
-      UseQueryOptions<
-        Awaited<
-          ReturnType<typeof readInstalledListingsApiV1CGuildIdDashboardsInstalledListingsGet>
-        >,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof readInstalledListings>>, TError, TData>
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<
-            ReturnType<typeof readInstalledListingsApiV1CGuildIdDashboardsInstalledListingsGet>
-          >,
+          Awaited<ReturnType<typeof readInstalledListings>>,
           TError,
-          Awaited<
-            ReturnType<typeof readInstalledListingsApiV1CGuildIdDashboardsInstalledListingsGet>
-          >
+          Awaited<ReturnType<typeof readInstalledListings>>
         >,
         "initialData"
       >;
@@ -444,32 +359,20 @@ export function useReadInstalledListingsApiV1CGuildIdDashboardsInstalledListings
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadInstalledListingsApiV1CGuildIdDashboardsInstalledListingsGet<
-  TData = Awaited<
-    ReturnType<typeof readInstalledListingsApiV1CGuildIdDashboardsInstalledListingsGet>
-  >,
+export function useReadInstalledListings<
+  TData = Awaited<ReturnType<typeof readInstalledListings>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<
-          ReturnType<typeof readInstalledListingsApiV1CGuildIdDashboardsInstalledListingsGet>
-        >,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof readInstalledListings>>, TError, TData>
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<
-            ReturnType<typeof readInstalledListingsApiV1CGuildIdDashboardsInstalledListingsGet>
-          >,
+          Awaited<ReturnType<typeof readInstalledListings>>,
           TError,
-          Awaited<
-            ReturnType<typeof readInstalledListingsApiV1CGuildIdDashboardsInstalledListingsGet>
-          >
+          Awaited<ReturnType<typeof readInstalledListings>>
         >,
         "initialData"
       >;
@@ -477,22 +380,14 @@ export function useReadInstalledListingsApiV1CGuildIdDashboardsInstalledListings
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadInstalledListingsApiV1CGuildIdDashboardsInstalledListingsGet<
-  TData = Awaited<
-    ReturnType<typeof readInstalledListingsApiV1CGuildIdDashboardsInstalledListingsGet>
-  >,
+export function useReadInstalledListings<
+  TData = Awaited<ReturnType<typeof readInstalledListings>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<
-          ReturnType<typeof readInstalledListingsApiV1CGuildIdDashboardsInstalledListingsGet>
-        >,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof readInstalledListings>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
@@ -502,32 +397,20 @@ export function useReadInstalledListingsApiV1CGuildIdDashboardsInstalledListings
  * @summary Read Installed Listings
  */
 
-export function useReadInstalledListingsApiV1CGuildIdDashboardsInstalledListingsGet<
-  TData = Awaited<
-    ReturnType<typeof readInstalledListingsApiV1CGuildIdDashboardsInstalledListingsGet>
-  >,
+export function useReadInstalledListings<
+  TData = Awaited<ReturnType<typeof readInstalledListings>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   options?: {
     query?: Partial<
-      UseQueryOptions<
-        Awaited<
-          ReturnType<typeof readInstalledListingsApiV1CGuildIdDashboardsInstalledListingsGet>
-        >,
-        TError,
-        TData
-      >
+      UseQueryOptions<Awaited<ReturnType<typeof readInstalledListings>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions =
-    getReadInstalledListingsApiV1CGuildIdDashboardsInstalledListingsGetQueryOptions(
-      guildId,
-      options
-    );
+  const queryOptions = getReadInstalledListingsQueryOptions(communityId, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -547,86 +430,65 @@ export function useReadInstalledListingsApiV1CGuildIdDashboardsInstalledListings
  * second copy of the registry.
  * @summary Read Widget Catalog
  */
-export const readWidgetCatalogApiV1CGuildIdDashboardsWidgetCatalogGet = (
-  guildId: number,
+export const readWidgetCatalog = (
+  communityId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<WidgetCatalog>(
-    { url: `/api/v1/c/${guildId}/dashboards/widget-catalog`, method: "GET", signal },
+    { url: `/api/v1/c/${communityId}/dashboards/widget-catalog`, method: "GET", signal },
     options
   );
 };
 
-export const getReadWidgetCatalogApiV1CGuildIdDashboardsWidgetCatalogGetQueryKey = (
-  guildId: number
-) => {
-  return [`/api/v1/c/${guildId}/dashboards/widget-catalog`] as const;
+export const getReadWidgetCatalogQueryKey = (communityId: number) => {
+  return [`/api/v1/c/${communityId}/dashboards/widget-catalog`] as const;
 };
 
-export const getReadWidgetCatalogApiV1CGuildIdDashboardsWidgetCatalogGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof readWidgetCatalogApiV1CGuildIdDashboardsWidgetCatalogGet>>,
+export const getReadWidgetCatalogQueryOptions = <
+  TData = Awaited<ReturnType<typeof readWidgetCatalog>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readWidgetCatalogApiV1CGuildIdDashboardsWidgetCatalogGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readWidgetCatalog>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   }
 ) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey =
-    queryOptions?.queryKey ??
-    getReadWidgetCatalogApiV1CGuildIdDashboardsWidgetCatalogGetQueryKey(guildId);
+  const queryKey = queryOptions?.queryKey ?? getReadWidgetCatalogQueryKey(communityId);
 
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof readWidgetCatalogApiV1CGuildIdDashboardsWidgetCatalogGet>>
-  > = ({ signal }) =>
-    readWidgetCatalogApiV1CGuildIdDashboardsWidgetCatalogGet(guildId, requestOptions, signal);
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof readWidgetCatalog>>> = ({ signal }) =>
+    readWidgetCatalog(communityId, requestOptions, signal);
 
   return {
     queryKey,
     queryFn,
-    enabled: guildId !== null && guildId !== undefined,
+    enabled: communityId !== null && communityId !== undefined,
     ...queryOptions,
-  } as UseQueryOptions<
-    Awaited<ReturnType<typeof readWidgetCatalogApiV1CGuildIdDashboardsWidgetCatalogGet>>,
-    TError,
-    TData
-  > & { queryKey: DataTag<QueryKey, TData, TError> };
+  } as UseQueryOptions<Awaited<ReturnType<typeof readWidgetCatalog>>, TError, TData> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 };
 
-export type ReadWidgetCatalogApiV1CGuildIdDashboardsWidgetCatalogGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof readWidgetCatalogApiV1CGuildIdDashboardsWidgetCatalogGet>>
+export type ReadWidgetCatalogQueryResult = NonNullable<
+  Awaited<ReturnType<typeof readWidgetCatalog>>
 >;
-export type ReadWidgetCatalogApiV1CGuildIdDashboardsWidgetCatalogGetQueryError =
-  ErrorType<HTTPValidationError>;
+export type ReadWidgetCatalogQueryError = ErrorType<HTTPValidationError>;
 
-export function useReadWidgetCatalogApiV1CGuildIdDashboardsWidgetCatalogGet<
-  TData = Awaited<ReturnType<typeof readWidgetCatalogApiV1CGuildIdDashboardsWidgetCatalogGet>>,
+export function useReadWidgetCatalog<
+  TData = Awaited<ReturnType<typeof readWidgetCatalog>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   options: {
-    query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readWidgetCatalogApiV1CGuildIdDashboardsWidgetCatalogGet>>,
-        TError,
-        TData
-      >
-    > &
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof readWidgetCatalog>>, TError, TData>> &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readWidgetCatalogApiV1CGuildIdDashboardsWidgetCatalogGet>>,
+          Awaited<ReturnType<typeof readWidgetCatalog>>,
           TError,
-          Awaited<ReturnType<typeof readWidgetCatalogApiV1CGuildIdDashboardsWidgetCatalogGet>>
+          Awaited<ReturnType<typeof readWidgetCatalog>>
         >,
         "initialData"
       >;
@@ -634,24 +496,18 @@ export function useReadWidgetCatalogApiV1CGuildIdDashboardsWidgetCatalogGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadWidgetCatalogApiV1CGuildIdDashboardsWidgetCatalogGet<
-  TData = Awaited<ReturnType<typeof readWidgetCatalogApiV1CGuildIdDashboardsWidgetCatalogGet>>,
+export function useReadWidgetCatalog<
+  TData = Awaited<ReturnType<typeof readWidgetCatalog>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readWidgetCatalogApiV1CGuildIdDashboardsWidgetCatalogGet>>,
-        TError,
-        TData
-      >
-    > &
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readWidgetCatalog>>, TError, TData>> &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readWidgetCatalogApiV1CGuildIdDashboardsWidgetCatalogGet>>,
+          Awaited<ReturnType<typeof readWidgetCatalog>>,
           TError,
-          Awaited<ReturnType<typeof readWidgetCatalogApiV1CGuildIdDashboardsWidgetCatalogGet>>
+          Awaited<ReturnType<typeof readWidgetCatalog>>
         >,
         "initialData"
       >;
@@ -659,19 +515,13 @@ export function useReadWidgetCatalogApiV1CGuildIdDashboardsWidgetCatalogGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadWidgetCatalogApiV1CGuildIdDashboardsWidgetCatalogGet<
-  TData = Awaited<ReturnType<typeof readWidgetCatalogApiV1CGuildIdDashboardsWidgetCatalogGet>>,
+export function useReadWidgetCatalog<
+  TData = Awaited<ReturnType<typeof readWidgetCatalog>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readWidgetCatalogApiV1CGuildIdDashboardsWidgetCatalogGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readWidgetCatalog>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
@@ -680,27 +530,18 @@ export function useReadWidgetCatalogApiV1CGuildIdDashboardsWidgetCatalogGet<
  * @summary Read Widget Catalog
  */
 
-export function useReadWidgetCatalogApiV1CGuildIdDashboardsWidgetCatalogGet<
-  TData = Awaited<ReturnType<typeof readWidgetCatalogApiV1CGuildIdDashboardsWidgetCatalogGet>>,
+export function useReadWidgetCatalog<
+  TData = Awaited<ReturnType<typeof readWidgetCatalog>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readWidgetCatalogApiV1CGuildIdDashboardsWidgetCatalogGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readWidgetCatalog>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getReadWidgetCatalogApiV1CGuildIdDashboardsWidgetCatalogGetQueryOptions(
-    guildId,
-    options
-  );
+  const queryOptions = getReadWidgetCatalogQueryOptions(communityId, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -712,104 +553,81 @@ export function useReadWidgetCatalogApiV1CGuildIdDashboardsWidgetCatalogGet<
 /**
  * @summary Read Dashboard
  */
-export const readDashboardApiV1CGuildIdDashboardsDashboardIdGet = (
-  guildId: number,
+export const readDashboard = (
+  communityId: number,
   dashboardId: number,
-  params?: ReadDashboardApiV1CGuildIdDashboardsDashboardIdGetParams,
+  params?: ReadDashboardParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<DashboardRead>(
-    { url: `/api/v1/c/${guildId}/dashboards/${dashboardId}`, method: "GET", params, signal },
+    { url: `/api/v1/c/${communityId}/dashboards/${dashboardId}`, method: "GET", params, signal },
     options
   );
 };
 
-export const getReadDashboardApiV1CGuildIdDashboardsDashboardIdGetQueryKey = (
-  guildId: number,
+export const getReadDashboardQueryKey = (
+  communityId: number,
   dashboardId: number,
-  params?: ReadDashboardApiV1CGuildIdDashboardsDashboardIdGetParams
+  params?: ReadDashboardParams
 ) => {
-  return [`/api/v1/c/${guildId}/dashboards/${dashboardId}`, ...(params ? [params] : [])] as const;
+  return [
+    `/api/v1/c/${communityId}/dashboards/${dashboardId}`,
+    ...(params ? [params] : []),
+  ] as const;
 };
 
-export const getReadDashboardApiV1CGuildIdDashboardsDashboardIdGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof readDashboardApiV1CGuildIdDashboardsDashboardIdGet>>,
+export const getReadDashboardQueryOptions = <
+  TData = Awaited<ReturnType<typeof readDashboard>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   dashboardId: number,
-  params?: ReadDashboardApiV1CGuildIdDashboardsDashboardIdGetParams,
+  params?: ReadDashboardParams,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readDashboardApiV1CGuildIdDashboardsDashboardIdGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readDashboard>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   }
 ) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
   const queryKey =
-    queryOptions?.queryKey ??
-    getReadDashboardApiV1CGuildIdDashboardsDashboardIdGetQueryKey(guildId, dashboardId, params);
+    queryOptions?.queryKey ?? getReadDashboardQueryKey(communityId, dashboardId, params);
 
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof readDashboardApiV1CGuildIdDashboardsDashboardIdGet>>
-  > = ({ signal }) =>
-    readDashboardApiV1CGuildIdDashboardsDashboardIdGet(
-      guildId,
-      dashboardId,
-      params,
-      requestOptions,
-      signal
-    );
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof readDashboard>>> = ({ signal }) =>
+    readDashboard(communityId, dashboardId, params, requestOptions, signal);
 
   return {
     queryKey,
     queryFn,
     enabled:
-      guildId !== null &&
-      guildId !== undefined &&
+      communityId !== null &&
+      communityId !== undefined &&
       dashboardId !== null &&
       dashboardId !== undefined,
     ...queryOptions,
-  } as UseQueryOptions<
-    Awaited<ReturnType<typeof readDashboardApiV1CGuildIdDashboardsDashboardIdGet>>,
-    TError,
-    TData
-  > & { queryKey: DataTag<QueryKey, TData, TError> };
+  } as UseQueryOptions<Awaited<ReturnType<typeof readDashboard>>, TError, TData> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 };
 
-export type ReadDashboardApiV1CGuildIdDashboardsDashboardIdGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof readDashboardApiV1CGuildIdDashboardsDashboardIdGet>>
->;
-export type ReadDashboardApiV1CGuildIdDashboardsDashboardIdGetQueryError =
-  ErrorType<HTTPValidationError>;
+export type ReadDashboardQueryResult = NonNullable<Awaited<ReturnType<typeof readDashboard>>>;
+export type ReadDashboardQueryError = ErrorType<HTTPValidationError>;
 
-export function useReadDashboardApiV1CGuildIdDashboardsDashboardIdGet<
-  TData = Awaited<ReturnType<typeof readDashboardApiV1CGuildIdDashboardsDashboardIdGet>>,
+export function useReadDashboard<
+  TData = Awaited<ReturnType<typeof readDashboard>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   dashboardId: number,
-  params: undefined | ReadDashboardApiV1CGuildIdDashboardsDashboardIdGetParams,
+  params: undefined | ReadDashboardParams,
   options: {
-    query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readDashboardApiV1CGuildIdDashboardsDashboardIdGet>>,
-        TError,
-        TData
-      >
-    > &
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof readDashboard>>, TError, TData>> &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readDashboardApiV1CGuildIdDashboardsDashboardIdGet>>,
+          Awaited<ReturnType<typeof readDashboard>>,
           TError,
-          Awaited<ReturnType<typeof readDashboardApiV1CGuildIdDashboardsDashboardIdGet>>
+          Awaited<ReturnType<typeof readDashboard>>
         >,
         "initialData"
       >;
@@ -817,26 +635,20 @@ export function useReadDashboardApiV1CGuildIdDashboardsDashboardIdGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadDashboardApiV1CGuildIdDashboardsDashboardIdGet<
-  TData = Awaited<ReturnType<typeof readDashboardApiV1CGuildIdDashboardsDashboardIdGet>>,
+export function useReadDashboard<
+  TData = Awaited<ReturnType<typeof readDashboard>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   dashboardId: number,
-  params?: ReadDashboardApiV1CGuildIdDashboardsDashboardIdGetParams,
+  params?: ReadDashboardParams,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readDashboardApiV1CGuildIdDashboardsDashboardIdGet>>,
-        TError,
-        TData
-      >
-    > &
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readDashboard>>, TError, TData>> &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readDashboardApiV1CGuildIdDashboardsDashboardIdGet>>,
+          Awaited<ReturnType<typeof readDashboard>>,
           TError,
-          Awaited<ReturnType<typeof readDashboardApiV1CGuildIdDashboardsDashboardIdGet>>
+          Awaited<ReturnType<typeof readDashboard>>
         >,
         "initialData"
       >;
@@ -844,21 +656,15 @@ export function useReadDashboardApiV1CGuildIdDashboardsDashboardIdGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadDashboardApiV1CGuildIdDashboardsDashboardIdGet<
-  TData = Awaited<ReturnType<typeof readDashboardApiV1CGuildIdDashboardsDashboardIdGet>>,
+export function useReadDashboard<
+  TData = Awaited<ReturnType<typeof readDashboard>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   dashboardId: number,
-  params?: ReadDashboardApiV1CGuildIdDashboardsDashboardIdGetParams,
+  params?: ReadDashboardParams,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readDashboardApiV1CGuildIdDashboardsDashboardIdGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readDashboard>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
@@ -867,31 +673,20 @@ export function useReadDashboardApiV1CGuildIdDashboardsDashboardIdGet<
  * @summary Read Dashboard
  */
 
-export function useReadDashboardApiV1CGuildIdDashboardsDashboardIdGet<
-  TData = Awaited<ReturnType<typeof readDashboardApiV1CGuildIdDashboardsDashboardIdGet>>,
+export function useReadDashboard<
+  TData = Awaited<ReturnType<typeof readDashboard>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   dashboardId: number,
-  params?: ReadDashboardApiV1CGuildIdDashboardsDashboardIdGetParams,
+  params?: ReadDashboardParams,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readDashboardApiV1CGuildIdDashboardsDashboardIdGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readDashboard>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getReadDashboardApiV1CGuildIdDashboardsDashboardIdGetQueryOptions(
-    guildId,
-    dashboardId,
-    params,
-    options
-  );
+  const queryOptions = getReadDashboardQueryOptions(communityId, dashboardId, params, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -906,8 +701,8 @@ export function useReadDashboardApiV1CGuildIdDashboardsDashboardIdGet<
  * hooks up to. It never writes the data it displays.
  * @summary Update Dashboard
  */
-export const updateDashboardApiV1CGuildIdDashboardsDashboardIdPatch = (
-  guildId: number,
+export const updateDashboard = (
+  communityId: number,
   dashboardId: number,
   dashboardUpdate: BodyType<DashboardUpdate>,
   options?: SecondParameter<typeof apiMutator>,
@@ -915,7 +710,7 @@ export const updateDashboardApiV1CGuildIdDashboardsDashboardIdPatch = (
 ) => {
   return apiMutator<DashboardRead>(
     {
-      url: `/api/v1/c/${guildId}/dashboards/${dashboardId}`,
+      url: `/api/v1/c/${communityId}/dashboards/${dashboardId}`,
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       data: dashboardUpdate,
@@ -925,27 +720,26 @@ export const updateDashboardApiV1CGuildIdDashboardsDashboardIdPatch = (
   );
 };
 
-export const getUpdateDashboardApiV1CGuildIdDashboardsDashboardIdPatchMutationKey = () =>
-  ["updateDashboardApiV1CGuildIdDashboardsDashboardIdPatch"] as const;
+export const getUpdateDashboardMutationKey = () => ["updateDashboard"] as const;
 
-export const getUpdateDashboardApiV1CGuildIdDashboardsDashboardIdPatchMutationOptions = <
+export const getUpdateDashboardMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof updateDashboardApiV1CGuildIdDashboardsDashboardIdPatch>>,
+    Awaited<ReturnType<typeof updateDashboard>>,
     TError,
-    UpdateDashboardApiV1CGuildIdDashboardsDashboardIdPatchMutationVariables,
+    UpdateDashboardMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof updateDashboardApiV1CGuildIdDashboardsDashboardIdPatch>>,
+  Awaited<ReturnType<typeof updateDashboard>>,
   TError,
-  UpdateDashboardApiV1CGuildIdDashboardsDashboardIdPatchMutationVariables,
+  UpdateDashboardMutationVariables,
   TContext
 > => {
-  const mutationKey = getUpdateDashboardApiV1CGuildIdDashboardsDashboardIdPatchMutationKey();
+  const mutationKey = getUpdateDashboardMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -953,31 +747,24 @@ export const getUpdateDashboardApiV1CGuildIdDashboardsDashboardIdPatchMutationOp
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof updateDashboardApiV1CGuildIdDashboardsDashboardIdPatch>>,
-    UpdateDashboardApiV1CGuildIdDashboardsDashboardIdPatchMutationVariables
+    Awaited<ReturnType<typeof updateDashboard>>,
+    UpdateDashboardMutationVariables
   > = (props) => {
-    const { guildId, dashboardId, data } = props ?? {};
+    const { communityId, dashboardId, data } = props ?? {};
 
-    return updateDashboardApiV1CGuildIdDashboardsDashboardIdPatch(
-      guildId,
-      dashboardId,
-      data,
-      requestOptions
-    );
+    return updateDashboard(communityId, dashboardId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type UpdateDashboardApiV1CGuildIdDashboardsDashboardIdPatchMutationResult = NonNullable<
-  Awaited<ReturnType<typeof updateDashboardApiV1CGuildIdDashboardsDashboardIdPatch>>
+export type UpdateDashboardMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateDashboard>>
 >;
-export type UpdateDashboardApiV1CGuildIdDashboardsDashboardIdPatchMutationBody =
-  BodyType<DashboardUpdate>;
-export type UpdateDashboardApiV1CGuildIdDashboardsDashboardIdPatchMutationError =
-  ErrorType<HTTPValidationError>;
-export type UpdateDashboardApiV1CGuildIdDashboardsDashboardIdPatchMutationVariables = {
-  guildId: number;
+export type UpdateDashboardMutationBody = BodyType<DashboardUpdate>;
+export type UpdateDashboardMutationError = ErrorType<HTTPValidationError>;
+export type UpdateDashboardMutationVariables = {
+  communityId: number;
   dashboardId: number;
   data: BodyType<DashboardUpdate>;
 };
@@ -985,30 +772,24 @@ export type UpdateDashboardApiV1CGuildIdDashboardsDashboardIdPatchMutationVariab
 /**
  * @summary Update Dashboard
  */
-export const useUpdateDashboardApiV1CGuildIdDashboardsDashboardIdPatch = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
+export const useUpdateDashboard = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof updateDashboardApiV1CGuildIdDashboardsDashboardIdPatch>>,
+      Awaited<ReturnType<typeof updateDashboard>>,
       TError,
-      UpdateDashboardApiV1CGuildIdDashboardsDashboardIdPatchMutationVariables,
+      UpdateDashboardMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof updateDashboardApiV1CGuildIdDashboardsDashboardIdPatch>>,
+  Awaited<ReturnType<typeof updateDashboard>>,
   TError,
-  UpdateDashboardApiV1CGuildIdDashboardsDashboardIdPatchMutationVariables,
+  UpdateDashboardMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getUpdateDashboardApiV1CGuildIdDashboardsDashboardIdPatchMutationOptions(options),
-    queryClient
-  );
+  return useMutation(getUpdateDashboardMutationOptions(options), queryClient);
 };
 /**
  * Move it to the trash with everything inside it. Restoring it brings
@@ -1016,39 +797,38 @@ export const useUpdateDashboardApiV1CGuildIdDashboardsDashboardIdPatch = <
  * Requires the delete right on it: its owner, or a guild admin.
  * @summary Delete Dashboard
  */
-export const deleteDashboardApiV1CGuildIdDashboardsDashboardIdDelete = (
-  guildId: number,
+export const deleteDashboard = (
+  communityId: number,
   dashboardId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<void>(
-    { url: `/api/v1/c/${guildId}/dashboards/${dashboardId}`, method: "DELETE", signal },
+    { url: `/api/v1/c/${communityId}/dashboards/${dashboardId}`, method: "DELETE", signal },
     options
   );
 };
 
-export const getDeleteDashboardApiV1CGuildIdDashboardsDashboardIdDeleteMutationKey = () =>
-  ["deleteDashboardApiV1CGuildIdDashboardsDashboardIdDelete"] as const;
+export const getDeleteDashboardMutationKey = () => ["deleteDashboard"] as const;
 
-export const getDeleteDashboardApiV1CGuildIdDashboardsDashboardIdDeleteMutationOptions = <
+export const getDeleteDashboardMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof deleteDashboardApiV1CGuildIdDashboardsDashboardIdDelete>>,
+    Awaited<ReturnType<typeof deleteDashboard>>,
     TError,
-    DeleteDashboardApiV1CGuildIdDashboardsDashboardIdDeleteMutationVariables,
+    DeleteDashboardMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof deleteDashboardApiV1CGuildIdDashboardsDashboardIdDelete>>,
+  Awaited<ReturnType<typeof deleteDashboard>>,
   TError,
-  DeleteDashboardApiV1CGuildIdDashboardsDashboardIdDeleteMutationVariables,
+  DeleteDashboardMutationVariables,
   TContext
 > => {
-  const mutationKey = getDeleteDashboardApiV1CGuildIdDashboardsDashboardIdDeleteMutationKey();
+  const mutationKey = getDeleteDashboardMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1056,59 +836,45 @@ export const getDeleteDashboardApiV1CGuildIdDashboardsDashboardIdDeleteMutationO
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof deleteDashboardApiV1CGuildIdDashboardsDashboardIdDelete>>,
-    DeleteDashboardApiV1CGuildIdDashboardsDashboardIdDeleteMutationVariables
+    Awaited<ReturnType<typeof deleteDashboard>>,
+    DeleteDashboardMutationVariables
   > = (props) => {
-    const { guildId, dashboardId } = props ?? {};
+    const { communityId, dashboardId } = props ?? {};
 
-    return deleteDashboardApiV1CGuildIdDashboardsDashboardIdDelete(
-      guildId,
-      dashboardId,
-      requestOptions
-    );
+    return deleteDashboard(communityId, dashboardId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type DeleteDashboardApiV1CGuildIdDashboardsDashboardIdDeleteMutationResult = NonNullable<
-  Awaited<ReturnType<typeof deleteDashboardApiV1CGuildIdDashboardsDashboardIdDelete>>
+export type DeleteDashboardMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteDashboard>>
 >;
 
-export type DeleteDashboardApiV1CGuildIdDashboardsDashboardIdDeleteMutationError =
-  ErrorType<HTTPValidationError>;
-export type DeleteDashboardApiV1CGuildIdDashboardsDashboardIdDeleteMutationVariables = {
-  guildId: number;
-  dashboardId: number;
-};
+export type DeleteDashboardMutationError = ErrorType<HTTPValidationError>;
+export type DeleteDashboardMutationVariables = { communityId: number; dashboardId: number };
 
 /**
  * @summary Delete Dashboard
  */
-export const useDeleteDashboardApiV1CGuildIdDashboardsDashboardIdDelete = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
+export const useDeleteDashboard = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof deleteDashboardApiV1CGuildIdDashboardsDashboardIdDelete>>,
+      Awaited<ReturnType<typeof deleteDashboard>>,
       TError,
-      DeleteDashboardApiV1CGuildIdDashboardsDashboardIdDeleteMutationVariables,
+      DeleteDashboardMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof deleteDashboardApiV1CGuildIdDashboardsDashboardIdDelete>>,
+  Awaited<ReturnType<typeof deleteDashboard>>,
   TError,
-  DeleteDashboardApiV1CGuildIdDashboardsDashboardIdDeleteMutationVariables,
+  DeleteDashboardMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getDeleteDashboardApiV1CGuildIdDashboardsDashboardIdDeleteMutationOptions(options),
-    queryClient
-  );
+  return useMutation(getDeleteDashboardMutationOptions(options), queryClient);
 };
 /**
  * Re-pin an installed dashboard to its listing's current version.
@@ -1123,39 +889,38 @@ export const useDeleteDashboardApiV1CGuildIdDashboardsDashboardIdDelete = <
  * so config can never outlive the widget it configured.
  * @summary Upgrade Dashboard
  */
-export const upgradeDashboardApiV1CGuildIdDashboardsDashboardIdUpgradePost = (
-  guildId: number,
+export const upgradeDashboard = (
+  communityId: number,
   dashboardId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<DashboardRead>(
-    { url: `/api/v1/c/${guildId}/dashboards/${dashboardId}/upgrade`, method: "POST", signal },
+    { url: `/api/v1/c/${communityId}/dashboards/${dashboardId}/upgrade`, method: "POST", signal },
     options
   );
 };
 
-export const getUpgradeDashboardApiV1CGuildIdDashboardsDashboardIdUpgradePostMutationKey = () =>
-  ["upgradeDashboardApiV1CGuildIdDashboardsDashboardIdUpgradePost"] as const;
+export const getUpgradeDashboardMutationKey = () => ["upgradeDashboard"] as const;
 
-export const getUpgradeDashboardApiV1CGuildIdDashboardsDashboardIdUpgradePostMutationOptions = <
+export const getUpgradeDashboardMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof upgradeDashboardApiV1CGuildIdDashboardsDashboardIdUpgradePost>>,
+    Awaited<ReturnType<typeof upgradeDashboard>>,
     TError,
-    UpgradeDashboardApiV1CGuildIdDashboardsDashboardIdUpgradePostMutationVariables,
+    UpgradeDashboardMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof upgradeDashboardApiV1CGuildIdDashboardsDashboardIdUpgradePost>>,
+  Awaited<ReturnType<typeof upgradeDashboard>>,
   TError,
-  UpgradeDashboardApiV1CGuildIdDashboardsDashboardIdUpgradePostMutationVariables,
+  UpgradeDashboardMutationVariables,
   TContext
 > => {
-  const mutationKey = getUpgradeDashboardApiV1CGuildIdDashboardsDashboardIdUpgradePostMutationKey();
+  const mutationKey = getUpgradeDashboardMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1163,60 +928,45 @@ export const getUpgradeDashboardApiV1CGuildIdDashboardsDashboardIdUpgradePostMut
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof upgradeDashboardApiV1CGuildIdDashboardsDashboardIdUpgradePost>>,
-    UpgradeDashboardApiV1CGuildIdDashboardsDashboardIdUpgradePostMutationVariables
+    Awaited<ReturnType<typeof upgradeDashboard>>,
+    UpgradeDashboardMutationVariables
   > = (props) => {
-    const { guildId, dashboardId } = props ?? {};
+    const { communityId, dashboardId } = props ?? {};
 
-    return upgradeDashboardApiV1CGuildIdDashboardsDashboardIdUpgradePost(
-      guildId,
-      dashboardId,
-      requestOptions
-    );
+    return upgradeDashboard(communityId, dashboardId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type UpgradeDashboardApiV1CGuildIdDashboardsDashboardIdUpgradePostMutationResult =
-  NonNullable<
-    Awaited<ReturnType<typeof upgradeDashboardApiV1CGuildIdDashboardsDashboardIdUpgradePost>>
-  >;
+export type UpgradeDashboardMutationResult = NonNullable<
+  Awaited<ReturnType<typeof upgradeDashboard>>
+>;
 
-export type UpgradeDashboardApiV1CGuildIdDashboardsDashboardIdUpgradePostMutationError =
-  ErrorType<HTTPValidationError>;
-export type UpgradeDashboardApiV1CGuildIdDashboardsDashboardIdUpgradePostMutationVariables = {
-  guildId: number;
-  dashboardId: number;
-};
+export type UpgradeDashboardMutationError = ErrorType<HTTPValidationError>;
+export type UpgradeDashboardMutationVariables = { communityId: number; dashboardId: number };
 
 /**
  * @summary Upgrade Dashboard
  */
-export const useUpgradeDashboardApiV1CGuildIdDashboardsDashboardIdUpgradePost = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
+export const useUpgradeDashboard = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof upgradeDashboardApiV1CGuildIdDashboardsDashboardIdUpgradePost>>,
+      Awaited<ReturnType<typeof upgradeDashboard>>,
       TError,
-      UpgradeDashboardApiV1CGuildIdDashboardsDashboardIdUpgradePostMutationVariables,
+      UpgradeDashboardMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof upgradeDashboardApiV1CGuildIdDashboardsDashboardIdUpgradePost>>,
+  Awaited<ReturnType<typeof upgradeDashboard>>,
   TError,
-  UpgradeDashboardApiV1CGuildIdDashboardsDashboardIdUpgradePostMutationVariables,
+  UpgradeDashboardMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getUpgradeDashboardApiV1CGuildIdDashboardsDashboardIdUpgradePostMutationOptions(options),
-    queryClient
-  );
+  return useMutation(getUpgradeDashboardMutationOptions(options), queryClient);
 };
 /**
  * Answer every query widget on this dashboard at once.
@@ -1228,99 +978,72 @@ export const useUpgradeDashboardApiV1CGuildIdDashboardsDashboardIdUpgradePost = 
  * statement, as for :func:`run_widget_query`.
  * @summary Load Dashboard Data
  */
-export const loadDashboardDataApiV1CGuildIdDashboardsDashboardIdDataGet = (
-  guildId: number,
+export const loadDashboardData = (
+  communityId: number,
   dashboardId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<DashboardDataResponse>(
-    { url: `/api/v1/c/${guildId}/dashboards/${dashboardId}/data`, method: "GET", signal },
+    { url: `/api/v1/c/${communityId}/dashboards/${dashboardId}/data`, method: "GET", signal },
     options
   );
 };
 
-export const getLoadDashboardDataApiV1CGuildIdDashboardsDashboardIdDataGetQueryKey = (
-  guildId: number,
-  dashboardId: number
-) => {
-  return [`/api/v1/c/${guildId}/dashboards/${dashboardId}/data`] as const;
+export const getLoadDashboardDataQueryKey = (communityId: number, dashboardId: number) => {
+  return [`/api/v1/c/${communityId}/dashboards/${dashboardId}/data`] as const;
 };
 
-export const getLoadDashboardDataApiV1CGuildIdDashboardsDashboardIdDataGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof loadDashboardDataApiV1CGuildIdDashboardsDashboardIdDataGet>>,
+export const getLoadDashboardDataQueryOptions = <
+  TData = Awaited<ReturnType<typeof loadDashboardData>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   dashboardId: number,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof loadDashboardDataApiV1CGuildIdDashboardsDashboardIdDataGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof loadDashboardData>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   }
 ) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey =
-    queryOptions?.queryKey ??
-    getLoadDashboardDataApiV1CGuildIdDashboardsDashboardIdDataGetQueryKey(guildId, dashboardId);
+  const queryKey = queryOptions?.queryKey ?? getLoadDashboardDataQueryKey(communityId, dashboardId);
 
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof loadDashboardDataApiV1CGuildIdDashboardsDashboardIdDataGet>>
-  > = ({ signal }) =>
-    loadDashboardDataApiV1CGuildIdDashboardsDashboardIdDataGet(
-      guildId,
-      dashboardId,
-      requestOptions,
-      signal
-    );
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof loadDashboardData>>> = ({ signal }) =>
+    loadDashboardData(communityId, dashboardId, requestOptions, signal);
 
   return {
     queryKey,
     queryFn,
     enabled:
-      guildId !== null &&
-      guildId !== undefined &&
+      communityId !== null &&
+      communityId !== undefined &&
       dashboardId !== null &&
       dashboardId !== undefined,
     ...queryOptions,
-  } as UseQueryOptions<
-    Awaited<ReturnType<typeof loadDashboardDataApiV1CGuildIdDashboardsDashboardIdDataGet>>,
-    TError,
-    TData
-  > & { queryKey: DataTag<QueryKey, TData, TError> };
+  } as UseQueryOptions<Awaited<ReturnType<typeof loadDashboardData>>, TError, TData> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 };
 
-export type LoadDashboardDataApiV1CGuildIdDashboardsDashboardIdDataGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof loadDashboardDataApiV1CGuildIdDashboardsDashboardIdDataGet>>
+export type LoadDashboardDataQueryResult = NonNullable<
+  Awaited<ReturnType<typeof loadDashboardData>>
 >;
-export type LoadDashboardDataApiV1CGuildIdDashboardsDashboardIdDataGetQueryError =
-  ErrorType<HTTPValidationError>;
+export type LoadDashboardDataQueryError = ErrorType<HTTPValidationError>;
 
-export function useLoadDashboardDataApiV1CGuildIdDashboardsDashboardIdDataGet<
-  TData = Awaited<ReturnType<typeof loadDashboardDataApiV1CGuildIdDashboardsDashboardIdDataGet>>,
+export function useLoadDashboardData<
+  TData = Awaited<ReturnType<typeof loadDashboardData>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   dashboardId: number,
   options: {
-    query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof loadDashboardDataApiV1CGuildIdDashboardsDashboardIdDataGet>>,
-        TError,
-        TData
-      >
-    > &
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof loadDashboardData>>, TError, TData>> &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof loadDashboardDataApiV1CGuildIdDashboardsDashboardIdDataGet>>,
+          Awaited<ReturnType<typeof loadDashboardData>>,
           TError,
-          Awaited<ReturnType<typeof loadDashboardDataApiV1CGuildIdDashboardsDashboardIdDataGet>>
+          Awaited<ReturnType<typeof loadDashboardData>>
         >,
         "initialData"
       >;
@@ -1328,25 +1051,19 @@ export function useLoadDashboardDataApiV1CGuildIdDashboardsDashboardIdDataGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useLoadDashboardDataApiV1CGuildIdDashboardsDashboardIdDataGet<
-  TData = Awaited<ReturnType<typeof loadDashboardDataApiV1CGuildIdDashboardsDashboardIdDataGet>>,
+export function useLoadDashboardData<
+  TData = Awaited<ReturnType<typeof loadDashboardData>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   dashboardId: number,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof loadDashboardDataApiV1CGuildIdDashboardsDashboardIdDataGet>>,
-        TError,
-        TData
-      >
-    > &
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof loadDashboardData>>, TError, TData>> &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof loadDashboardDataApiV1CGuildIdDashboardsDashboardIdDataGet>>,
+          Awaited<ReturnType<typeof loadDashboardData>>,
           TError,
-          Awaited<ReturnType<typeof loadDashboardDataApiV1CGuildIdDashboardsDashboardIdDataGet>>
+          Awaited<ReturnType<typeof loadDashboardData>>
         >,
         "initialData"
       >;
@@ -1354,20 +1071,14 @@ export function useLoadDashboardDataApiV1CGuildIdDashboardsDashboardIdDataGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useLoadDashboardDataApiV1CGuildIdDashboardsDashboardIdDataGet<
-  TData = Awaited<ReturnType<typeof loadDashboardDataApiV1CGuildIdDashboardsDashboardIdDataGet>>,
+export function useLoadDashboardData<
+  TData = Awaited<ReturnType<typeof loadDashboardData>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   dashboardId: number,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof loadDashboardDataApiV1CGuildIdDashboardsDashboardIdDataGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof loadDashboardData>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
@@ -1376,29 +1087,19 @@ export function useLoadDashboardDataApiV1CGuildIdDashboardsDashboardIdDataGet<
  * @summary Load Dashboard Data
  */
 
-export function useLoadDashboardDataApiV1CGuildIdDashboardsDashboardIdDataGet<
-  TData = Awaited<ReturnType<typeof loadDashboardDataApiV1CGuildIdDashboardsDashboardIdDataGet>>,
+export function useLoadDashboardData<
+  TData = Awaited<ReturnType<typeof loadDashboardData>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   dashboardId: number,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof loadDashboardDataApiV1CGuildIdDashboardsDashboardIdDataGet>>,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof loadDashboardData>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getLoadDashboardDataApiV1CGuildIdDashboardsDashboardIdDataGetQueryOptions(
-    guildId,
-    dashboardId,
-    options
-  );
+  const queryOptions = getLoadDashboardDataQueryOptions(communityId, dashboardId, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -1411,17 +1112,16 @@ export function useLoadDashboardDataApiV1CGuildIdDashboardsDashboardIdDataGet<
  * Run the statement stored on one of this dashboard's widgets.
  *
  * What runs is the widget's own, never one the request supplies. That is what
- * makes a published view safe to serve: the rows a dashboard's grants reach
- * are shown through the question somebody published, and a reader cannot ask
- * a different one of them.
+ * makes running as the initiative safe to serve: its wider read is only ever
+ * asked the question stored on the dashboard.
  *
  * The dashboard's own four gates decide whether this caller sees anything at
  * all, and they run first. The canvas loads through
  * :func:`load_dashboard_data`; this answers one widget, for the builder.
  * @summary Run Widget Query
  */
-export const runWidgetQueryApiV1CGuildIdDashboardsDashboardIdWidgetsWidgetIdQueryGet = (
-  guildId: number,
+export const runWidgetQuery = (
+  communityId: number,
   dashboardId: number,
   widgetId: string,
   options?: SecondParameter<typeof apiMutator>,
@@ -1429,7 +1129,7 @@ export const runWidgetQueryApiV1CGuildIdDashboardsDashboardIdWidgetsWidgetIdQuer
 ) => {
   return apiMutator<QueryResponse>(
     {
-      url: `/api/v1/c/${guildId}/dashboards/${dashboardId}/widgets/${widgetId}/query`,
+      url: `/api/v1/c/${communityId}/dashboards/${dashboardId}/widgets/${widgetId}/query`,
       method: "GET",
       signal,
     },
@@ -1437,123 +1137,67 @@ export const runWidgetQueryApiV1CGuildIdDashboardsDashboardIdWidgetsWidgetIdQuer
   );
 };
 
-export const getRunWidgetQueryApiV1CGuildIdDashboardsDashboardIdWidgetsWidgetIdQueryGetQueryKey = (
-  guildId: number,
+export const getRunWidgetQueryQueryKey = (
+  communityId: number,
   dashboardId: number,
   widgetId: string
 ) => {
-  return [`/api/v1/c/${guildId}/dashboards/${dashboardId}/widgets/${widgetId}/query`] as const;
+  return [`/api/v1/c/${communityId}/dashboards/${dashboardId}/widgets/${widgetId}/query`] as const;
 };
 
-export const getRunWidgetQueryApiV1CGuildIdDashboardsDashboardIdWidgetsWidgetIdQueryGetQueryOptions =
-  <
-    TData = Awaited<
-      ReturnType<typeof runWidgetQueryApiV1CGuildIdDashboardsDashboardIdWidgetsWidgetIdQueryGet>
-    >,
-    TError = ErrorType<HTTPValidationError>,
-  >(
-    guildId: number,
-    dashboardId: number,
-    widgetId: string,
-    options?: {
-      query?: Partial<
-        UseQueryOptions<
-          Awaited<
-            ReturnType<
-              typeof runWidgetQueryApiV1CGuildIdDashboardsDashboardIdWidgetsWidgetIdQueryGet
-            >
-          >,
-          TError,
-          TData
-        >
-      >;
-      request?: SecondParameter<typeof apiMutator>;
-    }
-  ) => {
-    const { query: queryOptions, request: requestOptions } = options ?? {};
-
-    const queryKey =
-      queryOptions?.queryKey ??
-      getRunWidgetQueryApiV1CGuildIdDashboardsDashboardIdWidgetsWidgetIdQueryGetQueryKey(
-        guildId,
-        dashboardId,
-        widgetId
-      );
-
-    const queryFn: QueryFunction<
-      Awaited<
-        ReturnType<typeof runWidgetQueryApiV1CGuildIdDashboardsDashboardIdWidgetsWidgetIdQueryGet>
-      >
-    > = ({ signal }) =>
-      runWidgetQueryApiV1CGuildIdDashboardsDashboardIdWidgetsWidgetIdQueryGet(
-        guildId,
-        dashboardId,
-        widgetId,
-        requestOptions,
-        signal
-      );
-
-    return {
-      queryKey,
-      queryFn,
-      enabled:
-        guildId !== null &&
-        guildId !== undefined &&
-        dashboardId !== null &&
-        dashboardId !== undefined &&
-        widgetId !== null &&
-        widgetId !== undefined,
-      ...queryOptions,
-    } as UseQueryOptions<
-      Awaited<
-        ReturnType<typeof runWidgetQueryApiV1CGuildIdDashboardsDashboardIdWidgetsWidgetIdQueryGet>
-      >,
-      TError,
-      TData
-    > & { queryKey: DataTag<QueryKey, TData, TError> };
-  };
-
-export type RunWidgetQueryApiV1CGuildIdDashboardsDashboardIdWidgetsWidgetIdQueryGetQueryResult =
-  NonNullable<
-    Awaited<
-      ReturnType<typeof runWidgetQueryApiV1CGuildIdDashboardsDashboardIdWidgetsWidgetIdQueryGet>
-    >
-  >;
-export type RunWidgetQueryApiV1CGuildIdDashboardsDashboardIdWidgetsWidgetIdQueryGetQueryError =
-  ErrorType<HTTPValidationError>;
-
-export function useRunWidgetQueryApiV1CGuildIdDashboardsDashboardIdWidgetsWidgetIdQueryGet<
-  TData = Awaited<
-    ReturnType<typeof runWidgetQueryApiV1CGuildIdDashboardsDashboardIdWidgetsWidgetIdQueryGet>
-  >,
+export const getRunWidgetQueryQueryOptions = <
+  TData = Awaited<ReturnType<typeof runWidgetQuery>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
+  dashboardId: number,
+  widgetId: string,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof runWidgetQuery>>, TError, TData>>;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getRunWidgetQueryQueryKey(communityId, dashboardId, widgetId);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof runWidgetQuery>>> = ({ signal }) =>
+    runWidgetQuery(communityId, dashboardId, widgetId, requestOptions, signal);
+
+  return {
+    queryKey,
+    queryFn,
+    enabled:
+      communityId !== null &&
+      communityId !== undefined &&
+      dashboardId !== null &&
+      dashboardId !== undefined &&
+      widgetId !== null &&
+      widgetId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<Awaited<ReturnType<typeof runWidgetQuery>>, TError, TData> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+};
+
+export type RunWidgetQueryQueryResult = NonNullable<Awaited<ReturnType<typeof runWidgetQuery>>>;
+export type RunWidgetQueryQueryError = ErrorType<HTTPValidationError>;
+
+export function useRunWidgetQuery<
+  TData = Awaited<ReturnType<typeof runWidgetQuery>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  communityId: number,
   dashboardId: number,
   widgetId: string,
   options: {
-    query: Partial<
-      UseQueryOptions<
-        Awaited<
-          ReturnType<typeof runWidgetQueryApiV1CGuildIdDashboardsDashboardIdWidgetsWidgetIdQueryGet>
-        >,
-        TError,
-        TData
-      >
-    > &
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof runWidgetQuery>>, TError, TData>> &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<
-            ReturnType<
-              typeof runWidgetQueryApiV1CGuildIdDashboardsDashboardIdWidgetsWidgetIdQueryGet
-            >
-          >,
+          Awaited<ReturnType<typeof runWidgetQuery>>,
           TError,
-          Awaited<
-            ReturnType<
-              typeof runWidgetQueryApiV1CGuildIdDashboardsDashboardIdWidgetsWidgetIdQueryGet
-            >
-          >
+          Awaited<ReturnType<typeof runWidgetQuery>>
         >,
         "initialData"
       >;
@@ -1561,38 +1205,20 @@ export function useRunWidgetQueryApiV1CGuildIdDashboardsDashboardIdWidgetsWidget
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useRunWidgetQueryApiV1CGuildIdDashboardsDashboardIdWidgetsWidgetIdQueryGet<
-  TData = Awaited<
-    ReturnType<typeof runWidgetQueryApiV1CGuildIdDashboardsDashboardIdWidgetsWidgetIdQueryGet>
-  >,
+export function useRunWidgetQuery<
+  TData = Awaited<ReturnType<typeof runWidgetQuery>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   dashboardId: number,
   widgetId: string,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<
-          ReturnType<typeof runWidgetQueryApiV1CGuildIdDashboardsDashboardIdWidgetsWidgetIdQueryGet>
-        >,
-        TError,
-        TData
-      >
-    > &
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof runWidgetQuery>>, TError, TData>> &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<
-            ReturnType<
-              typeof runWidgetQueryApiV1CGuildIdDashboardsDashboardIdWidgetsWidgetIdQueryGet
-            >
-          >,
+          Awaited<ReturnType<typeof runWidgetQuery>>,
           TError,
-          Awaited<
-            ReturnType<
-              typeof runWidgetQueryApiV1CGuildIdDashboardsDashboardIdWidgetsWidgetIdQueryGet
-            >
-          >
+          Awaited<ReturnType<typeof runWidgetQuery>>
         >,
         "initialData"
       >;
@@ -1600,25 +1226,15 @@ export function useRunWidgetQueryApiV1CGuildIdDashboardsDashboardIdWidgetsWidget
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useRunWidgetQueryApiV1CGuildIdDashboardsDashboardIdWidgetsWidgetIdQueryGet<
-  TData = Awaited<
-    ReturnType<typeof runWidgetQueryApiV1CGuildIdDashboardsDashboardIdWidgetsWidgetIdQueryGet>
-  >,
+export function useRunWidgetQuery<
+  TData = Awaited<ReturnType<typeof runWidgetQuery>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   dashboardId: number,
   widgetId: string,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<
-          ReturnType<typeof runWidgetQueryApiV1CGuildIdDashboardsDashboardIdWidgetsWidgetIdQueryGet>
-        >,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof runWidgetQuery>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
@@ -1627,36 +1243,20 @@ export function useRunWidgetQueryApiV1CGuildIdDashboardsDashboardIdWidgetsWidget
  * @summary Run Widget Query
  */
 
-export function useRunWidgetQueryApiV1CGuildIdDashboardsDashboardIdWidgetsWidgetIdQueryGet<
-  TData = Awaited<
-    ReturnType<typeof runWidgetQueryApiV1CGuildIdDashboardsDashboardIdWidgetsWidgetIdQueryGet>
-  >,
+export function useRunWidgetQuery<
+  TData = Awaited<ReturnType<typeof runWidgetQuery>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  guildId: number,
+  communityId: number,
   dashboardId: number,
   widgetId: string,
   options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<
-          ReturnType<typeof runWidgetQueryApiV1CGuildIdDashboardsDashboardIdWidgetsWidgetIdQueryGet>
-        >,
-        TError,
-        TData
-      >
-    >;
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof runWidgetQuery>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions =
-    getRunWidgetQueryApiV1CGuildIdDashboardsDashboardIdWidgetsWidgetIdQueryGetQueryOptions(
-      guildId,
-      dashboardId,
-      widgetId,
-      options
-    );
+  const queryOptions = getRunWidgetQueryQueryOptions(communityId, dashboardId, widgetId, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -1666,60 +1266,54 @@ export function useRunWidgetQueryApiV1CGuildIdDashboardsDashboardIdWidgetsWidget
 }
 
 /**
- * Say what this dashboard shows to everybody who can open it.
+ * Choose whose access this dashboard's query widgets answer from.
  *
- * The whole list each time. Every resource named here becomes readable
- * *through* this dashboard: its tiles stop answering from each viewer's own
- * access for those rows and answer the same way for all of them.
- *
- * Three things this refuses, and each is one of the rules the feature rests
- * on. It reaches no further than the author, so a resource they cannot read
- * themselves cannot be published. It stays fixed, so a dashboard whose
- * statements ask about the reader cannot become one. And it is authoring, so
- * it takes write access to the dashboard like any other change to it.
- * @summary Set Published View
+ * ``individual`` is each viewer's own. ``initiative`` is full read access to
+ * the dashboard's initiative, the same for everyone who can open it — the
+ * dashboard's access, not the caller's. Either takes write access to the
+ * dashboard; turning ``initiative`` on also takes the initiative role
+ * permission for it, which managers always hold.
+ * @summary Set View Mode
  */
-export const setPublishedViewApiV1CGuildIdDashboardsDashboardIdPublishedPut = (
-  guildId: number,
+export const setViewMode = (
+  communityId: number,
   dashboardId: number,
-  publishRequest: BodyType<PublishRequest>,
+  dashboardViewModeRequest: BodyType<DashboardViewModeRequest>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<DashboardRead>(
     {
-      url: `/api/v1/c/${guildId}/dashboards/${dashboardId}/published`,
+      url: `/api/v1/c/${communityId}/dashboards/${dashboardId}/view-mode`,
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      data: publishRequest,
+      data: dashboardViewModeRequest,
       signal,
     },
     options
   );
 };
 
-export const getSetPublishedViewApiV1CGuildIdDashboardsDashboardIdPublishedPutMutationKey = () =>
-  ["setPublishedViewApiV1CGuildIdDashboardsDashboardIdPublishedPut"] as const;
+export const getSetViewModeMutationKey = () => ["setViewMode"] as const;
 
-export const getSetPublishedViewApiV1CGuildIdDashboardsDashboardIdPublishedPutMutationOptions = <
+export const getSetViewModeMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof setPublishedViewApiV1CGuildIdDashboardsDashboardIdPublishedPut>>,
+    Awaited<ReturnType<typeof setViewMode>>,
     TError,
-    SetPublishedViewApiV1CGuildIdDashboardsDashboardIdPublishedPutMutationVariables,
+    SetViewModeMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof setPublishedViewApiV1CGuildIdDashboardsDashboardIdPublishedPut>>,
+  Awaited<ReturnType<typeof setViewMode>>,
   TError,
-  SetPublishedViewApiV1CGuildIdDashboardsDashboardIdPublishedPutMutationVariables,
+  SetViewModeMutationVariables,
   TContext
 > => {
-  const mutationKey =
-    getSetPublishedViewApiV1CGuildIdDashboardsDashboardIdPublishedPutMutationKey();
+  const mutationKey = getSetViewModeMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1727,63 +1321,47 @@ export const getSetPublishedViewApiV1CGuildIdDashboardsDashboardIdPublishedPutMu
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof setPublishedViewApiV1CGuildIdDashboardsDashboardIdPublishedPut>>,
-    SetPublishedViewApiV1CGuildIdDashboardsDashboardIdPublishedPutMutationVariables
+    Awaited<ReturnType<typeof setViewMode>>,
+    SetViewModeMutationVariables
   > = (props) => {
-    const { guildId, dashboardId, data } = props ?? {};
+    const { communityId, dashboardId, data } = props ?? {};
 
-    return setPublishedViewApiV1CGuildIdDashboardsDashboardIdPublishedPut(
-      guildId,
-      dashboardId,
-      data,
-      requestOptions
-    );
+    return setViewMode(communityId, dashboardId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type SetPublishedViewApiV1CGuildIdDashboardsDashboardIdPublishedPutMutationResult =
-  NonNullable<
-    Awaited<ReturnType<typeof setPublishedViewApiV1CGuildIdDashboardsDashboardIdPublishedPut>>
-  >;
-export type SetPublishedViewApiV1CGuildIdDashboardsDashboardIdPublishedPutMutationBody =
-  BodyType<PublishRequest>;
-export type SetPublishedViewApiV1CGuildIdDashboardsDashboardIdPublishedPutMutationError =
-  ErrorType<HTTPValidationError>;
-export type SetPublishedViewApiV1CGuildIdDashboardsDashboardIdPublishedPutMutationVariables = {
-  guildId: number;
+export type SetViewModeMutationResult = NonNullable<Awaited<ReturnType<typeof setViewMode>>>;
+export type SetViewModeMutationBody = BodyType<DashboardViewModeRequest>;
+export type SetViewModeMutationError = ErrorType<HTTPValidationError>;
+export type SetViewModeMutationVariables = {
+  communityId: number;
   dashboardId: number;
-  data: BodyType<PublishRequest>;
+  data: BodyType<DashboardViewModeRequest>;
 };
 
 /**
- * @summary Set Published View
+ * @summary Set View Mode
  */
-export const useSetPublishedViewApiV1CGuildIdDashboardsDashboardIdPublishedPut = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
+export const useSetViewMode = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof setPublishedViewApiV1CGuildIdDashboardsDashboardIdPublishedPut>>,
+      Awaited<ReturnType<typeof setViewMode>>,
       TError,
-      SetPublishedViewApiV1CGuildIdDashboardsDashboardIdPublishedPutMutationVariables,
+      SetViewModeMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof setPublishedViewApiV1CGuildIdDashboardsDashboardIdPublishedPut>>,
+  Awaited<ReturnType<typeof setViewMode>>,
   TError,
-  SetPublishedViewApiV1CGuildIdDashboardsDashboardIdPublishedPutMutationVariables,
+  SetViewModeMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getSetPublishedViewApiV1CGuildIdDashboardsDashboardIdPublishedPutMutationOptions(options),
-    queryClient
-  );
+  return useMutation(getSetViewModeMutationOptions(options), queryClient);
 };
 /**
  * Replace the dashboard's entire sharing state in one call — the body is
@@ -1794,8 +1372,8 @@ export const useSetPublishedViewApiV1CGuildIdDashboardsDashboardIdPublishedPut =
  * the viewer's own access to the sources it binds.
  * @summary Set Dashboard Grants
  */
-export const setDashboardGrantsApiV1CGuildIdDashboardsDashboardIdGrantsPut = (
-  guildId: number,
+export const setDashboardGrants = (
+  communityId: number,
   dashboardId: number,
   resourceGrantSchema: BodyType<ResourceGrantSchema[]>,
   options?: SecondParameter<typeof apiMutator>,
@@ -1803,7 +1381,7 @@ export const setDashboardGrantsApiV1CGuildIdDashboardsDashboardIdGrantsPut = (
 ) => {
   return apiMutator<DashboardRead>(
     {
-      url: `/api/v1/c/${guildId}/dashboards/${dashboardId}/grants`,
+      url: `/api/v1/c/${communityId}/dashboards/${dashboardId}/grants`,
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       data: resourceGrantSchema,
@@ -1813,27 +1391,26 @@ export const setDashboardGrantsApiV1CGuildIdDashboardsDashboardIdGrantsPut = (
   );
 };
 
-export const getSetDashboardGrantsApiV1CGuildIdDashboardsDashboardIdGrantsPutMutationKey = () =>
-  ["setDashboardGrantsApiV1CGuildIdDashboardsDashboardIdGrantsPut"] as const;
+export const getSetDashboardGrantsMutationKey = () => ["setDashboardGrants"] as const;
 
-export const getSetDashboardGrantsApiV1CGuildIdDashboardsDashboardIdGrantsPutMutationOptions = <
+export const getSetDashboardGrantsMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof setDashboardGrantsApiV1CGuildIdDashboardsDashboardIdGrantsPut>>,
+    Awaited<ReturnType<typeof setDashboardGrants>>,
     TError,
-    SetDashboardGrantsApiV1CGuildIdDashboardsDashboardIdGrantsPutMutationVariables,
+    SetDashboardGrantsMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof setDashboardGrantsApiV1CGuildIdDashboardsDashboardIdGrantsPut>>,
+  Awaited<ReturnType<typeof setDashboardGrants>>,
   TError,
-  SetDashboardGrantsApiV1CGuildIdDashboardsDashboardIdGrantsPutMutationVariables,
+  SetDashboardGrantsMutationVariables,
   TContext
 > => {
-  const mutationKey = getSetDashboardGrantsApiV1CGuildIdDashboardsDashboardIdGrantsPutMutationKey();
+  const mutationKey = getSetDashboardGrantsMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1841,33 +1418,24 @@ export const getSetDashboardGrantsApiV1CGuildIdDashboardsDashboardIdGrantsPutMut
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof setDashboardGrantsApiV1CGuildIdDashboardsDashboardIdGrantsPut>>,
-    SetDashboardGrantsApiV1CGuildIdDashboardsDashboardIdGrantsPutMutationVariables
+    Awaited<ReturnType<typeof setDashboardGrants>>,
+    SetDashboardGrantsMutationVariables
   > = (props) => {
-    const { guildId, dashboardId, data } = props ?? {};
+    const { communityId, dashboardId, data } = props ?? {};
 
-    return setDashboardGrantsApiV1CGuildIdDashboardsDashboardIdGrantsPut(
-      guildId,
-      dashboardId,
-      data,
-      requestOptions
-    );
+    return setDashboardGrants(communityId, dashboardId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type SetDashboardGrantsApiV1CGuildIdDashboardsDashboardIdGrantsPutMutationResult =
-  NonNullable<
-    Awaited<ReturnType<typeof setDashboardGrantsApiV1CGuildIdDashboardsDashboardIdGrantsPut>>
-  >;
-export type SetDashboardGrantsApiV1CGuildIdDashboardsDashboardIdGrantsPutMutationBody = BodyType<
-  ResourceGrantSchema[]
+export type SetDashboardGrantsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof setDashboardGrants>>
 >;
-export type SetDashboardGrantsApiV1CGuildIdDashboardsDashboardIdGrantsPutMutationError =
-  ErrorType<HTTPValidationError>;
-export type SetDashboardGrantsApiV1CGuildIdDashboardsDashboardIdGrantsPutMutationVariables = {
-  guildId: number;
+export type SetDashboardGrantsMutationBody = BodyType<ResourceGrantSchema[]>;
+export type SetDashboardGrantsMutationError = ErrorType<HTTPValidationError>;
+export type SetDashboardGrantsMutationVariables = {
+  communityId: number;
   dashboardId: number;
   data: BodyType<ResourceGrantSchema[]>;
 };
@@ -1875,28 +1443,116 @@ export type SetDashboardGrantsApiV1CGuildIdDashboardsDashboardIdGrantsPutMutatio
 /**
  * @summary Set Dashboard Grants
  */
-export const useSetDashboardGrantsApiV1CGuildIdDashboardsDashboardIdGrantsPut = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
+export const useSetDashboardGrants = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof setDashboardGrantsApiV1CGuildIdDashboardsDashboardIdGrantsPut>>,
+      Awaited<ReturnType<typeof setDashboardGrants>>,
       TError,
-      SetDashboardGrantsApiV1CGuildIdDashboardsDashboardIdGrantsPutMutationVariables,
+      SetDashboardGrantsMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof setDashboardGrantsApiV1CGuildIdDashboardsDashboardIdGrantsPut>>,
+  Awaited<ReturnType<typeof setDashboardGrants>>,
   TError,
-  SetDashboardGrantsApiV1CGuildIdDashboardsDashboardIdGrantsPutMutationVariables,
+  SetDashboardGrantsMutationVariables,
   TContext
 > => {
-  return useMutation(
-    getSetDashboardGrantsApiV1CGuildIdDashboardsDashboardIdGrantsPutMutationOptions(options),
-    queryClient
+  return useMutation(getSetDashboardGrantsMutationOptions(options), queryClient);
+};
+/**
+ * Copy it, with everything inside it, into an initiative: its own unless the body names another. Read is enough to copy a template; anything else needs write. The copy is shared as its source is while it stays in the same initiative, and carries the tags its maker may set: an installed app's copy carries them only when it holds the scope to tag.
+ * @summary Duplicate Dashboard
+ */
+export const duplicateDashboard = (
+  communityId: number,
+  dashboardId: number,
+  toolDuplicateRequestNull?: BodyType<ToolDuplicateRequest | null> | null,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<DashboardRead>(
+    {
+      url: `/api/v1/c/${communityId}/dashboards/${dashboardId}/duplicate`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: toolDuplicateRequestNull,
+      signal,
+    },
+    options
   );
+};
+
+export const getDuplicateDashboardMutationKey = () => ["duplicateDashboard"] as const;
+
+export const getDuplicateDashboardMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof duplicateDashboard>>,
+    TError,
+    DuplicateDashboardMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof duplicateDashboard>>,
+  TError,
+  DuplicateDashboardMutationVariables,
+  TContext
+> => {
+  const mutationKey = getDuplicateDashboardMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof duplicateDashboard>>,
+    DuplicateDashboardMutationVariables
+  > = (props) => {
+    const { communityId, dashboardId, data } = props ?? {};
+
+    return duplicateDashboard(communityId, dashboardId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DuplicateDashboardMutationResult = NonNullable<
+  Awaited<ReturnType<typeof duplicateDashboard>>
+>;
+export type DuplicateDashboardMutationBody = BodyType<ToolDuplicateRequest | null> | undefined;
+export type DuplicateDashboardMutationError = ErrorType<HTTPValidationError>;
+export type DuplicateDashboardMutationVariables = {
+  communityId: number;
+  dashboardId: number;
+  data?: BodyType<ToolDuplicateRequest | null>;
+};
+
+/**
+ * @summary Duplicate Dashboard
+ */
+export const useDuplicateDashboard = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof duplicateDashboard>>,
+      TError,
+      DuplicateDashboardMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof duplicateDashboard>>,
+  TError,
+  DuplicateDashboardMutationVariables,
+  TContext
+> => {
+  return useMutation(getDuplicateDashboardMutationOptions(options), queryClient);
 };

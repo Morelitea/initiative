@@ -20,12 +20,13 @@ from app.core.security import (
     get_password_hash,
 )
 from app.models.platform.auth_session import AuthSession
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.platform.mfa_recovery_code import MfaRecoveryCode
 from app.models.platform.user import User, UserStatus
+from app.models.platform.user_email import UserEmail
 from app.models.platform.user_passkey import UserPasskey
-from app.models.platform.user_token import UserToken, UserTokenPurpose
 from app.services.platform import email_outbox
+from app.services.auth import addresses
 from app.services.auth import sessions as session_service
 from app.services.auth import sign_in_locks
 from app.services.auth import totp as totp_service
@@ -147,20 +148,6 @@ async def _rotated_headers(
         "Authorization": "Bearer "
         + get_auth_token(user, session_id=rotated.issued.session.id, amr=["webauthn"])
     }
-
-
-async def _device_tokens(session: AsyncSession, user_id: int) -> list[UserToken]:
-    session.expire_all()
-    return list(
-        (
-            await session.exec(
-                select(UserToken).where(
-                    UserToken.user_id == user_id,
-                    UserToken.purpose == UserTokenPurpose.device_auth,
-                )
-            )
-        ).all()
-    )
 
 
 async def _sign_in(
@@ -333,7 +320,7 @@ async def test_removing_keeps_this_device_signed_in(
     assert REFRESH_COOKIE_NAME in response.cookies
 
     # The caller carries on, on the cookies the answer set.
-    mine = await client.get("/api/v1/users/me")
+    mine = await client.get("/api/v1/me")
     assert mine.status_code == 200, mine.text
     assert mine.json()["id"] == user_id
 
@@ -388,7 +375,7 @@ async def test_the_letter_says_the_password_is_gone(
 ):
     sent: list[int] = []
 
-    async def record(user, pieces) -> None:
+    async def record(user, pieces, **_) -> None:
         sent.append(user.id)
 
     monkeypatch.setattr(email_outbox, "enqueue_account_letter", record)
@@ -411,15 +398,14 @@ async def test_the_app_is_sent_to_a_browser_for_this(
     user = await _account(session, "pl-device@example.com")
     user_id = user.id
     await _seed_passkey(session, user)
-    device_token = await user_tokens.create_device_token(
-        session, user_id=user_id, device_name="Phone"
-    )
-    await session.commit()
 
     response = await client.post(
         REMOVE,
         json={"current_password": PASSWORD},
-        headers={"Authorization": f"DeviceToken {device_token}"},
+        headers={
+            **get_auth_headers(user),
+            "Origin": "https://com.morelitea.initiative",
+        },
     )
     assert response.status_code == 403
     assert response.json()["detail"] == "SESSION_REQUIRED"
@@ -428,26 +414,6 @@ async def test_the_app_is_sent_to_a_browser_for_this(
     account = await session.get(User, user_id)
     assert account is not None
     assert account.hashed_password is not None
-
-
-async def test_the_phones_are_signed_out_when_the_password_goes(
-    client: AsyncClient, session: AsyncSession
-):
-    """The device tokens the account was carrying are spent on the way out,
-    the same as its API keys and its other sessions."""
-    user = await _account(session, "pl-remove-phones@example.com")
-    user_id = user.id
-    await _seed_passkey(session, user)
-    await user_tokens.create_device_token(session, user_id=user_id, device_name="Phone")
-    await session.commit()
-
-    response = await client.post(
-        REMOVE, json={"current_password": PASSWORD}, headers=get_auth_headers(user)
-    )
-    assert response.status_code == 200, response.text
-
-    held = await _device_tokens(session, user_id)
-    assert held and all(row.consumed_at is not None for row in held)
 
 
 async def test_a_thin_set_is_replaced_on_the_way_out(
@@ -715,36 +681,11 @@ async def test_recovering_sets_the_password_and_clears_the_sessions(
     assert signed_in.status_code == 200, signed_in.text
 
 
-async def test_recovering_signs_the_phones_out(
-    client: AsyncClient, session: AsyncSession
-):
-    """A phone carrying a device token was signed in as the account was
-    before, so it is spent along with the sessions."""
-    user = await _account(session, "pl-recover-phones@example.com", password=None)
-    user_id = user.id
-    codes = await _issue_codes(session, user)
-    await user_tokens.create_device_token(session, user_id=user_id, device_name="Phone")
-    await session.commit()
-
-    response = await client.post(
-        RECOVER,
-        json={
-            "email": "pl-recover-phones@example.com",
-            "recovery_code": codes[0],
-            "password": NEW_PASSWORD,
-        },
-    )
-    assert response.status_code == 200, response.text
-
-    held = await _device_tokens(session, user_id)
-    assert held and all(row.consumed_at is not None for row in held)
-
-
 # ---------------------------------------------------------------------------
 # What stands in for the password an account does not hold
 # ---------------------------------------------------------------------------
 #
-# The six routes that re-check the password before changing how an account is
+# The routes that re-check the password before changing how an account is
 # signed into. An account holding one answers with it; one holding none answers
 # with the sign-in itself, which has to be recent.
 
@@ -754,7 +695,7 @@ async def _delete_account(
 ) -> Response:
     await _seed_passkey(session, user)
     return await client.post(
-        "/api/v1/users/me/delete-account",
+        "/api/v1/me/delete-account",
         headers=headers,
         json={
             "action": "soft_delete",
@@ -772,7 +713,7 @@ async def _delete_guild(
     # Deleting a community belongs to the seat, so this is what reaches the
     # recent-proof gate at all.
     await create_guild_membership(
-        session, user=user, guild=guild, role=GuildRole.superadmin
+        session, user=user, guild=guild, role=CommunityRole.superadmin
     )
     return await client.request(
         "DELETE",
@@ -823,7 +764,7 @@ async def _set_a_password(
 ) -> Response:
     await _seed_passkey(session, user)
     return await client.patch(
-        "/api/v1/users/me", headers=headers, json={"password": NEW_PASSWORD}
+        "/api/v1/me", headers=headers, json={"password": NEW_PASSWORD}
     )
 
 
@@ -840,15 +781,66 @@ async def _turn_off_the_factor(
     )
 
 
+async def _spare_address(session: AsyncSession, user: User) -> UserEmail:
+    row = addresses.record_address(
+        session,
+        user_id=user.id,
+        email=f"spare-{user.id}@example.com",
+        source=addresses.SOURCE_ADDED,
+        verified=True,
+        is_primary=False,
+    )
+    await session.commit()
+    return row
+
+
+async def _add_an_address(
+    client: AsyncClient, session: AsyncSession, user: User, headers: dict[str, str]
+) -> Response:
+    settings_row = await app_settings_service.get_app_settings(session)
+    settings_row.smtp_host = "smtp.example.com"
+    settings_row.smtp_from_address = "noreply@example.com"
+    session.add(settings_row)
+    await session.commit()
+    return await client.post(
+        "/api/v1/me/emails",
+        headers=headers,
+        json={"email": f"added-{user.id}@example.com"},
+    )
+
+
+async def _make_an_address_primary(
+    client: AsyncClient, session: AsyncSession, user: User, headers: dict[str, str]
+) -> Response:
+    spare = await _spare_address(session, user)
+    return await client.put(
+        f"/api/v1/me/emails/{spare.id}/primary", headers=headers, json={}
+    )
+
+
+async def _remove_an_address(
+    client: AsyncClient, session: AsyncSession, user: User, headers: dict[str, str]
+) -> Response:
+    spare = await _spare_address(session, user)
+    return await client.post(
+        f"/api/v1/me/emails/{spare.id}/remove", headers=headers, json={}
+    )
+
+
+# A sign-in just made is let through, and the changes that wait for a new
+# sign-in are held (202) rather than made.
 _GATED = [
+    ("add-an-address", _add_an_address, 202),
+    ("make-an-address-primary", _make_an_address_primary, 202),
+    ("remove-an-address", _remove_an_address, 202),
     ("delete-account", _delete_account, 200),
     ("enrol-a-factor", _enrol_a_factor, 200),
     ("delete-guild", _delete_guild, 204),
     ("register-a-passkey", _begin_registration, 200),
-    ("remove-a-passkey", _remove_passkey, 204),
+    ("remove-a-passkey", _remove_passkey, 200),
     ("re-issue-the-codes", _regenerate_codes, 200),
     ("set-a-password", _set_a_password, 200),
-    ("turn-off-the-factor", _turn_off_the_factor, 204),
+    ("turn-off-the-factor", _turn_off_the_factor, 202),
 ]
 
 
@@ -882,48 +874,6 @@ async def test_a_renewed_session_is_read_back_to_the_sign_in_it_began_at(
     chain is read back to the sign-in at its root."""
     user = await _account(session, "pl-rotated@example.com", password=None)
     headers = await _rotated_headers(session, user, minutes_ago=11)
-
-    response = await _regenerate_codes(client, session, user, headers)
-    assert response.status_code == 403, response.text
-    assert response.json()["detail"] == "RECENT_PROOF_REQUIRED"
-
-
-async def test_a_standing_credential_is_not_somebody_signing_in(
-    client: AsyncClient, session: AsyncSession
-):
-    """A device token names no session, so there is nothing to read an age
-    off."""
-    user = await _account(session, "pl-devicegate@example.com", password=None)
-    await _seed_passkey(session, user)
-    device_token = await user_tokens.create_device_token(
-        session, user_id=user.id, device_name="Phone"
-    )
-    await session.commit()
-
-    response = await client.post(
-        "/api/v1/auth/recovery-codes/regenerate",
-        headers={"Authorization": f"DeviceToken {device_token}"},
-        json={},
-    )
-    assert response.status_code == 403
-    assert response.json()["detail"] == "SESSION_REQUIRED"
-
-
-async def test_a_session_resumed_from_a_device_token_is_not_a_sign_in(
-    client: AsyncClient, session: AsyncSession
-):
-    """Trading a kept device token for a session opens a new chain that records
-    no sign-in, so it does not speak for the account."""
-    user = await _account(session, "pl-resumed@example.com", password=None)
-    device_token = await user_tokens.create_device_token(
-        session, user_id=user.id, device_name="Phone"
-    )
-    await session.commit()
-    exchanged = await client.post(
-        "/api/v1/auth/device-token/exchange", json={"device_token": device_token}
-    )
-    assert exchanged.status_code == 200, exchanged.text
-    headers = {"Authorization": f"Bearer {exchanged.json()['access_token']}"}
 
     response = await _regenerate_codes(client, session, user, headers)
     assert response.status_code == 403, response.text
@@ -984,9 +934,9 @@ async def test_the_account_says_whether_its_password_is_asked_for(
     user = await _account(session, "pl-required@example.com")
     headers = get_auth_headers(user)
 
-    before = await client.get("/api/v1/users/me", headers=headers)
+    before = await client.get("/api/v1/me", headers=headers)
     await _withdraw_passwords(session)
-    after = await client.get("/api/v1/users/me", headers=headers)
+    after = await client.get("/api/v1/me", headers=headers)
 
     assert before.json()["password_required"] is True
     assert after.json()["has_password"] is True

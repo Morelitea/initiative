@@ -17,7 +17,7 @@ from sqlalchemy import text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.platform.notification import Notification, NotificationType
 from app.models.tenant.post import Post
 from app.models.tenant.resource_grant import ResourceAccessLevel
@@ -45,7 +45,7 @@ async def _joins(acting_user, actor: Actor, **overrides: Any) -> Actor:
     """Another account in the same guild and initiative as ``actor``."""
     return await acting_user(
         **{
-            "guild_role": GuildRole.member,
+            "guild_role": CommunityRole.member,
             "guild": actor.guild,
             "initiative": actor.initiative,
             **overrides,
@@ -68,7 +68,7 @@ async def _draft(session: AsyncSession, actor: Actor, **fields: Any) -> Post:
 @pytest.fixture
 async def board(acting_user, session) -> Actor:
     """A guild admin with an initiative whose board is switched on."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _posts_enabled(session, a.initiative)
     return a
 
@@ -92,7 +92,7 @@ async def draft_scene(acting_user, session) -> _DraftScene:
     the same initiative, so the notice's default sharing already reaches
     them — being shared with is not the same as being up.
     """
-    author = await acting_user(guild_role=GuildRole.member, initiative=True)
+    author = await acting_user(guild_role=CommunityRole.member, initiative=True)
     reader = await _joins(acting_user, author)
     await _posts_enabled(session, author.initiative)
     return _DraftScene(
@@ -130,7 +130,7 @@ async def test_create_post(client: AsyncClient, board: Actor):
 async def test_create_requires_feature_enabled(
     client: AsyncClient, acting_user, session
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     # The factory switches every tool on, so a test about one being OFF
     # turns it off.
     a.initiative.posts_enabled = False
@@ -1314,8 +1314,8 @@ async def test_a_guild_admin_can_mark_read_without_a_grant(
     """A guild admin reaches every notice in their community without a grant
     row, so the board shows them one. Refusing the receipt would leave
     everything they read permanently unread."""
-    author = await acting_user(guild_role=GuildRole.member, initiative=True)
-    admin = await _joins(acting_user, author, guild_role=GuildRole.admin)
+    author = await acting_user(guild_role=CommunityRole.member, initiative=True)
+    admin = await _joins(acting_user, author, guild_role=CommunityRole.admin)
     await _posts_enabled(session, author.initiative)
     post = await create_post(
         session, author.initiative, author.user, name="Admin reads"

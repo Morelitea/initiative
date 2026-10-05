@@ -1,6 +1,6 @@
 {
-  "selectGuild": "Sélectionner une communauté",
-  "guildSettings": "Paramètres de la communauté",
+  "selectCommunity": "Sélectionner une communauté",
+  "communitySettings": "Paramètres de la communauté",
   "initiatives": "Initiatives",
   "tags": "Étiquettes",
   "people": "Personnes",
@@ -21,6 +21,7 @@
   "myTools": "Mes outils",
   "myMessages": "Mes messages",
   "myCalendar": "Mon calendrier",
+  "myTickets": "Mes tickets",
   "myStats": "Mes statistiques",
   "mySettings": "Mes paramètres",
   "platformSettings": "Paramètres de la plateforme",
@@ -72,7 +73,7 @@
   "navigate": {
     "signInRequired": "Veuillez vous reconnecter pour suivre ce lien.",
     "missingDestination": "Ce lien manque de détails de destination.",
-    "invalidGuildId": "Identifiant de communauté invalide dans le lien.",
+    "invalidCommunityId": "Identifiant de communauté invalide dans le lien.",
     "noAccess": "Vous n'avez pas accès à cette communauté.",
     "switchError": "Impossible de changer de communauté pour ce lien.",
     "redirecting": "Redirection vers la bonne communauté…",
@@ -85,6 +86,7 @@
   "createExternally": "Créé dans {{name}}",
   "operatorDashboard": "Tableau de bord opérateur",
   "pastAnnouncements": "Annonces passées",
+  "documentation": "Documentation",
   "requestsWaiting_one": "{{count}} en attente",
   "requestsWaiting_other": "{{count}} en attente",
   "posts": "Publications",

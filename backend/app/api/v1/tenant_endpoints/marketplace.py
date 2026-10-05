@@ -38,6 +38,7 @@ from app.api.deps import (
     CurrentUser,
 )
 from app.core.messages import ImportEngineMessages, MarketplaceMessages
+from app.db.query import build_paginated_response
 from app.models.platform.marketplace import MarketplaceListing
 from app.schemas.platform.marketplace import (
     ListingKind,
@@ -93,7 +94,7 @@ async def list_marketplace_listings(
     current_user: CurrentUser,
     guild_context: GuildContextDep,
     kind: Optional[ListingKind] = Query(default=None),  # type: ignore[valid-type]
-    q: Optional[str] = Query(default=None, max_length=200),
+    search: Optional[str] = Query(default=None, max_length=200),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=24, ge=1, le=MAX_PAGE_SIZE),
 ) -> MarketplaceListingPage:
@@ -106,7 +107,7 @@ async def list_marketplace_listings(
     listings, total = await catalog_service.list_listings(
         session,
         kind=kind,
-        query=q,
+        query=search,
         bundled_with=sorted(await installed_app_uids(session)),
         page=page,
         page_size=page_size,
@@ -116,11 +117,17 @@ async def list_marketplace_listings(
         session, [listing.latest_version_id for listing in listings]
     )
     return MarketplaceListingPage(
-        items=[
-            serialize_listing_summary(listing, versions.get(listing.latest_version_id))
-            for listing in listings
-        ],
-        total=total,
+        **build_paginated_response(
+            [
+                serialize_listing_summary(
+                    listing, versions.get(listing.latest_version_id)
+                )
+                for listing in listings
+            ],
+            total,
+            page,
+            page_size,
+        )
     )
 
 
@@ -136,7 +143,7 @@ async def _detail(session, listing: MarketplaceListing) -> MarketplaceListingDet
         session, listing.latest_version_id
     )
     offered = await registration_lookup.app_is_offered(
-        latest.definition if latest else None
+        latest.definition if latest else None, listing_uid=listing.uid
     ) and await listing_is_offered(session, listing)
     if not offered:
         raise HTTPException(

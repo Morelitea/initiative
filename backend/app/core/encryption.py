@@ -23,6 +23,8 @@ SALT_AI_API_KEY = b"ai-api-key"
 SALT_S3_SECRET_KEY = b"s3-secret-key"
 SALT_CAPTCHA_SECRET_KEY = b"captcha-secret-key"
 SALT_FCM_SERVICE_ACCOUNT = b"fcm-service-account"
+# The key this server sends to the push relay with, issued when it registered.
+SALT_PUSH_RELAY_KEY = b"push-relay-key"
 SALT_EMAIL = b"email"
 SALT_EVENT_PUBLISHER_PAYLOAD = b"event-publisher-payload"
 # Values a guild (or one of its members) supplies to an installed app's
@@ -32,6 +34,9 @@ SALT_APP_CONFIG = b"app-config"
 # What an operator supplies for an app's vendor client (its secret, its
 # signing key), one ciphertext per field on the app's registration.
 SALT_APP_VENDOR = b"app-vendor"
+# The app platform's signing key, when this deployment generated its own
+# rather than being given one in APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM.
+SALT_APP_PLATFORM_SIGNING_KEY = b"app-platform-signing-key"
 # The state an app connection's vendor flow carries through the vendor and
 # back. Transient: it lives ten minutes and is never stored.
 SALT_APP_CONNECTION_FLOW = b"app-connection-flow"
@@ -47,6 +52,9 @@ SALT_APP_INSTALLS_CURSOR = b"app-installs-cursor"
 # A sign-in finished in the phone's browser, on its way back to the app that
 # began it. Transient: it lives two minutes and is spent once.
 SALT_NATIVE_HANDOFF = b"native-handoff"
+# The state an app vendor's own setup carries through the vendor and back.
+# Transient: it lives an hour and is spent once.
+SALT_APP_VENDOR_SETUP = b"app-vendor-setup"
 # The value a job needs to read a foreign site. Kept under its original
 # name so values written before the job carried it still decrypt.
 SALT_IMPORT_CREDENTIAL = b"import-credential"

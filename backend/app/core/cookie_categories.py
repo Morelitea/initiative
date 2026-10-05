@@ -42,22 +42,21 @@ class CookieCategory(str, Enum):
 #: whether it is switched on here". A category with no entry is never offered,
 #: which is what every category looks like until the thing behind it exists.
 #:
-#: Adding one looks like::
-#:
-#:     CookieCategory.analytics: lambda settings: bool(settings.ANALYTICS_SITE_ID),
-#:
-#: — one line, beside the integration it describes, and the chooser grows a
-#: switch on the deployments that configured it and nowhere else.
-CATEGORY_IN_USE: dict[CookieCategory, Callable[[Settings], bool]] = {}
+#: One line per integration, and the chooser grows a switch on the deployments
+#: that configured it and nowhere else.
+CATEGORY_IN_USE: dict[CookieCategory, Callable[[Settings], bool]] = {
+    # Frontend measurement, sent to the collector the deployment names.
+    CookieCategory.analytics: lambda settings: bool(settings.FARO_COLLECTOR_URL),
+}
 
 
 def active_cookie_categories(settings: Settings) -> list[CookieCategory]:
     """The optional categories this deployment actually uses.
 
     Ordered by the enum so the chooser lists them the same way every time.
-    Empty on a deployment that has configured none, which is the default and,
-    for now, every deployment: the chooser then has nothing to ask and says so
-    rather than offering switches that would do nothing.
+    Empty on a deployment that has configured none, which is the default: the
+    chooser then has nothing to ask and says so rather than offering switches
+    that would do nothing.
     """
     return [
         category

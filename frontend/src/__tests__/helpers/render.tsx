@@ -11,10 +11,10 @@ import { type RenderOptions, render } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { vi } from "vitest";
 
-import { buildGuild } from "@/__tests__/factories/guild.factory";
+import { buildCommunity } from "@/__tests__/factories/community.factory";
 import { buildUser } from "@/__tests__/factories/user.factory";
 import { AuthContext } from "@/hooks/useAuth";
-import { GuildContext } from "@/hooks/useGuilds";
+import { CommunityContext } from "@/hooks/useCommunities";
 import { ServerContext } from "@/hooks/useServer";
 import { ThemeContext } from "@/hooks/useTheme";
 import type { RouterContext } from "@/router";
@@ -24,13 +24,13 @@ import type { RouterContext } from "@/router";
 // ---------------------------------------------------------------------------
 
 type AuthOverrides = Partial<React.ComponentProps<typeof AuthContext.Provider>["value"]>;
-type GuildOverrides = Partial<React.ComponentProps<typeof GuildContext.Provider>["value"]>;
+type CommunityOverrides = Partial<React.ComponentProps<typeof CommunityContext.Provider>["value"]>;
 type ServerOverrides = Partial<React.ComponentProps<typeof ServerContext.Provider>["value"]>;
 type ThemeOverrides = Partial<React.ComponentProps<typeof ThemeContext.Provider>["value"]>;
 
 interface ProviderOptions {
   auth?: AuthOverrides;
-  guilds?: GuildOverrides;
+  communities?: CommunityOverrides;
   server?: ServerOverrides;
   theme?: ThemeOverrides;
   queryClient?: QueryClient;
@@ -82,13 +82,13 @@ export function createTestQueryClient(): QueryClient {
 
 /** The context the shipped route tree is created with, for a test that builds
  *  a router from `routeTree.gen` to resolve its routes. The app's providers
- *  fill `auth`, `guilds` and `server` in at runtime; a test that only matches
+ *  fill `auth`, `communities` and `server` in at runtime; a test that only matches
  *  routes needs none of them. */
 export function buildRouterContext(): RouterContext {
   return {
     queryClient: createTestQueryClient(),
     auth: undefined,
-    guilds: undefined,
+    communities: undefined,
     server: undefined,
   };
 }
@@ -98,7 +98,6 @@ function buildDefaultAuth(): React.ComponentProps<typeof AuthContext.Provider>["
     user: buildUser(),
     token: "test-token",
     loading: false,
-    isDeviceToken: false,
     sessionUnverified: false,
     login: vi.fn(),
     completeSecondFactor: vi.fn(),
@@ -114,22 +113,24 @@ function buildDefaultAuth(): React.ComponentProps<typeof AuthContext.Provider>["
   };
 }
 
-function buildDefaultGuilds(): React.ComponentProps<typeof GuildContext.Provider>["value"] {
-  const guild = buildGuild();
+function buildDefaultCommunities(): React.ComponentProps<
+  typeof CommunityContext.Provider
+>["value"] {
+  const community = buildCommunity();
   return {
-    guilds: [guild],
-    activeGuildId: 1,
-    activeGuild: guild,
-    activeGuildReadOnly: false,
+    communities: [community],
+    activeCommunityId: 1,
+    activeCommunity: community,
+    activeCommunityReadOnly: false,
     loading: false,
     error: null,
-    refreshGuilds: vi.fn(),
-    switchGuild: vi.fn(),
-    syncGuildFromUrl: vi.fn(),
-    createGuild: vi.fn(),
-    updateGuildInState: vi.fn(),
-    reorderGuilds: vi.fn(),
-    canCreateGuilds: true,
+    refreshCommunities: vi.fn(),
+    switchCommunity: vi.fn(),
+    syncCommunityFromUrl: vi.fn(),
+    createCommunity: vi.fn(),
+    updateCommunityInState: vi.fn(),
+    reorderCommunities: vi.fn(),
+    canCreateCommunities: true,
   };
 }
 
@@ -163,8 +164,8 @@ function buildDefaultTheme(): React.ComponentProps<typeof ThemeContext.Provider>
 function buildWrapper(options: ProviderOptions = {}) {
   const queryClient = options.queryClient ?? createTestQueryClient();
   const auth = { ...buildDefaultAuth(), ...options.auth } as ReturnType<typeof buildDefaultAuth>;
-  const guilds = { ...buildDefaultGuilds(), ...options.guilds } as ReturnType<
-    typeof buildDefaultGuilds
+  const communities = { ...buildDefaultCommunities(), ...options.communities } as ReturnType<
+    typeof buildDefaultCommunities
   >;
   const server = { ...buildDefaultServer(), ...options.server } as ReturnType<
     typeof buildDefaultServer
@@ -179,7 +180,7 @@ function buildWrapper(options: ProviderOptions = {}) {
         <ServerContext.Provider value={server}>
           <ThemeContext.Provider value={theme}>
             <AuthContext.Provider value={auth}>
-              <GuildContext.Provider value={guilds}>{children}</GuildContext.Provider>
+              <CommunityContext.Provider value={communities}>{children}</CommunityContext.Provider>
             </AuthContext.Provider>
           </ThemeContext.Provider>
         </ServerContext.Provider>
@@ -198,8 +199,14 @@ export function renderWithProviders(
   ui: ReactElement,
   options: ProviderOptions & Omit<RenderOptions, "wrapper"> = {}
 ): RenderWithProvidersResult {
-  const { auth, guilds, server, theme, queryClient: qc, ...renderOptions } = options;
-  const { Wrapper, queryClient } = buildWrapper({ auth, guilds, server, theme, queryClient: qc });
+  const { auth, communities, server, theme, queryClient: qc, ...renderOptions } = options;
+  const { Wrapper, queryClient } = buildWrapper({
+    auth,
+    communities,
+    server,
+    theme,
+    queryClient: qc,
+  });
 
   const result = render(ui, { wrapper: Wrapper, ...renderOptions });
 
@@ -216,7 +223,7 @@ export function renderPage(
 ): RenderPageResult {
   const {
     auth,
-    guilds,
+    communities,
     server,
     theme,
     queryClient: qc,
@@ -229,7 +236,7 @@ export function renderPage(
 
   const { Wrapper, queryClient } = buildWrapper({
     auth,
-    guilds,
+    communities,
     server,
     theme,
     queryClient: qc,

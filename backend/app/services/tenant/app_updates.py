@@ -44,7 +44,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.db.session import set_rls_context
-from app.models.platform.guild import GuildMembership, GuildRole
+from app.models.platform.guild import GuildMembership, CommunityRole
 from app.models.platform.notification import NotificationType
 from app.models.tenant.guild_app import GuildApp
 from app.services.marketplace import app_installs, registration_lookup
@@ -308,7 +308,7 @@ async def notify_pending_updates(
         await session.exec(
             select(GuildMembership.user_id).where(
                 GuildMembership.guild_id == guild_id,
-                GuildMembership.role == GuildRole.superadmin,
+                GuildMembership.role == CommunityRole.superadmin,
             )
         )
     ).all()
@@ -320,7 +320,7 @@ async def notify_pending_updates(
                 guild_id,
                 NotificationType.app_update_pending,
                 {
-                    "guild_id": guild_id,
+                    "community_id": guild_id,
                     "app_id": one.app_id,
                     "app_name": one.app_name,
                     "version": one.version,
@@ -384,7 +384,11 @@ async def _update_guild(
         if offer is None:
             continue
         pending = offer.update
-        mandatory = (await registration_lookup.install_state(app.definition)).mandatory
+        mandatory = (
+            await registration_lookup.install_state(
+                app.definition, listing_uid=app.listing_uid
+            )
+        ).mandatory
         if offer.asks.asks_more and mandatory:
             # The registration stands in for the seat, as at install.
             from_version = app.listing_version

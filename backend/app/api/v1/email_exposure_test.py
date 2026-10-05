@@ -1,6 +1,6 @@
 """Which response shapes may carry an address, and which may not.
 
-Two shapes carry a stored address in full: ``UserRead`` on the ``/users/me``
+Two shapes carry a stored address in full: ``UserRead`` on the ``/me``
 routes, and ``UserEmailRead`` on the routes listing the addresses an account
 holds. Both are served only to the address's owner. Every other route that
 returns an account returns ``OperatorUserRead``, which masks it, and the shapes
@@ -25,27 +25,27 @@ from app.main import app
 SELF_SHAPES = {
     "UserRead": {
         "/api/v1/auth/register",
-        "/api/v1/users/me",
-        "/api/v1/users/me/username",
-        "/api/v1/users/me/age-confirmation",
-        "/api/v1/users/me/avatar",
-        "/api/v1/users/me/legal-acceptance",
+        "/api/v1/me",
+        "/api/v1/me/username",
+        "/api/v1/me/age-confirmation",
+        "/api/v1/me/avatar",
+        "/api/v1/me/legal-acceptance",
     },
     "UserEmailRead": {
-        "/api/v1/users/me/emails",
-        "/api/v1/users/me/emails/{address_id}/primary",
+        "/api/v1/me/emails",
+        "/api/v1/me/emails/{address_id}/primary",
     },
 }
 
 #: Shapes that carry an address field and mask it. Each has a validator
 #: applying ``app.core.email_masking.mask_email``; adding a name here means
 #: having added that validator.
-MASKED_SHAPES = {"OperatorUserRead", "AccessGrantRead", "GuildInviteRead"}
+MASKED_SHAPES = {"OperatorUserRead", "AccessGrantRead", "CommunityInviteRead"}
 
 #: Shapes that carry a deployment's contact address: one an operator published
 #: so people can write to it, not an account's stored address. It is served in
 #: full, because a masked contact cannot be written to.
-CONTACT_SHAPES = {"AccountTimeOutRead", "GuildRead", "IntakeSettingsRead"}
+CONTACT_SHAPES = {"AccountTimeOutRead", "CommunityRead", "IntakeSettingsRead"}
 
 
 def _operations() -> Iterable[tuple[str, str, dict]]:

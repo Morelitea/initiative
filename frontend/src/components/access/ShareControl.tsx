@@ -23,8 +23,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useCommunityApps } from "@/hooks/useCommunityApps";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import { useGuildApps } from "@/hooks/useGuildApps";
 import { useInitiativeRoles } from "@/hooks/useInitiativeRoles";
 import { type MemberSearchScope, useMemberSearch } from "@/hooks/useUsers";
 import { resolveArtworkUrl } from "@/lib/uploadUrl";
@@ -35,11 +35,11 @@ import { cn } from "@/lib/utils";
 
 export interface ShareControlProps {
   /** The initiative whose members and roles can be named, or `null` for a
-   *  guild-level resource — where the people who can be named are the guild's
+   *  community-level resource — where the people who can be named are the community's
    *  members, and no initiative is read at all.
    *
-   *  `null` selects the **guild view** of this control. The two views are not
-   *  cosmetic: an initiative has roles and a guild does not, so the guild view
+   *  `null` selects the **community view** of this control. The two views are not
+   *  cosmetic: an initiative has roles and a community does not, so the community view
    *  has no Roles section at all rather than an empty one. See the note above
    *  {@link ShareControl}. */
   initiativeId: number | null;
@@ -59,7 +59,7 @@ export interface ShareControlProps {
 
 type ShareLevel = "read" | "write";
 
-const GUILD_SCOPE: MemberSearchScope = { type: "guild" };
+const COMMUNITY_SCOPE: MemberSearchScope = { type: "community" };
 
 /** An app's picture, small, or the generic app mark when it has none. */
 const AppMark = ({ avatarUrl }: { avatarUrl: string | null | undefined }) =>
@@ -83,16 +83,16 @@ const AppMark = ({ avatarUrl }: { avatarUrl: string | null | undefined }) =>
  * **Initiative view** (`initiativeId` given) shares within an initiative: its
  * members, and its roles, and "everyone in the initiative".
  *
- * **Guild view** (`initiativeId` null) shares a guild-level resource, and it is
- * a narrower thing rather than the same thing with different words. A guild has
- * members, so people can be named. A guild has no *roles* — the roles this
+ * **Community view** (`initiativeId` null) shares a community-level resource, and it is
+ * a narrower thing rather than the same thing with different words. A community has
+ * members, so people can be named. A community has no *roles* — the roles this
  * control grants to are an initiative's, and there is no initiative here — so
- * the guild view has no Roles section, rather than one with an empty picker
+ * the community view has no Roles section, rather than one with an empty picker
  * behind it offering a grant the server would drop on the way in.
  *
- * "Everyone" survives both views because both have one: at guild scope the
- * all-members grant reads as every member of the guild, which is how a guild
- * calendar arrives shared with the guild.
+ * "Everyone" survives both views because both have one: at community scope the
+ * all-members grant reads as every member of the community, which is how a community
+ * calendar arrives shared with the community.
  *
  * An installed app may be the owner, or a grantee the community's seat named.
  * Both are shown by the app's name and never edited here: an app's grant is
@@ -108,10 +108,10 @@ export const ShareControl = ({
 }: ShareControlProps) => {
   const { t } = useTranslation(["access", "common"]);
 
-  // Guild-level resource: there is no initiative to read, so the people come
-  // from the guild. Roles stay empty — a guild role is not an initiative role,
+  // Community-level resource: there is no initiative to read, so the people come
+  // from the community. Roles stay empty — a community role is not an initiative role,
   // and granting to one is not something this build does.
-  const guildScoped = initiativeId == null;
+  const communityScoped = initiativeId == null;
   const { data: roles = [] } = useInitiativeRoles(initiativeId);
 
   // ── Derived grant buckets ────────────────────────────────────────────────
@@ -123,13 +123,13 @@ export const ShareControl = ({
     () => grants.filter((g) => g.user_id != null && g.level !== "owner"),
     [grants]
   );
-  // A role grant cannot mean anything on a guild-level resource: the roles are
+  // A role grant cannot mean anything on a community-level resource: the roles are
   // an initiative's, and the server drops such a grant rather than storing one
-  // that names nothing. Emptied here so the guild view never carries one
+  // that names nothing. Emptied here so the community view never carries one
   // through an edit either — what it shows is what gets saved.
   const roleGrants = useMemo(
-    () => (guildScoped ? [] : grants.filter((g) => g.role_id != null)),
-    [guildScoped, grants]
+    () => (communityScoped ? [] : grants.filter((g) => g.role_id != null)),
+    [communityScoped, grants]
   );
 
   // Roles with "Full access" (override_share_restrictions) always view/edit
@@ -153,7 +153,7 @@ export const ShareControl = ({
 
   const allLevel: ShareLevel = allMembersGrant?.level === "write" ? "write" : "read";
 
-  // ── People: the initiative's members, or the guild's ────────────────────
+  // ── People: the initiative's members, or the community's ────────────────────
 
   const [peoplePickerOpen, setPeoplePickerOpen] = useState(false);
   const [peopleQuery, setPeopleQuery] = useState("");
@@ -162,8 +162,8 @@ export const ShareControl = ({
   // The picker asks the server for the people matching what was typed, and the
   // people already named here (owner, grantees) are looked up by id.
   const peopleScope = useMemo<MemberSearchScope>(
-    () => (guildScoped ? GUILD_SCOPE : { type: "initiative", initiativeId }),
-    [guildScoped, initiativeId]
+    () => (communityScoped ? COMMUNITY_SCOPE : { type: "initiative", initiativeId }),
+    [communityScoped, initiativeId]
   );
   const peopleSearch = useMemberSearch(peopleScope, {
     search: debouncedPeopleQuery,
@@ -194,17 +194,17 @@ export const ShareControl = ({
   // The apps list is only read when a grant names an app the read model did
   // not already describe.
   const needsAppNames = appGrants.length > 0 || (ownerAppId != null && ownerApp?.id !== ownerAppId);
-  const { data: guildApps } = useGuildApps({ enabled: needsAppNames });
+  const { data: communityApps } = useCommunityApps({ enabled: needsAppNames });
 
   const appSummary = useCallback(
     (appId: number): { name: string; avatarUrl: string | null } => {
       if (ownerApp?.id === appId) return { name: ownerApp.name, avatarUrl: ownerApp.avatar_url };
-      const app = guildApps?.items.find((one) => one.id === appId);
+      const app = communityApps?.items.find((one) => one.id === appId);
       return app
         ? { name: app.name, avatarUrl: app.avatar_url }
         : { name: t("share.appFallback", { id: appId }), avatarUrl: null };
     },
-    [ownerApp, guildApps, t]
+    [ownerApp, communityApps, t]
   );
   const owningApp = ownerId == null && ownerAppId != null ? appSummary(ownerAppId) : null;
 
@@ -223,7 +223,7 @@ export const ShareControl = ({
   const userHandle = useCallback(
     (userId: number): string | null => {
       const member = findMember(userId);
-      if (!member?.full_name?.trim()) return null;
+      if (!member?.display_name?.trim()) return null;
       return getUserHandle(member) || null;
     },
     [findMember]
@@ -375,15 +375,15 @@ export const ShareControl = ({
                 <span className="flex items-center gap-1">
                   <span className="truncate font-medium text-sm">
                     {mode === "all"
-                      ? t(guildScoped ? "share.allGuildMembers" : "share.allMembers")
+                      ? t(communityScoped ? "share.allCommunityMembers" : "share.allMembers")
                       : t("share.restricted")}
                   </span>
                   <ChevronDown className="h-4 w-4 shrink-0 opacity-60" />
                 </span>
                 <span className="truncate text-muted-foreground text-xs">
                   {mode === "all"
-                    ? t(guildScoped ? "share.allGuildMembersHint" : "share.allMembersHint")
-                    : t(guildScoped ? "share.restrictedGuildHint" : "share.restrictedHint")}
+                    ? t(communityScoped ? "share.allCommunityMembersHint" : "share.allMembersHint")
+                    : t(communityScoped ? "share.restrictedCommunityHint" : "share.restrictedHint")}
                 </span>
               </button>
             </PopoverTrigger>
@@ -403,13 +403,17 @@ export const ShareControl = ({
                 >
                   <span className="font-medium text-sm">
                     {m === "all"
-                      ? t(guildScoped ? "share.allGuildMembers" : "share.allMembers")
+                      ? t(communityScoped ? "share.allCommunityMembers" : "share.allMembers")
                       : t("share.restricted")}
                   </span>
                   <span className="text-muted-foreground text-xs">
                     {m === "all"
-                      ? t(guildScoped ? "share.allGuildMembersHint" : "share.allMembersHint")
-                      : t(guildScoped ? "share.restrictedGuildHint" : "share.restrictedHint")}
+                      ? t(
+                          communityScoped ? "share.allCommunityMembersHint" : "share.allMembersHint"
+                        )
+                      : t(
+                          communityScoped ? "share.restrictedCommunityHint" : "share.restrictedHint"
+                        )}
                   </span>
                 </button>
               ))}
@@ -480,7 +484,7 @@ export const ShareControl = ({
                             >
                               <div className="flex flex-col">
                                 <span className="truncate text-sm">{displayName}</span>
-                                {member.full_name?.trim() && (
+                                {member.display_name?.trim() && (
                                   <span className="truncate text-muted-foreground text-xs">
                                     {getUserHandle(member)}
                                   </span>
@@ -554,11 +558,11 @@ export const ShareControl = ({
             </div>
           </div>
 
-          {/* Roles — an initiative's, so the guild view has none. Absent
+          {/* Roles — an initiative's, so the community view has none. Absent
               rather than empty: an "Add roles" button over a picker with
               nothing in it offers a grant that names nothing, which the server
               would drop on the way in. */}
-          {guildScoped ? null : (
+          {communityScoped ? null : (
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label className="font-medium text-sm">{t("share.roles")}</Label>

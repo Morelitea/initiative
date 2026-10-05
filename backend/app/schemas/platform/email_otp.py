@@ -5,7 +5,7 @@ from typing import Optional
 
 from pydantic import EmailStr, Field
 
-from app.schemas.base import SanitizedBaseModel, TitleStr
+from app.schemas.base import SanitizedBaseModel
 from app.schemas.platform.guild import NewCommunity
 
 
@@ -21,10 +21,6 @@ class EmailOtpSend(SanitizedBaseModel):
     #: Carried so that asking about an unknown address can tell whether a
     #: sign-up would be allowed before it posts a code inviting one.
     invite_code: Optional[str] = None
-    #: Whether the app asked rather than a browser. It decides what a finished
-    #: sign-in hands back — a refresh token to keep, or a cookie — and is
-    #: recorded on the challenge rather than asked for again at the end.
-    native: bool = False
 
 
 class EmailOtpSent(SanitizedBaseModel):
@@ -50,7 +46,6 @@ class EmailOtpRegister(SanitizedBaseModel):
 
     registration_ticket: str = Field(min_length=1, max_length=256)
     username: str = Field(min_length=1, max_length=64)
-    full_name: Optional[TitleStr] = Field(default=None, max_length=255)
     timezone: Optional[str] = None
     invite_code: Optional[str] = None
     community: Optional[NewCommunity] = None

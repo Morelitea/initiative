@@ -46,14 +46,14 @@ import { Tabs, TabsBar, TabsContent, TabsTrigger } from "@/components/ui/tabs";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useCreateDocument, useUploadDocument } from "@/hooks/useDocuments";
 import { useInitiative } from "@/hooks/useInitiatives";
-import { useGuildPickerSuggestions } from "@/hooks/useSearch";
-import { toast } from "@/lib/chesterToast";
+import { useCommunityPickerSuggestions } from "@/hooks/useSearch";
 import {
   DOCUMENT_UPLOAD_ACCEPT,
   formatBytes,
   getFileTypeLabel,
   nameWithoutExtension,
 } from "@/lib/fileUtils";
+import { toast } from "@/lib/mascotToast";
 import { matchSmartLinkProvider, SUPPORTED_PROVIDER_BADGES } from "@/lib/smartLinkProviders";
 import type { DialogProps } from "@/types/dialog";
 
@@ -123,7 +123,7 @@ export const CreateDocumentDialog = ({
   // Template picker — the shared lookup, asked for blueprints, only while the
   // dialog is open. It opens on the templates most recently worked on, which is
   // the only way it can say that this community has any.
-  const templates = useGuildPickerSuggestions(templateSearch, {
+  const templates = useCommunityPickerSuggestions(templateSearch, {
     types: [SearchEntityType.document],
     is_template: true,
     enabled: open && !isTemplateDocument,
@@ -225,7 +225,7 @@ export const CreateDocumentDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-screen w-full overflow-y-auto rounded-2xl border bg-card shadow-2xl sm:max-w-lg">
+      <DialogContent className="w-full rounded-2xl border bg-card shadow-2xl sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{t("create.title")}</DialogTitle>
           <DialogDescription>

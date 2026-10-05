@@ -1,7 +1,7 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { createRouter } from "@tanstack/react-router";
 
-import type { GuildRead, UserRead } from "@/api/generated/initiativeAPI.schemas";
+import type { CommunityRead, UserRead } from "@/api/generated/initiativeAPI.schemas";
 import { NotFoundPage, RouteErrorPage } from "@/components/errors/ErrorPages";
 import type { NativeSession } from "@/lib/nativeSession";
 
@@ -12,36 +12,34 @@ export interface AuthContextValue {
   user: UserRead | null;
   token: string | null;
   loading: boolean;
-  isDeviceToken: boolean;
   login: (payload: { email: string; password: string; deviceName?: string }) => Promise<void>;
   register: (payload: {
     email: string;
     password: string;
     username: string;
-    full_name?: string;
     inviteCode?: string;
   }) => Promise<unknown>;
-  completeOidcLogin: (credential?: NativeSession | { deviceToken: string }) => Promise<void>;
+  completeOidcLogin: (credential?: NativeSession) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
 
-export interface GuildContextValue {
-  guilds: GuildRead[];
-  activeGuildId: number | null;
-  activeGuild: GuildRead | null;
+export interface CommunityContextValue {
+  communities: CommunityRead[];
+  activeCommunityId: number | null;
+  activeCommunity: CommunityRead | null;
   loading: boolean;
   error: string | null;
-  refreshGuilds: () => Promise<GuildRead[]>;
-  switchGuild: (guildId: number) => Promise<void>;
-  /** Push the server-held guild context + local state for a guild URL.
-   * Awaited in the /c/$guildId beforeLoad so child routes can't fetch
+  refreshCommunities: () => Promise<CommunityRead[]>;
+  switchCommunity: (communityId: number) => Promise<void>;
+  /** Push the server-held community context + local state for a community URL.
+   * Awaited in the /c/$communityId beforeLoad so child routes can't fetch
    * before the context lands. Idempotent. */
-  syncGuildFromUrl: (guildId: number) => Promise<void>;
-  createGuild: (input: { name: string; description?: string }) => Promise<unknown>;
-  updateGuildInState: (guild: GuildRead) => void;
-  reorderGuilds: (guildIds: number[]) => void;
-  canCreateGuilds: boolean;
+  syncCommunityFromUrl: (communityId: number) => Promise<void>;
+  createCommunity: (input: { name: string; description?: string }) => Promise<unknown>;
+  updateCommunityInState: (community: CommunityRead) => void;
+  reorderCommunities: (communityIds: number[]) => void;
+  canCreateCommunities: boolean;
 }
 
 export interface ServerContextValue {
@@ -58,7 +56,7 @@ export interface ServerContextValue {
 export interface RouterContext {
   queryClient: QueryClient;
   auth: AuthContextValue | undefined;
-  guilds: GuildContextValue | undefined;
+  communities: CommunityContextValue | undefined;
   server: ServerContextValue | undefined;
 }
 
@@ -68,7 +66,7 @@ export const router = createRouter({
   context: {
     queryClient: undefined!,
     auth: undefined,
-    guilds: undefined,
+    communities: undefined,
     server: undefined,
   },
   defaultPreload: "intent",

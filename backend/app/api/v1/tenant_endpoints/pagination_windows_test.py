@@ -14,7 +14,7 @@ document pickers with no signal to the client.
 
 import pytest
 
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.testing import create_document, create_project, create_task
 
 
@@ -29,7 +29,7 @@ def _small_window(monkeypatch):
 
 async def test_tasks_fetch_all_windows(client, session, acting_user):
     """Guild /tasks/ (the canonical DB-windowed path via paginated_query)."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     created = {(await create_task(session, a.project)).id for _ in range(TOTAL)}
 
     async def fetch(page: int) -> dict:
@@ -63,7 +63,7 @@ async def test_tasks_fetch_all_windows(client, session, acting_user):
 
 async def test_documents_fetch_all_windows(client, session, acting_user):
     """Guild /documents/ (hand-rolled SQL path, now on apply_pagination)."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     created = {
         (await create_document(session, a.initiative, a.user)).id for _ in range(TOTAL)
     }
@@ -96,7 +96,7 @@ async def test_projects_fetch_all_windows(client, session, acting_user):
     page_size=0 is this endpoint's DEFAULT, so the window protocol is what
     every project picker/board exercises.
     """
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     created = {a.project.id}
     while len(created) < TOTAL:
         created.add((await create_project(session, a.initiative, a.user)).id)
@@ -125,7 +125,7 @@ async def test_projects_fetch_all_windows(client, session, acting_user):
 
 async def test_me_tasks_fetch_all_windows(client, session, acting_user):
     """/me/tasks (cross-guild in-memory merge path, now on paginate_sequence)."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     created = set()
     for _ in range(TOTAL):
         task = await create_task(session, a.project, assignees=[a.user])
@@ -155,7 +155,7 @@ async def test_me_tasks_fetch_all_windows(client, session, acting_user):
 async def test_positive_page_size_never_exceeds_window(client, session, acting_user):
     """Defense in depth: a positive page_size is clamped to the window even
     though endpoint ``le=`` validation should reject it first."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     for _ in range(TOTAL):
         await create_task(session, a.project)
 

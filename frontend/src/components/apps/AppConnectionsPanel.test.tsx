@@ -1,8 +1,8 @@
 /**
- * How a guild's own credential is drawn, now that not all of them are typed.
+ * How a community's own credential is drawn, now that not all of them are typed.
  *
  * The panel has always split connections by who supplies them. The newer split
- * is inside the guild half: some are a form an admin fills in, and some are
+ * is inside the community half: some are a form an admin fills in, and some are
  * granted at the vendor — an organization-wide install on the vendor's own
  * page, which no text box can express. A connection that runs a flow gets
  * a button instead of inputs, and what came back is shown rather than reduced
@@ -13,7 +13,7 @@ import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { renderPage } from "@/__tests__/helpers/render";
-import type { GuildAppConnectionRead } from "@/api/generated/initiativeAPI.schemas";
+import type { CommunityAppConnectionRead } from "@/api/generated/initiativeAPI.schemas";
 
 import { AppConnectionsPanel } from "./AppConnectionsPanel";
 
@@ -21,8 +21,8 @@ const connect = vi.fn();
 const save = vi.fn();
 const disconnect = vi.fn();
 
-vi.mock("@/hooks/useGuildAppDetail", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/hooks/useGuildAppDetail")>()),
+vi.mock("@/hooks/useCommunityAppDetail", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/hooks/useCommunityAppDetail")>()),
   useConnectApp: () => ({ mutate: connect, isPending: false }),
   useUpdateAppConfig: () => ({ mutate: save, isPending: false }),
   useDisconnectApp: () => ({ mutate: disconnect, isPending: false }),
@@ -30,7 +30,7 @@ vi.mock("@/hooks/useGuildAppDetail", async (importOriginal) => ({
 
 const opened = vi.fn();
 
-const base: GuildAppConnectionRead = {
+const base: CommunityAppConnectionRead = {
   id: "workspace",
   scope: "static",
   label: { en: "GitHub organization" },
@@ -46,21 +46,21 @@ const base: GuildAppConnectionRead = {
 };
 
 /** The community's own credential, granted at the vendor rather than typed. */
-const vendorFlow: GuildAppConnectionRead = {
+const vendorFlow: CommunityAppConnectionRead = {
   ...base,
   runs_flow: true,
   fields: [{ key: "owner", type: "string", label: { en: "Owner" }, required: true, managed: true }],
 };
 
 /** The other kind: a form an admin fills in. */
-const typed: GuildAppConnectionRead = {
+const typed: CommunityAppConnectionRead = {
   ...base,
   id: "admin",
   label: { en: "Admin API" },
   fields: [{ key: "shop_domain", type: "string", label: { en: "Shop domain" }, required: true }],
 };
 
-const render = (connection: GuildAppConnectionRead, canManage = true) =>
+const render = (connection: CommunityAppConnectionRead, canManage = true) =>
   renderPage(() => (
     <AppConnectionsPanel appId={3} connections={[connection]} canManage={canManage} />
   ));
@@ -134,7 +134,7 @@ describe("a community credential that is typed", () => {
 });
 
 describe("a member's own account", () => {
-  const personal: GuildAppConnectionRead = {
+  const personal: CommunityAppConnectionRead = {
     ...base,
     id: "account",
     scope: "interactive",

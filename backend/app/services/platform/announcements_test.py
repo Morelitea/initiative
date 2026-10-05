@@ -18,7 +18,7 @@ from app.models.platform.announcement import (
     AnnouncementImage,
     AnnouncementReadReceipt,
 )
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.platform.user import UserRole
 from app.schemas.platform.announcement import (
     AnnouncementSection,
@@ -129,13 +129,13 @@ async def test_guild_admins_only_needs_an_admin_membership_somewhere(session):
     admin = await create_user(session)
     guild = await create_guild(session)
     await create_guild_membership(
-        session, user=plain, guild=guild, role=GuildRole.member
+        session, user=plain, guild=guild, role=CommunityRole.member
     )
     await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
+        session, user=admin, guild=guild, role=CommunityRole.admin
     )
     await session.commit()
-    await _publish(session, author, guild_admins_only=True)
+    await _publish(session, author, community_admins_only=True)
 
     assert await service.list_for_user(session, user=plain) == []
     assert len(await service.list_for_user(session, user=admin)) == 1

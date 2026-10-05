@@ -2,14 +2,14 @@
  * The community directory, as a place you browse.
  *
  * The cards, and only the cards. What narrows them — the search box and the
- * shelves a guild can file itself under — is the app's sidebar while this page
+ * shelves a community can file itself under — is the app's sidebar while this page
  * is open (``CommunityDirectorySidebar``), which is where every other place in
  * the app keeps what it is browsed by. The two agree through the URL: the
  * sidebar writes ``q`` and ``category``, this reads them, and a filtered
  * directory is therefore a link.
  *
  * The directory is platform-level, so this asks nothing about the caller's
- * current guild. Whether they are already in one of these is answered by the
+ * current community. Whether they are already in one of these is answered by the
  * card payload itself.
  *
  * Whether there is a directory at all is the platform owner's setting. Where it
@@ -24,16 +24,18 @@ import { CloudOff, SearchX } from "lucide-react";
 import { useMemo, useSyncExternalStore } from "react";
 import { useTranslation } from "react-i18next";
 
-import { CommunityCard } from "@/components/guilds/CommunityCard";
-import { CommunitySearchField } from "@/components/guilds/CommunitySearchField";
-import { DirectoryNearControl } from "@/components/guilds/DirectoryNearControl";
+import { CommunityCard } from "@/components/communities/CommunityCard";
+import { CommunitySearchField } from "@/components/communities/CommunitySearchField";
+import { DirectoryNearControl } from "@/components/communities/DirectoryNearControl";
 import { PageBanner } from "@/components/PageBanner";
 import { StatusMessage } from "@/components/StatusMessage";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAppConfig } from "@/hooks/useAppConfig";
-import { useCommunityGuilds } from "@/hooks/useCommunities";
+import { useDirectoryCommunities } from "@/hooks/useCommunityDirectory";
 import { renderableBanner } from "@/lib/banner";
+import { asCommunityCategories } from "@/lib/communityCategories";
+import { countriesNamedBy } from "@/lib/communityLocation";
 import {
   effectiveNear,
   nearSearchFrom,
@@ -43,21 +45,19 @@ import {
   subscribeSavedNear,
 } from "@/lib/directoryNear";
 import { getErrorCode } from "@/lib/errorMessage";
-import { asGuildCategories } from "@/lib/guildCategories";
-import { countriesNamedBy } from "@/lib/guildLocation";
 
 /** Stable keys for the loading placeholders — an index key on a list that can
  *  change is the lint rule this avoids. */
 const SKELETON_KEYS = ["a", "b", "c", "d", "e", "f"];
 
 export function CommunitiesPage() {
-  const { t, i18n } = useTranslation(["guilds", "common"]);
+  const { t, i18n } = useTranslation(["communities", "common"]);
   // Read loosely and re-narrowed here rather than trusted from the route:
   // `useSearch({ strict: false })` returns the params as they are and does not
   // run the route's `validateSearch`, so anywhere this page is mounted another
   // way an unrecognized value would otherwise filter the grid down to nothing.
   const rawSearch = useSearch({ strict: false }) as Record<string, unknown>;
-  const categories = asGuildCategories(rawSearch.category);
+  const categories = asCommunityCategories(rawSearch.category);
   const search = typeof rawSearch.q === "string" ? rawSearch.q : "";
 
   const { communityDirectoryEnabled, isLoading: configLoading } = useAppConfig();
@@ -81,10 +81,10 @@ export function CommunitiesPage() {
     [nearKey, savedNear]
   );
 
-  const directory = useCommunityGuilds(
+  const directory = useDirectoryCommunities(
     {
-      q: query || undefined,
-      q_country: queryCountries.length ? queryCountries : undefined,
+      search: query || undefined,
+      search_country: queryCountries.length ? queryCountries : undefined,
       ...nearSearchOf(near),
       category: categories.length ? categories : undefined,
     },
@@ -92,10 +92,10 @@ export function CommunitiesPage() {
   );
 
   // The grid is a shelf that grows, so the loaded pages are shown as one list.
-  const guilds = directory.data?.pages.flatMap((page) => page.items) ?? [];
+  const communities = directory.data?.pages.flatMap((page) => page.items) ?? [];
   // How many matched, not how many are on screen — every page carries the
   // same figure, so the first one answers it.
-  const total = directory.data?.pages[0]?.total ?? 0;
+  const total = directory.data?.pages[0]?.total_count ?? 0;
 
   // Either this client was told there is no directory, or it asked and was told
   // so. The second is how a tab that was open when an owner switched it off
@@ -105,18 +105,18 @@ export function CommunitiesPage() {
     !communityDirectoryEnabled || getErrorCode(directory.error) === "COMMUNITY_DIRECTORY_DISABLED";
 
   // The page's title sits centred on the banner rather than above it, in the
-  // same frame a guild's front page uses — see ``PageBanner``. The artwork is
+  // same frame a community's front page uses — see ``PageBanner``. The artwork is
   // fixed and light-toned, and its lower edge fades out in the file itself, so
   // what it fades into is the page.
   const hero = (
     <PageBanner
-      // The artwork ships with the app rather than being served per guild, so
-      // it needs no resolving; the rest is what a header with no guild banner
+      // The artwork ships with the app rather than being served per community, so
+      // it needs no resolving; the rest is what a header with no community banner
       // behind it looks like.
       banner={{ ...renderableBanner(), image_url: "/images/community-banner.webp" }}
       haloOverImage
-      title={t("guilds:community.heroTitle")}
-      subtitle={t("guilds:community.heroSubtitle")}
+      title={t("communities:community.heroTitle")}
+      subtitle={t("communities:community.heroSubtitle")}
     />
   );
 
@@ -127,8 +127,8 @@ export function CommunitiesPage() {
         {hero}
         <StatusMessage
           icon={<CloudOff />}
-          title={t("guilds:community.disabledTitle")}
-          description={t("guilds:community.disabledDescription")}
+          title={t("communities:community.disabledTitle")}
+          description={t("communities:community.disabledDescription")}
         />
       </div>
     );
@@ -148,11 +148,11 @@ export function CommunitiesPage() {
 
       {directory.isError ? (
         // A directory that failed to answer is not a directory with nothing
-        // in it, and saying so would send someone looking for guilds that exist.
+        // in it, and saying so would send someone looking for communities that exist.
         <StatusMessage
           icon={<CloudOff />}
-          title={t("guilds:community.unavailableTitle")}
-          description={t("guilds:community.unavailableDescription")}
+          title={t("communities:community.unavailableTitle")}
+          description={t("communities:community.unavailableDescription")}
         />
       ) : configLoading || directory.isLoading ? (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -160,14 +160,14 @@ export function CommunitiesPage() {
             <Skeleton key={key} className="h-52 w-full rounded-xl" />
           ))}
         </div>
-      ) : guilds.length ? (
+      ) : communities.length ? (
         <>
           <p className="text-muted-foreground text-sm">
-            {t("guilds:community.resultCount", { count: total })}
+            {t("communities:community.resultCount", { count: total })}
           </p>
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {guilds.map((guild) => (
-              <CommunityCard key={guild.id} guild={guild} />
+            {communities.map((community) => (
+              <CommunityCard key={community.id} community={community} />
             ))}
           </div>
           {directory.hasNextPage ? (
@@ -177,7 +177,7 @@ export function CommunitiesPage() {
                 onClick={() => void directory.fetchNextPage()}
                 disabled={directory.isFetchingNextPage}
               >
-                {t("guilds:community.showMore")}
+                {t("communities:community.showMore")}
               </Button>
             </div>
           ) : null}
@@ -185,11 +185,15 @@ export function CommunitiesPage() {
       ) : (
         <StatusMessage
           icon={<SearchX />}
-          title={search ? t("guilds:community.noResultsTitle") : t("guilds:community.emptyTitle")}
+          title={
+            search
+              ? t("communities:community.noResultsTitle")
+              : t("communities:community.emptyTitle")
+          }
           description={
             search
-              ? t("guilds:community.noResultsDescription", { query: search })
-              : t("guilds:community.emptyDescription")
+              ? t("communities:community.noResultsDescription", { query: search })
+              : t("communities:community.emptyDescription")
           }
         />
       )}

@@ -21,7 +21,11 @@ vi.mock("@capacitor/core", () => ({
 
 import { queryClient } from "@/lib/queryClient";
 
-import { retainOnlyGuilds, setGrantOnlyGuildIds, shouldPersistQuery } from "./offlineCache";
+import {
+  retainOnlyCommunities,
+  setGrantOnlyCommunityIds,
+  shouldPersistQuery,
+} from "./offlineCache";
 
 const seed = (key: string) => {
   queryClient.setQueryData([key], { seeded: true });
@@ -31,15 +35,15 @@ const held = (key: string) => queryClient.getQueryData([key]) !== undefined;
 
 beforeEach(() => {
   queryClient.clear();
-  setGrantOnlyGuildIds([]);
+  setGrantOnlyCommunityIds([]);
 });
 
-describe("retainOnlyGuilds", () => {
+describe("retainOnlyCommunities", () => {
   it("drops a departed community's queries out of the client", async () => {
     seed("/api/v1/c/3/tasks");
     seed("/api/v1/c/5/tasks");
 
-    await retainOnlyGuilds([3], [3]);
+    await retainOnlyCommunities([3], [3]);
 
     expect(held("/api/v1/c/3/tasks")).toBe(true);
     expect(held("/api/v1/c/5/tasks")).toBe(false);
@@ -47,7 +51,7 @@ describe("retainOnlyGuilds", () => {
 
   it("leaves the departed community with nothing a later save could write back", async () => {
     seed("/api/v1/c/5/tasks");
-    await retainOnlyGuilds([3], [3]);
+    await retainOnlyCommunities([3], [3]);
 
     // Whatever the persister is asked to write next, the queries that would
     // have recreated the shard are no longer there to be dehydrated.
@@ -60,10 +64,10 @@ describe("retainOnlyGuilds", () => {
 
   it("keeps a community reached by a live grant usable, while refusing it disk", async () => {
     seed("/api/v1/c/9/tasks");
-    setGrantOnlyGuildIds([9]);
+    setGrantOnlyCommunityIds([9]);
 
     // Reachable (the grant is live) but not cacheable (it can end while away).
-    await retainOnlyGuilds([3, 9], [3]);
+    await retainOnlyCommunities([3, 9], [3]);
 
     expect(held("/api/v1/c/9/tasks")).toBe(true);
     // Still barred from disk by the grant exclusion, which the prune leaves be.
@@ -72,19 +76,19 @@ describe("retainOnlyGuilds", () => {
   });
 
   it("leaves platform-level queries alone", async () => {
-    seed("/api/v1/users/me");
+    seed("/api/v1/me");
     seed("/api/v1/me/tasks");
 
-    await retainOnlyGuilds([3], [3]);
+    await retainOnlyCommunities([3], [3]);
 
-    expect(held("/api/v1/users/me")).toBe(true);
+    expect(held("/api/v1/me")).toBe(true);
     expect(held("/api/v1/me/tasks")).toBe(true);
   });
 
   it("leaves hand-written keys alone — they name no community", async () => {
     queryClient.setQueryData(["dm", "unread"], { seeded: true });
 
-    await retainOnlyGuilds([3], [3]);
+    await retainOnlyCommunities([3], [3]);
 
     expect(queryClient.getQueryData(["dm", "unread"])).toBeDefined();
   });

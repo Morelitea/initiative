@@ -107,6 +107,7 @@ from app.models.platform.user_totp_secret import UserTotpSecret
 from app.models.platform.mfa_recovery_code import MfaRecoveryCode
 from app.models.platform.auth_challenge import AuthChallenge
 from app.models.platform.user_token import UserToken
+from app.models.platform.account_change_hold import AccountChangeHold
 from app.models.platform.push_token import PushToken
 from app.models.platform.billing import BillingEventLog, BillingJti
 from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
@@ -228,6 +229,7 @@ __all__ = [
     "DmQueueItem",
     "DmVerificationItem",
     "UserToken",
+    "AccountChangeHold",
     "PushToken",
     "BillingEventLog",
     "BillingJti",

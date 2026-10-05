@@ -1,6 +1,5 @@
 {
   "title": "Projekte",
-  "subtitle": "Verfolge Initiativen und arbeite mit deiner Community zusammen.",
   "addProject": "Projekt hinzufügen",
   "loading": "Projekte werden geladen…",
   "loadError": "Projekte konnten nicht geladen werden.",
@@ -66,7 +65,13 @@
     "unassigned": "Nicht zugewiesen",
     "archived": "Archiviert",
     "statusCategory": "Statuskategorie",
-    "savePresetDescription": "Alle in diesem Projekt sehen diese Voreinstellung."
+    "savePresetDescription": "Alle in diesem Projekt sehen diese Voreinstellung.",
+    "seededPresets": {
+      "all": "Alle",
+      "incomplete": "Unerledigt",
+      "unassigned": "Nicht zugewiesen",
+      "mine": "Meine"
+    }
   },
   "templates": {
     "loading": "Vorlagen werden geladen…",
@@ -113,20 +118,17 @@
     "notFound": "Projekt nicht gefunden",
     "notFoundDescription": "Dieses Projekt wurde möglicherweise gelöscht oder du bist einem fehlerhaften Link gefolgt.",
     "noAccess": "Zugriff verweigert",
-    "noAccessDescription": "Du hast keine Berechtigung, dieses Projekt anzuzeigen. Bitte einen Projektmanager, dir Zugriff zu gewähren.",
-    "projectSettings": "Projekteinstellungen",
-    "openProjectSettings": "Projekteinstellungen öffnen"
+    "noAccessDescription": "Du hast keine Berechtigung, dieses Projekt anzuzeigen. Bitte einen Projektmanager, dir Zugriff zu gewähren."
   },
   "overview": {
-    "archived": "Archiviert",
-    "active": "Aktiv",
-    "template": "Vorlage",
     "templateInfo": "Dieses Projekt ist eine Vorlage. Verwende es, um über den Tab „Vorlagen“ neue Projekte zu erstellen.",
     "archivedInfo": "Dieses Projekt ist archiviert. Hebe die Archivierung in den Einstellungen auf, um Aufgaben hinzuzufügen oder zu aktualisieren.",
-    "scheduleLabel": "Projektzeitraum",
     "scheduleRange": "{{start}} – {{end}}",
     "scheduleStartOnly": "Beginnt am {{start}}",
-    "scheduleEndOnly": "Endet am {{end}}"
+    "scheduleEndOnly": "Endet am {{end}}",
+    "progressLabel": "Fortschritt",
+    "progress": "{{completed}} von {{total}} erledigt",
+    "datesLabel": "Termine"
   },
   "schedule": {
     "startLabel": "Startdatum",
@@ -165,7 +167,6 @@
     "you": "Du"
   },
   "statuses": {
-    "title": "Aufgabenstatus",
     "description": "Ordne die Aufgabenspalten dieses Projekts neu an, benenne sie um oder ändere ihre Kategorie.",
     "noManagePermission": "Nur Projektmanager können Aufgabenstatus ändern. Wende dich an einen Projektmanager, wenn du Änderungen benötigst.",
     "addStatus": "Status hinzufügen",
@@ -215,7 +216,6 @@
     "breadcrumbSettings": "Einstellungen",
     "tabTaskStatuses": "Aufgabenstatus",
     "details": {
-      "title": "Projektdetails",
       "description": "Aktualisiere das Symbol, den Namen und die Beschreibung, die im gesamten Arbeitsbereich angezeigt werden.",
       "identityHeading": "Identität",
       "identityDescription": "Gib dem Projekt einen einprägsamen Namen und ein Emoji.",
@@ -248,15 +248,6 @@
       "viewAllTemplates": "Alle Vorlagen anzeigen",
       "markedAsTemplate": "Projekt als Vorlage markiert",
       "removedFromTemplates": "Projekt aus Vorlagen entfernt"
-    },
-    "duplicate": {
-      "title": "Projekt duplizieren",
-      "description": "Klone dieses Projekt einschließlich seiner Initiative und Aufgaben, um neue Arbeit anzukurbeln.",
-      "duplicated": "Projekt dupliziert",
-      "promptName": "Name für das duplizierte Projekt",
-      "duplicating": "Wird dupliziert...",
-      "duplicateButton": "Projekt duplizieren",
-      "noWriteAccess": "Du benötigst Schreibzugriff, um dieses Projekt zu duplizieren."
     },
     "tabFilterPresets": "Ansichten",
     "filterPresetsHeading": "Filter-Voreinstellungen",

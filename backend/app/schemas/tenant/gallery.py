@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, List, Optional, TYPE_CHECKING
+from typing import Annotated, Any, List, Optional, TYPE_CHECKING
 
-from pydantic import ConfigDict, Field
+from pydantic import AliasChoices, ConfigDict, Field
 
-from app.schemas.base import SanitizedBaseModel, TitleStr
+from app.core.identity_boundary import UPLOAD_PATH, GuildId, PersonId
+from app.schemas.base import MentionStr, SanitizedBaseModel, TitleStr
 from app.schemas.query import PageMeta
 from app.schemas.tenant.comment import CommentAuthor
 from app.schemas.tenant.resource_grant import ResourceGrantSchema, initiative_readable
@@ -19,13 +20,13 @@ from app.schemas.tenant.tag import TagSummary, annotated_tags
 from app.schemas.tenant.tool import ToolSummaryBase
 
 if TYPE_CHECKING:  # pragma: no cover
-    from app.db.guild_standing import ActorContext, GuildContext
+    from app.db.guild_standing import ActorContext
     from app.models.tenant.gallery import GalleryImage, GalleryImageVersion
 
 
 class GalleryBase(SanitizedBaseModel):
     name: str = Field(..., min_length=1, max_length=255)
-    description: Optional[str] = Field(default=None, max_length=2000)
+    description: Optional[MentionStr] = Field(default=None, max_length=2000)
 
 
 class GalleryCreate(GalleryBase, PropertiesOnCreate):
@@ -40,7 +41,7 @@ class GalleryCreate(GalleryBase, PropertiesOnCreate):
 
 class GalleryUpdate(SanitizedBaseModel):
     name: Optional[TitleStr] = Field(default=None, min_length=1, max_length=255)
-    description: Optional[str] = Field(default=None, max_length=2000)
+    description: Optional[MentionStr] = Field(default=None, max_length=2000)
     #: The picture that stands for the gallery in a list. ``null`` clears the
     #: choice and the list falls back to the newest picture; a set value has
     #: to be one of this gallery's own.
@@ -53,16 +54,13 @@ class GalleryCover(SanitizedBaseModel):
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     image_id: int
-    file_url: str
-    thumbnail_url: Optional[str] = None
+    file_url: Annotated[str, UPLOAD_PATH]
+    thumbnail_url: Annotated[Optional[str], UPLOAD_PATH] = None
     width: Optional[int] = None
     height: Optional[int] = None
 
 
 class GallerySummary(GalleryBase, ToolSummaryBase):
-    #: How many pictures it holds. Served with the row so a list of galleries
-    #: can say so without a request per card.
-    image_count: int = 0
     #: The chosen cover, or ``null`` where none was chosen. ``cover`` is that
     #: picture; ``preview`` is the newest few, which is what a list draws —
     #: as a small grid — for a gallery nobody chose a cover for.
@@ -118,16 +116,18 @@ class GalleryImageRead(SanitizedBaseModel):
 
     id: int
     gallery_id: int
-    guild_id: int
+    community_id: GuildId = Field(
+        validation_alias=AliasChoices("community_id", "guild_id")
+    )
     #: What somebody called it, if they did. Surfaces fall back to
     #: ``original_filename``, which is at least what the uploader called it.
     title: Optional[str] = None
-    caption: Optional[str] = None
+    caption: Optional[MentionStr] = None
     #: The current version's file, served at ``/uploads/{guild}/{name}``.
-    file_url: str
+    file_url: Annotated[str, UPLOAD_PATH]
     #: A smaller rendition for grids, or ``null`` where none was made — the
     #: grid then shows the picture itself.
-    thumbnail_url: Optional[str] = None
+    thumbnail_url: Annotated[Optional[str], UPLOAD_PATH] = None
     file_content_type: Optional[str] = None
     file_size: Optional[int] = None
     original_filename: Optional[str] = None
@@ -135,7 +135,7 @@ class GalleryImageRead(SanitizedBaseModel):
     #: reserve the right space for a picture before its bytes arrive.
     width: Optional[int] = None
     height: Optional[int] = None
-    created_by: int
+    created_by: PersonId
     uploader: Optional[CommentAuthor] = None
     created_at: datetime
     updated_at: datetime
@@ -184,12 +184,12 @@ def gallery_cover(image: "GalleryImage | None") -> GalleryCover | None:
 
 
 def serialize_gallery_image(
-    image: "GalleryImage", *, context: GuildContext
+    image: "GalleryImage", *, context: ActorContext
 ) -> GalleryImageRead:
     return GalleryImageRead(
         id=image.id,
         gallery_id=image.gallery_id,
-        guild_id=context.guild_id,
+        community_id=context.guild_id,
         title=image.title,
         caption=image.caption,
         file_url=image.file_url,

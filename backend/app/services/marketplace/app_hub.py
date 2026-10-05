@@ -251,7 +251,7 @@ async def call_app(
         values, canonical = app_data.validate_params(
             endpoint, json.dumps(dict(params)) if params else None
         )
-        refs = await app_data._resolve_connections(
+        refs, fields = await app_data._resolve_connections(
             session,
             app=target,
             endpoint=endpoint,
@@ -280,7 +280,7 @@ async def call_app(
         initiative_id=caller.initiative_id,
     )
 
-    async def read(request: httpx.Request) -> dict[str, Any]:
+    async def read(request: httpx.Request | app_data.Answered) -> dict[str, Any]:
         return await app_data._read_body(request, transport=transport)
 
     async def call() -> dict[str, Any]:
@@ -291,6 +291,7 @@ async def call_app(
             endpoint_id=endpoint_id,
             params=values,
             refs=refs,
+            fields=fields,
             transport=transport,
             read=read,
             caller=calling,
@@ -306,6 +307,7 @@ async def call_app(
             endpoint_id=endpoint_id,
             canonical_params=canonical,
             refs=refs,
+            fields=fields,
         ),
         caller,
         member_ref,

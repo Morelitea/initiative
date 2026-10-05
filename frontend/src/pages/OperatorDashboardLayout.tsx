@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 
 import { SettingsTabsNav } from "@/components/settings/SettingsTabsNav";
 import { SettingsPaneSkeleton } from "@/components/skeletons/PageSkeletons";
+import { useAppConfig } from "@/hooks/useAppConfig";
 import { useAuth } from "@/hooks/useAuth";
 import {
   Capability,
@@ -21,6 +22,7 @@ import { matchActiveTab } from "@/lib/tabs";
 export const OperatorDashboardLayout = () => {
   const { t } = useTranslation("settings");
   const { user } = useAuth();
+  const { billing } = useAppConfig();
   const location = useLocation();
   const router = useRouter();
 
@@ -34,16 +36,16 @@ export const OperatorDashboardLayout = () => {
         capabilities: [Capability.usersRead],
       },
       {
-        value: "guilds",
-        label: t("operatorDashboard.tabs.guilds"),
+        value: "communities",
+        label: t("operatorDashboard.tabs.communities"),
         path: "/settings/operator/communities",
-        capabilities: [Capability.guildsManage],
+        capabilities: [Capability.communitiesManage],
       },
       {
         value: "placement",
         label: t("operatorDashboard.tabs.placement"),
         path: "/settings/operator/placement",
-        capabilities: [Capability.guildsManage],
+        capabilities: [Capability.communitiesManage],
       },
       {
         value: "announcements",
@@ -51,6 +53,17 @@ export const OperatorDashboardLayout = () => {
         path: "/settings/operator/announcements",
         capabilities: [Capability.announcementsManage],
       },
+      // Only on a server connected to a billing service that can open it.
+      ...(billing?.insights
+        ? [
+            {
+              value: "billing",
+              label: t("operatorDashboard.tabs.billing"),
+              path: "/settings/operator/billing",
+              capabilities: [Capability.billingInsights],
+            },
+          ]
+        : []),
       {
         value: "access",
         label: t("operatorDashboard.tabs.access"),
@@ -59,7 +72,7 @@ export const OperatorDashboardLayout = () => {
       },
     ];
     return all.filter((tab) => tab.capabilities.some((c) => hasCapability(user, c)));
-  }, [t, user]);
+  }, [t, user, billing?.insights]);
 
   if (!canAccessOperatorDashboard(user)) {
     return <Navigate to={canManagePlatformConfig(user) ? "/settings/platform" : "/"} replace />;
@@ -70,10 +83,7 @@ export const OperatorDashboardLayout = () => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="font-semibold text-3xl tracking-tight">{t("operatorDashboard.title")}</h1>
-        <p className="text-muted-foreground">{t("operatorDashboard.subtitle")}</p>
-      </div>
+      <h1 className="font-semibold text-3xl tracking-tight">{t("operatorDashboard.title")}</h1>
       <SettingsTabsNav
         tabs={tabs}
         activeTab={activeTab}

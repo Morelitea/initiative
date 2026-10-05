@@ -6,9 +6,11 @@ runtime reconciles the two, so these tests hold the backend map and the app's
 registered channels together.
 """
 
+import json
 import re
 from pathlib import Path
 
+import httpx
 import pytest
 from sqlalchemy import text
 from sqlmodel import select
@@ -54,12 +56,12 @@ _IN_APP_ONLY = {
     NotificationType.account_unsuspended,
     # A community put on hold: an inbox notice beside its email, about paying
     # for it, which is no reason to interrupt someone on a device.
-    NotificationType.guild_on_hold,
+    NotificationType.community_on_hold,
     # A trial ending or ended, or a new community's plan to choose: the same
     # errand as a hold, told the same way.
-    NotificationType.guild_trial_ending,
-    NotificationType.guild_trial_ended,
-    NotificationType.guild_welcome,
+    NotificationType.community_trial_ending,
+    NotificationType.community_trial_ended,
+    NotificationType.community_welcome,
     # An app asking a member to consent: answered on the app's settings, where
     # it waits until they get to it.
     NotificationType.app_consent_requested,
@@ -177,7 +179,9 @@ async def test_delivery_reads_stamps_and_prunes_on_the_system_engine(
 
     monkeypatch.setattr(push_config, "ensure_push_config_fresh", _enabled)
 
-    async def _send(client, push_token, title, body, data=None, channel_id=None):
+    async def _send(
+        client, push_token, title, body, data=None, channel_id=None, platform=None
+    ):
         return (True, False) if push_token == "live" else (False, True)
 
     monkeypatch.setattr(push_notifications, "send_push_notification", _send)
@@ -317,3 +321,217 @@ async def test_a_renewed_session_carries_its_device(session):
     (row,) = await push_tokens.get_push_tokens_for_user(session, user_id=user_id)
     await session.refresh(row)
     assert row.session_id == renewed_id
+
+
+# --- where a push goes: FCM or the push relay ---------------------------------
+
+_RELAY = "https://relay.test"
+_APNS_TOKEN = "ab" * 32
+
+
+def _push_cfg(*, service_account: bool, project_id: str | None = "own-project"):
+    from app.services.platform import push_config
+
+    return push_config.ResolvedPushConfig(
+        enabled=True,
+        project_id=project_id,
+        application_id=None,
+        api_key=None,
+        sender_id=None,
+        service_account_json='{"type": "service_account"}' if service_account else None,
+    )
+
+
+class _Wire:
+    """Every request a push makes, answered with ``status`` (or, for a
+    registration, a new credential)."""
+
+    def __init__(self, status: int = 200) -> None:
+        self.status = status
+        self.sends: list[httpx.Request] = []
+        self.registrations = 0
+
+    def handler(self, request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/v1/servers":
+            self.registrations += 1
+            n = self.registrations
+            return httpx.Response(
+                201, json={"server_id": f"srv_new{n}", "server_key": f"new-{n}"}
+            )
+        self.sends.append(request)
+        if self.status == 200:
+            return httpx.Response(200, json={"name": "projects/p/messages/1"})
+        return httpx.Response(self.status, json={"error": {"code": self.status}})
+
+    def client(self) -> httpx.AsyncClient:
+        return httpx.AsyncClient(transport=httpx.MockTransport(self.handler))
+
+
+@pytest.fixture
+def push_wire(monkeypatch):
+    """A deployment with push on, holding relay credential ``srv_1.key-1``,
+    and an FCM access token for when it has a service account."""
+    from app.services.platform import push_config, push_notifications, push_relay
+
+    monkeypatch.setattr(push_relay, "PUSH_RELAY_URL", _RELAY)
+    push_relay.reset_for_tests()
+    monkeypatch.setattr(push_relay, "_credentials", ("srv_1", "key-1"))
+
+    async def _token(cfg):
+        return "google-token"
+
+    monkeypatch.setattr(push_notifications, "_get_fcm_access_token", _token)
+
+    def configure(cfg) -> None:
+        async def _fresh():
+            return cfg
+
+        monkeypatch.setattr(push_config, "ensure_push_config_fresh", _fresh)
+
+    yield configure
+    push_relay.reset_for_tests()
+
+
+async def _send_one(wire: _Wire, *, token: str, platform: str) -> tuple[bool, bool]:
+    from app.services.platform import push_notifications
+
+    async with wire.client() as client:
+        return await push_notifications.send_push_notification(
+            client,
+            push_token=token,
+            title="t",
+            body="b",
+            data={"target_path": "/tasks/1"},
+            channel_id="mention",
+            platform=platform,
+        )
+
+
+@pytest.mark.parametrize("service_account", [True, False])
+async def test_an_iphone_always_goes_through_the_relay(push_wire, service_account):
+    push_wire(_push_cfg(service_account=service_account))
+    wire = _Wire()
+
+    assert await _send_one(wire, token=_APNS_TOKEN, platform="ios") == (True, False)
+
+    (request,) = wire.sends
+    assert str(request.url) == f"{_RELAY}/v1/projects/own-project/messages:send"
+    assert request.headers["authorization"] == "Bearer srv_1.key-1"
+    assert request.headers["x-push-platform"] == "ios"
+    message = json.loads(request.content)["message"]
+    assert message["token"] == _APNS_TOKEN
+    assert message["notification"] == {"title": "t", "body": "b"}
+    assert message["data"] == {"target_path": "/tasks/1"}
+
+
+async def test_android_goes_to_fcm_with_a_service_account(push_wire):
+    push_wire(_push_cfg(service_account=True))
+    wire = _Wire()
+
+    assert await _send_one(wire, token="fcm-token", platform="android") == (
+        True,
+        False,
+    )
+
+    (request,) = wire.sends
+    assert str(request.url) == (
+        "https://fcm.googleapis.com/v1/projects/own-project/messages:send"
+    )
+    assert request.headers["authorization"] == "Bearer google-token"
+    assert "x-push-platform" not in request.headers
+
+
+async def test_android_goes_through_the_relay_without_a_service_account(push_wire):
+    """No project id is needed either: the relay sends through its own."""
+    push_wire(_push_cfg(service_account=False, project_id=None))
+    wire = _Wire()
+
+    assert await _send_one(wire, token="fcm-token", platform="android") == (
+        True,
+        False,
+    )
+
+    (request,) = wire.sends
+    assert str(request.url) == f"{_RELAY}/v1/projects/relay/messages:send"
+    assert request.headers["authorization"] == "Bearer srv_1.key-1"
+    assert request.headers["x-push-platform"] == "android"
+
+
+async def test_a_token_the_relay_does_not_know_is_deleted(push_wire):
+    push_wire(_push_cfg(service_account=False))
+    assert await _send_one(_Wire(404), token=_APNS_TOKEN, platform="ios") == (
+        False,
+        True,
+    )
+
+
+async def test_a_refused_relay_key_is_forgotten_and_replaced(push_wire, session):
+    """A 401 keeps the token, drops the key, and the next push registers."""
+    from app.services.platform import app_settings as app_settings_service
+
+    await app_settings_service.seed_app_settings(session)
+    await session.commit()
+    push_wire(_push_cfg(service_account=False))
+
+    refused = _Wire(401)
+    assert await _send_one(refused, token=_APNS_TOKEN, platform="ios") == (
+        False,
+        False,
+    )
+    assert refused.registrations == 0
+
+    wire = _Wire()
+    assert await _send_one(wire, token=_APNS_TOKEN, platform="ios") == (True, False)
+    assert wire.registrations == 1
+    assert wire.sends[0].headers["authorization"] == "Bearer srv_new1.new-1"
+
+
+async def test_a_suspended_server_does_not_register_again(push_wire):
+    from app.services.platform import push_relay
+
+    push_wire(_push_cfg(service_account=False))
+    wire = _Wire(403)
+
+    assert await _send_one(wire, token=_APNS_TOKEN, platform="ios") == (False, False)
+    assert await _send_one(wire, token=_APNS_TOKEN, platform="ios") == (False, False)
+
+    assert wire.registrations == 0
+    assert push_relay._credentials == ("srv_1", "key-1")
+
+
+async def test_no_relay_credential_sends_nothing(push_wire, monkeypatch):
+    from app.services.platform import push_relay
+
+    async def _none(client):
+        return None
+
+    monkeypatch.setattr(push_relay, "credentials", _none)
+    push_wire(_push_cfg(service_account=False))
+    wire = _Wire()
+
+    assert await _send_one(wire, token=_APNS_TOKEN, platform="ios") == (False, False)
+    assert wire.sends == []
+
+
+async def test_each_device_is_sent_on_its_own_platform(monkeypatch):
+    from app.models.platform.push_token import PushToken
+    from app.services.platform import push_notifications
+
+    seen: dict[str, str] = {}
+
+    async def _send(client, *, push_token, platform, **_):
+        seen[push_token] = platform
+        return (True, False)
+
+    monkeypatch.setattr(push_notifications, "send_push_notification", _send)
+    tokens = [
+        PushToken(id=1, user_id=1, push_token="phone", platform="ios"),
+        PushToken(id=2, user_id=1, push_token="tablet", platform="android"),
+    ]
+    async with httpx.AsyncClient() as client:
+        outcome = await push_notifications._send_to_devices(
+            client, tokens, title="t", body="b", data=None, channel_id="default"
+        )
+
+    assert seen == {"phone": "ios", "tablet": "android"}
+    assert outcome.delivered_ids == [1, 2]

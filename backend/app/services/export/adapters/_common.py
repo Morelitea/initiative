@@ -21,7 +21,7 @@ from pydantic import BaseModel
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.messages import ExportMessages
+from app.core.messages import ExportMessages, InitiativeMessages
 from app.core.relationships import Related
 from app.core.tools import Tool, tool_envelope_type, tool_export_source
 from app.db import session as db_session
@@ -31,6 +31,7 @@ from app.models.tenant.project import Project
 from app.models.tenant.task import Task
 from app.services.export.contract import RenderItem, RenderRequest
 from app.services.export.engine import ExportError
+from app.services.export.i18n import et, export_locale
 from app.services.export.filters import narrow, parse_filters
 from app.services.permissions import (
     DAC_RESOURCES,
@@ -38,6 +39,7 @@ from app.services.permissions import (
     require_export_access,
 )
 from app.services.platform.csv_export import safe_filename_component
+from app.services.tenant.initiatives import keeps_content_in
 from app.core.user_input_validators import resolve_zone
 
 # Bound on a single selection: page-size multiples, not initiative dumps —
@@ -59,6 +61,16 @@ def selection_ids(params: dict, *, single_key: str, multi_key: str) -> list[int]
     except (TypeError, ValueError):
         raise ExportError(ExportMessages.EXPORT_INVALID_PARAMS)
     return list(dict.fromkeys(ids))
+
+
+async def require_may_leave(
+    session: AsyncSession, initiative_ids: Iterable[int]
+) -> frozenset[int]:
+    """``initiative_ids``, once none of them keeps its content in: a list
+    export may span initiatives, and the file is refused if one does."""
+    if await keeps_content_in(session, initiative_ids):
+        raise ExportError(InitiativeMessages.CONTENT_KEPT_IN, status_code=403)
+    return frozenset(initiative_ids)
 
 
 async def related_reach(session: AsyncSession, related: Iterable[Related]) -> set[int]:
@@ -345,6 +357,18 @@ class ToolExportAdapter:
             for item in batch:
                 await detach_envelope_mentions(session, item.data)
                 detach_envelope_references(item.data, guild_id=guild_id)
+        else:
+            # A report is read away from the app, so each mention is written
+            # with the name it reads as now.
+            from app.services.import_engine.mentions import mention_namer
+
+            named = await mention_namer(
+                session,
+                [item.data for item in batch],
+                missing=et("fallback.formerMember", export_locale(user)),
+            )
+            for item in batch:
+                item.data.update(named(item.data))
         return RenderRequest(
             guild_id=guild_id,
             template_id=self.template_id,

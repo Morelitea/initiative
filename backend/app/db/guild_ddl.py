@@ -615,7 +615,8 @@ _APP_SECTION = """\
 -- (nothing, for a resource no scope writes). An install reads the initiatives
 -- it is placed in whatever its scopes, since its own standing and the
 -- lifecycle checks on its writes read them. An install sees and changes its
--- own event subscriptions and no one else's. The change log and the search
+-- own event subscriptions and no one else's, and the stored files of the
+-- initiatives it is placed in. The change log and the search
 -- index are written by triggers, and an install writes them only there; it
 -- reads a search entry with the read scope of the entry's kind and of the tool
 -- governing it, and a narrowed token reads no entry of a tool that belongs to
@@ -655,7 +656,7 @@ _APP_CREATED_OWNER_ROW = (
     "(pg_trigger_depth() > 0"
     f" AND level = '{ResourceAccessLevel.owner.value}'"
     " AND role_id IS NULL"
-    " AND NOT all_initiative_members AND dashboard_id IS NULL"
+    " AND NOT all_initiative_members"
     f" AND ((app_install_id = {_IID} AND user_id IS NULL AND {_APP_MEMBER} IS NULL)"
     f" OR (user_id = {_APP_MEMBER} AND app_install_id IS NULL)))"
 )
@@ -677,13 +678,13 @@ _SHARED_LEVELS = (ResourceAccessLevel.read, ResourceAccessLevel.write)
 #: with its rung changes one: it holds the scope and the tool's write scope,
 #: and the rung that lets a person share (``resource_shares``). The row
 #: shares with a person, a role or all initiative members at read or write;
-#: owner rows, a published view's rows and app grants are not a share.
+#: owner rows and app grants are not a share.
 _APP_SHARE_ROW = (
     f"('{AppScopeResource.sharing.value}' = ANY ({IN_POLICY.field('install_write')})"
     f" AND COALESCE({_GRANT_TOOL_SCOPE}"
     f" = ANY ({IN_POLICY.field('install_write')}), false)"
     f" AND level IN ({sql_values(level.value for level in _SHARED_LEVELS)})"
-    " AND app_install_id IS NULL AND dashboard_id IS NULL"
+    " AND app_install_id IS NULL"
     " AND resource_shares(resource_grants.resource_type, resource_grants.resource_id,"
     f" {_APP_MEMBER}, resource_grants.initiative_id, {STANDING}))"
 )
@@ -790,6 +791,14 @@ def _app_predicates(table: str) -> dict[str, str]:
         own = f"({_IID} IS NULL OR app_install_id = {_IID})"
         return dict.fromkeys(("SELECT", "INSERT", "UPDATE", "DELETE"), own)
     if access.kind is AppTableKind.side_effect:
+        if table == "uploads":
+            # Stored and claimed as a step of saving content, in the
+            # initiatives the install is placed in.
+            placed = (
+                f"({_IID} IS NULL OR uploads.initiative_id IN "
+                f"{_app_placed_initiatives()})"
+            )
+            return dict.fromkeys(("SELECT", "INSERT", "UPDATE", "DELETE"), placed)
         if table not in _TRIGGER_WRITTEN_INSERT:
             return {}
         by_trigger = f"({_IID} IS NULL OR pg_trigger_depth() > 0)"

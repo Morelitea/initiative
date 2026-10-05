@@ -22,7 +22,7 @@ from app.models.platform.profile_favorite import ProfileFavorite
 from app.models.platform.user import User, UserStatus
 from app.models.platform.user_profile_view import MemberProfile, user_profiles
 from app.schemas.platform.contact import (
-    ContactGuildSection,
+    ContactCommunitySection,
     ContactRead,
     FavoriteContactsResponse,
 )
@@ -47,7 +47,7 @@ async def ordered_member_guilds(
 
     ``GuildMembership.position`` is the order they dragged the rail into, so
     this is the same rule the rail uses rather than a second one. A suspended
-    guild is left out, matching ``member_guild_ids`` and the ``/c/{guild_id}``
+    guild is left out, matching ``member_guild_ids`` and the ``/c/{community_id}``
     path it stands in for.
     """
     await set_rls_context(session, Platform(user_id=user_id))
@@ -78,8 +78,8 @@ async def ordered_member_guilds(
 def _reads(users: Iterable[MemberProfile]) -> list[ContactRead]:
     """Validate inside the caller's current guild context.
 
-    ``ContactRead`` inherits the guild-name visibility validator, so where this
-    runs decides whether ``full_name`` survives.
+    Each ``MemberProfile`` was read in its guild's routed context, so its
+    ``display_name`` is the name the person set there.
     """
     reads = []
     for user in users:
@@ -97,17 +97,17 @@ async def guild_sections(
     search: Optional[str] = None,
     page: int = 1,
     page_size: int = DEFAULT_PAGE_SIZE,
-) -> list[ContactGuildSection]:
+) -> list[ContactCommunitySection]:
     """One section per guild, in the order given.
 
     Each guild is visited in its own routed context, which is what makes both
     reads below possible: ``guild_memberships`` answers for the current guild
-    there, and ``full_name`` renders per that guild's own setting.
+    there, and ``display_name`` is the name each person set in that guild.
     """
     if not guilds:
         return []
 
-    sections: dict[int, ContactGuildSection] = {}
+    sections: dict[int, ContactCommunitySection] = {}
     # The guilds the walk below could enter; one it cannot reach right now
     # contributes nothing, section or shared membership.
     visited: set[int] = set()
@@ -120,21 +120,6 @@ async def guild_sections(
     listable = await listable_by_guild(
         session, user_id=user_id, guilds=[gid for gid, _n, _i in guilds]
     )
-
-    # `member_match` and `member_order` read and sort on the real name only
-    # where the guild shows names, so the answer is per section rather than
-    # per reader: the same person can be searchable by name in one of their
-    # communities and not in another. Asked once for all of them.
-    shows_names_by_guild = {
-        gid: bool(flag)
-        for gid, flag in (
-            await session.exec(
-                select(Guild.id, Guild.show_member_names).where(
-                    col(Guild.id).in_([gid for gid, _n, _i in guilds])
-                )
-            )
-        ).all()
-    }
 
     async def _fetch(guild_session: AsyncSession, guild_id: int) -> list[int]:
         visited.add(guild_id)
@@ -173,9 +158,9 @@ async def guild_sections(
         )
         closest = None
         if search and (term := search.strip()):
-            matches, closest = users_service.member_match(
-                term, shows_names=shows_names_by_guild.get(guild_id, False)
-            )
+            # The name each guild shows, so the same person can be found by name
+            # in one of the reader's communities and not in another.
+            matches, closest = users_service.member_match(term)
             base = base.where(matches)
 
         total = (
@@ -186,10 +171,7 @@ async def guild_sections(
             await guild_session.exec(
                 apply_pagination(
                     base.order_by(
-                        *users_service.member_order(
-                            closest,
-                            shows_names=shows_names_by_guild.get(guild_id, False),
-                        ),
+                        *users_service.member_order(closest),
                         col(MemberProfile.username).asc(),
                         col(MemberProfile.discriminator).asc(),
                         col(MemberProfile.id).asc(),
@@ -201,9 +183,9 @@ async def guild_sections(
         ).all()
 
         name, icon = named[guild_id]
-        sections[guild_id] = ContactGuildSection(
-            guild_id=guild_id,
-            guild_name=name,
+        sections[guild_id] = ContactCommunitySection(
+            community_id=guild_id,
+            community_name=name,
             icon_url=icon,
             total_count=total,
             items=_reads(rows),
@@ -228,7 +210,7 @@ async def guild_sections(
     ordered = [sections[gid] for gid in guild_ids if gid in sections]
     for section in ordered:
         for item in section.items:
-            item.shared_guild_ids = shared.get(item.id, [])
+            item.shared_community_ids = shared.get(item.id, [])
     return ordered
 
 
@@ -274,9 +256,9 @@ async def favorites(
 
     Read from ``public.user_profiles`` — the view that *is* the public
     projection of an account — so a favorite the reader shares no guild with
-    still resolves. That view carries no ``full_name``, a real name being a
-    per-guild disclosure rather than a public fact, so a search here matches
-    the handle and nothing else.
+    still resolves. That view carries no ``display_name``, a member's name
+    belonging to one guild rather than to the account, so a search here
+    matches the handle and nothing else.
     """
     stmt = (
         select(

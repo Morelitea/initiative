@@ -124,7 +124,7 @@ describe("buildTaskCalendarEntries", () => {
       id: 13,
       start_date: "2026-01-15T09:00:00",
       tags: [tag],
-      assignees: [buildTaskAssignee({ id: 42, full_name: "Alice" })],
+      assignees: [buildTaskAssignee({ id: 42, display_name: "Alice" })],
     });
 
     const [entry] = buildTaskCalendarEntries(task, COLOR);

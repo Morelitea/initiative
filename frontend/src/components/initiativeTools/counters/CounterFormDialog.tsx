@@ -141,7 +141,7 @@ export const CounterFormDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-screen w-full overflow-y-auto rounded-2xl border bg-card shadow-2xl sm:max-w-lg">
+      <DialogContent className="w-full rounded-2xl border bg-card shadow-2xl sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{isEdit ? t("editCounter") : t("addCounter")}</DialogTitle>
           <DialogDescription>{t("counterFormDescription")}</DialogDescription>
@@ -248,7 +248,7 @@ export const CounterFormDialog = ({
 
           {/* Only for a counter that exists, and saved as they change, like
               its links below. Definitions belong to an initiative, so a
-              guild-level group's counters have none to offer. */}
+              community-level group's counters have none to offer. */}
           {counter && initiativeId != null && (
             <div className="space-y-2 border-t pt-4">
               <Label>{t("properties:title")}</Label>
@@ -273,8 +273,7 @@ export const CounterFormDialog = ({
               target={{ type: SearchEntityType.counter, id: counter.id }}
               canEdit
               entityTitle={counter.name}
-              defaultLayout="rows"
-              className="space-y-3 border-t pt-4"
+              className="border-t pt-4"
             />
           )}
         </div>

@@ -24,11 +24,11 @@ import { useSetPostReactions } from "@/hooks/usePostReactions";
 import { useServerForm } from "@/hooks/useServerForm";
 import { useSetToolComments } from "@/hooks/useToolComments";
 import { useSetToolTags } from "@/hooks/useToolTags";
-import { toast } from "@/lib/chesterToast";
+import { toast } from "@/lib/mascotToast";
 
 export const ToolSettingsDetailsPage = () => {
   const { t } = useTranslation(["common", "properties"]);
-  const { tool, entity, update, detailsExtra } = useToolSettings();
+  const { tool, entity, update, detailsExtra, detailsInline } = useToolSettings();
   const canManage = entity.can.edit;
 
   // Name and description wait for Save, so a refetch arriving mid-sentence
@@ -86,10 +86,7 @@ export const ToolSettingsDetailsPage = () => {
     <div className="space-y-6">
       {update && (
         <Card>
-          <CardHeader>
-            <CardTitle>{t("toolSettings.tabDetails")}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-4 pt-6">
             <div className="space-y-2">
               <Label htmlFor="tool-settings-name">{t("name")}</Label>
               <Input
@@ -119,6 +116,7 @@ export const ToolSettingsDetailsPage = () => {
                 {update.isPending ? t("toolSettings.saving") : t("save")}
               </Button>
             )}
+            {detailsInline && <div className="border-t pt-4">{detailsInline}</div>}
           </CardContent>
         </Card>
       )}
@@ -152,7 +150,7 @@ export const ToolSettingsDetailsPage = () => {
         </CardContent>
       </Card>
 
-      {/* Definitions belong to an initiative, so a guild-level tool has none
+      {/* Definitions belong to an initiative, so a community-level tool has none
           to offer. */}
       {entity.initiative_id !== null && (
         <Card>

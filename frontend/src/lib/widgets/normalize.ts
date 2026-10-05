@@ -11,7 +11,14 @@
 import type { DocumentRead } from "@/api/generated/initiativeAPI.schemas";
 import { keyOf, parseA1Range } from "@/lib/spreadsheet/coords";
 
-import type { CellValue, ColumnType, DataColumn, WidgetData, WidgetSource } from "./dataShapes";
+import type {
+  CellValue,
+  ColumnGrain,
+  ColumnType,
+  DataColumn,
+  WidgetData,
+  WidgetSource,
+} from "./dataShapes";
 
 /** A cell, in the three shapes a JSON value can usefully be.
  *
@@ -32,12 +39,20 @@ const cell = (value: unknown): CellValue => {
  * widget indexing by column position can never read past the end of a row.
  */
 export const normalizeQueryRows = (
-  columns: DataColumn[],
+  columns: (Omit<DataColumn, "grain"> & { grain?: string | null })[],
   rows: unknown[][]
 ): { columns: DataColumn[]; rows: CellValue[][] } => ({
-  columns,
+  columns: columns.map(({ name, type, grain }) =>
+    grain && (COLUMN_GRAINS as readonly string[]).includes(grain)
+      ? { name, type, grain: grain as ColumnGrain }
+      : { name, type }
+  ),
   rows: rows.map((row) => columns.map((_column, index) => cell(row[index]))),
 });
+
+/** The periods a column may say it is rounded to. Anything else is dropped,
+ *  so a widget only ever reads a grain it knows. */
+const COLUMN_GRAINS = ["day", "week", "month", "quarter", "year"] as const;
 
 /**
  * What a column of sheet cells holds.

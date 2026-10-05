@@ -24,7 +24,7 @@ so the published surface — its operation id included — is unchanged.
 All nine run on ``UserSessionDep``: the caller is resolved against the shared
 tables as their own platform role, and each guild is then entered with the
 membership role they hold there (``cross_guild.gather_across_guilds``), which
-is the same ``SET ROLE guild_<id>`` a ``/c/{guild_id}`` request makes.
+is the same ``SET ROLE guild_<id>`` a ``/c/{community_id}`` request makes.
 """
 
 # NOT ``from __future__ import annotations``: the list handlers are built per
@@ -89,7 +89,9 @@ def _params(tool: Tool, page_size: ListParam) -> tuple[ListParam, ...]:
     """
     plural = tool.plural.replace("_", " ")
     return (
-        ListParam("guild_ids", Optional[List[int]], Query(default=None)),
+        ListParam(
+            "guild_ids", Optional[List[int]], Query(default=None, alias="community_ids")
+        ),
         search_param(None),
         ListParam(
             "created_by_me",
@@ -425,7 +427,7 @@ def _mount(tool: Tool, spec: MyToolList) -> None:
 async def get_my_tool_counts(
     session: UserSessionDep,
     current_user: CurrentUserDep,
-    guild_ids: Optional[List[int]] = Query(default=None),
+    guild_ids: Optional[List[int]] = Query(default=None, alias="community_ids"),
     created_by_me: bool = Query(
         default=False,
         description="Count only what the caller wrote, matching the list views.",

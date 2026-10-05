@@ -22,7 +22,7 @@ import { initiativeRoute } from "@/lib/tools";
 export interface AppEmbed {
   id: string;
   path: string;
-  /** Where it renders. Absent means guild-wide, the only placement there was. */
+  /** Where it renders. Absent means community-wide, the only placement there was. */
   scopes?: string[];
   /** Opened by the community's admins alone, whatever a placement allows. */
   admin_only?: boolean;
@@ -44,12 +44,12 @@ export const embedAllow = (embed: Pick<AppEmbed, "capabilities"> | null | undefi
   (embed?.capabilities ?? []).join("; ");
 
 /** The places a surface can be reached from. */
-export type SurfaceScope = "guild" | "initiative";
+export type SurfaceScope = "community" | "initiative";
 
 /** Where the viewer may open one surface, as the server computed it. */
 export interface SurfaceAccess {
   surface_id: string;
-  openable_guild_wide: boolean;
+  openable_community_wide: boolean;
   openable_initiatives: number[];
 }
 
@@ -88,8 +88,8 @@ export const declaredEmbeds = (
     const candidate = embed as AppEmbed;
     if (typeof candidate.id !== "string" || typeof candidate.path !== "string") return false;
     // Definitions pinned before surfaces could say where they belong carry no
-    // scopes at all, and every one of them is guild-wide.
-    const scopes = Array.isArray(candidate.scopes) ? candidate.scopes : ["guild"];
+    // scopes at all, and every one of them is community-wide.
+    const scopes = Array.isArray(candidate.scopes) ? candidate.scopes : ["community"];
     return scopes.includes(scope);
   });
 };
@@ -99,20 +99,20 @@ export const declaredEmbeds = (
  *
  * `initiativeId` is where: absent is the community level. A surface may declare
  * either scope or both, so this is a filter rather than a partition — an app's
- * guild-wide page and its per-initiative one are often the same surface reached
+ * community-wide page and its per-initiative one are often the same surface reached
  * from two places. What the server did not say may be opened is not offered.
  */
 export const appEmbeds = (
   app: Pick<AppSurfaceSource, "definition" | "surface_access"> | null | undefined,
   initiativeId?: number
 ): AppEmbed[] => {
-  const scope: SurfaceScope = initiativeId === undefined ? "guild" : "initiative";
+  const scope: SurfaceScope = initiativeId === undefined ? "community" : "initiative";
   const access = new Map((app?.surface_access ?? []).map((one) => [one.surface_id, one]));
   return declaredEmbeds(app?.definition, scope).filter((embed) => {
     const answer = access.get(embed.id);
     if (!answer) return false;
     return initiativeId === undefined
-      ? answer.openable_guild_wide
+      ? answer.openable_community_wide
       : answer.openable_initiatives.includes(initiativeId);
   });
 };
@@ -122,7 +122,7 @@ export const appHasConnections = (definition?: Record<string, unknown> | null): 
   Array.isArray(definition?.connections) && definition.connections.length > 0;
 
 /**
- * Where an app's guild-wide entry leads.
+ * Where an app's community-wide entry leads.
  *
  * A tool-instance app mounts an existing tool, so it links at the tool's own
  * route — the calendars an app holds are just calendars. It links at the list
@@ -131,10 +131,10 @@ export const appHasConnections = (definition?: Record<string, unknown> | null): 
  * service app with surfaces this reader can open gets a page. Anything else has
  * no route, and the caller decides what to do with the row.
  */
-export const guildAppPath = (app: AppSurfaceSource & { id: number }): string | null => {
+export const communityAppPath = (app: AppSurfaceSource & { id: number }): string | null => {
   if (app.tool === "calendar") {
-    // No `/i/` prefix on purpose: an app is installed per guild, and the
-    // calendars it holds belong to no initiative — the guild route is their
+    // No `/i/` prefix on purpose: an app is installed per community, and the
+    // calendars it holds belong to no initiative — the community route is their
     // real address, not a leftover.
     return "/calendars";
   }
@@ -144,7 +144,7 @@ export const guildAppPath = (app: AppSurfaceSource & { id: number }): string | n
 /**
  * Where an app's entry inside one initiative leads.
  *
- * The same install — there is one of it per guild, not one per initiative —
+ * The same install — there is one of it per community, not one per initiative —
  * opened somewhere narrower. A tool-instance app has none: the tool it mounted
  * already lives in an initiative of its own.
  */

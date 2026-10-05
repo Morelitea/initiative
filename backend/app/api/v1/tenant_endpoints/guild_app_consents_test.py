@@ -19,7 +19,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.app_access_token import seal_install_token
 from app.core.audit_events import AuditEventType
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.tenant.app_member_consent import AppMemberConsent
 from app.services.marketplace.app_refs import ensure_app_ref
 from app.testing import emitted, route_session_to_guild
@@ -37,7 +37,7 @@ async def _installed(session, acting_user, role_session) -> InstalledApp:
 
 async def _member(acting_user, installed: InstalledApp):
     return await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=installed.guild,
         initiative=installed.placed,
         initiative_role="member",

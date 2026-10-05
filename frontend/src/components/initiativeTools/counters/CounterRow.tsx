@@ -2,6 +2,7 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Link } from "@tanstack/react-router";
 import {
+  Copy,
   GripVertical,
   Maximize2,
   Minus,
@@ -42,6 +43,7 @@ interface CounterRowProps {
   onDecrement: () => void;
   onReset: () => void;
   onEdit: () => void;
+  onDuplicate: () => void;
   onDelete: () => void;
 }
 
@@ -55,9 +57,10 @@ export const CounterRow = ({
   onDecrement,
   onReset,
   onEdit,
+  onDuplicate,
   onDelete,
 }: CounterRowProps) => {
-  const { t } = useTranslation("counterGroups");
+  const { t } = useTranslation(["counterGroups", "common"]);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: counter.id.toString(),
     disabled: !canWrite,
@@ -182,6 +185,10 @@ export const CounterRow = ({
         <DropdownMenuItem onSelect={onEdit} disabled={!canWrite}>
           <Pencil className="h-4 w-4" />
           {t("editCounter")}
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={onDuplicate} disabled={!canWrite}>
+          <Copy className="h-4 w-4" />
+          {t("common:subToolDuplicate.action")}
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={onDelete} disabled={!canWrite} className="text-destructive">
           <Trash2 className="h-4 w-4" />

@@ -11,7 +11,7 @@
     "saved": "Contactos guardados.",
     "saveError": "No se pudieron guardar los contactos."
   },
-  "guild": {
+  "community": {
     "title": "Comunidad de operaciones",
     "description": "La comunidad que recibe el trabajo de seguridad, moderación, soporte y comentarios de esta instalación.",
     "label": "Comunidad",
@@ -24,7 +24,7 @@
     "clearConfirm": "Dejar de dirigir"
   },
   "streams": {
-    "chooseGuildFirst": "Elige una comunidad arriba y luego indica dónde llega cada canal.",
+    "chooseCommunityFirst": "Elige una comunidad arriba y luego indica dónde llega cada canal.",
     "security": {
       "title": "Seguridad",
       "description": "Casos abiertos por reglas que vigilan esta instalación."
@@ -68,7 +68,14 @@
     "saveError": "No se pudo guardar ese cambio.",
     "destinationArchived": "Destino archivado",
     "archivedOption": "{{name}} (archivado)",
-    "archivedNote": "Este proyecto está archivado, así que nada puede llegar a él. Recupéralo o dirige este canal a un proyecto activo."
+    "archivedNote": "Este proyecto está archivado, así que nada puede llegar a él. Recupéralo o dirige este canal a un proyecto activo.",
+    "awaitingLabel": "Esperando a quien lo envió",
+    "activeLabel": "Cuando responda, mover a",
+    "noStatusRole": "Ninguno",
+    "statusRolesHelp": "Un caso en el primer estado le muestra a quien lo envió «Esperando tu respuesta». Cuando responde, pasa al segundo.",
+    "noAwaitingHelp": "Sin un estado elegido, quien envía ve Recibido, En curso y Cerrado, nunca «Esperando tu respuesta».",
+    "sharesIsolated": "Otro canal también llega a esta iniciativa. Los casos de seguridad y moderación deberían tener su propia iniciativa, para que solo quienes los atienden puedan leerlos.",
+    "sharesWithIsolated": "Esta iniciativa también recibe casos de seguridad o moderación, que deberían tener su propia iniciativa. Dirige uno de los canales a otro lugar."
   },
   "loadFailed": {
     "title": "No se pudieron cargar estos ajustes",
@@ -87,5 +94,51 @@
     "submit": "Enviar",
     "thanks": "Enviado. Alguien se encargará.",
     "error": "No se ha podido enviar. Inténtalo de nuevo en un momento."
+  },
+  "contact": {
+    "title": "Ponte en contacto",
+    "description": "Escribe a quienes gestionan este servidor a esta dirección y te responderán.",
+    "copy": "Copiar dirección",
+    "copyDraft": "Copiar lo que escribiste",
+    "write": "Escribir un correo"
+  },
+  "tickets": {
+    "state": {
+      "received": "Recibido",
+      "in_progress": "En curso",
+      "waiting_on_you": "Esperando tu respuesta",
+      "closed": "Cerrado"
+    },
+    "you": "Tú",
+    "team": "El equipo",
+    "back": "Volver a Mis tickets",
+    "notFound": "No encontramos ese ticket.",
+    "opened": "abierto {{when}}",
+    "waitingNote": "El equipo está esperando tu respuesta.",
+    "replyLabel": "Tu respuesta",
+    "replyPlaceholder": "Escribe tu respuesta…",
+    "send": "Enviar respuesta",
+    "sending": "Enviando…",
+    "replyError": "No se pudo enviar tu respuesta. Inténtalo de nuevo en un momento.",
+    "closedNote": "Este ticket está cerrado. Si surge otra cosa, vuelve a pedir ayuda.",
+    "noConversation": "Gracias por el reporte. El equipo revisa cada uno, pero no responde a los reportes aquí.",
+    "staffFirst": "Gracias por contárnoslo. Podrás responder aquí cuando el equipo te haya escrito.",
+    "empty": "Aún no has enviado ningún ticket. Cuando pidas ayuda, aparecerá aquí para que puedas seguirla.",
+    "loadError": "No se pudieron cargar tus tickets."
+  },
+  "case": {
+    "filedBy": "Enviado por",
+    "noFiler": "Abierto automáticamente",
+    "theyCalledIt": "Su asunto:",
+    "noConversation": "Este tipo de caso no abre una conversación con quien lo envió.",
+    "staffFirst": "Podrá responder cuando el equipo le haya escrito.",
+    "replyLabel": "Responder a {{name}}",
+    "replyPlaceholder": "Escribe a {{name}}…",
+    "replyHelp": "Solo ven esta conversación, nunca los comentarios de abajo, y ven tus respuestas del equipo, no con tu nombre.",
+    "reply": "Enviar respuesta",
+    "replyAndWait": "Enviar y esperar su respuesta",
+    "fromTeam": "El equipo ({{name}})",
+    "someone": "Alguien",
+    "conversationLabel": "Conversación con {{name}}"
   }
 }

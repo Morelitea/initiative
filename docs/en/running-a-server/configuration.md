@@ -61,14 +61,14 @@ It's read **once**, when an account is made. Changing it opens no existing accou
 
 Two different things, and it's worth keeping them apart.
 
-A session ends on its own when nobody uses it — that's the inactivity window, and it slides forward every time the app is opened. Somebody who uses Initiative every day never reaches it.
+A session ends on its own when nobody uses it — that's the inactivity window, and it slides forward every time somebody uses the app. It's thirty days in a browser and ninety in the phone and desktop apps, so somebody who uses Initiative every day never reaches it.
 
 The other one is the **absolute** limit: the longest anybody may go before signing in again, no matter how much they use it. Nothing slides it. It's blank by default, meaning there isn't one — a server you run for a club is not answering to an auditor — and it lives in **Settings → Platform → Security**, in hours.
 
 !!! warning "Set it longer than the inactivity window"
     Set it shorter and it becomes the *only* thing ending a session: the inactivity window can never be reached first, so everybody gets signed out on a timer whether they're using the app or not. That may be exactly what you want. It's just rarely what somebody means to do.
 
-Web sessions already open keep the terms they were opened under and pick up the new one next time those people sign in.
+Sessions already open keep the terms they were opened under and pick up the new one next time those people sign in.
 
 !!! warning "The app on a phone is different"
     A phone holds a longer-lived credential, and the new limit is written into the ones already issued — measured from when that person last signed in. So somebody whose phone signed in three days ago, on a deployment that has just set twelve hours, is signed out at once and asked for their password again. Shortening the number, or turning on a community's twelve-hour switch, can therefore sign phones out immediately. Lengthening the number, or clearing it, signs nobody out — and a phone that is still signed in goes back to the longer window from its next renewal. A phone that was already signed out stays signed out: it has to sign in again, which is the point.
@@ -101,7 +101,7 @@ Two things the page will stop you doing, both for the same reason: you can't req
 
 | Switch | What changing it does |
 |---|---|
-| **Mobile notifications** | Turn it off and nothing is sent to a phone: this server stores no device registrations and declines new ones. Devices register again if you switch it back on. |
+| **Phone and desktop notifications** | Turn it off and nothing is sent to a phone or shown by the desktop app: this server stores no device registrations and declines new ones. Devices register again if you switch it back on. |
 | **Email notifications** | Turn it off and no notification email is written, on any cadence anybody has chosen. |
 | **Hide notification details** | Turn it **on** and a push or an email reads "You were mentioned in a comment", with the app the place to find out the rest. |
 
@@ -137,6 +137,31 @@ For any real deployment you'll put Initiative behind a reverse proxy that handle
 
 !!! warning "Only enable proxy trust behind an actual proxy"
     `BEHIND_PROXY` tells Initiative to believe the `X-Forwarded-*` headers it receives. Only turn it on when a trusted proxy is the one setting them.
+
+## Running more than one copy
+
+Several copies of Initiative can serve one address. Here's what they share and what each keeps to itself.
+
+| | Where it lives |
+|---|---|
+| Everything people save, including live edits | The database, so every copy sees it |
+| Live editing sessions, cursors and who's here | Each copy, for the people connected to it |
+| Rate-limit counts | Each copy, unless `RATE_LIMIT_STORAGE_URI` gives them one shared count (a `redis://` URL) |
+
+People editing a document through the same copy see each other's typing as it happens. Through different copies, each one's changes reach the others within about half a minute, when their copy saves, and nobody's edits are lost: every save merges with what the other copies saved.
+
+Each server process runs the document editor in a helper process of its own. It starts the first time somebody there opens a document to edit, uses about 90 MB while it runs, and stops after five idle minutes. A server where nobody edits a document never starts it. Budget for it per process when you size the container.
+
+## Rate limits
+
+Every limit counts against the **signed-in account**, not the network it's on, so an office full of people behind one address doesn't share an allowance or lock each other out. A request with no account behind it yet counts against the network address it came from.
+
+A few count per **email address** typed in, whoever's typing it: sign-in codes and password-reset emails together come to five every fifteen minutes for one address, and so do wrong passwords. Loading the app's own pages and scripts counts against nothing.
+
+| Variable | What it does | Default |
+|---|---|---|
+| `RATE_LIMIT_DEFAULT` | The limit for everything that doesn't set its own. Empty turns this default off; the limits individual routes set stay. | `100/minute` |
+| `RATE_LIMIT_STORAGE_URI` | Where counts are kept. `memory://` counts in each process. A `redis://` (or `rediss://`, `redis+sentinel://`, `redis+cluster://`) URL gives every process one shared count. If it can't be reached, each process counts in its own memory until it answers again. | `memory://` |
 
 ## Keeping bots out (captcha)
 
@@ -179,7 +204,9 @@ The panel also says when it last updated, how many listings came from it, and wh
 |---|---|---|
 | `MARKETPLACE_REGISTRY_URL` | Where the registry is read from. Point it at a mirror, or a curated copy signed with the same key. | Initiative's public registry |
 | `MARKETPLACE_REGISTRY_ROOT` | A path to a different signing key, for a registry somebody else signs. Its listings and apps arrive as usual. | The key built into Initiative |
+| `MARKETPLACE_REGISTRY_TOKEN` | A token for a registry that asks for one. It is sent only to the registry's own address. | None |
 | `MARKETPLACE_REGISTRY_TTL_SECONDS` | How often the server checks for updates. At least 60. | `900` |
+| `EXPRESSION_WORKERS` | How many small helper processes each server process may run for apps whose calls Initiative makes itself. They start on first use and an idle one leaves after five minutes. 1 to 16. | `2` |
 
 ### Apps from the registry
 
@@ -249,7 +276,7 @@ Point `targets` at the app's own port, or at your proxy with `scheme: https` add
 
 | Metric | What it tells you |
 |---|---|
-| `initiative_http_requests_total` | Requests answered, by `method`, `route` and `status`. `route` is the pattern (`/api/v1/c/{guild_id}/initiatives/`), so every community shares one line. |
+| `initiative_http_requests_total` | Requests answered, by `method`, `route` and `status`. `route` is the pattern (`/api/v1/c/{community_id}/initiatives/`), so every community shares one line. |
 | `initiative_http_request_duration_seconds` | How long those took, as a histogram. |
 | `initiative_http_requests_in_progress` | Requests being answered right now. |
 | `initiative_websocket_connections` | Live connections: notifications, live editing, queues and counters. One open tab holds several. |
@@ -258,6 +285,9 @@ Point `targets` at the app's own port, or at your proxy with `scheme: https` add
 | `initiative_db_pool_connections` | Database connections each engine holds, by `state`: `checked_out`, `idle`, `overflow`. |
 | `initiative_users`, `initiative_guilds` | Accounts and communities, by `status`. |
 | `initiative_sessions_active` | Sign-ins that haven't expired or been signed out. |
+| `initiative_active_users` | Accounts that did something in the last day, week and month, by `window`: `1d`, `7d`, `30d`. |
+| `initiative_tools_created_total` | Tools created, by `tool` (`project`, `document`, `wiki`, …). Imports and copies count too. |
+| `initiative_page_views_total` | Pages opened in the app, by `route`, the page's pattern (`/c/$communityId/i/$initiativeId/projects/$projectId/`). Counted only while `METRICS_TOKEN` is set. Nothing is kept in the browser and nothing says whose visit it was. |
 | `initiative_build_info` | The version running, in its `version` label. |
 | `process_*`, `python_*` | Memory, CPU and garbage collection for the app's process. |
 
@@ -269,6 +299,21 @@ Point `targets` at the app's own port, or at your proxy with `scheme: https` add
     `engine` is one of `request` (what people's requests run on), `system` (background jobs and start-up), `provisioning` (setting up a new community's tables; never flagged as slow) and `query` (SQL people write in dashboard widgets).
 
     Every series is per process. With several copies of the app running, Prometheus scrapes each one: add request and statement series with `sum`, and take `initiative_users`, `initiative_guilds` and `initiative_sessions_active` with `max`, because every copy counts the same accounts.
+
+## Measuring the app in the browser (Grafana Faro)
+
+Prometheus sees the server. To see what happens in people's browsers (which pages they actually open, as opposed to the ones you spent a weekend on, plus the errors they hit and how fast pages load), point Initiative at a Grafana Faro collector, such as Alloy's `faro.receiver`.
+
+| Variable | What it does | Default |
+|---|---|---|
+| `FARO_COLLECTOR_URL` | Where browsers send measurements: a path on this server (`/collect`, which your proxy passes to the collector) or a full `https://` address. | unset |
+
+**Nobody is measured without saying yes.** Setting it adds an **Analytics** switch to the cookie chooser, and only a browser with that switch on sends anything. Every switch starts off, and the chooser itself appears only once a platform owner turns it on under **Settings › Platform › Branding**. With the chooser off, nothing is sent.
+
+**What gets sent.** Page views, uncaught errors and Web Vitals, grouped by a random session id the browser keeps. A page is named by its pattern (`/c/$communityId/projects/$projectId`), never by its address, and nothing names the person.
+
+??? techspec "Collectors on another address"
+    A full address on another origin is added to the page's `connect-src` automatically. A path is already covered, since it is the app's own origin.
 
 ## After changing settings
 

@@ -34,7 +34,7 @@ from app.schemas.platform.operator import (
     PlatformRoleUpdate,
     OperatorUserDeleteRequest,
     OperatorDeletionEligibilityResponse,
-    GuildBlockerInfo,
+    CommunityBlockerInfo,
 )
 from app.core.messages import (
     OperatorMessages,
@@ -43,6 +43,7 @@ from app.core.messages import (
     UserMessages,
 )
 from app.services.platform import account_stream
+from app.services.platform import api_keys as api_keys_service
 from app.services.platform import user_tokens
 from app.services.platform import csv_export
 from app.services import email as email_service
@@ -76,7 +77,12 @@ ContentModerateDep = Annotated[
     User, Depends(require_capability(Capability.CONTENT_MODERATE))
 ]
 UsersDeleteDep = Annotated[User, Depends(require_capability(Capability.USERS_DELETE))]
-GuildsManageDep = Annotated[User, Depends(require_capability(Capability.GUILDS_MANAGE))]
+GuildsManageDep = Annotated[
+    User, Depends(require_capability(Capability.COMMUNITIES_MANAGE))
+]
+BillingInsightsDep = Annotated[
+    User, Depends(require_capability(Capability.BILLING_INSIGHTS))
+]
 RolesAssignDep = Annotated[User, Depends(require_capability(Capability.ROLES_ASSIGN))]
 # App-wide configuration (OIDC, SMTP, branding, role labels, platform AI).
 # Owner-only — imported by settings.py / ai_settings.py.
@@ -151,7 +157,7 @@ async def list_all_users(
     closest = None
     if search and (term := search.strip()):
         matches, closest = users_service.member_match(
-            term, shows_names=False, profile=User
+            term, match_names=False, profile=User
         )
         base = base.where(matches)
 
@@ -188,7 +194,7 @@ async def list_all_users(
 _PLATFORM_CSV_HEADERS = [
     "user_id",
     "email",
-    "full_name",
+    "handle",
     "platform_role",
     "status",
     "email_verified",
@@ -229,7 +235,7 @@ async def export_platform_users_csv(
             [
                 record.id,
                 record.email,
-                record.full_name or "",
+                handle_of(record),
                 record.role.value if hasattr(record.role, "value") else record.role,
                 record.status.value
                 if hasattr(record.status, "value")
@@ -736,6 +742,31 @@ async def lift_sign_in_lock(
     return await users_service.to_operator_read_one(user)
 
 
+@router.delete("/users/{user_id}/api-keys", response_model=OperatorUserRead)
+async def revoke_user_api_keys(
+    user_id: int,
+    session: SystemSessionDep,
+    current_user: UsersManageDep,
+) -> OperatorUserRead:
+    """Switch off every API key on an account that still works.
+
+    The keys stay on the account's own list, marked off, so its holder can see
+    what stopped and make new ones. Gated on ``users.manage``, like a
+    suspension.
+    """
+    user = await _account_within_rank(session, user_id, current_user)
+    revoked = await api_keys_service.deactivate_user_api_keys(
+        session, user_id=user_id, revoked_by=current_user.id
+    )
+    if not revoked:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=UserMessages.NO_LIVE_API_KEYS,
+        )
+    await session.commit()
+    return await users_service.to_operator_read_one(user)
+
+
 @router.delete("/users/{user_id}/age-block", response_model=OperatorUserRead)
 async def clear_age_block(
     user_id: int,
@@ -910,8 +941,8 @@ async def check_user_deletion_eligibility(
     return OperatorDeletionEligibilityResponse(
         can_delete=can_delete,
         blockers=blockers,
-        guild_blockers=[
-            GuildBlockerInfo(guild_id=guild_id, guild_name=guild_name)
+        community_blockers=[
+            CommunityBlockerInfo(community_id=guild_id, community_name=guild_name)
             for guild_id, guild_name in await guilds_service.stranded_seats(
                 session, user_id=user_id
             )
@@ -938,7 +969,7 @@ async def delete_user(
     anonymized owner row can't act on them.
 
     Restrictions:
-    - Cannot delete yourself (use /users/me/delete-account)
+    - Cannot delete yourself (use /me/delete-account)
     - Cannot delete the last owner
     """
     if user_id == current_user.id:

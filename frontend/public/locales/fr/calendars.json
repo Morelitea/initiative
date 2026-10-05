@@ -33,7 +33,6 @@
   "monthly": "Mensuel",
   "yearly": "Annuel",
   "permissions": "Permissions",
-  "settings": "Paramètres",
   "details": "Détails",
   "access": "Accès",
   "advanced": "Avancé",
@@ -43,7 +42,8 @@
     "heading": "Filtres",
     "dates": "Dates",
     "searchLabel": "Nom ou description",
-    "searchCalendars": "Rechercher des calendriers..."
+    "searchCalendars": "Rechercher des calendriers...",
+    "tasks": "Tâches"
   },
   "loading": "Chargement...",
   "loadError": "Échec du chargement des événements",
@@ -102,15 +102,22 @@
     "projectTasks": "Tâches des projets",
     "calendarSettings": "Paramètres de {{name}}"
   },
-  "guildScope": {
-    "title": "Calendrier de la communauté",
+  "picker": {
+    "all": "Tous les calendriers",
+    "none": "Aucun calendrier",
+    "some_one": "{{count}} calendrier",
+    "some_other": "{{count}} calendriers",
+    "label": "Choisir les calendriers à afficher"
+  },
+  "communityScope": {
     "empty": "Aucun calendrier pour l'instant.",
     "emptyHint": "Créez-en un pour les jours fériés, pour une rencontre régulière ou simplement pour vous."
   },
   "scope": {
     "title": {
       "edit": "Modifier un événement récurrent",
-      "delete": "Supprimer un événement récurrent"
+      "delete": "Supprimer un événement récurrent",
+      "duplicate": "Dupliquer un événement récurrent"
     },
     "description": "Cet événement se répète. À quels événements cela s'applique-t-il ?",
     "this": "Uniquement cet événement",
@@ -118,7 +125,8 @@
     "all": "Tous les événements de la série",
     "confirm": {
       "edit": "Enregistrer",
-      "delete": "Supprimer"
+      "delete": "Supprimer",
+      "duplicate": "Dupliquer"
     }
   },
   "occurrence": {

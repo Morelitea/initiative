@@ -148,7 +148,7 @@ export function MentionsPlugin({ initiativeId }: MentionsPluginProps): JSX.Eleme
         return new MentionTypeaheadOption(
           name,
           member.id,
-          <Avatar className="h-5 w-5 text-[10px]">
+          <Avatar className="h-5 w-5 text-3xs">
             {avatarSrc ? <AvatarImage src={avatarSrc} alt={name} /> : null}
             <AvatarFallback userId={member.id}>{getInitials(name)}</AvatarFallback>
           </Avatar>

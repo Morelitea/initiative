@@ -1,25 +1,21 @@
 """Reading the credential a realtime socket's first frame carries.
 
 The socket's side of ``app.services.auth.credentials``, which every transport
-reads a credential through: a session token or a device token, held to the
-same rules — ``ver`` included — that the HTTP path holds it to.
+reads a credential through: a session token, held to the same rules — ``ver`` included — that the HTTP path holds it to.
 """
 
 from typing import Optional
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.identify import SOCKET_CREDENTIALS, CredentialKind, identify_token
 from app.models.platform.user import User, UserStatus
 from app.services.auth import credentials
-from app.services.auth.credentials import (
-    SOCKET_CREDENTIALS,
-    CredentialKind,
-    CredentialRefused,
-)
+from app.services.auth.credentials import CredentialRefused
 
 
 async def authenticate_ws_token(token: str, session: AsyncSession) -> Optional[User]:
-    """The active account a socket's session token or device token names.
+    """The active account a socket's session token names.
 
     ``None`` (rather than raising) when it names nobody, so the caller can
     close the socket with a policy-violation code.
@@ -33,7 +29,7 @@ async def authenticate_ws_token(token: str, session: AsyncSession) -> Optional[U
     """
     try:
         authenticated = await credentials.authenticate(
-            session, token, allow=SOCKET_CREDENTIALS
+            session, identify_token(token, SOCKET_CREDENTIALS)
         )
     except CredentialRefused:
         return None

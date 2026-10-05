@@ -24,8 +24,6 @@
   "noAccessDescription": "No tienes permiso para ver esta galería.",
   "backToGalleries": "Volver a galerías",
   "addPictures": "Añadir imágenes",
-  "pictureCount_one": "{{count}} imagen",
-  "pictureCount_other": "{{count}} imágenes",
   "noPictures": "Todavía no hay nada",
   "noPicturesDescription": "Suelta imágenes en cualquier parte de esta página o añádelas con el botón. PNG, JPEG, WebP y GIF, hasta 25 MB cada una.",
   "noPicturesReadOnly": "Nadie ha añadido una imagen a esta galería todavía.",
@@ -42,8 +40,6 @@
     "count_other": "{{count}} imágenes"
   },
   "card": {
-    "pictures_one": "{{count}} imagen",
-    "pictures_other": "{{count}} imágenes",
     "comments_one": "{{count}} comentario",
     "comments_other": "{{count}} comentarios",
     "updated": "Actualizada {{date}}"

@@ -3,7 +3,7 @@ import { HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
 
 import { buildDocumentSummary } from "@/__tests__/factories";
-import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 
@@ -25,7 +25,7 @@ describe("AddWikiDocumentDialog", () => {
       buildDocumentSummary({ id: 4, name: "Already there", document_type: "whiteboard" }),
     ];
     server.use(
-      guildHttp.get("/documents/", ({ request }) => {
+      communityHttp.get("/documents/", ({ request }) => {
         asked = new URL(request.url).searchParams;
         return HttpResponse.json({
           items,

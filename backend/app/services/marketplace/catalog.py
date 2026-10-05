@@ -196,11 +196,12 @@ async def _unoffered_app() -> Exists:
         .where(
             latest.id == MarketplaceListing.latest_version_id,
             latest.definition["app_kind"].astext == "service",
-            # COALESCE so a definition with no service id reads as one nothing
-            # is registered for, rather than as a NULL that matches no branch.
-            func.coalesce(latest.definition["service"]["public_id"].astext, "").notin_(
-                offered
-            ),
+            # A declarative app has no service block and is its listing's
+            # public id.
+            func.coalesce(
+                latest.definition["service"]["public_id"].astext,
+                MarketplaceListing.public_id,
+            ).notin_(offered),
         )
         .exists()
     )
@@ -408,7 +409,9 @@ async def upsert_listing(
     version_str = _check_version(str(manifest.get("version", "")))
 
     try:
-        definition = normalize_listing_definition(kind, manifest.get("definition"))
+        definition = normalize_listing_definition(
+            kind, manifest.get("definition"), public_id=public_id
+        )
         example = normalize_listing_example(kind, manifest.get("example"), definition)
 
         # Required on every ingestion path: seeding, an operator upload, a
@@ -549,11 +552,11 @@ async def upsert_listing(
         )
         session.add(version)
         await session.flush()
-    elif (
-        version.definition != definition
-        or version.example != example
-        or version.release_notes != release_notes
-        or version.min_app_version != min_app_version
+    elif _stored_body(kind, version) != (
+        definition,
+        example,
+        release_notes,
+        min_app_version,
     ):
         # A published version is immutable, for two reasons:
         #
@@ -595,6 +598,20 @@ async def upsert_listing(
         )
 
     return listing
+
+
+def _stored_body(
+    kind: str, version: MarketplaceListingVersion
+) -> tuple[Any, Any, Any, Any] | None:
+    """A published version's content as today's code would write it. A field
+    the definition format gained since then takes its default on both sides,
+    so it is the content that is compared, not the format it was saved in."""
+    try:
+        definition = normalize_listing_definition(kind, version.definition)
+        example = normalize_listing_example(kind, version.example, definition)
+    except ListingDefinitionError:
+        return None
+    return definition, example, version.release_notes, version.min_app_version
 
 
 def _crosses_sources(existing: MarketplaceListing, source: str) -> bool:

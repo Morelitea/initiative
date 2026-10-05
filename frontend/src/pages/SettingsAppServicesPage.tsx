@@ -20,8 +20,8 @@ import {
   useUpdateAppService,
 } from "@/hooks/useAppServices";
 import { useAuth } from "@/hooks/useAuth";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 import { Capability, hasCapability } from "@/lib/permissions";
 
 /** Whether a registration carries a key set, pasted or by address. */
@@ -70,19 +70,27 @@ export const SettingsAppServicesPage = () => {
     const origins = values.allowedOrigins.length > 0 ? values.allowedOrigins : null;
 
     if (editing) {
+      // A declarative app runs nowhere and signs nothing: it has no address,
+      // origins or keys to send.
+      const placement =
+        editing.kind === "declarative"
+          ? {}
+          : {
+              base_url: values.baseUrl,
+              // Always sent, so emptying the field clears it and puts both
+              // surfaces back on the base URL.
+              embed_origin: values.embedOrigin,
+              allowed_origins: origins,
+              // Null leaves the stored key set alone; {} clears it.
+              ...(values.jwks === null ? {} : { jwks: values.jwks }),
+              // Always sent, so emptying the field clears the address.
+              jwks_uri: values.jwksUri,
+            };
       updateService.mutate(
         {
           registrationId: editing.id,
           data: {
-            base_url: values.baseUrl,
-            // Always sent, so emptying the field clears it and puts both
-            // surfaces back on the base URL.
-            embed_origin: values.embedOrigin,
-            allowed_origins: origins,
-            // Null leaves the stored key set alone; {} clears it.
-            ...(values.jwks === null ? {} : { jwks: values.jwks }),
-            // Always sent, so emptying the field clears the address.
-            jwks_uri: values.jwksUri,
+            ...placement,
             mandatory: values.mandatory,
             // Only the values that were typed; a secret left alone is kept.
             ...(Object.keys(values.vendorValues).length > 0
@@ -155,7 +163,7 @@ export const SettingsAppServicesPage = () => {
   const registrations = servicesQuery.data;
 
   return (
-    <Card className="shadow-sm">
+    <Card>
       <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
         <div>
           <CardTitle>{t("appServices.title")}</CardTitle>
@@ -171,7 +179,8 @@ export const SettingsAppServicesPage = () => {
         ) : (
           <ul className="divide-y rounded-md border">
             {registrations.map((registration) => {
-              const keysMissing = !hasKeys(registration);
+              const declarative = registration.kind === "declarative";
+              const keysMissing = !declarative && !hasKeys(registration);
 
               return (
                 <li key={registration.id} className="space-y-3 px-3 py-4">
@@ -210,7 +219,11 @@ export const SettingsAppServicesPage = () => {
                           <Badge variant="secondary">{t("appServices.mandatoryBadge")}</Badge>
                         )}
                       </div>
-                      {registration.base_url ? (
+                      {declarative ? (
+                        <p className="text-muted-foreground text-sm">
+                          {t("appServices.declarativeSummary")}
+                        </p>
+                      ) : registration.base_url ? (
                         <p className="truncate text-muted-foreground text-sm">
                           {registration.base_url}
                         </p>
@@ -247,7 +260,7 @@ export const SettingsAppServicesPage = () => {
                           disabled={updateService.isPending}
                           onCheckedChange={(checked) => {
                             // Turning it back on is safe; turning it off stops
-                            // the app for every guild, so that side confirms.
+                            // the app for every community, so that side confirms.
                             if (checked) setEnabled(registration, true);
                             else setDisabling(registration);
                           }}

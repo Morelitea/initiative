@@ -16,7 +16,7 @@ export function buildRecentItem(overrides: Partial<RecentItemRead> = {}): Recent
   return {
     entity_type: "project",
     entity_id: counter,
-    guild_id: 1,
+    community_id: 1,
     initiative_id: 5,
     name: `Recent Item ${counter}`,
     last_viewed_at: new Date().toISOString(),

@@ -9,7 +9,7 @@ import { HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
 
 import { buildTag } from "@/__tests__/factories";
-import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
 import { SearchEntityType, Tool } from "@/api/generated/initiativeAPI.schemas";
@@ -29,8 +29,8 @@ const hit = (
 describe("TagDetailPage", () => {
   it("groups what carries the tag by the tool it lives in", async () => {
     server.use(
-      guildHttp.get("/tags/:tagId", () => HttpResponse.json(tag)),
-      guildHttp.get("/tags/:tagId/entities", () =>
+      communityHttp.get("/tags/:tagId", () => HttpResponse.json(tag)),
+      communityHttp.get("/tags/:tagId/entities", () =>
         HttpResponse.json({
           items: [
             hit(SearchEntityType.project, 7, "Rewiring", Tool.project, 7),
@@ -42,8 +42,8 @@ describe("TagDetailPage", () => {
     );
 
     renderPage(TagDetailPage, {
-      initialRoute: "/c/$guildId/tags/$tagId",
-      routeParams: { guildId: "1", tagId: String(tag.id) },
+      initialRoute: "/c/$communityId/tags/$tagId",
+      routeParams: { communityId: "1", tagId: String(tag.id) },
     });
 
     expect(await screen.findByRole("tab", { name: /Projects \(2\)/ })).toBeInTheDocument();

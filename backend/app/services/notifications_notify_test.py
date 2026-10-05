@@ -11,7 +11,7 @@ from sqlmodel import select
 
 from app.core.tools import Tool
 from app.db.session import set_rls_context
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.platform.notification import Notification, NotificationType
 from app.services.platform import user_notifications
 from app.services import notifications
@@ -56,10 +56,10 @@ async def test_a_mention_reaches_only_people_the_project_is_shared_with(
     were unread: the one that mentioned them, and every comment since the
     thread's rolled-up line opened."""
     owner = await acting_user(
-        guild_role=GuildRole.member, initiative=True, project=True
+        guild_role=CommunityRole.member, initiative=True, project=True
     )
     member = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=owner.guild,
         initiative=owner.initiative,
         initiative_role="member",
@@ -87,7 +87,7 @@ async def test_a_mention_reaches_only_people_the_project_is_shared_with(
     opened = await client.post(
         "/api/v1/notifications/read-subject",
         json={
-            "guild_id": owner.guild.id,
+            "community_id": owner.guild.id,
             "subject_type": "task",
             "subject_id": task.id,
         },
@@ -104,7 +104,7 @@ async def test_a_mention_of_somebody_outside_the_community_tells_nobody(
     client, session, acting_user
 ):
     owner = await acting_user(
-        guild_role=GuildRole.member, initiative=True, project=True
+        guild_role=CommunityRole.member, initiative=True, project=True
     )
     await create_resource_grant(session, owner.project, all_initiative_members=True)
     stranger = await create_user(session)
@@ -123,10 +123,10 @@ async def test_a_community_admin_is_among_the_readers(
     """…and another member is not. A notice with nobody left to tell looks
     nothing up."""
     owner = await acting_user(
-        guild_role=GuildRole.member, initiative=True, project=True
+        guild_role=CommunityRole.member, initiative=True, project=True
     )
-    admin = await acting_user(guild_role=GuildRole.admin, guild=owner.guild)
-    member = await acting_user(guild_role=GuildRole.member, guild=owner.guild)
+    admin = await acting_user(guild_role=CommunityRole.admin, guild=owner.guild)
+    member = await acting_user(guild_role=CommunityRole.member, guild=owner.guild)
     # Routed the way a request or a sweep is, which is what names the community.
     await set_rls_context(session, SystemGuild(owner.guild.id))
     about = (Tool.project.value, owner.project.id)
@@ -160,9 +160,9 @@ async def test_repeated_document_mentions_fold_into_one_line(
     report."""
     from app.testing import create_document
 
-    author = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    author = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     document = await create_document(session, author.initiative, author.user)
-    reader = await acting_user(guild_role=GuildRole.admin, guild=author.guild)
+    reader = await acting_user(guild_role=CommunityRole.admin, guild=author.guild)
     await session.commit()
     for _ in range(3):
         posted = await client.post(

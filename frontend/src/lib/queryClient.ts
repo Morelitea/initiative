@@ -3,7 +3,7 @@ import { QueryClient } from "@tanstack/react-query";
 /**
  * How long an answer is trusted before it is worth asking again.
  *
- * This is not how fresh the screen is — guild content is kept current by the
+ * This is not how fresh the screen is — community content is kept current by the
  * realtime bus (`useRealtimeUpdates`), which invalidates by id the moment
  * somebody writes, and by the mutation helpers in `api/query-keys`. Both
  * refetch regardless of this window. What it governs is the duplicate
