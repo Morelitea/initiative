@@ -10,7 +10,7 @@
       "client_info": {
         "mobilesdk_app_id": "1:YOUR_PROJECT_NUMBER:android:YOUR_APP_ID",
         "android_client_info": {
-          "package_name": "com.morelitea.initiative"
+          "package_name": "studio.beyonders.initiative"
         }
       },
       "oauth_client": [],

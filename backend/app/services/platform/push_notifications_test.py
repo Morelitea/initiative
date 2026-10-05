@@ -31,8 +31,8 @@ _ANDROID_CHANNELS = (
     / "src"
     / "main"
     / "java"
-    / "com"
-    / "morelitea"
+    / "studio"
+    / "beyonders"
     / "initiative"
     / "NotificationChannelManager.java"
 )
