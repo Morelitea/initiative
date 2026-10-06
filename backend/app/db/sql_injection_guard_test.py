@@ -118,6 +118,10 @@ ALLOWED_DYNAMIC_SQL: dict[str, str] = {
         "same rotation job for JSONB-held ciphertexts; schema is int-derived "
         "via guild_schema_name, table/column come from a module constant"
     ),
+    "app/db/bootstrap.py::_revoke_former_set_config_holders": (
+        "startup on the owner connection: role names read from pg_roles, "
+        "quoted; the function signature is a module constant"
+    ),
     "app/services/storage_backfill.py::_persist": (
         "SET clause joined from literal 'col = :bind' fragments; all values bound"
     ),
