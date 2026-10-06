@@ -2,6 +2,7 @@
   "addProject": "Ajouter un projet",
   "loading": "Chargement des projets…",
   "loadError": "Impossible de charger les projets.",
+  "error": "Une erreur s'est produite",
   "pinned": "Épinglé",
   "noProjects": "Aucun projet pour l'instant. Créez-en un pour commencer.",
   "noMatchingProjects": "Aucun projet ne correspond à vos filtres.",
@@ -101,7 +102,6 @@
   "detail": {
     "backToProjects": "← Retour aux projets",
     "loading": "Chargement du projet…",
-    "deleteError": "Impossible de supprimer le projet pour l'instant.",
     "notFound": "Projet introuvable",
     "notFoundDescription": "Ce projet a peut-être été supprimé ou vous avez suivi un lien invalide.",
     "noAccess": "Accès refusé",
@@ -197,26 +197,6 @@
   },
   "settings": {
     "tabTaskStatuses": "Statuts des tâches",
-    "details": {
-      "description": "Mettez à jour l'icône, le nom et la description affichés dans l'espace de travail.",
-      "identityHeading": "Identité",
-      "identityDescription": "Donnez au projet un nom et un emoji reconnaissables.",
-      "iconLabel": "Icône",
-      "iconHint": "Choisissez un emoji pour rendre ce projet facile à repérer.",
-      "namePlaceholder": "Feuille de route produit",
-      "saveDetails": "Enregistrer les modifications",
-      "detailsUpdated": "Détails du projet mis à jour",
-      "updateError": "Impossible de mettre à jour le projet.",
-      "noWriteAccess": "Vous avez besoin d'un accès en écriture pour modifier ces détails.",
-      "descriptionHeading": "Description",
-      "descriptionDescription": "Partagez du contexte pour aider les collaborateurs à comprendre le travail.",
-      "descriptionPlaceholder": "Qu'essayons-nous d'accomplir ?",
-      "scheduleHeading": "Dates",
-      "scheduleDescription": "Définissez quand le projet commence et se termine. Les deux sont facultatives."
-    },
-    "access": {
-      "updateError": "Impossible de mettre à jour l'accès"
-    },
     "templateStatus": {
       "title": "Statut de modèle",
       "description": "Convertissez ce projet en modèle réutilisable ou revenez à un projet standard.",

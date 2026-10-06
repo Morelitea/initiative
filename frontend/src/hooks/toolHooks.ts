@@ -129,6 +129,7 @@ import {
   listProjects,
   readProject,
   setProjectGrants,
+  updateProject,
 } from "@/api/generated/projects/projects";
 import {
   createQueue,
@@ -546,9 +547,6 @@ const postEndpoints = {
   tool: Tool.post,
 };
 
-// Projects have no standard list hook or update (theirs names the list
-// alone) — both live in `useProjects.ts`. The list QUERY is here like every
-// other tool's, and that hook wraps it.
 const projectEndpoints = {
   listKey: getListProjectsQueryKey,
   list: listProjects,
@@ -557,20 +555,11 @@ const projectEndpoints = {
   detailKey: getReadProjectQueryKey,
   detail: readProject,
   create: createProject,
+  update: updateProject,
   remove: deleteProject,
   setGrants: setProjectGrants,
-  tool: Tool.project,
-};
-
-const projectHooks = {
-  ...listQueries(projectEndpoints),
-  create: projectEndpoints.create,
   duplicate: duplicateProject,
-  remove: projectEndpoints.remove,
-  useDetail: detailHook(projectEndpoints),
-  useCreate: createHook(projectEndpoints, "projects:createDialog.createError"),
-  useDelete: deleteHook(projectEndpoints, "projects:detail.deleteError"),
-  useSetGrants: grantsHook(projectEndpoints, "projects:settings.access.updateError"),
+  tool: Tool.project,
 };
 
 const queueEndpoints = {
@@ -641,7 +630,7 @@ interface ToolQueries {
  * its endpoint record.
  */
 export const TOOL_HOOKS = {
-  [Tool.project]: projectHooks,
+  [Tool.project]: makeToolHooks(projectEndpoints, { seedsDetailOnUpdate: true }),
   [Tool.document]: documentHooks,
   [Tool.queue]: makeToolHooks(queueEndpoints),
   [Tool.counter_group]: makeToolHooks(counterGroupEndpoints),

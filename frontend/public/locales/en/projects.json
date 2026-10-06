@@ -2,6 +2,7 @@
   "addProject": "Add Project",
   "loading": "Loading projects…",
   "loadError": "Unable to load projects.",
+  "error": "Something went wrong",
   "pinned": "Pinned",
   "noProjects": "No projects yet. Create one to get started.",
   "noMatchingProjects": "No projects match your filters.",
@@ -101,7 +102,6 @@
   "detail": {
     "backToProjects": "← Back to projects",
     "loading": "Loading project…",
-    "deleteError": "Unable to delete the project right now.",
     "notFound": "Project not found",
     "notFoundDescription": "This project may have been deleted or you may have followed a broken link.",
     "noAccess": "Access denied",
@@ -197,26 +197,6 @@
   },
   "settings": {
     "tabTaskStatuses": "Task statuses",
-    "details": {
-      "description": "Update the icon, name, and description shown across the workspace.",
-      "identityHeading": "Identity",
-      "identityDescription": "Give the project a recognizable name and emoji.",
-      "iconLabel": "Icon",
-      "iconHint": "Pick an emoji to make this project easy to spot.",
-      "namePlaceholder": "Product roadmap",
-      "saveDetails": "Save changes",
-      "detailsUpdated": "Project details updated",
-      "updateError": "Unable to update project.",
-      "noWriteAccess": "You need write access to edit these details.",
-      "descriptionHeading": "Description",
-      "descriptionDescription": "Share context to help collaborators understand the work.",
-      "descriptionPlaceholder": "What are we trying to accomplish?",
-      "scheduleHeading": "Dates",
-      "scheduleDescription": "Set when the project starts and ends. Both are optional."
-    },
-    "access": {
-      "updateError": "Unable to update access"
-    },
     "templateStatus": {
       "title": "Template status",
       "description": "Convert this project into a reusable template or revert it back to a standard project.",

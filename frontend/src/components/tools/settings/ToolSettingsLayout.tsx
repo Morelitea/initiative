@@ -53,13 +53,12 @@ export interface ToolSettingsLayoutProps {
   isError: boolean;
   /**
    * The rename/describe mutation. Omit it to drop the built-in details form —
-   * projects save those fields through their own richer form, and a document's
-   * name is edited in the editor.
+   * a document's name is edited in the editor.
    */
   update?: ToolMutation<{ name?: string; description?: string | null }>;
   setGrants: ToolMutation<ResourceGrantSchema[]>;
   remove: ToolMutation<number>;
-  /** Extra cards for the Details section, e.g. a project's dates or a calendar's color. */
+  /** Extra cards for the Details section, e.g. a calendar's color. */
   detailsExtra?: ReactNode;
   /** Extra fields inside the Details card itself, below the description. Each
    *  saves on its own; the card's Save button is for the name and description. */
