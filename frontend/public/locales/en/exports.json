@@ -8,6 +8,7 @@
     "error": "Could not export. Please try again.",
     "selected": "Export Selected",
     "ownerRequired": "Only whoever can delete all of these can export them.",
+    "noCommonFormat": "These share no format they can all be exported to.",
     "headingBackup": "Backup",
     "headingReport": "Report",
     "formatPdf": "PDF document",

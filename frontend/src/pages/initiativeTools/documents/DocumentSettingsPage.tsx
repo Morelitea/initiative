@@ -10,7 +10,6 @@ import { ToolSettingsLayout } from "@/components/tools/settings/ToolSettingsLayo
 import {
   useDeleteDocument,
   useDocument,
-  useSetDocumentCache,
   useSetDocumentGrants,
   useUpdateDocument,
 } from "@/hooks/useDocuments";
@@ -21,7 +20,6 @@ export const DocumentSettingsPage = () => {
   const { documentId } = useParams({ strict: false }) as { documentId?: string };
   const parsedId = documentId ? Number(documentId) : Number.NaN;
   const isValidId = Number.isFinite(parsedId);
-  const setDocumentCache = useSetDocumentCache();
 
   const [isTemplate, setIsTemplate] = useState(false);
 
@@ -49,10 +47,7 @@ export const DocumentSettingsPage = () => {
   }, [document]);
 
   const updateTemplate = useUpdateDocument(parsedId, {
-    onSuccess: (updated) => {
-      setIsTemplate(updated.is_template);
-      setDocumentCache(parsedId, updated);
-    },
+    onSuccess: (updated) => setIsTemplate(updated.is_template),
     onError: () => {
       toast.error(t("settings.templateError"));
     },

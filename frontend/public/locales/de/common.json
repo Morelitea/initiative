@@ -176,6 +176,47 @@
     "permissionRequired": "Berechtigung erforderlich",
     "permissionRequiredDescription": "Du hast keinen Zugriff auf diesen Bereich dieser Einstellungen."
   },
+  "bulkActions": {
+    "editTags": "Tags bearbeiten",
+    "duplicate": "Duplizieren",
+    "duplicated_one": "{{count}} Kopie erstellt",
+    "duplicated_other": "{{count}} Kopien erstellt",
+    "duplicateError": "Kopien können derzeit nicht erstellt werden.",
+    "deleteConfirm_one": "{{count}} Eintrag löschen?",
+    "deleteConfirm_other": "{{count}} Einträge löschen?",
+    "deleted_one": "{{count}} Eintrag gelöscht",
+    "deleted_other": "{{count}} Einträge gelöscht",
+    "deleteError": "Löschen ist derzeit nicht möglich.",
+    "needEdit": "Du benötigst Bearbeitungszugriff auf jeden ausgewählten Eintrag.",
+    "needDelete": "Du kannst nur Einträge löschen, die dir gehören."
+  },
+  "bulkTags": {
+    "title": "Tags bearbeiten",
+    "descriptionAdd_one": "Tags zu {{count}} ausgewählten Eintrag hinzufügen.",
+    "descriptionAdd_other": "Tags zu {{count}} ausgewählten Einträgen hinzufügen.",
+    "descriptionRemove_one": "Tags von {{count}} ausgewählten Eintrag entfernen.",
+    "descriptionRemove_other": "Tags von {{count}} ausgewählten Einträgen entfernen.",
+    "tabAdd": "Hinzufügen",
+    "tabRemove": "Entfernen",
+    "addPlaceholder": "Tags zum Hinzufügen auswählen...",
+    "removePlaceholder": "Tags zum Entfernen auswählen...",
+    "noTags": "Keine Tags auf den ausgewählten Einträgen.",
+    "applying": "Wird angewendet…",
+    "apply": "Anwenden",
+    "tagsAdded_one": "Tags zu {{count}} Eintrag hinzugefügt",
+    "tagsAdded_other": "Tags zu {{count}} Einträgen hinzugefügt",
+    "tagsRemoved_one": "Tags von {{count}} Eintrag entfernt",
+    "tagsRemoved_other": "Tags von {{count}} Einträgen entfernt",
+    "updateError": "Tags können derzeit nicht aktualisiert werden."
+  },
+  "toolIndex": {
+    "lastUpdated": "Zuletzt aktualisiert",
+    "tags": "Tags",
+    "emptyArchivedTitle": "Nichts archiviert",
+    "emptyArchivedBody": "Was du archivierst, landet hier — schreibgeschützt, bis du es zurückholst.",
+    "emptyTemplatesTitle": "Noch keine Vorlagen",
+    "emptyTemplatesBody": "Markiere einen Eintrag in seinen Einstellungen als Vorlage, um ihn später wiederzuverwenden."
+  },
   "toolbar": {
     "filters": "Filter",
     "filtersActive_one": "Filter ({{count}} aktiv)",

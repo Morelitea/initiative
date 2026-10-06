@@ -215,15 +215,8 @@ export const DocumentDetailPage = () => {
 
   // Only the template flag, from the tool chest's status: kept apart from the
   // save above, which settles the editor's draft when it lands.
-  const setTemplate = useUpdateDocument(parsedId, {
-    onSuccess: (updated) => setDocumentCache(parsedId, updated),
-  });
+  const setTemplate = useUpdateDocument(parsedId);
   const saveDocument = useUpdateDocument(parsedId, {
-    // Suppress the default error toast when the save failed because we're offline —
-    // the persistent offline toast already explains the situation to the user.
-    // Using `isOnline` (not `navigator.onLine`) so native WebView users get the
-    // same behavior: the Capacitor Network plugin is authoritative on native.
-    suppressErrorToast: () => !isOnline,
     onSuccess: (_updated, sent) => {
       // Only if the field still holds the name this save carried: an autosave
       // that started before the last keystroke must not mark it saved. A save

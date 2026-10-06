@@ -1,6 +1,3 @@
-import { useMemo } from "react";
-import { useTranslation } from "react-i18next";
-
 import type { TaskListRead } from "@/api/generated/initiativeAPI.schemas";
 import { invalidate, q } from "@/api/query-keys";
 import { BulkEditTagsDialog } from "@/components/shared/BulkEditTagsDialog";
@@ -12,28 +9,7 @@ interface BulkEditTaskTagsDialogProps extends DialogWithSuccessProps {
 }
 
 export function BulkEditTaskTagsDialog({ tasks, ...dialogProps }: BulkEditTaskTagsDialogProps) {
-  const { t } = useTranslation(["tasks", "common"]);
   const communityId = useActiveCommunityId();
-
-  const labels = useMemo(
-    () => ({
-      title: t("bulkEditTags.title"),
-      descriptionAdd: t("bulkEditTags.descriptionAdd", { count: tasks.length }),
-      descriptionRemove: t("bulkEditTags.descriptionRemove", { count: tasks.length }),
-      tabAdd: t("bulkEditTags.tabAdd"),
-      tabRemove: t("bulkEditTags.tabRemove"),
-      addPlaceholder: t("bulkEditTags.addPlaceholder"),
-      removePlaceholder: t("bulkEditTags.removePlaceholder"),
-      noTags: t("bulkEditTags.noTags"),
-      tagsAdded: t("bulkEditTags.tagsAdded", { count: tasks.length }),
-      tagsRemoved: t("bulkEditTags.tagsRemoved", { count: tasks.length }),
-      applying: t("bulkEditTags.applying"),
-      apply: t("bulkEditTags.apply"),
-      cancel: t("common:cancel"),
-      updateError: t("bulkEditTags.updateError"),
-    }),
-    [t, tasks.length]
-  );
 
   return (
     <BulkEditTagsDialog
@@ -42,7 +18,6 @@ export function BulkEditTaskTagsDialog({ tasks, ...dialogProps }: BulkEditTaskTa
       targetType="task"
       communityId={communityId}
       onInvalidate={() => void invalidate(q.allTasks())}
-      labels={labels}
     />
   );
 }

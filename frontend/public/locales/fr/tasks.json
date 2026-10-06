@@ -189,25 +189,6 @@
     "moving": "Déplacement…",
     "moveTask": "Déplacer la tâche"
   },
-  "bulkEditTags": {
-    "title": "Modifier les étiquettes",
-    "descriptionAdd": "Ajouter des étiquettes à {{count}} tâche sélectionnée.",
-    "descriptionAdd_other": "Ajouter des étiquettes à {{count}} tâches sélectionnées.",
-    "descriptionRemove": "Retirer des étiquettes de {{count}} tâche sélectionnée.",
-    "descriptionRemove_other": "Retirer des étiquettes de {{count}} tâches sélectionnées.",
-    "tabAdd": "Ajouter",
-    "tabRemove": "Retirer",
-    "addPlaceholder": "Sélectionner les étiquettes à ajouter...",
-    "removePlaceholder": "Sélectionner les étiquettes à retirer...",
-    "noTags": "Aucune étiquette sur les tâches sélectionnées.",
-    "applying": "Application…",
-    "apply": "Appliquer",
-    "tagsAdded": "Étiquettes ajoutées à {{count}} tâche",
-    "tagsAdded_other": "Étiquettes ajoutées à {{count}} tâches",
-    "tagsRemoved": "Étiquettes retirées de {{count}} tâche",
-    "tagsRemoved_other": "Étiquettes retirées de {{count}} tâches",
-    "updateError": "Impossible de mettre à jour les étiquettes pour l'instant."
-  },
   "createWizard": {
     "title": "Ajouter une tâche",
     "lastUsed": "Dernier utilisé",

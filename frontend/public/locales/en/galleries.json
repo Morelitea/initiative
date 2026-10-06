@@ -120,24 +120,5 @@
     "deleteTitle_one": "Remove {{count}} picture?",
     "deleteTitle_other": "Remove {{count}} pictures?",
     "deleteDescription": "They go to the trash, versions and all, and can be restored before the retention period ends."
-  },
-  "bulkTags": {
-    "title": "Edit Tags",
-    "descriptionAdd_one": "Add tags to {{count}} selected picture.",
-    "descriptionAdd_other": "Add tags to {{count}} selected pictures.",
-    "descriptionRemove_one": "Remove tags from {{count}} selected picture.",
-    "descriptionRemove_other": "Remove tags from {{count}} selected pictures.",
-    "tabAdd": "Add",
-    "tabRemove": "Remove",
-    "addPlaceholder": "Select tags to add...",
-    "removePlaceholder": "Select tags to remove...",
-    "noTags": "No tags on the selected pictures.",
-    "applying": "Applying…",
-    "apply": "Apply",
-    "tagsAdded_one": "Tags added to {{count}} picture",
-    "tagsAdded_other": "Tags added to {{count}} pictures",
-    "tagsRemoved_one": "Tags removed from {{count}} picture",
-    "tagsRemoved_other": "Tags removed from {{count}} pictures",
-    "updateError": "Unable to update tags right now."
   }
 }

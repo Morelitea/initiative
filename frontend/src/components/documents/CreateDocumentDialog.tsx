@@ -13,11 +13,7 @@ import {
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type {
-  DocumentRead,
-  InitiativeRead,
-  ResourceGrantSchema,
-} from "@/api/generated/initiativeAPI.schemas";
+import type { DocumentType, ResourceGrantSchema } from "@/api/generated/initiativeAPI.schemas";
 import { SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
 import { CreateAccessSection } from "@/components/access/CreateAccessSection";
 import { DEFAULT_GRANTS } from "@/components/access/grants";
@@ -58,28 +54,26 @@ import { matchSmartLinkProvider, SUPPORTED_PROVIDER_BADGES } from "@/lib/smartLi
 import type { DialogProps } from "@/types/dialog";
 
 type CreateDocumentDialogProps = DialogProps & {
-  /** If provided, the initiative is locked and cannot be changed */
-  initiativeId?: number;
-  /** If provided, pre-selects this initiative (but user can change it) */
-  defaultInitiativeId?: number;
+  /** The initiative the document is made in. */
+  initiativeId: number;
   /** If provided, the created document will be auto-attached to this project */
   projectId?: number;
   /** Called after successful creation/upload */
-  onSuccess?: (document: DocumentRead) => void;
-  /** List of initiatives user can create documents in (required if initiativeId not provided) */
-  initiatives?: InitiativeRead[];
+  onSuccess?: (document: { id: number }) => void;
   /** A file dropped on the page to open this; the dialog opens on Upload holding it. */
   initialFile?: File | null;
 };
+
+/** The document types made from scratch here; files come in by upload, and
+ *  smart links from their own tab. */
+type NewDocumentType = Exclude<DocumentType, "file" | "smart_link">;
 
 export const CreateDocumentDialog = ({
   open,
   onOpenChange,
   initiativeId,
-  defaultInitiativeId,
   projectId,
   onSuccess,
-  initiatives = [],
   initialFile = null,
 }: CreateDocumentDialogProps) => {
   const { t } = useTranslation(["documents", "common"]);
@@ -87,38 +81,18 @@ export const CreateDocumentDialog = ({
 
   const [createDialogTab, setCreateDialogTab] = useState<"new" | "upload" | "smartLink">("new");
   const [newTitle, setNewTitle] = useState("");
-  const [selectedInitiativeId, setSelectedInitiativeId] = useState(
-    defaultInitiativeId ? String(defaultInitiativeId) : ""
-  );
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
   // Server search only returns matches for the live query, so the picker can't
   // look the selected template's title up from the current page — remember it.
   const [selectedTemplateLabel, setSelectedTemplateLabel] = useState<string | null>(null);
   const [templateSearch, setTemplateSearch] = useState("");
   const [isTemplateDocument, setIsTemplateDocument] = useState(false);
-  const [newDocumentType, setNewDocumentType] = useState<"native" | "whiteboard" | "spreadsheet">(
-    "native"
-  );
+  const [newDocumentType, setNewDocumentType] = useState<NewDocumentType>("native");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [smartLinkUrl, setSmartLinkUrl] = useState("");
   const [grants, setGrants] = useState<ResourceGrantSchema[]>([...DEFAULT_GRANTS]);
 
-  // Determine effective initiative ID
-  const effectiveInitiativeId =
-    initiativeId ?? (selectedInitiativeId ? Number(selectedInitiativeId) : null);
-
-  // Find the locked initiative for display (from passed list or fetch if needed)
-  const lockedInitiativeFromList = useMemo(() => {
-    if (!initiativeId) return null;
-    return initiatives.find((i) => i.id === initiativeId) ?? null;
-  }, [initiativeId, initiatives]);
-
-  // Query the initiative if we have an ID but it's not in the passed list
-  const initiativeQuery = useInitiative(
-    open && initiativeId && !lockedInitiativeFromList ? initiativeId! : null
-  );
-
-  const lockedInitiative = lockedInitiativeFromList ?? initiativeQuery.data ?? null;
+  const initiative = useInitiative(open ? initiativeId : null).data;
 
   // Template picker — the shared lookup, asked for blueprints, only while the
   // dialog is open. It opens on the templates most recently worked on, which is
@@ -143,13 +117,9 @@ export const CreateDocumentDialog = ({
     setSelectedTemplateLabel(null);
   }, []);
 
-  // Reset form when dialog closes, or set default initiative when dialog opens
+  // Reset form when dialog closes
   useEffect(() => {
     if (open) {
-      // When dialog opens, set the default initiative if provided
-      if (defaultInitiativeId) {
-        setSelectedInitiativeId(String(defaultInitiativeId));
-      }
       // Opened by a drop: the file is the whole of what was asked for.
       if (initialFile) {
         setCreateDialogTab("upload");
@@ -157,9 +127,7 @@ export const CreateDocumentDialog = ({
         setNewTitle(nameWithoutExtension(initialFile.name));
       }
     } else {
-      // When dialog closes, reset the form
       setNewTitle("");
-      setSelectedInitiativeId(defaultInitiativeId ? String(defaultInitiativeId) : "");
       clearTemplate();
       setIsTemplateDocument(false);
       setNewDocumentType("native");
@@ -168,7 +136,7 @@ export const CreateDocumentDialog = ({
       setCreateDialogTab("new");
       setGrants([...DEFAULT_GRANTS]);
     }
-  }, [open, defaultInitiativeId, initialFile, clearTemplate]);
+  }, [open, initialFile, clearTemplate]);
 
   // Clear template when "save as template" is toggled on
   useEffect(() => {
@@ -211,17 +179,15 @@ export const CreateDocumentDialog = ({
   };
 
   const isCreating = createDocument.isPending || uploadDocument.isPending;
-  const canSubmitNew = newTitle.trim() && effectiveInitiativeId && !isCreating;
-  const canSubmitUpload = newTitle.trim() && effectiveInitiativeId && selectedFile && !isCreating;
+  const canSubmitNew = newTitle.trim() && !isCreating;
+  const canSubmitUpload = newTitle.trim() && selectedFile && !isCreating;
   const trimmedSmartLinkUrl = smartLinkUrl.trim();
   const smartLinkProviderMatch = useMemo(
     () => (trimmedSmartLinkUrl ? matchSmartLinkProvider(trimmedSmartLinkUrl) : null),
     [trimmedSmartLinkUrl]
   );
   const smartLinkUrlIsHttp = /^https?:\/\//.test(trimmedSmartLinkUrl);
-  const canSubmitSmartLink = Boolean(
-    newTitle.trim() && effectiveInitiativeId && smartLinkUrlIsHttp && !isCreating
-  );
+  const canSubmitSmartLink = Boolean(newTitle.trim() && smartLinkUrlIsHttp && !isCreating);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -268,25 +234,10 @@ export const CreateDocumentDialog = ({
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="create-doc-initiative">{t("create.initiativeLabel")}</Label>
-              {initiativeId ? (
-                <div className="rounded-md border px-3 py-2 text-sm">
-                  {lockedInitiative?.name ?? t("create.selectInitiative")}
-                </div>
-              ) : (
-                <Select value={selectedInitiativeId} onValueChange={setSelectedInitiativeId}>
-                  <SelectTrigger id="create-doc-initiative">
-                    <SelectValue placeholder={t("create.selectInitiative")} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {initiatives.map((initiative) => (
-                      <SelectItem key={initiative.id} value={String(initiative.id)}>
-                        {initiative.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
+              <Label>{t("create.initiativeLabel")}</Label>
+              <div className="rounded-md border px-3 py-2 text-sm">
+                {initiative?.name ?? t("common:loading")}
+              </div>
             </div>
           </div>
 
@@ -296,9 +247,7 @@ export const CreateDocumentDialog = ({
               <Label htmlFor="create-doc-type">{t("create.documentTypeLabel")}</Label>
               <Select
                 value={newDocumentType}
-                onValueChange={(value) =>
-                  setNewDocumentType(value as "native" | "whiteboard" | "spreadsheet")
-                }
+                onValueChange={(value) => setNewDocumentType(value as NewDocumentType)}
               >
                 <SelectTrigger id="create-doc-type">
                   <SelectValue />
@@ -471,7 +420,7 @@ export const CreateDocumentDialog = ({
         </Tabs>
 
         <CreateAccessSection
-          initiativeId={effectiveInitiativeId}
+          initiativeId={initiativeId}
           grants={grants}
           onChange={setGrants}
           defaultOpen={false}
@@ -483,10 +432,10 @@ export const CreateDocumentDialog = ({
               type="button"
               onClick={() => {
                 const trimmedTitle = newTitle.trim();
-                if (!trimmedTitle || !effectiveInitiativeId) return;
+                if (!trimmedTitle) return;
                 createDocument.mutate({
                   name: trimmedTitle,
-                  initiative_id: effectiveInitiativeId,
+                  initiative_id: initiativeId,
                   is_template: isTemplateDocument,
                   template_id: selectedTemplateId ? Number(selectedTemplateId) : undefined,
                   project_id: projectId,
@@ -509,13 +458,12 @@ export const CreateDocumentDialog = ({
             <Button
               type="button"
               onClick={() => {
-                if (!selectedFile || !effectiveInitiativeId) return;
                 const trimmedTitle = newTitle.trim();
-                if (!trimmedTitle) return;
+                if (!selectedFile || !trimmedTitle) return;
                 uploadDocument.mutate({
                   file: selectedFile,
                   name: trimmedTitle,
-                  initiative_id: effectiveInitiativeId,
+                  initiative_id: initiativeId,
                   project_id: projectId,
                   grants,
                 });
@@ -536,11 +484,10 @@ export const CreateDocumentDialog = ({
               type="button"
               onClick={() => {
                 const trimmedTitle = newTitle.trim();
-                if (!trimmedTitle || !effectiveInitiativeId) return;
-                if (!smartLinkUrlIsHttp) return;
+                if (!trimmedTitle || !smartLinkUrlIsHttp) return;
                 createDocument.mutate({
                   name: trimmedTitle,
-                  initiative_id: effectiveInitiativeId,
+                  initiative_id: initiativeId,
                   project_id: projectId,
                   document_type: "smart_link",
                   content: { url: trimmedSmartLinkUrl },

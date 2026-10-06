@@ -26,7 +26,7 @@
  * the key.
  */
 
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
   createCalendar,
@@ -70,6 +70,7 @@ import {
   listDocuments,
   readDocument,
   setDocumentGrants,
+  updateDocument,
 } from "@/api/generated/documents/documents";
 import {
   createGallery,
@@ -155,7 +156,6 @@ import { invalidate, q } from "@/api/query-keys";
 import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { useCommunityMutation } from "@/hooks/useApiMutation";
 import { fetchAllPages } from "@/lib/fetchAllPages";
-import { queryClient } from "@/lib/queryClient";
 import { toolCamelPlural } from "@/lib/tools";
 import type { MutationOpts } from "@/types/mutation";
 import type { QueryOpts } from "@/types/query";
@@ -321,6 +321,12 @@ interface ToolWriteOptions {
    * came from, then jumps forward again when the refetch arrives.
    */
   seedsDetailOnUpdate?: boolean;
+  /**
+   * Whether a save refreshes the relationship graph: a body save rewrites
+   * what the body refers to, which is what the other end's "linked from"
+   * panel reads.
+   */
+  refreshesRelationships?: boolean;
 }
 
 const updateHook = <TRead, TUpdate>(
@@ -330,18 +336,21 @@ const updateHook = <TRead, TUpdate>(
     tool: Tool;
   },
   errorKey: string,
-  { seedsDetailOnUpdate = false }: ToolWriteOptions = {}
+  { seedsDetailOnUpdate = false, refreshesRelationships = false }: ToolWriteOptions = {}
 ) => {
   return (id: number, options?: MutationOpts<TRead, TUpdate>) => {
     const communityId = useActiveCommunityId();
+    const client = useQueryClient();
     return useCommunityMutation<TRead, TUpdate>(
       {
         mutationFn: (community, data) => endpoints.update(community, id, data),
         invalidate: (updated) => {
           if (seedsDetailOnUpdate) {
-            queryClient.setQueryData(endpoints.detailKey(communityId, id), updated);
+            client.setQueryData(endpoints.detailKey(communityId, id), updated);
           }
-          return invalidate(q.tool(endpoints.tool, id));
+          return refreshesRelationships
+            ? invalidate(q.tool(endpoints.tool, id), q.relationships())
+            : invalidate(q.tool(endpoints.tool, id));
         },
         errorKey,
       },
@@ -417,6 +426,7 @@ const makeToolHooks = <TRead, TList, TMyList, TCreate, TUpdate, TParams>(
     ...listQueries(endpoints),
     create: endpoints.create,
     duplicate: endpoints.duplicate,
+    remove: endpoints.remove,
     useList: listHook(endpoints),
     useDetail: detailHook(endpoints),
     useCreate: createHook(endpoints, errorKey),
@@ -473,11 +483,8 @@ const dashboardEndpoints = {
   tool: Tool.dashboard,
 };
 
-// Documents have no standard list hook (theirs takes filters no other tool has,
-// and keeps its own placeholder rows), create (theirs can also link the new row
-// to a project) or update (theirs seeds the cache and refreshes the
-// relationship graph) — all three live in `useDocuments.ts`. The list QUERY is
-// here like every other tool's, and that hook wraps it.
+// Only a document's create is hand-written (`useDocuments.ts`): it copies a
+// template client-side and can link the new row to a project.
 const documentEndpoints = {
   listKey: getListDocumentsQueryKey,
   // `page_size: 0` asks for the complete set, which the server serves in
@@ -488,6 +495,7 @@ const documentEndpoints = {
   myList: listMyDocuments,
   detailKey: getReadDocumentQueryKey,
   detail: readDocument,
+  update: updateDocument,
   remove: deleteDocument,
   setGrants: setDocumentGrants,
   tool: Tool.document,
@@ -497,8 +505,14 @@ const documentHooks = {
   ...listQueries(documentEndpoints),
   create: createDocument,
   duplicate: duplicateDocument,
+  remove: documentEndpoints.remove,
+  useList: listHook(documentEndpoints),
   useDetail: detailHook(documentEndpoints),
-  useDelete: deleteHook(documentEndpoints, "documents:bulk.deleteError"),
+  useUpdate: updateHook(documentEndpoints, "documents:error", {
+    seedsDetailOnUpdate: true,
+    refreshesRelationships: true,
+  }),
+  useDelete: deleteHook(documentEndpoints, "documents:error"),
   useSetGrants: grantsHook(documentEndpoints, "documents:settings.updateAccessError"),
 };
 
@@ -552,6 +566,7 @@ const projectHooks = {
   ...listQueries(projectEndpoints),
   create: projectEndpoints.create,
   duplicate: duplicateProject,
+  remove: projectEndpoints.remove,
   useDetail: detailHook(projectEndpoints),
   useCreate: createHook(projectEndpoints, "projects:createDialog.createError"),
   useDelete: deleteHook(projectEndpoints, "projects:detail.deleteError"),
@@ -614,6 +629,8 @@ interface ToolQueries {
   ) => Promise<{ id: number }>;
   /** Copies one into an initiative — what the settings page's duplicate card sends. */
   duplicate: Duplicate;
+  /** Deletes one — what a list's bulk delete sends, once a row. */
+  remove: (communityId: number, id: number) => Promise<void>;
 }
 
 /**
@@ -630,7 +647,10 @@ export const TOOL_HOOKS = {
   [Tool.counter_group]: makeToolHooks(counterGroupEndpoints),
   [Tool.calendar]: makeToolHooks(calendarEndpoints),
   [Tool.dashboard]: makeToolHooks(dashboardEndpoints, { seedsDetailOnUpdate: true }),
-  [Tool.post]: makeToolHooks(postEndpoints, { seedsDetailOnUpdate: true }),
+  [Tool.post]: makeToolHooks(postEndpoints, {
+    seedsDetailOnUpdate: true,
+    refreshesRelationships: true,
+  }),
   [Tool.gallery]: makeToolHooks(galleryEndpoints, { seedsDetailOnUpdate: true }),
   [Tool.wiki]: makeToolHooks(wikiEndpoints),
 } satisfies Record<Tool, ToolQueries>;
@@ -648,6 +668,52 @@ export const useDuplicateTool = (
       mutationFn: (communityId, { id, data }) => TOOL_HOOKS[tool].duplicate(communityId, id, data),
       invalidate: () => invalidate(q.toolList(tool)),
       errorKey: "common:toolSettings.duplicate.error",
+    },
+    options
+  );
+
+/**
+ * Every request of a bulk action, run to the end. When some fail, the list is
+ * refreshed anyway — the ones that landed are real — and the first failure is
+ * what the action reports.
+ */
+const settleAll = async <T>(tool: Tool, requests: Promise<T>[]): Promise<T[]> => {
+  const results = await Promise.allSettled(requests);
+  const failed = results.find((result) => result.status === "rejected");
+  if (failed) {
+    void invalidate(q.toolList(tool));
+    throw failed.reason;
+  }
+  return results.map((result) => (result as PromiseFulfilledResult<T>).value);
+};
+
+/** A copy of each of `ids` beside its original, named as the server names one. */
+export const useDuplicateTools = (tool: Tool, options?: MutationOpts<Duplicated[], number[]>) =>
+  useCommunityMutation<Duplicated[], number[]>(
+    {
+      mutationFn: (communityId, ids) =>
+        settleAll(
+          tool,
+          ids.map((id) => TOOL_HOOKS[tool].duplicate(communityId, id, {}))
+        ),
+      invalidate: () => invalidate(q.toolList(tool)),
+      errorKey: "common:bulkActions.duplicateError",
+    },
+    options
+  );
+
+/** Delete every one of `ids`. */
+export const useDeleteTools = (tool: Tool, options?: MutationOpts<void, number[]>) =>
+  useCommunityMutation<void, number[]>(
+    {
+      mutationFn: async (communityId, ids) => {
+        await settleAll(
+          tool,
+          ids.map((id) => TOOL_HOOKS[tool].remove(communityId, id))
+        );
+      },
+      invalidate: () => invalidate(q.toolList(tool)),
+      errorKey: "common:bulkActions.deleteError",
     },
     options
   );
