@@ -53,7 +53,7 @@ class FakeRelay:
             return httpx.Response(
                 200,
                 json={
-                    "project_id": "morelitea-app",
+                    "project_id": "beyonders-studio-app",
                     "application_id": "1:2:android:3",
                     "api_key": "relay-api-key",
                     "sender_id": "42",
@@ -215,7 +215,7 @@ async def test_android_settings_are_fetched_with_the_relay_key_and_kept(
         again = await push_relay.android_config(client)
 
     assert config == push_relay.AndroidConfig(
-        project_id="morelitea-app",
+        project_id="beyonders-studio-app",
         application_id="1:2:android:3",
         api_key="relay-api-key",
         sender_id="42",

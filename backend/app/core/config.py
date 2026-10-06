@@ -39,10 +39,6 @@ CAPACITOR_NATIVE_ORIGINS = [
     "https://studio.beyonders.initiative",  # Capacitor custom hostname (Android + iOS with iosScheme=https)
     "capacitor://studio.beyonders.initiative",  # Capacitor default iOS scheme with custom hostname; the desktop app
     "capacitor://localhost",  # Capacitor fallback (no custom hostname)
-    # The app's previous id, which Android and desktop installs from before the
-    # rename still send until they are replaced.
-    "https://com.morelitea.initiative",
-    "capacitor://com.morelitea.initiative",
 ]
 
 
