@@ -87,8 +87,10 @@ _DATASET_WORDS = {
     "document_id": "file_id",
 }
 _SHEET_KEY = {"document_id": "file_id"}
-#: A statement's string values, single- or dollar-quoted: left as written.
-_QUOTED = re.compile(r"'(?:[^']|'')*'|\$(\w*)\$.*?\$\1\$", re.S)
+_SHEET_SOURCE = "sheet_range"
+#: What a statement quotes — a string value and a double-quoted name — is left
+#: as written, as 20261006_0464 leaves it.
+_QUOTED = re.compile(r"'(?:[^']|'')*'|\"(?:[^\"]|\"\")*\"|\$(\w*)\$.*?\$\1\$", re.S)
 
 
 def _flip(mapping: Mapping[str, str], forward: bool) -> dict[str, str]:
@@ -235,8 +237,7 @@ def _envelope_respeller(forward: bool, dashboard: bool) -> Callable[[Any], Any]:
     """A tool listing's envelope, spelled the way an export of this build
     spells it. A dashboard's also has its statements and sheet keys."""
     keys = _flip(_ENVELOPE_KEYS, forward)
-    if dashboard:
-        keys = {**keys, **_flip(_SHEET_KEY, forward)}
+    sheet_old, sheet_new = next(iter(_flip(_SHEET_KEY, forward).items()))
     kinds = _flip(_KIND, forward)
     types = _flip(_ENVELOPE_TYPES, forward)
     permissions = _flip(_PERMISSIONS, forward)
@@ -266,9 +267,52 @@ def _envelope_respeller(forward: bool, dashboard: bool) -> Callable[[Any], Any]:
             }
         if dashboard and isinstance(out.get("sql"), str):
             out["sql"] = _statement(out["sql"], words)
+        if dashboard and out.get("source") == _SHEET_SOURCE and sheet_old in out:
+            out[sheet_new] = out.pop(sheet_old)
         return out
 
-    return respell
+    def respell_envelope(value: Any) -> Any:
+        out = respell(value)
+        if dashboard and isinstance(out, dict):
+            # The config fills a spreadsheet widget's slots by the same key; any
+            # other widget's slots are its own (a plug-in's parameters).
+            sheets = _sheet_widgets(out.get("definition"))
+            out["config"] = _respell_config(
+                out.get("config"), sheets, sheet_old, sheet_new
+            )
+            if out["config"] is None:
+                del out["config"]
+        return out
+
+    return respell_envelope
+
+
+def _sheet_widgets(definition: Any) -> set[Any]:
+    widgets = definition.get("widgets") if isinstance(definition, dict) else None
+    return {
+        widget.get("id")
+        for widget in widgets or []
+        if isinstance(widget, dict)
+        and isinstance(widget.get("binding"), dict)
+        and widget["binding"].get("source") == _SHEET_SOURCE
+    }
+
+
+def _respell_config(config: Any, sheets: set[Any], old: str, new: str) -> Any:
+    widgets = config.get("widgets") if isinstance(config, dict) else None
+    if not isinstance(widgets, dict):
+        return config
+    return {
+        **config,
+        "widgets": {
+            widget_id: {
+                (new if key == old else key): item for key, item in slots.items()
+            }
+            if widget_id in sheets and isinstance(slots, dict)
+            else slots
+            for widget_id, slots in widgets.items()
+        },
+    }
 
 
 def _listings(bind: Connection, forward: bool) -> None:
@@ -313,8 +357,17 @@ def _listings(bind: Connection, forward: bool) -> None:
                     {"v": value, "id": version_id},
                 )
 
-    _writable(bind, "public.marketplace_listings", run_kinds)
-    _writable(bind, "public.marketplace_listing_versions", run_versions)
+    def run() -> None:
+        run_kinds()
+        run_versions()
+
+    # Both unforced for the whole rewrite: the versions are found by joining
+    # their listing, which a forced listings table would hide.
+    _writable(
+        bind,
+        "public.marketplace_listings",
+        lambda: _writable(bind, "public.marketplace_listing_versions", run),
+    )
 
 
 def upgrade() -> None:

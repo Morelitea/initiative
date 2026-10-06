@@ -147,6 +147,7 @@ _ENVELOPE_TYPES = {"initiative-document": "initiative-file"}
 _ADDRESSES = {"/go/document/": "/go/file/", "/documents/": "/files/"}
 #: The key a binding names its spreadsheet by (a sheet range's).
 _SHEET_KEY = {"document_id": "file_id"}
+_SHEET_SOURCE = "sheet_range"
 
 # Permission key -> the value a role created at this revision stores, every
 # key, as 20261004_0453 states it with the file tool's two respelled. The
@@ -477,9 +478,10 @@ def _respell_json(
     _writable(bind, table, run)
 
 
-#: A statement's string values, single- or dollar-quoted: left as written, so
-#: a value a query compares against is never respelled.
-_QUOTED = re.compile(r"'(?:[^']|'')*'|\$(\w*)\$.*?\$\1\$", re.S)
+#: What a statement quotes — a string value, single- or dollar-quoted, and a
+#: double-quoted name — is left as written: a value a query compares against
+#: and a column name it answers with are its author's, not the dataset's.
+_QUOTED = re.compile(r"'(?:[^']|'')*'|\"(?:[^\"]|\"\")*\"|\$(\w*)\$.*?\$\1\$", re.S)
 
 
 def _statement(sql: str, words: Mapping[str, str]) -> str:
@@ -517,7 +519,7 @@ def _definition_respeller(forward: bool) -> Callable[[Any], Any]:
                 out[key] = _statement(item, words)
             else:
                 out[scopes.get(key, key)] = respell(item)
-        if "source" in out and sheet_old in out:
+        if out.get("source") == _SHEET_SOURCE and sheet_old in out:
             out[sheet_new] = out.pop(sheet_old)
         if out.get("entity") in kinds:
             out["entity"] = kinds[out["entity"]]
@@ -526,28 +528,68 @@ def _definition_respeller(forward: bool) -> Callable[[Any], Any]:
     return respell
 
 
-def _config_respeller(forward: bool) -> Callable[[Any], Any]:
-    """A dashboard's config: the file each widget's slot names."""
+def _sheet_widgets(definition: Any) -> set[Any]:
+    """The ids of a definition's widgets that read a spreadsheet."""
+    widgets = definition.get("widgets") if isinstance(definition, dict) else None
+    return {
+        widget.get("id")
+        for widget in widgets or []
+        if isinstance(widget, dict)
+        and isinstance(widget.get("binding"), dict)
+        and widget["binding"].get("source") == _SHEET_SOURCE
+    }
+
+
+def _respell_config(config: Any, sheets: set[Any], forward: bool) -> Any:
+    """A dashboard's config: the file a spreadsheet widget's slot names. Any
+    other widget's slots are its own (a plug-in's parameters among them)."""
     sheet_old, sheet_new = next(iter(_flip(_SHEET_KEY, forward).items()))
+    widgets = config.get("widgets") if isinstance(config, dict) else None
+    if not isinstance(widgets, dict):
+        return config
+    return {
+        **config,
+        "widgets": {
+            widget_id: {
+                (sheet_new if key == sheet_old else key): item
+                for key, item in slots.items()
+            }
+            if widget_id in sheets and isinstance(slots, dict)
+            else slots
+            for widget_id, slots in widgets.items()
+        },
+    }
 
-    def respell(value: Any) -> Any:
-        widgets = value.get("widgets") if isinstance(value, dict) else None
-        if not isinstance(widgets, dict):
-            return value
-        return {
-            **value,
-            "widgets": {
-                widget_id: {
-                    (sheet_new if key == sheet_old else key): item
-                    for key, item in slots.items()
-                }
-                if isinstance(slots, dict)
-                else slots
-                for widget_id, slots in widgets.items()
-            },
-        }
 
-    return respell
+def _dashboards(bind: Connection, forward: bool) -> None:
+    """Each dashboard's definition, and its config by the same definition."""
+    respell = _definition_respeller(forward)
+
+    def run() -> None:
+        rows = bind.execute(text("SELECT id, definition, config FROM dashboards")).all()
+        for row_id, definition, config in rows:
+            definition = (
+                json.loads(definition) if isinstance(definition, str) else definition
+            )
+            config = json.loads(config) if isinstance(config, str) else config
+            new_definition = respell(definition)
+            new_config = _respell_config(
+                config, _sheet_widgets(new_definition), forward
+            )
+            if (new_definition, new_config) != (definition, config):
+                bind.execute(
+                    text(
+                        "UPDATE dashboards SET definition = CAST(:d AS jsonb), "
+                        "config = CAST(:c AS jsonb) WHERE id = :id"
+                    ),
+                    {
+                        "d": json.dumps(new_definition),
+                        "c": json.dumps(new_config),
+                        "id": row_id,
+                    },
+                )
+
+    _writable(bind, "dashboards", run)
 
 
 def _job_respeller(forward: bool) -> Callable[[Any], Any]:
@@ -626,8 +668,7 @@ def _respell_values(bind: Connection, forward: bool) -> None:
     _map_array(bind, "guild_plugins", "granted_scopes", _flip(_SCOPES, forward))
     definitions = _definition_respeller(forward)
     _respell_json(bind, "guild_plugins", "definition", definitions)
-    _respell_json(bind, "dashboards", "definition", definitions)
-    _respell_json(bind, "dashboards", "config", _config_respeller(forward))
+    _dashboards(bind, forward)
 
     jobs = _job_respeller(forward)
     _set_values(bind, "export_jobs", ("source",), kind)

@@ -53,11 +53,18 @@ async def _rows(session, sql: str, **params: Any) -> list[tuple]:
     return [tuple(row) for row in result.all()]
 
 
-# A string value is left as written: only the names a statement reads move.
+# What a statement quotes is left as written — a string value and a column
+# name it answers with: only the names it reads move.
 _OLD_STATEMENT = (
-    "SELECT f.name, f.document_type FROM documents f WHERE f.name <> 'documents'"
+    'SELECT f.name AS "documents", f.document_type FROM documents f '
+    "WHERE f.name <> 'documents'"
 )
-_NEW_STATEMENT = "SELECT f.name, f.file_type FROM files f WHERE f.name <> 'documents'"
+_NEW_STATEMENT = (
+    'SELECT f.name AS "documents", f.file_type FROM files f '
+    "WHERE f.name <> 'documents'"
+)
+#: A plug-in widget's parameters are the plug-in's, whatever they are called.
+_PLUGIN_BINDING = {"source": "plugin", "params": {"document_id": 5}}
 
 
 async def _guild_values(session, schema: str, ids: dict[str, int]) -> dict:
@@ -143,12 +150,18 @@ async def test_guild_values_say_file_and_back(session) -> None:
         user,
         definition={
             "widgets": [
-                {"binding": {"source": "query", "sql": _OLD_STATEMENT}},
-                {"binding": sheet},
-                {"binding": {"entity": "document"}},
+                {"id": "w1", "binding": {"source": "query", "sql": _OLD_STATEMENT}},
+                {"id": "w2", "binding": sheet},
+                {"id": "w3", "binding": {"entity": "document"}},
+                {"id": "w4", "binding": _PLUGIN_BINDING},
             ]
         },
-        config={"widgets": {"w2": {"document_id": file.id, "range": "A1:B2"}}},
+        config={
+            "widgets": {
+                "w2": {"document_id": file.id, "range": "A1:B2"},
+                "w4": {"document_id": 5},
+            }
+        },
     )
     job = await create_export_job(
         session,
@@ -234,18 +247,28 @@ async def test_guild_values_say_file_and_back(session) -> None:
             (
                 {
                     "widgets": [
-                        {"binding": {"source": "query", "sql": _NEW_STATEMENT}},
                         {
+                            "id": "w1",
+                            "binding": {"source": "query", "sql": _NEW_STATEMENT},
+                        },
+                        {
+                            "id": "w2",
                             "binding": {
                                 "source": "sheet_range",
                                 "file_id": file.id,
                                 "range": "A1:B2",
-                            }
+                            },
                         },
-                        {"binding": {"entity": "file"}},
+                        {"id": "w3", "binding": {"entity": "file"}},
+                        {"id": "w4", "binding": _PLUGIN_BINDING},
                     ]
                 },
-                {"widgets": {"w2": {"file_id": file.id, "range": "A1:B2"}}},
+                {
+                    "widgets": {
+                        "w2": {"file_id": file.id, "range": "A1:B2"},
+                        "w4": {"document_id": 5},
+                    }
+                },
             )
         ]
         assert new["export"] == [
@@ -345,10 +368,16 @@ async def test_public_values_say_file_and_back(session) -> None:
     # Built valid, then written back the way the old build stored them.
     old_sheet = {"source": "sheet_range", "document_id": None, "range": "A1:B2"}
     dashboard_definition = {
-        "widgets": [
-            {"binding": {"source": "query", "sql": _OLD_STATEMENT}},
-            {"binding": old_sheet},
-        ]
+        "type": "initiative-dashboard",
+        "name": "Board",
+        "definition": {
+            "widgets": [
+                {"id": "w1", "binding": {"source": "query", "sql": _OLD_STATEMENT}},
+                {"id": "w2", "binding": old_sheet},
+                {"id": "w4", "binding": _PLUGIN_BINDING},
+            ]
+        },
+        "config": {"widgets": {"w2": {"document_id": 3}, "w4": {"document_id": 5}}},
     }
     file_definition = {
         "type": "initiative-document",
@@ -434,16 +463,34 @@ async def test_public_values_say_file_and_back(session) -> None:
                     "rename.dashboard",
                     "dashboard",
                     {
-                        "widgets": [
-                            {"binding": {"source": "query", "sql": _NEW_STATEMENT}},
-                            {
-                                "binding": {
-                                    "source": "sheet_range",
-                                    "file_id": None,
-                                    "range": "A1:B2",
-                                }
-                            },
-                        ]
+                        "type": "initiative-dashboard",
+                        "name": "Board",
+                        "definition": {
+                            "widgets": [
+                                {
+                                    "id": "w1",
+                                    "binding": {
+                                        "source": "query",
+                                        "sql": _NEW_STATEMENT,
+                                    },
+                                },
+                                {
+                                    "id": "w2",
+                                    "binding": {
+                                        "source": "sheet_range",
+                                        "file_id": None,
+                                        "range": "A1:B2",
+                                    },
+                                },
+                                {"id": "w4", "binding": _PLUGIN_BINDING},
+                            ]
+                        },
+                        "config": {
+                            "widgets": {
+                                "w2": {"file_id": 3},
+                                "w4": {"document_id": 5},
+                            }
+                        },
                     },
                 ),
                 (
