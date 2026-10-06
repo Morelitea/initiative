@@ -40,7 +40,8 @@ async def test_the_request_path_reads_a_client_reference(session, role_session):
 
 
 @pytest.mark.parametrize(
-    "purpose", [IdentityPurpose.billing, IdentityPurpose.app, IdentityPurpose.webhook]
+    "purpose",
+    [IdentityPurpose.billing, IdentityPurpose.plugin, IdentityPurpose.webhook],
 )
 async def test_the_request_path_reads_no_other_sector(
     session, role_session, purpose: IdentityPurpose

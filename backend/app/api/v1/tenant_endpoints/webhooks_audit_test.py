@@ -87,7 +87,7 @@ async def test_registering_records_the_host_and_never_the_rest_of_the_url(
     assert row["detail"] == {
         "target_host": _WEBHOOK_HOST,
         "event_types": ["tasks.created"],
-        "app_install_id": None,
+        "plugin_install_id": None,
     }
     # The whole envelope, not just the key somebody remembered to leave out.
     assert "secret-path" not in json.dumps(row)
@@ -178,5 +178,5 @@ async def test_removing_one_records_where_it_had_been_pointing(
     }
     assert row["detail"] == {
         "target_host": _WEBHOOK_HOST,
-        "app_install_id": None,
+        "plugin_install_id": None,
     }

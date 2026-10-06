@@ -1,4 +1,4 @@
-"""Payloads for the guild-admin content-ownership screens, and the owning app
+"""Payloads for the guild-admin content-ownership screens, and the owning plug-in
 a read model names."""
 
 from typing import List, Optional
@@ -9,8 +9,8 @@ from app.core.tools import Tool
 from app.schemas.base import SanitizedBaseModel
 
 
-class OwnerAppSummary(SanitizedBaseModel):
-    """An installed app that owns a resource, or may be handed one: the
+class OwnerPluginSummary(SanitizedBaseModel):
+    """An installed plug-in that owns a resource, or may be handed one: the
     install's id, its name in this community, and its listing's picture."""
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
@@ -34,8 +34,8 @@ class OwnedContentResponse(SanitizedBaseModel):
     """What a user owns in this guild, or what no current member owns.
 
     ``counts`` is per tool, keyed by the ``Tool`` value, so the dialog can say
-    "3 projects, 1 calendar" without walking the list. ``eligible_apps`` are the
-    installed apps that may own every item listed, which the dialog offers
+    "3 projects, 1 calendar" without walking the list. ``eligible_plugins`` are the
+    installed plug-ins that may own every item listed, which the dialog offers
     beside the community's admins.
     """
 
@@ -44,21 +44,21 @@ class OwnedContentResponse(SanitizedBaseModel):
     items: List[OwnedContentItem] = Field(default_factory=list)
     counts: dict[str, int] = Field(default_factory=dict)
     total: int = 0
-    eligible_apps: List[OwnerAppSummary] = Field(default_factory=list)
+    eligible_plugins: List[OwnerPluginSummary] = Field(default_factory=list)
 
 
 class OwnershipTransferRequest(SanitizedBaseModel):
     """Who should end up owning it: an active admin of this guild
-    (``new_owner_id``), or an installed app that may own all of it
-    (``new_owner_app_id``). Exactly one is set."""
+    (``new_owner_id``), or an installed plug-in that may own all of it
+    (``new_owner_plugin_id``). Exactly one is set."""
 
     new_owner_id: Optional[int] = None
-    new_owner_app_id: Optional[int] = None
+    new_owner_plugin_id: Optional[int] = None
 
     @model_validator(mode="after")
     def exactly_one_recipient(self) -> "OwnershipTransferRequest":
-        if (self.new_owner_id is None) == (self.new_owner_app_id is None):
-            raise ValueError("Exactly one of new_owner_id or new_owner_app_id")
+        if (self.new_owner_id is None) == (self.new_owner_plugin_id is None):
+            raise ValueError("Exactly one of new_owner_id or new_owner_plugin_id")
         return self
 
 

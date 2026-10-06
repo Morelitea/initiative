@@ -20,13 +20,13 @@ from app.core.config import settings as app_config
 from app.core.encryption import (
     decrypt_field,
     encrypt_field,
-    SALT_APP_PLATFORM_SIGNING_KEY,
+    SALT_PLUGIN_PLATFORM_SIGNING_KEY,
     SALT_CAPTCHA_SECRET_KEY,
     SALT_FCM_SERVICE_ACCOUNT,
     SALT_S3_SECRET_KEY,
     SALT_SMTP_PASSWORD,
 )
-from app.core.security import use_stored_app_platform_signing_key
+from app.core.security import use_stored_plugin_platform_signing_key
 from app.core.login_methods import (
     DEFAULT_LOGIN_METHODS,
     LOGIN_METHOD_VALUES,
@@ -365,18 +365,18 @@ async def seed_app_settings(session: AsyncSession) -> AppSetting:
     return settings_row
 
 
-async def load_app_platform_signing_key(session: AsyncSession) -> None:
-    """Load the app platform's stored signing key into this process.
+async def load_plugin_platform_signing_key(session: AsyncSession) -> None:
+    """Load the plug-in platform's stored signing key into this process.
 
-    Only while ``APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM`` is unset; the env key
+    Only while ``PLUGIN_PLATFORM_SIGNING_PRIVATE_KEY_PEM`` is unset; the env key
     is used as it is. The first start generates a key and stores it, and every
     start after it, on any replica, loads that one: the write only fills an
     empty column, and the key is read back from the row. System engine only,
     after :func:`seed_app_settings`. Commits.
     """
-    if app_config.APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM:
+    if app_config.PLUGIN_PLATFORM_SIGNING_PRIVATE_KEY_PEM:
         return
-    column = AppSettingSecret.__table__.c.app_platform_signing_key_encrypted
+    column = AppSettingSecret.__table__.c.plugin_platform_signing_key_encrypted
     stored_query = select(column).where(
         AppSettingSecret.__table__.c.id == GLOBAL_SETTINGS_ID
     )
@@ -384,8 +384,8 @@ async def load_app_platform_signing_key(session: AsyncSession) -> None:
     if encrypted is None:
         if await _stored_app_settings(session) is None:
             logger.warning(
-                "app platform: the settings row is not stored, so no signing "
-                "key can be kept; app services stay unavailable."
+                "plug-in platform: the settings row is not stored, so no signing "
+                "key can be kept; plug-in services stay unavailable."
             )
             return
         await _ensure_secrets_row(session)
@@ -399,7 +399,7 @@ async def load_app_platform_signing_key(session: AsyncSession) -> None:
                 {
                     column: encrypt_field(
                         context_jwt.generate_signing_key(),
-                        SALT_APP_PLATFORM_SIGNING_KEY,
+                        SALT_PLUGIN_PLATFORM_SIGNING_KEY,
                     )
                 }
             )
@@ -407,17 +407,17 @@ async def load_app_platform_signing_key(session: AsyncSession) -> None:
         await session.commit()
         encrypted = await session.scalar(stored_query)
         if encrypted is None:  # pragma: no cover - the UPDATE landed or lost a race
-            raise RuntimeError("app platform signing key could not be stored")
+            raise RuntimeError("plug-in platform signing key could not be stored")
     try:
-        private_pem = decrypt_field(encrypted, SALT_APP_PLATFORM_SIGNING_KEY)
+        private_pem = decrypt_field(encrypted, SALT_PLUGIN_PLATFORM_SIGNING_KEY)
     except InvalidToken:
         logger.error(
-            "app platform: the stored signing key does not decrypt under "
-            "SECRET_KEY; app services stay unavailable. Set PREVIOUS_SECRET_KEY "
+            "plug-in platform: the stored signing key does not decrypt under "
+            "SECRET_KEY; plug-in services stay unavailable. Set PREVIOUS_SECRET_KEY "
             "to the key it was stored under."
         )
         return
-    use_stored_app_platform_signing_key(
+    use_stored_plugin_platform_signing_key(
         private_pem, context_jwt.key_thumbprint(private_pem)
     )
 

@@ -976,9 +976,9 @@ _PERSON_FILTER_FIELDS = frozenset({"assignee_ids", "created_by"})
 
 
 def refuse_person_filters(q: TaskListQuery) -> None:
-    """Refuse, for an installed app, a filter that names people.
+    """Refuse, for an installed plug-in, a filter that names people.
 
-    A filter's values are row ids inside a JSON string, which an app does not
+    A filter's values are row ids inside a JSON string, which a plug-in does not
     hold, so the fields that take one are left to people: ``assignee_ids``
     and ``created_by`` (bar asking whether there is one), and a
     person-valued custom property.

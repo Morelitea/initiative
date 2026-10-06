@@ -13,9 +13,9 @@ from app.schemas.base import SanitizedBaseModel
 class CommunityReferenceRequest(SanitizedBaseModel):
     """A reference the caller holds, and the sector it wants the same guild in.
 
-    ``purpose`` names a sector rather than a party, and cannot name ``app``: an
-    app sector belongs to one install, and translating between two of those is
-    what would let one app learn another's names.
+    ``purpose`` names a sector rather than a party, and cannot name ``plugin``: a
+    plug-in sector belongs to one install, and translating between two of those is
+    what would let one plug-in learn another's names.
     """
 
     community_ref: str = Field(min_length=1, max_length=REF_MAX_LENGTH)
@@ -23,10 +23,10 @@ class CommunityReferenceRequest(SanitizedBaseModel):
 
 
 class InstallationReferenceRequest(SanitizedBaseModel):
-    """The sector an installed app wants its community named in.
+    """The sector an installed plug-in wants its community named in.
 
     The community is the one the installation token names. ``community_ref``, when
-    given, is the app's own reference for it and has to name that same
+    given, is the plug-in's own reference for it and has to name that same
     community.
     """
 

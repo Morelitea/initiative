@@ -3,12 +3,12 @@
  *
  * The shelf you were browsing has to survive the round trip. Both ways out of
  * this page lead to the marketplace, and each one has to carry the kind —
- * otherwise an admin browsing apps clicks a listing, comes back, and is looking
+ * otherwise an admin browsing plug-ins clicks a listing, comes back, and is looking
  * at dashboards. The error route is the one that got missed first, which is why
  * it is pinned here alongside the ordinary one.
  *
  * Everyone reads the same page. What changes is the ending: only the
- * superadmin adds an app, so anyone else is told who can instead of being
+ * superadmin adds a plug-in, so anyone else is told who can instead of being
  * offered a button that would be refused.
  */
 import { screen } from "@testing-library/react";
@@ -36,9 +36,9 @@ vi.mock("@/hooks/useCommunities", async (importOriginal) => ({
     activeCommunity: { role: communityRole, can: communityCan(communityRole) },
   }),
 }));
-vi.mock("@/hooks/useCommunityApps", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/hooks/useCommunityApps")>()),
-  useCommunityApps: () => ({
+vi.mock("@/hooks/useCommunityPlugins", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/hooks/useCommunityPlugins")>()),
+  useCommunityPlugins: () => ({
     data:
       installsState === "ready"
         ? { items: installedUids.map((uid) => ({ listing_uid: uid })) }
@@ -48,11 +48,11 @@ vi.mock("@/hooks/useCommunityApps", async (importOriginal) => ({
   }),
 }));
 
-const appListing = () =>
+const pluginListing = () =>
   ({
     uid: "GLDCAL00000001",
     public_id: "core.community-calendar",
-    kind: "app",
+    kind: "plugin",
     source: "builtin",
     name: "Community calendar",
     publisher: "Initiative",
@@ -74,7 +74,7 @@ const backHref = () =>
     .find((href) => href?.includes("/marketplace") && !href.includes("core."));
 
 beforeEach(() => {
-  listing = appListing();
+  listing = pluginListing();
   failed = false;
   communityRole = "superadmin";
   installedUids = [];
@@ -83,9 +83,9 @@ beforeEach(() => {
 
 describe("MarketplaceListingPage", () => {
   it("returns to the shelf it was opened from", async () => {
-    renderPage(MarketplaceListingPage, { routerSearch: { kind: "app" } });
+    renderPage(MarketplaceListingPage, { routerSearch: { kind: "plugin" } });
     await screen.findByRole("heading", { name: "Community calendar" });
-    expect(backHref()).toContain("kind=app");
+    expect(backHref()).toContain("kind=plugin");
   });
 
   it("returns to the shelf when the listing failed to load", async () => {
@@ -93,9 +93,9 @@ describe("MarketplaceListingPage", () => {
     // the one that dropped the shelf.
     failed = true;
     listing = undefined;
-    renderPage(MarketplaceListingPage, { routerSearch: { kind: "app" } });
+    renderPage(MarketplaceListingPage, { routerSearch: { kind: "plugin" } });
     await screen.findByText(/listing not found/i);
-    expect(backHref()).toContain("kind=app");
+    expect(backHref()).toContain("kind=plugin");
   });
 
   it("falls back to the listing's own kind on a direct link", async () => {
@@ -103,104 +103,104 @@ describe("MarketplaceListingPage", () => {
     // belongs to.
     renderPage(MarketplaceListingPage);
     await screen.findByRole("heading", { name: "Community calendar" });
-    expect(backHref()).toContain("kind=app");
+    expect(backHref()).toContain("kind=plugin");
   });
 
   it("answers who wrote it before the install button", async () => {
     // The same sentence the card showed, on the page where the decision is
     // actually made.
-    renderPage(MarketplaceListingPage, { routerSearch: { kind: "app" } });
+    renderPage(MarketplaceListingPage, { routerSearch: { kind: "plugin" } });
     await screen.findByRole("heading", { name: "Community calendar" });
     expect(screen.getByText("by Initiative")).toBeInTheDocument();
   });
 
   it("names the publisher of a listing that did not ship with this build", async () => {
     listing = {
-      ...appListing(),
+      ...pluginListing(),
       source: "operator",
       publisher: "Acme Widgets",
     } as unknown as MarketplaceListingDetail;
-    renderPage(MarketplaceListingPage, { routerSearch: { kind: "app" } });
+    renderPage(MarketplaceListingPage, { routerSearch: { kind: "plugin" } });
     await screen.findByRole("heading", { name: "Community calendar" });
     expect(screen.getByText("by Acme Widgets")).toBeInTheDocument();
   });
 
-  it("offers no canvas preview for an app", async () => {
-    renderPage(MarketplaceListingPage, { routerSearch: { kind: "app" } });
+  it("offers no canvas preview for a plug-in", async () => {
+    renderPage(MarketplaceListingPage, { routerSearch: { kind: "plugin" } });
     await screen.findByRole("heading", { name: "Community calendar" });
-    // An app mounts a tool; there is no definition to draw.
+    // A plug-in mounts a tool; there is no definition to draw.
     expect(screen.queryByText("Preview")).toBeNull();
   });
 
-  it("tells a member who can add an app they cannot", async () => {
+  it("tells a member who can add a plug-in they cannot", async () => {
     communityRole = "member";
-    renderPage(MarketplaceListingPage, { routerSearch: { kind: "app" } });
+    renderPage(MarketplaceListingPage, { routerSearch: { kind: "plugin" } });
 
     expect(
-      await screen.findByText("Ask your community's superadmin to add this app.")
+      await screen.findByText("Ask your community's superadmin to add this plug-in.")
     ).toBeInTheDocument();
     // The button is present but refuses, rather than being hidden: seeing what
-    // the app offers is the point of letting them in here.
+    // the plug-in offers is the point of letting them in here.
     expect(screen.getByRole("button", { name: /Add to community/ })).toBeDisabled();
   });
 
-  it("tells an ordinary admin that the superadmin adds apps", async () => {
+  it("tells an ordinary admin that the superadmin adds plug-ins", async () => {
     communityRole = "admin";
-    renderPage(MarketplaceListingPage, { routerSearch: { kind: "app" } });
+    renderPage(MarketplaceListingPage, { routerSearch: { kind: "plugin" } });
 
     expect(
-      await screen.findByText("Ask your community's superadmin to add this app.")
+      await screen.findByText("Ask your community's superadmin to add this plug-in.")
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Add to community/ })).toBeDisabled();
   });
 
-  it("says an app is already installed instead of offering it again", async () => {
+  it("says a plug-in is already installed instead of offering it again", async () => {
     installedUids = ["GLDCAL00000001"];
-    renderPage(MarketplaceListingPage, { routerSearch: { kind: "app" } });
+    renderPage(MarketplaceListingPage, { routerSearch: { kind: "plugin" } });
 
     expect(await screen.findByText("Installed")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Add to community/ })).toBeNull();
   });
 
-  it("does not tell a member to ask for an app the community already has", async () => {
+  it("does not tell a member to ask for a plug-in the community already has", async () => {
     communityRole = "member";
     installedUids = ["GLDCAL00000001"];
-    renderPage(MarketplaceListingPage, { routerSearch: { kind: "app" } });
+    renderPage(MarketplaceListingPage, { routerSearch: { kind: "plugin" } });
 
     expect(await screen.findByText("Installed")).toBeInTheDocument();
-    expect(screen.queryByText("Ask your community's superadmin to add this app.")).toBeNull();
+    expect(screen.queryByText("Ask your community's superadmin to add this plug-in.")).toBeNull();
   });
 
   it("does not guess at installed state while it is still loading", async () => {
     // Neither answer is known yet, so neither is claimed: no badge saying it is
     // there, and no offer to add something the community may already have.
     installsState = "loading";
-    renderPage(MarketplaceListingPage, { routerSearch: { kind: "app" } });
+    renderPage(MarketplaceListingPage, { routerSearch: { kind: "plugin" } });
 
     await screen.findByRole("heading", { name: "Community calendar" });
     expect(screen.queryByText("Installed")).toBeNull();
     expect(screen.getByRole("button", { name: /Add to community/ })).toBeDisabled();
-    expect(screen.queryByText("Ask your community's superadmin to add this app.")).toBeNull();
+    expect(screen.queryByText("Ask your community's superadmin to add this plug-in.")).toBeNull();
   });
 
   it("says so when it could not check, rather than implying not installed", async () => {
     installsState = "error";
     communityRole = "member";
-    renderPage(MarketplaceListingPage, { routerSearch: { kind: "app" } });
+    renderPage(MarketplaceListingPage, { routerSearch: { kind: "plugin" } });
 
     expect(
-      await screen.findByText("Could not check whether this app is already added.")
+      await screen.findByText("Could not check whether this plug-in is already added.")
     ).toBeInTheDocument();
     // The "go ask an admin" line asserts the community does not have it, which is
     // exactly what failed to load.
-    expect(screen.queryByText("Ask your community's superadmin to add this app.")).toBeNull();
+    expect(screen.queryByText("Ask your community's superadmin to add this plug-in.")).toBeNull();
   });
 
   it("does not offer the superadmin an install it cannot rule out as a duplicate", async () => {
     // The superadmin *may* install, so only the unknown state holds the button back
     // here — the community may already have this, and the server would refuse.
     installsState = "error";
-    renderPage(MarketplaceListingPage, { routerSearch: { kind: "app" } });
+    renderPage(MarketplaceListingPage, { routerSearch: { kind: "plugin" } });
 
     await screen.findByRole("heading", { name: "Community calendar" });
     expect(screen.getByRole("button", { name: /Add to community/ })).toBeDisabled();

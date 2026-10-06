@@ -145,7 +145,7 @@ def test_valid_es256_token_accepted():
 
 
 def test_multi_aud_with_correct_azp_accepted():
-    token = _encode(_claims(aud=[AUDIENCE, "other-app"], azp=AUDIENCE))
+    token = _encode(_claims(aud=[AUDIENCE, "other-plugin"], azp=AUDIENCE))
     claims = _verify(token)
     assert claims["azp"] == AUDIENCE
 
@@ -273,7 +273,7 @@ def test_missing_nonce_claim_rejected():
 
 def test_multi_aud_without_azp_rejected():
     with pytest.raises(IdTokenVerificationError):
-        _verify(_encode(_claims(aud=[AUDIENCE, "other-app"])))
+        _verify(_encode(_claims(aud=[AUDIENCE, "other-plugin"])))
 
 
 def test_azp_mismatch_rejected():

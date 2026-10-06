@@ -1,6 +1,6 @@
 name: Registry re-sign
 
-# Starts the public app registry's Registry workflow in
+# Starts the public plug-in registry's Registry workflow in
 # Morelitea/initiative-developer once a day. Its timestamp role expires after a
 # day, so the registry is re-signed and republished daily even when nothing
 # merges there. The schedule lives here because GitHub turns a repository's

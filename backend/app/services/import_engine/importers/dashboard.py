@@ -108,7 +108,7 @@ async def _normalized_definition(raw: dict[str, Any] | None) -> dict[str, Any]:
     """The envelope's definition, through the app's own validator.
 
     A definition naming a widget or binding this build has no renderer for —
-    an archive from a newer version, or one that referenced an app that is not
+    an archive from a newer version, or one that referenced a plug-in that is not
     installed here — yields an empty canvas rather than failing the whole
     import: the dashboard arrives, empty, for somebody to rebuild, which is
     more use than losing it and everything queued behind it.
@@ -127,7 +127,7 @@ async def _normalized_definition(raw: dict[str, Any] | None) -> dict[str, Any]:
 async def _resolved_listing(
     session: AsyncSession, listing_uid: str | None, listing_version: str | None
 ) -> tuple[str | None, str | None]:
-    """Keep the app reference only when this deployment ships that listing;
+    """Keep the plug-in reference only when this deployment ships that listing;
     otherwise the dashboard arrives as an ordinary one rather than pointing at
     a listing that is not here."""
     if not listing_uid:

@@ -12,7 +12,7 @@ describe("the source registry", () => {
     // The registry is what the config dialog, the provenance line and
     // unboundSlots all read, so a binding missing here has no controls and no
     // description anywhere.
-    expect(Object.keys(SOURCES).sort()).toEqual(["app", "query", "sheet_range"]);
+    expect(Object.keys(SOURCES).sort()).toEqual(["plugin", "query", "sheet_range"]);
   });
 
   it("says a statement is the whole of a query binding", () => {

@@ -18,7 +18,7 @@ from app.api.deps import (
     IncludeDeletedDep,
     RLSSessionDep,
     SessionDep,
-    app_scope,
+    plugin_scope,
     get_current_active_user,
     GuildContextDep,
 )
@@ -78,9 +78,9 @@ from app.schemas.tenant.tag import annotated_tags
 
 router = APIRouter(route_class=ActorRoute)
 
-#: The routes an installed app may call, under the projects scopes.
-ProjectsRead = Annotated[ActorContext, Depends(app_scope("projects:read"))]
-ProjectsWrite = Annotated[ActorContext, Depends(app_scope("projects:write"))]
+#: The routes an installed plug-in may call, under the projects scopes.
+ProjectsRead = Annotated[ActorContext, Depends(plugin_scope("projects:read"))]
+ProjectsWrite = Annotated[ActorContext, Depends(plugin_scope("projects:write"))]
 
 
 async def _attach_task_summaries(session: SessionDep, projects: List[Project]) -> None:
@@ -208,7 +208,7 @@ async def _project_reads(
     projects: List[Project],
 ) -> List[ProjectRead]:
     """``ProjectRead`` for each project, in the order given, with the reader's
-    own favourites and last visits. An installed app (``user_id`` ``None``)
+    own favourites and last visits. An installed plug-in (``user_id`` ``None``)
     keeps neither."""
     if not projects:
         return []
@@ -218,7 +218,7 @@ async def _project_reads(
     await _attach_task_summaries(session, projects)
     await tags_service.annotate_tags(session, projects)
     await properties_service.annotate_properties(session, projects)
-    await ownership_service.annotate_owner_apps(session, projects)
+    await ownership_service.annotate_owner_plugins(session, projects)
     favorite_ids: set[int] = set()
     view_map: dict[int, datetime] = {}
     if user_id is not None:
@@ -255,7 +255,7 @@ def _slim_project_reads(
     """Build lightweight ``ProjectRead`` rows for the slim projection.
 
     Carries only ``{id, name, icon, initiative_id, can}`` plus
-    the cheap scalar flags and who owns it (``owner_id``, or ``owner_app`` as
+    the cheap scalar flags and who owns it (``owner_id``, or ``owner_plugin`` as
     the caller annotated it); documents/grants/tags/the owner's profile/nested
     initiative are left at their defaults so no heavy relationship is
     serialized. ``description`` is dropped too (it would run rich-text
@@ -281,7 +281,7 @@ def _slim_project_reads(
             ).model_copy(
                 # Set after construction: the field's alias keeps
                 # ``model_validate`` off the ORM row.
-                update={"owner_app": ownership_service.owner_app_of(project)}
+                update={"owner_plugin": ownership_service.owner_plugin_of(project)}
             )
         )
     return reads
@@ -300,7 +300,7 @@ async def serialize_project_page(
     per-row build with no follow-up queries — that is what makes it slim.
     """
     if slim:
-        await ownership_service.annotate_owner_apps(session, projects)
+        await ownership_service.annotate_owner_plugins(session, projects)
         return _slim_project_reads(
             projects, user_id, context=require_actor_context(session)
         )
@@ -389,7 +389,7 @@ def _build_project_payload(
             "can": _project_can(project, user_id, context=context),
             "owner_id": ownership_service.owner_user_id_of(project),
             "owner": _project_owner(project),
-            "owner_app": ownership_service.owner_app_of(project),
+            "owner_plugin": ownership_service.owner_plugin_of(project),
         }
     )
 
@@ -409,7 +409,7 @@ async def create_project(
     current_user: ActorUserDep,
     guild_context: ProjectsWrite,
 ) -> ProjectRead:
-    resource_access.refuse_app_sharing(guild_context, project_in, "grants")
+    resource_access.refuse_plugin_sharing(guild_context, project_in, "grants")
     if project_in.template_id is not None:
         # Reaching the blueprint is settled first: whether it is a blueprint at
         # all is a fact about a project the caller can already read.

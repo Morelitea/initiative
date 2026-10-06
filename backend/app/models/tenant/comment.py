@@ -177,7 +177,7 @@ class Comment(CreatedByMixin, SoftDeleteMixin, table=True):
     )
     #: What the platform posted this as, when the platform posted it — a
     #: repeat noted on an operations case, say. Null on everything a person or
-    #: an app wrote; it is what tells the platform's notes from an app's, since
+    #: a plug-in wrote; it is what tells the platform's notes from a plug-in's, since
     #: neither names an author.
     system_kind: Optional[str] = Field(
         default=None,

@@ -23,7 +23,7 @@ from starlette.requests import Request
 from starlette.routing import Mount
 
 from app.core import identify, rate_limit
-from app.core.app_access_token import seal_install_token
+from app.core.plugin_access_token import seal_install_token
 from app.core.config import settings
 from app.core.rate_limit import (
     _default_limits,
@@ -326,12 +326,12 @@ class TestUserOrIpKey:
         request = self._request(query=f"token={token}".encode())
         assert get_user_or_ip_key(request) == "user:9"
 
-    def test_an_installed_apps_bearer_token_is_counted_by_its_install(self):
+    def test_an_installed_plugins_bearer_token_is_counted_by_its_install(self):
         assert get_user_or_ip_key(self._bearer(_install_token())) == (
             "install:acme.widgets:7:3"
         )
 
-    def test_an_installed_apps_token_is_read_only_as_a_bearer(self):
+    def test_an_installed_plugins_token_is_read_only_as_a_bearer(self):
         cookie = f"{SESSION_COOKIE_NAME}={_install_token()}".encode()
         request = self._request(headers=[(b"cookie", cookie)])
         assert get_user_or_ip_key(request) == "198.51.100.7"
@@ -342,9 +342,9 @@ class TestUserOrIpKey:
     def test_the_address_is_the_counter_when_nobody_is_named(self):
         assert get_user_or_ip_key(self._request()) == "198.51.100.7"
 
-    def test_an_installed_app_is_counted_by_client_and_install(self):
+    def test_an_installed_plugin_is_counted_by_client_and_install(self):
         request = self._request()
-        request.state.app_install = ("acme.widgets", 7, 3)
+        request.state.plugin_install = ("acme.widgets", 7, 3)
         assert get_user_or_ip_key(request) == "install:acme.widgets:7:3"
 
 

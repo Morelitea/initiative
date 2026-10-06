@@ -48,8 +48,8 @@
     "SCENE_TOO_LARGE": "Dieses Widget hat mehr Daten zurückgegeben, als eine Kachel anzeigen kann.",
     "SCENE_TOO_MANY_NODES": "Dieses Widget wollte zu viele Elemente zeichnen.",
     "SCENE_VALUE_NOT_FINITE": "Dieses Widget hat eine ungültige Zahl zurückgegeben.",
-    "WIDGET_APP_NOT_INSTALLED": "Die App, mit der dieses Widget verbunden war, ist nicht mehr installiert. Verbinden Sie die App erneut, um das Widget wiederherzustellen.",
-    "WIDGET_APP_UNAVAILABLE": "Die App hinter diesem Widget antwortet nicht.",
+    "WIDGET_PLUGIN_NOT_INSTALLED": "Das Plug-in, mit dem dieses Widget verbunden war, ist nicht mehr installiert. Verbinden Sie das Plug-in erneut, um das Widget wiederherzustellen.",
+    "WIDGET_PLUGIN_UNAVAILABLE": "Das Plug-in hinter diesem Widget antwortet nicht.",
     "WIDGET_BAD_OUTPUT": "Dieses Widget hat etwas zurückgegeben, das nicht gezeichnet werden kann.",
     "WIDGET_NO_RENDER_EXPORT": "Dieses Widget hat keine Renderfunktion.",
     "WIDGET_OUT_OF_MEMORY": "Dieses Widget hat zu viel Speicher belegt und wurde gestoppt.",
@@ -63,7 +63,7 @@
   "bindingSource": {
     "query": "SQL-Abfrage",
     "sheet_range": "Tabellenbereich",
-    "app": "App-Daten"
+    "plugin": "Plug-in-Daten"
   },
   "gallery": {
     "title": "Widget-Galerie",
@@ -115,14 +115,14 @@
     "all_counter_group": "Alle Zählergruppen",
     "all_counter": "Alle Zähler",
     "all_document": "Alle Tabellen",
-    "appEndpoint": "Was es liest",
-    "app": "App",
-    "appPlaceholder": "App auswählen",
-    "appEndpointPlaceholder": "Lesevorgang wählen…",
-    "appNotInstalled": "Diese App ist in dieser Community nicht installiert.",
-    "appParamPlaceholder": "Wählen…",
-    "appParamNeedsSibling": "Wähle zuerst den Wert darüber.",
-    "appParamListHint": "Werte durch Kommas trennen.",
+    "pluginEndpoint": "Was es liest",
+    "plugin": "Plug-in",
+    "pluginPlaceholder": "Plug-in auswählen",
+    "pluginEndpointPlaceholder": "Lesevorgang wählen…",
+    "pluginNotInstalled": "Dieses Plug-in ist in dieser Community nicht installiert.",
+    "pluginParamPlaceholder": "Wählen…",
+    "pluginParamNeedsSibling": "Wähle zuerst den Wert darüber.",
+    "pluginParamListHint": "Werte durch Kommas trennen.",
     "all_property": "Keine Eigenschaft",
     "sqlHelp": "Ein reines Lese-SELECT über die Daten dieser Community. Es läuft unter deinem Konto und liefert daher nur, was du ohnehin sehen kannst."
   },
@@ -245,8 +245,8 @@
     "document": "Tabelle",
     "sheet": "Blatt",
     "range": "Bereich",
-    "app_uid": "App",
-    "source_id": "App-Datenquelle",
+    "plugin_uid": "Plug-in",
+    "source_id": "Plug-in-Datenquelle",
     "sql": "Anweisung"
   },
   "slot": {

@@ -16,7 +16,7 @@ import app.db.schema_provisioning as schema_provisioning
 from app.db.guild_ddl import rendered_constraint_names, rendered_trigger_names
 from app.db.schema_provisioning import (
     GuildRoleKind,
-    APP_ROLE_MACHINERY_READS,
+    PLUGIN_ROLE_MACHINERY_READS,
     SUPPORT_WRITE_PROTECTED_TABLES,
     apply_guild_rls,
     strip_template_registry_objects,
@@ -46,8 +46,8 @@ _GID_READ_FLOOR = 990_121
 _GID_SEAT = 990_122
 _GID_RETIRED_A = 990_123
 _GID_RETIRED_B = 990_124
-_GID_APP = 990_125
-_GID_APP_DENIED = 990_126
+_GID_PLUGIN = 990_125
+_GID_PLUGIN_DENIED = 990_126
 # Back-fill sweep (each pair: one provisioned, one only a public row).
 _GID_BACKFILL_DONE = 990_111
 _GID_BACKFILL_MISSING = 990_112
@@ -280,26 +280,26 @@ async def test_the_seat_role_is_the_guild_role_plus_the_communitys_own_settings(
             await drop_guild_schema(conn, gid)
 
 
-async def test_the_app_role_holds_only_what_an_app_reaches(engine):
-    """``guild_<id>_app`` writes content, reads the initiative structure, and
-    holds nothing on the community's configuration or its app setup beyond
+async def test_the_plugin_role_holds_only_what_a_plugin_reaches(engine):
+    """``guild_<id>_plugin`` writes content, reads the initiative structure, and
+    holds nothing on the community's configuration or its plug-in setup beyond
     the columns its own standing reads."""
-    gid = _GID_APP
+    gid = _GID_PLUGIN
     try:
         async with engine.begin() as conn:
             await provision_guild_schema(conn, gid)
         schema = guild_schema_name(gid)
-        app_role = guild_role_name(gid, GuildRoleKind.app)
+        plugin_role = guild_role_name(gid, GuildRoleKind.plugin)
 
         async def held(conn, table: str, verb: str) -> bool:
             return await conn.scalar(
                 text("SELECT has_table_privilege(:r, :t, :p)"),
-                {"r": app_role, "t": f"{schema}.{table}", "p": verb},
+                {"r": plugin_role, "t": f"{schema}.{table}", "p": verb},
             )
 
         async with engine.connect() as conn:
             assert await conn.scalar(
-                text("SELECT 1 FROM pg_roles WHERE rolname = :r"), {"r": app_role}
+                text("SELECT 1 FROM pg_roles WHERE rolname = :r"), {"r": plugin_role}
             )
             for verb in ("SELECT", "INSERT", "UPDATE", "DELETE"):
                 assert await held(conn, "tasks", verb) is True, f"tasks {verb}"
@@ -310,15 +310,15 @@ async def test_the_app_role_holds_only_what_an_app_reaches(engine):
                 )
             for table in (
                 "guild_settings",
-                "guild_apps",
-                "guild_app_secrets",
-                "app_placements",
+                "guild_plugins",
+                "guild_plugin_secrets",
+                "plugin_placements",
                 "initiative_role_permissions",
             ):
                 for verb in ("SELECT", "INSERT", "UPDATE", "DELETE"):
                     assert await held(conn, table, verb) is False, f"{table} {verb}"
             # The install standing statement reads these columns and no others.
-            for table, columns in APP_ROLE_MACHINERY_READS.items():
+            for table, columns in PLUGIN_ROLE_MACHINERY_READS.items():
                 if not columns:
                     continue
                 readable = {
@@ -332,7 +332,7 @@ async def test_the_app_role_holds_only_what_an_app_reaches(engine):
                                 "WHERE table_schema = :s AND table_name = :n"
                             ),
                             {
-                                "r": app_role,
+                                "r": plugin_role,
                                 "t": f"{schema}.{table}",
                                 "s": schema,
                                 "n": table,
@@ -353,15 +353,15 @@ async def test_the_app_role_holds_only_what_an_app_reaches(engine):
             await drop_guild_schema(conn, gid)
 
 
-async def test_the_app_role_is_refused_the_communitys_settings(engine):
-    """A session assuming ``guild_<id>_app`` cannot read ``guild_settings``."""
-    gid = _GID_APP_DENIED
+async def test_the_plugin_role_is_refused_the_communitys_settings(engine):
+    """A session assuming ``guild_<id>_plugin`` cannot read ``guild_settings``."""
+    gid = _GID_PLUGIN_DENIED
     try:
         async with engine.begin() as conn:
             await provision_guild_schema(conn, gid)
         async with engine.connect() as conn:
             await conn.exec_driver_sql(
-                f'SET ROLE "{guild_role_name(gid, GuildRoleKind.app)}"'
+                f'SET ROLE "{guild_role_name(gid, GuildRoleKind.plugin)}"'
             )
             with pytest.raises(ProgrammingError) as exc:
                 await conn.scalar(
@@ -444,8 +444,8 @@ async def test_support_role_write_capped_on_protected_tables(engine):
             # DML until somebody remembers it, which has happened twice.
             for table in (
                 "resource_grants",
-                "guild_app_user_connections",
-                "app_member_consents",
+                "guild_plugin_user_connections",
+                "plugin_member_consents",
             ):
                 assert table in SUPPORT_WRITE_PROTECTED_TABLES, table
 

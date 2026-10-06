@@ -13,29 +13,29 @@ from app.testing import (
     strip_non_owner_grants,
     create_calendar,
     create_calendar_event,
-    create_guild_app,
+    create_guild_plugin,
     route_session_to_guild,
     create_initiative,
     create_guild_calendar,
     create_resource_grant,
 )
 
-CALENDAR_APP = {
-    "app_kind": "tool_instance",
+CALENDAR_PLUGIN = {
+    "plugin_kind": "tool_instance",
     "tool": "calendar",
     "default_name": "Community calendar",
 }
 
 
-async def _install_calendar_app(session, guild, creator):
-    """The guild calendar app, which is what holds a guild's calendars."""
-    return await create_guild_app(
+async def _install_calendar_plugin(session, guild, creator):
+    """The guild calendar plug-in, which is what holds a guild's calendars."""
+    return await create_guild_plugin(
         session,
         guild,
         creator,
-        definition=CALENDAR_APP,
+        definition=CALENDAR_PLUGIN,
         name="Community calendar",
-        app_kind="tool_instance",
+        plugin_kind="tool_instance",
     )
 
 
@@ -312,7 +312,7 @@ async def test_calendar_counts_by_initiative(
 
 
 # ---------------------------------------------------------------------------
-# Guild calendars — the ones the calendar app holds
+# Guild calendars — the ones the calendar plug-in holds
 # ---------------------------------------------------------------------------
 
 
@@ -320,10 +320,10 @@ async def test_a_guild_calendar_is_the_admin_s_and_the_install_owns_it(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """No initiative means no initiative gate: a guild calendar is the guild
-    admin's to make. The calendar app's install owns it, which is what makes it
-    one of the app's artifacts and what uninstalling trashes."""
+    admin's to make. The calendar plug-in's install owns it, which is what makes it
+    one of the plug-in's artifacts and what uninstalling trashes."""
     admin = await acting_user(guild_role=CommunityRole.admin)
-    app = await _install_calendar_app(session, admin.guild, admin.user)
+    plugin = await _install_calendar_plugin(session, admin.guild, admin.user)
     member = await acting_user(guild_role=CommunityRole.member, guild=admin.guild)
 
     refused = await client.post(
@@ -353,12 +353,12 @@ async def test_a_guild_calendar_is_the_admin_s_and_the_install_owns_it(
     ).all()
     # The install owns it, and the default sharing reads as the whole guild.
     assert {
-        (g.app_install_id, g.user_id, str(g.level), g.all_initiative_members)
+        (g.plugin_install_id, g.user_id, str(g.level), g.all_initiative_members)
         for g in grants
-    } == {(app.id, None, "owner", False), (None, None, "read", True)}
+    } == {(plugin.id, None, "owner", False), (None, None, "read", True)}
     assert all(g.initiative_id is None for g in grants)
 
-    listed = await client.get(admin.g(f"/apps/{app.id}"), headers=admin.headers)
+    listed = await client.get(admin.g(f"/plugins/{plugin.id}"), headers=admin.headers)
     assert listed.json()["artifacts"] == [{"type": "calendar", "id": body["id"]}]
 
 
@@ -368,8 +368,10 @@ async def test_a_write_grant_writes_a_guild_calendar_s_events(
     """The admin decides who writes what a guild calendar holds. Changing the
     calendar itself — renaming it, archiving it — stays the admin's."""
     admin = await acting_user(guild_role=CommunityRole.admin)
-    app = await _install_calendar_app(session, admin.guild, admin.user)
-    calendar = await create_guild_calendar(session, admin.guild, admin.user, app=app)
+    plugin = await _install_calendar_plugin(session, admin.guild, admin.user)
+    calendar = await create_guild_calendar(
+        session, admin.guild, admin.user, plugin=plugin
+    )
     member = await acting_user(guild_role=CommunityRole.member, guild=admin.guild)
     await create_resource_grant(
         session, calendar, level=ResourceAccessLevel.write, user=member.user
@@ -402,10 +404,10 @@ async def test_a_write_grant_writes_a_guild_calendar_s_events(
     assert event.status_code == 201, event.text
 
 
-async def test_a_guild_calendar_needs_the_app(
+async def test_a_guild_calendar_needs_the_plugin(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """Without the app there is no entry that reaches a guild calendar, so one
+    """Without the plug-in there is no entry that reaches a guild calendar, so one
     is refused rather than created where nothing links to it."""
     a = await acting_user(guild_role=CommunityRole.admin)
 
@@ -413,13 +415,13 @@ async def test_a_guild_calendar_needs_the_app(
         a.g("/calendars/"), headers=a.headers, json={"name": "Holidays"}
     )
     assert response.status_code == 403
-    assert response.json()["detail"] == "CALENDAR_COMMUNITY_APP_REQUIRED"
+    assert response.json()["detail"] == "CALENDAR_COMMUNITY_PLUGIN_REQUIRED"
 
 
 async def test_guild_scope_lists_only_the_guild_s_own(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """``scope=community`` is the calendar app's own list: guild calendars, and no
+    """``scope=community`` is the calendar plug-in's own list: guild calendars, and no
     initiative's."""
     a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _calendars_enabled(session, a.initiative)

@@ -51,7 +51,7 @@ export const ToolSettingsAdvancedPage = () => {
         toast.success(t("toolSettings.deleted", { name: entity.name }));
         setDeleteDialogOpen(false);
         // Back to the tool's tab in the initiative this entity belonged to.
-        // A community-level entity (an app's calendar) has no tab, so it falls back
+        // A community-level entity (a plug-in's calendar) has no tab, so it falls back
         // to the community home browsing that tool.
         if (entity.initiative_id == null) {
           const browse = toolCommunityBrowseTarget(tool);

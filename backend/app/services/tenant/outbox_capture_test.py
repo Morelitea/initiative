@@ -229,42 +229,42 @@ async def test_a_tag_is_captured_as_a_guild_wide_event(session, acting_user):
 
 
 async def test_an_install_is_captured_as_a_guild_wide_event(session, acting_user):
-    """Installed apps belong to no initiative, so their events carry a NULL one.
+    """Installed plug-ins belong to no initiative, so their events carry a NULL one.
 
     Same disclosure rule as tags: the install row is readable by every member
     (the sidebar lists it), so an event naming it reveals nothing new. An
     install appearing, changing state, or going away is what a subscriber
-    connects on, and ``config_state`` moving is the moment an app becomes
+    connects on, and ``config_state`` moving is the moment a plug-in becomes
     usable rather than merely present.
 
-    Published as ``apps`` — the segment the install's detail route lives at —
+    Published as ``plugins`` — the segment the install's detail route lives at —
     so the id every event carries resolves by the derivable route rule.
     """
-    from app.testing import create_guild_app
+    from app.testing import create_guild_plugin
 
     a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
-    app = await create_guild_app(
-        session, a.guild, a.user, definition={"app_kind": "service"}
+    plugin = await create_guild_plugin(
+        session, a.guild, a.user, definition={"plugin_kind": "service"}
     )
 
     rows = [
         r
         for r in await _outbox(session, a.guild.id)
-        if r.resource_type == "apps" and r.resource_id == app.id
+        if r.resource_type == "plugins" and r.resource_id == plugin.id
     ]
-    assert rows, "installing an app produced no outbox row"
+    assert rows, "installing a plug-in produced no outbox row"
     assert rows[0].action == "created"
     assert rows[0].initiative_id is None
 
-    app.config_state = "ok"
-    session.add(app)
+    plugin.config_state = "ok"
+    session.add(plugin)
     await session.commit()
 
     updated = [
         r
         for r in await _outbox(session, a.guild.id)
-        if r.resource_type == "apps"
-        and r.resource_id == app.id
+        if r.resource_type == "plugins"
+        and r.resource_id == plugin.id
         and r.action == "updated"
     ]
     assert updated, "changing config_state produced no outbox row"
@@ -612,8 +612,8 @@ async def test_the_chain_carries_identifiers_and_nothing_else(session, acting_us
 
 
 async def test_an_install_write_names_the_install(session, acting_user, role_session):
-    """A change an installed app's request wrote names the install, and no
-    person: the app acts as its community. A person's write names the person
+    """A change an installed plug-in's request wrote names the install, and no
+    person: the plug-in acts as its community. A person's write names the person
     and no install."""
     from app.db.install_standing_test import _install, _route
     from app.models.tenant.document import Document, DocumentType
@@ -625,7 +625,7 @@ async def test_an_install_write_names_the_install(session, acting_user, role_ses
     s, _ = await _route(role_session, install, ["documents:write"])
     made = Document(
         initiative_id=install.a.id,
-        name="Made by the app",
+        name="Made by the plug-in",
         document_type=DocumentType.native,
     )
     s.add(made)
@@ -635,14 +635,14 @@ async def test_an_install_write_names_the_install(session, acting_user, role_ses
     person = await _create_document_as(session, install)
 
     rows = await _outbox(session, install.guild.id)
-    by_app = [
+    by_plugin = [
         r for r in rows if r.resource_type == "documents" and r.resource_id == made_id
     ]
-    assert by_app, "an install's write produced no outbox row"
+    assert by_plugin, "an install's write produced no outbox row"
     # The document, and the owner grant the database wrote for the install
-    # beside it: both are the app's writes.
-    assert {(r.actor_install_id, r.actor_user_id) for r in by_app} == {
-        (install.app.id, None)
+    # beside it: both are the plug-in's writes.
+    assert {(r.actor_install_id, r.actor_user_id) for r in by_plugin} == {
+        (install.plugin.id, None)
     }
 
     by_person = [

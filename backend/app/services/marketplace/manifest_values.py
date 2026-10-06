@@ -70,7 +70,7 @@ class ListingDefinitionError(ValueError):
 # definition stays a document rather than a payload.
 #
 # Read from the vendored contract rather than declared here: the same numbers
-# are what the app-kit's schema and types are built from, so a cap is raised in
+# are what the plugin-kit's schema and types are built from, so a cap is raised in
 # one place and both sides of the protocol move together.
 
 MAX_IDENTIFIER_LENGTH = contract.cap("identifierLength")
@@ -210,7 +210,7 @@ def check_uid(value: Any, *, what: str) -> str:
 
 
 def check_path(value: Any, *, what: str) -> str:
-    """A path on the app's own service, never an address.
+    """A path on the plug-in's own service, never an address.
 
     The deployment joins this to the base URL its registration supplies, so a
     manifest states *which route*, and the operator states *where*. A value that

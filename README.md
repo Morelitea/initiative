@@ -23,7 +23,7 @@ It's designed for **small businesses, clubs, committees, event teams, families, 
 
 Start with a board and a few tasks. As your needs grow, add the tools you need — and leave everything else out of the way.
 
-Initiative also gives you fine-grained control over **who can see and change your work**, and a marketplace lets you add ready-made apps and dashboards built by other groups.
+Initiative also gives you fine-grained control over **who can see and change your work**, and a marketplace lets you add ready-made plug-ins and dashboards built by other groups.
 
 **It's project management that starts simple and grows with you.**
 
@@ -38,14 +38,14 @@ Initiative is already a full-featured workspace for groups:
 * **Tasks & projects** with Kanban, Table, Calendar, and other views
 * **Collaborative documents** including rich text, spreadsheets, and whiteboards with real-time editing
 * **Calendars, bulletin boards, queues, counters, dashboards, and more**
-* A curated **marketplace** of ready-made apps and dashboards
+* A curated **marketplace** of ready-made plug-ins and dashboards
 * **Notifications** and BYOK AI integration
 * **Self-hosting** with Docker and support for multiple guilds
 
 ### What's next
 
-**🧩 More apps, more possibilities**
-We're continuing to build the marketplace and the ecosystem around it — more dashboards, more useful apps, and better ways for groups to build and share their own.
+**🧩 More plug-ins, more possibilities**
+We're continuing to build the marketplace and the ecosystem around it — more dashboards, more useful plug-ins, and better ways for groups to build and share their own.
 
 **🌎 A more connected community**
 Initiative is becoming more than a place for private work. We're adding **public content, user profiles, and community features** that make it possible to discover what other people and groups are building.
@@ -54,15 +54,15 @@ Initiative is becoming more than a place for private work. We're adding **public
 Accessibility, UX improvements, performance, testing, and the countless little things that make Initiative nicer to use.
 
 **🔌 Connect to the rest of your world**
-Better APIs, integrations, templates, and apps that securely connect Initiative to the tools your group already uses.
+Better APIs, integrations, templates, and plug-ins that securely connect Initiative to the tools your group already uses.
 
 ### Where we're headed
 
 Initiative is **bootstrapped by two people**, and we're building it for the long haul — not toward an acquisition, IPO, or enterprise sales machine.
 
-Initiative is **open core**. The application — everything you self-host — stays **open source under the AGPL**. Apps can be built and distributed independently, whether they're hosted inside Initiative or run as separate services. See [License](#license) for what's open and what isn't.
+Initiative is **open core**. The application — everything you self-host — stays **open source under the AGPL**. Plug-ins can be built and distributed independently, whether they're hosted inside Initiative or run as separate services. See [License](#license) for what's open and what isn't.
 
-We're also building **Initiative Cloud** for groups who don't want to manage their own infrastructure, with paid features like hosted apps, automations, and other conveniences that make Initiative easier to run.
+We're also building **Initiative Cloud** for groups who don't want to manage their own infrastructure, with paid features like hosted plug-ins, automations, and other conveniences that make Initiative easier to run.
 
 **Build something useful. Share it. Find something someone else built. Make Initiative your own.**
 
@@ -279,7 +279,7 @@ The application in this repository is **open source** under the [GNU Affero Gene
 | Repository | License | What it is |
 |---|---|---|
 | [Morelitea/initiative](https://github.com/Morelitea/initiative) | AGPL-3.0 | The application: backend, frontend, and mobile builds |
-| [initiative-app-sdk](https://github.com/Morelitea/initiative-app-sdk) | MIT | The SDK and CLI for writing an app for Initiative |
-| [initiative-developer](https://github.com/Morelitea/initiative-developer) | MIT | The app registry, and the GitHub app to start your own from |
+| [initiative-plugin-sdk](https://github.com/Morelitea/initiative-plugin-sdk) | MIT | The SDK and CLI for writing a plug-in for Initiative |
+| [initiative-developer](https://github.com/Morelitea/initiative-developer) | MIT | The plug-in registry, and the GitHub plug-in to start your own from |
 
 **What isn't:** automations and billing are proprietary, are not published, and are not part of this repository. They exist to run Initiative Cloud; a self-hosted install is the complete product without them.

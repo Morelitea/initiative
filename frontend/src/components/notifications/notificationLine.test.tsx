@@ -187,41 +187,41 @@ describe("notificationText — mentions", () => {
   });
 });
 
-describe("an app asking to act as the reader", () => {
-  const request = notice("app_consent_requested", {
+describe("a plug-in asking to act as the reader", () => {
+  const request = notice("plugin_consent_requested", {
     community_id: 4,
-    app_id: 7,
-    app_name: "Auto",
+    plugin_id: 7,
+    plugin_name: "Auto",
     label: "Comment on the linked issue",
-    target_path: "/?app=7",
+    target_path: "/?plugin=7",
   });
 
-  it("names the app and quotes what it asked", () => {
+  it("names the plug-in and quotes what it asked", () => {
     expect(notificationText(request, t)).toBe(
-      `notifications.appConsentRequested(${JSON.stringify({
-        app: "Auto",
+      `notifications.pluginConsentRequested(${JSON.stringify({
+        plugin: "Auto",
         label: "Comment on the linked issue",
       })})`
     );
   });
 
-  it("opens that app's settings in its community", () => {
-    expect(notificationLink(request)).toBe("/c/4/?app=7");
+  it("opens that plug-in's settings in its community", () => {
+    expect(notificationLink(request)).toBe("/c/4/?plugin=7");
   });
 });
 
-describe("an app version waiting for the seat", () => {
-  const waiting = notice("app_update_pending", {
+describe("a plug-in version waiting for the seat", () => {
+  const waiting = notice("plugin_update_pending", {
     community_id: 4,
-    app_id: 7,
-    app_name: "Auto",
+    plugin_id: 7,
+    plugin_name: "Auto",
     version: "1.2.0",
     target_path: "/settings/integrations",
   });
 
-  it("names the app and the version", () => {
+  it("names the plug-in and the version", () => {
     expect(notificationText(waiting, t)).toBe(
-      `notifications.appUpdatePending(${JSON.stringify({ app: "Auto", version: "1.2.0" })})`
+      `notifications.pluginUpdatePending(${JSON.stringify({ plugin: "Auto", version: "1.2.0" })})`
     );
   });
 

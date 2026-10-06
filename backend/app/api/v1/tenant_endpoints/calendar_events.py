@@ -33,7 +33,7 @@ from app.api.deps import (
     ActorUserDep,
     IncludeDeletedDep,
     RLSSessionDep,
-    app_scope,
+    plugin_scope,
     get_current_active_user,
     GuildContext,
     GuildContextDep,
@@ -48,7 +48,7 @@ from app.models.tenant.calendar_event import (
 from app.models.tenant.initiative import Initiative
 from app.models.platform.notification import NotificationType
 from app.models.platform.user import User
-from app.core.messages import AppMessages, CalendarEventMessages
+from app.core.messages import PluginMessages, CalendarEventMessages
 from app.schemas.tenant.calendar_event import (
     CalendarEventSummary,
     CalendarEventCreate,
@@ -84,10 +84,10 @@ from app.services.tenant import tags as tags_service
 router = APIRouter(route_class=ActorRoute)
 logger = logging.getLogger(__name__)
 
-#: The routes an installed app may call. An event answers to its calendar, so
+#: The routes an installed plug-in may call. An event answers to its calendar, so
 #: they name the calendars scopes.
-CalendarsRead = Annotated[ActorContext, Depends(app_scope("calendars:read"))]
-CalendarsWrite = Annotated[ActorContext, Depends(app_scope("calendars:write"))]
+CalendarsRead = Annotated[ActorContext, Depends(plugin_scope("calendars:read"))]
+CalendarsWrite = Annotated[ActorContext, Depends(plugin_scope("calendars:write"))]
 
 
 #: The widest date window a calendar read may ask for: the year view plus
@@ -302,14 +302,14 @@ async def _notify_about_event(
     event: CalendarEvent,
     *,
     key: str,
-    actor: "User | notifications_service.AppAuthor",
+    actor: "User | notifications_service.PluginAuthor",
     role: str,
     data: dict[str, Any] | None = None,
     values: dict[str, str] | None = None,
     at: datetime | None = None,
 ) -> None:
     """Tell ``user_ids`` something about ``event``, naming whoever did it in
-    ``role`` (organizer, editor, …): the person, or an installed app by its
+    ``role`` (organizer, editor, …): the person, or an installed plug-in by its
     name. The time is each reader's own, and ``at`` names one occurrence."""
     name = notifications_service.actor_name(actor)
     await notifications_service.notify(
@@ -417,7 +417,7 @@ async def query_my_calendar_events(
         nonlocal budget
         context = require_guild_context(guild_session)
         # Guild calendars included: this is the user's own calendar view, one of
-        # the two places their events show (the app's page is the other).
+        # the two places their events show (the plug-in's page is the other).
         conditions = [calendars_service.tool_enabled_clause()]
         conditions += starts_in_window(start_after, start_before, tz)
         conditions.append(_cross_guild_event_dac_clause(context, current_user.id))
@@ -582,7 +582,7 @@ async def guild_calendar_event_conditions(
     ``whole_series`` is an export's window (:func:`series_in_window`).
 
     ``guild_scope`` narrows to the guild's own calendars — the ones belonging to
-    no initiative. It is the calendar app's whole surface, and stating it here
+    no initiative. It is the calendar plug-in's whole surface, and stating it here
     is what keeps that surface from having to name its calendars one by one: a
     list of ids is a page of them, and events on whatever fell off the end would
     simply not be drawn.
@@ -735,7 +735,7 @@ async def create_calendar_event(
     """Create a calendar event. Requires write access on the calendar.
 
     The attendees it names are invited by whoever created it: the person, or
-    an installed app by its name. An installed app's event has no creator.
+    an installed plug-in by its name. An installed plug-in's event has no creator.
     """
     await _get_writable_calendar(
         session, event_in.calendar_id, current_user, guild_context
@@ -783,11 +783,11 @@ async def create_calendar_event(
         )
     if event_in.document_ids:
         if not relationships.records_edges(session):
-            # Attaching a document is a relationship, which an installed app
+            # Attaching a document is a relationship, which an installed plug-in
             # writes under its relationships scope.
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=AppMessages.SCOPE_REQUIRED,
+                detail=PluginMessages.SCOPE_REQUIRED,
             )
         await relationships.set_related(
             session,
@@ -1425,7 +1425,7 @@ async def set_attendees(
     """Set attendees. Requires write access on the calendar.
 
     Everyone newly on the list is invited by whoever set it: the person, or an
-    installed app by its name. ``scope`` works as it does on an update.
+    installed plug-in by its name. ``scope`` works as it does on an update.
     """
     event = await resource_access.load_child(
         session, CalendarEvent, event_id, action=Action.contribute

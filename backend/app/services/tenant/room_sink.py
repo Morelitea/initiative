@@ -207,7 +207,7 @@ async def _open_new_rooms(
 async def _fan_out(guild_id: int, rows: list[EventOutbox]) -> None:
     """Send each initiative its own changes, and the guild's to everyone.
 
-    A row with no initiative belongs to none — a tag, an installed app — and is
+    A row with no initiative belongs to none — a tag, an installed plug-in — and is
     something every member of the guild can already read, so it goes to every
     socket rather than to a room.
     """

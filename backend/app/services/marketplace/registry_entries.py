@@ -15,7 +15,7 @@ that the files are the ones the entry names, and turns the entry into rows:
   ``upsert_listing`` and validator every other source uses. A uid or name
   another source already published is refused, never taken over. Pictures are
   kept in ``marketplace_media`` by digest.
-* **for an app, its registration's app facts** (``app_service_registrations``,
+* **for a plug-in, its registration's plug-in facts** (``plugin_service_registrations``,
   ``source='registry'``), from the entry's ``registration`` block, through the
   same ``upsert_listing`` as every other source's listing. The block is the
   container image, the scope ceiling and the reference sectors; where the
@@ -46,8 +46,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.audit_events import AuditEventType
 from app.core.messages import MarketplaceRegistryMessages as Codes
-from app.models.platform.app_service_registration import (
-    AppServiceRegistration,
+from app.models.platform.plugin_service_registration import (
+    PluginServiceRegistration,
     RegistrationSource,
 )
 from app.models.platform.marketplace import (
@@ -315,9 +315,9 @@ async def _apply_publisher(
         await session.flush()
         await audit_service.record(
             session,
-            event_type=AuditEventType.APP_PUBLISHER_CREATED,
+            event_type=AuditEventType.PLUGIN_PUBLISHER_CREATED,
             actor_user_id=None,
-            target_type="app_publisher",
+            target_type="plugin_publisher",
             target_id=row.id,
             detail={
                 "via": "registry",
@@ -342,9 +342,9 @@ async def _apply_publisher(
     if changed["changed"]:
         await audit_service.record(
             session,
-            event_type=AuditEventType.APP_PUBLISHER_UPDATED,
+            event_type=AuditEventType.PLUGIN_PUBLISHER_UPDATED,
             actor_user_id=None,
-            target_type="app_publisher",
+            target_type="plugin_publisher",
             target_id=row.id,
             detail={"via": "registry", **changed},
         )
@@ -463,8 +463,8 @@ async def apply_entry(session: AsyncSession, path: str, context: EntryContext) -
     if not isinstance(kind, str) or kind not in LISTING_KINDS:
         raise UnsupportedEntry(f"{path} is a {kind!r} listing")
     registration = entry.get("registration")
-    if (registration is not None) != (kind == "app"):
-        raise _invalid("an app carries a registration, and nothing else does")
+    if (registration is not None) != (kind == "plugin"):
+        raise _invalid("a plug-in carries a registration, and nothing else does")
 
     versions = _versions(entry, directory)
     publisher = await _apply_publisher(session, context, prefix)
@@ -548,7 +548,7 @@ async def apply_entry(session: AsyncSession, path: str, context: EntryContext) -
     listing.publisher_id = publisher.id
     listing.publisher_verified = publisher.verified
     session.add(listing)
-    # The dashboards an app bundles are its publish, and share its provenance.
+    # The dashboards a plug-in bundles are its publish, and share its provenance.
     await session.exec(
         sa_update(MarketplaceListing)
         .where(MarketplaceListing.bundled_with_uid == uid)
@@ -572,7 +572,7 @@ async def withdraw_missing(
 
     ``present`` is every uid the repository lists; ``uncertain`` says whether a
     listing path falls under a publisher whose role did not load this time, and
-    so is unknown rather than gone. Bundled dashboards go with their app.
+    so is unknown rather than gone. Bundled dashboards go with their plug-in.
     """
     withdrawn = 0
     listings = (
@@ -598,9 +598,9 @@ async def withdraw_missing(
 
     registrations = (
         await session.exec(
-            select(AppServiceRegistration).where(
-                AppServiceRegistration.source == RegistrationSource.REGISTRY,
-                AppServiceRegistration.enabled.is_(True),
+            select(PluginServiceRegistration).where(
+                PluginServiceRegistration.source == RegistrationSource.REGISTRY,
+                PluginServiceRegistration.enabled.is_(True),
             )
         )
     ).all()
@@ -617,9 +617,9 @@ async def withdraw_missing(
         session.add(row)
         await audit_service.record(
             session,
-            event_type=AuditEventType.APP_SERVICE_UPDATED,
+            event_type=AuditEventType.PLUGIN_SERVICE_UPDATED,
             actor_user_id=None,
-            target_type="app_service_registration",
+            target_type="plugin_service_registration",
             target_id=row.id,
             detail={
                 "via": "registry",

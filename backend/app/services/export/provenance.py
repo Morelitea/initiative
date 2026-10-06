@@ -1,13 +1,13 @@
 """Which entities are ours to put in a file.
 
-A dashboard, or any tool entity, may be *derived from an app* — installed from
+A dashboard, or any tool entity, may be *derived from a plug-in* — installed from
 the marketplace and carrying its publisher's definition in
 ``listing_uid``/``definition``. Three sources publish into the catalog
 (``marketplace.definitions.LISTING_SOURCES``): ``builtin`` is what this build
 ships, while ``operator`` and ``registry`` come from somebody else.
 
-Only ``builtin`` is exported. An entity built on somebody else's app is
-restored by installing that app in the destination and letting it produce the
+Only ``builtin`` is exported. An entity built on somebody else's plug-in is
+restored by installing that plug-in in the destination and letting it produce the
 entity again — unpacking a copy of its definition out of an archive would
 carry a publisher's work into an instance that never installed it, and pin it
 at a version the publisher has no way to update.
@@ -28,7 +28,7 @@ BUILTIN_SOURCE = "builtin"
 
 # The manifest ``skipped`` reason recorded for what this filter removes, so an
 # archive states that the entity existed rather than silently omitting it.
-THIRD_PARTY_REASON = "third_party_app"
+THIRD_PARTY_REASON = "third_party_plugin"
 
 
 async def builtin_listing_uids(
@@ -58,7 +58,7 @@ async def builtin_listing_uids(
 
 
 def is_exportable(listing_uid: str | None, builtin: frozenset[str]) -> bool:
-    """True when the entity is hand-made here, or built on a built-in app."""
+    """True when the entity is hand-made here, or built on a built-in plug-in."""
     return not listing_uid or listing_uid in builtin
 
 

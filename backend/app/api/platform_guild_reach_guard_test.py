@@ -91,7 +91,7 @@ _WRAPPERS: dict[tuple[str, str], str] = {
         "provisions and seeds a new community's schema"
     ),
     (f"{_SERVICES}/guild_purge.py", "_delete_expired_hold"): (
-        "deletes one community whose hold ran out, letting go of its app "
+        "deletes one community whose hold ran out, letting go of its plug-in "
         "connections in its own schema"
     ),
     (f"{_SERVICES}/intake_setup.py", "_route"): (

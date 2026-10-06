@@ -349,7 +349,7 @@ def test_cors_origins_strips_path_component():
 
 
 def _csp(settings: Settings) -> str:
-    """The app-wide policy, framing no app, for the settings' own captcha."""
+    """The app-wide policy, framing no plug-in, for the settings' own captcha."""
     return settings.content_security_policy_with_frames(
         (), captcha_provider=settings.CAPTCHA_PROVIDER
     )

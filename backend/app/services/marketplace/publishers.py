@@ -1,17 +1,17 @@
-"""Managing the deployment's app publishers.
+"""Managing the deployment's plug-in publishers.
 
-A publisher is the ``<prefix>`` half of every ``<prefix>.<slug>`` app id this
+A publisher is the ``<prefix>`` half of every ``<prefix>.<slug>`` plug-in id this
 deployment registers (:mod:`app.models.platform.publisher`). Three ways a row
 arrives:
 
 * **Boot seeds this project's own publisher** (:func:`seed_publishers`), once;
   a restart never changes a row that exists, so an operator's switch stays
   where they left it.
-* **An operator adds one** through the ``apps.manage`` endpoints, for a
-  private app's prefix.
+* **An operator adds one** through the ``plugins.manage`` endpoints, for a
+  private plug-in's prefix.
 * **A registration names a prefix no row has yet**, and one is added for it,
   unverified and enabled (:func:`ensure_publisher`). Whoever registered the
-  app chose its prefix, so the row records that choice rather than refusing it.
+  plug-in chose its prefix, so the row records that choice rather than refusing it.
 * **The registry brings one** with a verified listing
   (:mod:`app.services.marketplace.registry_entries`). It keeps its own rows
   and the seeded one up to date, and never touches an operator's.
@@ -33,7 +33,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.audit_events import AuditEventType
-from app.core.messages import AppServiceMessages
+from app.core.messages import PluginServiceMessages
 from app.models.platform.publisher import (
     FIRST_PARTY_PUBLISHER_NAME,
     FIRST_PARTY_PUBLISHER_PREFIX,
@@ -83,16 +83,16 @@ def valid_prefix(value: str) -> bool:
 def normalize_prefix(value: str) -> str:
     cleaned = (value or "").strip().lower()
     if not cleaned or len(cleaned) > PUBLISHER_PREFIX_MAX_LENGTH:
-        raise _bad_request(AppServiceMessages.INVALID_PUBLISHER_PREFIX)
+        raise _bad_request(PluginServiceMessages.INVALID_PUBLISHER_PREFIX)
     if any(char not in _PREFIX_CHARS for char in cleaned):
-        raise _bad_request(AppServiceMessages.INVALID_PUBLISHER_PREFIX)
+        raise _bad_request(PluginServiceMessages.INVALID_PUBLISHER_PREFIX)
     return cleaned
 
 
 def normalize_display_name(value: str) -> str:
     cleaned = (value or "").strip()
     if not cleaned or len(cleaned) > _MAX_DISPLAY_NAME:
-        raise _bad_request(AppServiceMessages.INVALID_PUBLISHER_NAME)
+        raise _bad_request(PluginServiceMessages.INVALID_PUBLISHER_NAME)
     return cleaned
 
 
@@ -106,7 +106,7 @@ async def get_publisher(session: AsyncSession, publisher_id: int) -> Publisher:
     if row is None:
         raise HTTPException(
             status_code=http_status.HTTP_404_NOT_FOUND,
-            detail=AppServiceMessages.PUBLISHER_NOT_FOUND,
+            detail=PluginServiceMessages.PUBLISHER_NOT_FOUND,
         )
     return row
 
@@ -137,16 +137,16 @@ async def create_publisher(
     if await _by_prefix(session, cleaned) is not None:
         raise HTTPException(
             status_code=http_status.HTTP_409_CONFLICT,
-            detail=AppServiceMessages.DUPLICATE_PUBLISHER,
+            detail=PluginServiceMessages.DUPLICATE_PUBLISHER,
         )
     row = Publisher(prefix=cleaned, display_name=name, verified=False, enabled=enabled)
     session.add(row)
     await session.flush()
     await audit_service.record(
         session,
-        event_type=AuditEventType.APP_PUBLISHER_CREATED,
+        event_type=AuditEventType.PLUGIN_PUBLISHER_CREATED,
         actor_user_id=actor_user_id,
-        target_type="app_publisher",
+        target_type="plugin_publisher",
         target_id=row.id,
         detail=audit_service.changed_fields(
             {}, audit_service.snapshot(row, AUDITED_FIELDS)
@@ -181,9 +181,9 @@ async def update_publisher(
     if changed["changed"]:
         await audit_service.record(
             session,
-            event_type=AuditEventType.APP_PUBLISHER_UPDATED,
+            event_type=AuditEventType.PLUGIN_PUBLISHER_UPDATED,
             actor_user_id=actor_user_id,
-            target_type="app_publisher",
+            target_type="plugin_publisher",
             target_id=row.id,
             detail=changed,
         )
@@ -208,9 +208,9 @@ async def ensure_publisher(session: AsyncSession, prefix: str) -> Publisher:
     await session.flush()
     await audit_service.record(
         session,
-        event_type=AuditEventType.APP_PUBLISHER_CREATED,
+        event_type=AuditEventType.PLUGIN_PUBLISHER_CREATED,
         actor_user_id=None,
-        target_type="app_publisher",
+        target_type="plugin_publisher",
         target_id=row.id,
         detail={
             "via": "registration",
@@ -238,9 +238,9 @@ async def seed_publishers(session: AsyncSession) -> bool:
     await session.flush()
     await audit_service.record(
         session,
-        event_type=AuditEventType.APP_PUBLISHER_CREATED,
+        event_type=AuditEventType.PLUGIN_PUBLISHER_CREATED,
         actor_user_id=None,
-        target_type="app_publisher",
+        target_type="plugin_publisher",
         target_id=row.id,
         detail={
             "via": "seed",

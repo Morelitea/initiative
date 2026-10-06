@@ -121,7 +121,7 @@ async def test_no_request_role_holds_a_verb(session):
     roles = [
         *REQUEST_FLOORS,
         "app_superadmin",
-        "app_install_base",
+        "plugin_install_base",
         *_config_manage_tiers(),
     ]
     for role in roles:
