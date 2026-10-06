@@ -82,14 +82,13 @@ class DashboardUpdate(SanitizedBaseModel):
 
 
 class DashboardPreview(SanitizedBaseModel):
-    """A dashboard as a list's card draws it: its canvas and its query widgets'
-    answers. Widgets bound to anything else draw from sample data there."""
+    """A dashboard as a list's card draws it: its canvas alone. Every widget
+    draws from sample data there, so a list runs none of their queries."""
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     definition: Dict[str, Any]
     config: Dict[str, Any]
-    widgets: Dict[str, "DashboardWidgetData"] = Field(default_factory=dict)
 
 
 class DashboardSummary(DashboardBase, ToolSummaryBase):
@@ -99,7 +98,7 @@ class DashboardSummary(DashboardBase, ToolSummaryBase):
     #: Whose access the query widgets answer from: each viewer's own, or full
     #: read access to the initiative, the same for everyone.
     view_mode: DashboardViewMode = DashboardViewMode.individual
-    #: The canvas and its answers, when the list was asked for previews.
+    #: The canvas, when the list was asked for previews.
     preview: Optional[DashboardPreview] = None
 
 
@@ -145,11 +144,6 @@ class DashboardDataResponse(SanitizedBaseModel):
 from app.schemas.sql_query import QueryResponse  # noqa: E402
 
 DashboardWidgetData.model_rebuild()
-# The preview names the widget answers declared above it.
-DashboardPreview.model_rebuild()
-DashboardSummary.model_rebuild()
-DashboardListResponse.model_rebuild()
-DashboardRead.model_rebuild()
 
 
 # --- widget catalog --------------------------------------------------------

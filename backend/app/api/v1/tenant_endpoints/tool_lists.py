@@ -122,7 +122,6 @@ from app.schemas.tenant.wiki import (
     WikiSummary,
 )
 from app.schemas.tenant.tool import ToolSummaryBase, serialize_tool
-from app.services import query as query_service
 from app.services.permissions import Action
 from app.services.tenant import archive as archive_service
 from app.services.tenant import calendars as calendars_service
@@ -519,21 +518,14 @@ def _include_preview() -> ListParam:
 async def _dashboard_previews(
     session: AsyncSession, guild_id: int, rows: list
 ) -> dict[int, DashboardPreview]:
-    """Each dashboard's canvas and its query widgets' answers. A canvas the
-    query service refuses — a busy community, a statement past its limits —
-    previews with no answers rather than failing the list."""
-    previews: dict[int, DashboardPreview] = {}
-    for dashboard in rows:
-        try:
-            widgets = await dashboards_endpoints.canvas_widget_data(
-                session, dashboard, guild_id
-            )
-        except query_service.QueryError:
-            widgets = {}
-        previews[dashboard.id] = DashboardPreview(
-            definition=dashboard.definition, config=dashboard.config, widgets=widgets
+    """Each dashboard's canvas. The card draws its widgets from sample data, so
+    nothing here runs a query."""
+    return {
+        dashboard.id: DashboardPreview(
+            definition=dashboard.definition, config=dashboard.config
         )
-    return previews
+        for dashboard in rows
+    }
 
 
 def _loads(loader: Callable[[], list]) -> Callable[[ListRequest], list]:
