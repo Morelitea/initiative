@@ -40,7 +40,7 @@ import { useCommunityPlugins } from "@/hooks/useCommunityPlugins";
 import { useWidgetCatalog } from "@/hooks/useDashboards";
 import { useMarketplaceListing } from "@/hooks/useMarketplace";
 import { useCommunityPath } from "@/lib/communityUrl";
-import { parseCommunityShelf } from "@/lib/marketplace";
+import { minimumAgeFor, parseCommunityShelf } from "@/lib/marketplace";
 import { resolveArtworkUrl } from "@/lib/uploadUrl";
 import { readConfig, readDefinition } from "@/lib/widgets/definition";
 
@@ -57,6 +57,10 @@ export function MarketplaceListingPage() {
 
   const listing = listingQuery.data;
   const isPlugin = listing?.kind === ListingKind.plugin;
+  // What the plug-in declares for the viewer's region; nothing enforces it here.
+  const minimumAge = isPlugin
+    ? minimumAgeFor(listing?.definition, globalThis.navigator?.language)
+    : null;
   // Back to the shelf this listing was found on, falling back to the listing's
   // own kind when someone arrived by direct link. Both can be unknown when the
   // listing failed to load, and neither is guaranteed to be a shelf this
@@ -137,6 +141,9 @@ export function MarketplaceListingPage() {
                   <Badge variant="secondary">
                     {t("card.version", { version: listing.latest_version.version })}
                   </Badge>
+                )}
+                {minimumAge != null && (
+                  <Badge variant="outline">{t("detail.minimumAge", { age: minimumAge })}</Badge>
                 )}
                 <span className="text-muted-foreground text-xs">
                   {t("detail.installs", { count: listing.installs_count })}
