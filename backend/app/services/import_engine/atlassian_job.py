@@ -37,6 +37,7 @@ from cryptography.fernet import InvalidToken
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.messages import ImportEngineMessages
+from app.core.tools import Tool, tool_envelope_type
 from app.core.version import get_version
 from app.models.platform.user import User, UserStatus
 from app.models.tenant.import_job import ImportJob, ImportJobStatus
@@ -75,16 +76,16 @@ SOURCE = "atlassian"
 PROVIDER = "atlassian"
 
 #: The importer whose permission a Jira project needs.
-_PROJECT_ENVELOPE = "initiative-project"
+_PROJECT_ENVELOPE = tool_envelope_type(Tool.project)
 
 #: The importer whose permission a Confluence space needs.
-_WIKI_ENVELOPE = "initiative-wiki"
+_WIKI_ENVELOPE = tool_envelope_type(Tool.wiki)
 
 #: The importer a board's sprints go through, as calendar events.
-_CALENDAR_ENVELOPE = "initiative-calendar"
+_CALENDAR_ENVELOPE = tool_envelope_type(Tool.calendar)
 
 #: The importer a page's attached files go through, as file documents.
-_DOCUMENT_ENVELOPE = "initiative-document"
+_DOCUMENT_ENVELOPE = tool_envelope_type(Tool.document)
 
 
 #: How an uploaded Confluence HTML export is staged, so the worker knows it

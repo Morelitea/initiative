@@ -100,14 +100,14 @@ export function useCreatableInitiatives(tool: Tool | null, communityId: number |
 /**
  * Whether the user has anywhere to land the two global create wizards, from the
  * community switcher alone (no per-community initiative fetch — this backs always-mounted
- * entry points). `document` follows authoring; `task` follows writing existing
- * content. Both err toward showing the entry.
+ * entry points). `tool` follows authoring a tool; `task` follows writing
+ * existing content. Both err toward showing the entry.
  */
 export function useGlobalCreateAccess() {
   const { communities } = useCommunities();
   return useMemo(
     () => ({
-      document: communities.some(communityMayAuthorTools),
+      tool: communities.some(communityMayAuthorTools),
       task: communities.some(communityMayWriteContent),
     }),
     [communities]

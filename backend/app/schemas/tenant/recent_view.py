@@ -48,7 +48,7 @@ class RecentItemRead(SanitizedBaseModel):
     last_viewed_at: datetime
     # Projects: emoji string stored on the project itself.
     icon: Optional[str] = None
-    # Documents: drive entity-specific icon + color via getDocumentIcon().
+    # Documents: drive entity-specific icon + color via documentIcon().
     document_type: Optional[str] = None
     mime_type: Optional[str] = None
     original_filename: Optional[str] = None

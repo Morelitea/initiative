@@ -27,7 +27,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.relationships import Related, RelationshipType
 from app.core.search import SearchEntityType
-from app.core.tools import Tool
+from app.core.tools import Tool, tool_envelope_type
 from app.models.platform.user import User
 from app.models.tenant.document import Document
 from app.models.tenant.task import Task
@@ -171,7 +171,7 @@ def _envelope(
     queue: Queue, items: list[QueueItem], attachments: Attachments
 ) -> dict[str, Any]:
     return {
-        "type": "initiative-queue",
+        "type": tool_envelope_type(Tool.queue),
         "schema_version": 1,
         "name": queue.name,
         "description": queue.description,

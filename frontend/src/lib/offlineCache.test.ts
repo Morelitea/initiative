@@ -38,6 +38,8 @@ describe("isPersistablePath", () => {
     expect(isPersistablePath("/api/v1/c/3/tasks/2866")).toBe(true);
     expect(isPersistablePath("/api/v1/c/3/documents")).toBe(true);
     expect(isPersistablePath("/api/v1/c/12/projects/1/tasks")).toBe(true);
+    expect(isPersistablePath("/api/v1/c/3/galleries/4")).toBe(true);
+    expect(isPersistablePath("/api/v1/c/3/wiki-pages/5")).toBe(true);
   });
 
   it("keeps the cross-community reads the home screens are built from", () => {

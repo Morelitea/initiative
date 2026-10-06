@@ -23,6 +23,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
+from app.core.tools import Tool, tool_envelope_type
 from app.services.import_engine.common import handle_key
 from app.services.import_engine.confluence_attachments import PageFile
 from app.services.import_engine.jira_attachments import StoredImage
@@ -191,8 +192,8 @@ class BundleWriter:
 
         for index, (key, envelope) in enumerate(projects, start=1):
             add(
-                "project",
-                "initiative-project",
+                Tool.project.value,
+                tool_envelope_type(Tool.project),
                 f"initiatives/1-imported/projects/{index}-{_safe(key, 'project')}"
                 ".initiative-project.json",
                 envelope["project"]["name"],
@@ -200,8 +201,8 @@ class BundleWriter:
             )
         for index, calendar in enumerate(calendars, start=1):
             add(
-                "calendar",
-                "initiative-calendar",
+                Tool.calendar.value,
+                tool_envelope_type(Tool.calendar),
                 f"initiatives/1-imported/calendars/{index}-{_safe(calendar['name'], 'sprints')}"
                 ".initiative-calendar.json",
                 calendar["name"],
@@ -213,14 +214,20 @@ class BundleWriter:
                 f"initiatives/1-imported/wikis/{index}-{_safe(key, 'space')}"
                 ".initiative-wiki.json"
             )
-            add("wiki", "initiative-wiki", wiki_path, envelope["name"], envelope)
+            add(
+                Tool.wiki.value,
+                tool_envelope_type(Tool.wiki),
+                wiki_path,
+                envelope["name"],
+                envelope,
+            )
             for page_file in wiki_files.get(key, ()):
                 document = page_file.stored
                 documents.append(document)
                 entries.append(
                     {
                         "path": f"assets/{document.storage_key}",
-                        "tool": "document",
+                        "tool": Tool.document.value,
                         "type": "file",
                         "schema_version": None,
                         "entity_id": len(entries) + 1,
@@ -242,7 +249,7 @@ class BundleWriter:
             entries.append(
                 {
                     "path": f"assets/{document.storage_key}",
-                    "tool": "document",
+                    "tool": Tool.document.value,
                     "type": "file",
                     "schema_version": None,
                     "entity_id": len(entries) + 1,
@@ -274,12 +281,12 @@ class BundleWriter:
             )
 
         tools = {
-            tool: "included"
+            tool.value: "included"
             for tool, present in (
-                ("project", projects),
-                ("calendar", calendars),
-                ("wiki", wikis),
-                ("document", documents),
+                (Tool.project, projects),
+                (Tool.calendar, calendars),
+                (Tool.wiki, wikis),
+                (Tool.document, documents),
             )
             if present
         }

@@ -93,7 +93,7 @@ async def test_two_kinds_sharing_an_id_do_not_share_tags(
         session, tags_service.TAG_LINKS["task"], task.id
     ) == [task_tag.id]
     assert await tags_service.active_tag_ids(
-        session, tags_service.TAG_LINKS["document"], doc.id
+        session, tags_service.spec_for(doc), doc.id
     ) == [doc_tag.id]
 
 

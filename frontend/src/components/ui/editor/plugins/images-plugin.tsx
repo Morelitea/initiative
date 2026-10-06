@@ -24,6 +24,7 @@ export function InsertImageUriDialogBody({
 }: {
   onClick: (payload: InsertImagePayload) => void;
 }) {
+  const { t } = useTranslation(["editor", "common"]);
   const [src, setSrc] = useState("");
   const [altText, setAltText] = useState("");
 
@@ -32,20 +33,20 @@ export function InsertImageUriDialogBody({
   return (
     <div className="grid gap-4 py-4">
       <div className="grid gap-2">
-        <Label htmlFor="image-url">Image URL</Label>
+        <Label htmlFor="image-url">{t("imageDialog.imageUrl")}</Label>
         <Input
           id="image-url"
-          placeholder="i.e. https://source.unsplash.com/random"
+          placeholder={t("imageDialog.imageUrlPlaceholder")}
           onChange={(e) => setSrc(e.target.value)}
           value={src}
           data-test-id="image-modal-url-input"
         />
       </div>
       <div className="grid gap-2">
-        <Label htmlFor="alt-text">Alt Text</Label>
+        <Label htmlFor="alt-text">{t("imageDialog.altText")}</Label>
         <Input
           id="alt-text"
-          placeholder="Random unsplash image"
+          placeholder={t("imageDialog.altTextPlaceholder")}
           onChange={(e) => setAltText(e.target.value)}
           value={altText}
           data-test-id="image-modal-alt-text-input"
@@ -58,7 +59,7 @@ export function InsertImageUriDialogBody({
           onClick={() => onClick({ altText, src })}
           data-test-id="image-modal-confirm-btn"
         >
-          Confirm
+          {t("common:confirm")}
         </Button>
       </DialogFooter>
     </div>
@@ -70,7 +71,7 @@ export function InsertImageUploadedDialogBody({
 }: {
   onClick: (payload: InsertImagePayload) => void;
 }) {
-  const { t } = useTranslation("editor");
+  const { t } = useTranslation(["editor", "common"]);
   const communityId = useActiveCommunityId();
   const featured = useFeaturedImage();
   const featuredId = useId();
@@ -102,7 +103,7 @@ export function InsertImageUploadedDialogBody({
   return (
     <div className="grid gap-4 py-4">
       <div className="grid gap-2">
-        <Label htmlFor="image-upload">Image Upload</Label>
+        <Label htmlFor="image-upload">{t("imageDialog.upload")}</Label>
         <ImagePicker
           id="image-upload"
           onSelect={(file) => handleFileChange(file)}
@@ -110,13 +111,17 @@ export function InsertImageUploadedDialogBody({
           disabled={isUploading}
           data-test-id="image-modal-file-upload"
         />
-        {isUploading && <p className="text-muted-foreground text-sm">Uploading {fileName}...</p>}
+        {isUploading && (
+          <p className="text-muted-foreground text-sm">
+            {t("imageDialog.uploadingFile", { name: fileName })}
+          </p>
+        )}
       </div>
       <div className="grid gap-2">
-        <Label htmlFor="alt-text">Alt Text</Label>
+        <Label htmlFor="alt-text">{t("imageDialog.altText")}</Label>
         <Input
           id="alt-text"
-          placeholder="Descriptive alternative text"
+          placeholder={t("imageDialog.altTextPlaceholder")}
           onChange={(e) => setAltText(e.target.value)}
           value={altText}
           data-test-id="image-modal-alt-text-input"
@@ -141,7 +146,7 @@ export function InsertImageUploadedDialogBody({
         }}
         data-test-id="image-modal-file-upload-btn"
       >
-        {isUploading ? "Uploading..." : "Confirm"}
+        {isUploading ? t("imageDialog.uploading") : t("common:confirm")}
       </Button>
     </div>
   );
@@ -154,6 +159,7 @@ export function InsertImageDialog({
   activeEditor: LexicalEditor;
   onClose: () => void;
 }): JSX.Element {
+  const { t } = useTranslation("editor");
   const hasModifier = useRef(false);
 
   useEffect(() => {
@@ -175,8 +181,8 @@ export function InsertImageDialog({
   return (
     <Tabs defaultValue="url">
       <TabsBar>
-        <TabsTrigger value="url">URL</TabsTrigger>
-        <TabsTrigger value="file">File</TabsTrigger>
+        <TabsTrigger value="url">{t("imageDialog.urlTab")}</TabsTrigger>
+        <TabsTrigger value="file">{t("imageDialog.fileTab")}</TabsTrigger>
       </TabsBar>
       <TabsContent value="url">
         <InsertImageUriDialogBody onClick={onClick} />

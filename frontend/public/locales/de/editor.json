@@ -117,6 +117,17 @@
     "makeFeatured": "Als Beitragsbild verwenden",
     "isFeatured": "Beitragsbild"
   },
+  "imageDialog": {
+    "urlTab": "URL",
+    "fileTab": "Datei",
+    "imageUrl": "Bild-URL",
+    "imageUrlPlaceholder": "https://example.com/bild.png",
+    "altText": "Alternativtext",
+    "altTextPlaceholder": "Beschreibe das Bild für jemanden, der es nicht sehen kann",
+    "upload": "Bild hochladen",
+    "uploadingFile": "{{name}} wird hochgeladen…",
+    "uploading": "Wird hochgeladen…"
+  },
   "embeds": {
     "insert": "Einbetten",
     "showAsEmbed": "Vollständig anzeigen",

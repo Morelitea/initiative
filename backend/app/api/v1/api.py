@@ -1,6 +1,10 @@
+from typing import Any
+
 from fastapi import APIRouter
 
 from app.api.deps import DirectMessagesEnabledDep
+from app.api.v1.tenant_endpoints.tool_lists import TOOL_LISTS
+from app.core.tools import Tool
 
 # Endpoints are organized by the kind of data they touch (they must never mix —
 # this mirrors the tenant/ vs platform/ split in models/, schemas/, services/):
@@ -254,12 +258,23 @@ api_router.include_router(
 # fails at startup (missing path param) — a useful guard.
 # ---------------------------------------------------------------------------
 guild_router = APIRouter(prefix="/c/{community_id}")
+
+
+def _tool_mount(tool: Tool) -> dict[str, Any]:
+    """Where a tool's own router is mounted: under its route segment, with the
+    OpenAPI tag its list is published under."""
+    return {
+        "prefix": f"/{tool.route_segment}",
+        "tags": [TOOL_LISTS[tool].tag or tool.plural],
+    }
+
+
 guild_router.include_router(webhooks.router, prefix="/webhooks", tags=["webhooks"])
 # Every tool's list, mounted once per Tool at each tool's own path, and the
 # one sidebar-counts route beside them (see tenant_endpoints/tool_lists.py).
 # The routes carry their own tags.
 guild_router.include_router(tool_lists.router)
-guild_router.include_router(projects.router, prefix="/projects", tags=["projects"])
+guild_router.include_router(projects.router, **_tool_mount(Tool.project))
 guild_router.include_router(task_statuses.router, tags=["task-statuses"])
 guild_router.include_router(task_statuses.initiative_router, tags=["task-statuses"])
 guild_router.include_router(filter_presets.router, tags=["filter-presets"])
@@ -280,29 +295,25 @@ guild_router.include_router(
 guild_router.include_router(
     initiatives.router, prefix="/initiatives", tags=["initiatives"]
 )
-guild_router.include_router(documents.router, prefix="/documents", tags=["documents"])
+guild_router.include_router(documents.router, **_tool_mount(Tool.document))
 guild_router.include_router(
     attachments.router, prefix="/attachments", tags=["attachments"]
 )
 guild_router.include_router(exports.router, prefix="/exports", tags=["exports"])
 guild_router.include_router(imports.router, prefix="/imports", tags=["imports"])
-guild_router.include_router(queues.router, prefix="/queues", tags=["queues"])
+guild_router.include_router(queues.router, **_tool_mount(Tool.queue))
 # Flat read-back routes, at the guild root: an event envelope names a
 # resource by its own id, so every evented resource must resolve from one.
 guild_router.include_router(queues.items_router, tags=["queue-items"])
 
-guild_router.include_router(
-    counters.router, prefix="/counter-groups", tags=["counters"]
-)
+guild_router.include_router(counters.router, **_tool_mount(Tool.counter_group))
 guild_router.include_router(counters.counters_router, tags=["counters"])
-guild_router.include_router(calendars.router, prefix="/calendars", tags=["calendars"])
-guild_router.include_router(
-    dashboards.router, prefix="/dashboards", tags=["dashboards"]
-)
-guild_router.include_router(posts.router, prefix="/posts", tags=["posts"])
-guild_router.include_router(galleries.router, prefix="/galleries", tags=["galleries"])
-guild_router.include_router(wikis.router, prefix="/wikis", tags=["wikis"])
-guild_router.include_router(wikis.pages_router, tags=["wikis"])
+guild_router.include_router(calendars.router, **_tool_mount(Tool.calendar))
+guild_router.include_router(dashboards.router, **_tool_mount(Tool.dashboard))
+guild_router.include_router(posts.router, **_tool_mount(Tool.post))
+guild_router.include_router(galleries.router, **_tool_mount(Tool.gallery))
+guild_router.include_router(wikis.router, **_tool_mount(Tool.wiki))
+guild_router.include_router(wikis.pages_router, tags=_tool_mount(Tool.wiki)["tags"])
 # Plug-ins installed at guild scope. Every member reads them (the sidebar needs to
 # know what is there); installing and removing are guild-admin actions.
 #

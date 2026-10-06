@@ -16,7 +16,7 @@ from pydantic import BaseModel
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.tools import Tool
+from app.core.tools import Tool, tool_envelope_type
 from app.models.platform.user import User
 from app.models.tenant.dashboard import Dashboard
 from app.models.tenant.initiative import Initiative, PermissionKey
@@ -33,7 +33,7 @@ from app.services.import_engine.importers._base import (
 
 
 class DashboardImporter(NamesPeopleInPassing):
-    envelope_type = "initiative-dashboard"
+    envelope_type = tool_envelope_type(Tool.dashboard)
     permission = PermissionKey(Tool.dashboard.create_permission)
 
     def validate(self, envelope: dict[str, Any]) -> BaseModel:

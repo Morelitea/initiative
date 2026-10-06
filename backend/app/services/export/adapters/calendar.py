@@ -29,7 +29,7 @@ from sqlmodel import func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.services.tenant.ical_service import documents_for_events
-from app.core.tools import Tool
+from app.core.tools import Tool, tool_envelope_type
 from app.models.platform.user import User
 from app.models.tenant.calendar import Calendar
 from app.models.tenant.calendar_event import CalendarEvent
@@ -263,7 +263,7 @@ def build_calendar_item(
 
 def _envelope(calendar: Calendar, event_dicts: list[dict]) -> dict[str, Any]:
     return {
-        "type": "initiative-calendar",
+        "type": tool_envelope_type(Tool.calendar),
         "schema_version": 1,
         "name": calendar.name,
         "description": calendar.description,
