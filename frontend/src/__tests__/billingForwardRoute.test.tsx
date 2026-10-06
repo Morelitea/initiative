@@ -9,6 +9,7 @@ import { screen, waitFor } from "@testing-library/react";
 import { HttpResponse, http } from "msw";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { asPhoneThatMayNotSell } from "@/__tests__/helpers/storeSelling";
 import { routeTree } from "@/routeTree.gen";
 
 import { server } from "./helpers/msw-server";
@@ -107,10 +108,12 @@ describe("the billing forwarder", () => {
       })
     );
 
+    const phone = asPhoneThatMayNotSell();
     const { unmount } = await renderForwarder({ server: { isNativePlatform: true } });
     expect(await screen.findByText("Not available in the app")).toBeInTheDocument();
     expect(screen.getByText("Plan changes aren't available in the app.")).toBeInTheDocument();
     unmount();
+    phone.mockRestore();
 
     config.billing = null;
     await renderForwarder();

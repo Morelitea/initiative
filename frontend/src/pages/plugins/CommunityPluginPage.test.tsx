@@ -15,6 +15,12 @@ import { renderPage } from "@/__tests__/helpers/render";
 
 const mint = vi.fn();
 
+// Whether this host may sell here, as `useBillingPortal` decides it.
+const sale = vi.hoisted(() => ({ canSell: false }));
+vi.mock("@/hooks/useBillingPortal", () => ({
+  useBillingPortal: () => ({ canSell: sale.canSell, sellsNow: async () => sale.canSell }),
+}));
+
 vi.mock("@/api/generated/plugins/plugins", () => ({
   createCommunityPluginHandoff: (_communityId: number, _pluginId: number, surfaceId: string) =>
     mint(surfaceId, { scope: "community" }),
@@ -85,6 +91,7 @@ let frameWindow: { postMessage: ReturnType<typeof vi.fn> };
 
 beforeEach(() => {
   mint.mockReset();
+  sale.canSell = false;
   surfaceAccess = ADMIN_ACCESS;
   postSpy = vi.fn();
   // Every iframe in the page reports the same window, which is the worst case:
@@ -159,6 +166,29 @@ describe("CommunityPluginPage", () => {
       "--background": expect.stringMatching(/^oklch\(/),
       "--foreground": expect.stringMatching(/^oklch\(/),
     });
+  });
+
+  it("says with the token whether the host may sell here", async () => {
+    // An embedded plug-in hides its own purchase copy where the host may not sell.
+    mint.mockImplementation((surfaceId: string) => Promise.resolve(handoff(surfaceId)));
+    const { CommunityPluginPage } = await import("./CommunityPluginPage");
+    const handoffSent = () =>
+      postSpy.mock.calls
+        .map(([sent]) => sent as { type: string; sells?: unknown })
+        .find((sent) => sent.type === "initiative-plugin:handoff");
+
+    const { unmount } = renderPage(() => <CommunityPluginPage pluginId={1} />);
+    await screen.findByTitle("Automations");
+    await announceReady();
+    expect(handoffSent()?.sells).toBe(false);
+    unmount();
+
+    postSpy.mockClear();
+    sale.canSell = true;
+    renderPage(() => <CommunityPluginPage pluginId={1} />);
+    await screen.findByTitle("Automations");
+    await announceReady();
+    expect(handoffSent()?.sells).toBe(true);
   });
 
   it("ignores an announcement from a window it did not mount", async () => {

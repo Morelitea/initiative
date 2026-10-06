@@ -28,6 +28,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **Apps are now called plug-ins**, everywhere: in the interface, the API (`/api/v1/plugins`, `/api/v1/plugin-platform/…`, the `plugins.manage` capability), the plug-in kit and the database. Installed plug-ins must be updated to the renamed plug-in kit, because the old names are no longer accepted. **Server operators:** rename `APP_PLATFORM_SIGNING_KEY_ID`, `APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM` and `APP_SERVICES_CONFIG` to `PLUGIN_PLATFORM_SIGNING_KEY_ID`, `PLUGIN_PLATFORM_SIGNING_PRIVATE_KEY_PEM` and `PLUGIN_SERVICES_CONFIG`.
+- **Every tool's list can tag, duplicate and delete several items at once**, as documents could. The documents list now works like the other tools' lists, and the view you pick (archived, templates) is kept in the address.
+- **Plans can be changed from the phone apps where the store allows it.** The iPhone app on the US App Store, and the Android app from Google Play in the US, UK, Australia and the EEA, open the billing portal in your browser. Elsewhere the apps still show your plan without offering to change it, and apps embedded in a community are told so too. An Android app installed outside Google Play works like the web.
 - **The Android app is now `studio.beyonders.initiative`**, published by Beyonders Studio. It installs beside the old app rather than updating it: install the new one, sign in, then uninstall the old one. The old app keeps working with upgraded servers in the meantime. **Self-hosted Firebase:** register an Android app under the new package name; see **Push notifications**.
 - **The pricing page shows the billing portal's own plan cards**, in your language and your currency, laid out the same as on the portal.
 - **App and API integrations may need updating.** See [#2472](https://github.com/Morelitea/initiative/issues/2472). The `route` label of `initiative_page_views_total` now reads `/c/$communityId/…`.
@@ -63,6 +65,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Importing a link document checks its address**, as creating one does: an address that isn't `http://` or `https://` is refused.
 - **On a phone browser, the sidebar's bottom row is no longer hidden behind the browser's toolbar.**
 - **Image captions in documents and wiki pages are saved.**
 - **`RATE_LIMIT_STORAGE_URI` accepts a `redis://` URL.**

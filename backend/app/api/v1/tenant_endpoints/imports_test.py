@@ -532,8 +532,9 @@ async def test_envelope_import_project_replaces_legacy_route(
 
 
 async def test_envelope_import_authorization_gates(client, acting_user, session):
-    """Unknown type 400; bad version 400; tool switch off 400; a member
-    without the create permission 403; an unreachable initiative 404."""
+    """Unknown type 400; bad version 400; a link that isn't http(s) 400; tool
+    switch off 400; a member without the create permission 403; an
+    unreachable initiative 404."""
     a = await acting_user(
         guild_role=CommunityRole.member, initiative=True, project=True
     )
@@ -558,6 +559,15 @@ async def test_envelope_import_authorization_gates(client, acting_user, session)
     )
     assert future.status_code == 400
     assert future.json()["detail"] == "IMPORT_SCHEMA_VERSION_UNSUPPORTED"
+
+    not_a_link = await _import_envelope(
+        client,
+        a,
+        {**doc_envelope, "content": {"url": "javascript:alert(1)"}},
+        a.initiative.id,
+    )
+    assert not_a_link.status_code == 400
+    assert not_a_link.json()["detail"] == "DOCUMENT_SMART_LINK_URL_INVALID"
 
     queue_envelope = {
         "type": "initiative-queue",

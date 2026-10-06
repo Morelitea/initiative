@@ -8,10 +8,10 @@ from pydantic import AliasChoices, ConfigDict, Field
 
 from app.core.identity_boundary import GuildId, PersonId
 from app.models.tenant.wiki import WikiPageOrder, WikiReadingWidth
-from app.schemas.base import MentionStr, SanitizedBaseModel, TitleStr
+from app.schemas.base import LexicalState, MentionStr, SanitizedBaseModel, TitleStr
 from app.schemas.query import PageMeta
 from app.schemas.tenant.resource_grant import ResourceGrantSchema, initiative_readable
-from app.schemas.tenant.document import LexicalState, smart_link_url
+from app.schemas.tenant.document import smart_link_url
 from app.schemas.tenant.property import (
     PropertiesOnCreate,
     PropertiesOnUpdate,

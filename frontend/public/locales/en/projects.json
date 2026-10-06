@@ -1,5 +1,4 @@
 {
-  "title": "Projects",
   "addProject": "Add Project",
   "loading": "Loading projects…",
   "loadError": "Unable to load projects.",
@@ -7,12 +6,6 @@
   "noProjects": "No projects yet. Create one to get started.",
   "noMatchingProjects": "No projects match your filters.",
   "onlyPinnedMatch": "Only pinned projects match your filters.",
-  "accessRestricted": "Access Restricted",
-  "accessRestrictedDescription": "You don't have permission to view projects in this initiative. Ask a community admin or an initiative manager if you believe this is an error.",
-  "view": {
-    "grid": "Grid",
-    "list": "List"
-  },
   "filters": {
     "heading": "Filters",
     "searchLabel": "Name or description",
@@ -83,7 +76,6 @@
   "archived": {
     "loading": "Loading archived projects…",
     "loadError": "Unable to load archived projects.",
-    "unarchive": "Unarchive",
     "noArchived": "No archived projects",
     "noArchivedDescription": "Active projects stay on the Active tab."
   },
@@ -91,15 +83,10 @@
     "title": "Create project",
     "description": "Give the project a name, optional description, and owning initiative.",
     "iconLabel": "Icon (optional)",
-    "nameLabel": "Name",
     "namePlaceholder": "Foundation refresh",
     "descriptionLabel": "Description (Markdown supported)",
     "descriptionPlaceholder": "Share context to help the initiative prioritize.",
     "initiativeLabel": "Initiative",
-    "loadingInitiatives": "Loading initiatives…",
-    "initiativeLoadError": "Unable to load initiatives.",
-    "selectInitiative": "Select initiative",
-    "noInitiatives": "No initiatives available.",
     "templateLabel": "Template (optional)",
     "loadingTemplates": "Loading templates…",
     "templateLoadError": "Unable to load templates.",
@@ -137,7 +124,6 @@
   "tabsBar": {
     "loadingRecent": "Loading recent items…",
     "closeItem": "Close {{name}}",
-    "close": "Close",
     "closeOthers": "Close others",
     "closeAll": "Close all"
   },
@@ -179,14 +165,12 @@
     "add": "Add",
     "existingStatuses": "Existing statuses",
     "saveChanges": "Save changes",
-    "nameColumn": "Name",
     "categoryColumn": "Category",
     "iconColumn": "Icon",
     "colorColumn": "Color",
     "iconPlaceholder": "Pick an icon",
     "colorPlaceholder": "Pick a color",
     "defaultColumn": "Default",
-    "actionsColumn": "Actions",
     "noStatuses": "No statuses configured yet.",
     "deleteTitle": "Delete status",
     "deleteStatus": "Delete {{name}}",
@@ -212,8 +196,6 @@
     "unknownError": "Unknown error"
   },
   "settings": {
-    "title": "Project settings",
-    "breadcrumbSettings": "Settings",
     "tabTaskStatuses": "Task statuses",
     "details": {
       "description": "Update the icon, name, and description shown across the workspace.",
@@ -221,9 +203,7 @@
       "identityDescription": "Give the project a recognizable name and emoji.",
       "iconLabel": "Icon",
       "iconHint": "Pick an emoji to make this project easy to spot.",
-      "nameLabel": "Name",
       "namePlaceholder": "Product roadmap",
-      "saving": "Saving...",
       "saveDetails": "Save changes",
       "detailsUpdated": "Project details updated",
       "updateError": "Unable to update project.",
@@ -278,7 +258,6 @@
     "archiveDialogDescription": "This will archive {{count}} task. Archived tasks are hidden by default but can be shown using the filter.",
     "archiveDialogDescription_other": "This will archive {{count}} tasks. Archived tasks are hidden by default but can be shown using the filter.",
     "archiveConfirm": "Archive",
-    "archiving": "Archiving…",
     "archivedSuccess": "{{count}} task archived",
     "archivedSuccess_other": "{{count}} tasks archived",
     "archiveError": "Unable to archive tasks.",
@@ -314,7 +293,6 @@
     "due": "Due: {{date}}",
     "dropHere": "Drop tasks here",
     "noTasks": "No tasks yet.",
-    "archiving": "Archiving…",
     "archiveDone": "Archive done tasks",
     "taskCount_one": "{{count}} task",
     "taskCount_other": "{{count}} tasks",
@@ -391,9 +369,8 @@
   "preview": {
     "updated": "Updated {{date}}",
     "tasksDone": "{{completed}}/{{total}} done",
-    "templateBadge": "Template",
-    "archivedBadge": "Archived",
-    "archivedOn": "Archived {{date}}"
+    "archivedOn": "Archived {{date}}",
+    "reorder": "Reorder project"
   },
   "activitySidebar": {
     "title": "Project activity",

@@ -1,5 +1,6 @@
 import { Loader2 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import type { TagSummary, TagTarget } from "@/api/generated/initiativeAPI.schemas";
 import { bulkEditTags } from "@/api/generated/tags/tags";
@@ -31,25 +32,9 @@ interface BulkEditTagsDialogProps<T extends TaggableItem> extends DialogWithSucc
   communityId: number;
   /** Called after the bulk call succeeds to invalidate relevant caches. */
   onInvalidate: () => void;
-  /** i18n labels — each dialog can provide its own strings. */
-  labels: {
-    title: string;
-    descriptionAdd: string;
-    descriptionRemove: string;
-    tabAdd: string;
-    tabRemove: string;
-    addPlaceholder: string;
-    removePlaceholder: string;
-    noTags: string;
-    tagsAdded: string;
-    tagsRemoved: string;
-    applying: string;
-    apply: string;
-    cancel: string;
-    updateError: string;
-  };
 }
 
+/** Adding tags to, or taking them off, a selection of any taggable kind. */
 export function BulkEditTagsDialog<T extends TaggableItem>({
   open,
   onOpenChange,
@@ -58,8 +43,9 @@ export function BulkEditTagsDialog<T extends TaggableItem>({
   communityId,
   onInvalidate,
   onSuccess,
-  labels,
 }: BulkEditTagsDialogProps<T>) {
+  const { t } = useTranslation("common");
+  const count = items.length;
   const [mode, setMode] = useState<"add" | "remove">("add");
   const [tagsToAdd, setTagsToAdd] = useState<TagSummary[]>([]);
   const [tagsToRemove, setTagsToRemove] = useState<TagSummary[]>([]);
@@ -105,22 +91,19 @@ export function BulkEditTagsDialog<T extends TaggableItem>({
       await bulkEditTags(communityId, {
         target_type: targetType,
         target_ids: items.map((item) => item.id),
-        add_tag_ids: mode === "add" ? tagsToAdd.map((t) => t.id) : [],
-        remove_tag_ids: mode === "remove" ? tagsToRemove.map((t) => t.id) : [],
+        add_tag_ids: mode === "add" ? tagsToAdd.map((tag) => tag.id) : [],
+        remove_tag_ids: mode === "remove" ? tagsToRemove.map((tag) => tag.id) : [],
       });
-      toast.success(mode === "add" ? labels.tagsAdded : labels.tagsRemoved);
+      toast.success(
+        mode === "add" ? t("bulkTags.tagsAdded", { count }) : t("bulkTags.tagsRemoved", { count })
+      );
 
       onInvalidate();
       resetState();
       onOpenChange(false);
       onSuccess();
     } catch (error) {
-      // ``labels`` is the per-dialog i18n bundle the caller passes in
-      // (already localized), so we use it as the fallback when there's
-      // no backend ``detail`` to localize through ``errors.json``.
-      const detail = (error as { response?: { data?: { detail?: string } } })?.response?.data
-        ?.detail;
-      toast.error(detail ? getErrorMessage(error) : labels.updateError);
+      toast.error(getErrorMessage(error, "common:bulkTags.updateError"));
     } finally {
       setIsPending(false);
     }
@@ -129,13 +112,14 @@ export function BulkEditTagsDialog<T extends TaggableItem>({
     tagsToAdd,
     tagsToRemove,
     items,
+    count,
     targetType,
     communityId,
     onInvalidate,
     resetState,
     onOpenChange,
     onSuccess,
-    labels,
+    t,
   ]);
 
   const canApply = mode === "add" ? tagsToAdd.length > 0 : tagsToRemove.length > 0;
@@ -144,36 +128,38 @@ export function BulkEditTagsDialog<T extends TaggableItem>({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{labels.title}</DialogTitle>
+          <DialogTitle>{t("bulkTags.title")}</DialogTitle>
           <DialogDescription>
-            {mode === "add" ? labels.descriptionAdd : labels.descriptionRemove}
+            {mode === "add"
+              ? t("bulkTags.descriptionAdd", { count })
+              : t("bulkTags.descriptionRemove", { count })}
           </DialogDescription>
         </DialogHeader>
 
         <Tabs value={mode} onValueChange={(v) => setMode(v as "add" | "remove")}>
           <TabsBar>
-            <TabsTrigger value="add">{labels.tabAdd}</TabsTrigger>
-            <TabsTrigger value="remove">{labels.tabRemove}</TabsTrigger>
+            <TabsTrigger value="add">{t("bulkTags.tabAdd")}</TabsTrigger>
+            <TabsTrigger value="remove">{t("bulkTags.tabRemove")}</TabsTrigger>
           </TabsBar>
 
           <TabsContent value="add" className="mt-4">
             <TagPicker
               selectedTags={tagsToAdd}
               onChange={setTagsToAdd}
-              placeholder={labels.addPlaceholder}
+              placeholder={t("bulkTags.addPlaceholder")}
             />
           </TabsContent>
 
           <TabsContent value="remove" className="mt-4">
             {existingTags.length === 0 ? (
-              <p className="text-muted-foreground text-sm">{labels.noTags}</p>
+              <p className="text-muted-foreground text-sm">{t("bulkTags.noTags")}</p>
             ) : (
               <TagPicker
                 selectedTags={tagsToRemove}
                 onChange={(tags) =>
-                  setTagsToRemove(tags.filter((t) => existingTags.some((e) => e.id === t.id)))
+                  setTagsToRemove(tags.filter((tag) => existingTags.some((e) => e.id === tag.id)))
                 }
-                placeholder={labels.removePlaceholder}
+                placeholder={t("bulkTags.removePlaceholder")}
               />
             )}
           </TabsContent>
@@ -181,16 +167,16 @@ export function BulkEditTagsDialog<T extends TaggableItem>({
 
         <DialogFooter>
           <Button variant="outline" onClick={() => handleOpenChange(false)} disabled={isPending}>
-            {labels.cancel}
+            {t("cancel")}
           </Button>
           <Button onClick={() => void handleApply()} disabled={isPending || !canApply}>
             {isPending ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
-                {labels.applying}
+                {t("bulkTags.applying")}
               </>
             ) : (
-              labels.apply
+              t("bulkTags.apply")
             )}
           </Button>
         </DialogFooter>

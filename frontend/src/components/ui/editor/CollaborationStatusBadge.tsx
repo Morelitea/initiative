@@ -36,7 +36,7 @@ export function CollaborationStatusBadge({
   isOnline = true,
   className,
 }: CollaborationStatusBadgeProps) {
-  const { t } = useTranslation("documents");
+  const { t } = useTranslation("editor");
 
   // When explicitly offline, always render regardless of collaborator count.
   // Otherwise keep the existing early-return so the badge stays hidden when
@@ -166,7 +166,7 @@ interface CollaboratorAvatarProps {
 }
 
 function CollaboratorAvatar({ collaborator, index }: CollaboratorAvatarProps) {
-  const { t } = useTranslation("documents");
+  const { t } = useTranslation("editor");
   const initials = getInitials(collaborator.name);
   const avatarSrc = resolveUploadUrl(collaborator.avatar_url) || undefined;
 

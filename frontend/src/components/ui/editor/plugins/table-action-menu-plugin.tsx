@@ -48,7 +48,7 @@ interface MenuPosition {
 }
 
 function TableActionMenuContainer({ anchorElem }: { anchorElem: HTMLElement }) {
-  const { t } = useTranslation("documents");
+  const { t } = useTranslation("editor");
   const [editor] = useLexicalComposerContext();
   const [position, setPosition] = useState<MenuPosition | null>(null);
 
@@ -256,35 +256,35 @@ function TableActionMenuContainer({ anchorElem }: { anchorElem: HTMLElement }) {
       <DropdownMenu>
         <DropdownMenuTrigger
           className="inline-flex h-5 w-5 items-center justify-center rounded border bg-background text-muted-foreground shadow-sm outline-none hover:bg-accent"
-          aria-label={t("editor.tableActions")}
+          aria-label={t("tableActions")}
         >
           <ChevronDown className="h-3 w-3" />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-52">
           <DropdownMenuItem onSelect={insertRowAbove}>
             <ArrowUpToLine className="mr-2 h-4 w-4" />
-            {t("editor.insertRowAbove")}
+            {t("insertRowAbove")}
           </DropdownMenuItem>
           <DropdownMenuItem onSelect={insertRowBelow}>
             <ArrowDownToLine className="mr-2 h-4 w-4" />
-            {t("editor.insertRowBelow")}
+            {t("insertRowBelow")}
           </DropdownMenuItem>
           <DropdownMenuItem onSelect={insertColumnLeft}>
             <ArrowLeftToLine className="mr-2 h-4 w-4" />
-            {t("editor.insertColumnLeft")}
+            {t("insertColumnLeft")}
           </DropdownMenuItem>
           <DropdownMenuItem onSelect={insertColumnRight}>
             <ArrowRightToLine className="mr-2 h-4 w-4" />
-            {t("editor.insertColumnRight")}
+            {t("insertColumnRight")}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={deleteRow}>
             <Trash2 className="mr-2 h-4 w-4" />
-            {t("editor.deleteRow")}
+            {t("deleteRow")}
           </DropdownMenuItem>
           <DropdownMenuItem onSelect={deleteColumn}>
             <Trash2 className="mr-2 h-4 w-4" />
-            {t("editor.deleteColumn")}
+            {t("deleteColumn")}
           </DropdownMenuItem>
           {(position.canMerge || position.canUnmerge) && (
             <>
@@ -292,13 +292,13 @@ function TableActionMenuContainer({ anchorElem }: { anchorElem: HTMLElement }) {
               {position.canMerge && (
                 <DropdownMenuItem onSelect={mergeCells}>
                   <Merge className="mr-2 h-4 w-4" />
-                  {t("editor.mergeCells")}
+                  {t("mergeCells")}
                 </DropdownMenuItem>
               )}
               {position.canUnmerge && (
                 <DropdownMenuItem onSelect={unmergeCell}>
                   <Split className="mr-2 h-4 w-4" />
-                  {t("editor.unmergeCells")}
+                  {t("unmergeCells")}
                 </DropdownMenuItem>
               )}
             </>
@@ -306,16 +306,16 @@ function TableActionMenuContainer({ anchorElem }: { anchorElem: HTMLElement }) {
           <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={toggleHeaderRow}>
             <Heading className="mr-2 h-4 w-4" />
-            {t("editor.toggleHeaderRow")}
+            {t("toggleHeaderRow")}
           </DropdownMenuItem>
           <DropdownMenuItem onSelect={toggleHeaderColumn}>
             <Heading className="mr-2 h-4 w-4" />
-            {t("editor.toggleHeaderColumn")}
+            {t("toggleHeaderColumn")}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={deleteTable} className="text-destructive">
             <Trash2 className="mr-2 h-4 w-4" />
-            {t("editor.deleteTable")}
+            {t("deleteTable")}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

@@ -14,7 +14,7 @@
  * actually regresses is a page being written without the wiring.
  *
  * {@link ToolIndexPage} covers every tool with no list page of its own
- * (wikis, galleries, queues, counter groups, …), so it is on the list too:
+ * (documents, wikis, galleries, queues, counter groups, …), so it is on the list too:
  * the entry disappearing from it would take all of them at once.
  */
 import fs from "node:fs";
@@ -33,10 +33,6 @@ const SURFACES = [
   {
     what: "the projects page",
     source: read("../pages/initiativeTools/projects/ProjectsPage.tsx"),
-  },
-  {
-    what: "the documents page",
-    source: read("../pages/initiativeTools/documents/DocumentsPage.tsx"),
   },
   {
     what: "the calendars page",

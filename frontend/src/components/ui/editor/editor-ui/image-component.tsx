@@ -152,7 +152,7 @@ export default function ImageComponent({
   const activeEditorRef = useRef<LexicalEditor | null>(null);
   const [isLoadError, setIsLoadError] = useState<boolean>(false);
   const isEditable = useLexicalEditable();
-  const { t } = useTranslation("documents");
+  const { t } = useTranslation("editor");
   const featured = useFeaturedImage();
   // The caption last shown or written from here, so the echo of an edit is
   // not shown again over what has been typed since.

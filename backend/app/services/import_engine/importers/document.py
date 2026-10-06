@@ -38,6 +38,10 @@ from app.services.import_engine.importers._base import (
     parse_envelope,
 )
 from app.services.tenant import tags as tags_service
+from app.services.tenant.documents import (
+    DocumentContentError,
+    normalize_document_content,
+)
 
 _IMPORTABLE_TYPES = {
     DocumentType.native.value,
@@ -56,6 +60,9 @@ class DocumentImporter(NamesPeopleInPassing):
         if validated.document_type not in _IMPORTABLE_TYPES:  # type: ignore[union-attr]
             # `file` documents ride as blobs in backups, never as envelopes.
             raise ImportEngineError(ImportEngineMessages.IMPORT_INVALID_ENVELOPE)
+        # Refused here rather than mid-apply, so a bad body fails the whole
+        # request instead of leaving a partial import behind.
+        _typed_content(validated)
         return validated
 
     def count(self, validated: BaseModel) -> int:
@@ -160,29 +167,24 @@ class DocumentImporter(NamesPeopleInPassing):
         )
 
 
+def _typed_content(env: DocumentEnvelope) -> dict[str, Any]:
+    """A non-native body, normalized exactly as the write path normalizes it:
+    an imported body gets no more trust than a request body."""
+    try:
+        return normalize_document_content(
+            env.content or {}, document_type=DocumentType(env.document_type)
+        )
+    except DocumentContentError as exc:
+        raise ImportEngineError(exc.code) from exc
+
+
 def _decode_content(
     env: DocumentEnvelope, warnings: list[str], guild_id: int
 ) -> dict[str, Any]:
     """Envelope ``content`` → the stored content model per document type."""
+    if env.document_type != DocumentType.native.value:
+        return _typed_content(env)
     content = env.content or {}
-    if env.document_type == DocumentType.whiteboard.value:
-        # The envelope wraps the standard Excalidraw file shape; the stored
-        # model is the bare scene.
-        return {
-            "elements": content.get("elements") or [],
-            "appState": content.get("appState") or {},
-            "files": content.get("files") or {},
-        }
-    if env.document_type == DocumentType.spreadsheet.value:
-        # Same normalization as the write path — an imported snapshot gets no
-        # more trust than a PUT body.
-        from app.services.tenant.documents_spreadsheet import (
-            normalize_spreadsheet_content,
-        )
-
-        return normalize_spreadsheet_content(content)
-    if env.document_type == DocumentType.smart_link.value:
-        return {"url": str(content.get("url") or "")}
     # native: the raw editor state, stored as exported. Embedded image
     # references point at guild-local storage keys — flag ones that can't
     # resolve here (assets only travel inside backups).

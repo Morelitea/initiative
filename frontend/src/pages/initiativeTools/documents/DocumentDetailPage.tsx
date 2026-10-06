@@ -9,15 +9,9 @@ import { notifyMentions } from "@/api/generated/documents/documents";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { ToolCommentsPanel } from "@/components/comments/ToolCommentsPanel";
 import { DocumentFeaturedImage } from "@/components/documents/DocumentFeaturedImage";
-import {
-  DocumentOutlinePanel,
-  DocumentOutlineScope,
-  useDocumentOutline,
-} from "@/components/documents/DocumentOutline";
 import { DocumentSidePanel, useDocumentSidePanel } from "@/components/documents/DocumentSidePanel";
 import { DocumentSummary } from "@/components/documents/DocumentSummary";
 import { DOCUMENT_BODIES } from "@/components/documents/detail/documentBodies";
-import { CollaborationStatusBadge } from "@/components/documents/editor/CollaborationStatusBadge";
 import { clearWhiteboardSceneCache } from "@/components/documents/whiteboardSceneCache";
 import { ToolRelationsPanel } from "@/components/entities/ToolRelationsPanel";
 import { DocumentDetailSkeleton } from "@/components/skeletons/PageSkeletons";
@@ -26,7 +20,13 @@ import { ToolChest, ToolChestSegment } from "@/components/tools/ToolChest";
 import { ToolPageHeader } from "@/components/tools/ToolPageHeader";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { CollaborationStatusBadge } from "@/components/ui/editor/CollaborationStatusBadge";
 import { FeaturedImageProvider } from "@/components/ui/editor/context/featured-image-context";
+import {
+  DocumentOutlinePanel,
+  DocumentOutlineScope,
+  useDocumentOutline,
+} from "@/components/ui/editor/DocumentOutline";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAIEnabled } from "@/hooks/useAIEnabled";
@@ -49,7 +49,7 @@ import { cn } from "@/lib/utils";
 import { CollaborationError } from "@/lib/yjs/CollaborationProvider";
 
 export const DocumentDetailPage = () => {
-  const { t } = useTranslation(["documents", "properties", "common"]);
+  const { t } = useTranslation(["documents", "properties", "common", "editor"]);
   const { communityId: communityIdParam, documentId } = useParams({ strict: false }) as {
     communityId: string;
     documentId: string;
@@ -215,15 +215,8 @@ export const DocumentDetailPage = () => {
 
   // Only the template flag, from the tool chest's status: kept apart from the
   // save above, which settles the editor's draft when it lands.
-  const setTemplate = useUpdateDocument(parsedId, {
-    onSuccess: (updated) => setDocumentCache(parsedId, updated),
-  });
+  const setTemplate = useUpdateDocument(parsedId);
   const saveDocument = useUpdateDocument(parsedId, {
-    // Suppress the default error toast when the save failed because we're offline —
-    // the persistent offline toast already explains the situation to the user.
-    // Using `isOnline` (not `navigator.onLine`) so native WebView users get the
-    // same behavior: the Capacitor Network plugin is authoritative on native.
-    suppressErrorToast: () => !isOnline,
     onSuccess: (_updated, sent) => {
       // Only if the field still holds the name this save carried: an autosave
       // that started before the last keystroke must not mark it saved. A save
@@ -685,7 +678,7 @@ export const DocumentDetailPage = () => {
                       title={t(outline.isOpen ? "outline.hide" : "outline.show")}
                     >
                       <ListTree className="h-4 w-4" />
-                      {t("outline.title")}
+                      {t("editor:outline.title")}
                     </Button>
                   )}
                   {(joinsRoom || !isOnline) && (

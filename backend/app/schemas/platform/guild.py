@@ -94,7 +94,7 @@ class CommunityLocation(SanitizedBaseModel):
     postal_code: Optional[str] = Field(default=None, max_length=20)
     #: The community's own name for the place. Short, because it shares one
     #: line of a card with the place itself.
-    label: Optional[str] = Field(default=None, max_length=60)
+    label: Optional[TitleStr] = Field(default=None, max_length=60)
 
     @field_validator("country", mode="after")
     @classmethod

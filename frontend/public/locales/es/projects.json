@@ -1,5 +1,4 @@
 {
-  "title": "Proyectos",
   "addProject": "Agregar proyecto",
   "loading": "Cargando proyectos…",
   "loadError": "No se pudieron cargar los proyectos.",
@@ -7,12 +6,6 @@
   "noProjects": "Aún no hay proyectos. Crea uno para comenzar.",
   "noMatchingProjects": "Ningún proyecto coincide con tus filtros.",
   "onlyPinnedMatch": "Solo los proyectos fijados coinciden con tus filtros.",
-  "accessRestricted": "Acceso restringido",
-  "accessRestrictedDescription": "No tienes permiso para ver proyectos en esta iniciativa. Consulta a un administrador de la comunidad o a un gerente de iniciativa si crees que esto es un error.",
-  "view": {
-    "grid": "Cuadrícula",
-    "list": "Lista"
-  },
   "filters": {
     "heading": "Filtros",
     "searchLabel": "Nombre o descripción",
@@ -83,7 +76,6 @@
   "archived": {
     "loading": "Cargando proyectos archivados…",
     "loadError": "No se pudieron cargar los proyectos archivados.",
-    "unarchive": "Desarchivar",
     "noArchived": "No hay proyectos archivados",
     "noArchivedDescription": "Los proyectos activos están en la pestaña Activos."
   },
@@ -91,15 +83,10 @@
     "title": "Crear proyecto",
     "description": "Dale al proyecto un nombre, descripción opcional e iniciativa propietaria.",
     "iconLabel": "Ícono (opcional)",
-    "nameLabel": "Nombre",
     "namePlaceholder": "Renovación de base",
     "descriptionLabel": "Descripción (Markdown soportado)",
     "descriptionPlaceholder": "Comparte contexto para ayudar a la iniciativa a priorizar.",
     "initiativeLabel": "Iniciativa",
-    "loadingInitiatives": "Cargando iniciativas…",
-    "initiativeLoadError": "No se pudieron cargar las iniciativas.",
-    "selectInitiative": "Seleccionar iniciativa",
-    "noInitiatives": "No hay iniciativas disponibles.",
     "templateLabel": "Plantilla (opcional)",
     "loadingTemplates": "Cargando plantillas…",
     "templateLoadError": "No se pudieron cargar las plantillas.",
@@ -137,7 +124,6 @@
   "tabsBar": {
     "loadingRecent": "Cargando elementos recientes…",
     "closeItem": "Cerrar {{name}}",
-    "close": "Cerrar",
     "closeOthers": "Cerrar las demás",
     "closeAll": "Cerrar todas"
   },
@@ -179,14 +165,12 @@
     "add": "Agregar",
     "existingStatuses": "Estados existentes",
     "saveChanges": "Guardar cambios",
-    "nameColumn": "Nombre",
     "categoryColumn": "Categoría",
     "iconColumn": "Icono",
     "colorColumn": "Color",
     "iconPlaceholder": "Elegir un icono",
     "colorPlaceholder": "Elegir un color",
     "defaultColumn": "Predeterminado",
-    "actionsColumn": "Acciones",
     "noStatuses": "Aún no hay estados configurados.",
     "deleteTitle": "Eliminar estado",
     "deleteStatus": "Eliminar {{name}}",
@@ -212,8 +196,6 @@
     "unknownError": "Error desconocido"
   },
   "settings": {
-    "title": "Configuración del proyecto",
-    "breadcrumbSettings": "Configuración",
     "tabTaskStatuses": "Estados de tarea",
     "details": {
       "description": "Actualiza el ícono, nombre y descripción que se muestran en el espacio de trabajo.",
@@ -221,9 +203,7 @@
       "identityDescription": "Dale al proyecto un nombre y emoji reconocibles.",
       "iconLabel": "Ícono",
       "iconHint": "Elige un emoji para que este proyecto sea fácil de identificar.",
-      "nameLabel": "Nombre",
       "namePlaceholder": "Hoja de ruta del producto",
-      "saving": "Guardando...",
       "saveDetails": "Guardar cambios",
       "detailsUpdated": "Detalles del proyecto actualizados",
       "updateError": "No se pudo actualizar el proyecto.",
@@ -278,7 +258,6 @@
     "archiveDialogDescription": "Esto archivará {{count}} tarea. Las tareas archivadas se ocultan por defecto pero se pueden mostrar usando el filtro.",
     "archiveDialogDescription_other": "Esto archivará {{count}} tareas. Las tareas archivadas se ocultan por defecto pero se pueden mostrar usando el filtro.",
     "archiveConfirm": "Archivar",
-    "archiving": "Archivando…",
     "archivedSuccess": "{{count}} tarea archivada",
     "archivedSuccess_other": "{{count}} tareas archivadas",
     "archiveError": "No se pudieron archivar las tareas.",
@@ -314,7 +293,6 @@
     "due": "Vence: {{date}}",
     "dropHere": "Suelta tareas aquí",
     "noTasks": "Aún no hay tareas.",
-    "archiving": "Archivando…",
     "archiveDone": "Archivar tareas terminadas",
     "taskCount_one": "{{count}} tarea",
     "taskCount_other": "{{count}} tareas",
@@ -391,9 +369,8 @@
   "preview": {
     "updated": "Actualizado {{date}}",
     "tasksDone": "{{completed}}/{{total}} completadas",
-    "templateBadge": "Plantilla",
-    "archivedBadge": "Archivado",
-    "archivedOn": "Archivado el {{date}}"
+    "archivedOn": "Archivado el {{date}}",
+    "reorder": "Reordenar proyecto"
   },
   "activitySidebar": {
     "title": "Actividad del proyecto",

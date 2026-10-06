@@ -1,13 +1,9 @@
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import { GripVertical } from "lucide-react";
 import type { HTMLAttributes, ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
-import {
-  type InitiativeSummary,
-  type ProjectRead,
-  Tool,
-} from "@/api/generated/initiativeAPI.schemas";
+import { type ProjectRead, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { UnreadDot } from "@/components/notifications/UnreadDot";
 import { FavoriteProjectButton } from "@/components/projects/FavoriteProjectButton";
 import { PinProjectButton } from "@/components/projects/PinProjectButton";
@@ -18,8 +14,7 @@ import { Progress } from "@/components/ui/progress";
 import { ProgressCircle } from "@/components/ui/progress-circle";
 import { useUnreadTree } from "@/hooks/useUnreadTree";
 import { useCommunityPath } from "@/lib/communityUrl";
-import { InitiativeColorDot, resolveInitiativeColor } from "@/lib/initiativeColors";
-import { initiativeRoute, toolDetailRoute } from "@/lib/tools";
+import { toolDetailRoute } from "@/lib/tools";
 import { cn } from "@/lib/utils";
 
 interface ProjectLinkProps {
@@ -29,23 +24,12 @@ interface ProjectLinkProps {
    *  wrapping link so they stay valid (and clickable) inside a card-as-anchor.
    *  Used by the Templates and Archive lists for their per-project action. */
   actions?: ReactNode;
-  /** Whether to name the owning initiative on the card. A list already scoped
-   *  to one initiative repeats the same name on every card, so it says nothing
-   *  and costs a line — the cross-initiative views keep it. */
-  showInitiative?: boolean;
 }
 
-export const ProjectCardLink = ({
-  project,
-  dragHandleProps,
-  actions,
-  showInitiative = true,
-}: ProjectLinkProps) => {
+export const ProjectCardLink = ({ project, dragHandleProps, actions }: ProjectLinkProps) => {
   const { t } = useTranslation("projects");
   const gp = useCommunityPath();
   const unread = useUnreadTree();
-  const initiative = project.initiative;
-  const initiativeColor = initiative ? resolveInitiativeColor(initiative.color) : null;
   const isPinned = Boolean(project.pinned_at);
   const canPin = project.can.configure;
 
@@ -68,7 +52,7 @@ export const ProjectCardLink = ({
           <button
             type="button"
             className="rounded-md p-1 text-muted-foreground transition hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            aria-label="Reorder project"
+            aria-label={t("preview.reorder")}
             {...dragHandleProps}
           >
             <GripVertical className="h-4 w-4" />
@@ -80,15 +64,6 @@ export const ProjectCardLink = ({
         className="block"
       >
         <Card className="overflow-hidden">
-          {/* Which initiative a card is from, where a list mixes them; inside
-              one initiative every card would wear the same colour. */}
-          {initiativeColor && showInitiative ? (
-            <div
-              className="h-1 w-full"
-              style={{ backgroundColor: initiativeColor }}
-              aria-hidden="true"
-            />
-          ) : null}
           <CardHeader className={actions ? "pr-32" : "pr-22"}>
             <CardTitle className="flex flex-wrap items-center gap-2 text-xl">
               {project.icon ? <span className="text-2xl leading-none">{project.icon}</span> : null}
@@ -102,7 +77,6 @@ export const ProjectCardLink = ({
           <CardFooter className="flex flex-col gap-3 text-muted-foreground text-sm">
             <div className="flex w-full justify-between gap-6">
               <div>
-                {showInitiative ? <InitiativeLabel initiative={initiative} nested /> : null}
                 <p>
                   {t("preview.updated", {
                     date: new Date(project.updated_at).toLocaleDateString(undefined),
@@ -134,18 +108,10 @@ export const ProjectCardLink = ({
   );
 };
 
-export const ProjectRowLink = ({
-  project,
-  dragHandleProps,
-  actions,
-  showInitiative = true,
-}: ProjectLinkProps) => {
+export const ProjectRowLink = ({ project, dragHandleProps, actions }: ProjectLinkProps) => {
   const { t } = useTranslation("projects");
   const gp = useCommunityPath();
   const unread = useUnreadTree();
-  const initiativeColor = project.initiative
-    ? resolveInitiativeColor(project.initiative.color)
-    : null;
   const isPinned = Boolean(project.pinned_at);
   const canPin = project.can.configure;
   return (
@@ -154,7 +120,7 @@ export const ProjectRowLink = ({
         <button
           type="button"
           className="absolute top-1/2 left-4 z-10 -translate-y-1/2 rounded-md p-1 text-muted-foreground transition hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          aria-label="Reorder project"
+          aria-label={t("preview.reorder")}
           {...dragHandleProps}
         >
           <GripVertical className="h-4 w-4" />
@@ -182,16 +148,7 @@ export const ProjectRowLink = ({
         to={gp(toolDetailRoute(Tool.project, project.initiative_id, project.id))}
         className="block"
       >
-        <Card
-          className={cn(
-            "p-4 pr-16",
-            actions && "pr-24",
-            initiativeColor && showInitiative && "border-l-4"
-          )}
-          style={
-            initiativeColor && showInitiative ? { borderLeftColor: initiativeColor } : undefined
-          }
-        >
+        <Card className={cn("p-4 pr-16", actions && "pr-24")}>
           <div className={`flex flex-wrap items-center gap-4 ${dragHandleProps ? "pl-10" : ""}`}>
             {project.icon ? <span className="text-2xl leading-none">{project.icon}</span> : null}
             <div className="min-w-[200px] flex-1">
@@ -217,9 +174,6 @@ export const ProjectRowLink = ({
                         })}
                       </p>
                     ) : null}
-                    {showInitiative ? (
-                      <InitiativeLabel initiative={project.initiative} nested />
-                    ) : null}
                   </div>
                   <TagBadgeList
                     tags={project.tags}
@@ -244,66 +198,14 @@ export const ProjectRowLink = ({
 /** Marks a card that is not an ordinary active project, so template and
  *  archived projects stay recognizable wherever they are listed. */
 const ProjectStateBadge = ({ project }: { project: ProjectRead }) => {
-  const { t } = useTranslation("projects");
+  const { t } = useTranslation(["projects", "common"]);
   if (project.is_template) {
-    return <Badge variant="outline">{t("preview.templateBadge")}</Badge>;
+    return <Badge variant="outline">{t("common:toolChest.template")}</Badge>;
   }
   if (project.archived_at !== null) {
-    return <Badge variant="outline">{t("preview.archivedBadge")}</Badge>;
+    return <Badge variant="outline">{t("common:toolChest.archived")}</Badge>;
   }
   return null;
-};
-
-export const InitiativeLabel = ({
-  initiative,
-  nested = false,
-}: {
-  initiative?: InitiativeSummary | null;
-  /** Set when rendered inside a wrapping link (card-as-anchor): navigates
-   * programmatically instead of nesting an `<a>` in an `<a>`, and stops the
-   * click from also triggering the outer link. */
-  nested?: boolean;
-}) => {
-  const gp = useCommunityPath();
-  const navigate = useNavigate();
-  if (!initiative) {
-    return null;
-  }
-  const to = gp(initiativeRoute(initiative.id));
-  const className = "flex items-center gap-2 font-medium text-muted-foreground text-xs";
-
-  if (nested) {
-    return (
-      // biome-ignore lint/a11y/useSemanticElements: must not be a <button>/<a> — it renders inside the card's wrapping <a>, where interactive content is invalid
-      <span
-        role="button"
-        tabIndex={0}
-        onClick={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          void navigate({ to });
-        }}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            e.stopPropagation();
-            void navigate({ to });
-          }
-        }}
-        className={cn(className, "cursor-pointer hover:underline")}
-      >
-        <InitiativeColorDot color={initiative.color} />
-        {initiative.name}
-      </span>
-    );
-  }
-
-  return (
-    <Link to={to} className={className}>
-      <InitiativeColorDot color={initiative.color} />
-      {initiative.name}
-    </Link>
-  );
 };
 
 const ProjectProgress = ({ summary }: { summary?: ProjectRead["task_summary"] }) => {

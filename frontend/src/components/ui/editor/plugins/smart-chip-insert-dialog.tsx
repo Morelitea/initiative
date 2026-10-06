@@ -58,7 +58,7 @@ export function SmartChipInsertDialog({
   activeEditor,
   onClose,
 }: SmartChipInsertDialogProps) {
-  const { t } = useTranslation(["documents", "search"]);
+  const { t } = useTranslation(["editor", "search"]);
   const searchRef = useRef<HTMLInputElement>(null);
   const factsRef = useRef<HTMLDivElement>(null);
   const [query, setQuery] = useState("");

@@ -16,6 +16,7 @@ import {
   useMarkNotificationUnread,
   useNotificationHistory,
 } from "@/hooks/useNotifications";
+import { useStoreSellingAnswer } from "@/lib/storeSelling";
 
 type Filter = "all" | "unread" | "personal";
 
@@ -48,6 +49,9 @@ const dayLabel = (
  * "what is left for me" and "what happened".
  */
 export const NotificationsInboxPage = () => {
+  // Plan lines are worded by whether this device may sell; re-render once a
+  // phone's store has said.
+  useStoreSellingAnswer();
   const { t } = useTranslation(["communities", "common"]);
   const { user } = useAuth();
   const router = useRouter();

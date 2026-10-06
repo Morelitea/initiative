@@ -14,9 +14,9 @@ from typing import (
 
 from pydantic import ConfigDict, Field
 
-from app.core.identity_boundary import LEXICAL_MENTIONS, UPLOAD_PATH
+from app.core.identity_boundary import UPLOAD_PATH
 from app.core.relationships import Related
-from app.schemas.base import SanitizedBaseModel
+from app.schemas.base import LexicalState, SanitizedBaseModel
 from app.schemas.tenant.property import PropertiesOnCreate
 from app.schemas.query import PageMeta
 
@@ -35,8 +35,6 @@ if TYPE_CHECKING:  # pragma: no cover
         DocumentFileVersion,
     )
 
-#: A Lexical editor state: a document's, a post's or a wiki page's body.
-LexicalState = Annotated[Dict[str, Any], LEXICAL_MENTIONS]
 #: One sheet of a workbook, in the canonical shape
 #: ``normalize_spreadsheet_content`` produces.
 SpreadsheetSheet = Dict[str, Any]
@@ -161,15 +159,6 @@ class DocumentFileVersionRead(SanitizedBaseModel):
     is_current: bool = False
 
 
-class ProjectDocumentSummary(SanitizedBaseModel):
-    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
-
-    document_id: int
-    name: str
-    updated_at: datetime
-    attached_at: datetime
-
-
 def _serialize_project_links(
     projects: Sequence[Related],
 ) -> List[DocumentProjectLink]:
@@ -280,26 +269,6 @@ def serialize_document_file_versions(
         )
         for v in versions
     ]
-
-
-def serialize_project_document_link(
-    related: Related,
-) -> ProjectDocumentSummary | None:
-    """One attached document, from the project's side.
-
-    ``None`` when the far end is gone or the reader cannot open it: the edge
-    cleared the gate, the document did not, and an attachment nobody may read
-    is simply absent from the answer.
-    """
-    document = related.entity
-    if document is None or getattr(document, "id", None) is None:
-        return None
-    return ProjectDocumentSummary(
-        document_id=document.id,
-        name=document.name,
-        updated_at=document.updated_at,
-        attached_at=related.linked_at,
-    )
 
 
 class SpreadsheetImportRead(SanitizedBaseModel):

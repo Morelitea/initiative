@@ -5,7 +5,6 @@
  * record). One implementation: a line must read the same wherever it is shown,
  * and a second copy is how the two drift apart.
  */
-import { Capacitor } from "@capacitor/core";
 
 import type { NotificationRead } from "@/api/generated/initiativeAPI.schemas";
 import { communityPath } from "@/lib/communityUrl";
@@ -16,7 +15,12 @@ import {
   normalizePluginTarget,
 } from "@/lib/entityResolver";
 import { formatDate } from "@/lib/formatDate";
+import { storeSellingNow } from "@/lib/storeSelling";
 import { entityRefRoute } from "@/lib/tools";
+
+/** Whether plan lines may ask the reader to choose a plan here. Not until a
+ *  phone's store has answered (`@/lib/storeSelling`). */
+const sellsHere = (): boolean => storeSellingNow() === true;
 
 // Build community-scoped URL directly. Notification rows persist their
 // target_path, so one written before tools moved inside their initiative is
@@ -480,11 +484,11 @@ export const notificationText = (
         ? t("notifications.communityOnHoldWithContact", { community, contact })
         : t("notifications.communityOnHold", { community });
     }
-    // The plan lines ask the reader to choose a plan, which the phone app may
-    // not; there each says only what happens to the community.
+    // The plan lines ask the reader to choose a plan, which a device that may
+    // not sell cannot offer; there each says only what happens to the community.
     case "community_trial_ending":
       return t(
-        Capacitor.isNativePlatform()
+        !sellsHere()
           ? "notifications.communityTrialEndingInApp"
           : "notifications.communityTrialEnding",
         {
@@ -494,7 +498,7 @@ export const notificationText = (
       );
     case "community_trial_ended":
       return t(
-        Capacitor.isNativePlatform()
+        !sellsHere()
           ? "notifications.communityTrialEndedInApp"
           : "notifications.communityTrialEnded",
         { community: typeof data.community === "string" ? data.community : "" }
@@ -514,9 +518,7 @@ export const notificationText = (
     }
     case "community_welcome":
       return t(
-        Capacitor.isNativePlatform()
-          ? "notifications.communityWelcomeInApp"
-          : "notifications.communityWelcome",
+        !sellsHere() ? "notifications.communityWelcomeInApp" : "notifications.communityWelcome",
         { community: typeof data.community === "string" ? data.community : "" }
       );
     default:

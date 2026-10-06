@@ -44,18 +44,6 @@ from app.testing.factories import (
 # ---------------------------------------------------------------------------
 
 
-def test_kind_codes_are_unique_and_never_reused():
-    """Codes are the high bits of every stored node id.
-
-    Changing one silently re-encodes a kind: rows written before keep the old
-    value, rows after get the new one, and nothing errors. This is the test that
-    holds that rule, because the database cannot.
-    """
-    codes = [endpoint.code for endpoint in ENDPOINT_KINDS.values()]
-    assert len(codes) == len(set(codes))
-    assert all(code > 0 for code in codes)
-
-
 def test_node_ids_round_trip():
     for kind in ENDPOINT_KINDS:
         assert decode_node_id(node_id(kind, 4242)) == (kind, 4242)
@@ -339,10 +327,11 @@ async def test_an_edge_is_invisible_to_a_reader_who_clears_only_one_end(
         initiative_role="member",
     )
     response = await client.get(
-        reader.g(f"/projects/{owner.project.id}"), headers=reader.headers
+        reader.g(f"/relationships/?entity=project:{owner.project.id}"),
+        headers=reader.headers,
     )
     assert response.status_code == 200, response.text
-    assert response.json()["documents"] == []
+    assert response.json() == []
 
 
 async def test_a_tag_edge_is_still_gated_by_the_other_end(

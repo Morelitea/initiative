@@ -1,9 +1,8 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
 import {
   createDocument,
-  deleteDocument,
   deleteDocumentVersion,
   duplicateDocument,
   generateSummary,
@@ -11,7 +10,6 @@ import {
   getReadDocumentQueryKey,
   listDocumentVersions,
   setDocumentGrants,
-  updateDocument,
   uploadDocumentFile,
   uploadDocumentVersion,
 } from "@/api/generated/documents/documents";
@@ -20,11 +18,9 @@ import type {
   BodyUploadDocumentVersion,
   DocumentCreate,
   DocumentFileVersionRead,
-  DocumentListResponse,
   DocumentRead,
-  DocumentUpdate,
+  DocumentType,
   GenerateDocumentSummaryResponse,
-  ListDocumentsParams,
   ResourceGrantSchema,
 } from "@/api/generated/initiativeAPI.schemas";
 import { SearchEntityType, Tool } from "@/api/generated/initiativeAPI.schemas";
@@ -38,35 +34,21 @@ import { toast } from "@/lib/mascotToast";
 import type { MutationOpts } from "@/types/mutation";
 import type { QueryOpts } from "@/types/query";
 
-// ── The standard four ───────────────────────────────────────────────────────
+// ── The standard hooks ──────────────────────────────────────────────────────
 // Built in `toolHooks.ts` from the generated client; see there for the keys
-// each one reads and the invalidation each one fires. A document's list hook,
-// create and update are its own, and are written out below — the list's query
-// still comes from the table, so the key is named in one place.
+// each one reads and the invalidation each one fires. A document's create is
+// its own, and is written out below.
 
 const documents = TOOL_HOOKS[Tool.document];
+export const useDocumentsList = documents.useList;
 export const useDocument = documents.useDetail;
+export const useUpdateDocument = documents.useUpdate;
 /**
  * Single-document delete — the shape every tool's delete hook takes, so the
- * shared settings page needs no per-tool adapter. Bulk selection deletes go
- * through {@link useDeleteDocuments}.
+ * shared settings page needs no per-tool adapter.
  */
 export const useDeleteDocument = documents.useDelete;
 export const useSetDocumentGrants = documents.useSetGrants;
-
-// ── Queries ─────────────────────────────────────────────────────────────────
-
-export const useDocumentsList = (
-  params: ListDocumentsParams,
-  options?: QueryOpts<DocumentListResponse>
-) => {
-  const communityId = useActiveCommunityId();
-  return useQuery<DocumentListResponse>({
-    ...documents.listQuery(communityId, params),
-    placeholderData: keepPreviousData,
-    ...options,
-  });
-};
 
 // ── Cache helpers ───────────────────────────────────────────────────────────
 
@@ -81,21 +63,6 @@ export const useSetDocumentCache = () => {
       getReadDocumentQueryKey(communityId, documentId),
       typeof data === "function" ? data : () => data
     );
-  };
-};
-
-// ── Prefetch helpers ────────────────────────────────────────────────────────
-
-export const usePrefetchDocumentsList = () => {
-  const qc = useQueryClient();
-  const communityId = useActiveCommunityId();
-  return (params: ListDocumentsParams) => {
-    // The same query the list hook runs, so the row it warms is the row that
-    // hook then finds in the cache.
-    return qc.prefetchQuery({
-      ...documents.listQuery(communityId, params),
-      staleTime: 30_000,
-    });
   };
 };
 
@@ -118,14 +85,14 @@ const applyDocumentGrants = async (
   }
 };
 
-export type CreateDocumentInput = {
+type CreateDocumentInput = {
   name: string;
   initiative_id: number;
   is_template?: boolean;
   template_id?: number;
   project_id?: number;
   /** Omit for native (text) documents; file uploads go through useUploadDocument instead. */
-  document_type?: "native" | "whiteboard" | "smart_link" | "spreadsheet";
+  document_type?: Exclude<DocumentType, "file">;
   /** Required for smart_link ({ url: "..." }). Optional/unused for other types. */
   content?: Record<string, unknown>;
   /** Full non-owner sharing state for the new document. */
@@ -204,7 +171,7 @@ export const useCreateDocument = (options?: MutationOpts<DocumentRead, CreateDoc
   });
 };
 
-export type UploadDocumentInput = {
+type UploadDocumentInput = {
   file: Blob;
   name: string;
   initiative_id: number;
@@ -328,95 +295,6 @@ export const useDeleteDocumentVersion = (
     },
     onError: (...args) => {
       toast.error(getErrorMessage(args[0], "documents:versions.deleteError"));
-      onError?.(...args);
-    },
-    onSettled,
-  });
-};
-
-export const useUpdateDocument = (
-  documentId: number,
-  options?: MutationOpts<DocumentRead, DocumentUpdate> & {
-    /** If provided and returns true, the default error toast will be skipped. */
-    suppressErrorToast?: (error: unknown) => boolean;
-  }
-) => {
-  const queryClient = useQueryClient();
-  const communityId = useActiveCommunityId();
-  const { onSuccess, onError, onSettled, suppressErrorToast, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async (data: DocumentUpdate) => {
-      return updateDocument(communityId, documentId, data);
-    },
-    onSuccess: (...args) => {
-      const [updated] = args;
-      queryClient.setQueryData(getReadDocumentQueryKey(communityId, documentId), updated);
-      // A save rewrites what the body refers to, which is what the other end's
-      // "linked from" panel is reading.
-      void invalidate(q.allDocuments(), q.relationships());
-      onSuccess?.(...args);
-    },
-    onError: (...args) => {
-      const error = args[0];
-      if (!suppressErrorToast?.(error)) {
-        toast.error(getErrorMessage(error, "documents:detail.saveError"));
-      }
-      onError?.(...args);
-    },
-    onSettled,
-  });
-};
-
-export const useDeleteDocuments = (
-  options?: MutationOpts<void, number[]> & {
-    /** If true, the default "X documents deleted" success toast is skipped so the caller can show its own. */
-    suppressSuccessToast?: boolean;
-  }
-) => {
-  const { t } = useTranslation("documents");
-  const communityId = useActiveCommunityId();
-  const { onSuccess, onError, onSettled, suppressSuccessToast, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async (documentIds: number[]) => {
-      await Promise.all(documentIds.map((id) => deleteDocument(communityId, id)));
-    },
-    onSuccess: (...args) => {
-      const documentIds = args[1];
-      if (!suppressSuccessToast) {
-        toast.success(t("bulk.deleted", { count: documentIds.length }));
-      }
-      void invalidate(q.allDocuments());
-      onSuccess?.(...args);
-    },
-    onError: (...args) => {
-      toast.error(getErrorMessage(args[0], "documents:bulk.deleteError"));
-      onError?.(...args);
-    },
-    onSettled,
-  });
-};
-
-/** A copy of each beside its original, named as the server names one. */
-export const useDuplicateDocuments = (options?: MutationOpts<DocumentRead[], { id: number }[]>) => {
-  const { t } = useTranslation("documents");
-  const communityId = useActiveCommunityId();
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: (documents: { id: number }[]) =>
-      Promise.all(documents.map((doc) => duplicateDocument(communityId, doc.id, {}))),
-    onSuccess: (...args) => {
-      toast.success(t("bulk.duplicated", { count: args[0].length }));
-      void invalidate(q.allDocuments());
-      onSuccess?.(...args);
-    },
-    onError: (...args) => {
-      toast.error(getErrorMessage(args[0], "documents:bulk.duplicateError"));
       onError?.(...args);
     },
     onSettled,

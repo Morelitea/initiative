@@ -325,7 +325,7 @@ const OutlineBranch = ({
    *  still scroll past; they are simply not listed. */
   maxDepth: number;
 }) => {
-  const { t } = useTranslation("documents");
+  const { t } = useTranslation("editor");
 
   return (
     <ul className="space-y-px">
@@ -399,7 +399,7 @@ const OutlineTree = ({
   onNavigate?: () => void;
   maxDepth?: number;
 }) => {
-  const { t } = useTranslation("documents");
+  const { t } = useTranslation("editor");
   const store = useContext(DocumentOutlineContext);
   const snapshot = useSyncExternalStore(
     store?.subscribe ?? NO_SUBSCRIBE,
@@ -471,7 +471,7 @@ export const DocumentOutlinePanel = ({
    *  so; everything else gets the whole outline. */
   maxDepth?: number;
 }) => {
-  const { t } = useTranslation("documents");
+  const { t } = useTranslation("editor");
   const isMobile = useIsMobile();
 
   if (isMobile) {

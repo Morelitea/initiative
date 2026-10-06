@@ -8,6 +8,7 @@
     "error": "No se pudo exportar. Inténtalo de nuevo.",
     "selected": "Exportar selección",
     "ownerRequired": "Solo quien puede eliminar todos estos elementos puede exportarlos.",
+    "noCommonFormat": "Estos elementos no comparten ningún formato de exportación.",
     "headingBackup": "Copia de seguridad",
     "headingReport": "Informe",
     "formatPdf": "Documento PDF",

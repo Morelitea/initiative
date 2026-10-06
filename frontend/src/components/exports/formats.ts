@@ -59,8 +59,8 @@ export function documentSelectionFormats(types: DocumentType[]): ExportFormatOpt
 
 // Per-tool export formats, keyed by the canonical Tool enum — each mirrors
 // its backend adapter's format set. Documents are deliberately ABSENT: their
-// formats depend on the selected documents' types (documentSelectionFormats
-// above / DOCUMENT_TYPE_FORMATS). The registry drift test holds this table to
+// formats depend on the selected documents' types (selectionExportFormats
+// below / DOCUMENT_TYPE_FORMATS). The registry drift test holds this table to
 // NON_EXPORTABLE_TOOLS's bulkExport flags.
 export const TOOL_EXPORT_FORMATS: Partial<Record<Tool, ExportFormatOption[]>> = {
   [Tool.post]: [
@@ -117,6 +117,20 @@ export const TOOL_EXPORT_FORMATS: Partial<Record<Tool, ExportFormatOption[]>> = 
     { format: "json", labelKey: "export.formatJson" },
   ],
 };
+
+/** Formats a selection of one tool's rows can export: the tool's own, or for
+ * documents the ones every selected document's type shares. Null for a tool
+ * with no export source. */
+export function selectionExportFormats(
+  tool: Tool,
+  items: { document_type?: DocumentType }[]
+): ExportFormatOption[] | null {
+  if (NON_EXPORTABLE_TOOLS.has(tool)) return null;
+  if (tool === Tool.document) {
+    return documentSelectionFormats(items.flatMap((item) => item.document_type ?? []));
+  }
+  return TOOL_EXPORT_FORMATS[tool] ?? null;
+}
 
 // ---------------------------------------------------------------------------
 // Aggregate (initiative / community) export wizard

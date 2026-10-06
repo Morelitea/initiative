@@ -14,6 +14,7 @@ import type counterGroups from "../../public/locales/en/counterGroups.json";
 import type dashboards from "../../public/locales/en/dashboards.json";
 import type dates from "../../public/locales/en/dates.json";
 import type documents from "../../public/locales/en/documents.json";
+import type editor from "../../public/locales/en/editor.json";
 import type errors from "../../public/locales/en/errors.json";
 import type exports_ from "../../public/locales/en/exports.json";
 import type galleries from "../../public/locales/en/galleries.json";
@@ -64,6 +65,7 @@ declare module "i18next" {
       myTools: typeof myTools;
       contacts: typeof contacts;
       documents: typeof documents;
+      editor: typeof editor;
       errors: typeof errors;
       exports: typeof exports_;
       calendars: typeof calendars;

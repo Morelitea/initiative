@@ -4451,11 +4451,11 @@ export const EntityType = {
   queue_item: "queue_item",
   calendar_event: "calendar_event",
   counter: "counter",
+  gallery_image: "gallery_image",
+  wiki_page: "wiki_page",
   comment: "comment",
   initiative: "initiative",
   tag: "tag",
-  gallery_image: "gallery_image",
-  wiki_page: "wiki_page",
 } as const;
 
 export type EnvelopeImportRequestEnvelope = { [key: string]: unknown };
@@ -7594,17 +7594,15 @@ export interface ProjectCreate {
   grants?: ResourceGrantSchema[];
 }
 
-export interface ProjectDocumentSummary {
-  document_id: number;
-  name: string;
-  updated_at: string;
-  attached_at: string;
-}
+export type ProjectReadDefaultViewMode =
+  | (typeof ProjectReadDefaultViewMode)[keyof typeof ProjectReadDefaultViewMode]
+  | null;
 
-export interface ProjectFavoriteStatus {
-  project_id: number;
-  is_favorited: boolean;
-}
+export const ProjectReadDefaultViewMode = {
+  table: "table",
+  kanban: "kanban",
+  calendar: "calendar",
+} as const;
 
 export interface ProjectTaskSummary {
   total: number;
@@ -7627,14 +7625,12 @@ export interface ProjectRead {
   updated_at: string;
   is_template: boolean;
   pinned_at: string | null;
-  default_view_mode: string | null;
+  default_view_mode: ProjectReadDefaultViewMode;
   owner: UserPublic | null;
   owner_plugin: OwnerPluginSummary | null;
   initiative: InitiativeSummary | null;
-  sort_order: number | null;
   is_favorited: boolean;
   last_viewed_at: string | null;
-  documents: ProjectDocumentSummary[];
   task_summary: ProjectTaskSummary;
   task_statuses: TaskStatusRead[];
   comments_enabled: boolean;

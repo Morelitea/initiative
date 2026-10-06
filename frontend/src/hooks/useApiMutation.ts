@@ -1,4 +1,4 @@
-import { useMutation } from "@tanstack/react-query";
+import { onlineManager, useMutation } from "@tanstack/react-query";
 
 import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { getErrorMessage } from "@/lib/errorMessage";
@@ -22,7 +22,8 @@ interface ApiMutationConfig<TData, TVariables> {
    * awaited (fire-and-forget, matching the hand-written hooks).
    */
   invalidate?: (data: TData, variables: TVariables) => unknown;
-  /** `getErrorMessage` fallback key for the error toast. Omit to skip the toast. */
+  /** `getErrorMessage` fallback key for the error toast, raised only while
+   *  online. Omit to skip the toast. */
   errorKey?: string;
 }
 
@@ -66,7 +67,10 @@ export function useApiMutation<TData, TVariables = void>(
         : following;
     },
     onError: (...args) => {
-      if (config.errorKey) toast.error(getErrorMessage(args[0], config.errorKey));
+      // Offline, the offline banner already says why a write failed.
+      if (config.errorKey && onlineManager.isOnline()) {
+        toast.error(getErrorMessage(args[0], config.errorKey));
+      }
       onError?.(...args);
     },
     onSettled,

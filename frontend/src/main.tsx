@@ -25,6 +25,7 @@ import { bindOnlineManagerToDevice } from "@/lib/onlineStatus";
 import { queryClient } from "@/lib/queryClient";
 import { getStoredServerUrl } from "@/lib/serverStorage";
 import { initStorage } from "@/lib/storage";
+import { sellsOnThisDevice } from "@/lib/storeSelling";
 import { router } from "@/router";
 import { registerServiceWorker } from "@/serviceWorkerRegistration";
 
@@ -93,6 +94,10 @@ async function bootstrap() {
     if (storedUrl) {
       setApiBaseUrl(storedUrl);
     }
+
+    // Ask the store early, so plan wording and buttons are settled by the time
+    // anything shows them. Not awaited: nothing waits on it to render.
+    void sellsOnThisDevice();
 
     // Before the first query runs: a restored cache is only worth having if
     // React Query leaves it on screen instead of refetching over it while

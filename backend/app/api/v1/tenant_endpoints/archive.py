@@ -35,12 +35,10 @@ from app.api.deps import (
 )
 from app.core.plugin_scopes import PluginScopeAccess, scope_name, tool_resource
 from app.core.messages import GuildMessages, InitiativeMessages
-from app.core.tools import Tool, plural_of
+from app.core.tools import ARCHIVE_TARGETS, KINDS, Tool, plural_of
 from app.models.platform.user import User
 from app.models.tenant._mixins import archive_models
-from app.models.tenant.project import Project
 from app.models.tenant.resource_grant import ResourceGrant
-from app.models.tenant.task import Task
 from app.schemas.tenant.archive import ArchivableType, ArchiveResponse
 from app.services.permissions import Action
 from app.services.tenant import archive as archive_service
@@ -48,15 +46,19 @@ from app.services.tenant import archive as archive_service
 router = APIRouter(route_class=ActorRoute)
 
 
+def _governing(entity_type: str) -> Tool:
+    """The tool whose sharing answers for this kind: its own, or the one it
+    lives in."""
+    return KINDS[entity_type].parent or Tool(entity_type)
+
+
 #: What an installed plug-in needs to archive each kind: the write scope of the tool
 #: whose sharing governs it. An initiative is the guild admins' to archive, so
 #: no plug-in may ask for one.
 _ARCHIVE_SCOPES: dict[str, str] = {
-    **{
-        tool.value: scope_name(tool_resource(tool), PluginScopeAccess.write)
-        for tool in Tool
-    },
-    "task": scope_name(tool_resource(Tool.project), PluginScopeAccess.write),
+    target: scope_name(tool_resource(_governing(target)), PluginScopeAccess.write)
+    for target in ARCHIVE_TARGETS
+    if target != "initiative"
 }
 ArchiveWrite = Annotated[
     ActorContext, Depends(plugin_scope_by("entity_type", _ARCHIVE_SCOPES))
@@ -75,26 +77,29 @@ ARCHIVE_REGISTRY: dict[str, type] = {
 async def _load(session: AsyncSession, entity_type: str, entity_id: int) -> Any:
     """The row, with what the access decision needs already on it.
 
-    Every tool carries ``initiative`` and ``grants``, so one loader serves all
-    eight; the two non-tools are loaded for their own checks below. RLS has
-    already decided whether the row is visible at all, so a miss here is a 404
-    in the ordinary way.
+    Every tool carries ``initiative`` and ``grants``, so one loader serves them
+    all, and a row inside a tool is loaded with its tool's; an initiative is
+    loaded for its own check below. RLS has already decided whether the row is
+    visible at all, so a miss here is a 404 in the ordinary way.
     """
     model = ARCHIVE_REGISTRY[entity_type]
     stmt = select(model).where(model.id == entity_id)
-    if entity_type not in {"task", "initiative"}:
+    inside = KINDS[entity_type].parent if entity_type != "initiative" else None
+    if inside is not None:
+        tool = ARCHIVE_REGISTRY[inside.value]
+        via = getattr(model, inside.value)
+        stmt = stmt.options(
+            selectinload(via)
+            .selectinload(tool.grants)
+            .selectinload(ResourceGrant.role),
+            selectinload(via).selectinload(tool.initiative),
+            selectinload(via).undefer(tool.actions),
+        )
+    elif entity_type != "initiative":
         stmt = stmt.options(
             selectinload(model.initiative),
             selectinload(model.grants).selectinload(ResourceGrant.role),
             undefer(model.actions),
-        )
-    elif entity_type == "task":
-        stmt = stmt.options(
-            selectinload(Task.project)
-            .selectinload(Project.grants)
-            .selectinload(ResourceGrant.role),
-            selectinload(Task.project).selectinload(Project.initiative),
-            selectinload(Task.project).undefer(Project.actions),
         )
     row = (await session.exec(stmt)).one_or_none()
     if row is None:
@@ -104,10 +109,15 @@ async def _load(session: AsyncSession, entity_type: str, entity_id: int) -> Any:
     return row
 
 
-#: The "no such thing" code per kind — a tool's own, and the two non-tools'.
+#: The "no such thing" code per kind — a tool's own, the one a row inside a
+#: tool is refused with, and the initiative's.
 _NOT_FOUND: dict[str, str] = {
     **{t.value: resource_access.RESOURCE_ACCESS[t].not_found_msg for t in Tool},
-    "task": Tool.project.not_found_code,
+    **{
+        target: resource_access.SUB_TOOLS[ARCHIVE_REGISTRY[target]].not_found
+        for target in ARCHIVE_TARGETS
+        if target in KINDS and KINDS[target].parent
+    },
     "initiative": InitiativeMessages.NOT_FOUND,
 }
 
@@ -120,8 +130,8 @@ def _authorize(
 ) -> None:
     """Who may put this away, and who may take it back out.
 
-    A tool answers to its own sharing, like any other write to it. A task
-    answers to the project it is in. An initiative answers to the guild admins:
+    A tool answers to its own sharing, like any other write to it. A row inside
+    a tool, like a task, answers to the tool it is in. An initiative answers to the guild admins:
     archiving one hides it from every member's sidebar and freezes everything
     inside it, which is a guild-wide act rather than one initiative's.
 
@@ -138,8 +148,8 @@ def _authorize(
                 detail=GuildMessages.COMMUNITY_ADMIN_REQUIRED,
             )
         return
-    governing = Tool.project if entity_type == "task" else Tool(entity_type)
-    subject = row.project if entity_type == "task" else row
+    governing = _governing(entity_type)
+    subject = row if governing.value == entity_type else getattr(row, governing.value)
     resource_access.authorize(
         governing,
         subject,

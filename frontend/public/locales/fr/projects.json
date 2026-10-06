@@ -1,5 +1,4 @@
 {
-  "title": "Projets",
   "addProject": "Ajouter un projet",
   "loading": "Chargement des projets…",
   "loadError": "Impossible de charger les projets.",
@@ -7,12 +6,6 @@
   "noProjects": "Aucun projet pour l'instant. Créez-en un pour commencer.",
   "noMatchingProjects": "Aucun projet ne correspond à vos filtres.",
   "onlyPinnedMatch": "Seuls les projets épinglés correspondent à vos filtres.",
-  "accessRestricted": "Accès restreint",
-  "accessRestrictedDescription": "Vous n'avez pas la permission de voir les projets dans cette initiative. Demandez à l'administration de la communauté ou à un gestionnaire d'initiative si vous pensez qu'il s'agit d'une erreur.",
-  "view": {
-    "grid": "Grille",
-    "list": "Liste"
-  },
   "filters": {
     "heading": "Filtres",
     "searchLabel": "Nom ou description",
@@ -83,7 +76,6 @@
   "archived": {
     "loading": "Chargement des projets archivés…",
     "loadError": "Impossible de charger les projets archivés.",
-    "unarchive": "Désarchiver",
     "noArchived": "Aucun projet archivé",
     "noArchivedDescription": "Les projets actifs restent dans l'onglet Actifs."
   },
@@ -91,15 +83,10 @@
     "title": "Créer un projet",
     "description": "Donnez au projet un nom, une description optionnelle et une initiative propriétaire.",
     "iconLabel": "Icône (optionnel)",
-    "nameLabel": "Nom",
     "namePlaceholder": "Refonte de la fondation",
     "descriptionLabel": "Description (Markdown supporté)",
     "descriptionPlaceholder": "Partagez du contexte pour aider l'initiative à prioriser.",
     "initiativeLabel": "Initiative",
-    "loadingInitiatives": "Chargement des initiatives…",
-    "initiativeLoadError": "Impossible de charger les initiatives.",
-    "selectInitiative": "Sélectionner une initiative",
-    "noInitiatives": "Aucune initiative disponible.",
     "templateLabel": "Modèle (optionnel)",
     "loadingTemplates": "Chargement des modèles…",
     "templateLoadError": "Impossible de charger les modèles.",
@@ -137,7 +124,6 @@
   "tabsBar": {
     "loadingRecent": "Chargement des éléments récents…",
     "closeItem": "Fermer {{name}}",
-    "close": "Fermer",
     "closeOthers": "Fermer les autres",
     "closeAll": "Fermer tout"
   },
@@ -179,14 +165,12 @@
     "add": "Ajouter",
     "existingStatuses": "Statuts existants",
     "saveChanges": "Enregistrer les modifications",
-    "nameColumn": "Nom",
     "categoryColumn": "Catégorie",
     "iconColumn": "Icône",
     "colorColumn": "Couleur",
     "iconPlaceholder": "Choisir une icône",
     "colorPlaceholder": "Choisir une couleur",
     "defaultColumn": "Par défaut",
-    "actionsColumn": "Actions",
     "noStatuses": "Aucun statut configuré pour l'instant.",
     "deleteTitle": "Supprimer le statut",
     "deleteStatus": "Supprimer {{name}}",
@@ -212,8 +196,6 @@
     "unknownError": "Erreur inconnue"
   },
   "settings": {
-    "title": "Paramètres du projet",
-    "breadcrumbSettings": "Paramètres",
     "tabTaskStatuses": "Statuts des tâches",
     "details": {
       "description": "Mettez à jour l'icône, le nom et la description affichés dans l'espace de travail.",
@@ -221,9 +203,7 @@
       "identityDescription": "Donnez au projet un nom et un emoji reconnaissables.",
       "iconLabel": "Icône",
       "iconHint": "Choisissez un emoji pour rendre ce projet facile à repérer.",
-      "nameLabel": "Nom",
       "namePlaceholder": "Feuille de route produit",
-      "saving": "Enregistrement...",
       "saveDetails": "Enregistrer les modifications",
       "detailsUpdated": "Détails du projet mis à jour",
       "updateError": "Impossible de mettre à jour le projet.",
@@ -278,7 +258,6 @@
     "archiveDialogDescription": "Ceci archivera {{count}} tâche. Les tâches archivées sont masquées par défaut mais peuvent être affichées via le filtre.",
     "archiveDialogDescription_other": "Ceci archivera {{count}} tâches. Les tâches archivées sont masquées par défaut mais peuvent être affichées via le filtre.",
     "archiveConfirm": "Archiver",
-    "archiving": "Archivage en cours…",
     "archivedSuccess": "{{count}} tâche archivée",
     "archivedSuccess_other": "{{count}} tâches archivées",
     "archiveError": "Impossible d'archiver les tâches.",
@@ -314,7 +293,6 @@
     "due": "Échéance : {{date}}",
     "dropHere": "Déposez les tâches ici",
     "noTasks": "Aucune tâche pour l'instant.",
-    "archiving": "Archivage en cours…",
     "archiveDone": "Archiver les tâches terminées",
     "taskCount_one": "{{count}} tâche",
     "taskCount_other": "{{count}} tâches",
@@ -391,9 +369,8 @@
   "preview": {
     "updated": "Mis à jour {{date}}",
     "tasksDone": "{{completed}}/{{total}} terminées",
-    "templateBadge": "Modèle",
-    "archivedBadge": "Archivé",
-    "archivedOn": "Archivé le {{date}}"
+    "archivedOn": "Archivé le {{date}}",
+    "reorder": "Réordonner le projet"
   },
   "activitySidebar": {
     "title": "Activité du projet",

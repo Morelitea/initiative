@@ -102,12 +102,15 @@ export interface StartFlowProps {
 export const StartFlow = (props: StartFlowProps) => {
   const { signedIn = false } = props;
   const { isLoading, communityDirectoryEnabled } = useAppConfig();
+  // Whether a plan step is offered waits on a phone's store, so the steps are
+  // not laid out before it is known.
+  const { isLoading: sellingLoading } = useBillingPortal();
   const { canCreateCommunities } = useCommunities();
   const bootstrap = useBootstrapStatus({
     query: { enabled: !signedIn, retry: false },
   });
 
-  if (isLoading || (!signedIn && bootstrap.isPending)) {
+  if (isLoading || sellingLoading || (!signedIn && bootstrap.isPending)) {
     return (
       <SignInFrame>
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -142,8 +145,9 @@ const StartSteps = ({
   const { captcha, communityAgeGateEnabled } = useAppConfig();
   const { getServerOrigin } = useServer();
   const { billing, canSell, openPortal, reserveTab } = useBillingPortal();
-  // A plan is picked only where it can be bought. The phone app may not sell,
-  // so its flow has no plan step: the community starts on the free plan, and
+  // A plan is picked only where it can be bought. Where this device may not
+  // sell (a phone app outside the store countries that allow it), the flow has
+  // no plan step: the community starts on the free plan, and
   // the welcome letter is the way to the rest.
   const plansShown = canSell;
   const catalog = useBillingCatalog(plansShown ? billing?.url : null);
@@ -320,8 +324,8 @@ const StartSteps = ({
     } catch (err) {
       dropPlanTab();
       onBusy?.(false);
-      // The server's own line for this sends them to choose a plan, which the
-      // phone app may not do; there it only says why.
+      // The server's own line for this sends them to choose a plan, which a
+      // device that may not sell cannot offer; there it only says why.
       setError(
         !canSell && getErrorCode(err) === "FREE_COMMUNITY_ALREADY_HELD"
           ? t("communities:freeCommunityHeldInApp")

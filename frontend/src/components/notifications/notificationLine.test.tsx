@@ -8,10 +8,10 @@
  * These notices belong to the person rather than to any community, so the
  * server sends no community with them.
  */
-import { Capacitor } from "@capacitor/core";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { buildNotification } from "@/__tests__/factories/notification.factory";
+import { asPhoneThatMayNotSell } from "@/__tests__/helpers/storeSelling";
 import type { NotificationType } from "@/api/generated/initiativeAPI.schemas";
 
 import { notificationLink, notificationText } from "./notificationLine";
@@ -102,7 +102,7 @@ describe("notificationText — account notices", () => {
   });
 
   it("asks for no plan in the phone app, which may not sell", () => {
-    const native = vi.spyOn(Capacitor, "isNativePlatform").mockReturnValue(true);
+    const native = asPhoneThatMayNotSell();
     try {
       expect(
         notificationText(

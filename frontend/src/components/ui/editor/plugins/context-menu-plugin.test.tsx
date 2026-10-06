@@ -6,7 +6,7 @@ import type { SerializedEditorState } from "lexical";
 import { describe, expect, it } from "vitest";
 
 import { renderPage } from "@/__tests__/helpers/render";
-import { Editor } from "@/components/documents/editor/editor";
+import { Editor } from "@/components/ui/editor/editor";
 
 const THEME_CSS = fs.readFileSync(path.resolve(__dirname, "../themes/editor-theme.css"), "utf-8");
 

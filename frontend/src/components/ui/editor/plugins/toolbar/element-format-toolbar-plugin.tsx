@@ -58,7 +58,7 @@ export function useCurrentAlignment(): AlignmentType {
 }
 
 export function ElementFormatToolbarPlugin() {
-  const { t } = useTranslation("documents");
+  const { t } = useTranslation("editor");
   const current = useCurrentAlignment();
   const alignments = useAlignmentActions(current);
   const indents = useIndentActions();
@@ -66,12 +66,7 @@ export function ElementFormatToolbarPlugin() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-8 gap-1 px-2"
-          aria-label={t("editor.align")}
-        >
+        <Button variant="outline" size="sm" className="h-8 gap-1 px-2" aria-label={t("align")}>
           {alignments.find((action) => action.active)?.icon}
           <ChevronDownIcon className="size-3" />
         </Button>

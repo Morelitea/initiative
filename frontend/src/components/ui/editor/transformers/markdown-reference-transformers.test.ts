@@ -9,7 +9,7 @@ import {
 } from "lexical";
 import { describe, expect, it } from "vitest";
 
-import { documentExtension } from "@/components/documents/editor/document-extension";
+import { documentExtension } from "@/components/ui/editor/document-extension";
 import { MARKDOWN_TRANSFORMERS } from "@/components/ui/editor/extensions/markdown-shortcuts-extension";
 import {
   $createEntityMentionNode,

@@ -22,12 +22,16 @@ import {
   useMarkNotificationRead,
 } from "@/hooks/useNotifications";
 import { downloadExportArtifact } from "@/lib/exportDownload";
+import { useStoreSellingAnswer } from "@/lib/storeSelling";
 
 // How often the bell asks on its own, which is only ever when there is no
 // channel to ask for it.
 const NOTIFICATION_POLL_INTERVAL_MS = 30_000;
 
 export const NotificationBell = () => {
+  // Plan lines are worded by whether this device may sell; re-render once a
+  // phone's store has said.
+  useStoreSellingAnswer();
   const [open, setOpen] = useState(false);
   // Rows read while the popover is open. The list is unread-only, so without
   // this they would vanish under the pointer and reflow what is beneath them.

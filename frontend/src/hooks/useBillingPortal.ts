@@ -1,13 +1,21 @@
+import { Browser } from "@capacitor/browser";
+import { Capacitor } from "@capacitor/core";
 import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 
 import { createCommunityBillingHandoff } from "@/api/generated/communities/communities";
 import { useAppConfig } from "@/hooks/useAppConfig";
-import { useServer } from "@/hooks/useServer";
+import { sellsOnThisDevice, useStoreSellingAnswer } from "@/lib/storeSelling";
 
 /** Portal page to land on: the plan/card setup screen, or the existing
  *  subscription's management screen. */
 export type BillingPortalPage = "manage" | "upgrade";
+
+/** The phone apps, which open the portal with `@capacitor/browser`. */
+const opensInBrowserSheet = (): boolean => {
+  const platform = Capacitor.getPlatform();
+  return platform === "ios" || platform === "android";
+};
 
 /**
  * Link-out to the external billing portal for one community.
@@ -29,18 +37,30 @@ export type BillingPortalPage = "manage" | "upgrade";
  * otherwise land the `window.open` outside the user gesture.
  *
  * `canSell` is whether this surface may lead anyone to a purchase: a portal
- * is configured and this is not the app on a phone. The app stores refuse an
- * app that sends people to pay anywhere but the store's own checkout, so the
- * phone app shows the plan and never offers to change it — every
- * upgrade/manage affordance asks `canSell`, not `billing`, and
- * `reserveTab`/`openPortal` do nothing there.
+ * is configured and this device may sell (`@/lib/storeSelling` — always on the
+ * web and the desktop app; on a phone only where its store allows a link to a
+ * web purchase). Every upgrade/manage affordance asks `canSell`, not
+ * `billing`, and `reserveTab`/`openPortal` do nothing where it is false.
+ *
+ * The phone apps open the portal in the system browser sheet rather than a
+ * tab, so `reserveTab` returns null there.
  */
 export const useBillingPortal = () => {
-  const { billing, isLoading } = useAppConfig();
+  const { billing, isLoading: configLoading } = useAppConfig();
   const { i18n } = useTranslation();
   const lang = i18n.resolvedLanguage ?? i18n.language;
-  const { isNativePlatform } = useServer();
-  const canSell = billing != null && !isNativePlatform;
+  const sellsAnswer = useStoreSellingAnswer();
+  const canSell = billing != null && sellsAnswer === true;
+  // Still loading while a phone's store has not said whether it may sell, so
+  // nothing decides on a `canSell` that is about to change.
+  const isLoading = configLoading || (billing != null && sellsAnswer === undefined);
+  const hasBilling = billing != null;
+
+  /** `canSell`, once a phone's store has answered. */
+  const sellsNow = useCallback(
+    async (): Promise<boolean> => hasBilling && (await sellsOnThisDevice()),
+    [hasBilling]
+  );
 
   const pageUrl = useCallback(
     (communityId: number, page: BillingPortalPage): string | null =>
@@ -61,7 +81,7 @@ export const useBillingPortal = () => {
   );
 
   const reserveTab = useCallback((): Window | null => {
-    if (!canSell) return null;
+    if (!canSell || opensInBrowserSheet()) return null;
     const tab = window.open("about:blank", "_blank");
     if (tab) tab.opener = null;
     return tab;
@@ -79,11 +99,18 @@ export const useBillingPortal = () => {
       } catch {
         // Without a handoff, the bare portal page.
       }
-      if (tab) tab.location.href = url;
+      if (opensInBrowserSheet()) {
+        try {
+          await Browser.open({ url });
+        } catch {
+          // No browser sheet: let the system open the address.
+          window.open(url, "_blank", "noopener,noreferrer");
+        }
+      } else if (tab) tab.location.href = url;
       else window.open(url, "_blank", "noopener,noreferrer");
     },
     [canSell, pageUrl, portalUrl, reserveTab]
   );
 
-  return { billing, canSell, isLoading, openPortal, portalUrl, reserveTab };
+  return { billing, canSell, isLoading, openPortal, portalUrl, reserveTab, sellsNow };
 };

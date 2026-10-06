@@ -126,7 +126,7 @@ function DocumentToolbar({
   supportsEntityMentions: boolean;
   setIsLinkEditMode: (value: boolean) => void;
 }) {
-  const { t } = useTranslation("documents");
+  const { t } = useTranslation("editor");
   // The typesetting half of the toolbar. A document is a place to typeset; a
   // notice is a place to say something, so it gets the writing controls and
   // not the layout ones.
@@ -233,8 +233,8 @@ function DocumentToolbar({
     <OverflowToolbar
       data-editor-toolbar
       items={items}
-      label={t("editor.format")}
-      moreLabel={t("editor.moreFormatting")}
+      label={t("format")}
+      moreLabel={t("moreFormatting")}
       className="vertical-align-middle sticky top-0 z-10 gap-2 border-b bg-[color-mix(in_oklab,var(--muted)_20%,var(--background))] p-1"
       rowClassName="gap-2"
     />
@@ -288,7 +288,7 @@ export function Plugins({
     onCreated: (entityType: SearchEntityType, entityId: number, name: string) => void
   ) => void;
 }) {
-  const { t } = useTranslation("documents");
+  const { t } = useTranslation("editor");
   const [editor] = useLexicalComposerContext();
   // The typesetting half of the toolbar. A document is a place to typeset; a
   // notice is a place to say something, so it gets the writing controls and

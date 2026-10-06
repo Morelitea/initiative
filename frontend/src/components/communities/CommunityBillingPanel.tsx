@@ -35,7 +35,7 @@ interface PlanStatus {
 
 /** What the badge says, by what matters most to the seat right now: a charge
  *  that failed, then a plan about to stop, then a trial, then a renewal.
- *  Where nothing may be sold (`canSell` false — the phone app) it states the
+ *  Where nothing may be sold (`canSell` false) it states the
  *  facts without asking anyone to pay, and names no amount. */
 const planStatus = (
   summary: CommunityBillingSummaryRead,
@@ -111,7 +111,8 @@ const planStatus = (
  * install shows without it. A grantee lent the seat — support — sees the bars
  * and never this (`holdsBillingSeat`). Nothing here changes billing — every action hands
  * off to the billing portal, and the summary is fetched per view and kept
- * nowhere. The phone app shows the plan with no actions at all (`canSell`). */
+ * nowhere. Where nothing may be sold (`canSell` false) it shows the plan with no
+ * actions at all. */
 export const CommunityBillingPanel = () => {
   const { t, i18n } = useTranslation(["communities", "common"]);
   const lang = i18n.resolvedLanguage ?? i18n.language;

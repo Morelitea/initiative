@@ -26,7 +26,7 @@ from app.models.platform.user_passkey import UserPasskey
 # relationships that name a person resolve it by name.
 from app.models.platform.user_profile_view import MemberProfile
 from app.models.platform.api_key import UserApiKey
-from app.models.tenant.project_activity import ProjectFavorite
+from app.models.tenant.project_favorite import ProjectFavorite
 from app.models.tenant.project_order import ProjectOrder
 from app.models.tenant.recent_view import RecentView
 from app.models.tenant.comment import Comment

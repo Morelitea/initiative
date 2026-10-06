@@ -8,7 +8,7 @@ import type { SpreadsheetContent } from "@/components/documents/SpreadsheetDocum
 import type { WhiteboardScene } from "@/components/documents/WhiteboardDocumentEditor";
 
 const Editor = lazy(() =>
-  import("@/components/documents/editor/editor").then((m) => ({ default: m.Editor }))
+  import("@/components/ui/editor/editor").then((m) => ({ default: m.Editor }))
 );
 const FileDocumentViewer = lazy(() =>
   import("@/components/documents/FileDocumentViewer").then((m) => ({

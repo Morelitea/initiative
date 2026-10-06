@@ -421,7 +421,9 @@
     "errorTitle": "Abrechnung konnte nicht geöffnet werden",
     "error": "Das Abrechnungsportal konnte nicht geöffnet werden. Versuche es gleich noch einmal über den Link.",
     "nativeTitle": "In der App nicht verfügbar",
-    "nativeDescription": "Tarifänderungen sind in der App nicht verfügbar."
+    "nativeDescription": "Tarifänderungen sind in der App nicht verfügbar.",
+    "openedTitle": "Im Browser geöffnet",
+    "openedDescription": "Das Abrechnungsportal ist in deinem Browser geöffnet."
   },
   "usagePanel": {
     "title": "Nutzung",

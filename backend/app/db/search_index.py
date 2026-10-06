@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import hashlib
 from collections.abc import Callable
+from typing import Any
 from dataclasses import dataclass, replace
 
 from sqlalchemy import JSON, DateTime, Enum, MetaData
@@ -25,7 +26,7 @@ from sqlmodel import SQLModel
 
 from app.core.identity_boundary import STORED_MENTION
 from app.core.search import SearchEntityType
-from app.core.tools import Tool
+from app.core.tools import KINDS, Tool
 from app.db.initiative_rls import COMMENT_PARENTS, initiative_locator
 
 #: How a row reaches the trigger's dynamic lookups: as ``$1`` in an EXECUTE.
@@ -342,6 +343,14 @@ def _tool_source(tool: Tool) -> SearchSource:
     )
 
 
+def _inside(kind: SearchEntityType, **fields: Any) -> SearchSource:
+    """A row inside a tool, gated by the sharing of the tool it lives in."""
+    inside = KINDS[kind.value]
+    return SearchSource(
+        kind, dac_tool=inside.parent, dac_id=inside.parent_column, **fields
+    )
+
+
 #: Where a tool's text is not simply its name and description. A tool absent
 #: from here is not an omission — it is a tool that takes the shape above.
 TOOL_OVERRIDES: dict[Tool, dict[str, object]] = {
@@ -358,44 +367,37 @@ TOOL_OVERRIDES: dict[Tool, dict[str, object]] = {
 #:
 #: The six tools are derived; what is written out is what a tool does not
 #: describe — the entities that live INSIDE one, the guild's vocabulary, and
-#: comments. Those differ from each other in ways no rule covers: which column
-#: is the title, which parent's sharing governs them.
+#: comments. Those differ from each other in ways no rule covers, like which
+#: column is the title; which tool's sharing governs one inside a tool is its
+#: kind's (``KINDS``).
 SEARCH_SOURCES: dict[str, SearchSource] = {
     **{
         tool.plural: replace(_tool_source(tool), **TOOL_OVERRIDES.get(tool, {}))
         for tool in Tool
     },
-    "tasks": SearchSource(
+    "tasks": _inside(
         SearchEntityType.task,
         title="title",
         body=("description", "checklist"),
         body_sql=_task_text,
-        dac_tool=Tool.project,
-        dac_id="project_id",
     ),
-    "queue_items": SearchSource(
+    "queue_items": _inside(
         SearchEntityType.queue_item,
         title="label",
         body=("notes",),
-        dac_tool=Tool.queue,
-        dac_id="queue_id",
     ),
-    "counters": SearchSource(
+    "counters": _inside(
         SearchEntityType.counter,
         title="name",
-        dac_tool=Tool.counter_group,
-        dac_id="counter_group_id",
     ),
-    "calendar_events": SearchSource(
+    "calendar_events": _inside(
         SearchEntityType.calendar_event,
         title="title",
         body=("description", "location"),
-        dac_tool=Tool.calendar,
-        dac_id="calendar_id",
     ),
     # A picture is found by what somebody called it, or failing that by the
     # name of the file they uploaded — which is often the only name it has.
-    "gallery_images": SearchSource(
+    "gallery_images": _inside(
         SearchEntityType.gallery_image,
         title="title",
         title_sql=lambda row: (
@@ -403,19 +405,15 @@ SEARCH_SOURCES: dict[str, SearchSource] = {
         ),
         body=("caption", "original_filename"),
         body_sql=_gallery_image_text,
-        dac_tool=Tool.gallery,
-        dac_id="gallery_id",
     ),
     # A page is found by its title and by what is written on it. Its body is a
     # Lexical state, the same shape a native document's is, so it is read by the
     # same extractor rather than a second one.
-    "wiki_pages": SearchSource(
+    "wiki_pages": _inside(
         SearchEntityType.wiki_page,
         title="title",
         body=("content",),
         body_sql=_wiki_page_text,
-        dac_tool=Tool.wiki,
-        dac_id="wiki_id",
     ),
     # Guild-level vocabulary: no initiative, no sharing gate. Reaching the query
     # at all means being in the guild, which is the whole gate for a tag.

@@ -231,8 +231,6 @@ const recents = (): Spec => ({ personalExact: ["/api/v1/recents/"] });
 
 const favoriteProjects = (): Spec => ({ communityExact: ["/api/v1/projects/favorites"] });
 
-const writableProjects = (): Spec => ({ communityExact: ["/api/v1/projects/writable"] });
-
 // ── Documents (community) ────────────────────────────────────────────────────────
 
 /** Every read of the graph. One path serves them all, so one bucket does. */
@@ -514,10 +512,6 @@ const version = (): Spec => ({ personalExact: ["/api/v1/version"] });
 
 const latestVersion = (): Spec => ({ personalExact: ["/api/v1/version/latest"] });
 
-// ── Task Statuses (community) ────────────────────────────────────────────────────
-
-const allTaskStatuses = (): Spec => ({ communityPrefix: ["/api/v1/projects"] });
-
 // ── Properties (community) ───────────────────────────────────────────────────────
 
 const allProperties = (): Spec => ({ communityPrefix: ["/api/v1/property-definitions"] });
@@ -633,7 +627,6 @@ export const q = {
   allQueues,
   allSettings,
   allTags,
-  allTaskStatuses,
   allWikis,
   allTasks,
   announcements,
@@ -707,7 +700,6 @@ export const q = {
   toolSubtree,
   userStats,
   version,
-  writableProjects,
   wiki,
   wikiPage,
   wikiPages,
