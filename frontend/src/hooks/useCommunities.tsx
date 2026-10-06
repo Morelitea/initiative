@@ -279,7 +279,10 @@ const fetchCommunityList = async (
     { content?: AccessGrantRead; settings?: AccessGrantRead }
   >();
   try {
-    const { items: grants } = await walkPages(listAccessGrants, { live: true, page_size: 200 });
+    const walked = await walkPages(listAccessGrants, { live: true, page_size: 200 });
+    // A walk stopped at its bound is not every grant, so it prunes nothing.
+    grantsKnown = !walked.has_next;
+    const grants = walked.items;
     for (const grant of grants) {
       if (!grant.is_live || (grant.purpose !== "content" && grant.purpose !== "settings")) {
         continue;

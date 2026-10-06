@@ -57,7 +57,7 @@ describe("fetchAllPages", () => {
     expect(result.items.map((i) => i.id)).toEqual([1, 2, 3, 4, 5]);
   });
 
-  it("stops at the page safety bound instead of looping forever", async () => {
+  it("stops at the page safety bound, saying pages remain", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
       // A misbehaving server that always reports another page.
@@ -65,6 +65,7 @@ describe("fetchAllPages", () => {
       const result = await fetchAllPages(fetcher, { page_size: 0 });
       expect(fetcher.mock.calls.length).toBe(50);
       expect(result.items.length).toBe(50);
+      expect(result.has_next).toBe(true);
       expect(warn).toHaveBeenCalledOnce();
     } finally {
       warn.mockRestore();

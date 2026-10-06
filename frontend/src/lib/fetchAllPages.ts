@@ -13,8 +13,9 @@
  * A positive `page_size` passes straight through as a single request, so the
  * same line serves paginated and fetch-all callers alike; only
  * `page_size: 0` triggers the window walk, and the merged result comes back
- * response-shaped (`has_next: false`) so cached data looks exactly like a
- * complete single-page response to every consumer.
+ * response-shaped so cached data looks exactly like a single-page response
+ * to every consumer: `has_next: false` once every window is in, and still
+ * true where the walk stopped at its bound.
  */
 
 type WindowedListResponse = {
@@ -36,8 +37,8 @@ const idOf = (item: unknown): number | string | undefined =>
 /**
  * Every page of a list, walked from page 1 at the page size `params` asks for
  * until `has_next` is false (at most {@link MAX_PAGES} pages), merged into one
- * response-shaped result. For a list whose server has no `page_size=0`
- * window of its own.
+ * response-shaped result whose `has_next` says whether pages remain. For a
+ * list whose server has no `page_size=0` window of its own.
  */
 export const walkPages = async <
   TParams extends ListWindowParams,
@@ -73,7 +74,7 @@ export const walkPages = async <
     console.warn(`fetchAllPages: stopped after ${MAX_PAGES} pages with has_next still true`);
   }
 
-  return { ...response, items: merged, has_next: false, has_prev: false, page: 1 } as TResponse;
+  return { ...response, items: merged, has_prev: false, page: 1 } as TResponse;
 };
 
 /** `page_size: 0` walks the server's windows; any other size is one request. */
