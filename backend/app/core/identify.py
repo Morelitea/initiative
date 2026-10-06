@@ -15,7 +15,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import NamedTuple
 
 import jwt
 from starlette.requests import HTTPConnection
@@ -30,6 +29,7 @@ from app.core.plugin_access_token import (
 from app.core.messages import AuthMessages
 from app.core.security import (
     SESSION_COOKIE_NAME,
+    UploadTokenClaims,
     UploadTokenError,
     decode_session_token,
     verify_upload_token,
@@ -57,15 +57,6 @@ URL_CREDENTIALS = frozenset({CredentialKind.upload_token})
 SOCKET_CREDENTIALS = frozenset({CredentialKind.session})
 
 
-class VerifiedUpload(NamedTuple):
-    """What an upload token carries, copied from the session that minted it."""
-
-    user_id: int
-    satisfied: frozenset[int]
-    claims: dict
-    markers: frozenset[str]
-
-
 @dataclass(frozen=True)
 class Identified:
     """A credential, read locally.
@@ -81,7 +72,7 @@ class Identified:
     #: place an installed plug-in's token is read from.
     bearer: bool = False
     session: TokenPayload | None = None
-    upload: VerifiedUpload | None = None
+    upload: UploadTokenClaims | None = None
     access: InstallAccessToken | PluginAccessToken | None = None
     #: Why it was refused, when its local check failed.
     refused: str | None = None
@@ -140,7 +131,7 @@ def identify_token(
         return Identified(token, allow, bearer=bearer)
     if CredentialKind.upload_token in allow:
         try:
-            upload = VerifiedUpload(*verify_upload_token(token))
+            upload = verify_upload_token(token)
         except UploadTokenError:
             pass
         else:

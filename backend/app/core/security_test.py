@@ -21,10 +21,10 @@ from app.core import security
 from app.core.config import settings
 from app.core.security import (
     AUTH_ACCESS_AUDIENCE,
-    AUTH_TOKEN_ISSUER,
     BILLING_PORTAL_HANDOFF_LIFETIME,
     HandoffSigningNotConfiguredError,
     JWT_ALGORITHM,
+    TOKEN_ISSUER,
     UPLOAD_TOKEN_AUDIENCE,
     UPLOAD_TOKEN_LIFETIME,
     UPLOAD_TOKEN_SCOPE,
@@ -156,19 +156,24 @@ def test_upload_token_round_trips_to_user_id():
     token, seconds = create_upload_token(user_id=123)
     assert isinstance(token, str) and token.count(".") == 2
     assert seconds == int(UPLOAD_TOKEN_LIFETIME.total_seconds())
-    assert verify_upload_token(token) == (123, frozenset(), {}, frozenset())
+    upload = verify_upload_token(token)
+    assert upload.user_id == 123
+    assert (upload.satisfied, upload.claims, upload.markers) == (
+        frozenset(),
+        {},
+        frozenset(),
+    )
 
     satisfied_token, _ = create_upload_token(
         user_id=123,
         satisfied_providers=[5, 2],
         satisfied_claims={"5": {"hd": ["acme.com"]}},
     )
-    assert verify_upload_token(satisfied_token) == (
-        123,
-        frozenset({2, 5}),
-        {"5": {"hd": ["acme.com"]}},
-        frozenset(),
-    )
+    satisfied = verify_upload_token(satisfied_token)
+    assert satisfied.user_id == 123
+    assert satisfied.satisfied == frozenset({2, 5})
+    assert satisfied.claims == {"5": {"hd": ["acme.com"]}}
+    assert satisfied.markers == frozenset()
 
 
 def test_upload_token_carries_how_the_session_was_opened():
@@ -176,13 +181,13 @@ def test_upload_token_carries_how_the_session_was_opened():
     carries the markers that answer each — a code presented after a password
     is not a key, so a rule asking for one is not answered by the other."""
     factor, _ = create_upload_token(user_id=7, session_amr={"mfa"})
-    assert verify_upload_token(factor)[3] == frozenset({"mfa"})
+    assert verify_upload_token(factor).markers == frozenset({"mfa"})
 
     key, _ = create_upload_token(user_id=7, session_amr={"mfa", "hwk"})
-    assert verify_upload_token(key)[3] == frozenset({"mfa", "hwk"})
+    assert verify_upload_token(key).markers == frozenset({"mfa", "hwk"})
 
     neither, _ = create_upload_token(user_id=7)
-    assert verify_upload_token(neither)[3] == frozenset()
+    assert verify_upload_token(neither).markers == frozenset()
 
 
 def test_upload_token_carries_scope_and_audience_but_no_ver():
@@ -237,7 +242,7 @@ def test_session_jwt_signed_with_dedicated_jwt_signing_key(monkeypatch):
         jwt_key,
         algorithms=[security.JWT_ALGORITHM],
         audience=AUTH_ACCESS_AUDIENCE,
-        issuer=AUTH_TOKEN_ISSUER,
+        issuer=TOKEN_ISSUER,
     )
     assert payload["sub"] == "ucli_seven"
     # ...and NOT under SECRET_KEY (proving the keys are actually decoupled).
@@ -266,9 +271,10 @@ def test_jwt_signing_key_does_not_affect_encryption(monkeypatch):
     assert decrypt_field(before_ct, SALT_EMAIL) == "alice@example.com"
 
 
-def test_verify_upload_token_rejects_wrong_audience(handoff_signing_key):
-    """A token signed with our secret but carrying a foreign audience (e.g. a
-    handoff into another service) must not be honored as an upload token."""
+def test_verify_upload_token_rejects_wrong_audience_and_claims(handoff_signing_key):
+    """A token carrying a foreign audience (e.g. a handoff into another
+    service) is not an upload token, and neither is one with the uploads
+    audience whose scope or claims are not the shape an upload token has."""
     handoff, _ = security.create_billing_portal_handoff_token(
         guild_role="admin",
         user_ref="ubil_test1",
@@ -276,6 +282,34 @@ def test_verify_upload_token_rejects_wrong_audience(handoff_signing_key):
     )
     with pytest.raises(UploadTokenError):
         verify_upload_token(handoff)
+
+    now = datetime.now(timezone.utc)
+    claims = {
+        "sub": "7",
+        "aud": UPLOAD_TOKEN_AUDIENCE,
+        "scope": UPLOAD_TOKEN_SCOPE,
+        "iat": int(now.timestamp()),
+        "exp": now + timedelta(minutes=1),
+    }
+    assert verify_upload_token(security.sign_hs256(claims)).user_id == 7
+    for change in (
+        {"scope": "files"},
+        {"scope": None},
+        {"sub": "ucli_seven"},
+        {"sat": ["one"]},
+        {"satc": ["not", "an", "object"]},
+    ):
+        with pytest.raises(UploadTokenError):
+            verify_upload_token(security.sign_hs256({**claims, **change}))
+    # A null collection reads as empty.
+    nulls = verify_upload_token(
+        security.sign_hs256({**claims, "sat": None, "satc": None, "amr": None})
+    )
+    assert (nulls.satisfied, nulls.claims, nulls.markers) == (
+        frozenset(),
+        {},
+        frozenset(),
+    )
 
 
 # ── New-model access token (auth rewrite, Phase 0) ─────────────────────────
@@ -302,7 +336,7 @@ def test_mint_access_token_carries_session_claims():
     assert payload["ver"] == 3
     assert payload["amr"] == ["pwd", "otp"]
     assert payload["sat"] == [7, 9]
-    assert payload["iss"] == AUTH_TOKEN_ISSUER
+    assert payload["iss"] == TOKEN_ISSUER
     assert payload["aud"] == AUTH_ACCESS_AUDIENCE
 
 
@@ -339,7 +373,7 @@ def test_mint_access_token_is_verifiable_with_expected_audience():
         settings.jwt_signing_key,
         algorithms=[JWT_ALGORITHM],
         audience=AUTH_ACCESS_AUDIENCE,
-        issuer=AUTH_TOKEN_ISSUER,
+        issuer=TOKEN_ISSUER,
         options={"require": ["exp", "iat", "sub", "sid", "aud", "iss"]},
     )
     assert payload["sub"] == "ucli_five"

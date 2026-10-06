@@ -37,11 +37,8 @@ from app.core.auth_context import (
     set_session_amr,
     set_session_credential,
 )
-from app.core.identify import (
-    CredentialKind,
-    Identified,
-    VerifiedUpload,
-)
+from app.core.identify import CredentialKind, Identified
+from app.core.security import UploadTokenClaims
 from app.core.login_methods import SecondFactorRequirement
 from app.core.messages import AuthMessages
 from app.models.platform.api_key import UserApiKey
@@ -151,7 +148,9 @@ async def _session(session: AsyncSession, token_data: TokenPayload) -> Authentic
     return Authenticated(user=user, kind=CredentialKind.session, session_id=session_id)
 
 
-async def _upload_token(session: AsyncSession, upload: VerifiedUpload) -> Authenticated:
+async def _upload_token(
+    session: AsyncSession, upload: UploadTokenClaims
+) -> Authenticated:
     user = (
         await session.exec(select(User).where(User.id == upload.user_id))
     ).one_or_none()

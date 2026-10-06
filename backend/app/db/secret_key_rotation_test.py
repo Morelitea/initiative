@@ -308,7 +308,7 @@ async def test_rotate_reencrypts_the_generated_plugin_platform_key(
     monkeypatch.setattr(security, "_stored_plugin_platform_key", None)
     await seed_app_settings(session)
     await load_plugin_platform_signing_key(session)
-    pem, _, _ = security.resolve_plugin_platform_signing_material()
+    pem, _ = security.resolve_plugin_platform_signing_material()
     await session.commit()
 
     _use_keys(monkeypatch, old=OLD, new=NEW)
