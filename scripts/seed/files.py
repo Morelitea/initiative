@@ -1,4 +1,4 @@
-"""Documents: native pages and spreadsheets, what they are attached to, and
+"""Files: native pages and spreadsheets, what they are attached to, and
 what their bodies name in one another."""
 
 from __future__ import annotations
@@ -6,7 +6,7 @@ from __future__ import annotations
 from app.core.relationships import Provenance, RelationshipType
 from app.core.search import SearchEntityType
 from app.core.tools import Tool
-from app.models.tenant.document import Document, DocumentType
+from app.models.tenant.file import File, FileType
 from app.models.tenant.resource_grant import ResourceAccessLevel
 from app.services.tenant import relationships as relationships_service
 
@@ -204,16 +204,16 @@ def spreadsheet_workbook(
     }
 
 
-#: Each document. ``paragraphs`` make a native page; a spreadsheet brings its
-#: own ``content`` and ``document_type``. ``projects`` it is attached to (by
-#: its creator) and ``links`` — other documents its body names.
-DOCUMENTS: dict[str, list[dict]] = {
+#: Each file. ``paragraphs`` make a native page; a spreadsheet brings its
+#: own ``content`` and ``file_type``. ``projects`` it is attached to (by
+#: its creator) and ``links`` — other files its body names.
+FILES: dict[str, list[dict]] = {
     "primary": [
         {
             "title": "Party Provisioning Ledger",
             "initiative": "strahd",
             "creator": "Dungeon Master",
-            "document_type": DocumentType.spreadsheet,
+            "file_type": FileType.spreadsheet,
             "general": ResourceAccessLevel.read,
             "content": spreadsheet_workbook(
                 order_title="Vallaki Market — Party Order",
@@ -392,7 +392,7 @@ DOCUMENTS: dict[str, list[dict]] = {
             "title": "Fleet Requisition Sheet",
             "initiative": "starfall",
             "creator": "Admin User",
-            "document_type": DocumentType.spreadsheet,
+            "file_type": FileType.spreadsheet,
             "general": ResourceAccessLevel.read,
             "content": spreadsheet_workbook(
                 order_title="Exodus Fleet — Quartermaster Requisition",
@@ -485,7 +485,7 @@ DOCUMENTS: dict[str, list[dict]] = {
             "title": "Crimson Maiden Cargo Manifest",
             "initiative": "crimson",
             "creator": "Finley Goldtongue",
-            "document_type": DocumentType.spreadsheet,
+            "file_type": FileType.spreadsheet,
             "general": ResourceAccessLevel.read,
             "content": spreadsheet_workbook(
                 order_title="Port of Saltmere — Cargo Order",
@@ -599,23 +599,23 @@ DOCUMENTS: dict[str, list[dict]] = {
 
 
 async def seed(c: Community) -> None:
-    for d in DOCUMENTS[c.key]:
+    for d in FILES[c.key]:
         creator = c.users[d["creator"]]
-        doc = Document(
+        doc = File(
             initiative_id=c.initiatives[d["initiative"]].id,
             name=d["title"],
             content=d.get("content")
             or lexical([para(text) for text in d["paragraphs"]]),
-            document_type=d.get("document_type", DocumentType.native),
+            file_type=d.get("file_type", FileType.native),
             created_by=creator.id,
         )
         c.session.add(doc)
         await c.session.flush()
-        c.docs[doc.name] = doc
-        c.ids["documents"].append(doc.id)
+        c.files[doc.name] = doc
+        c.ids["files"].append(doc.id)
         share(
             c,
-            Tool.document,
+            Tool.file,
             doc,
             creator,
             writers=d.get("writers", ()),
@@ -631,24 +631,22 @@ async def seed(c: Community) -> None:
                     SearchEntityType.project, c.projects[name].id
                 ),
                 relationship_type=RelationshipType.attached,
-                target=relationships_service.Endpoint(
-                    SearchEntityType.document, doc.id
-                ),
+                target=relationships_service.Endpoint(SearchEntityType.file, doc.id),
                 created_by=creator.id,
             )
     # A wikilink is a ``references`` edge with ``content`` provenance — what
-    # the save-path sync writes when it reads a body. Every document exists by
+    # the save-path sync writes when it reads a body. Every file exists by
     # now, so any may name any other.
-    for d in DOCUMENTS[c.key]:
+    for d in FILES[c.key]:
         for target in d.get("links", ()):
             await relationships_service.create(
                 c.session,
                 source=relationships_service.Endpoint(
-                    SearchEntityType.document, c.docs[d["title"]].id
+                    SearchEntityType.file, c.files[d["title"]].id
                 ),
                 relationship_type=RelationshipType.references,
                 target=relationships_service.Endpoint(
-                    SearchEntityType.document, c.docs[target].id
+                    SearchEntityType.file, c.files[target].id
                 ),
                 provenance=Provenance.content,
             )
