@@ -116,7 +116,7 @@ async def require_password_or_recent_proof(
     supplied: Optional[str],
     *,
     detail: Optional[str] = None,
-) -> None:
+) -> bool:
     """Ask for the password, or for a sign-in recent enough to speak for it.
 
     An account whose password :func:`password_confirms` answers the question
@@ -130,10 +130,12 @@ async def require_password_or_recent_proof(
     sign-in is at the root of them, so the age read is the sign-in's. A step-up
     and a replacement each open a chain of their own, which is what lets a
     person prove themselves again and carry on.
+
+    Answers whether it was the password that was checked.
     """
     if await password_confirms(system_session, user):
         await require_password(system_session, user, supplied, detail=detail)
-        return
+        return True
 
     session_id = require_session_row(request)
     row = await system_session.get(AuthSession, session_id)
@@ -149,3 +151,4 @@ async def require_password_or_recent_proof(
         minutes=RECENT_PROOF_MINUTES
     ):
         raise _recent_proof_required()
+    return False

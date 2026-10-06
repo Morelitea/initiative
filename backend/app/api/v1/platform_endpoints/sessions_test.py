@@ -8,6 +8,7 @@ import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.api.v1.platform_endpoints import session_opening
 from app.api.v1.platform_endpoints import sessions as sessions_endpoints
 from app.api.v1.platform_endpoints import users as users_endpoints
 from app.core import auth_context
@@ -351,6 +352,7 @@ async def streams(monkeypatch):
     monkeypatch.setattr(content_sockets, "establish_guild_access", _admitted)
     monkeypatch.setattr(sessions_endpoints, "content_sockets", register)
     monkeypatch.setattr(users_endpoints, "content_sockets", register)
+    monkeypatch.setattr(session_opening, "content_sockets", register)
     yield register
     for sub in list(register._subs.values()):
         register.leave(sub.websocket)

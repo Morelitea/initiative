@@ -14,9 +14,10 @@ proving for the two routes that take a password, and
 answer with when the account holds a second factor. :func:`prove_second_factor`
 takes that factor's answer, at a sign-in and wherever else it is asked for.
 
-:func:`open_session` is a fresh sign-in, :func:`replace_session` the session a
-caller carries on with after retiring every credential the account held, and
-:func:`upgrade_session` a step-up against the session already open.
+:func:`open_session` is a fresh sign-in and :func:`upgrade_session` a step-up
+against the session already open. :func:`set_password` is the one write of the
+account's password, and opens the session a caller carries on with after it
+retires every credential the account held.
 """
 
 from __future__ import annotations
@@ -26,8 +27,8 @@ import uuid
 from collections.abc import AsyncIterator, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from datetime import datetime, timedelta
-from typing import Any
+from datetime import datetime, timedelta, timezone
+from typing import Any, Literal
 
 from fastapi import HTTPException, Request, Response, status
 from fastapi.responses import JSONResponse
@@ -41,7 +42,6 @@ from app.api.v1.platform_endpoints.session_cookies import (
     set_session_cookie,
 )
 from app.core.audit_events import AuditEventType
-from app.core import auth_context
 from app.core.config import is_device, settings
 from app.core.login_methods import LoginMethod
 from app.core.messages import AuthMessages, SettingsMessages
@@ -58,6 +58,7 @@ from app.models.platform.auth_session import AuthSession
 from app.models.platform.user import SIGN_IN_STATUSES, User
 from app.schemas.platform.token import Token
 from app.services import audit as audit_service
+from app.services import email as email_service
 from app.services.auth import addresses
 from app.services.auth.assurance import SECOND_FACTOR_AMR
 from app.services.auth import challenges as challenge_service
@@ -66,6 +67,8 @@ from app.services.auth import sign_in_locks
 from app.services.auth import subject as subject_service
 from app.services.auth import totp as totp_service
 from app.services.platform import auth_posture
+from app.services.platform import user_tokens
+from app.services.content_sockets import sockets as content_sockets
 
 logger = logging.getLogger(__name__)
 
@@ -241,8 +244,6 @@ async def count_wrong_answer(system_session: AsyncSession, user_id: int) -> None
     await system_session.commit()
     if failure.lock_for is None:
         return
-    from app.services import email as email_service
-
     user = await system_session.get(User, user_id)
     if user is not None:
         await email_service.announce_sign_in_locked(
@@ -687,57 +688,6 @@ async def open_session(
     return issued.to_token(include_refresh=device)
 
 
-async def replace_session(
-    request: Request,
-    response: Response,
-    system_session: AsyncSession,
-    *,
-    user: User,
-    amr: Sequence[str],
-    satisfied_providers: Sequence[int],
-    provider_auth: dict[str, Any] | None = None,
-) -> Token:
-    """Open a session in place of the one this request is on, and hand the
-    caller back onto it.
-
-    For the changes that retire every credential an account holds — a password
-    set, a password given up — which would otherwise take the caller's own
-    session with them. What the account held is revoked by the caller and
-    staged on ``system_session``; the session opened here joins that staging, so
-    one commit carries both and a failure leaves the account holding what it
-    had.
-
-    What carries into it is the caller's to decide — ``amr`` is what the
-    replacement may claim was proved, and the satisfied providers and their own
-    account of it come forward where the request has one to carry.
-    """
-    # Read before the writes below: ``user`` may be staged on ``system_session``,
-    # and a rollback leaves its columns to be fetched again.
-    user_id = user.id
-    token_version = user.token_version
-    device = is_device(request)
-    async with session_store(system_session, user_id=user_id):
-        issued = await issue_session(
-            request,
-            system_session,
-            user_id=user_id,
-            token_version=token_version,
-            amr=amr,
-            satisfied_providers=satisfied_providers,
-            provider_auth=provider_auth,
-            device=device,
-        )
-        credential = auth_context.current().session_credential
-        if credential is not None:
-            await session_service.follow_devices(
-                system_session,
-                from_id=credential.session_id,
-                to_id=issued.session.id,
-            )
-    issued.set_cookies(response)
-    return issued.to_token(include_refresh=device)
-
-
 async def live_session_of(
     system_session: AsyncSession, *, session_id: uuid.UUID | None, user_id: int
 ) -> AuthSession | None:
@@ -748,6 +698,118 @@ async def live_session_of(
     if row is None or row.user_id != user_id or row.revoked_at is not None:
         return None
     return row
+
+
+#: How a password came to be set, as its record says.
+PasswordVia = Literal["self_service", "reset", "recovery_code"]
+
+
+async def set_password(
+    request: Request,
+    system_session: AsyncSession,
+    *,
+    user: User,
+    password: str | None,
+    via: PasswordVia,
+    response: Response | None = None,
+    password_proved: bool = False,
+) -> None:
+    """Set, change, reset or give up the account's password.
+
+    The one write for each of those, so every route does the same things in
+    the same transaction: the new hash (or none, for ``password=None``) and
+    when it was set, the record of it, and every credential the account held
+    retired with :func:`~app.services.platform.user_tokens.revoke_user_sessions`.
+    A reset and a recovery are each proved by a credential that stands in for
+    the password, so those two also start over what was counted against the
+    account (:func:`~app.services.auth.sign_in_locks.lift`); a change made from
+    a session leaves the count as it is.
+
+    ``user`` is written on the system engine, whichever session the caller read
+    it on.
+
+    ``response``, where given, keeps this device signed in: a session is opened
+    in place of the one the request is on, and both cookies are set on it. A
+    new password starts that session over: it claims the password where the
+    caller re-checked the one the account held (``password_proved``), and no
+    community's sign-in. Giving the password up leaves every other way in as it
+    was, so that session carries what the one it replaces had proved, which
+    communities asking for a sign-in of their own it had satisfied, and each
+    provider's own account of that. It joins the same commit, so a failure
+    leaves the account holding what it had and answers 503.
+
+    Once that commit lands, open connections are closed — this device's too;
+    its replacement session reconnects them — and the account is told.
+    """
+    user_id = user.id
+    account = await system_session.get(User, user_id)
+    if account is None:  # pragma: no cover - resolved by the caller
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
+        )
+    # Read before the revocation below retires it.
+    prior = (
+        await live_session_of(
+            system_session, session_id=current_session_row(request), user_id=user_id
+        )
+        if response is not None
+        else None
+    )
+    issued: OpenedSession | None = None
+    async with session_store(system_session, user_id=user_id):
+        now = datetime.now(timezone.utc)
+        account.hashed_password = (
+            get_password_hash(password) if password is not None else None
+        )
+        account.password_set_at = now if password is not None else None
+        account.updated_at = now
+        system_session.add(account)
+        await audit_service.record(
+            system_session,
+            event_type=(
+                AuditEventType.AUTH_PASSWORD_CHANGED
+                if password is not None
+                else AuditEventType.AUTH_PASSWORD_REMOVED
+            ),
+            actor_user_id=user_id,
+            detail={"via": via},
+        )
+        if via != "self_service":
+            await sign_in_locks.lift(system_session, user_id)
+        await user_tokens.revoke_user_sessions(system_session, user=account)
+        if response is not None:
+            if password is None and prior is not None:
+                amr, providers, provider_auth = (
+                    prior.amr,
+                    prior.satisfied_providers,
+                    prior.provider_auth,
+                )
+            else:
+                amr = ["pwd"] if password is not None and password_proved else []
+                providers, provider_auth = [], None
+            # Minted at the ``token_version`` the revocation just bumped.
+            issued = await issue_session(
+                request,
+                system_session,
+                user_id=user_id,
+                token_version=account.token_version,
+                amr=amr,
+                satisfied_providers=providers,
+                provider_auth=provider_auth,
+                device=is_device(request),
+            )
+            if prior is not None:
+                await session_service.follow_devices(
+                    system_session, from_id=prior.id, to_id=issued.session.id
+                )
+    if response is not None and issued is not None:
+        issued.set_cookies(response)
+
+    await content_sockets.revoke_user_everywhere(user_id)
+    if password is None:
+        await email_service.announce_password_removed(system_session, account)
+    else:
+        await email_service.announce_password_changed(system_session, account)
 
 
 async def upgrade_session(

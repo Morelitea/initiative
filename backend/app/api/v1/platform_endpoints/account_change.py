@@ -115,7 +115,7 @@ async def _sign_out(
     )
     # ``token_version`` is bumped on ``user``, bound to this session, so it
     # lands on the same commit as the revocations, the record and the spend.
-    await user_tokens.revoke_user_sessions(system_session, user=user, commit=False)
+    await user_tokens.revoke_user_sessions(system_session, user=user)
     system_session.add(user)
     await system_session.commit()
     # Open connections stand on the sessions just ended.

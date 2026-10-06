@@ -185,6 +185,7 @@
   "USER_INVALID_PASSWORD": "Contraseña no válida",
   "USER_CURRENT_PASSWORD_REQUIRED": "Introduce tu contraseña actual para cambiarla.",
   "USER_CURRENT_PASSWORD_INCORRECT": "Tu contraseña actual es incorrecta.",
+  "USER_PASSWORD_CHANGED_ALONE": "Cambia tu contraseña por separado y después guarda tus demás ajustes.",
   "USER_CONFIRMATION_MISMATCH": "El texto de confirmación debe ser 'DELETE MY ACCOUNT'",
   "USER_API_KEY_NOT_FOUND": "Clave API no encontrada",
   "USER_API_KEY_READ_ONLY": "Esta clave API es de solo lectura y no puede realizar cambios.",

@@ -604,10 +604,9 @@ async def test_search_users_rejects_oversized_user_id_list(client, acting_user):
 async def test_self_service_password_change_revokes_sessions_on_every_device(
     client, session, acting_user
 ):
-    """Changing your own password via PATCH /me must invalidate other
-    outstanding JWTs and every session, the app's included — completing the
-    three-path symmetry with the admin-reset and forgot-password flows (all
-    share ``revoke_user_sessions``)."""
+    """Changing your own password via PATCH /me invalidates other outstanding
+    JWTs and every session, the app's included, as every password write
+    does."""
     from app.models.platform.auth_session import AuthSession
     from app.services.auth import sessions as session_service
 
@@ -1004,15 +1003,38 @@ async def test_export_users_csv_returns_the_members_it_was_asked_for(
 
 async def test_password_change_keeps_this_device_signed_in(client, session):
     """Changing the password revokes every other session, but THIS device gets
-    a fresh server-side session: both cookies are re-issued and the new
-    refresh chain rotates."""
-    await create_user(session, email="pwkeep@example.com")
+    a fresh server-side session: both cookies are re-issued, the new refresh
+    chain rotates, and it claims the password just re-checked and no
+    provider's sign-in. A change sent with another field is refused and leaves
+    the password and the sessions as they were."""
+    from app.models.platform.auth_session import AuthSession
+
+    user = await create_user(session, email="pwkeep@example.com")
+    user_id = user.id
 
     login = await client.post(
         "/api/v1/auth/token",
         data={"username": "pwkeep@example.com", "password": "testpassword123"},
     )
     assert login.status_code == 200
+    await session.exec(
+        update(AuthSession)
+        .where(AuthSession.user_id == user_id)
+        .values(satisfied_providers=[7])
+    )
+    await session.commit()
+
+    refused = await client.patch(
+        "/api/v1/me",
+        json={
+            "password": "newpassword456",
+            "current_password": "testpassword123",
+            "locale": "fr",
+        },
+    )
+    assert refused.status_code == 422
+    assert refused.json()["detail"][0]["msg"].endswith("USER_PASSWORD_CHANGED_ALONE")
+    assert not refused.cookies.get("refresh_token")
 
     change = await client.patch(
         "/api/v1/me",
@@ -1020,6 +1042,17 @@ async def test_password_change_keeps_this_device_signed_in(client, session):
     )
     assert change.status_code == 200
     assert change.cookies.get("refresh_token")  # fresh chain for this device
+    assert change.json()["has_password"] is True
+
+    session.expire_all()
+    live = (
+        await session.exec(
+            select(AuthSession).where(
+                AuthSession.user_id == user_id, AuthSession.revoked_at.is_(None)
+            )
+        )
+    ).all()
+    assert [(row.amr, row.satisfied_providers) for row in live] == [(["pwd"], [])]
 
     rotated = await client.post("/api/v1/auth/refresh")
     assert rotated.status_code == 200

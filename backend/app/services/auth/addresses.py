@@ -776,7 +776,7 @@ async def retire_credentials_predating_proof(
     await totp_service.disable(session, user_id=user.id)
     # Staged rather than committed: the session this sign-in opens lands in
     # the same transaction, so the account never sits with nothing.
-    await user_tokens.revoke_user_sessions(session, user=user, commit=False)
+    await user_tokens.revoke_user_sessions(session, user=user)
     await audit_service.record(
         session,
         event_type=AuditEventType.AUTH_CREDENTIALS_RETIRED,

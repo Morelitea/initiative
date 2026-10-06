@@ -48,7 +48,7 @@ from app.api.v1.platform_endpoints.held_changes import (
     held_response,
     hold_change,
 )
-from app.api.v1.platform_endpoints.session_opening import replace_session
+from app.api.v1.platform_endpoints.session_opening import set_password
 from app.core.password_policy import enforce_password_policy
 from app.core.identity_boundary import PersonId
 from app.core.user_display import handle_of
@@ -60,7 +60,6 @@ from app.core.usernames import UsernameError
 from app.core.rate_limit import limiter
 from app.core.security import (
     read_handle_offer,
-    get_password_hash,
     has_usable_password,
 )
 from app.core.user_input_validators import (
@@ -1453,53 +1452,37 @@ async def update_me(
     # payload (identities can't change within this request). The caller's own
     # links, read on their platform tier.
     is_sso_account = await has_federated_identity(session, user_id=current_user.id)
-    if not update_data:
-        payload = await users_service.to_self_read(current_user)
-        payload.has_federated_identity = is_sso_account
-        payload.has_password = has_usable_password(current_user.hashed_password)
-        payload.password_required = await password_confirms(session, current_user)
-        return payload
-
     password = update_data.get("password")
     if password:
-        # Read before the hash below replaces it: what the account held going
-        # in is what the re-check asks about and what the replacement session
-        # may claim was proved here.
-        held_password = has_usable_password(current_user.hashed_password)
         # Re-authenticate with the current password before changing it. An
         # account that holds none answers with a recent sign-in instead.
-        await require_password_or_recent_proof(
+        password_proved = await require_password_or_recent_proof(
             request,
             system_session,
             current_user,
             update_data.get("current_password"),
         )
         await enforce_password_policy(password)
-        current_user.hashed_password = get_password_hash(password)
-        current_user.password_set_at = datetime.now(timezone.utc)
-        # Bump token_version and revoke API keys + refresh
-        # sessions so no stale credential can survive the password change.
-        #
-        # Staged, not committed: the replacement session below joins them in
-        # one transaction, so the account keeps what it had if that fails.
-        await user_tokens_service.revoke_user_sessions(
-            system_session, user=current_user, commit=False
-        )
-        # ...but keep THIS device signed in: the revocation above took the
-        # caller's own access token AND refresh chain, so a fresh session is
-        # opened and both cookies re-issued — every *other* session/device
-        # still dies. ``amr`` records what this request proved: the current
-        # password where the account held one; nothing where it did not, since
-        # no factor was presented here.
-        await replace_session(
+        # A request of its own (``UserSelfUpdate`` holds it to that), committed
+        # with the session that keeps this device signed in. Its commit is the
+        # request's only write; the account is read back for the answer.
+        await set_password(
             request,
-            response,
             system_session,
             user=current_user,
-            amr=["pwd"] if held_password else [],
-            satisfied_providers=[],
+            password=password,
+            via="self_service",
+            response=response,
+            password_proved=password_proved,
         )
-        await email_service.announce_password_changed(system_session, current_user)
+        await session.refresh(current_user)
+
+    if password or not update_data:
+        payload = await users_service.to_self_read(current_user)
+        payload.has_federated_identity = is_sso_account
+        payload.has_password = has_usable_password(current_user.hashed_password)
+        payload.password_required = await password_confirms(session, current_user)
+        return payload
 
     if "avatar_url" in update_data:
         url_value = update_data["avatar_url"]
@@ -1590,21 +1573,8 @@ async def update_me(
 
     current_user.updated_at = datetime.now(timezone.utc)
     session.add(current_user)
-    if password:
-        # In the same transaction as the password itself, so the change and
-        # the record of it land together or not at all.
-        await audit_service.record(
-            session,
-            event_type=AuditEventType.AUTH_PASSWORD_CHANGED,
-            actor_user_id=current_user.id,
-            detail={"via": "self_service"},
-        )
     await session.commit()
     await session.refresh(current_user)
-    if password:
-        # Open connections stand on the credentials the change has just ended,
-        # this device's included; its replacement session reconnects them.
-        await content_sockets.revoke_user_everywhere(current_user.id)
     if "presence" in update_data:
         # A change made from an open tab takes effect for readers immediately,
         # rather than at the next reconnect. Told after the commit, so nothing

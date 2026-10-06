@@ -81,6 +81,7 @@ from app.api.v1.platform_endpoints.session_opening import (
     prove_second_factor,
     require_login_method,
     second_factor_outstanding,
+    set_password,
     upgrade_session,
 )
 from app.core.audit_events import AuditEventType
@@ -131,7 +132,6 @@ from app.services.auth import native_handoff
 from app.services.auth import passkeys as passkey_service
 from app.services.auth import totp as totp_service
 from app.services.auth import sessions as session_service
-from app.services.auth import sign_in_locks
 from app.services.auth import subject as subject_service
 from app.services.auth.assurance import (
     passkey_amr,
@@ -2104,37 +2104,14 @@ async def reset_password(
         )
     # The caller holds a one-shot token rather than a session, so the row is
     # written on the system engine.
-    stmt = select(User).where(User.id == record.user_id)
-    result = await system_session.exec(stmt)
-    user = result.one_or_none()
+    user = await system_session.get(User, record.user_id)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
         )
-    user.hashed_password = get_password_hash(payload.password)
-    user.password_set_at = datetime.now(timezone.utc)
-    # Staged before ``revoke_user_sessions`` below, which commits this session:
-    # ``user`` is bound to it, so the new password, the revocations and this
-    # record land on the same commit rather than the record trailing a change
-    # already durable.
-    await audit_service.record(
-        system_session,
-        event_type=AuditEventType.AUTH_PASSWORD_CHANGED,
-        actor_user_id=user.id,
-        detail={"via": "reset"},
+    # The link proved the inbox, which is what lets the reset start the count
+    # against the account over.
+    await set_password(
+        request, system_session, user=user, password=payload.password, via="reset"
     )
-    # The link proved the inbox, so the new password is not held back by wrong
-    # answers counted before it.
-    await sign_in_locks.lift(system_session, user.id)
-    # Bump token_version and revoke API keys / refresh sessions
-    # so no stale credential (JWT or captured refresh) survives either.
-    # ``token_version`` is bumped on ``user``, which is bound to the system
-    # engine here, so that half commits with the password.
-    await user_tokens.revoke_user_sessions(system_session, user=user)
-    user.updated_at = datetime.now(timezone.utc)
-    system_session.add(user)
-    await system_session.commit()
-    # Open connections stand on credentials the reset has just ended.
-    await content_sockets.revoke_user_everywhere(record.user_id)
-    await email_service.announce_password_changed(system_session, user)
     return VerificationSendResponse(status="reset")
