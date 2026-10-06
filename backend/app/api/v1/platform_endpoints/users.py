@@ -1470,16 +1470,6 @@ async def update_me(
             update_data.get("current_password"),
         )
         await enforce_password_policy(password)
-        # Committed on the system engine ahead of the profile fields below,
-        # with the session that keeps this device signed in.
-        await set_password(
-            request,
-            system_session,
-            user=current_user,
-            password=password,
-            via="self_service",
-            response=response,
-        )
 
     if "avatar_url" in update_data:
         url_value = update_data["avatar_url"]
@@ -1571,6 +1561,17 @@ async def update_me(
     current_user.updated_at = datetime.now(timezone.utc)
     session.add(current_user)
     await session.commit()
+    if password:
+        # Written once every other field has been taken, with the session that
+        # keeps this device signed in.
+        await set_password(
+            request,
+            system_session,
+            user=current_user,
+            password=password,
+            via="self_service",
+            response=response,
+        )
     await session.refresh(current_user)
     if "presence" in update_data:
         # A change made from an open tab takes effect for readers immediately,

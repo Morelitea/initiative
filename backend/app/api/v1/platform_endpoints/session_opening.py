@@ -49,6 +49,7 @@ from app.core.rate_limit import SIGN_IN_FAILURES, get_inet_client_ip
 from app.core.security import (
     REFRESH_COOKIE_NAME,
     get_password_hash,
+    has_usable_password,
     mint_access_token,
     password_needs_rehash,
     verify_sign_in_password,
@@ -727,11 +728,14 @@ async def set_password(
     it on.
 
     ``response``, where given, keeps this device signed in: a session is opened
-    in place of the one the request is on, carrying what that one had proved,
-    which communities asking for a sign-in of their own it had satisfied, and
-    each provider's own account of that, and both cookies are set on it. It
-    joins the same commit, so a failure leaves the account holding what it had
-    and answers 503.
+    in place of the one the request is on, and both cookies are set on it. A
+    new password starts that session over: it claims the password where the
+    account held one going in, which is what the caller re-checked, and no
+    community's sign-in. Giving the password up leaves every other way in as it
+    was, so that session carries what the one it replaces had proved, which
+    communities asking for a sign-in of their own it had satisfied, and each
+    provider's own account of that. It joins the same commit, so a failure
+    leaves the account holding what it had and answers 503.
 
     Once that commit lands, open connections are closed — this device's too;
     its replacement session reconnects them — and the account is told.
@@ -750,6 +754,8 @@ async def set_password(
         if response is not None
         else None
     )
+    # Read before the hash below replaces it.
+    held_password = has_usable_password(account.hashed_password)
     issued: OpenedSession | None = None
     async with session_store(system_session, user_id=user_id):
         now = datetime.now(timezone.utc)
@@ -773,11 +779,15 @@ async def set_password(
             await sign_in_locks.lift(system_session, user_id)
         await user_tokens.revoke_user_sessions(system_session, user=account)
         if response is not None:
-            amr, providers, provider_auth = (
-                (prior.amr, prior.satisfied_providers, prior.provider_auth)
-                if prior is not None
-                else ([], [], None)
-            )
+            if password is None and prior is not None:
+                amr, providers, provider_auth = (
+                    prior.amr,
+                    prior.satisfied_providers,
+                    prior.provider_auth,
+                )
+            else:
+                amr = ["pwd"] if password is not None and held_password else []
+                providers, provider_auth = [], None
             # Minted at the ``token_version`` the revocation just bumped.
             issued = await issue_session(
                 request,

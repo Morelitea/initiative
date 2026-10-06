@@ -1004,8 +1004,9 @@ async def test_export_users_csv_returns_the_members_it_was_asked_for(
 async def test_password_change_keeps_this_device_signed_in(client, session):
     """Changing the password revokes every other session, but THIS device gets
     a fresh server-side session: both cookies are re-issued, the new refresh
-    chain rotates, and it carries what the session it replaces had proved and
-    which providers it had satisfied."""
+    chain rotates, and it claims the password just re-checked and no
+    provider's sign-in. A change refused over another field leaves the
+    password and the sessions as they were."""
     from app.models.platform.auth_session import AuthSession
 
     user = await create_user(session, email="pwkeep@example.com")
@@ -1023,6 +1024,17 @@ async def test_password_change_keeps_this_device_signed_in(client, session):
     )
     await session.commit()
 
+    refused = await client.patch(
+        "/api/v1/me",
+        json={
+            "password": "newpassword456",
+            "current_password": "testpassword123",
+            "task_completion_visual_feedback": "fireworks",
+        },
+    )
+    assert refused.status_code == 422
+    assert not refused.cookies.get("refresh_token")
+
     change = await client.patch(
         "/api/v1/me",
         json={"password": "newpassword456", "current_password": "testpassword123"},
@@ -1038,7 +1050,7 @@ async def test_password_change_keeps_this_device_signed_in(client, session):
             )
         )
     ).all()
-    assert [(row.amr, row.satisfied_providers) for row in live] == [(["pwd"], [7])]
+    assert [(row.amr, row.satisfied_providers) for row in live] == [(["pwd"], [])]
 
     rotated = await client.post("/api/v1/auth/refresh")
     assert rotated.status_code == 200
