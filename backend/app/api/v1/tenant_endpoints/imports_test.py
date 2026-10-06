@@ -396,8 +396,16 @@ async def test_a_tools_tags_and_properties_survive_export_and_import(
     row, inner = await _tool_with_a_row(session, a, tool)
     await assign_tag(session, row, await create_tag(session, a.guild, name="Flagship"))
     await create_property_value(session, row, stage, value_text="Draft")
+    # A row inside the tool keeps its own tag too, where its kind takes tags.
+    inner_tagged = inner is not None and any(
+        spec.entity is type(inner) for spec in tags_service.TAG_LINKS.values()
+    )
     if inner is not None:
         await create_property_value(session, inner, owner, value_user_id=a.user.id)
+    if inner_tagged:
+        await assign_tag(
+            session, inner, await create_tag(session, a.guild, name="Inner")
+        )
 
     exported = await client.get(
         a.g(f"/exports/{tool}"),
@@ -449,6 +457,9 @@ async def test_a_tools_tags_and_properties_survive_export_and_import(
         assert await values(inner_spec.target, restored_inner.id) == [
             ("Owner", target.id, None, a.user.id)
         ]
+        if inner_tagged:
+            await tags_service.annotate_tags(session, [restored_inner])
+            assert [tag.name for tag in annotated_tags(restored_inner)] == ["Inner"]
 
 
 async def test_a_renamed_property_is_one_definition_for_every_row(

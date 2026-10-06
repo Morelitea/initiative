@@ -348,7 +348,7 @@ class WikiImporter:
             wiki.template_page_id = pages_by_slug[env.template_page]
             session.add(wiki)
 
-        filed = await _file_documents(
+        filed, filed_tags = await _file_documents(
             session,
             env,
             wiki,
@@ -366,11 +366,11 @@ class WikiImporter:
                 Tool.wiki.plural: 1,
                 "pages": len(env.pages),
                 "comments": comment_count,
-                "tags": tags.created,
+                "tags": tags.created + filed_tags[0],
                 Tool.document.plural: filed,
                 "properties": props.created,
             },
-            matched={"tags": tags.matched, "properties": props.matched},
+            matched={"tags": tags.matched + filed_tags[1], "properties": props.matched},
             unmatched_handles=await props.settle(wiki),
             warnings=warnings,
         )
@@ -386,17 +386,18 @@ async def _file_documents(
     importer: User,
     context: ImportContext | None,
     warnings: list[str],
-) -> int:
+) -> tuple[int, tuple[int, int]]:
     """Create the documents the wiki's export carried and file each where it
     sat: under its page, at its place, and joined to the wiki by the edge
-    that says it belongs there. Returns how many were filed.
+    that says it belongs there. Returns how many were filed, and the tags
+    (created, matched) those that were filed restored.
 
     Creating a document takes what creating one anywhere takes, so an
     initiative with documents off, or somebody who may not create them there,
     gets the wiki without them and is told so.
     """
     if not env.documents:
-        return 0
+        return 0, (0, 0)
     from app.core.relationships import RelationshipType
     from app.db.session import routed_guild_id
     from app.services.import_engine import engine as import_engine
@@ -418,12 +419,15 @@ async def _file_documents(
         )
     except ImportEngineError:
         warnings.append(f"documents_left_behind:{len(env.documents)}")
-        return 0
+        return 0, (0, 0)
 
     filed = 0
     missing = 0
+    tags_created = tags_matched = 0
     for entry in env.documents:
         document_id: int | None = None
+        # Counted only once the document's savepoint has held.
+        entry_tags = (0, 0)
         try:
             async with session.begin_nested():
                 if entry.envelope is not None:
@@ -435,8 +439,12 @@ async def _file_documents(
                         context=context,
                     )
                     document_id = result.entity_id
+                    entry_tags = (
+                        result.created.get("tags", 0),
+                        result.matched.get("tags", 0),
+                    )
                 elif entry.upload is not None:
-                    document_id = await _upload_document(
+                    document_id, entry_tags = await _upload_document(
                         session,
                         entry.upload,
                         target_initiative=target_initiative,
@@ -449,6 +457,8 @@ async def _file_documents(
         if document_id is None:
             missing += 1
             continue
+        tags_created += entry_tags[0]
+        tags_matched += entry_tags[1]
         if context is not None:
             context.links.register(
                 entry.external_ref, SearchEntityType.document, document_id
@@ -471,7 +481,7 @@ async def _file_documents(
         filed += 1
     if missing:
         warnings.append(f"missing_filed_documents:{missing}")
-    return filed
+    return filed, (tags_created, tags_matched)
 
 
 async def _upload_document(
@@ -481,8 +491,9 @@ async def _upload_document(
     target_initiative: Initiative,
     importer: User,
     context: ImportContext | None,
-) -> int | None:
-    """A filed upload, as a file document over the bytes its zip brought. One
+) -> tuple[int | None, tuple[int, int]]:
+    """A filed upload, as a file document over the bytes its zip brought, and
+    the tags (created, matched) restoring it took. One
     whose file is not stored here — left out of the zip, or refused on the way
     in — or is not a file a document holds is not created."""
     from app.db.session import routed_guild_id
@@ -495,7 +506,7 @@ async def _upload_document(
         await session.exec(select(Upload).where(Upload.filename == key))
     ).one_or_none()
     if not key or stored is None:
-        return None
+        return None, (0, 0)
     filename = upload.original_filename or key
     content_type = await file_versions.stored_file_type(
         Document,
@@ -505,7 +516,7 @@ async def _upload_document(
         hint=stored.content_type,
     )
     if content_type is None:
-        return None
+        return None, (0, 0)
     document = Document(
         name=upload.name,
         document_type=DocumentType.file,
@@ -531,13 +542,14 @@ async def _upload_document(
         file_content_type=content_type,
         file_size=stored.size_bytes,
     )
-    await TagRestore(session).attach(document, upload.tags)
+    tags = TagRestore(session)
+    await tags.attach(document, upload.tags)
     props = PropertyRestore(
         session, initiative_id=target_initiative.id, context=context
     )
     await props.attach(document, upload.properties)
     await props.settle(document)
-    return document.id
+    return document.id, (tags.created, tags.matched)
 
 
 async def _write_comments(
