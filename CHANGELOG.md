@@ -32,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **A task's assignee chip names two people** before counting the rest, so a task held by two shows both names.
 - **A new wiki page opens ready to write in**, rather than as a blank page to read.
 - **Account deletion API.** `GET /me/deletion-eligibility` and the operator eligibility check no longer return `blockers` text; read `last_owner`, `sole_superadmin_communities` (and, for operators, `community_blockers`). Refusing to delete a community's only seat holder answers `CANNOT_VACATE_LAST_SUPERADMIN`.
 - **Your date of birth is kept, encrypted**, and every account is asked it once. It's used only to check age limits, never shown back, and never sold. If it was entered wrongly, whoever runs the server can reset the question.
