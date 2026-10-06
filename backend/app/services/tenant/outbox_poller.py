@@ -40,10 +40,11 @@ What follows from that:
 
 * **Nothing is skipped before it has to be.** Work not taken this pass is still
   pending on the next. ``BATCH_LIMIT`` bounds throughput, never visibility. A
-  batch that exhausts ``_BACKOFF_SECONDS`` without a 2xx is the one exception —
-  it is dead-lettered (``dead_lettered_at`` set, no further attempt scheduled)
-  so a permanently unreachable target can't hold every later transaction
-  hostage forever.
+  batch that exhausts the ledger's backoff schedule
+  (:mod:`app.services.outbox_ledger`) without a 2xx is the one exception — it
+  is dead-lettered (``dead_lettered_at`` set, never tried again) so a
+  permanently unreachable target can't hold every later transaction hostage
+  forever.
 * **Two replicas racing is settled by the database.** Claiming is an insert on
   the ledger's primary key; the loser gets no row and moves on.
 * **A duplicate is recognizable as one.** ``event_id`` derives from
@@ -70,7 +71,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from sqlalchemy import ARRAY, Integer, and_, bindparam, delete, func, or_, text
+from sqlalchemy import Table, and_, delete, func, or_, text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -84,7 +85,9 @@ from app.models.tenant.plugin_hook_delivery import PluginHookDelivery
 from app.models.tenant.plugin_placement import PluginPlacement
 from app.models.tenant.event_outbox import EventOutbox
 from app.models.tenant.guild_plugin import GuildPlugin
+from app.models.tenant.webhook_delivery import WebhookDelivery
 from app.models.tenant.webhook_subscription import WebhookSubscription
+from app.services import outbox_ledger
 from app.services.guild_sweeps import Drain
 from app.services.marketplace.registration_lookup import load_registrations
 from app.services.tenant import room_sink, webhook_refs
@@ -104,24 +107,9 @@ OUTBOX_RETENTION_DAYS = 7
 #: anything not taken remains exactly as visible next pass.
 BATCH_LIMIT = 50
 
-#: How long a claim on one transaction is held before another pass may retry it.
-LEASE_SECONDS = 300
-
-#: Backoff schedule, in seconds, indexed by consecutive failures on a batch.
-_BACKOFF_SECONDS = (5, 30, 120, 600, 1800, 3600)
 #: A retry due sooner than this is woken for; a later one waits for the minute
 #: pass, which comes round at least this often.
 RETRY_WAKE_WITHIN_SECONDS = 60
-
-#: The same schedule, bound as an array parameter. The interval has to be chosen
-#: in the same statement that increments ``attempts`` — computing it in Python
-#: would mean reading the count, deciding, then writing, and two passes racing
-#: there would each pick a step from a stale count. Postgres arrays are 1-indexed
-#: and ``attempts`` in a SET expression is the pre-update value, so
-#: ``attempts + 1`` selects the step for the failure being recorded.
-_BACKOFF_PARAM = bindparam(
-    "backoff", value=list(_BACKOFF_SECONDS), type_=ARRAY(Integer)
-)
 
 #: Namespace for deterministic envelope ids. Fixed forever: changing it would
 #: make every in-flight batch look new to a receiver deduping on event_id.
@@ -405,7 +393,7 @@ async def _claim(
         ).bindparams(
             sid=subscription.id,
             txn=txn_id,
-            lease=now + timedelta(seconds=LEASE_SECONDS),
+            lease=now + outbox_ledger.LEASE,
             now=now,
         )
     )
@@ -426,13 +414,9 @@ async def _settle(
     and when a refused batch is next tried.
 
     ``delivered_at IS NULL`` in the predicate keeps a pass whose lease lapsed
-    mid-flight from reopening a batch another pass has already completed.
-
-    A refusal past the last backoff step dead-letters instead of scheduling
-    another retry at the final interval forever — computed in the same
-    statement that increments ``attempts``, for the same reason the interval
-    itself is: two passes racing must not each read a stale count and disagree
-    on whether this is the step that ends retries.
+    mid-flight from reopening a batch another pass has already completed. A
+    refusal backs off by the ledger's schedule, and one after its last wait
+    dead-letters the batch.
     """
     if accepted:
         statement = text(
@@ -442,21 +426,21 @@ async def _settle(
             "RETURNING false, NULL::timestamptz"
         ).bindparams(now=now, sid=subscription.id, txn=txn_id)
     else:
-        statement = text(
-            "UPDATE webhook_deliveries "
-            "SET attempts = attempts + 1, "
-            "    next_attempt_at = CASE "
-            "      WHEN attempts + 1 > cardinality(CAST(:backoff AS integer[])) THEN NULL "
-            "      ELSE :now + make_interval(secs => "
-            "        (CAST(:backoff AS integer[]))[attempts + 1]) "
-            "    END, "
-            "    dead_lettered_at = CASE "
-            "      WHEN attempts + 1 > cardinality(CAST(:backoff AS integer[])) THEN :now "
-            "      ELSE NULL "
-            "    END "
-            "WHERE subscription_id = :sid AND txn_id = :txn AND delivered_at IS NULL "
-            "RETURNING dead_lettered_at IS NOT NULL, next_attempt_at"
-        ).bindparams(_BACKOFF_PARAM, now=now, sid=subscription.id, txn=txn_id)
+        deliveries: Table = WebhookDelivery.__table__
+        statement = outbox_ledger.back_off(
+            deliveries,
+            and_(
+                deliveries.c.subscription_id == subscription.id,
+                deliveries.c.txn_id == txn_id,
+                deliveries.c.delivered_at.is_(None),
+            ),
+            now=now,
+            due="next_attempt_at",
+            lease=None,
+            spent="dead_lettered_at",
+        ).returning(
+            deliveries.c.dead_lettered_at.is_not(None), deliveries.c.next_attempt_at
+        )
     result = await session.exec(statement)
     row = result.first()
     await session.commit()

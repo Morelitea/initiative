@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 import logging
 import secrets
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from sqlalchemy import ColumnElement, and_, case, exists, false, func, or_, text, true
 from sqlalchemy.orm import aliased
@@ -1496,31 +1496,6 @@ async def _deletion_recipients(session: AsyncSession, guild: Guild) -> list[str]
     return sorted(set(recipients))
 
 
-async def _seat_letters(
-    session: AsyncSession, user_ids: Sequence[int]
-) -> dict[str, list[str]]:
-    """Every proved address of these accounts, by the language each reads.
-
-    Sorted and de-duplicated per language: somebody holding two addresses gets
-    one letter at each, and two seat holders are not two letters to one box.
-    """
-    from app.services.auth import addresses
-
-    if not user_ids:
-        return {}
-    locales = (
-        await session.exec(
-            select(User.id, User.locale).where(User.id.in_(list(user_ids)))  # type: ignore[union-attr]
-        )
-    ).all()
-    letters: dict[str, set[str]] = {}
-    for user_id, locale in locales:
-        found = await addresses.proven_addresses(session, user_id=user_id)
-        if found:
-            letters.setdefault(locale or "en", set()).update(found)
-    return {locale: sorted(found) for locale, found in letters.items()}
-
-
 async def _superadmin_ids(session: AsyncSession, guild_id: int) -> list[int]:
     return list(
         (
@@ -1543,14 +1518,16 @@ async def announce_on_hold(session: AsyncSession, guild_id: int) -> None:
     seat's errand. Each gets one line in their bell — an account notice, not
     one filed under the community, which none of them can open now — and one
     letter at every proved address, in the language they read, which names the
-    day the community is deleted if the hold is still in place. Neither is
-    allowed to fail the hold.
+    day the community is deleted if the hold is still in place. The line goes
+    through the notice outbox and the letters through the email outbox as
+    account mail, written in one transaction, whose workers deliver and retry
+    them.
     """
     from app.db.session import set_rls_context
     from app.services import email as email_service
     from app.services.platform import app_settings as app_settings_service
+    from app.services.platform import email_outbox, notice_outbox
     from app.services.platform import intake as intake_service
-    from app.services.platform import notice_outbox
 
     await set_rls_context(session, Unattributed())
     guild = (
@@ -1562,38 +1539,54 @@ async def announce_on_hold(session: AsyncSession, guild_id: int) -> None:
     delete_at = COMMUNITY_HOLD.ends_at(
         guild, await app_settings_service.get_app_settings(session)
     )
-    seat_holders = await _superadmin_ids(session, guild_id)
-    data: dict = {"community": guild.name, "contact": contact, "target_path": "/"}
+    seat_holders = (
+        await session.exec(
+            select(User).where(
+                User.id.in_(await _superadmin_ids(session, guild_id))  # type: ignore[union-attr]
+            )
+        )
+    ).all()
+    data: dict[str, str | None] = {
+        "community": guild.name,
+        "contact": contact,
+        "target_path": "/",
+    }
     if delete_at is not None:
         # A calendar day; the bell writes it in the reader's language.
         data["delete_on"] = delete_at.date().isoformat()
     await notice_outbox.enqueue(
         session,
         [
-            notice_outbox.row(user_id, None, NotificationType.community_on_hold, data)
-            for user_id in seat_holders
+            notice_outbox.row(
+                cast(int, user.id), None, NotificationType.community_on_hold, data
+            )
+            for user in seat_holders
         ],
     )
-    letters = await _seat_letters(session, seat_holders)
-    community = guild.name
-    await session.commit()
-    for locale, recipients in letters.items():
+    # Each letter in a savepoint of its own: one that cannot be queued is
+    # logged and leaves the bell lines and the other letters to commit.
+    for user in seat_holders:
         try:
-            await email_service.send_community_on_hold_email(
-                session,
-                recipients=recipients,
-                community=community,
-                contact=contact,
-                guild_id=guild_id,
-                delete_at=delete_at,
-                plan_managed=billing_service.billing_managed(),
-                locale=locale,
+            async with session.begin_nested():
+                await email_outbox.enqueue_account_letter(
+                    user,
+                    email_service.community_on_hold_pieces(
+                        community=guild.name,
+                        contact=contact,
+                        guild_id=guild_id,
+                        delete_at=delete_at,
+                        plan_managed=billing_service.billing_managed(),
+                        locale=user.locale or "en",
+                    ),
+                    session=session,
+                )
+        except Exception:
+            logger.exception(
+                "On-hold letter for user %s of community %s was not queued",
+                user.id,
+                guild_id,
             )
-        except email_service.EmailNotConfiguredError:
-            logger.info("no mail configured; community hold not announced by letter")
-            return
-        except Exception:  # pragma: no cover - delivery is best-effort here
-            logger.exception("could not send the community hold notice")
+    await session.commit()
 
 
 #: The bell line each billing trial notice writes.

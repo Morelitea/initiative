@@ -7,8 +7,8 @@ exists:
 * **SMTP leaves the request path.** Creating a comment used to hold its
   transaction open across one SMTP connection per recipient.
 * **A failed send is retried** rather than logged and lost. A row is claimed,
-  attempted, and either settled or backed off — the ledger pattern the webhook
-  poller already uses, against a table instead of a delivery log.
+  attempted, and either settled or backed off by the rules every queue table
+  shares (:mod:`app.services.outbox_ledger`).
 * **Several rows for one person can arrive as one message.** That is what makes
   a cadence possible at all, and it is what a hold releases when it lifts.
 
@@ -27,7 +27,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any, Mapping, Optional, Sequence
 
-from sqlalchemy import insert, text
+from sqlalchemy import Table, insert, text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -47,6 +47,7 @@ from app.models.platform.user_notification_prefs import EmailCadence
 from app.models.platform.user_email import UserEmail
 from app.models.platform.user_token import UserTokenPurpose
 from app.services import email as email_service
+from app.services import outbox_ledger
 from app.services.auth import account_changes, addresses
 from app.services.platform import notification_policy, notification_prefs, user_tokens
 from app.db.request_context import Unattributed
@@ -58,13 +59,10 @@ logger = logging.getLogger(__name__)
 #: the retry that the synchronous send never had.
 EMAIL_OUTBOX_POLL_SECONDS = 15
 
-#: How long a claim is held before another pass may take the rows back. The
-#: same lease the webhook ledger uses, for the same reason: a worker that died
-#: mid-send must not strand its batch forever.
-LEASE_SECONDS = 300
+_TABLE: Table = EmailOutboxItem.__table__
 
-#: Backoff between attempts, in seconds, indexed by how many have failed.
-BACKOFF_SECONDS = (5, 30, 120, 600, 1800, 3600)
+#: The rows still waiting to go: a settled row is kept for a while after.
+_OPEN = (_TABLE.c.sent_at.is_(None), _TABLE.c.failed_at.is_(None))
 
 #: How long a settled row is kept. Bookkeeping once the mail has gone, but
 #: worth having while somebody might still ask whether it did.
@@ -155,8 +153,10 @@ async def enqueue_account_letter(
     *,
     change: dict[str, Any] | None = None,
     also_to: Sequence[str] = (),
+    session: AsyncSession | None = None,
 ) -> None:
-    """Write down a letter about the account's own security.
+    """Write down a letter the account is owed whatever its notification
+    settings: about its own security, or a community whose seat it holds.
 
     Due at once and marked ``security``: the worker sends it on its own, and
     nothing in the account's notification settings holds or drops it. One row
@@ -164,42 +164,53 @@ async def enqueue_account_letter(
     has proved, and ``also_to`` beside them for an address it no longer holds.
     ``change`` names the account notice the letter is and what undoing it
     does; the worker decides, as it sends each copy, what that copy's link
-    may do. Written on a system session of its own,
-    because it is raised once the change it reports has been committed.
-    """
-    from app.db.session import SystemSessionLocal
+    may do.
 
-    now = datetime.now(timezone.utc)
-    async with SystemSessionLocal() as session:
-        if not await email_service.email_configured(session):
-            return
-        own = await addresses.proven_addresses(session, user_id=user.id)
-        recipients = list(dict.fromkeys([*own, *also_to]))
-        if not recipients:
-            return
-        await session.exec(
-            insert(EmailOutboxItem)
-            .values(
-                [
-                    {
-                        "user_id": user.id,
-                        "category": NotificationCategory.account.value,
-                        "security": True,
-                        "recipient_encrypted": encrypt_field(address, SALT_EMAIL),
-                        "change": change,
-                        "locale": getattr(user, "locale", None) or "en",
-                        "subject": pieces.subject,
-                        "headline": pieces.headline,
-                        "body": pieces.body,
-                        "created_at": now,
-                        "deliver_after": now,
-                    }
-                    for address in recipients
-                ]
+    Written on ``session``, a system-engine session the caller commits, where
+    the letter belongs to the same transaction as what else it writes; on a
+    system session of its own and committed there otherwise, for a letter
+    raised once the change it reports has been committed.
+    """
+    if session is None:
+        from app.db.session import SystemSessionLocal
+
+        async with SystemSessionLocal() as own_session:
+            await enqueue_account_letter(
+                user, pieces, change=change, also_to=also_to, session=own_session
             )
-            .inline()
+            await own_session.commit()
+        return
+    now = datetime.now(timezone.utc)
+    if not await email_service.email_configured(session):
+        return
+    own = await addresses.proven_addresses(session, user_id=user.id)
+    recipients = list(dict.fromkeys([*own, *also_to]))
+    if not recipients:
+        return
+    await session.exec(
+        insert(EmailOutboxItem)
+        .values(
+            [
+                {
+                    "user_id": user.id,
+                    "category": NotificationCategory.account.value,
+                    "security": True,
+                    "recipient_encrypted": encrypt_field(address, SALT_EMAIL),
+                    "change": change,
+                    "locale": getattr(user, "locale", None) or "en",
+                    "subject": pieces.subject,
+                    "headline": pieces.headline,
+                    "body": pieces.body,
+                    "link": pieces.link,
+                    "link_label": pieces.link_label,
+                    "created_at": now,
+                    "deliver_after": now,
+                }
+                for address in recipients
+            ]
         )
-        await session.commit()
+        .inline()
+    )
 
 
 async def recompute_pending(
@@ -290,51 +301,6 @@ async def _guild_names(
     return out
 
 
-async def _claim(
-    session: AsyncSession, *, user_id: int, now: datetime
-) -> list[EmailOutboxItem]:
-    """Take this account's due rows, so a second worker cannot take them too.
-
-    The claim and the read are one statement: two passes racing here would
-    otherwise both see the same rows before either marked them.
-    """
-    result = await session.exec(
-        text(
-            "UPDATE email_outbox SET claimed_at = :now "
-            "WHERE user_id = :uid AND sent_at IS NULL AND failed_at IS NULL "
-            "  AND deliver_after <= :now "
-            "  AND (claimed_at IS NULL OR claimed_at < :stale) "
-            "RETURNING id, notification_id, category, guild_id, locale, subject, "
-            "          headline, body, link, link_label, security, "
-            "          recipient_encrypted, change, created_at"
-        ).bindparams(
-            now=now,
-            uid=user_id,
-            stale=now - timedelta(seconds=LEASE_SECONDS),
-        )
-    )
-    return [
-        EmailOutboxItem(
-            id=row.id,
-            user_id=user_id,
-            notification_id=row.notification_id,
-            category=row.category,
-            guild_id=row.guild_id,
-            locale=row.locale,
-            subject=row.subject,
-            headline=row.headline,
-            body=row.body,
-            link=row.link,
-            link_label=row.link_label,
-            security=row.security,
-            recipient_encrypted=row.recipient_encrypted,
-            change=row.change,
-            created_at=row.created_at,
-        )
-        for row in result.all()
-    ]
-
-
 async def _discard(session: AsyncSession, ids: Sequence[int]) -> None:
     if not ids:
         return
@@ -375,35 +341,6 @@ async def _settle(session: AsyncSession, ids: Sequence[int], *, now: datetime) -
             "UPDATE email_outbox SET sent_at = :now, claimed_at = NULL "
             "WHERE id = ANY(:ids)"
         ).bindparams(now=now, ids=list(ids))
-    )
-
-
-async def _back_off(
-    session: AsyncSession, ids: Sequence[int], *, now: datetime
-) -> None:
-    """Return a failed batch to the queue, later each time.
-
-    The step is chosen in the same statement that increments the count, so two
-    passes racing here cannot both read a stale count and pick the same one.
-    """
-    if not ids:
-        return
-    await session.exec(
-        text(
-            "UPDATE email_outbox SET "
-            "  attempts = attempts + 1, "
-            "  claimed_at = NULL, "
-            "  deliver_after = :now + make_interval("
-            "      secs => (CAST(:backoff AS integer[]))["
-            "        LEAST(attempts + 1, :steps)]), "
-            "  failed_at = CASE WHEN attempts + 1 >= :steps THEN :now ELSE NULL END "
-            "WHERE id = ANY(:ids)"
-        ).bindparams(
-            now=now,
-            ids=list(ids),
-            backoff=list(BACKOFF_SECONDS),
-            steps=len(BACKOFF_SECONDS),
-        )
     )
 
 
@@ -522,15 +459,17 @@ async def _send_one(
                 every_address=batch[0].security,
                 recipient=recipient,
             )
-        except email_service.EmailNotConfiguredError:
-            # Mail was configured when these were written and is not now.
-            # Holding them is right: nothing has been lost, and the next pass
-            # will find them when it is configured again.
-            await _back_off(session, ids, now=now)
-            continue
-        except Exception:
-            logger.exception("email-outbox: send failed for user %s", user.id)
-            await _back_off(session, ids, now=now)
+        except Exception as exc:
+            # Mail that was configured when these were written and is not now
+            # is held the same way: nothing has been lost, and a later pass
+            # finds them once it is configured again.
+            if not isinstance(exc, email_service.EmailNotConfiguredError):
+                logger.exception("email-outbox: send failed for user %s", user.id)
+            await session.exec(
+                outbox_ledger.back_off(
+                    _TABLE, _TABLE.c.id.in_(ids), now=now, spent="failed_at"
+                )
+            )
             continue
         await _settle(session, ids, now=now)
         logger.info("email-outbox: sent %d item(s) to user %s", len(ids), user.id)
@@ -611,21 +550,18 @@ async def _run_pass(session: AsyncSession, *, now: datetime) -> None:
     there is no order to keep, so one account's failing mail server holds up
     only that account.
     """
-    result = await session.exec(
-        text(
-            "SELECT DISTINCT user_id FROM email_outbox "
-            "WHERE deliver_after <= :now AND sent_at IS NULL AND failed_at IS NULL "
-            "  AND (claimed_at IS NULL OR claimed_at < :stale) "
-            "ORDER BY user_id LIMIT :limit"
-        ).bindparams(
-            now=now,
-            stale=now - timedelta(seconds=LEASE_SECONDS),
-            limit=BATCH_RECIPIENTS,
-        )
+    user_ids = await outbox_ledger.due_recipients(
+        session,
+        EmailOutboxItem,
+        now=now,
+        limit=BATCH_RECIPIENTS,
+        still_open=_OPEN,
     )
-    user_ids = [row.user_id for row in result.all()]
     for user_id in user_ids:
-        rows = await _claim(session, user_id=user_id, now=now)
+        # One recipient at a time, held until their mail is settled.
+        rows = await outbox_ledger.claim(
+            session, EmailOutboxItem, [user_id], now=now, still_open=_OPEN
+        )
         if not rows:
             continue
         user = (

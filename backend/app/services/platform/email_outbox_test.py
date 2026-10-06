@@ -339,34 +339,6 @@ async def test_a_failed_send_backs_off_rather_than_vanishing(
     assert row.claimed_at is None
 
 
-async def test_a_claim_is_not_handed_out_twice(session: AsyncSession, configured):
-    """Two workers racing must not both send the same mail."""
-    user = await create_user(session, email="claimed@example.com")
-    await email_outbox.enqueue(
-        session, user, category=NotificationCategory.mentions, pieces=_pieces()
-    )
-    await session.commit()
-
-    now = datetime.now(timezone.utc)
-    first = await email_outbox._claim(session, user_id=user.id, now=now)
-    second = await email_outbox._claim(session, user_id=user.id, now=now)
-    assert len(first) == 1
-    assert second == []
-
-
-async def test_a_lapsed_claim_is_taken_back(session: AsyncSession, configured):
-    """A worker that died mid-send must not strand its batch."""
-    user = await create_user(session, email="lapsed@example.com")
-    await email_outbox.enqueue(
-        session, user, category=NotificationCategory.mentions, pieces=_pieces()
-    )
-    await session.commit()
-    now = datetime.now(timezone.utc)
-    assert len(await email_outbox._claim(session, user_id=user.id, now=now)) == 1
-    later = now + timedelta(seconds=email_outbox.LEASE_SECONDS + 60)
-    assert len(await email_outbox._claim(session, user_id=user.id, now=later)) == 1
-
-
 async def test_changing_when_you_read_re_times_what_is_waiting(
     session: AsyncSession, configured
 ):

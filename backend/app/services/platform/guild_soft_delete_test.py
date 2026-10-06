@@ -777,10 +777,25 @@ async def test_a_deployment_can_leave_holds_in_place(
 async def test_the_hold_is_told_in_each_seats_language(
     session: AsyncSession, monkeypatch
 ):
+    """Each seat holder gets a letter at every address they have proved, in
+    the language they read, as account mail."""
+    from unittest.mock import AsyncMock
+
+    from app.core.encryption import SALT_EMAIL, decrypt_field
+    from app.models.platform.email_outbox import EmailOutboxItem
     from app.models.platform.notification import Notification, NotificationType
+    from app.services.auth import addresses
     from app.testing import drain_notices
 
     seat = await create_user(session, email="hold-en@example.com")
+    addresses.record_address(
+        session,
+        user_id=seat.id,
+        email="hold-en-2@example.com",
+        source=addresses.SOURCE_ADDED,
+        verified=True,
+        is_primary=False,
+    )
     guild = await create_guild(session, creator=seat)
     await create_guild_membership(
         session, user=seat, guild=guild, role=CommunityRole.superadmin
@@ -793,17 +808,36 @@ async def test_the_hold_is_told_in_each_seats_language(
     held_at = datetime(2026, 9, 1, tzinfo=timezone.utc)
     await _hold_since(session, guild_id, held_at)
     sent: list[dict] = []
+    written = email_service.community_on_hold_pieces
 
-    async def _capture(_session, **kwargs) -> None:
+    def _capture(**kwargs):
         sent.append(kwargs)
+        return written(**kwargs)
 
-    monkeypatch.setattr(email_service, "send_community_on_hold_email", _capture)
+    monkeypatch.setattr(email_service, "community_on_hold_pieces", _capture)
+    monkeypatch.setattr(email_service, "email_configured", AsyncMock(return_value=True))
 
     await guilds_service.announce_on_hold(session, guild_id)
 
-    assert sorted((letter["locale"], letter["recipients"]) for letter in sent) == [
-        ("de", ["hold-de@example.com"]),
-        ("en", ["hold-en@example.com"]),
+    assert sorted(letter["locale"] for letter in sent) == ["de", "en"]
+    letters = (
+        await session.exec(
+            select(EmailOutboxItem).where(
+                col(EmailOutboxItem.user_id).in_([seat_id, german.id])
+            )
+        )
+    ).all()
+    assert sorted(
+        (
+            decrypt_field(letter.recipient_encrypted or "", SALT_EMAIL),
+            letter.locale,
+            letter.security,
+        )
+        for letter in letters
+    ) == [
+        ("hold-de@example.com", "de", True),
+        ("hold-en-2@example.com", "en", True),
+        ("hold-en@example.com", "en", True),
     ]
     delete_at = held_at + timedelta(days=DEFAULT_HOLD_DELETION_DAYS)
     assert {letter["delete_at"] for letter in sent} == {delete_at}
@@ -831,11 +865,13 @@ async def test_the_hold_notice_names_the_day_it_is_deleted(
     held_at = datetime.now(timezone.utc)
     await _hold_since(session, guild_id, held_at)
     sent = []
+    written = email_service.community_on_hold_pieces
 
-    async def _capture(_session, **kwargs) -> None:
+    def _capture(**kwargs):
         sent.append(kwargs["delete_at"])
+        return written(**kwargs)
 
-    monkeypatch.setattr(email_service, "send_community_on_hold_email", _capture)
+    monkeypatch.setattr(email_service, "community_on_hold_pieces", _capture)
 
     await guilds_service.announce_on_hold(session, guild_id)
     assert sent == [held_at + timedelta(days=DEFAULT_HOLD_DELETION_DAYS)]

@@ -411,17 +411,11 @@
   "communityOnHold": {
     "subject": "{{community}} está en pausa",
     "title": "{{community}} está en pausa",
-    "greeting": "Hola:",
     "body": "<strong>{{community}}</strong> está en pausa, así que por ahora nadie puede abrirla, ni sus miembros ni sus administradores. No se ha cambiado ni eliminado nada.",
     "bodyDeleting": "<strong>{{community}}</strong> está en pausa y se eliminará el <strong>{{date}}</strong> a menos que se restablezca su plan. Hasta entonces nadie puede abrirla, ni sus miembros ni sus administradores, y no se ha cambiado ni eliminado nada.",
     "bodyDeletingUnlessLifted": "<strong>{{community}}</strong> está en pausa y se eliminará el <strong>{{date}}</strong> a menos que se levante la pausa. Hasta entonces nadie puede abrirla, ni sus miembros ni sus administradores, y no se ha cambiado ni eliminado nada.",
     "contact": "Ponte en contacto con <strong>{{contact}}</strong> para resolverlo.",
     "contactNobody": "Ponte en contacto con quien gestiona este servidor para resolverlo.",
-    "textBody": "{{community}} está en pausa, así que por ahora nadie puede abrirla. No se ha cambiado ni eliminado nada.",
-    "textBodyDeleting": "{{community}} está en pausa y se eliminará el {{date}} a menos que se restablezca su plan. Hasta entonces nadie puede abrirla, y no se ha cambiado ni eliminado nada.",
-    "textBodyDeletingUnlessLifted": "{{community}} está en pausa y se eliminará el {{date}} a menos que se levante la pausa. Hasta entonces nadie puede abrirla, y no se ha cambiado ni eliminado nada.",
-    "textContact": "Ponte en contacto con {{contact}} para resolverlo.",
-    "textContactNobody": "Ponte en contacto con quien gestiona este servidor para resolverlo.",
     "buttonLabel": "Restablecer el plan"
   },
   "communityTrialEnding": {

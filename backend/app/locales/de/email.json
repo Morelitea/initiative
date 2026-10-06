@@ -411,17 +411,11 @@
   "communityOnHold": {
     "subject": "{{community}} ist pausiert",
     "title": "{{community}} ist pausiert",
-    "greeting": "Hallo,",
     "body": "<strong>{{community}}</strong> ist pausiert, deshalb kann sie vorerst niemand öffnen – weder ihre Mitglieder noch ihre Administratoren. Nichts darin wurde geändert oder entfernt.",
     "bodyDeleting": "<strong>{{community}}</strong> ist pausiert und wird am <strong>{{date}}</strong> gelöscht, wenn ihr Tarif nicht wiederhergestellt wird. Bis dahin kann sie niemand öffnen – weder ihre Mitglieder noch ihre Administratoren –, und nichts darin wurde geändert oder entfernt.",
     "bodyDeletingUnlessLifted": "<strong>{{community}}</strong> ist pausiert und wird am <strong>{{date}}</strong> gelöscht, wenn die Pause nicht aufgehoben wird. Bis dahin kann sie niemand öffnen – weder ihre Mitglieder noch ihre Administratoren –, und nichts darin wurde geändert oder entfernt.",
     "contact": "Wende dich an <strong>{{contact}}</strong>, um das zu klären.",
     "contactNobody": "Wende dich an die Betreiber dieses Servers, um das zu klären.",
-    "textBody": "{{community}} ist pausiert, deshalb kann sie vorerst niemand öffnen. Nichts darin wurde geändert oder entfernt.",
-    "textBodyDeleting": "{{community}} ist pausiert und wird am {{date}} gelöscht, wenn ihr Tarif nicht wiederhergestellt wird. Bis dahin kann sie niemand öffnen, und nichts darin wurde geändert oder entfernt.",
-    "textBodyDeletingUnlessLifted": "{{community}} ist pausiert und wird am {{date}} gelöscht, wenn die Pause nicht aufgehoben wird. Bis dahin kann sie niemand öffnen, und nichts darin wurde geändert oder entfernt.",
-    "textContact": "Wende dich an {{contact}}, um das zu klären.",
-    "textContactNobody": "Wende dich an die Betreiber dieses Servers, um das zu klären.",
     "buttonLabel": "Tarif wiederherstellen"
   },
   "communityTrialEnding": {

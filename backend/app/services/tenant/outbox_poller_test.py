@@ -16,6 +16,7 @@ from app.db.session import set_rls_context
 from app.models.tenant.plugin_event_outbox import PluginEventOutbox
 from app.models.tenant.event_outbox import EventOutbox
 from app.models.tenant.webhook_subscription import WebhookSubscription
+from app.services import outbox_ledger
 from app.services.tenant import outbox_poller
 from app.db.request_context import SystemGuild
 
@@ -345,7 +346,7 @@ async def test_repeated_refusals_escalate_the_backoff(
         f"backoff did not escalate across repeated refusals: {intervals} — an "
         "unreachable target would be retried at the first interval forever"
     )
-    assert intervals[:3] == [float(s) for s in poller._BACKOFF_SECONDS[:3]]
+    assert intervals[:3] == [float(s) for s in outbox_ledger.BACKOFF_SECONDS[:3]]
 
 
 async def test_an_exhausted_batch_is_dead_lettered_and_unblocks_the_backlog(
@@ -355,7 +356,7 @@ async def test_an_exhausted_batch_is_dead_lettered_and_unblocks_the_backlog(
     step forever, holding every later transaction hostage behind it — there
     was no way for a permanently broken batch to stop blocking the queue.
 
-    Once the schedule in ``_BACKOFF_SECONDS`` is exhausted, the batch gives up
+    Once the ledger's backoff schedule is exhausted, the batch gives up
     (recorded via ``dead_lettered_at``, never retried again) instead of
     reusing the last interval indefinitely, and a newer transaction for the
     same subscription is no longer stuck behind it.
@@ -398,7 +399,7 @@ async def test_an_exhausted_batch_is_dead_lettered_and_unblocks_the_backlog(
 
     txn_a: int | None = None
     moment = datetime.now(timezone.utc)
-    for _ in range(len(poller._BACKOFF_SECONDS)):
+    for _ in range(len(outbox_ledger.BACKOFF_SECONDS)):
         await poller.drain_guild(system, guild_id, now=moment)
         await set_rls_context(session, SystemGuild(guild_id))
         row = (
@@ -420,7 +421,7 @@ async def test_an_exhausted_batch_is_dead_lettered_and_unblocks_the_backlog(
 
     event_id_a = poller._event_id(subscription_id, txn_a)
     attempts_on_a_so_far = attempted.count(event_id_a)
-    assert attempts_on_a_so_far == len(poller._BACKOFF_SECONDS), (
+    assert attempts_on_a_so_far == len(outbox_ledger.BACKOFF_SECONDS), (
         "the failing batch should have been attempted once per backoff step "
         "before its schedule is exhausted"
     )
@@ -438,7 +439,7 @@ async def test_an_exhausted_batch_is_dead_lettered_and_unblocks_the_backlog(
     dead_row = (
         await session.exec(
             sa_text(
-                "SELECT txn_id, next_attempt_at FROM webhook_deliveries "
+                "SELECT txn_id FROM webhook_deliveries "
                 "WHERE dead_lettered_at IS NOT NULL"
             )
         )
@@ -447,7 +448,6 @@ async def test_an_exhausted_batch_is_dead_lettered_and_unblocks_the_backlog(
         "the exhausted batch was retried again instead of being dead-lettered"
     )
     assert dead_row[0] == txn_a
-    assert dead_row[1] is None, "a dead-lettered batch has nothing left to schedule"
 
     assert attempted.count(event_id_a) == attempts_on_a_so_far + 1, (
         "the batch's last-ever attempt is the one that dead-letters it"

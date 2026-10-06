@@ -11,7 +11,7 @@ unchanged: the erasure that used to happen the moment somebody pressed the
 button. Not ``hard_delete_user`` — anonymizing keeps the row, so the work the
 account touched still tells one departed author from another.
 
-Polled by ``background_tasks._loop_worker`` once an hour on
+Polled by ``background_tasks.Loop`` once an hour on
 ``SystemSessionLocal`` (the ``app_admin`` login). ``soft_delete_user`` does
 each guild's part on a system session from that guild's cohort, so this session
 stays in ``public``.

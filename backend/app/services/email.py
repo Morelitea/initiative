@@ -917,26 +917,24 @@ def email_date(value: date | datetime, locale: str = "en") -> str:
     )
 
 
-async def send_community_on_hold_email(
-    session: AsyncSession,
+def community_on_hold_pieces(
     *,
-    recipients: list[str],
     community: str,
     contact: str | None,
     guild_id: int,
-    delete_at: datetime | None = None,
-    plan_managed: bool = False,
-    locale: str = "en",
-) -> None:
-    """Tell the people who hold a community's seat that it is on hold, whom
+    delete_at: datetime | None,
+    plan_managed: bool,
+    locale: str,
+) -> EmailPieces:
+    """A community's hold as a letter, in ``locale``: that it is on hold, whom
     to contact about it, and, where the hold runs out, when it is deleted.
 
     ``delete_at`` is None where this deployment never deletes a held community.
     ``plan_managed`` says what lifts the hold: on a deployment whose plans the
     billing service sets, restoring the plan, which the letter's button leads
-    to; elsewhere, whoever put it there, and the letter has no button.
+    to; elsewhere, whoever put it there, and the letter has no button. Queued
+    as account mail, to every address each seat holder has proved.
     """
-    settings_obj, accent = await _email_context(session)
     next_step = (
         email_t("communityOnHold.contact", locale=locale, contact=contact)
         if contact
@@ -949,58 +947,26 @@ async def send_community_on_hold_email(
         body_key = "bodyDeleting"
     else:
         body_key = "bodyDeletingUnlessLifted"
-    text_key = "textB" + body_key[1:]
-    # Where billing sets plans, restoring the plan lifts the hold, so the
-    # letter leads there.
-    button = text_link = ""
-    if plan_managed:
-        link = community_billing_link(guild_id, "manage")
-        label = email_t("communityOnHold.buttonLabel", locale=locale)
-        button = f'<p style="margin:24px 0;">{_cta_button(label, link, accent)}</p>'
-        plain_label = email_t(
-            "communityOnHold.buttonLabel", locale=locale, escape=False
-        )
-        text_link = f"\n\n{plain_label}: {link}"
-    body = f"""
-    <p>{email_t("communityOnHold.greeting", locale=locale)}</p>
-    <p>{email_t(f"communityOnHold.{body_key}", locale=locale, community=community, date=day or "")}</p>
-    {button}
-    <p>{next_step}</p>
-    """
-    html_body = _build_html_layout(
-        email_t("communityOnHold.title", locale=locale, community=community),
-        body,
-        accent,
+    body = email_t(
+        f"communityOnHold.{body_key}",
         locale=locale,
+        community=community,
+        date=day or "",
     )
-    text_next = (
-        email_t(
-            "communityOnHold.textContact", locale=locale, contact=contact, escape=False
-        )
-        if contact
-        else email_t("communityOnHold.textContactNobody", locale=locale, escape=False)
-    )
-    await send_email(
-        session,
-        recipients=recipients,
+    return EmailPieces(
         subject=email_t(
             "communityOnHold.subject", locale=locale, community=community, escape=False
         ),
-        html_body=html_body,
-        text_body=" ".join(
-            (
-                email_t(
-                    f"communityOnHold.{text_key}",
-                    locale=locale,
-                    community=community,
-                    date=day or "",
-                    escape=False,
-                ),
-                text_next,
-            )
-        )
-        + text_link,
-        settings_obj=settings_obj,
+        headline=email_t("communityOnHold.title", locale=locale, community=community),
+        body=f"{body} {next_step}",
+        # Where billing sets plans, restoring the plan lifts the hold, so the
+        # letter leads there.
+        link=community_billing_link(guild_id, "manage") if plan_managed else None,
+        link_label=(
+            email_t("communityOnHold.buttonLabel", locale=locale)
+            if plan_managed
+            else None
+        ),
     )
 
 

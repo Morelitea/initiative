@@ -19,13 +19,12 @@ Three things follow from the split:
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from collections import defaultdict
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Any, Iterable, Mapping, Sequence, cast
 
-from sqlalchemy import delete, func, insert, text, update
+from sqlalchemy import Table, delete, func, insert, update
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -35,6 +34,8 @@ from app.models.platform.notice_outbox import NoticeOutboxItem
 from app.models.platform.notification import NotificationType
 from app.models.platform.user import User
 from app.services import email as email_service
+from app.services import outbox_ledger
+from app.services.background_tasks import Loop
 from app.services.platform import (
     notification_policy,
     notification_prefs,
@@ -51,16 +52,14 @@ CHANNEL = "notice_outbox"
 #: lost while its bus connection was being rebuilt.
 NOTICE_OUTBOX_POLL_SECONDS = 15
 
-#: How long a claim is held before another pass may take the rows back.
-LEASE_SECONDS = 300
-
-#: Backoff between attempts, in seconds, indexed by how many have failed. A
-#: push past the last is given up; a bell line never is, and keeps trying at
-#: the last step.
+#: The waits between attempts, in seconds. A push that fails after the last
+#: is given up; a bell line never is, and keeps trying at the last step.
 BACKOFF_SECONDS = (30, 120, 600, 1800)
 
 #: Recipients one pass serves before the next one starts.
 BATCH_RECIPIENTS = 100
+
+_TABLE: Table = NoticeOutboxItem.__table__
 
 
 #: What a row says when its writer says nothing: no rollup, no push, no email.
@@ -214,6 +213,34 @@ async def enqueue(session: AsyncSession, rows: Sequence[Mapping[str, Any]]) -> N
     await session.exec(select(func.pg_notify(CHANNEL, "")))
 
 
+async def queue_push(
+    session: AsyncSession,
+    user: User,
+    push: push_notifications.Push,
+    communities: Iterable[int | None] = (),
+) -> bool:
+    """Write down a push of its own — a digest's, a hold summary's, a
+    message's — whose bell line is written elsewhere or not at all. The worker
+    sends it and tries again if it fails, under the switches of the
+    ``communities`` it gathers from as well as the deployment's. Returns
+    whether one may go at all."""
+    item = await notice(
+        session,
+        user,
+        push.notification_type,
+        {},
+        guild_id=None,
+        push=(push.title, push.body),
+        push_data=push.data,
+        communities=communities,
+        kind="push",
+    )
+    if item["push_title"] is None:
+        return False
+    await enqueue(session, [item])
+    return True
+
+
 async def cancel_pending_reaction(
     session: AsyncSession, *, user_id: int, guild_id: int, reaction_id: int
 ) -> bool:
@@ -238,45 +265,6 @@ async def cancel_pending_reaction(
     return bool(dropped.all())
 
 
-async def _claim(session: AsyncSession, *, now: datetime) -> list[NoticeOutboxItem]:
-    """Take every due row of the next batch of recipients.
-
-    By recipient, so one person's notices are delivered by one pass in the
-    order they were written — which is what keeps a reaction taken back behind
-    the reaction. A recipient another pass is still delivering to waits for
-    it. The claim is its own statement: a pass racing this one waits on the
-    rows and then finds them taken.
-    """
-    stale = now - timedelta(seconds=LEASE_SECONDS)
-    due = (
-        NoticeOutboxItem.deliver_after <= now,  # type: ignore[operator]
-        (NoticeOutboxItem.claimed_at.is_(None))  # type: ignore[union-attr]
-        | (NoticeOutboxItem.claimed_at < stale),  # type: ignore[operator]
-    )
-    held = select(NoticeOutboxItem.user_id).where(
-        NoticeOutboxItem.claimed_at >= stale  # type: ignore[operator]
-    )
-    user_ids = (
-        await session.exec(
-            select(NoticeOutboxItem.user_id)
-            .where(*due, NoticeOutboxItem.user_id.not_in(held))  # type: ignore[attr-defined]
-            .distinct()
-            .order_by(NoticeOutboxItem.user_id)
-            .limit(BATCH_RECIPIENTS)
-        )
-    ).all()
-    if not user_ids:
-        return []
-    claimed = await session.exec(
-        update(NoticeOutboxItem)
-        .where(NoticeOutboxItem.user_id.in_(user_ids), *due)  # type: ignore[attr-defined]
-        .values(claimed_at=now)
-        .returning(NoticeOutboxItem)
-        .execution_options(synchronize_session=False)
-    )
-    return sorted(claimed.scalars().all(), key=lambda row: row.id or 0)
-
-
 async def _drop(session: AsyncSession, ids: Sequence[int]) -> None:
     if ids:
         await session.exec(
@@ -288,34 +276,21 @@ async def _back_off(
     session: AsyncSession, ids: Sequence[int], *, now: datetime, give_up: bool
 ) -> None:
     """Return rows to the queue, later each time. With ``give_up`` — a push
-    whose bell line is already written — a row that has had every attempt is
+    whose bell line is already written — a row that has had every wait is
     dropped instead; nothing is ever dropped before its bell line exists."""
     if not ids:
         return
+    chosen = _TABLE.c.id.in_(list(ids))
     if give_up:
         spent = await session.exec(
-            text(
-                "DELETE FROM notice_outbox "
-                "WHERE id = ANY(:ids) AND attempts + 1 >= :steps RETURNING user_id"
-            ).bindparams(ids=list(ids), steps=len(BACKOFF_SECONDS))
+            delete(_TABLE)
+            .where(chosen, outbox_ledger.given_up(_TABLE.c.attempts, BACKOFF_SECONDS))
+            .returning(_TABLE.c.user_id)
         )
         for row in spent.all():
             logger.warning("notice-outbox: gave up a push for user %s", row.user_id)
     await session.exec(
-        text(
-            "UPDATE notice_outbox SET "
-            "  attempts = attempts + 1, "
-            "  claimed_at = NULL, "
-            "  deliver_after = :now + make_interval("
-            "      secs => (CAST(:backoff AS integer[]))["
-            "        LEAST(attempts + 1, :steps)]) "
-            "WHERE id = ANY(:ids)"
-        ).bindparams(
-            now=now,
-            ids=list(ids),
-            backoff=list(BACKOFF_SECONDS),
-            steps=len(BACKOFF_SECONDS),
-        )
+        outbox_ledger.back_off(_TABLE, chosen, now=now, schedule=BACKOFF_SECONDS)
     )
 
 
@@ -323,7 +298,14 @@ async def _run_pass(session: AsyncSession, *, now: datetime) -> bool:
     """Deliver one batch. Returns whether there may be more waiting."""
     from app.services import notifications
 
-    rows = await _claim(session, now=now)
+    rows = await outbox_ledger.claim(
+        session,
+        NoticeOutboxItem,
+        await outbox_ledger.due_recipients(
+            session, NoticeOutboxItem, now=now, limit=BATCH_RECIPIENTS
+        ),
+        now=now,
+    )
     await session.commit()
     if not rows:
         return False
@@ -400,10 +382,21 @@ async def _push(
     """Send these rows' pushes and settle them, under the switches as they
     stand now: a community that has turned push off since sends nothing, and
     one that has started redacting sends the kind of thing that happened."""
+    from app.services.platform import dm_notifications
+
     policies = await notification_policy.for_send_many(
         session,
         {row.guild_id for row in rows}
         | {gid for row in rows for gid in row.data.get("communities", ())},
+    )
+    # A message's push goes only to the devices that can read it.
+    readers = await dm_notifications.reading_devices(
+        session,
+        {
+            row.user_id
+            for row in rows
+            if row.type == NotificationType.direct_message.value
+        },
     )
     allowed: list[NoticeOutboxItem] = []
     pushes: list[push_notifications.Push] = []
@@ -426,6 +419,11 @@ async def _push(
                 title=shown[0],
                 body=shown[1],
                 data=notification_policy.push_data(policy, row.push_data),
+                session_ids=(
+                    frozenset(readers.get(row.user_id, ()))
+                    if notification_type is NotificationType.direct_message
+                    else None
+                ),
             )
         )
     again = await push_notifications.send_pushes(session, pushes)
@@ -444,29 +442,11 @@ async def process_notice_outbox() -> None:
             pass
 
 
-#: Set by a wake; created by :func:`run`, so it belongs to the running loop.
-_wake: asyncio.Event | None = None
+#: The worker's loop: woken as notices are committed, and run every
+#: :data:`NOTICE_OUTBOX_POLL_SECONDS` in case a wake went missing.
+loop = Loop("notice-outbox", interval=NOTICE_OUTBOX_POLL_SECONDS)
 
 
 async def hint(_payload: str) -> None:
     """A committed transaction wrote notices. Registered on :data:`CHANNEL`."""
-    if _wake is not None:
-        _wake.set()
-
-
-async def run() -> None:
-    """Deliver as notices arrive, and every :data:`NOTICE_OUTBOX_POLL_SECONDS`
-    in case a wake went missing."""
-    global _wake
-    _wake = asyncio.Event()
-    logger.info("notice-outbox worker started")
-    while True:
-        _wake.clear()
-        try:
-            await process_notice_outbox()
-        except Exception:  # pragma: no cover
-            logger.exception("notice-outbox worker encountered an error")
-        try:
-            await asyncio.wait_for(_wake.wait(), timeout=NOTICE_OUTBOX_POLL_SECONDS)
-        except TimeoutError:
-            pass
+    loop.wake()

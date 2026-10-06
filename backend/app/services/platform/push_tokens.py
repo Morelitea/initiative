@@ -2,7 +2,7 @@
 
 A device registers and unregisters under its owner's platform tier, whose
 policies admit that account's own rows. Delivery reads and prunes a
-recipient's rows on the system engine (``push_notifications.send_push_to_user``).
+recipient's rows on the system engine (``push_notifications.send_pushes``).
 """
 
 import uuid

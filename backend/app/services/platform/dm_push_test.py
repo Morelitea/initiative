@@ -31,6 +31,7 @@ from app.models.platform.push_token import PushToken
 from app.models.platform.user_dm_settings import DmPolicy
 from app.services.auth import sessions as session_service
 from app.testing import (
+    drain_notices,
     get_auth_token,
     push_switched_on,
     set_notification_prefs,
@@ -82,7 +83,8 @@ async def _channel(client, session, a, b, *, seed=44, recipient_headers=None):
 
 
 async def _send(client, actor, conversation_id, device_id, **extra):
-    return await client.post(
+    """Send one message, then run the notice worker that pushes it."""
+    response = await client.post(
         f"/api/v1/me/dm/conversations/{conversation_id}/messages",
         json={
             "messages": [
@@ -96,6 +98,8 @@ async def _send(client, actor, conversation_id, device_id, **extra):
         },
         headers=actor.headers,
     )
+    await drain_notices()
+    return response
 
 
 class TestTheLink:
