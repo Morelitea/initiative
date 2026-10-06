@@ -45,6 +45,7 @@ from app.testing import (
     billing_guild_ref,
     guild_administration,
     create_guild,
+    create_guild_membership,
     create_upload,
     create_user,
     drain_notices,
@@ -890,7 +891,7 @@ async def test_malformed_payload_rejected_after_verification(
     assert response.json()["detail"] == "BILLING_INVALID_PAYLOAD"
 
 
-# --- usage (signed storage read) -------------------------------------------------
+# --- usage (signed storage + membership read) -----------------------------------
 
 
 async def test_a_read_burns_its_jti(client: AsyncClient, session: AsyncSession):
@@ -930,6 +931,7 @@ async def test_usage_sums_guild_bytes(client: AsyncClient, session: AsyncSession
     assert response.json() == {
         "community_ref": await billing_guild_ref(guild.id),
         "usage_bytes": 1234,
+        "member_count": 0,
     }
 
 
@@ -942,7 +944,32 @@ async def test_usage_zero_for_empty_guild(client: AsyncClient, session: AsyncSes
     assert response.json() == {
         "community_ref": await billing_guild_ref(guild.id),
         "usage_bytes": 0,
+        "member_count": 0,
     }
+
+
+async def test_usage_counts_guild_members(client: AsyncClient, session: AsyncSession):
+    """The read carries the guild's whole membership — the figure the
+    ``max_users`` check compares against — counted on the system session (the
+    billing role can't see ``guild_memberships``). Another guild's members
+    don't leak into it."""
+    owner = await create_user(session, email="owner@example.com")
+    guild = await create_guild(session, creator=owner)
+    for n in range(2):
+        member = await create_user(session, email=f"member{n}@example.com")
+        await create_guild_membership(session, user=member, guild=guild)
+    other = await create_guild(session, creator=owner)
+    await create_guild_membership(
+        session,
+        user=await create_user(session, email="elsewhere@example.com"),
+        guild=other,
+    )
+
+    response = await _post(
+        client, "usage", {"community_ref": await billing_guild_ref(guild.id)}
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["member_count"] == 3
 
 
 async def test_usage_unknown_guild_404(client: AsyncClient, session: AsyncSession):

@@ -491,19 +491,37 @@ async def guild_lifecycle_status(
     return None if status is None else CommunityStatus(status)
 
 
-async def guild_storage_usage(guild_id: int) -> int:
-    """Current stored bytes for one guild, for the signed usage read.
+@dataclass(frozen=True)
+class GuildUsage:
+    """What one guild is using, for the signed usage read.
 
-    ``uploads`` lives in the per-guild ``guild_<id>`` schema, which the
-    column-scoped ``initiative_billing`` role cannot reach — so the guild is
-    looked up on a **system session from the guild's cohort**, not the
-    billing-context session, and the sum is ``get_guild_storage_usage``'s. The
-    billing session still owns envelope verification + the jti burn in the
-    endpoint; this only reads the same ``SUM(uploads.size_bytes)`` that
-    ``enforce_storage_quota`` enforces against. Read-only — the app never
-    pushes usage anywhere.
+    ``usage_bytes`` is the figure ``enforce_storage_quota`` enforces against;
+    ``member_count`` is the one ``ensure_membership`` compares with
+    ``max_users``. Billing reads the second so a seat count is never cut below
+    the people already in the community.
+    """
+
+    usage_bytes: int
+    member_count: int
+
+
+async def guild_usage(guild_id: int) -> GuildUsage:
+    """Current stored bytes and member count for one guild, for the signed
+    usage read.
+
+    Neither is visible to the column-scoped ``initiative_billing`` role:
+    ``uploads`` lives in the per-guild ``guild_<id>`` schema, and
+    ``guild_memberships`` is outside its grants. So the guild is looked up — and
+    its members counted — on a **system session from the guild's cohort**, not
+    the billing-context session; that session bypasses RLS, which is what
+    ``count_members`` asks of its caller. The sum is
+    ``get_guild_storage_usage``'s. The billing session still owns envelope
+    verification + the jti burn in the endpoint; this only reads the figures
+    the app itself enforces against. Read-only — the app never pushes usage
+    anywhere.
     """
     from app.db import cohorts
+    from app.services.platform.guilds import count_members
     from app.services.tenant.attachments import get_guild_storage_usage
 
     async with cohorts.system_session(guild_id) as session:
@@ -513,5 +531,9 @@ async def guild_storage_usage(guild_id: int) -> int:
         ).one_or_none()
         if exists is None:
             raise BillingGuildNotFoundError(guild_id)
+        member_count = await count_members(session, guild_id=guild_id)
 
-    return await get_guild_storage_usage(guild_id)
+    return GuildUsage(
+        usage_bytes=await get_guild_storage_usage(guild_id),
+        member_count=member_count,
+    )
