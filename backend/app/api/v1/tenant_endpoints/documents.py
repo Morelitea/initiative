@@ -74,6 +74,7 @@ from app.services.storage import build_upload_response, get_guild_storage
 from app.api import resource_access
 from app.core.tools import Tool
 from app.services.tenant import body_states
+from app.services.tenant import comments as comments_service
 from app.services.tenant import documents as documents_service
 from app.services.tenant import ownership as ownership_service
 from app.services.tenant import properties as properties_service
@@ -211,7 +212,9 @@ async def serialize_document_page(
     """
     await tags_service.annotate_tags(session, documents)
     await properties_service.annotate_properties(session, documents)
-    await documents_service.annotate_comment_counts(session, documents)
+    await comments_service.annotate_comment_counts(
+        session, documents, column="document_id"
+    )
     await ownership_service.annotate_owner_plugins(session, documents)
     context = require_actor_context(session)
     return [

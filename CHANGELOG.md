@@ -72,6 +72,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **A plug-in can create things again.** The owner record a plug-in's new item gets was still written under the plug-in's old name, so creating anything failed.
 - **Someone who loses access to a calendar, queue or other tool is taken off what is in it.** Event attendees, people on queue items and person fields now let go of them when sharing changes, as task assignees already did.
 - **Files restored from a backup or brought in with a wiki or gallery import keep a version history and a type**, as uploaded ones do; a file whose type isn't one the tool shows is skipped and reported.
+- **A comment that fails to post, save or delete says so in words** rather than showing a raw message key.
 - **Importing a link document checks its address**, as creating one does: an address that isn't `http://` or `https://` is refused.
 - **On a phone browser, the sidebar's bottom row is no longer hidden behind the browser's toolbar.**
 - **Image captions in documents and wiki pages are saved.**

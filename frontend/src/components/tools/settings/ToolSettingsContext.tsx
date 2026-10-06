@@ -64,7 +64,7 @@ export interface ToolExportOptions {
 }
 
 /** Per-call callbacks so the sections — not each wrapper — own toasts and routing. */
-export type ToolSettingsMutateOptions = { onSuccess?: () => void };
+export type ToolSettingsMutateOptions = { onSuccess?: () => void; onError?: () => void };
 
 export interface ToolMutation<TVars> {
   mutate: (vars: TVars, options?: ToolSettingsMutateOptions) => void;
@@ -80,6 +80,8 @@ export interface ToolSettingsContextValue {
    * in the editor.
    */
   update?: ToolMutation<{ name?: string; description?: string | null }>;
+  /** Marks it a template or takes it back. Only tools with templates pass it. */
+  template?: ToolMutation<{ is_template: boolean }>;
   setGrants: ToolMutation<ResourceGrantSchema[]>;
   remove: ToolMutation<number>;
   /** Extra cards for the Details section, e.g. a calendar's color. */

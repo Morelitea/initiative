@@ -142,6 +142,11 @@
       "duplicated": "Copiado en {{initiative}}",
       "error": "No se pudo hacer la copia."
     },
+    "template": {
+      "title": "Plantilla",
+      "description": "Una plantilla está pensada para copiarse en lugar de trabajarse directamente, y aparece con las plantillas de su iniciativa.",
+      "toggle": "Alternar estado de plantilla"
+    },
     "export": {
       "title": "Exportar",
       "description": "Descarga una copia: un archivo que puedes importar aquí o en otro servidor, o un informe para leer. Solo quien puede eliminar esto puede exportarlo."

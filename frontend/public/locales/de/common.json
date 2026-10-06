@@ -142,6 +142,11 @@
       "duplicated": "Nach {{initiative}} kopiert",
       "error": "Die Kopie konnte nicht erstellt werden."
     },
+    "template": {
+      "title": "Vorlage",
+      "description": "Eine Vorlage ist dafür gedacht, kopiert statt direkt bearbeitet zu werden, und wird bei den Vorlagen ihrer Initiative aufgeführt.",
+      "toggle": "Vorlagenstatus umschalten"
+    },
     "export": {
       "title": "Exportieren",
       "description": "Eine Kopie herunterladen – als Datei, die sich hier oder auf einem anderen Server importieren lässt, oder als Bericht zum Lesen. Exportieren kann nur, wer dies auch löschen darf."

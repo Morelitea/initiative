@@ -175,18 +175,6 @@
   },
   "settings": {
     "tabTaskStatuses": "Statuts des tâches",
-    "templateStatus": {
-      "title": "Statut de modèle",
-      "description": "Convertissez ce projet en modèle réutilisable ou revenez à un projet standard.",
-      "isTemplate": "Ce projet est actuellement un modèle et apparaît sur la page Modèles.",
-      "isStandard": "Ce projet se comporte comme un projet standard.",
-      "convertToStandard": "Convertir en projet standard",
-      "markAsTemplate": "Marquer comme modèle",
-      "noWriteAccess": "Vous avez besoin d'un accès en écriture pour changer le statut de modèle.",
-      "viewAllTemplates": "Voir tous les modèles",
-      "markedAsTemplate": "Projet marqué comme modèle",
-      "removedFromTemplates": "Projet retiré des modèles"
-    },
     "tabFilterPresets": "Vues",
     "filterPresetsHeading": "Préréglages de filtre",
     "filterPresetsDescription": "Jeux de filtres enregistrés que tout le monde dans ce projet peut choisir. Le préréglage par défaut est celui avec lequel le projet s'ouvre.",

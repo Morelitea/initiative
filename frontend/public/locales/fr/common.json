@@ -142,6 +142,11 @@
       "duplicated": "Copié dans {{initiative}}",
       "error": "La copie n’a pas pu être créée."
     },
+    "template": {
+      "title": "Modèle",
+      "description": "Un modèle est destiné à être copié plutôt que modifié directement, et figure parmi les modèles de son initiative.",
+      "toggle": "Basculer le statut de modèle"
+    },
     "export": {
       "title": "Exporter",
       "description": "Téléchargez une copie : un fichier à importer ici ou sur un autre serveur, ou un rapport à lire. Seule la personne qui peut supprimer ceci peut l’exporter."

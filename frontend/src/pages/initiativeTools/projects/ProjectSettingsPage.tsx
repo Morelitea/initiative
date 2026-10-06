@@ -3,7 +3,6 @@ import { useTranslation } from "react-i18next";
 
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { ProjectDetailsFields } from "@/components/projects/settings/ProjectDetailsFields";
-import { ProjectSettingsAdvancedTab } from "@/components/projects/settings/ProjectSettingsAdvancedTab";
 import { ToolSettingsLayout } from "@/components/tools/settings/ToolSettingsLayout";
 import {
   useDeleteProject,
@@ -24,7 +23,6 @@ export const ProjectSettingsPage = () => {
   const remove = useDeleteProject();
 
   const project = projectQuery.data;
-  const canWrite = Boolean(project?.can.edit);
 
   return (
     <ToolSettingsLayout
@@ -33,6 +31,7 @@ export const ProjectSettingsPage = () => {
       isLoading={isValidId && projectQuery.isLoading}
       isError={!isValidId || projectQuery.isError}
       update={update}
+      template={update}
       setGrants={setGrants}
       remove={remove}
       detailsInline={project ? <ProjectDetailsFields project={project} /> : null}
@@ -42,15 +41,6 @@ export const ProjectSettingsPage = () => {
         { value: "filter-presets", label: t("settings.tabFilterPresets") },
         { value: "task-statuses", label: t("settings.tabTaskStatuses") },
       ]}
-      advancedExtra={
-        project ? (
-          <ProjectSettingsAdvancedTab
-            project={project}
-            projectId={parsedId}
-            canWriteProject={canWrite}
-          />
-        ) : null
-      }
     />
   );
 };

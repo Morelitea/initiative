@@ -175,18 +175,6 @@
   },
   "settings": {
     "tabTaskStatuses": "Aufgabenstatus",
-    "templateStatus": {
-      "title": "Vorlagenstatus",
-      "description": "Wandle dieses Projekt in eine wiederverwendbare Vorlage um oder mache es wieder zu einem Standardprojekt.",
-      "isTemplate": "Dieses Projekt ist derzeit eine Vorlage und erscheint auf der Seite „Vorlagen“.",
-      "isStandard": "Dieses Projekt verhält sich wie ein Standardprojekt.",
-      "convertToStandard": "In Standardprojekt umwandeln",
-      "markAsTemplate": "Als Vorlage markieren",
-      "noWriteAccess": "Du benötigst Schreibzugriff, um den Vorlagenstatus zu ändern.",
-      "viewAllTemplates": "Alle Vorlagen anzeigen",
-      "markedAsTemplate": "Projekt als Vorlage markiert",
-      "removedFromTemplates": "Projekt aus Vorlagen entfernt"
-    },
     "tabFilterPresets": "Ansichten",
     "filterPresetsHeading": "Filter-Voreinstellungen",
     "filterPresetsDescription": "Gespeicherte Filtersätze, aus denen alle in diesem Projekt wählen können. Der Standard bestimmt, womit das Projekt öffnet.",

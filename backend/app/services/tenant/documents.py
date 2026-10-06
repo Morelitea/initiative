@@ -1,22 +1,21 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from typing import TYPE_CHECKING, Any, Sequence
+from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import func
 from sqlalchemy.orm import selectinload, undefer
 from sqlalchemy.orm.attributes import flag_modified
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.search import SearchEntityType
-from app.models.tenant.comment import Comment
 from app.models.tenant.document import Document, DocumentType
 from app.models.tenant.resource_grant import ResourceGrant
 from app.core.references import unresolve_wikilinks_to
 from app.core.messages import DocumentMessages
 from app.services.tenant import attachments as attachments_service
 from app.services.tenant import body_states
+from app.services.tenant import comments as comments_service
 from app.services.tenant import content_references
 from app.services.tenant import file_versions
 from app.services.tenant import ownership as ownership_service
@@ -144,8 +143,8 @@ async def get_document_hydrated(
     """Load a document with everything a serialized ``DocumentRead`` or an
     export reads: the list loader's eager loads and the body, plus the tags,
     comment count and owning plug-in a response carries.
-    :func:`get_document_for_grants` carries only what the access decision
-    needs. Uniform ``(session, id)`` shape, the one ``resource_access``
+    :func:`get_document_for_grants` carries the list loads alone, which is what
+    the access decision needs. Uniform ``(session, id)`` shape, the one ``resource_access``
     registers a loader by.
     """
     statement = (
@@ -161,7 +160,9 @@ async def get_document_hydrated(
     if document:
         await tags_service.annotate_tags(session, [document])
         await properties_service.annotate_properties(session, [document])
-        await annotate_comment_counts(session, [document])
+        await comments_service.annotate_comment_counts(
+            session, [document], column="document_id"
+        )
         await ownership_service.annotate_owner_plugins(session, [document])
     return document
 
@@ -169,19 +170,15 @@ async def get_document_hydrated(
 async def get_document_for_grants(
     session: AsyncSession, document_id: int
 ) -> Document | None:
-    """Load a document with just the relationships the grant flow needs — its
-    ``grants`` (owner resolution) and the level the request holds on it.
-    RLS scopes the row to the request's guild, so no explicit guild filter (mirrors
-    the queue/counter grant loaders). Uniform ``(session, id)`` shape so
+    """Load a document as a list row carries it — its ``grants`` (owner
+    resolution) and the level the request holds on it, without the body the
+    grant flow never reads. RLS scopes the row to the request's guild, so no
+    explicit guild filter. Uniform ``(session, id)`` shape so
     ``resource_access`` can register it like the others."""
     statement = (
         select(Document)
         .where(Document.id == document_id)
-        .options(
-            selectinload(Document.initiative),
-            undefer(Document.actions),
-            selectinload(Document.grants).selectinload(ResourceGrant.user),
-        )
+        .options(*list_loader_options())
     )
     return (await session.exec(statement)).one_or_none()
 
@@ -223,23 +220,6 @@ async def copy_contents(
             created_by=actor.user_id or current.created_by,
         )
     return []
-
-
-async def annotate_comment_counts(
-    session: AsyncSession, documents: Sequence[Document]
-) -> None:
-    document_ids = [document.id for document in documents if document.id is not None]
-    if not document_ids:
-        return
-    stmt = (
-        select(Comment.document_id, func.count(Comment.id))
-        .where(Comment.document_id.in_(tuple(document_ids)))
-        .group_by(Comment.document_id)
-    )
-    result = await session.exec(stmt)
-    counts = dict(result.all())
-    for document in documents:
-        object.__setattr__(document, "comment_count", counts.get(document.id, 0))
 
 
 async def unresolve_wikilinks_to_document(

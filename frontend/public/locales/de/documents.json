@@ -114,17 +114,13 @@
   "settings": {
     "notFound": "Dokument nicht gefunden.",
     "title": "Dokumenteinstellungen",
-    "templateTitle": "Vorlage",
-    "templateDescription": "Vorlagendokumente sind dafür gedacht, dupliziert statt direkt bearbeitet zu werden.",
-    "templateToggle": "Vorlagenstatus umschalten",
     "selectRole": "Rolle auswählen",
     "adding": "Wird hinzugefügt…",
     "removing": "Wird entfernt…",
     "filterByName": "Nach Namen filtern",
     "updateAccessError": "Zugriff kann nicht aktualisiert werden",
     "dangerDescription": "Gelöschte Dokumente landen im Papierkorb und können vor Ablauf der Aufbewahrungsfrist der Community wiederhergestellt werden.",
-    "deleting": "Wird gelöscht…",
-    "templateError": "Vorlagenstatus kann nicht aktualisiert werden"
+    "deleting": "Wird gelöscht…"
   },
   "sidePanel": {
     "summaryTab": "Zusammenfassung"
