@@ -1,16 +1,16 @@
-"""Document source adapter: one source, per-type format rules.
+"""File source adapter: one source, per-type format rules.
 
-A document's exportable formats depend on its type, so the static registry
+A file's exportable formats depend on its type, so the static registry
 declares the union and this adapter enforces the per-type subset at count
 time (before a job is created, so a mismatch is an immediate 400):
 
-* ``native`` (Lexical)  -> ``json`` (the generic document envelope with the
+* ``native`` (Lexical)  -> ``json`` (the generic file envelope with the
   raw editor state as ``content`` — the editor toolbar's import unwraps it,
   so an engine export still round-trips), plus ``md`` (zipped with an
   ``assets/`` folder when images are referenced), ``pdf`` and ``docx`` (both
   embedding referenced same-guild images) via the ``lexical`` converter
   module.
-* ``whiteboard``        -> ``json``  — the generic document envelope with
+* ``whiteboard``        -> ``json``  — the generic file envelope with
   the scene (as the standard Excalidraw file shape) under ``content``, so a
   backup keeps tags/properties and unwrapping still yields a file any
   Excalidraw opens. Pixel exports (PNG/SVG) are deliberately client-side:
@@ -23,9 +23,9 @@ time (before a job is created, so a mismatch is an immediate 400):
 * ``file``              -> ``file`` — the stored upload, unconverted, under
   its original name.
 * ``smart_link``        -> ``md``  — the title and URL — and ``json``, the
-  generic document envelope (importable backup, like spreadsheets).
+  generic file envelope (importable backup, like spreadsheets).
 
-Every ``initiative-document`` envelope carries the document's ``tags`` (by
+Every ``initiative-file`` envelope carries the file's ``tags`` (by
 name) and custom ``properties`` (flat, by name — the shared encoding in
 ``export/property_values.py``), so backups don't shed metadata.
 
@@ -41,7 +41,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.messages import ExportMessages
 from app.core.tools import Tool, tool_envelope_type
 from app.models.platform.user import User
-from app.models.tenant.document import Document, DocumentType
+from app.models.tenant.file import File, FileType
 from app.services.export.adapters._common import (
     BuildContext,
     ToolExportAdapter,
@@ -52,11 +52,11 @@ from app.services.export.engine import ExportError
 
 # Ordered, so the union the route publishes reads in one stable order.
 _TYPE_FORMATS: dict[str, tuple[str, ...]] = {
-    DocumentType.native.value: ("json", "md", "pdf", "docx"),
-    DocumentType.whiteboard.value: ("json",),
-    DocumentType.spreadsheet.value: ("csv", "xlsx", "json"),
-    DocumentType.file.value: ("file",),
-    DocumentType.smart_link.value: ("md", "json"),
+    FileType.native.value: ("json", "md", "pdf", "docx"),
+    FileType.whiteboard.value: ("json",),
+    FileType.spreadsheet.value: ("csv", "xlsx", "json"),
+    FileType.file.value: ("file",),
+    FileType.smart_link.value: ("md", "json"),
 }
 
 # The size proxy divisor for file passthroughs: one "row" per MiB, so the
@@ -64,8 +64,8 @@ _TYPE_FORMATS: dict[str, tuple[str, ...]] = {
 _FILE_SIZE_ROW_BYTES = 1_048_576
 
 
-class DocumentAdapter(ToolExportAdapter):
-    tool = Tool.document
+class FileAdapter(ToolExportAdapter):
+    tool = Tool.file
     template_id = "document"  # the Lexical PDF template
     formats = tuple(
         dict.fromkeys(fmt for fmts in _TYPE_FORMATS.values() for fmt in fmts)
@@ -78,24 +78,24 @@ class DocumentAdapter(ToolExportAdapter):
         guild_id: int,
         params: dict,
         format: str,
-    ) -> list[Document]:
+    ) -> list[File]:
         """The selection, as every tool loads it (fetched, authorized and
         narrowed by the filters), held to the per-type format rule: a selection
-        is only exportable in a format every document in it supports."""
-        documents = await super().load(session, user, guild_id, params, format)
-        for document in documents:
-            if format not in _TYPE_FORMATS.get(doc_type_of(document), ()):
+        is only exportable in a format every file in it supports."""
+        files = await super().load(session, user, guild_id, params, format)
+        for file in files:
+            if format not in _TYPE_FORMATS.get(doc_type_of(file), ()):
                 raise ExportError(ExportMessages.EXPORT_INVALID_FORMAT)
-        return documents
+        return files
 
-    def rows(self, document: Document, /) -> int:
-        return _document_count(document)
+    def rows(self, file: File, /) -> int:
+        return _file_count(file)
 
-    def item(self, document: Document, ctx: BuildContext, /) -> RenderItem:
+    def item(self, file: File, ctx: BuildContext, /) -> RenderItem:
         from app.services.export.i18n import export_locale
 
-        return build_document_item(
-            document,
+        return build_file_item(
+            file,
             ctx.format,
             guild_id=ctx.guild_id,
             date=ctx.date,
@@ -103,53 +103,51 @@ class DocumentAdapter(ToolExportAdapter):
         )
 
 
-def _document_count(document: Document) -> int:
-    doc_type = doc_type_of(document)
-    if doc_type == DocumentType.spreadsheet.value:
+def _file_count(file: File) -> int:
+    doc_type = doc_type_of(file)
+    if doc_type == FileType.spreadsheet.value:
         from app.services.export.spreadsheet import sheets_of
 
         return sum(
-            len(sheet.get("cells") or {}) for sheet in sheets_of(document.content or {})
+            len(sheet.get("cells") or {}) for sheet in sheets_of(file.content or {})
         )
-    if doc_type == DocumentType.file.value:
-        return int(document.current_version.file_size or 0) // _FILE_SIZE_ROW_BYTES
+    if doc_type == FileType.file.value:
+        return int(file.current_version.file_size or 0) // _FILE_SIZE_ROW_BYTES
     return 1
 
 
-def build_document_item(
-    document: Document, format: str, *, guild_id: int, date: str, loc: str
+def build_file_item(
+    file: File, format: str, *, guild_id: int, date: str, loc: str
 ) -> RenderItem:
-    """One document's render item — a selection export is just a batch of
+    """One file's render item — a selection export is just a batch of
     these (the engine zips a batch of N into a single download)."""
     from app.services.export.i18n import et
 
-    doc_type = doc_type_of(document)
-    stem = export_stem(document.name, date)
+    doc_type = doc_type_of(file)
+    stem = export_stem(file.name, date)
 
-    if doc_type == DocumentType.native.value and format != "json":
+    if doc_type == FileType.native.value and format != "json":
         from app.services.export.lexical import blocks_from_editor_state
 
-        blocks, assets = blocks_from_editor_state(
-            document.content or {}, guild_id=guild_id
-        )
+        blocks, assets = blocks_from_editor_state(file.content or {}, guild_id=guild_id)
         data = {
-            # Title/footer are the document's own name (user data).
-            "title": document.name,
-            "footer": document.name,
+            # Title/footer are the file's own name (user data).
+            "title": file.name,
+            "footer": file.name,
             "page_of": et("pageOf", loc),
             "stem": stem,
             "blocks": blocks,
             "assets": assets,
         }
         return RenderItem(key=stem, data=data)
-    if doc_type == DocumentType.whiteboard.value:
+    if doc_type == FileType.whiteboard.value:
         # Importable backup: the scene wrapped as the standard Excalidraw
         # file shape INSIDE the generic envelope — a future import
-        # discriminates by type like every other document type, and
+        # discriminates by type like every other file type, and
         # unwrapping `content` still yields a file any Excalidraw opens.
-        content = document.content or {}
+        content = file.content or {}
         data = _envelope(
-            document,
+            file,
             content={
                 "type": "excalidraw",
                 "version": 2,
@@ -159,21 +157,21 @@ def build_document_item(
                 "files": content.get("files") or {},
             },
         )
-    elif doc_type == DocumentType.native.value:
+    elif doc_type == FileType.native.value:
         # Importable backup: the raw editor state inside the generic
-        # document envelope. The editor toolbar's import unwraps the
+        # file envelope. The editor toolbar's import unwraps the
         # envelope, so round-trip through the editor survives.
-        data = _envelope(document, content=document.content or {})
-    elif doc_type == DocumentType.spreadsheet.value:
+        data = _envelope(file, content=file.content or {})
+    elif doc_type == FileType.spreadsheet.value:
         if format == "json":
             # Importable backup: the canonical (already-versioned) snapshot
-            # in the generic document envelope, so a future import can
+            # in the generic file envelope, so a future import can
             # discriminate file types uniformly.
-            data = _envelope(document, content=document.content or {})
+            data = _envelope(file, content=file.content or {})
         else:
-            data = {"title": document.name, "grid": document.content or {}}
-    elif doc_type == DocumentType.file.value:
-        version = document.current_version
+            data = {"title": file.name, "grid": file.content or {}}
+    elif doc_type == FileType.file.value:
+        version = file.current_version
         storage_key = version.file_url.split("/")[-1]
         data = {
             "storage_key": storage_key,
@@ -183,38 +181,38 @@ def build_document_item(
     else:  # smart_link
         if format == "json":
             data = _envelope(
-                document,
-                content={"url": (document.content or {}).get("url", "")},
+                file,
+                content={"url": (file.content or {}).get("url", "")},
             )
         else:
             data = {
                 "layout": "link",
-                "title": document.name,
-                "url": (document.content or {}).get("url", ""),
+                "title": file.name,
+                "url": (file.content or {}).get("url", ""),
             }
 
     return RenderItem(key=stem, data=data)
 
 
-def _envelope(document: Document, *, content: dict) -> dict:
-    """The generic ``initiative-document`` envelope: type + schema_version
+def _envelope(file: File, *, content: dict) -> dict:
+    """The generic ``initiative-file`` envelope: type + schema_version
     discriminate the file for a future import; tags (by name) and custom
-    properties (flat, by name) ride along so a backup keeps the document's
+    properties (flat, by name) ride along so a backup keeps the file's
     metadata."""
     from app.services.export.property_values import exported_properties
 
     return {
-        "type": tool_envelope_type(Tool.document),
+        "type": tool_envelope_type(Tool.file),
         "schema_version": 1,
-        "document_type": doc_type_of(document),
-        "name": document.name,
+        "file_type": doc_type_of(file),
+        "name": file.name,
         "content": content,
-        "tags": sorted(tag.name for tag in document.tags or []),
-        "properties": exported_properties(document),
+        "tags": sorted(tag.name for tag in file.tags or []),
+        "properties": exported_properties(file),
     }
 
 
-def doc_type_of(document: Document) -> str:
-    """The document's type as its string value."""
-    doc_type = document.document_type
+def doc_type_of(file: File) -> str:
+    """The file's type as its string value."""
+    doc_type = file.file_type
     return doc_type.value if hasattr(doc_type, "value") else str(doc_type)

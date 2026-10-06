@@ -9,10 +9,10 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.search import SearchEntityType
-from app.models.tenant.document import Document, DocumentType
+from app.models.tenant.file import File, FileType
 from app.models.tenant.resource_grant import ResourceGrant
 from app.core.references import unresolve_wikilinks_to
-from app.core.messages import DocumentMessages
+from app.core.messages import FileMessages
 from app.services.tenant import attachments as attachments_service
 from app.services.tenant import body_states
 from app.services.tenant import comments as comments_service
@@ -55,10 +55,10 @@ def _empty_state() -> dict[str, Any]:
 EMPTY_LEXICAL_STATE = _empty_state()
 
 
-class DocumentContentError(ValueError):
-    """Raised when document content fails type-specific validation.
+class FileContentError(ValueError):
+    """Raised when file content fails type-specific validation.
 
-    The `code` attribute is a stable error constant from DocumentMessages
+    The `code` attribute is a stable error constant from FileMessages
     that callers (endpoints) translate to a localized HTTPException.
     Inheriting from ValueError keeps bare ``except ValueError`` catches
     working for callers that don't care about the structured code.
@@ -69,21 +69,21 @@ class DocumentContentError(ValueError):
         self.code = code
 
 
-def normalize_document_content(
+def normalize_file_content(
     payload: dict[str, Any] | None,
     *,
-    document_type: DocumentType = DocumentType.native,
+    file_type: FileType = FileType.native,
 ) -> dict[str, Any]:
-    """Normalize content JSONB based on document type.
+    """Normalize content JSONB based on file type.
 
     - native: ensure a Lexical root with at least one paragraph child
     - whiteboard: ensure the Excalidraw scene shape {elements, appState, files}
     - file: content is just a passthrough dict (usually empty)
     """
-    if document_type == DocumentType.file:
+    if file_type == FileType.file:
         return payload if isinstance(payload, dict) else {}
 
-    if document_type == DocumentType.whiteboard:
+    if file_type == FileType.whiteboard:
         if not isinstance(payload, dict):
             return {"elements": [], "appState": {}, "files": {}}
         return {
@@ -92,20 +92,20 @@ def normalize_document_content(
             "files": payload.get("files") or {},
         }
 
-    if document_type == DocumentType.smart_link:
+    if file_type == FileType.smart_link:
         if not isinstance(payload, dict):
-            raise DocumentContentError(DocumentMessages.SMART_LINK_URL_REQUIRED)
+            raise FileContentError(FileMessages.SMART_LINK_URL_REQUIRED)
         url = str(payload.get("url") or "").strip()
         if not url:
-            raise DocumentContentError(DocumentMessages.SMART_LINK_URL_REQUIRED)
+            raise FileContentError(FileMessages.SMART_LINK_URL_REQUIRED)
         if not (url.startswith("http://") or url.startswith("https://")):
-            raise DocumentContentError(DocumentMessages.SMART_LINK_URL_INVALID)
+            raise FileContentError(FileMessages.SMART_LINK_URL_INVALID)
         return {"url": url}
 
-    if document_type == DocumentType.spreadsheet:
-        # Imported lazily to avoid a circular import: documents_spreadsheet
-        # imports DocumentContentError from this module.
-        from app.services.tenant.documents_spreadsheet import (
+    if file_type == FileType.spreadsheet:
+        # Imported lazily to avoid a circular import: files_spreadsheet
+        # imports FileContentError from this module.
+        from app.services.tenant.files_spreadsheet import (
             normalize_spreadsheet_content,
         )
 
@@ -125,72 +125,66 @@ def normalize_document_content(
 
 
 def list_loader_options() -> list:
-    """Eager-load what a document *list* row needs: its initiative, the level
-    the request holds on it, a link document's address, its sharing with the
+    """Eager-load what a file *list* row needs: its initiative, the level
+    the request holds on it, a link file's address, its sharing with the
     grant holders (the owner is reported by name), and the property values its
     card shows. Not the body, which a list does not show."""
     return [
-        selectinload(Document.initiative),
-        undefer(Document.actions),
-        undefer(Document.smart_link_url),
-        selectinload(Document.grants).selectinload(ResourceGrant.user),
+        selectinload(File.initiative),
+        undefer(File.actions),
+        undefer(File.smart_link_url),
+        selectinload(File.grants).selectinload(ResourceGrant.user),
     ]
 
 
-async def get_document_hydrated(
-    session: AsyncSession, document_id: int, *, populate_existing: bool = False
-) -> Document | None:
-    """Load a document with everything a serialized ``DocumentRead`` or an
+async def get_file_hydrated(
+    session: AsyncSession, file_id: int, *, populate_existing: bool = False
+) -> File | None:
+    """Load a file with everything a serialized ``FileRead`` or an
     export reads: the list loader's eager loads and the body, plus the tags,
     comment count and owning plug-in a response carries.
-    :func:`get_document_for_grants` carries the list loads alone, which is what
+    :func:`get_file_for_grants` carries the list loads alone, which is what
     the access decision needs. Uniform ``(session, id)`` shape, the one ``resource_access``
     registers a loader by.
     """
     statement = (
-        select(Document)
-        .where(Document.id == document_id)
-        .options(*list_loader_options(), undefer(Document.content))
+        select(File)
+        .where(File.id == file_id)
+        .options(*list_loader_options(), undefer(File.content))
     )
     if populate_existing:
-        # Refresh a document already in the identity map, for a re-read after a
+        # Refresh a file already in the identity map, for a re-read after a
         # commit (expire_on_commit=False otherwise keeps stale collections).
         statement = statement.execution_options(populate_existing=True)
-    document = (await session.exec(statement)).one_or_none()
-    if document:
-        await tags_service.annotate_tags(session, [document])
-        await properties_service.annotate_properties(session, [document])
+    file = (await session.exec(statement)).one_or_none()
+    if file:
+        await tags_service.annotate_tags(session, [file])
+        await properties_service.annotate_properties(session, [file])
         await comments_service.annotate_comment_counts(
-            session, [document], column="document_id"
+            session, [file], column="file_id"
         )
-        await ownership_service.annotate_owner_plugins(session, [document])
-    return document
+        await ownership_service.annotate_owner_plugins(session, [file])
+    return file
 
 
-async def get_document_for_grants(
-    session: AsyncSession, document_id: int
-) -> Document | None:
-    """Load a document as a list row carries it — its ``grants`` (owner
+async def get_file_for_grants(session: AsyncSession, file_id: int) -> File | None:
+    """Load a file as a list row carries it — its ``grants`` (owner
     resolution) and the level the request holds on it, without the body the
     grant flow never reads. RLS scopes the row to the request's guild, so no
     explicit guild filter. Uniform ``(session, id)`` shape so
     ``resource_access`` can register it like the others."""
-    statement = (
-        select(Document)
-        .where(Document.id == document_id)
-        .options(*list_loader_options())
-    )
+    statement = select(File).where(File.id == file_id).options(*list_loader_options())
     return (await session.exec(statement)).one_or_none()
 
 
 async def copy_contents(
-    session: AsyncSession, source: Document, copy: Document, actor: ActorContext
+    session: AsyncSession, source: File, copy: File, actor: ActorContext
 ) -> list[Any]:
     """Finish ``copy``, a duplicate of ``source`` already shared. Its pictures
-    and stored file are copied rather than shared, so each document's can be
-    released on its own; a file document's copy starts again at version 1.
+    and stored file are copied rather than shared, so each file's can be
+    released on its own; an uploaded file's copy starts again at version 1.
     Makes no rows inside it."""
-    content = normalize_document_content(copy.content, document_type=copy.document_type)
+    content = normalize_file_content(copy.content, file_type=copy.file_type)
     current = source.current_version
     file_url = current.file_url if current is not None else None
     copies = await attachments_service.copy_uploads(
@@ -222,35 +216,33 @@ async def copy_contents(
     return []
 
 
-async def unresolve_wikilinks_to_document(
+async def unresolve_wikilinks_to_file(
     session: AsyncSession,
     *,
-    deleted_document_id: int,
+    deleted_file_id: int,
 ) -> None:
-    """Blank every ``[[ ]]`` pointing at a document that is being hard-purged.
+    """Blank every ``[[ ]]`` pointing at a file that is being hard-purged.
 
     The link nodes stay and render as unresolved, which is what the editor shows
     for a link whose target was never picked. Their ``references`` edges go with
-    the document itself, through the purge path's own sweep.
+    the file itself, through the purge path's own sweep.
 
     Called by ``hard_purge_entity`` before the DELETEs are issued, while the
-    edges naming the document are still there to find the documents that carry
-    those links. Trashed ones are included — a document restored after the purge
+    edges naming the file are still there to find the files that carry
+    those links. Trashed ones are included — a file restored after the purge
     must not come back with a dangling link.
     """
 
-    linking_documents = await content_references.referencing_documents(
-        session, deleted_document_id
-    )
+    linking_files = await content_references.referencing_files(session, deleted_file_id)
 
-    # Documents whose in-memory collaboration room has to be retired, so
+    # Files whose in-memory collaboration room has to be retired, so
     # a room's save cannot write the pre-repair content back over this.
     affected_doc_ids: list[int] = []
 
-    for doc in linking_documents:
+    for doc in linking_files:
         if doc.content and isinstance(doc.content, dict):
             updated_content = deepcopy(doc.content)
-            if unresolve_wikilinks_to(updated_content, deleted_document_id):
+            if unresolve_wikilinks_to(updated_content, deleted_file_id):
                 doc.content = updated_content
                 # A session opens on the Yjs state, so the repair is written
                 # into it too.
@@ -264,15 +256,15 @@ async def unresolve_wikilinks_to_document(
 
     await session.flush()
 
-    # Invalidate any in-memory collaboration rooms for affected documents
+    # Invalidate any in-memory collaboration rooms for affected files
     # This prevents a room's save from overwriting our changes when users disconnect
     # Note: If a room has active collaborators, they'll have stale wikilinks until reload
-    # Rooms are keyed by (guild, document), and the documents above were read
+    # Rooms are keyed by (guild, file), and the files above were read
     # through this session, so the guild it is routed to is theirs. An unrouted
     # session reaches no guild schema and so has no room to invalidate.
     guild_id = routed_guild_id(session)
     if guild_id is not None:
         for doc_id in affected_doc_ids:
             await collaboration_manager.invalidate_room_if_empty(
-                guild_id, SearchEntityType.document.value, doc_id
+                guild_id, SearchEntityType.file.value, doc_id
             )

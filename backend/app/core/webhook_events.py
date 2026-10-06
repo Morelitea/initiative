@@ -87,7 +87,7 @@ def unknown_fields(candidates: list[str], event_types_named: list[str]) -> list[
     """Field names none of the named events could ever report.
 
     Checked against the union across the subscription's resources rather than
-    per event, so a subscription watching both tasks and documents may name a
+    per event, so a subscription watching both tasks and files may name a
     field belonging to either.
     """
     allowed: set[str] = set()

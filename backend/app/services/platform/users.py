@@ -224,7 +224,7 @@ async def _drop_user_memberships(
     session: AsyncSession, user_id: int, *, actor_user_id: int | None = None
 ) -> User:
     """Remove the user from every guild and initiative they belong to,
-    handing owned documents off to PMs along the way. Returns the loaded
+    handing owned files off to PMs along the way. Returns the loaded
     ``User`` row but does NOT commit — the caller is responsible for
     issuing exactly one commit so its own status / PII writes land in
     the same transaction as the membership cleanup.
@@ -291,7 +291,7 @@ async def deactivate_user(
     acting on the account.
     """
     user = await _drop_user_memberships(session, user_id, actor_user_id=actor_user_id)
-    # Owned documents are handed off to other initiative PMs inside
+    # Owned files are handed off to other initiative PMs inside
     # ``_drop_user_memberships`` above, before the InitiativeMember
     # rows are dropped.
     user.status = UserStatus.deactivated
@@ -317,7 +317,7 @@ async def request_account_deletion(
 
     The account stops existing for everybody else — absent from rosters,
     pickers and search, and its sessions end — while everything it holds stays
-    exactly where it is. Memberships, initiative roles and owned documents are
+    exactly where it is. Memberships, initiative roles and owned files are
     **not** dropped, which is the whole difference from ``deactivate_user``:
     coming back restores the account whole rather than to an empty one.
 
@@ -528,7 +528,7 @@ async def soft_delete_user(
 
     The display name is also scrubbed out of content that embedded it as
     literal text — @-mention markup in comments, Lexical mention nodes in
-    documents, digest-row name snapshots — in EVERY guild schema (not just
+    files, digest-row name snapshots — in EVERY guild schema (not just
     current memberships: content survives leaving a guild).
 
     Every guild's half is done and committed first, guild by guild, and the
@@ -785,7 +785,7 @@ async def hard_delete_user(
         )
 
         # Scrub the display name out of content that embedded it as literal
-        # text (@-mentions in comments, document mention nodes, digest name
+        # text (@-mentions in comments, file mention nodes, digest name
         # snapshots). Already done if the user was anonymized first; direct
         # hard deletes need it here, before the row disappears.
         await set_rls_context(guild_session, SystemMaintenance(guild_id))
@@ -837,7 +837,7 @@ async def hard_delete_user(
             .where(ReactionDigestItem.reactor_id == user_id)
             .values(reactor_id=None)
         )
-        # All per-user DAC grants (project, document, queue, counter group,
+        # All per-user DAC grants (project, file, queue, counter group,
         # calendar event) live in the polymorphic resource_grants table now;
         # one delete clears every resource type for this user in the schema.
         await guild_session.exec(

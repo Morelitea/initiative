@@ -1,12 +1,12 @@
-"""Validation and normalization for spreadsheet-type documents.
+"""Validation and normalization for spreadsheet-type files.
 
-A spreadsheet document is a *workbook*: an ordered list of sheets, each a
+A spreadsheet file is a *workbook*: an ordered list of sheets, each a
 sparse cell map keyed by ``"row:col"`` strings plus a ``dimensions`` hint
 and optional formatting structures. The full live state is maintained on
 the frontend as a set of Y.Maps synced over the existing collaboration
 provider; the JSON shape this module validates is the snapshot persisted
-to ``Document.content`` whenever the room empties (or the user creates
-the document via a non-collab POST/PATCH).
+to ``File.content`` whenever the room empties (or the user creates
+the file via a non-collab POST/PATCH).
 
 Schema versions
 ---------------
@@ -19,7 +19,7 @@ Schema versions
   user-facing ``name``.
 
 A v1/v2 payload is accepted and **upcast** to v3 by reading its top level
-as the workbook's single sheet, so existing documents keep saving without
+as the workbook's single sheet, so existing files keep saving without
 a data migration. The output ``schema_version`` is always the current one.
 
 Sheet names are load-bearing, not decoration: a formula addresses another
@@ -47,8 +47,8 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from app.core.messages import DocumentMessages
-from app.services.tenant.documents import DocumentContentError
+from app.core.messages import FileMessages
+from app.services.tenant.files import FileContentError
 
 
 SCHEMA_VERSION = 3
@@ -63,7 +63,7 @@ MAX_COLS = 1_000
 
 MAX_SHEETS = 64
 """Sheets per workbook. Not an Excel limit — a bound on how large a single
-``document.content`` blob can get, since the whole workbook is PATCHed as
+``file.content`` blob can get, since the whole workbook is PATCHed as
 one payload."""
 
 MAX_SHEET_NAME = 31
@@ -118,18 +118,18 @@ def normalize_spreadsheet_content(payload: Any) -> dict[str, Any]:
         or isinstance(schema_version, bool)
         or schema_version not in SUPPORTED_SCHEMA_VERSIONS
     ):
-        raise DocumentContentError(DocumentMessages.SPREADSHEET_INVALID_PAYLOAD)
+        raise FileContentError(FileMessages.SPREADSHEET_INVALID_PAYLOAD)
 
     sheets_in = payload.get("sheets")
     if sheets_in is None:
-        # v1 / v2: the document's top level *is* the one and only sheet.
+        # v1 / v2: the file's top level *is* the one and only sheet.
         entries: list[Any] = [payload]
     elif isinstance(sheets_in, list):
-        # An explicitly empty list still has to produce a usable document —
+        # An explicitly empty list still has to produce a usable file —
         # an editor with no sheet has nothing to render.
         entries = sheets_in[:MAX_SHEETS] or [{}]
     else:
-        raise DocumentContentError(DocumentMessages.SPREADSHEET_INVALID_PAYLOAD)
+        raise FileContentError(FileMessages.SPREADSHEET_INVALID_PAYLOAD)
 
     sheets_out: list[dict[str, Any]] = []
     used_ids: set[str] = set()
@@ -157,35 +157,35 @@ def _normalize_sheet(
     used_names: set[str],
 ) -> dict[str, Any]:
     """Normalize one sheet. The same call handles a v3 ``sheets[i]`` entry
-    and a v1/v2 document's top level — which is precisely the upcast, since
+    and a v1/v2 file's top level — which is precisely the upcast, since
     the old shape already *was* a sheet."""
     if payload is None:
         payload = {}
     if not isinstance(payload, dict):
-        raise DocumentContentError(DocumentMessages.SPREADSHEET_INVALID_PAYLOAD)
+        raise FileContentError(FileMessages.SPREADSHEET_INVALID_PAYLOAD)
 
     # Use ``.get(...)`` directly (no ``or {}`` shortcut) so falsy non-dict
     # values like ``[]``, ``""``, or ``False`` reach the isinstance guard
     # below instead of being silently coerced to an empty cell map.
     cells_in = payload.get("cells", {})
     if not isinstance(cells_in, dict):
-        raise DocumentContentError(DocumentMessages.SPREADSHEET_INVALID_PAYLOAD)
+        raise FileContentError(FileMessages.SPREADSHEET_INVALID_PAYLOAD)
 
     cells_out: dict[str, Any] = {}
     max_row = -1
     max_col = -1
     for key, value in cells_in.items():
         if not isinstance(key, str):
-            raise DocumentContentError(DocumentMessages.SPREADSHEET_INVALID_PAYLOAD)
+            raise FileContentError(FileMessages.SPREADSHEET_INVALID_PAYLOAD)
         match = _CELL_KEY_RE.match(key)
         if match is None:
-            raise DocumentContentError(DocumentMessages.SPREADSHEET_INVALID_PAYLOAD)
+            raise FileContentError(FileMessages.SPREADSHEET_INVALID_PAYLOAD)
         row = int(match.group(1))
         col = int(match.group(2))
         if row >= MAX_ROWS or col >= MAX_COLS:
-            raise DocumentContentError(DocumentMessages.SPREADSHEET_INVALID_PAYLOAD)
+            raise FileContentError(FileMessages.SPREADSHEET_INVALID_PAYLOAD)
         if not isinstance(value, _SCALAR_TYPES):
-            raise DocumentContentError(DocumentMessages.SPREADSHEET_INVALID_PAYLOAD)
+            raise FileContentError(FileMessages.SPREADSHEET_INVALID_PAYLOAD)
         # ``True``/``False`` are instances of ``int`` in Python, which is
         # fine — they're valid scalar values either way. Empty strings /
         # ``None`` mean "cleared cell"; drop them from the persisted
@@ -206,7 +206,7 @@ def _normalize_sheet(
 
     dims_in = payload.get("dimensions", {})
     if not isinstance(dims_in, dict):
-        raise DocumentContentError(DocumentMessages.SPREADSHEET_INVALID_PAYLOAD)
+        raise FileContentError(FileMessages.SPREADSHEET_INVALID_PAYLOAD)
     rows = _coerce_dim(dims_in.get("rows"), default=max(max_row + 1, 100), cap=MAX_ROWS)
     cols = _coerce_dim(dims_in.get("cols"), default=max(max_col + 1, 26), cap=MAX_COLS)
 
@@ -445,7 +445,7 @@ def _normalize_index_map(value: Any, *, cap: int, allow_width: bool) -> dict[str
     a non-dict container is a serialization bug → reject.
     """
     if not isinstance(value, dict):
-        raise DocumentContentError(DocumentMessages.SPREADSHEET_INVALID_PAYLOAD)
+        raise FileContentError(FileMessages.SPREADSHEET_INVALID_PAYLOAD)
     size_key = "width" if allow_width else "height"
     size_lo = MIN_COL_WIDTH if allow_width else MIN_ROW_HEIGHT
     size_hi = MAX_COL_WIDTH if allow_width else MAX_ROW_HEIGHT
@@ -482,7 +482,7 @@ def _normalize_index_map(value: Any, *, cap: int, allow_width: bool) -> dict[str
 def _normalize_cellstyles(value: Any) -> dict[str, Any]:
     """Normalize the per-cell override map keyed by ``"row:col"``."""
     if not isinstance(value, dict):
-        raise DocumentContentError(DocumentMessages.SPREADSHEET_INVALID_PAYLOAD)
+        raise FileContentError(FileMessages.SPREADSHEET_INVALID_PAYLOAD)
     out: dict[str, Any] = {}
     for key, entry in value.items():
         if not isinstance(key, str):
@@ -511,7 +511,7 @@ def _normalize_cellstyles(value: Any) -> dict[str, Any]:
 def _normalize_frozen(value: Any, *, rows_dim: int, cols_dim: int) -> dict[str, int]:
     """Clamp the frozen-pane hint against the final dimensions. A
     non-dict ``frozen`` degrades to ``{0, 0}`` (presentational, lenient)
-    rather than rejecting the whole document."""
+    rather than rejecting the whole file."""
     rows = 0
     cols = 0
     if isinstance(value, dict):

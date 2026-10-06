@@ -1,7 +1,7 @@
 """One surface for how things connect.
 
-Replaces the per-tool attach endpoints — a project's documents, a queue item's
-documents and tasks, an event's documents — which were five routes saying the
+Replaces the per-tool attach endpoints — a project's files, a queue item's
+files and tasks, an event's files — which were five routes saying the
 same thing about four pairs of kinds. What varies between them is which two
 kinds are named, and that is a parameter.
 
@@ -125,7 +125,7 @@ def _render(
             image_urls=found.image_urls,
             icon=found.icon,
             color=found.color,
-            document_type=found.document_type,
+            file_type=found.file_type,
             mime_type=found.mime_type,
             original_filename=found.original_filename,
             smart_link_url=found.smart_link_url,

@@ -6,7 +6,7 @@ Mention patterns in markdown — comments, task descriptions, any description:
 - Anything else: #kind[Title](id) - e.g., #task[Fix bug](123). That half is the
   reference vocabulary, read by ``app.core.references``.
 
-An editor-state body (a document, a post, a wiki page) embeds a mention as a
+An editor-state body (a file, a post, a wiki page) embeds a mention as a
 Lexical ``mention`` node carrying ``mentionUserId``, with ``mentionName`` and
 ``text`` empty.
 
@@ -101,7 +101,7 @@ async def anonymize_user_mentions(session: AsyncSession, *, user_id: int) -> Non
 
     Content holds none to take out: a mention is stored by id alone. A
     collaboration state can, as an editor from before names were left out
-    writes one into it, so every document or wiki page that mentions the user
+    writes one into it, so every file or wiki page that mentions the user
     has its state's mentions made nameless (:func:`nameless_state`). Pending
     task-assignment digest rows lose the ``assigned_by_name`` snapshot too.
 
@@ -118,7 +118,7 @@ async def anonymize_user_mentions(session: AsyncSession, *, user_id: int) -> Non
 
     mentioned = rf'"mentionUserId":\s*{user_id}[^0-9]'
 
-    # Finished work is included: an archived document keeps its state. Writing
+    # Finished work is included: an archived file keeps its state. Writing
     # to frozen content is the purge's kind of write, so this runs under the
     # purge flag and lowers it again before the rest of the erasure (see
     # ``app.db.gucs.PURGING``).

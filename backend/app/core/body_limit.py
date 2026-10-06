@@ -33,11 +33,11 @@ from app.services.tenant.collaborative_resources import registered_types, resour
 DEFAULT_MAX_REQUEST_BYTES = 4 * 1024 * 1024
 
 #: The most a multipart upload no rule names may carry: the largest file any
-#: upload route takes (a document file, 50 MiB) plus 1 MiB for framing. The
+#: upload route takes (an uploaded file, 50 MiB) plus 1 MiB for framing. The
 #: handler's bounded read still enforces each route's own cap exactly.
 MULTIPART_MAX_REQUEST_BYTES = 50 * 1024 * 1024 + 1_048_576
 
-#: The most a document's content may carry. A whiteboard keeps its pictures
+#: The most a file's content may carry. A whiteboard keeps its pictures
 #: inline in the scene, so a board is far larger than any other JSON body.
 DOCUMENT_MAX_REQUEST_BYTES = 64 * 1024 * 1024
 
@@ -110,11 +110,11 @@ _RULES: tuple[tuple[re.Pattern[str], Callable[[], int], str], ...] = (
         CommonMessages.REQUEST_TOO_LARGE,
     ),
     (
-        # The routes that write a document's content: create, update, a wiki
+        # The routes that write a file's content: create, update, a wiki
         # page, and the edits a closing tab hands over to a room.
         re.compile(
             r"^/api/v1/c/\d+/("
-            rf"{Tool.document.route_segment}"
+            rf"{Tool.file.route_segment}"
             rf"|{Tool.wiki.route_segment}/\d+/pages"
             rf"|({_COLLABORATIVE})/\d+"
             rf"|collaboration/({_COLLABORATIVE})/\d+/collaborate"

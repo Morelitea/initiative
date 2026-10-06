@@ -5,7 +5,7 @@ import's partial-success pattern) so a malformed event fails alone, never the
 batch.
 
 Attendees resolve by handle against the target initiative's members; the
-matched keep their RSVP, the unmatched are reported. Linked document titles
+matched keep their RSVP, the unmatched are reported. Linked file titles
 in the envelope are informational and dropped."""
 
 from __future__ import annotations

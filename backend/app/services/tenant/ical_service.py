@@ -43,9 +43,7 @@ _RSVP_TO_PARTSTAT = {
 # ---------------------------------------------------------------------------
 
 
-def event_export_dict(
-    event: CalendarEvent, documents: "Sequence[Related]" = ()
-) -> dict:
+def event_export_dict(event: CalendarEvent, files: "Sequence[Related]" = ()) -> dict:
     """One event's JSON-safe export record — the single intermediate both the
     ics renderer and the json envelope consume. Must stay JSON-serializable:
     ``RenderItem.data`` crosses the export engine's job boundary (persisted
@@ -53,7 +51,7 @@ def event_export_dict(
 
     Attendees ride as display name + email + RSVP (informational — user ids
     are guild-local, an import can't rebind them); tags by name; linked
-    documents by name — handed in, because the edges live in their own table
+    files by name — handed in, because the edges live in their own table
     and a calendar export renders every event at once."""
     return {
         "id": event.id,
@@ -91,8 +89,8 @@ def event_export_dict(
             if attendee.user is not None
         ],
         "tags": sorted(tag.name for tag in event.tags or []),
-        "documents": sorted(
-            related.entity.name for related in documents if related.entity is not None
+        "files": sorted(
+            related.entity.name for related in files if related.entity is not None
         ),
         "properties": exported_properties(event),
     }
@@ -207,10 +205,10 @@ def _picked_zone(start: datetime, shift: int) -> tzinfo:
     return timezone(timedelta(minutes=shift))
 
 
-async def documents_for_events(
+async def files_for_events(
     session: "AsyncSession", events: List[CalendarEvent]
 ) -> "dict[int, list[Related]]":
-    """Attached documents for many events, in two queries.
+    """Attached files for many events, in two queries.
 
     Here rather than at each caller: the builders above are synchronous and hold
     no session, and a calendar export renders every event a calendar has.
@@ -221,7 +219,7 @@ async def documents_for_events(
     """
     from app.core.relationships import RelationshipType
     from app.core.search import SearchEntityType
-    from app.models.tenant.document import Document
+    from app.models.tenant.file import File
     from app.services.tenant import relationships
 
     return await relationships.related_for_many(
@@ -229,8 +227,8 @@ async def documents_for_events(
         SearchEntityType.calendar_event,
         [event.id for event in events if event.id is not None],
         relationship_type=RelationshipType.attached,
-        other_kind=SearchEntityType.document,
-        model=Document,
+        other_kind=SearchEntityType.file,
+        model=File,
     )
 
 

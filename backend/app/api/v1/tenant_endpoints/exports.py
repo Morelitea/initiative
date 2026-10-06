@@ -71,7 +71,7 @@ _LIST_LIMIT = 50
 
 
 def _inline_response(result: InlineExport) -> Response:
-    # The filename can carry user text (document titles, original upload
+    # The filename can carry user text (file titles, original upload
     # names) — the helper escapes it (RFC 5987) so it can't break the header.
     return Response(
         content=result.content,
@@ -173,7 +173,7 @@ async def export_tasks(
     ),
 ) -> Union[Response, JSONResponse]:
     """Export the task list (the same visibility and filters as ``GET
-    /tasks/``) as a formatted document. Small results render inline and return
+    /tasks/``) as a formatted file. Small results render inline and return
     the file directly; large results return ``202`` with a queued job to poll
     and download."""
     result = await _start_export(
@@ -375,8 +375,8 @@ async def export_initiative(
     formats: Optional[str] = Query(
         default=None,
         description=(
-            "Report mode: JSON object of tool→format; the document entry is a "
-            'nested map, e.g. {"project": "pdf", "document": {"native": "md", '
+            "Report mode: JSON object of tool→format; the file entry is a "
+            'nested map, e.g. {"project": "pdf", "file": {"native": "md", '
             '"spreadsheet": "xlsx"}}. Unlisted tools use their backup format.'
         ),
     ),
@@ -390,7 +390,7 @@ async def export_initiative(
 ) -> Union[Response, JSONResponse]:
     """Export a whole initiative as one zip: ``backup`` bundles every included
     tool's importable JSON envelope plus a ``manifest.json`` (optionally with
-    the upload blobs the documents reference); ``report`` renders each tool in
+    the upload blobs the files reference); ``report`` renders each tool in
     the caller's chosen format. Requires reaching the initiative; per-entity
     sharing applies throughout, and projects are included with read access.
     Always returns ``202`` with a queued job to poll and download."""
@@ -694,10 +694,10 @@ async def download_export_artifact(
     return build_upload_response(blob, filename=filename)
 
 
-#: The format asked for when none is. A document has none: which formats are
+#: The format asked for when none is. A file has none: which formats are
 #: valid depends on its type, so the caller names one.
 _DEFAULT_FORMATS: dict[Tool, Optional[str]] = {
-    Tool.document: None,
+    Tool.file: None,
     Tool.calendar: "ics",
 }
 
@@ -726,7 +726,7 @@ async def export_tool(
         default=None,
         description="One of the tool's export formats ("
         + "; ".join(f"{t.value}: {', '.join(f)}" for t, f in _TOOL_FORMATS.items())
-        + "). ``json`` is the importable envelope. A document's formats depend on "
+        + "). ``json`` is the importable envelope. A file's formats depend on "
         "its type, so it has no default; a calendar defaults to ``ics``, every "
         "other tool to ``json``",
     ),

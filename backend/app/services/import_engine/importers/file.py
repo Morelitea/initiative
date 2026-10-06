@@ -1,5 +1,5 @@
-"""``initiative-document`` importer: native, spreadsheet, smart_link, and
-whiteboard envelopes. ``file`` documents are backup-only (their content is a
+"""``initiative-file`` importer: native, spreadsheet, smart_link, and
+whiteboard envelopes. Uploaded files are backup-only (their content is a
 blob under ``assets/``, not an envelope) and are rejected here."""
 
 from __future__ import annotations
@@ -15,9 +15,9 @@ from app.core.messages import ImportEngineMessages
 from app.core.search import SearchEntityType
 from app.core.tools import Tool, tool_envelope_type
 from app.models.platform.user import User
-from app.models.tenant.document import Document, DocumentType
+from app.models.tenant.file import File, FileType
 from app.models.tenant.initiative import Initiative, PermissionKey
-from app.schemas.tenant.import_envelopes import DocumentEnvelope
+from app.schemas.tenant.import_envelopes import FileEnvelope
 from app.services.import_engine.common import (
     ensure_tag,
     load_initiative_member_handles,
@@ -38,27 +38,27 @@ from app.services.import_engine.importers._base import (
     parse_envelope,
 )
 from app.services.tenant import tags as tags_service
-from app.services.tenant.documents import (
-    DocumentContentError,
-    normalize_document_content,
+from app.services.tenant.files import (
+    FileContentError,
+    normalize_file_content,
 )
 
 _IMPORTABLE_TYPES = {
-    DocumentType.native.value,
-    DocumentType.spreadsheet.value,
-    DocumentType.smart_link.value,
-    DocumentType.whiteboard.value,
+    FileType.native.value,
+    FileType.spreadsheet.value,
+    FileType.smart_link.value,
+    FileType.whiteboard.value,
 }
 
 
-class DocumentImporter(NamesPeopleInPassing):
-    envelope_type = tool_envelope_type(Tool.document)
-    permission = PermissionKey.create_documents
+class FileImporter(NamesPeopleInPassing):
+    envelope_type = tool_envelope_type(Tool.file)
+    permission = PermissionKey.create_files
 
     def validate(self, envelope: dict[str, Any]) -> BaseModel:
-        validated = parse_envelope(DocumentEnvelope, envelope)
-        if validated.document_type not in _IMPORTABLE_TYPES:  # type: ignore[union-attr]
-            # `file` documents ride as blobs in backups, never as envelopes.
+        validated = parse_envelope(FileEnvelope, envelope)
+        if validated.file_type not in _IMPORTABLE_TYPES:  # type: ignore[union-attr]
+            # Uploaded files ride as blobs in backups, never as envelopes.
             raise ImportEngineError(ImportEngineMessages.IMPORT_INVALID_ENVELOPE)
         # Refused here rather than mid-apply, so a bad body fails the whole
         # request instead of leaving a partial import behind.
@@ -66,8 +66,8 @@ class DocumentImporter(NamesPeopleInPassing):
         return validated
 
     def count(self, validated: BaseModel) -> int:
-        envelope: DocumentEnvelope = validated  # ty: ignore[invalid-assignment] — validate() returned this model
-        if envelope.document_type == DocumentType.spreadsheet.value:
+        envelope: FileEnvelope = validated  # ty: ignore[invalid-assignment] — validate() returned this model
+        if envelope.file_type == FileType.spreadsheet.value:
             return len((envelope.content or {}).get("cells") or {}) or 1
         return 1
 
@@ -80,7 +80,7 @@ class DocumentImporter(NamesPeopleInPassing):
         importer: User,
         context: ImportContext | None = None,
     ) -> EnvelopeImportResult:
-        env: DocumentEnvelope = envelope  # ty: ignore[invalid-assignment] — validate() returned this model
+        env: FileEnvelope = envelope  # ty: ignore[invalid-assignment] — validate() returned this model
         guild_id = routed_guild_id(session)
         warnings: list[str] = []
 
@@ -88,7 +88,7 @@ class DocumentImporter(NamesPeopleInPassing):
         member_handles = await load_initiative_member_handles(
             session, initiative_id=target_initiative.id
         )
-        if env.document_type == DocumentType.native.value:
+        if env.file_type == FileType.native.value:
             content = place_mentions(
                 content,
                 env.mention_handles,
@@ -100,32 +100,30 @@ class DocumentImporter(NamesPeopleInPassing):
             row
             for row in (
                 await session.exec(
-                    select(Document.name).where(
-                        Document.initiative_id == target_initiative.id
-                    )
+                    select(File.name).where(File.initiative_id == target_initiative.id)
                 )
             ).all()
         }
         name = unique_name(existing_names, env.name)
 
-        document = Document(
+        file = File(
             name=name,
-            document_type=DocumentType(env.document_type),
+            file_type=FileType(env.file_type),
             content=content,
             initiative_id=target_initiative.id,
             created_by=importer.id,
         )
-        session.add(document)
+        session.add(file)
         await session.flush()
         # What its references name is placed once the rest of the job exists.
-        document.content = note_or_settle(
-            context, SearchEntityType.document, document.id, document.content
+        file.content = note_or_settle(
+            context, SearchEntityType.file, file.id, file.content
         )
 
         await grant_ownership(
             session,
-            tool=Tool.document,
-            entity_id=document.id,
+            tool=Tool.file,
+            entity_id=file.id,
             target_initiative=target_initiative,
             importer=importer,
         )
@@ -140,8 +138,8 @@ class DocumentImporter(NamesPeopleInPassing):
                 tags_matched += 1
             session.add(
                 tags_service.tag_edge(
-                    tags_service.TOOL_TAG_LINKS[Tool.document],
-                    document.id,
+                    tags_service.TOOL_TAG_LINKS[Tool.file],
+                    file.id,
                     resolved.id,
                 )
             )
@@ -152,37 +150,37 @@ class DocumentImporter(NamesPeopleInPassing):
             context=context,
             member_handles=member_handles,
         )
-        await props.attach(document, env.properties)
+        await props.attach(file, env.properties)
         return EnvelopeImportResult(
-            entity_id=document.id,
-            entity_title=document.name,
+            entity_id=file.id,
+            entity_title=file.name,
             created={
-                "documents": 1,
+                "files": 1,
                 "tags": tags_created,
                 "properties": props.created,
             },
             matched={"tags": tags_matched, "properties": props.matched},
-            unmatched_handles=await props.settle(document),
+            unmatched_handles=await props.settle(file),
             warnings=warnings,
         )
 
 
-def _typed_content(env: DocumentEnvelope) -> dict[str, Any]:
+def _typed_content(env: FileEnvelope) -> dict[str, Any]:
     """A non-native body, normalized exactly as the write path normalizes it:
     an imported body gets no more trust than a request body."""
     try:
-        return normalize_document_content(
-            env.content or {}, document_type=DocumentType(env.document_type)
+        return normalize_file_content(
+            env.content or {}, file_type=FileType(env.file_type)
         )
-    except DocumentContentError as exc:
+    except FileContentError as exc:
         raise ImportEngineError(exc.code) from exc
 
 
 def _decode_content(
-    env: DocumentEnvelope, warnings: list[str], guild_id: int
+    env: FileEnvelope, warnings: list[str], guild_id: int
 ) -> dict[str, Any]:
-    """Envelope ``content`` → the stored content model per document type."""
-    if env.document_type != DocumentType.native.value:
+    """Envelope ``content`` → the stored content model per file type."""
+    if env.file_type != FileType.native.value:
         return _typed_content(env)
     content = env.content or {}
     # native: the raw editor state, stored as exported. Embedded image

@@ -106,7 +106,7 @@ class WikiImporter:
         for handle in (
             *(
                 handle
-                for filed in envelope.documents
+                for filed in envelope.files
                 if filed.envelope is not None
                 for handle in filed.envelope.mention_handles
             ),
@@ -130,11 +130,11 @@ class WikiImporter:
     def count(self, validated: BaseModel) -> int:
         envelope: WikiEnvelope = validated  # ty: ignore[invalid-assignment] — validate() returned this model
         # A wiki's size is what is written in it, plus the row naming it. A
-        # comment is a row like a page is, and so is a document filed in it.
+        # comment is a row like a page is, and so is a file filed in it.
         return (
             len(envelope.pages)
             + sum(len(page.comments) for page in envelope.pages)
-            + len(envelope.documents)
+            + len(envelope.files)
             + 1
         )
 
@@ -143,7 +143,7 @@ class WikiImporter:
     ) -> list[tuple[dict[str, Any], str]]:
         """The uploads filed in an exported wiki, whose bytes its zip carries
         under ``assets/``."""
-        filed = envelope.get("documents")
+        filed = envelope.get("files")
         if not isinstance(filed, list):
             return []
         return [
@@ -293,13 +293,13 @@ class WikiImporter:
                     jira_tasks[key] = endpoint.id
         jira_tasks.update(await _tasks_by_jira_key(session, wanted - jira_tasks.keys()))
         # A file the pages link to was written earlier in this job, as a
-        # document of its own.
-        documents: dict[str, int] = {}
+        # file of its own.
+        files: dict[str, int] = {}
         if context is not None:
             for ref in {r for body in bodies for r in _marks(body, "importRef")}:
                 endpoint = context.links.lookup(ref)
-                if endpoint is not None and endpoint.kind == SearchEntityType.document:
-                    documents[ref] = endpoint.id
+                if endpoint is not None and endpoint.kind == SearchEntityType.file:
+                    files[ref] = endpoint.id
         by_original = {page.slug.strip(): slug for page, slug in zip(env.pages, slugs)}
         pages_by_slug = {
             original: page_ids[assigned]
@@ -323,7 +323,7 @@ class WikiImporter:
                 page_ids=pages_by_slug,
                 mentioned=mentioned,
                 jira_tasks=jira_tasks,
-                documents=documents,
+                file_ids=files,
             )
 
         comment_count = 0
@@ -354,7 +354,7 @@ class WikiImporter:
         elif env.home_page:
             warnings.append("missing_home_page:1")
 
-        filed = await _file_documents(
+        filed = await _place_files(
             session,
             env,
             wiki,
@@ -373,7 +373,7 @@ class WikiImporter:
                 "pages": len(env.pages),
                 "comments": comment_count,
                 "tags": tags_created,
-                "documents": filed,
+                "files": filed,
                 "properties": props.created,
             },
             matched={"tags": tags_matched, "properties": props.matched},
@@ -382,7 +382,7 @@ class WikiImporter:
         )
 
 
-async def _file_documents(
+async def _place_files(
     session: AsyncSession,
     env: WikiEnvelope,
     wiki: Wiki,
@@ -393,56 +393,56 @@ async def _file_documents(
     context: ImportContext | None,
     warnings: list[str],
 ) -> int:
-    """Create the documents the wiki's export carried and file each where it
+    """Create the files the wiki's export carried and file each where it
     sat: under its page, at its place, and joined to the wiki by the edge
     that says it belongs there. Returns how many were filed.
 
-    Creating a document takes what creating one anywhere takes, so an
-    initiative with documents off, or somebody who may not create them there,
+    Creating a file takes what creating one anywhere takes, so an
+    initiative with files off, or somebody who may not create them there,
     gets the wiki without them and is told so.
     """
-    if not env.documents:
+    if not env.files:
         return 0
     from app.core.relationships import RelationshipType
     from app.db.session import routed_guild_id
     from app.services.import_engine import engine as import_engine
     from app.services.import_engine.contract import ImportEngineError
-    from app.services.import_engine.importers.document import DocumentImporter
+    from app.services.import_engine.importers.file import FileImporter
     from app.services.import_engine.links import IMPORT_PROVENANCE
     from app.services.tenant import relationships as relationships_service
     from app.services.tenant import wikis as wikis_service
     from app.services.tenant.relationships import Endpoint
 
-    documents = DocumentImporter()
+    files = FileImporter()
     try:
         await import_engine.load_target_initiative(
             session,
             guild_id=routed_guild_id(session),
             initiative_id=target_initiative.id,
-            importer=documents,
+            importer=files,
             user=importer,
         )
     except ImportEngineError:
-        warnings.append(f"documents_left_behind:{len(env.documents)}")
+        warnings.append(f"files_left_behind:{len(env.files)}")
         return 0
 
     filed = 0
     missing = 0
-    for entry in env.documents:
-        document_id: int | None = None
+    for entry in env.files:
+        file_id: int | None = None
         try:
             async with session.begin_nested():
                 if entry.envelope is not None:
-                    result = await documents.apply(
+                    result = await files.apply(
                         session,
                         envelope=entry.envelope,
                         target_initiative=target_initiative,
                         importer=importer,
                         context=context,
                     )
-                    document_id = result.entity_id
+                    file_id = result.entity_id
                 elif entry.upload is not None:
-                    document_id = await _upload_document(
+                    file_id = await _upload_file(
                         session,
                         entry.upload,
                         target_initiative=target_initiative,
@@ -450,37 +450,35 @@ async def _file_documents(
                         context=context,
                     )
         except Exception:
-            logger.exception("wiki import: a filed document failed")
-            document_id = None
-        if document_id is None:
+            logger.exception("wiki import: a filed file failed")
+            file_id = None
+        if file_id is None:
             missing += 1
             continue
         if context is not None:
-            context.links.register(
-                entry.external_ref, SearchEntityType.document, document_id
-            )
+            context.links.register(entry.external_ref, SearchEntityType.file, file_id)
         await relationships_service.create(
             session,
-            source=Endpoint(SearchEntityType.document, document_id),
+            source=Endpoint(SearchEntityType.file, file_id),
             relationship_type=RelationshipType.part_of,
             target=Endpoint(SearchEntityType.wiki, wiki.id),
             provenance=IMPORT_PROVENANCE,
             created_by=importer.id,
         )
-        wikis_service.file_document(
+        wikis_service.place_file(
             wiki,
-            document_id,
+            file_id,
             parent_page_id=pages_by_slug.get(entry.page) if entry.page else None,
             position=entry.position,
         )
         session.add(wiki)
         filed += 1
     if missing:
-        warnings.append(f"missing_filed_documents:{missing}")
+        warnings.append(f"missing_filed_files:{missing}")
     return filed
 
 
-async def _upload_document(
+async def _upload_file(
     session: AsyncSession,
     upload: Any,
     *,
@@ -488,11 +486,11 @@ async def _upload_document(
     importer: User,
     context: ImportContext | None,
 ) -> int | None:
-    """A filed upload, as a file document over the bytes its zip brought. One
+    """A filed upload, as an uploaded file over the bytes its zip brought. One
     whose file is not stored here — left out of the zip, or refused on the way
-    in — or is not a file a document holds is not created."""
+    in — or is not a type an uploaded file holds is not created."""
     from app.db.session import routed_guild_id
-    from app.models.tenant.document import Document, DocumentType
+    from app.models.tenant.file import File, FileType
     from app.models.tenant.upload import Upload
     from app.services.tenant import file_versions
 
@@ -504,7 +502,7 @@ async def _upload_document(
         return None
     filename = upload.original_filename or key
     content_type = await file_versions.stored_file_type(
-        Document,
+        File,
         routed_guild_id(session),
         key,
         filename=filename,
@@ -512,25 +510,25 @@ async def _upload_document(
     )
     if content_type is None:
         return None
-    document = Document(
+    file = File(
         name=upload.name,
-        document_type=DocumentType.file,
+        file_type=FileType.file,
         content={},
         initiative_id=target_initiative.id,
         created_by=importer.id,
     )
-    session.add(document)
+    session.add(file)
     await session.flush()
     await grant_ownership(
         session,
-        tool=Tool.document,
-        entity_id=document.id,
+        tool=Tool.file,
+        entity_id=file.id,
         target_initiative=target_initiative,
         importer=importer,
     )
     await file_versions.add_version(
         session,
-        document,
+        file,
         created_by=importer.id,
         file_url=f"/uploads/{routed_guild_id(session)}/{key}",
         original_filename=filename,
@@ -541,15 +539,15 @@ async def _upload_document(
         resolved = await ensure_tag(session, name=tag_name, color="#6b7280")
         session.add(
             tags_service.tag_edge(
-                tags_service.TOOL_TAG_LINKS[Tool.document], document.id, resolved.id
+                tags_service.TOOL_TAG_LINKS[Tool.file], file.id, resolved.id
             )
         )
     props = PropertyRestore(
         session, initiative_id=target_initiative.id, context=context
     )
-    await props.attach(document, upload.properties)
-    await props.settle(document)
-    return document.id
+    await props.attach(file, upload.properties)
+    await props.settle(file)
+    return file.id
 
 
 async def _write_comments(
@@ -703,7 +701,7 @@ def _place_references(
     page_ids: dict[str, int],
     mentioned: dict[str, int],
     jira_tasks: dict[str, int] | None = None,
-    documents: dict[str, int] | None = None,
+    file_ids: dict[str, int] | None = None,
 ) -> dict[str, Any] | None:
     """``content`` with its import references resolved, or ``None`` if it
     had none.
@@ -720,13 +718,13 @@ def _place_references(
     task. When it did not, the mention is a link back to Jira again, the chip
     is left out, and a link stays the link it was.
 
-    A document mention carrying an ``importRef`` points at the document that
+    A file mention carrying an ``importRef`` points at the file that
     file became in this job, and is the file's name again if it did not.
     """
     if not isinstance(content, dict):
         return None
     tasks = jira_tasks or {}
-    files = documents or {}
+    files = file_ids or {}
     changed = False
 
     def walk(node: Any) -> Any:
@@ -747,11 +745,11 @@ def _place_references(
         if node_type == "entity-mention" and "importRef" in node:
             changed = True
             ref = node.get("importRef")
-            document_id = files.get(ref) if isinstance(ref, str) else None
-            if document_id is None:
+            file_id = files.get(ref) if isinstance(ref, str) else None
+            if file_id is None:
                 return _text_node(str(node.get("text") or ""))
             placed = {k: v for k, v in node.items() if k != "importRef"}
-            placed["entityId"] = document_id
+            placed["entityId"] = file_id
             return placed
         jira_key = node.get("importJiraKey")
         if isinstance(jira_key, str):

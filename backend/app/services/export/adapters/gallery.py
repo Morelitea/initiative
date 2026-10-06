@@ -41,8 +41,7 @@ from app.services.permissions import EXPORT_ACCESS
 Loaded = tuple[Gallery, list[GalleryImage]]
 
 
-#: The size proxy divisor for the pictures: one "row" per MiB, as a file
-#: document counts, so a gallery of large pictures is delivered as a job.
+#: The size proxy divisor for the pictures: one "row" per MiB, as an uploaded file counts, so a gallery of large pictures is delivered as a job.
 _IMAGE_ROW_BYTES = 1_048_576
 
 

@@ -16,7 +16,7 @@ from __future__ import annotations
 from app.core.tools import Tool
 from app.models.tenant.calendar import Calendar
 from app.models.tenant.dashboard import Dashboard
-from app.models.tenant.document import Document, DocumentFileVersion
+from app.models.tenant.file import File, FileVersion
 from app.models.tenant.gallery import Gallery, GalleryImage, GalleryImageVersion
 from app.models.tenant.post import Post
 from app.models.tenant.queue import Queue, QueueItem
@@ -24,23 +24,23 @@ from app.models.tenant.wiki import Wiki, WikiPage
 from app.services.fields.derive import derive_fields
 from app.services.fields.spec import Dataset, Hop, Relation
 
-#: A document's body is the document. It is a structured blob rather than a
+#: A file's body is the file. It is a structured blob rather than a
 #: value, so there is nothing a comparison would mean against it — the
 #: derivation drops it, and this says why.
-_DOCUMENT_INTERNAL = frozenset({"content"})
+_FILE_INTERNAL = frozenset({"content"})
 
 
-def build_documents() -> Dataset:
+def build_files() -> Dataset:
     return Dataset(
-        model=Document,
-        tool=Tool.document,
-        fields=derive_fields(Document, internal=_DOCUMENT_INTERNAL),
+        model=File,
+        tool=Tool.file,
+        fields=derive_fields(File, internal=_FILE_INTERNAL),
         relations=(
             Relation(
                 name="current_version",
                 hops=(
                     Hop(
-                        dataset="document_versions",
+                        dataset="file_versions",
                         left="current_version_id",
                         right="id",
                     ),
@@ -50,14 +50,14 @@ def build_documents() -> Dataset:
     )
 
 
-def build_document_versions() -> Dataset:
-    """One uploaded version of a file document: its type, size and name. A
-    document reaches the one it shows as ``current_version``."""
+def build_file_versions() -> Dataset:
+    """One uploaded version of an uploaded file: its type, size and name. A
+    file reaches the one it shows as ``current_version``."""
     return Dataset(
-        model=DocumentFileVersion,
-        tool=Tool.document,
-        name_override="document_versions",
-        fields=derive_fields(DocumentFileVersion),
+        model=FileVersion,
+        tool=Tool.file,
+        name_override="file_versions",
+        fields=derive_fields(FileVersion),
     )
 
 

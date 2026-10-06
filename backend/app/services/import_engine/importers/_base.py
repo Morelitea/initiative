@@ -59,8 +59,8 @@ class NamesPeopleInPassing:
     """An envelope that names people without quoting them: through user-type
     property values, and through the mentions in its body.
 
-    A document's properties and a calendar event's can say who somebody is —
-    an owner, a reviewer — and a document or a post can mention somebody.
+    A file's properties and a calendar event's can say who somebody is —
+    an owner, a reviewer — and a file or a post can mention somebody.
     Both are placed through the people step's answer, like an assignee is. So
     these envelopes are a question whenever they carry one: the wizard asks,
     rather than the value or the mention landing on whoever happens to share

@@ -134,7 +134,7 @@ class GalleryImage(CreatedByMixin, SoftDeleteMixin, table=True):
 
     ``current_version_id`` names the version the picture shows — its file,
     thumbnail and size live on :class:`GalleryImageVersion` — the same
-    arrangement a file document keeps, and the rest of the versions are the
+    arrangement an uploaded file keeps, and the rest of the versions are the
     history. The two tables point at each other, so the key is added once both
     exist (``use_alter``) and the pointer is written after the version row
     (``post_update``).
@@ -219,7 +219,7 @@ class GalleryImageVersion(CreatedByMixin, table=True):
     """One uploaded rendition of a picture.
 
     Every picture has at least one row here, and the ``gallery_images`` row
-    names the one it shows. The same shape a file document's versions take,
+    names the one it shows. The same shape an uploaded file's versions take,
     for the same reason: a design round replaces a canvas rather than adding
     one, and the earlier rounds are the story of how it got there.
 

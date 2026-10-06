@@ -18,7 +18,7 @@ from app.schemas.base import LexicalState, SanitizedBaseModel
 from app.schemas.tenant.property import PropertiesOnCreate
 from app.schemas.query import PageMeta
 
-from app.models.tenant.document import DocumentType
+from app.models.tenant.file import FileType
 from app.schemas.tenant.resource_grant import ResourceGrantSchema, initiative_readable
 from app.schemas.platform.user import UserPublic
 from app.schemas.tenant.initiative import InitiativeSummary
@@ -27,34 +27,34 @@ from app.schemas.tenant.tool import ToolSummaryBase, serialize_tool
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.db.guild_standing import ActorContext
-    from app.models.tenant.document import Document
+    from app.models.tenant.file import File
 
 #: One sheet of a workbook, in the canonical shape
 #: ``normalize_spreadsheet_content`` produces.
 SpreadsheetSheet = Dict[str, Any]
 
 
-class DocumentBase(SanitizedBaseModel):
+class FileBase(SanitizedBaseModel):
     name: str
     initiative_id: int
     featured_image_url: Optional[str] = None
     is_template: bool = False
 
 
-class DocumentCreate(DocumentBase, PropertiesOnCreate):
+class FileCreate(FileBase, PropertiesOnCreate):
     content: Optional[LexicalState] = Field(default_factory=dict)
-    #: A file document is made by uploading the file (``POST /documents/upload``).
-    document_type: Literal[
-        DocumentType.native,
-        DocumentType.whiteboard,
-        DocumentType.smart_link,
-        DocumentType.spreadsheet,
-    ] = DocumentType.native
+    #: An uploaded file is made by uploading the file (``POST /files/upload``).
+    file_type: Literal[
+        FileType.native,
+        FileType.whiteboard,
+        FileType.smart_link,
+        FileType.spreadsheet,
+    ] = FileType.native
     # Initial sharing — the same grant list the PUT /grants endpoint takes.
     grants: List[ResourceGrantSchema] = Field(default_factory=initiative_readable)
 
 
-class DocumentUpdate(SanitizedBaseModel):
+class FileUpdate(SanitizedBaseModel):
     name: Optional[str] = None
     content: Optional[LexicalState] = None
     #: The ``content_version`` of the read this ``content`` was made from.
@@ -66,33 +66,33 @@ class DocumentUpdate(SanitizedBaseModel):
     is_template: Optional[bool] = None
 
 
-class DocumentSummary(DocumentBase, ToolSummaryBase):
+class FileSummary(FileBase, ToolSummaryBase):
     # ``validate_by_name`` so ``derived_fields`` can set ``owner`` and
     # ``owner_plugin`` by name; their aliases keep ``from_attributes`` from reading
     # an ORM relationship.
     model_config = ConfigDict(validate_by_name=True)
 
     initiative: Optional[InitiativeSummary] = None
-    #: The person holding the document's owner grant, or None when it is
+    #: The person holding the file's owner grant, or None when it is
     #: unowned or a plug-in owns it.
     owner: Optional[UserPublic] = Field(default=None, validation_alias="owner_source")
     #: The installed plug-in holding the owner grant, or None when a person owns
-    #: the document or nobody does. At most one of ``owner`` and this is set.
+    #: the file or nobody does. At most one of ``owner`` and this is set.
     owner_plugin: Optional[OwnerPluginSummary] = Field(
         default=None, validation_alias="owner_plugin_source"
     )
-    #: ``DocumentBase``'s, marked here: a request takes it as it is.
+    #: ``FileBase``'s, marked here: a request takes it as it is.
     featured_image_url: Annotated[Optional[str], UPLOAD_PATH] = None
     comment_count: int = 0
-    # File document fields, read from its current version
-    document_type: DocumentType = DocumentType.native
+    # Uploaded file fields, read from its current version
+    file_type: FileType = FileType.native
     file_url: Annotated[Optional[str], UPLOAD_PATH] = None
     file_content_type: Optional[str] = None
     file_size: Optional[int] = None
     original_filename: Optional[str] = None
     # Smart-link URL surfaced on the summary so cards can render the
     # provider-specific icon without fetching the full content JSONB.
-    # Only populated when document_type == "smart_link".
+    # Only populated when file_type == "smart_link".
     smart_link_url: Optional[str] = None
 
     @classmethod
@@ -110,15 +110,15 @@ class DocumentSummary(DocumentBase, ToolSummaryBase):
         }
 
 
-#: What a document reports of its current version.
+#: What a file reports of its current version.
 _FILE_FIELDS = ("file_url", "file_content_type", "file_size", "original_filename")
 
 
-class DocumentListResponse(PageMeta):
-    items: List[DocumentSummary]
+class FileListResponse(PageMeta):
+    items: List[FileSummary]
 
 
-class DocumentRead(DocumentSummary):
+class FileRead(FileSummary):
     content: LexicalState = Field(default_factory=dict)
     #: The version of ``content`` this read returns. Send it back with a
     #: ``PATCH`` of ``content`` so the write merges into the body only if
@@ -126,8 +126,8 @@ class DocumentRead(DocumentSummary):
     content_version: Optional[str] = None
 
 
-class DocumentFileVersionRead(SanitizedBaseModel):
-    """A single stored version of a file-type document. The binary is fetched
+class FileVersionRead(SanitizedBaseModel):
+    """A single stored version of an uploaded file. The binary is fetched
     via the version download endpoint by id — ``file_url`` is intentionally
     not exposed."""
 
@@ -145,35 +145,35 @@ class DocumentFileVersionRead(SanitizedBaseModel):
     is_current: bool = False
 
 
-def smart_link_url(document: Any) -> Optional[str]:
-    """The address a link document points at, so a card can draw its provider's
-    mark without the content: ``Document.smart_link_url``, read in the row's
+def smart_link_url(file: Any) -> Optional[str]:
+    """The address a link file points at, so a card can draw its provider's
+    mark without the content: ``File.smart_link_url``, read in the row's
     own SELECT."""
-    return document.smart_link_url or None
+    return file.smart_link_url or None
 
 
-def serialize_document_summary(
-    document: "Document",
+def serialize_file_summary(
+    file: "File",
     *,
     context: ActorContext,
     user_id: Optional[int] = None,
-) -> DocumentSummary:
-    return serialize_tool(DocumentSummary, document, context=context, user_id=user_id)
+) -> FileSummary:
+    return serialize_tool(FileSummary, file, context=context, user_id=user_id)
 
 
-def serialize_document(
-    document: "Document",
+def serialize_file(
+    file: "File",
     *,
     context: ActorContext,
     user_id: Optional[int] = None,
     include_content: bool = True,
-) -> DocumentRead:
-    """The full document. ``include_content=False`` leaves the body out — every
+) -> FileRead:
+    """The full file. ``include_content=False`` leaves the body out — every
     other field is unchanged, including the smart-link URL that is derived from
     it."""
     return serialize_tool(
-        DocumentRead,
-        document,
+        FileRead,
+        file,
         context=context,
         user_id=user_id,
         **({} if include_content else {"content": {}}),

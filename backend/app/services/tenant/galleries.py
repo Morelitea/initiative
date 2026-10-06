@@ -8,7 +8,7 @@ pictures as child rows. What is genuinely this tool's own is in two places:
   :func:`validate_image` reads the file's header — the format, the pixel size
   — which is a few bounds-checked slices rather than a decoder. Raster only,
   and no SVG: a picture here is drawn in an ``<img>``, and an SVG is a
-  document rather than a picture. Then :func:`render_thumbnail` decodes it,
+  file rather than a picture. Then :func:`render_thumbnail` decodes it,
   and only a body the decoder reads is stored. A header says what a file
   claims; the decode is what confirms it.
 * **The order.** Newest first, always. A gallery is a record of what arrived,

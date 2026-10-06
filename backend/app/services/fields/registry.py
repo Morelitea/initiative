@@ -48,8 +48,8 @@ _BUILDERS: dict[str, Callable[[], Dataset]] = {
     "members": members_dataset.build,
     # The datasets that are simply a tool. Declared together because there is
     # nothing to say about any of them individually (app.services.fields.tools).
-    "documents": tool_datasets.build_documents,
-    "document_versions": tool_datasets.build_document_versions,
+    "files": tool_datasets.build_files,
+    "file_versions": tool_datasets.build_file_versions,
     "queues": tool_datasets.build_queues,
     "queue_items": tool_datasets.build_queue_items,
     "calendars": tool_datasets.build_calendars,

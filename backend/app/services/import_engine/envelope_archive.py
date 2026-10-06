@@ -11,7 +11,7 @@ A wiki's zip carries the uploads filed in it the same way. A zip holding any
 other tool's envelope imports too: it simply carries nothing beside it.
 
 Every file is what the zip claims only once it has been read: a picture must
-be one a gallery can show, and an upload a file a document may hold. One that
+be one a gallery can show, and an upload a file an uploaded file may hold. One that
 is not is left out and the import says so. A key already stored here is never
 written over — a re-import of the same zip reuses the file it already brought
 — and the community's storage quota is checked against the zip's own sizes

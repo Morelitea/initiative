@@ -1,5 +1,5 @@
 """``initiative-queue`` importer: the queue row, its items in rotation
-order, item tags, and the current-item pointer. Member/document/task
+order, item tags, and the current-item pointer. Member/file/task
 references in the envelope are display text (guild-local ids can't rebind)
 and are dropped with a warning count."""
 

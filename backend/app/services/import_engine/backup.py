@@ -37,7 +37,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.db.session import routed_guild_id
-from app.core.references import format_ref
+from app.core.references import format_ref, parse_ref
 from app.core.relationships import RelationshipType
 from app.core.search import SearchEntityType
 from app.core.tools import BULK_EXPORT_TOOLS, Tool, tool_envelope_type
@@ -74,7 +74,7 @@ from app.services.import_engine.context import (
     exported_from_here,
 )
 from app.services.import_engine.links import resolve_page_links
-from app.services.import_engine.references import resolve_references
+from app.services.import_engine.references import SOURCE_REF, resolve_references
 from app.services.import_engine.zip_bounds import (
     json_cap,
     open_zip,
@@ -103,18 +103,67 @@ _REFRESH_EVERY = 25
 
 _MANIFEST_NAME = "manifest.json"
 
-#: What "filed in" means, per kind of far end. A document in a wiki is a
-#: ``part_of`` — the wiki is a place, and the document is one of the things
-#: in it, which is exactly the edge ``wikis.linked_documents`` reads.
+#: What "filed in" means, per kind of far end. A file in a wiki is a
+#: ``part_of`` — the wiki is a place, and the file is one of the things
+#: in it, which is exactly the edge ``wikis.linked_files`` reads.
 #:
 #: One kind, because ``attach_to`` names another manifest ENTRY, and a wiki is
 #: the only place a file can be filed that is an entry of its own. A task is
-#: not: it lives inside its project's envelope, so a document attached to a
+#: not: it lives inside its project's envelope, so a file attached to a
 #: task is a link the envelope asserts by ref, not a placement recorded here.
 #: A kind nothing here names is left alone rather than guessed at.
 _ATTACH_RELATIONSHIPS: dict[str, RelationshipType] = {
     "wiki": RelationshipType.part_of,
 }
+
+#: How an archive written before files were called files names them: the
+#: manifest's tool, its tool switches and envelope type, the keys holding a file's type and the
+#: files filed in a wiki or attached to an item, the refs naming one, and the
+#: role permissions for the tool. Read on restore and rewritten to this build's names before
+#: anything else looks at the archive; nothing writes them.
+_LEGACY_ENVELOPE_TYPES = {"initiative-document": tool_envelope_type(Tool.file)}
+_LEGACY_TOOLS = {"document": Tool.file.value}
+_LEGACY_KEYS = {"documents": "files", "document_type": "file_type"}
+_LEGACY_REF_KEYS = ("external_ref", SOURCE_REF)
+_LEGACY_PERMISSIONS = {
+    "documents_enabled": Tool.file.view_permission,
+    "create_documents": Tool.file.create_permission,
+}
+
+
+def _current_shape(value: Any) -> Any:
+    """``value``, read from an archive, with the names an older build gave
+    files spelled as this one spells them."""
+    if isinstance(value, list):
+        return [_current_shape(item) for item in value]
+    if not isinstance(value, dict):
+        return value
+    shaped = {
+        _LEGACY_KEYS.get(key, key): _current_shape(item) for key, item in value.items()
+    }
+    tools = shaped.get("tools")
+    if isinstance(tools, dict):
+        shaped["tools"] = {
+            _LEGACY_TOOLS.get(key, key): item for key, item in tools.items()
+        }
+    kind = shaped.get("type")
+    if isinstance(kind, str) and kind in _LEGACY_ENVELOPE_TYPES:
+        shaped["type"] = _LEGACY_ENVELOPE_TYPES[kind]
+    tool = shaped.get("tool")
+    if isinstance(tool, str) and tool in _LEGACY_TOOLS:
+        shaped["tool"] = _LEGACY_TOOLS[tool]
+    for key in _LEGACY_REF_KEYS:
+        ref = shaped.get(key)
+        parsed = parse_ref(ref) if isinstance(ref, str) else None
+        if parsed is not None:
+            shaped[key] = format_ref(*parsed)
+    permissions = shaped.get("permissions")
+    if isinstance(permissions, list):
+        shaped["permissions"] = [
+            _LEGACY_PERMISSIONS.get(key, key) if isinstance(key, str) else key
+            for key in permissions
+        ]
+    return shaped
 
 
 def _entry_ref(path: str) -> str:
@@ -127,11 +176,11 @@ def _entry_ref(path: str) -> str:
 
 
 def _entry_kind(entry: ManifestEntry) -> SearchEntityType | None:
-    """What kind of thing this entry becomes. A file entry is a document
+    """What kind of thing this entry becomes. A file entry is a file
     whatever tool it was filed under; everything else is its own tool. A
     tool this build has no endpoint kind for cannot be an end of an edge,
     which is a reason to skip it rather than to fail the restore."""
-    name = Tool.document.value if entry.type == "file" else entry.tool
+    name = Tool.file.value if entry.type == "file" else entry.tool
     try:
         return SearchEntityType(name)
     except ValueError:
@@ -157,7 +206,7 @@ def read_manifest(archive: zipfile.ZipFile, *, fetched: bool = False) -> BackupM
     except Exception as exc:
         raise ImportEngineError(ImportEngineMessages.IMPORT_ZIP_INVALID) from exc
     try:
-        manifest = BackupManifest.model_validate(raw)
+        manifest = BackupManifest.model_validate(_current_shape(raw))
     except Exception as exc:
         raise ImportEngineError(ImportEngineMessages.IMPORT_ZIP_INVALID) from exc
     if not (
@@ -459,7 +508,7 @@ async def apply_backup(
         # And a link written in a task to a page that came over in the same
         # bundle becomes a mention of that page.
         await resolve_page_links(session, context.links, site_url=context.source_url)
-        await _file_documents_under_pages(session, context)
+        await _place_files_under_pages(session, context)
         # The files the entries show are kept for the initiative each went into.
         await claim_shown(session, set(assets_by_key))
         await session.commit()
@@ -467,21 +516,21 @@ async def apply_backup(
         return result
 
 
-async def _file_documents_under_pages(
+async def _place_files_under_pages(
     session: AsyncSession, context: ImportContext
 ) -> None:
-    """File each document an entry placed under a page of its wiki, now that
-    the document, the wiki and the page all exist. One whose page or wiki did
+    """Place each file an entry placed under a page of its wiki, now that
+    the file, the wiki and the page all exist. One whose page or wiki did
     not arrive stays at the top of the wiki, where joining it put it."""
     from app.models.tenant.wiki import Wiki
     from app.services.import_engine.links import wiki_page_slug_ref
     from app.services.tenant import wikis as wikis_service
 
     wikis: dict[int, Wiki] = {}
-    for document_ref, wiki_ref, page_slug in context.placements:
-        document = context.links.lookup(document_ref)
+    for file_ref, wiki_ref, page_slug in context.placements:
+        file = context.links.lookup(file_ref)
         wiki_end = context.links.lookup(wiki_ref)
-        if document is None or wiki_end is None:
+        if file is None or wiki_end is None:
             continue
         page = context.links.lookup(wiki_page_slug_ref(wiki_end.id, page_slug))
         if page is None:
@@ -492,7 +541,7 @@ async def _file_documents_under_pages(
             if wiki is None:
                 continue
             wikis[wiki_end.id] = wiki
-        wikis_service.file_document(wiki, document.id, parent_page_id=page.id)
+        wikis_service.place_file(wiki, file.id, parent_page_id=page.id)
         session.add(wiki)
 
 
@@ -526,10 +575,10 @@ async def _resolve_target_initiative(
     for entry in entries:
         if include is not None and not include.get(entry.tool, True):
             continue
-        # A file entry is a document whatever tool it was filed under, so it
-        # is the document importer's permission that governs it.
+        # A file entry is a file whatever tool it was filed under, so it
+        # is the file importer's permission that governs it.
         envelope_type = (
-            tool_envelope_type(Tool.document) if entry.type == "file" else entry.type
+            tool_envelope_type(Tool.file) if entry.type == "file" else entry.type
         )
         if envelope_type in seen:
             continue
@@ -554,7 +603,7 @@ async def _resolve_target_initiative(
             session,
             guild_id=guild_id,
             initiative_id=target_initiative_id,
-            importer=IMPORTERS[tool_envelope_type(Tool.document)],
+            importer=IMPORTERS[tool_envelope_type(Tool.file)],
             user=user,
         )
     return initiative
@@ -617,7 +666,7 @@ async def _apply_entry(
         raw = await asyncio.to_thread(
             read_json_member, archive, entry.path, max_bytes=max_json_bytes
         )
-        validated = importer.validate(raw)
+        validated = importer.validate(_current_shape(raw))
         async with session.begin_nested():
             detail = await importer.apply(
                 session,
@@ -720,6 +769,7 @@ async def _apply_structural_entry(
         return invalid
     if not isinstance(payload, dict):
         return invalid
+    payload = _current_shape(payload)
     try:
         async with session.begin_nested():
             if entry.type == "initiative-properties":
@@ -871,10 +921,10 @@ async def _apply_file_entry(
     *,
     context: ImportContext | None = None,
 ) -> EntryResult:
-    """A file document: its content is the restored ``assets/`` blob. A table
-    of text, which a file document cannot hold, becomes a spreadsheet read
+    """An uploaded file: its content is the restored ``assets/`` blob. A table
+    of text, which an uploaded file cannot hold, becomes a spreadsheet read
     from the zip instead."""
-    from app.models.tenant.document import Document, DocumentType
+    from app.models.tenant.file import File, FileType
     from app.models.tenant.upload import Upload
     from app.schemas.tenant.import_envelopes import EnvelopePropertyValue
     from app.services.import_engine.common import ensure_tag
@@ -883,8 +933,8 @@ async def _apply_file_entry(
         grant_ownership,
     )
     from app.services.tenant import file_versions
-    from app.services.tenant.attachments import MAX_DOCUMENT_FILE_SIZE
-    from app.services.tenant.documents_spreadsheet import DocumentContentError
+    from app.services.tenant.attachments import MAX_FILE_SIZE
+    from app.services.tenant.files_spreadsheet import FileContentError
     from app.services.tenant.spreadsheet_import import (
         TEXT_TABLE_SUFFIXES,
         parse_spreadsheet_file,
@@ -900,7 +950,7 @@ async def _apply_file_entry(
     if storage_key.lower().endswith(TEXT_TABLE_SUFFIXES):
         try:
             data = await asyncio.to_thread(
-                read_member, archive, entry.asset, max_bytes=MAX_DOCUMENT_FILE_SIZE
+                read_member, archive, entry.asset, max_bytes=MAX_FILE_SIZE
             )
             sheets = await asyncio.to_thread(parse_spreadsheet_file, storage_key, data)
         except KeyError:
@@ -909,11 +959,11 @@ async def _apply_file_entry(
                 status="skipped",
                 error=ImportEngineMessages.IMPORT_ASSET_MISSING,
             )
-        except (ImportEngineError, DocumentContentError) as exc:
+        except (ImportEngineError, FileContentError) as exc:
             return EntryResult(**base, status="failed", error=exc.code)
-        document = Document(
+        file = File(
             name=entry.title,
-            document_type=DocumentType.spreadsheet,
+            file_type=FileType.spreadsheet,
             content={"schema_version": 3, "kind": "spreadsheet", "sheets": sheets},
             initiative_id=initiative.id,
             created_by=user.id,
@@ -927,7 +977,7 @@ async def _apply_file_entry(
         filename = asset.original_filename if asset is not None else storage_key
         content_type = (
             await file_versions.stored_file_type(
-                Document,
+                File,
                 routed_guild_id(session),
                 storage_key,
                 filename=filename,
@@ -938,16 +988,16 @@ async def _apply_file_entry(
         )
         if upload is None or content_type is None:
             # Uploads were excluded from this backup, the blob was not
-            # restored, or it is not a file a document holds — recorded, not
+            # restored, or it is not a type an uploaded file holds — recorded, not
             # silently dropped.
             return EntryResult(
                 **base,
                 status="skipped",
                 error=ImportEngineMessages.IMPORT_ASSET_MISSING,
             )
-        document = Document(
+        file = File(
             name=entry.title,
-            document_type=DocumentType.file,
+            file_type=FileType.file,
             content={},
             initiative_id=initiative.id,
             created_by=user.id,
@@ -961,18 +1011,18 @@ async def _apply_file_entry(
 
     try:
         async with session.begin_nested():
-            session.add(document)
+            session.add(file)
             await session.flush()
             await grant_ownership(
                 session,
-                tool=Tool.document,
-                entity_id=document.id,
+                tool=Tool.file,
+                entity_id=file.id,
                 target_initiative=initiative,
                 importer=user,
             )
             if stored:
                 await file_versions.add_version(
-                    session, document, created_by=user.id, **stored
+                    session, file, created_by=user.id, **stored
                 )
 
             for tag_name in entry.tags:
@@ -983,8 +1033,8 @@ async def _apply_file_entry(
                 )
                 session.add(
                     tags_service.tag_edge(
-                        tags_service.TOOL_TAG_LINKS[Tool.document],
-                        document.id,
+                        tags_service.TOOL_TAG_LINKS[Tool.file],
+                        file.id,
                         resolved.id,
                     )
                 )
@@ -992,10 +1042,10 @@ async def _apply_file_entry(
                 session, initiative_id=initiative.id, context=context
             )
             await props.attach(
-                document,
+                file,
                 [EnvelopePropertyValue.model_validate(p) for p in entry.properties],
             )
-            unmatched_handles = await props.settle(document)
+            unmatched_handles = await props.settle(file)
     except Exception:
         logger.exception(
             "backup file entry failed path=%s asset=%s", entry.path, entry.asset
@@ -1004,15 +1054,15 @@ async def _apply_file_entry(
             **base, status="failed", error=ImportEngineMessages.IMPORT_APPLY_FAILED
         )
     # The id is reported so the entry can be an end of an edge — a file
-    # placed in a wiki is a ``document part_of wiki``, resolved by the
+    # placed in a wiki is a ``file part_of wiki``, resolved by the
     # deferred pass once the wiki entry has been applied too.
     return EntryResult(
         **base,
         status="created",
         detail=EnvelopeImportResult(
-            entity_id=document.id,
-            entity_title=document.name,
-            created={"documents": 1},
+            entity_id=file.id,
+            entity_title=file.name,
+            created={"files": 1},
             unmatched_handles=unmatched_handles,
         ),
     )

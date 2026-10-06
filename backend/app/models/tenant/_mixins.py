@@ -111,7 +111,7 @@ class CreatedByMixin(SQLModel):
     **There is deliberately no ``updated_by``, anywhere.** Who changed a row,
     and when, is recorded per transaction by ``public.capture_change`` into
     ``event_outbox`` — with the transaction id and the columns that changed,
-    which a single mutable column could never hold. ``documents`` carried one
+    which a single mutable column could never hold. ``files`` carried one
     until it was checked and found to be written on six paths and read on
     none; ``created_by_test.py`` now holds the line at zero.
 

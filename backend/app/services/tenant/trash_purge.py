@@ -5,7 +5,7 @@ into the guild's schema; the policies' system leg names that login. See
 :func:`purge_guild`.
 
 Each table's due rows are purged together, parents first, through the same
-``hard_purge_entities`` the trash can's purge button uses: documents and
+``hard_purge_entities`` the trash can's purge button uses: files and
 pictures take their stored files with them, and descendants go before the rows
 they hang off.
 """
@@ -93,8 +93,8 @@ async def purge_guild(session: AsyncSession, guild_id: int) -> None:
 
     Goes through ``hard_purge_entities`` rather than a bare
     ``DELETE … WHERE purge_at < now()``, so that:
-    1. ``Document`` upload cleanup (blobs + Upload rows) runs before each
-       Document is deleted.
+    1. ``File`` upload cleanup (blobs + Upload rows) runs before each
+       File is deleted.
     2. Descendants go first — most keys between these tables do not cascade
        in the database, so a bare delete of a parent would fail on them.
 
