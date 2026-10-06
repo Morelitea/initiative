@@ -300,10 +300,9 @@ async def _file_document(
 ):
     """A file document over a stored blob. ``size`` without ``payload`` gives a
     row that claims bytes nothing has written."""
+    content_type = content_type or "application/pdf"
     if payload is not None:
-        get_guild_storage(a.guild.id).write(
-            key, payload, content_type=content_type or "application/pdf"
-        )
+        get_guild_storage(a.guild.id).write(key, payload, content_type=content_type)
     return await create_document(
         session,
         a.initiative,
@@ -1693,8 +1692,8 @@ async def test_a_gallery_exports_as_a_zip_of_its_envelope_and_pictures(
     gone = await create_gallery_image(
         session, gallery, a.user, title="Castle", write_blob=False
     )
-    kept_key = kept.file_url.rsplit("/", 1)[-1]
-    gone_key = gone.file_url.rsplit("/", 1)[-1]
+    kept_key = kept.current_version.file_url.rsplit("/", 1)[-1]
+    gone_key = gone.current_version.file_url.rsplit("/", 1)[-1]
 
     resp = await _export(client, a, "gallery", ids=[gallery.id], format="json")
     assert resp.status_code == 200, resp.text
@@ -2959,7 +2958,6 @@ async def test_estimate_reports_counts_uploads_and_ceilings(
         key="est-blob.bin",
         filename="est-blob.bin",
         payload=payload,
-        content_type="application/octet-stream",
     )
 
     resp = await _export(

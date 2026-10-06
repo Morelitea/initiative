@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from datetime import datetime, timezone
-from typing import Annotated, List, Optional, Sequence
+from typing import Annotated, Any, List, Optional, Sequence
 
 from fastapi import (
     APIRouter,
@@ -16,8 +16,7 @@ from fastapi import (
     status,
 )
 from fastapi.responses import Response
-from sqlalchemy import func, text
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy import text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -43,6 +42,7 @@ from app.api.deps import (
     establish_guild_access,
     get_current_active_user,
     GuildAccessError,
+    GuildContext,
     GuildContextDep,
 )
 from app.core.messages import (
@@ -67,14 +67,13 @@ from app.schemas.tenant.document import (
     DocumentSummary,
     DocumentUpdate,
     serialize_document,
-    serialize_document_file_version,
-    serialize_document_file_versions,
     serialize_document_summary,
     SpreadsheetImportRead,
 )
 from app.schemas.tenant.resource_grant import initiative_readable
 from app.schemas.ai_generation import GenerateDocumentSummaryResponse
 from app.services.tenant import attachments as attachments_service
+from app.services.tenant import file_versions
 from app.services import storage_config
 from app.services.storage import build_upload_response, get_guild_storage
 from app.api import resource_access
@@ -141,21 +140,18 @@ async def get_initiative_or_404(session: SessionDep, *, initiative_id: int) -> N
 
 
 def _file_download_response(
-    *,
-    guild_id: int,
-    file_url: str,
-    content_type: str | None,
-    original_filename: str | None,
-    inline: bool,
+    *, guild_id: int, version: DocumentFileVersion, inline: bool
 ) -> Response:
-    """Build a hardened download response for a stored upload blob.
+    """Build a hardened download response for one version's stored file.
 
     Shared by the current-document download and the per-version download so
     the filename checks and SVG/HTML response hardening can't drift
     between the two endpoints. Serves through the guild's storage backend
     (local FileResponse or S3 streaming proxy) via :func:`build_upload_response`.
     """
-    filename = file_url.split("/")[-1]
+    content_type = version.file_content_type
+    original_filename = version.original_filename
+    filename = version.file_url.split("/")[-1]
     blob = get_guild_storage(guild_id).open_readable(filename)
     if blob is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
@@ -365,10 +361,6 @@ async def upload_document_file(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=DocumentMessages.NAME_REQUIRED,
         )
-
-    # Pick up a backend/credential change saved in another worker before writing.
-    await storage_config.ensure_storage_config_fresh(session)
-
     await ensure_name_free(
         session,
         Document.name,
@@ -376,7 +368,72 @@ async def upload_document_file(
         Document.initiative_id == initiative.id,
         detail=DocumentMessages.NAME_ALREADY_EXISTS,
     )
+    stored = await _store_file(
+        session, guild_context, file, initiative_id=initiative.id
+    )
 
+    # Create document record. A picture is its own featured image, set here so
+    # it is written with the row: the uploader's owner grant is only added
+    # below, so a later UPDATE in this transaction is not theirs to make yet.
+    document = Document(
+        name=name,
+        initiative_id=initiative.id,
+        content={},  # File documents have empty content
+        created_by=current_user.id,
+        document_type=DocumentType.file,
+        featured_image_url=_featured(stored["file_url"], stored["file_content_type"]),
+    )
+    session.add(document)
+    await session.flush()
+
+    await resource_access.grant_initial_sharing(
+        session,
+        guild_context,
+        Tool.document,
+        user=current_user,
+        resource_id=document.id,
+        initiative_id=initiative.id,
+        payload=None,
+        grants=initiative_readable(),
+    )
+    # The grants land before the version row: writing a version is the
+    # document owner's to do, and the uploader is its owner only once the
+    # grant exists.
+    await session.flush()
+
+    version = await file_versions.add_version(
+        session, document, created_by=current_user.id, **stored
+    )
+    await file_versions.commit_version(session, guild_context.guild_id, version)
+    return await read_after_write(session, document.id, current_user, guild_context)
+
+
+def _normalize_mime(mime: str | None) -> str:
+    """Normalize a MIME type for version type-match comparison."""
+    normalized = (mime or "").lower().strip()
+    if normalized == "image/jpg":
+        return "image/jpeg"
+    return normalized
+
+
+def _featured(file_url: str, content_type: str | None) -> str | None:
+    """A picture is its own featured image; any other file shows none."""
+    return file_url if (content_type or "").startswith("image/") else None
+
+
+async def _store_file(
+    session: AsyncSession,
+    guild_context: GuildContext,
+    file: UploadFile,
+    *,
+    initiative_id: int,
+    keep_type: str | None = None,
+) -> dict[str, Any]:
+    """Read an uploaded file, check it and store it, and return the version
+    columns it was stored as. ``keep_type`` refuses a file of another type."""
+    guild_id = guild_context.guild_id
+    # Pick up a backend/credential change saved in another worker before writing.
+    await storage_config.ensure_storage_config_fresh(session)
     # Read the body with a hard cap so an over-limit upload is rejected before
     # the whole payload is buffered into memory.
     try:
@@ -399,85 +456,37 @@ async def upload_document_file(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=DocumentMessages.INVALID_FILE,
         )
-
+    if keep_type is not None and _normalize_mime(mime_type) != _normalize_mime(
+        keep_type
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=DocumentMessages.VERSION_TYPE_MISMATCH,
+        )
     try:
         await attachments_service.enforce_storage_quota(
-            session, guild_id=guild_context.guild_id, incoming_bytes=len(contents)
+            session, guild_id=guild_id, incoming_bytes=len(contents)
         )
     except attachments_service.StorageQuotaExceededError:
         raise HTTPException(
             status_code=status.HTTP_507_INSUFFICIENT_STORAGE,
             detail=AttachmentMessages.STORAGE_QUOTA_EXCEEDED,
         )
-
     file_url = await attachments_service.store_upload(
         session,
-        guild_id=guild_context.guild_id,
+        guild_id=guild_id,
         filename=attachments_service.new_upload_filename(extension),
         data=contents,
         content_type=mime_type,
-        created_by=current_user.id,
-        initiative_id=initiative.id,
+        created_by=guild_context.user_id,
+        initiative_id=initiative_id,
     )
-
-    # Create document record. A picture is its own featured image, set here so
-    # it is written with the row: the uploader's owner grant is only added
-    # below, so a later UPDATE in this transaction is not theirs to make yet.
-    document = Document(
-        name=name,
-        initiative_id=initiative.id,
-        content={},  # File documents have empty content
-        created_by=current_user.id,
-        document_type=DocumentType.file,
-        file_url=file_url,
-        file_content_type=mime_type,
-        file_size=len(contents),
-        original_filename=file.filename,
-        featured_image_url=(
-            file_url if mime_type and mime_type.startswith("image/") else None
-        ),
-    )
-    session.add(document)
-    await session.flush()
-
-    await resource_access.grant_initial_sharing(
-        session,
-        guild_context,
-        Tool.document,
-        user=current_user,
-        resource_id=document.id,
-        initiative_id=initiative.id,
-        payload=None,
-        grants=initiative_readable(),
-    )
-    # The grants land before the version row: writing a version is the
-    # document owner's to do, and the uploader is its owner only once the
-    # grant exists.
-    await session.flush()
-
-    # Record the initial version (v1). The documents row mirrors this version's
-    # file fields; subsequent uploads add higher-numbered versions.
-    session.add(
-        DocumentFileVersion(
-            document_id=document.id,
-            version_number=1,
-            file_url=file_url,
-            file_content_type=mime_type,
-            file_size=len(contents),
-            original_filename=file.filename,
-            created_by=current_user.id,
-        )
-    )
-    await session.commit()
-    return await read_after_write(session, document.id, current_user, guild_context)
-
-
-def _normalize_mime(mime: str | None) -> str:
-    """Normalize a MIME type for version type-match comparison."""
-    normalized = (mime or "").lower().strip()
-    if normalized == "image/jpg":
-        return "image/jpeg"
-    return normalized
+    return {
+        "file_url": file_url,
+        "file_content_type": mime_type,
+        "file_size": len(contents),
+        "original_filename": file.filename,
+    }
 
 
 @router.post(
@@ -501,110 +510,28 @@ async def upload_document_version(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=DocumentMessages.NOT_A_FILE_DOCUMENT,
         )
-
-    # Pick up a backend/credential change saved in another worker before writing.
-    await storage_config.ensure_storage_config_fresh(session)
-
-    # Read the body with a hard cap so an over-limit upload is rejected before
-    # the whole payload is buffered into memory.
-    try:
-        contents = await attachments_service.read_upload_bounded(
-            file, attachments_service.MAX_DOCUMENT_FILE_SIZE
-        )
-    except attachments_service.FileTooLargeError:
-        raise HTTPException(
-            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
-            detail=DocumentMessages.FILE_TOO_LARGE,
-        )
-    try:
-        mime_type, extension = attachments_service.validate_document_file(
-            content=contents,
-            filename=file.filename,
-            content_type=file.content_type,
-        )
-    except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=DocumentMessages.INVALID_FILE,
-        )
-
-    # A new version must keep the document's original file type. Skip the
-    # check when the stored type is NULL so legacy documents without a
-    # recorded content type aren't permanently locked out of new versions
-    # (``_normalize_mime(None)`` returns ``""`` and would always mismatch).
-    if document.file_content_type is not None and _normalize_mime(
-        mime_type
-    ) != _normalize_mime(document.file_content_type):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=DocumentMessages.VERSION_TYPE_MISMATCH,
-        )
-
-    try:
-        await attachments_service.enforce_storage_quota(
-            session, guild_id=guild_context.guild_id, incoming_bytes=len(contents)
-        )
-    except attachments_service.StorageQuotaExceededError:
-        raise HTTPException(
-            status_code=status.HTTP_507_INSUFFICIENT_STORAGE,
-            detail=AttachmentMessages.STORAGE_QUOTA_EXCEEDED,
-        )
-
-    file_url = await attachments_service.store_upload(
+    # A new version keeps the document's file type.
+    current = document.current_version
+    stored = await _store_file(
         session,
-        guild_id=guild_context.guild_id,
-        filename=attachments_service.new_upload_filename(extension),
-        data=contents,
-        content_type=mime_type,
-        created_by=current_user.id,
+        guild_context,
+        file,
         initiative_id=document.initiative_id,
+        keep_type=current.file_content_type if current is not None else None,
     )
-
-    max_version = await session.scalar(
-        select(func.max(DocumentFileVersion.version_number)).where(
-            DocumentFileVersion.document_id == document_id
-        )
+    version = await file_versions.add_version(
+        session, document, created_by=current_user.id, **stored
     )
-    next_version = (max_version or 0) + 1
-
-    version = DocumentFileVersion(
-        document_id=document_id,
-        version_number=next_version,
-        file_url=file_url,
-        file_content_type=mime_type,
-        file_size=len(contents),
-        original_filename=file.filename,
-        created_by=current_user.id,
+    featured = _featured(version.file_url, version.file_content_type)
+    if featured is not None:
+        document.featured_image_url = featured
+    await file_versions.commit_version(
+        session,
+        guild_context.guild_id,
+        version,
+        conflict=DocumentMessages.VERSION_CONFLICT,
     )
-    session.add(version)
-
-    # Mirror the new (now current) version onto the document row so the
-    # existing download endpoint and viewer serve the latest file.
-    document.file_url = file_url
-    document.file_content_type = mime_type
-    document.file_size = len(contents)
-    document.original_filename = file.filename
-    document.updated_at = datetime.now(timezone.utc)
-    if mime_type and mime_type.startswith("image/"):
-        document.featured_image_url = file_url
-
-    try:
-        await session.commit()
-    except IntegrityError:
-        # The (document_id, version_number) unique constraint rejected this row:
-        # a concurrent upload claimed the same next version number between our
-        # MAX() read and this commit. Roll back, drop the orphaned blob, and ask
-        # the caller to retry rather than surfacing a 500.
-        await session.rollback()
-        attachments_service.delete_blobs(
-            guild_context.guild_id, attachments_service.upload_names([file_url])
-        )
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=DocumentMessages.VERSION_CONFLICT,
-        )
-    await session.refresh(version)
-    return serialize_document_file_version(version, is_current=True)
+    return file_versions.read(DocumentFileVersionRead, version, document)
 
 
 @router.get("/{document_id}/versions", response_model=List[DocumentFileVersionRead])
@@ -624,13 +551,10 @@ async def list_document_versions(
             detail=DocumentMessages.NOT_A_FILE_DOCUMENT,
         )
 
-    result = await session.exec(
-        select(DocumentFileVersion)
-        .where(DocumentFileVersion.document_id == document_id)
-        .order_by(DocumentFileVersion.version_number.desc())
-    )
-    versions = result.all()
-    return serialize_document_file_versions(list(versions))
+    return [
+        file_versions.read(DocumentFileVersionRead, version, document)
+        for version in await file_versions.versions_newest_first(session, document)
+    ]
 
 
 @router.delete(
@@ -659,65 +583,17 @@ async def delete_document_version(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=DocumentMessages.NOT_A_FILE_DOCUMENT,
         )
-
-    # Serialize concurrent deletes against the same document by taking a
-    # row-level lock on the document row. Without it, two owner DELETEs that
-    # both observe ``len(versions) >= 2`` can both pass the "last version"
-    # guard and race to delete different rows — leaving zero versions, and
-    # (in the worst case) ``document.file_url`` pointing at a blob that the
-    # second request also deleted. Holding the lock until commit means the
-    # second request re-reads the version list after the first one finishes.
-    await session.exec(
-        select(Document).where(Document.id == document_id).with_for_update()
+    deleted = await file_versions.delete_version(
+        session, document, version_id, DocumentMessages
     )
-
-    result = await session.exec(
-        select(DocumentFileVersion)
-        .where(DocumentFileVersion.document_id == document_id)
-        .order_by(DocumentFileVersion.version_number.desc())
-    )
-    versions = list(result.all())
-    if len(versions) <= 1:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=DocumentMessages.CANNOT_DELETE_LAST_VERSION,
+    # A featured image that was the deleted file follows the current one.
+    current = document.current_version
+    if current is not None and document.featured_image_url == deleted.file_url:
+        document.featured_image_url = _featured(
+            current.file_url, current.file_content_type
         )
-
-    target = next((v for v in versions if v.id == version_id), None)
-    if target is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=DocumentMessages.VERSION_NOT_FOUND,
-        )
-
-    is_current = target.version_number == versions[0].version_number
-    deleted_url = target.file_url
-
-    await session.delete(target)
-
-    if is_current:
-        # Promote the next-highest version to current by mirroring its file
-        # fields onto the document row.
-        promoted = next((v for v in versions if v.id != version_id), None)
-        if promoted is not None:
-            document.file_url = promoted.file_url
-            document.file_content_type = promoted.file_content_type
-            document.file_size = promoted.file_size
-            document.original_filename = promoted.original_filename
-            document.updated_at = datetime.now(timezone.utc)
-            # Keep featured image coherent when it referenced the deleted blob.
-            if document.featured_image_url == deleted_url:
-                if (promoted.file_content_type or "").startswith("image/"):
-                    document.featured_image_url = promoted.file_url
-                else:
-                    document.featured_image_url = None
     await session.commit()
-
-    # Once the version is gone, and only if nothing else shows its file.
-    released = await attachments_service.release_unshown(
-        guild_context.guild_id, [deleted_url]
-    )
-    attachments_service.delete_blobs(guild_context.guild_id, released)
+    await file_versions.release_files(guild_context.guild_id, deleted)
 
 
 @router.get("/{document_id}", response_model=DocumentRead)
@@ -1113,7 +989,8 @@ async def download_document_file(
             not_found=Tool.document.not_found_code,
             denied=Tool.document.no_access_code,
         )
-    if document.document_type != DocumentType.file or document.file_url is None:
+    version = document.current_version
+    if document.document_type != DocumentType.file or version is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=Tool.document.not_found_code
         )
@@ -1128,13 +1005,7 @@ async def download_document_file(
         current_user.id,
         inline,
     )
-    return _file_download_response(
-        guild_id=guild_id,
-        file_url=document.file_url,
-        content_type=document.file_content_type,
-        original_filename=document.original_filename,
-        inline=inline,
-    )
+    return _file_download_response(guild_id=guild_id, version=version, inline=inline)
 
 
 @router.get("/{document_id}/versions/{version_id}/download", include_in_schema=False)
@@ -1192,13 +1063,7 @@ async def download_document_file_version(
         current_user.id,
         inline,
     )
-    return _file_download_response(
-        guild_id=guild_id,
-        file_url=version.file_url,
-        content_type=version.file_content_type,
-        original_filename=version.original_filename,
-        inline=inline,
-    )
+    return _file_download_response(guild_id=guild_id, version=version, inline=inline)
 
 
 @router.post(

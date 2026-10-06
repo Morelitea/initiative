@@ -109,21 +109,23 @@ class Document(
             server_default=text("'native'"),
         ),
     )
-    file_url: Optional[str] = Field(
+    #: A file document's current version; ``NULL`` for every other type. The
+    #: two tables point at each other, so the key is added once both exist
+    #: (``use_alter``) and the pointer is written after the version row
+    #: (``post_update``). A version a document points at cannot be deleted
+    #: until it points elsewhere; deleting the document takes its versions.
+    current_version_id: Optional[int] = Field(
         default=None,
-        sa_column=Column(String(length=512), nullable=True),
-    )
-    file_content_type: Optional[str] = Field(
-        default=None,
-        sa_column=Column(String(length=128), nullable=True),
-    )
-    file_size: Optional[int] = Field(
-        default=None,
-        sa_column=Column(BigInteger, nullable=True),
-    )
-    original_filename: Optional[str] = Field(
-        default=None,
-        sa_column=Column(String(length=255), nullable=True),
+        sa_column=Column(
+            Integer,
+            ForeignKey(
+                "document_file_versions.id",
+                use_alter=True,
+                name="documents_current_version_id_fkey",
+            ),
+            nullable=True,
+            index=True,
+        ),
     )
 
     initiative: Optional["Initiative"] = Relationship(back_populates="documents")
@@ -136,22 +138,30 @@ class Document(
             "viewonly": True,
         }
     )
-    file_versions: List["DocumentFileVersion"] = Relationship(
+    versions: List["DocumentFileVersion"] = Relationship(
         back_populates="document",
         sa_relationship_kwargs={
             "cascade": "all, delete-orphan",
             "order_by": "DocumentFileVersion.version_number",
+            "foreign_keys": "DocumentFileVersion.document_id",
         },
+    )
+    #: Loaded with the row wherever a document is, so a list reads its file
+    #: in one more query for the whole page.
+    current_version: Optional["DocumentFileVersion"] = Relationship(
+        sa_relationship_kwargs={
+            "foreign_keys": "Document.current_version_id",
+            "post_update": True,
+            "lazy": "selectin",
+        }
     )
 
 
 class DocumentFileVersion(CreatedByMixin, table=True):
     """A single uploaded version of a file-type document.
 
-    Every file document has at least one row here; the ``documents`` row
-    mirrors the file fields of the current version (the highest
-    ``version_number``) so the existing download endpoint and viewer keep
-    working without consulting this table.
+    Every file document has at least one row here, and the ``documents`` row
+    names the current one (``current_version_id``).
     """
 
     __tablename__ = "document_file_versions"
@@ -172,9 +182,10 @@ class DocumentFileVersion(CreatedByMixin, table=True):
     )
     version_number: int = Field(nullable=False)
     file_url: str = Field(sa_column=Column(String(length=512), nullable=False))
-    file_content_type: Optional[str] = Field(
-        default=None,
-        sa_column=Column(String(length=128), nullable=True),
+    #: One of ``attachments.ALLOWED_DOCUMENT_MIME_TYPES``: it decides how the
+    #: file is shown.
+    file_content_type: str = Field(
+        sa_column=Column(String(length=128), nullable=False),
     )
     file_size: Optional[int] = Field(
         default=None,
@@ -190,7 +201,10 @@ class DocumentFileVersion(CreatedByMixin, table=True):
         sa_column=Column(DateTime(timezone=True), nullable=False),
     )
 
-    document: Optional["Document"] = Relationship(back_populates="file_versions")
+    document: Optional["Document"] = Relationship(
+        back_populates="versions",
+        sa_relationship_kwargs={"foreign_keys": "DocumentFileVersion.document_id"},
+    )
 
 
 attach_actions(Document, Tool.document)

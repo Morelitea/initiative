@@ -16,8 +16,8 @@ from __future__ import annotations
 from app.core.tools import Tool
 from app.models.tenant.calendar import Calendar
 from app.models.tenant.dashboard import Dashboard
-from app.models.tenant.document import Document
-from app.models.tenant.gallery import Gallery, GalleryImage
+from app.models.tenant.document import Document, DocumentFileVersion
+from app.models.tenant.gallery import Gallery, GalleryImage, GalleryImageVersion
 from app.models.tenant.post import Post
 from app.models.tenant.queue import Queue, QueueItem
 from app.models.tenant.wiki import Wiki, WikiPage
@@ -35,6 +35,29 @@ def build_documents() -> Dataset:
         model=Document,
         tool=Tool.document,
         fields=derive_fields(Document, internal=_DOCUMENT_INTERNAL),
+        relations=(
+            Relation(
+                name="current_version",
+                hops=(
+                    Hop(
+                        dataset="document_versions",
+                        left="current_version_id",
+                        right="id",
+                    ),
+                ),
+            ),
+        ),
+    )
+
+
+def build_document_versions() -> Dataset:
+    """One uploaded version of a file document: its type, size and name. A
+    document reaches the one it shows as ``current_version``."""
+    return Dataset(
+        model=DocumentFileVersion,
+        tool=Tool.document,
+        name_override="document_versions",
+        fields=derive_fields(DocumentFileVersion),
     )
 
 
@@ -131,5 +154,26 @@ def build_gallery_images() -> Dataset:
                 name="gallery",
                 hops=(Hop(dataset="galleries", left="gallery_id", right="id"),),
             ),
+            Relation(
+                name="current_version",
+                hops=(
+                    Hop(
+                        dataset="gallery_image_versions",
+                        left="current_version_id",
+                        right="id",
+                    ),
+                ),
+            ),
         ),
+    )
+
+
+def build_gallery_image_versions() -> Dataset:
+    """One uploaded rendition of a picture: its type, size and dimensions. A
+    picture reaches the one it shows as ``current_version``."""
+    return Dataset(
+        model=GalleryImageVersion,
+        tool=Tool.gallery,
+        name_override="gallery_image_versions",
+        fields=derive_fields(GalleryImageVersion),
     )

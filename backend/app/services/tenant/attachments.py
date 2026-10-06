@@ -179,7 +179,7 @@ async def purge_document_uploads(session, documents: Iterable[Any]) -> Set[str]:
     """
     from sqlmodel import select
 
-    from app.models.tenant.document import Document, DocumentFileVersion, DocumentType
+    from app.models.tenant.document import Document, DocumentFileVersion
 
     doomed = list(documents)
     if not doomed:
@@ -191,10 +191,7 @@ async def purge_document_uploads(session, documents: Iterable[Any]) -> Set[str]:
             DocumentFileVersion.document_id.in_(doomed_ids)
         )
     )
-    stored = upload_names(
-        [d.file_url for d in doomed if d.document_type == DocumentType.file]
-    ) | upload_names(versions.all())
-    removed = await _drop_upload_rows(session, stored)
+    removed = await _drop_upload_rows(session, upload_names(versions.all()))
 
     shown: Set[str] = set()
     for d in doomed:
@@ -229,8 +226,7 @@ async def purge_gallery_image_uploads(session, images: Iterable[Any]) -> Set[str
             GalleryImageVersion.gallery_image_id.in_({i.id for i in doomed})
         )
     )
-    urls = [u for image in doomed for u in (image.file_url, image.thumbnail_url)]
-    urls += [u for row in versions.all() for u in row]
+    urls = [u for row in versions.all() for u in row]
     return await _drop_upload_rows(session, upload_names(urls))
 
 
@@ -257,10 +253,11 @@ UNCLAIMED_PASTED_IMAGE_GRACE = timedelta(hours=24)
 
 def _upload_columns() -> tuple[tuple[type, str], ...]:
     """Every column a stored upload can be shown from: every column somebody
-    writes in, and the file columns of documents and pictures."""
+    writes in, a document's featured image, and the files of every version of
+    a file document or a picture."""
     from app.db.search_index import written_columns
     from app.models.tenant.document import Document, DocumentFileVersion
-    from app.models.tenant.gallery import GalleryImage, GalleryImageVersion
+    from app.models.tenant.gallery import GalleryImageVersion
 
     return (
         *(
@@ -269,10 +266,7 @@ def _upload_columns() -> tuple[tuple[type, str], ...]:
             for column in columns
         ),
         (Document, "featured_image_url"),
-        (Document, "file_url"),
         (DocumentFileVersion, "file_url"),
-        (GalleryImage, "file_url"),
-        (GalleryImage, "thumbnail_url"),
         (GalleryImageVersion, "file_url"),
         (GalleryImageVersion, "thumbnail_url"),
     )

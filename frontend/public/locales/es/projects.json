@@ -2,6 +2,7 @@
   "addProject": "Agregar proyecto",
   "loading": "Cargando proyectos…",
   "loadError": "No se pudieron cargar los proyectos.",
+  "error": "Algo salió mal",
   "pinned": "Fijados",
   "noProjects": "Aún no hay proyectos. Crea uno para comenzar.",
   "noMatchingProjects": "Ningún proyecto coincide con tus filtros.",
@@ -101,7 +102,6 @@
   "detail": {
     "backToProjects": "← Volver a proyectos",
     "loading": "Cargando proyecto…",
-    "deleteError": "No se pudo eliminar el proyecto en este momento.",
     "notFound": "Proyecto no encontrado",
     "notFoundDescription": "Este proyecto puede haber sido eliminado o el enlace está roto.",
     "noAccess": "Acceso denegado",
@@ -197,26 +197,6 @@
   },
   "settings": {
     "tabTaskStatuses": "Estados de tarea",
-    "details": {
-      "description": "Actualiza el ícono, nombre y descripción que se muestran en el espacio de trabajo.",
-      "identityHeading": "Identidad",
-      "identityDescription": "Dale al proyecto un nombre y emoji reconocibles.",
-      "iconLabel": "Ícono",
-      "iconHint": "Elige un emoji para que este proyecto sea fácil de identificar.",
-      "namePlaceholder": "Hoja de ruta del producto",
-      "saveDetails": "Guardar cambios",
-      "detailsUpdated": "Detalles del proyecto actualizados",
-      "updateError": "No se pudo actualizar el proyecto.",
-      "noWriteAccess": "Necesitas acceso de escritura para editar estos detalles.",
-      "descriptionHeading": "Descripción",
-      "descriptionDescription": "Comparte contexto para ayudar a los colaboradores a entender el trabajo.",
-      "descriptionPlaceholder": "¿Qué estamos tratando de lograr?",
-      "scheduleHeading": "Fechas",
-      "scheduleDescription": "Define cuándo comienza y termina el proyecto. Ambas son opcionales."
-    },
-    "access": {
-      "updateError": "No se pudo actualizar el acceso"
-    },
     "templateStatus": {
       "title": "Estado de plantilla",
       "description": "Convierte este proyecto en una plantilla reutilizable o reviértelo a un proyecto estándar.",

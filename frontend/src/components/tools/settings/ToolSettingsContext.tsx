@@ -76,14 +76,13 @@ export interface ToolSettingsContextValue {
   /** Always loaded: the layout renders no section until the entity is in hand. */
   entity: ToolSettingsEntity;
   /**
-   * The rename/describe mutation. Absent for tools that save those fields
-   * elsewhere — projects through their own richer form, a document's name in
-   * the editor.
+   * The rename/describe mutation. Absent for a document, whose name is edited
+   * in the editor.
    */
   update?: ToolMutation<{ name?: string; description?: string | null }>;
   setGrants: ToolMutation<ResourceGrantSchema[]>;
   remove: ToolMutation<number>;
-  /** Extra cards for the Details section, e.g. a project's dates or a calendar's color. */
+  /** Extra cards for the Details section, e.g. a calendar's color. */
   detailsExtra?: ReactNode;
   /** Extra fields inside the Details card itself, below the description. Each
    *  saves on its own; the card's Save button is for the name and description. */

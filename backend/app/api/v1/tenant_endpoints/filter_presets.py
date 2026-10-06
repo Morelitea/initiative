@@ -19,7 +19,7 @@ from app.api.deps import (
     get_current_active_user,
     GuildContextDep,
 )
-from app.core.messages import FilterPresetMessages, ProjectMessages
+from app.core.messages import FilterPresetMessages
 from app.models.platform.user import User
 from app.models.tenant.filter_preset import ProjectFilterPreset
 from app.models.tenant.project import Project
@@ -51,7 +51,8 @@ async def _require_manageable_project(
     authority comes from their initiative role, not from a per-project share,
     so checking the sharing level first would refuse a manager who happens to
     hold only read on this project. ``require_project_configure`` is the gate —
-    manager, project owner, or guild admin — and an owner holds write anyway.
+    manager, project owner, or guild admin, on a project that is not archived
+    (409 ``CONTENT_IS_FROZEN``) — and an owner holds write anyway.
     """
     project = await resource_access.load_authorized(
         session,
@@ -60,11 +61,6 @@ async def _require_manageable_project(
         user,
         guild_context,
     )
-    if project.archived_at is not None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=ProjectMessages.IS_ARCHIVED,
-        )
     permissions_service.require_project_configure(project, context=guild_context)
     return project
 

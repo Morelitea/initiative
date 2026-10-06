@@ -160,10 +160,11 @@ async def test_a_plugin_copies_a_file_document_under_its_uploader(
     assert version.created_by == installed.seat.user.id
 
 
-async def test_upload_version_creates_v2_and_mirrors_document(
+async def test_upload_version_creates_v2_and_points_the_document_at_it(
     client: AsyncClient, session: AsyncSession, acting_user
 ) -> None:
-    """A write user uploads v2; document mirror + Upload row + version row update."""
+    """A write user uploads v2; the document points at it, and it has its
+    Upload row and version row."""
     owner = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     writer = await acting_user(
         guild_role=CommunityRole.member,
@@ -185,11 +186,14 @@ async def test_upload_version_creates_v2_and_mirrors_document(
     assert body["version_number"] == 2
     assert body["is_current"] is True
 
-    # Document row now mirrors v2.
+    read = await client.get(writer.g(f"/documents/{doc['id']}"), headers=writer.headers)
+    assert (read.json()["file_size"], read.json()["original_filename"]) == (
+        len(PDF_BYTES_V2),
+        "v2.pdf",
+    )
     session.expire_all()
     refreshed = await session.get(Document, doc["id"])
-    assert refreshed.file_size == len(PDF_BYTES_V2)
-    assert refreshed.original_filename == "v2.pdf"
+    assert refreshed.current_version_id == body["id"]
 
     # Two version rows + two Upload rows exist.
     versions = (
@@ -451,10 +455,10 @@ async def test_delete_non_current_version_owner(
     ).one_or_none() is None
     assert not storage.exists(v1_filename)
 
-    # Current (v2) unchanged on document.
+    # The document still points at v2.
     session.expire_all()
     refreshed = await session.get(Document, doc["id"])
-    assert refreshed.file_size == len(PDF_BYTES_V2)
+    assert refreshed.current_version.version_number == 2
 
 
 async def test_delete_current_version_promotes_previous(
@@ -476,14 +480,14 @@ async def test_delete_current_version_promotes_previous(
     )
     assert resp.status_code == 204
 
-    # Document mirror reverts to v1. Capture the versions URL first — expire_all()
-    # below expires owner.guild, and building owner.g(...) afterwards would trigger
-    # a sync lazy-load of guild.id (greenlet error).
+    # The document points back at v1. Capture the versions URL first —
+    # expire_all() below expires owner.guild, and building owner.g(...) afterwards
+    # would trigger a sync lazy-load of guild.id (greenlet error).
     versions_url = owner.g(f"/documents/{doc['id']}/versions")
     session.expire_all()
     refreshed = await session.get(Document, doc["id"])
-    assert refreshed.file_size == len(PDF_BYTES)
-    assert refreshed.original_filename == "v1.pdf"
+    assert refreshed.current_version.version_number == 1
+    assert refreshed.current_version.original_filename == "v1.pdf"
 
     versions = (await client.get(versions_url, headers=owner.headers)).json()
     assert [v["version_number"] for v in versions] == [1]
@@ -542,33 +546,6 @@ async def test_delete_version_non_owner_forbidden(
         headers=writer.headers,
     )
     assert resp.status_code == 403
-
-
-async def test_upload_version_allowed_when_stored_content_type_is_null(
-    client: AsyncClient, session: AsyncSession, acting_user
-) -> None:
-    """Legacy documents with NULL ``file_content_type`` still accept new versions.
-
-    Without the NULL guard, ``_normalize_mime(None) == ""`` would always
-    mismatch the uploaded MIME type and permanently reject new versions
-    with ``VERSION_TYPE_MISMATCH``.
-    """
-    owner = await acting_user(guild_role=CommunityRole.admin, initiative=True)
-    doc = await _upload_initial_file_doc(client, owner, initiative=owner.initiative)
-
-    # Simulate a legacy / backfilled row where the content type was never recorded.
-    db_doc = await session.get(Document, doc["id"])
-    assert db_doc is not None
-    db_doc.file_content_type = None
-    await session.commit()
-
-    resp = await client.post(
-        owner.g(f"/documents/{doc['id']}/versions"),
-        headers=owner.headers,
-        files={"file": ("v2.pdf", PDF_BYTES_V2, "application/pdf")},
-    )
-    assert resp.status_code == 201, resp.text
-    assert resp.json()["version_number"] == 2
 
 
 async def test_delete_version_non_file_document_rejected(

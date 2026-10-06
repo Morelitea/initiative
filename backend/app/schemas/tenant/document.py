@@ -29,10 +29,7 @@ from app.schemas.tenant.tool import ToolSummaryBase, serialize_tool
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.db.guild_standing import ActorContext
-    from app.models.tenant.document import (
-        Document,
-        DocumentFileVersion,
-    )
+    from app.models.tenant.document import Document
 
 #: One sheet of a workbook, in the canonical shape
 #: ``normalize_spreadsheet_content`` produces.
@@ -100,7 +97,7 @@ class DocumentSummary(DocumentBase, ToolSummaryBase):
     featured_image_url: Annotated[Optional[str], UPLOAD_PATH] = None
     projects: List[DocumentProjectLink] = Field(default_factory=list)
     comment_count: int = 0
-    # File document fields
+    # File document fields, read from its current version
     document_type: DocumentType = DocumentType.native
     file_url: Annotated[Optional[str], UPLOAD_PATH] = None
     file_content_type: Optional[str] = None
@@ -118,11 +115,17 @@ class DocumentSummary(DocumentBase, ToolSummaryBase):
     ) -> dict[str, Any]:
         from app.services.tenant.ownership import owner_plugin_of
 
+        version = row.current_version
         return {
             "owner": owner_profile(row),
             "owner_plugin": owner_plugin_of(row),
             "smart_link_url": smart_link_url(row),
+            **{name: getattr(version, name, None) for name in _FILE_FIELDS},
         }
+
+
+#: What a document reports of its current version.
+_FILE_FIELDS = ("file_url", "file_content_type", "file_size", "original_filename")
 
 
 class DocumentListResponse(PageMeta):
@@ -220,38 +223,6 @@ def serialize_document(
         user_id=user_id,
         **({} if include_content else {"content": {}}),
     )
-
-
-def serialize_document_file_version(
-    version: "DocumentFileVersion",
-    *,
-    is_current: bool,
-) -> DocumentFileVersionRead:
-    return DocumentFileVersionRead(
-        id=version.id,
-        version_number=version.version_number,
-        file_content_type=version.file_content_type,
-        file_size=version.file_size,
-        original_filename=version.original_filename,
-        created_by=version.created_by,
-        created_at=version.created_at,
-        is_current=is_current,
-    )
-
-
-def serialize_document_file_versions(
-    versions: List["DocumentFileVersion"],
-) -> List[DocumentFileVersionRead]:
-    """Serialize versions, marking the highest ``version_number`` as current."""
-    if not versions:
-        return []
-    current_number = max(v.version_number for v in versions)
-    return [
-        serialize_document_file_version(
-            v, is_current=v.version_number == current_number
-        )
-        for v in versions
-    ]
 
 
 class SpreadsheetImportRead(SanitizedBaseModel):

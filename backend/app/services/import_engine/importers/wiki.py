@@ -490,10 +490,11 @@ async def _upload_document(
 ) -> int | None:
     """A filed upload, as a file document over the bytes its zip brought. One
     whose file is not stored here — left out of the zip, or refused on the way
-    in — is not created."""
+    in — or is not a file a document holds is not created."""
     from app.db.session import routed_guild_id
     from app.models.tenant.document import Document, DocumentType
     from app.models.tenant.upload import Upload
+    from app.services.tenant import file_versions
 
     key = (upload.storage_key or "").strip()
     stored = (
@@ -501,16 +502,22 @@ async def _upload_document(
     ).one_or_none()
     if not key or stored is None:
         return None
+    filename = upload.original_filename or key
+    content_type = await file_versions.stored_file_type(
+        Document,
+        routed_guild_id(session),
+        key,
+        filename=filename,
+        hint=stored.content_type,
+    )
+    if content_type is None:
+        return None
     document = Document(
         name=upload.name,
         document_type=DocumentType.file,
         content={},
         initiative_id=target_initiative.id,
         created_by=importer.id,
-        file_url=f"/uploads/{routed_guild_id(session)}/{key}",
-        original_filename=upload.original_filename or key,
-        file_content_type=stored.content_type,
-        file_size=stored.size_bytes,
     )
     session.add(document)
     await session.flush()
@@ -520,6 +527,15 @@ async def _upload_document(
         entity_id=document.id,
         target_initiative=target_initiative,
         importer=importer,
+    )
+    await file_versions.add_version(
+        session,
+        document,
+        created_by=importer.id,
+        file_url=f"/uploads/{routed_guild_id(session)}/{key}",
+        original_filename=filename,
+        file_content_type=content_type,
+        file_size=stored.size_bytes,
     )
     for tag_name in upload.tags:
         resolved = await ensure_tag(session, name=tag_name, color="#6b7280")

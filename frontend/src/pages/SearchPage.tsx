@@ -90,7 +90,7 @@ export function SearchPage() {
       to: ".",
       search: (prev: Record<string, unknown>) => ({
         ...prev,
-        tab: next === DEFAULT_SEARCH_CATEGORY ? undefined : next,
+        tab: isSearchCategory(next) && next !== DEFAULT_SEARCH_CATEGORY ? next : undefined,
         page: undefined,
       }),
     });

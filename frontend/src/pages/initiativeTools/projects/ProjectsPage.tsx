@@ -15,9 +15,10 @@ import { ProjectCardActionButton } from "@/components/projects/ProjectCardAction
 import { ProjectListPanel } from "@/components/projects/ProjectListPanel";
 import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useUnarchiveEntity } from "@/hooks/useArchive";
 import { useCreateFromSearchParam } from "@/hooks/useCreateFromSearchParam";
 import { useInitiative } from "@/hooks/useInitiatives";
-import { useRemoveProjectTemplate, useUnarchiveProject } from "@/hooks/useProjects";
+import { useRemoveProjectTemplate } from "@/hooks/useProjects";
 import { useToolCounts } from "@/hooks/useToolCounts";
 import { isToolView, type ToolView, toolViewParams } from "@/lib/tools";
 
@@ -37,7 +38,7 @@ export const ProjectsView = ({ fixedInitiativeId, canCreate }: ProjectsViewProps
   } = useCreateFromSearchParam();
 
   const removeTemplate = useRemoveProjectTemplate();
-  const unarchiveProject = useUnarchiveProject();
+  const unarchiveProject = useUnarchiveEntity();
 
   // Which state of the list is shown. It lives in the URL so an archive view is
   // linkable and answers the back button.
@@ -141,7 +142,9 @@ export const ProjectsView = ({ fixedInitiativeId, canCreate }: ProjectsViewProps
                 icon={ArchiveRestore}
                 iconSize={iconSize}
                 label={t("common:toolSettings.archive.unarchive")}
-                onClick={() => unarchiveProject.mutate(project.id)}
+                onClick={() =>
+                  unarchiveProject.mutate({ entityType: "project", entityId: project.id })
+                }
                 disabled={unarchiveProject.isPending}
               />
             ) : null

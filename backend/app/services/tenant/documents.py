@@ -11,11 +11,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.search import SearchEntityType
 from app.models.tenant.comment import Comment
-from app.models.tenant.document import (
-    Document,
-    DocumentFileVersion,
-    DocumentType,
-)
+from app.models.tenant.document import Document, DocumentType
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.resource_grant import ResourceGrant
 from app.core.references import unresolve_wikilinks_to
@@ -23,6 +19,7 @@ from app.core.messages import DocumentMessages
 from app.services.tenant import attachments as attachments_service
 from app.services.tenant import body_states
 from app.services.tenant import content_references
+from app.services.tenant import file_versions
 from app.services.tenant import ownership as ownership_service
 from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
@@ -222,12 +219,14 @@ async def copy_contents(
     released on its own; a file document's copy starts again at version 1.
     Makes no rows inside it."""
     content = normalize_document_content(copy.content, document_type=copy.document_type)
+    current = source.current_version
+    file_url = current.file_url if current is not None else None
     copies = await attachments_service.copy_uploads(
         session,
         [
             *attachments_service.extract_upload_urls(content),
             copy.featured_image_url,
-            copy.file_url,
+            file_url,
         ],
         guild_id=actor.guild_id,
         created_by=actor.user_id,
@@ -239,25 +238,14 @@ async def copy_contents(
 
     copy.content = attachments_service.replace_upload_urls(content, copies)
     copy.featured_image_url = copied(copy.featured_image_url)
-    copy.file_url = copied(copy.file_url)
-    if copy.file_url is not None:
+    if current is not None:
         # A plug-in is never an author: its copy names the file's uploader.
-        author = actor.user_id or await session.scalar(
-            select(DocumentFileVersion.created_by)
-            .where(DocumentFileVersion.document_id == source.id)
-            .order_by(DocumentFileVersion.version_number.desc())
-            .limit(1)
-        )
-        session.add(
-            DocumentFileVersion(
-                document_id=copy.id,
-                version_number=1,
-                file_url=copy.file_url,
-                file_content_type=copy.file_content_type,
-                file_size=copy.file_size,
-                original_filename=copy.original_filename,
-                created_by=author,
-            )
+        file_versions.copy_version(
+            session,
+            current,
+            copy,
+            file_url=copied(file_url),
+            created_by=actor.user_id or current.created_by,
         )
     return []
 

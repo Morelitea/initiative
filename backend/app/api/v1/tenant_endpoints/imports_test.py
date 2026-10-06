@@ -1102,8 +1102,12 @@ async def test_backup_import_end_to_end_with_assets(
         )
     ).one()
     assert file_doc.name == "Handout"
-    assert file_doc.file_url.endswith("/restore-me.pdf")
-    assert file_doc.original_filename == "Handout.pdf"
+    # The restored file is the document's version 1, typed from its bytes.
+    version = file_doc.current_version
+    assert version is not None and version.version_number == 1
+    assert version.file_url.endswith("/restore-me.pdf")
+    assert version.original_filename == "Handout.pdf"
+    assert version.file_content_type == "application/pdf"
 
 
 async def test_backup_belongs_to_the_seat(client, acting_user, session):
@@ -3518,7 +3522,7 @@ async def test_a_gallery_zip_imports_with_its_pictures_into_another_community(
     await _all_tools_enabled(session, a.initiative)
     gallery = await create_gallery(session, a.initiative, a.user, name="Barovia maps")
     picture = await create_gallery_image(session, gallery, a.user, title="Village")
-    key = picture.file_url.rsplit("/", 1)[-1]
+    key = picture.current_version.file_url.rsplit("/", 1)[-1]
 
     exported = await client.get(
         a.g("/exports/gallery"),
@@ -3548,8 +3552,11 @@ async def test_a_gallery_zip_imports_with_its_pictures_into_another_community(
             select(GalleryImage).where(GalleryImage.gallery_id == restored.id)
         )
     ).all()
-    assert image.file_url == f"/uploads/{b.guild.id}/{key}"
-    assert image.file_content_type == "image/png"
+    # The picture is its version 1, typed from its bytes.
+    version = image.current_version
+    assert version is not None and version.version_number == 1
+    assert version.file_url == f"/uploads/{b.guild.id}/{key}"
+    assert version.file_content_type == "image/png"
 
 
 async def test_a_wiki_zip_imports_back_from_the_wiki_page(client, acting_user, session):
@@ -3639,7 +3646,11 @@ async def test_a_wiki_zip_brings_its_filed_documents_back_where_they_were(
     assert filed["Loot"].document_type == DocumentType.spreadsheet
     handout = filed["Handout"]
     assert handout.document_type == DocumentType.file
-    assert handout.file_url == f"/uploads/{b.guild.id}/handout-key.pdf"
+    # The upload is the document's version 1, typed from its bytes.
+    version = handout.current_version
+    assert version is not None and version.version_number == 1
+    assert version.file_url == f"/uploads/{b.guild.id}/handout-key.pdf"
+    assert version.file_content_type == "application/pdf"
     assert get_guild_storage(b.guild.id).exists("handout-key.pdf")
     rules = (
         await session.exec(
@@ -4816,7 +4827,7 @@ async def test_a_jira_import_brings_its_images_as_uploads(
             select(Document).where(Document.document_type == DocumentType.file)
         )
     ).one()
-    assert document.original_filename == "spec.pdf"
+    assert document.current_version.original_filename == "spec.pdf"
     assert await relationships_service.related_ids(
         session,
         Endpoint(kind=SearchEntityType.task, id=task.id),
@@ -5548,7 +5559,7 @@ async def test_a_confluence_pages_attachments_arrive_as_uploads_and_documents(
         await session.exec(select(WikiPage).where(WikiPage.wiki_id == wiki.id))
     ).one()
     documents = {
-        d.original_filename: d
+        d.current_version.original_filename: d
         for d in (
             await session.exec(
                 select(Document).where(
@@ -5779,7 +5790,7 @@ async def test_a_confluence_html_export_becomes_a_wiki(
             select(Document).where(Document.document_type == DocumentType.file)
         )
     ).one()
-    assert document.original_filename == "spec.pdf"
+    assert document.current_version.original_filename == "spec.pdf"
     assert document_parent(wiki, document.id) == pages["Home"].id
 
 

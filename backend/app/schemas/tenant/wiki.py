@@ -300,8 +300,8 @@ def serialize_document_as_page(
         updated_at=document.updated_at,
         headings=[WikiPageHeading(**h) for h in page_headings(heading_nodes)],
         document_type=getattr(document.document_type, "value", document.document_type),
-        file_content_type=document.file_content_type,
-        original_filename=document.original_filename,
+        file_content_type=getattr(document.current_version, "file_content_type", None),
+        original_filename=getattr(document.current_version, "original_filename", None),
         smart_link_url=smart_link_url(document),
     )
 
