@@ -6,8 +6,8 @@ list. Every event that predates it stays open.
 
 Guild-scoped: applied to ``guild_template`` and every ``guild_<id>``.
 
-Revision ID: 20261006_0462
-Revises: 20261006_0461
+Revision ID: 20261006_0463
+Revises: 20261006_0462
 Create Date: 2026-10-06
 """
 
@@ -16,8 +16,8 @@ from alembic import op
 
 from app.db.guild_migrations import run_for_each_guild_schema
 
-revision = "20261006_0462"
-down_revision = "20261006_0461"
+revision = "20261006_0463"
+down_revision = "20261006_0462"
 branch_labels = None
 depends_on = None
 
