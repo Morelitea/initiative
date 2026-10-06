@@ -34,10 +34,13 @@ const mocks = vi.hoisted(() => ({
   login: vi.fn(),
   completeSecondFactor: vi.fn(),
   applyPasskeySignIn: vi.fn(),
+  completeOidcLogin: vi.fn(),
+  redeemNativeSignIn: vi.fn(),
   get: vi.fn(),
   signInWithPasskey: vi.fn(),
   cancelPendingPasskeyPrompt: vi.fn(),
   browserOffersPasskeys: vi.fn(() => true),
+  appRunsPasskeys: vi.fn(() => false),
   browserOffersPasskeyAutofill: vi.fn(() => Promise.resolve(false)),
   /** The real mapping, so the card is asserted on the copy it would show. */
   describePasskeyPromptError: vi.fn((error: unknown) => {
@@ -58,6 +61,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/api/generated/auth/auth", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/api/generated/auth/auth")>()),
   listLoginProviders: () => mocks.get("/auth/providers").then((r: { data: unknown }) => r.data),
+  redeemNativeSignIn: (body: unknown) => mocks.redeemNativeSignIn(body),
 }));
 
 vi.mock("@/hooks/useAuth", async (importOriginal) => ({
@@ -66,6 +70,7 @@ vi.mock("@/hooks/useAuth", async (importOriginal) => ({
     login: mocks.login,
     completeSecondFactor: mocks.completeSecondFactor,
     applyPasskeySignIn: mocks.applyPasskeySignIn,
+    completeOidcLogin: mocks.completeOidcLogin,
   }),
 }));
 
@@ -89,6 +94,8 @@ vi.mock("@/hooks/useAppConfig", async (importOriginal) => ({
 // Every conversation with the browser's credential API goes through this one
 // module, so the whole ceremony is one mock.
 vi.mock("@/lib/passkeys", () => ({
+  appRunsPasskeys: () => mocks.appRunsPasskeys(),
+  PasskeyNeedsBrowserError: class PasskeyNeedsBrowserError extends Error {},
   browserOffersPasskeys: () => mocks.browserOffersPasskeys(),
   browserOffersPasskeyAutofill: () => mocks.browserOffersPasskeyAutofill(),
   signInWithPasskey: (options?: unknown) => mocks.signInWithPasskey(options),
@@ -98,6 +105,7 @@ vi.mock("@/lib/passkeys", () => ({
 
 import { SecondFactorRequiredError } from "@/hooks/useAuth";
 import { takePendingSignIn } from "@/lib/nativeSignIn";
+import { PasskeyNeedsBrowserError } from "@/lib/passkeys";
 
 import { LoginPage } from "./LoginPage";
 
@@ -179,6 +187,9 @@ const resetLoginMocks = () => {
   mocks.login.mockReset();
   mocks.completeSecondFactor.mockReset().mockResolvedValue(undefined);
   mocks.applyPasskeySignIn.mockReset().mockResolvedValue(undefined);
+  mocks.completeOidcLogin.mockReset().mockResolvedValue(undefined);
+  mocks.redeemNativeSignIn.mockReset();
+  mocks.appRunsPasskeys.mockReset().mockReturnValue(false);
   mocks.signInWithPasskey.mockReset();
   mocks.cancelPendingPasskeyPrompt.mockReset();
   mocks.browserOffersPasskeys.mockReset().mockReturnValue(true);
@@ -560,6 +571,53 @@ describe("LoginPage passkey", () => {
         .replace(/=+$/, "")
     );
     expect(mocks.signInWithPasskey).not.toHaveBeenCalled();
+  });
+
+  it("runs the ceremony in the app where the app can", async () => {
+    // The server hands back a code bound to this app's challenge, as it does
+    // for the relay, and the app redeems it itself.
+    const user = userEvent.setup();
+    mocks.server = { isNativePlatform: true };
+    mocks.appRunsPasskeys.mockReturnValue(true);
+    mocks.signInWithPasskey.mockResolvedValue({
+      redirect_to: "initiative://oidc/callback?code=one-time",
+    });
+    mocks.redeemNativeSignIn.mockResolvedValue({
+      access_token: "access",
+      refresh_token: "refresh",
+      token_type: "bearer",
+    });
+    renderLogin();
+
+    await user.click(await passkeyButton());
+
+    await waitFor(() =>
+      expect(mocks.completeOidcLogin).toHaveBeenCalledWith({
+        accessToken: "access",
+        refreshToken: "refresh",
+      })
+    );
+    expect(mocks.signInWithPasskey).toHaveBeenCalledWith(
+      expect.objectContaining({ mobile: true, deviceName: "Test Device" })
+    );
+    expect(mocks.redeemNativeSignIn).toHaveBeenCalledWith(
+      expect.objectContaining({ code: "one-time" })
+    );
+    expect(Browser.open).not.toHaveBeenCalled();
+  });
+
+  it("goes to the browser when the phone will not let the app act for the server", async () => {
+    const user = userEvent.setup();
+    mocks.server = { isNativePlatform: true };
+    mocks.appRunsPasskeys.mockReturnValue(true);
+    mocks.signInWithPasskey.mockRejectedValue(new PasskeyNeedsBrowserError());
+    renderLogin();
+
+    await user.click(await passkeyButton());
+
+    await waitFor(() => expect(Browser.open).toHaveBeenCalledTimes(1));
+    expect(new URL(vi.mocked(Browser.open).mock.calls[0][0].url).pathname).toBe("/login");
+    expect(mocks.describePasskeyPromptError).not.toHaveBeenCalled();
   });
 });
 
