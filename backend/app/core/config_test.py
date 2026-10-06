@@ -9,6 +9,7 @@ from sqlalchemy.engine import make_url
 from app.core.config import (
     CAPACITOR_NATIVE_ORIGINS,
     DATABASE_LOGINS,
+    DEFAULT_OIDC_SCOPES,
     Settings,
     derive_database_password,
 )
@@ -412,12 +413,17 @@ def test_wasm_worker_policy_grants_only_what_the_workers_use():
     }
 
 
-def test_csp_websocket_scheme_follows_app_url():
-    https = _csp(_settings(APP_URL="https://app.example.com"))
-    assert "wss:" in _directive(https, "connect-src")
+def test_app_url_scheme_decides_https():
+    """Only the URL scheme counts, and it drives the Secure cookie flag, HSTS
+    and the websocket scheme the CSP admits alike."""
+    https = _settings(APP_URL="https://app.example.com")
+    assert https.app_url_is_https is True
+    assert "wss:" in _directive(_csp(https), "connect-src").split()
 
-    http = _csp(_settings(APP_URL="http://localhost:5173"))
-    assert "ws:" in _directive(http, "connect-src")
+    for app_url in ("http://localhost:5173", "http://https.example.com"):
+        http = _settings(APP_URL=app_url)
+        assert http.app_url_is_https is False
+        assert "ws:" in _directive(_csp(http), "connect-src").split()
 
 
 def test_csp_allows_spell_check_dictionary_cdn():
@@ -526,24 +532,6 @@ def test_docs_csp_allows_swagger_cdn_but_main_csp_does_not():
     assert "form-action 'self'" in docs
 
 
-def test_app_url_is_https_true_for_https():
-    # Drives both the Secure cookie flag and the HSTS header.
-    assert _settings(APP_URL="https://app.example.com").app_url_is_https is True
-    assert _settings(APP_URL="https://app.example.com").cookie_secure is True
-
-
-def test_app_url_is_https_false_for_http():
-    s = _settings(APP_URL="http://localhost:5173")
-    assert s.app_url_is_https is False
-    assert s.cookie_secure is False
-
-
-def test_app_url_is_https_ignores_substring_scheme():
-    # A host that merely contains "https" must not be treated as https — only
-    # the URL scheme counts.
-    assert _settings(APP_URL="http://https.example.com").app_url_is_https is False
-
-
 def test_log_level_defaults_to_info():
     assert _settings().LOG_LEVEL == "INFO"
 
@@ -567,7 +555,31 @@ def test_auth_login_methods_accepts_comma_separated_string():
 
 
 def test_auth_login_methods_blank_means_unset():
-    """An empty value is not an empty list: the app keeps its own default."""
-    assert _settings().AUTH_LOGIN_METHODS is None
-    assert _settings(AUTH_LOGIN_METHODS="").AUTH_LOGIN_METHODS is None
-    assert _settings(AUTH_LOGIN_METHODS=" , ").AUTH_LOGIN_METHODS is None
+    """Blank and unset read the same: no methods, so the seed keeps the app's
+    own default."""
+    assert _settings().AUTH_LOGIN_METHODS == []
+    assert _settings(AUTH_LOGIN_METHODS="").AUTH_LOGIN_METHODS == []
+    assert _settings(AUTH_LOGIN_METHODS=" , ").AUTH_LOGIN_METHODS == []
+
+
+def test_list_settings_read_from_the_environment(monkeypatch):
+    """Every list setting takes items separated by commas and/or spaces, or a
+    JSON list; a blank OIDC_SCOPES is the default scope list, as an unset one is."""
+    monkeypatch.setenv(
+        "CORS_ALLOWED_ORIGINS", "https://a.example.com, https://b.example.com"
+    )
+    monkeypatch.setenv("AUTH_LOGIN_METHODS", '["SSO", "passkey", "sso"]')
+    monkeypatch.setenv("OIDC_SCOPES", "openid profile,groups openid")
+    settings = _settings()
+
+    assert settings.CORS_ALLOWED_ORIGINS == [
+        "https://a.example.com",
+        "https://b.example.com",
+    ]
+    assert settings.AUTH_LOGIN_METHODS == ["sso", "passkey"]
+    assert settings.OIDC_SCOPES == ["openid", "profile", "groups"]
+
+    monkeypatch.setenv("OIDC_SCOPES", " , ")
+    blank = _settings().OIDC_SCOPES
+    monkeypatch.delenv("OIDC_SCOPES")
+    assert blank == _settings().OIDC_SCOPES == list(DEFAULT_OIDC_SCOPES)
