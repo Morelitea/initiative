@@ -232,16 +232,13 @@ async def test_the_purge_waits_out_the_window_then_erases(
     row = (await session.exec(select(User).where(User.id == user.id))).one()
     asked = row.status_changed_at
     assert asked is not None
-    assert account_purge.erase_at(
-        asked, DEFAULT_ACCOUNT_RETENTION_DAYS
-    ) == asked + timedelta(days=DEFAULT_ACCOUNT_RETENTION_DAYS)
+    erase_at = asked + timedelta(days=DEFAULT_ACCOUNT_RETENTION_DAYS)
 
     session.expunge_all()
     assert (
         await account_purge.purge_due_accounts(
             session,
-            now=account_purge.erase_at(asked, DEFAULT_ACCOUNT_RETENTION_DAYS)
-            - timedelta(minutes=1),
+            now=erase_at - timedelta(minutes=1),
         )
         == 0
     )
@@ -250,8 +247,7 @@ async def test_the_purge_waits_out_the_window_then_erases(
     assert (
         await account_purge.purge_due_accounts(
             session,
-            now=account_purge.erase_at(asked, DEFAULT_ACCOUNT_RETENTION_DAYS)
-            + timedelta(minutes=1),
+            now=erase_at + timedelta(minutes=1),
         )
         == 1
     )

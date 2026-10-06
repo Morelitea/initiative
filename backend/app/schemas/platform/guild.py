@@ -423,7 +423,7 @@ class PlatformCommunityStorageRead(SanitizedBaseModel):
     # When a deleted guild is destroyed: its deletion time plus the retention
     # window. Null unless ``status`` is ``deleted``. Computed from the two
     # columns beside it rather than stored, so the window is stated in one
-    # place (``guild_purge.GUILD_RETENTION_DAYS``).
+    # place (``retention.COMMUNITY_DELETION``).
     purge_at: Optional[datetime] = None
     # Whether anybody left in the guild can still run it — a ``superadmin``
     # seat. False after a deletion that cleared the roster, which is what makes
