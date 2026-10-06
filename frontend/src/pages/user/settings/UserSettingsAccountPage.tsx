@@ -10,6 +10,7 @@ import {
   useRemovePassword,
 } from "@/api/generated/auth/auth";
 import type { UserRead, UserSelfUpdate } from "@/api/generated/initiativeAPI.schemas";
+import { NewPasswordFields } from "@/components/auth/NewPasswordFields";
 import { AddressManager } from "@/components/settings/AddressManager";
 import { HeldChangeNotice } from "@/components/settings/HeldChangeNotice";
 import { RecoveryCodesPanel } from "@/components/settings/RecoveryCodesPanel";
@@ -31,7 +32,7 @@ import { useServer } from "@/hooks/useServer";
 import { useUpdateCurrentUser } from "@/hooks/useUsers";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { toast } from "@/lib/mascotToast";
-import { PASSWORD_MIN_LENGTH, validatePasswordLocal } from "@/lib/passwordPolicy";
+import { checkNewPassword } from "@/lib/passwordPolicy";
 import { queryClient } from "@/lib/queryClient";
 import { getUserHandle } from "@/lib/userDisplay";
 
@@ -185,17 +186,13 @@ export const UserSettingsAccountPage = ({
       <form
         onSubmit={(event) => {
           event.preventDefault();
-          if (password !== confirmPassword) {
-            setError(t("profile.passwordsMismatch"));
-            return;
-          }
           if (user.has_password && !currentPassword) {
             setError(t("profile.currentPasswordRequired"));
             return;
           }
-          const policyError = validatePasswordLocal(password);
-          if (policyError) {
-            setError(policyError);
+          const passwordError = checkNewPassword(password, confirmPassword);
+          if (passwordError) {
+            setError(passwordError);
             return;
           }
           const payload: UserSelfUpdate = { password };
@@ -259,36 +256,14 @@ export const UserSettingsAccountPage = ({
 
           {passwordLoginEnabled ? (
             <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="password">{t("profile.newPasswordLabel")}</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  autoComplete="new-password"
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  minLength={password.length > 0 ? PASSWORD_MIN_LENGTH : undefined}
-                />
-                <p
-                  className={
-                    password.length > 0 && password.length < PASSWORD_MIN_LENGTH
-                      ? "text-destructive text-xs"
-                      : "text-muted-foreground text-xs"
-                  }
-                >
-                  {t("auth:passwordPolicy.minLengthHelp")}
-                </p>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="confirm-password">{t("profile.confirmPasswordLabel")}</Label>
-                <Input
-                  id="confirm-password"
-                  type="password"
-                  autoComplete="new-password"
-                  value={confirmPassword}
-                  onChange={(event) => setConfirmPassword(event.target.value)}
-                />
-              </div>
+              <NewPasswordFields
+                id="password"
+                label={t("profile.newPasswordLabel")}
+                password={password}
+                confirm={confirmPassword}
+                onPasswordChange={setPassword}
+                onConfirmChange={setConfirmPassword}
+              />
             </div>
           ) : null}
 

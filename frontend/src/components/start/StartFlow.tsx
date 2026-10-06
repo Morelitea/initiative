@@ -36,6 +36,7 @@ import { InviteStep } from "@/components/start/InviteStep";
 import { PeopleStep } from "@/components/start/PeopleStep";
 import { PlanStep } from "@/components/start/PlanStep";
 import { ContinueButton } from "@/components/start/stepParts";
+import { useSignUp } from "@/components/start/useSignUp";
 import { type YonderPose, YonderSays } from "@/components/start/YonderSays";
 import { YouStep } from "@/components/start/YouStep";
 import { Button } from "@/components/ui/button";
@@ -52,7 +53,6 @@ import { useWizard } from "@/hooks/useWizard";
 import { EMPTY_PLACE, nearOfPlace } from "@/lib/directoryNear";
 import { getErrorCode, getErrorMessage } from "@/lib/errorMessage";
 import { toast } from "@/lib/mascotToast";
-import { describePasskeyPromptError, signUpWithPasskey } from "@/lib/passkeys";
 import {
   clearStart,
   findStartedCommunity,
@@ -140,7 +140,8 @@ const StartSteps = ({
 }: StartFlowProps & { signedIn: boolean; paths: StartPath[] }) => {
   const { t } = useTranslation(["auth", "common", "communities"]);
   const navigate = useNavigate();
-  const { user, register, login, applyPasskeySignIn } = useAuth();
+  const { user } = useAuth();
+  const signUp = useSignUp();
   const { communities, loading: communitiesLoading, createCommunity } = useCommunities();
   const { captcha, communityAgeGateEnabled } = useAppConfig();
   const { getServerOrigin } = useServer();
@@ -418,9 +419,8 @@ const StartSteps = ({
     setError(null);
     const details = signUpDetails(captchaToken);
     try {
-      const created = await register({ ...details, password, inviteCode: inviteParam });
-      if (created.status === "active" && created.email_verified) {
-        await login({ email: details.email, password });
+      const { made: created, signedIn } = await signUp.withPassword(details, password, inviteParam);
+      if (signedIn) {
         commit("finishing");
         return;
       }
@@ -436,7 +436,7 @@ const StartSteps = ({
       commit("checkEmail");
     } catch (err) {
       dropPlanTab();
-      setError(getErrorMessage(err, "auth:register.defaultError"));
+      setError(signUp.failure(err));
     } finally {
       setBusy(false);
     }
@@ -447,16 +447,13 @@ const StartSteps = ({
     setBusy(true);
     setError(null);
     try {
-      const madeAccount = await signUpWithPasskey(signUpDetails(captchaToken), inviteParam);
-      // Shown once, before anything else is awaited: an account with no
-      // password gets back in with these.
-      setRecoveryCodes(madeAccount.codes ?? []);
-      commit("codes");
-      await applyPasskeySignIn({ access_token: madeAccount.access_token });
+      await signUp.withPasskey(signUpDetails(captchaToken), inviteParam, (codes) => {
+        setRecoveryCodes(codes);
+        commit("codes");
+      });
     } catch (err) {
       dropPlanTab();
-      const prompt = describePasskeyPromptError(err);
-      setError(prompt ? t(prompt) : getErrorMessage(err, "auth:register.defaultError"));
+      setError(signUp.failure(err, true));
     } finally {
       setBusy(false);
     }
