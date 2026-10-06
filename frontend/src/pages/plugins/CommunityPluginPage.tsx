@@ -22,7 +22,7 @@
  */
 
 import { Loader2 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { CommunityPluginHandoff } from "@/api/generated/initiativeAPI.schemas";
@@ -84,11 +84,13 @@ export function CommunityPluginPage({ pluginId, initiativeId }: CommunityPluginP
   // for.
   const activeId = active?.id ?? null;
 
+  const { user } = useAuth();
+
   // The iPhone app says who a plug-in comes from before it first opens one
   // that Morelitea does not publish, and opens nothing until the member
   // continues.
   const { getServerOrigin } = useServer();
-  const noticeKey = pluginNoticeKey(getServerOrigin() ?? "", communityId, pluginId);
+  const noticeKey = pluginNoticeKey(getServerOrigin() ?? "", user?.id ?? 0, communityId, pluginId);
   const [, noteAcknowledged] = useState(0);
   const held =
     Boolean(plugin) &&
@@ -164,7 +166,6 @@ export function CommunityPluginPage({ pluginId, initiativeId }: CommunityPluginP
   // effective palette, since an iframe on another origin cannot read this
   // document's custom properties.
   const { resolvedTheme } = useTheme();
-  const { user } = useAuth();
   const colorThemeId = user?.color_theme ?? DEFAULT_THEME;
   const themeColors = useMemo(
     () => effectiveThemeColors(colorThemeId, resolvedTheme),
@@ -297,15 +298,19 @@ export function CommunityPluginPage({ pluginId, initiativeId }: CommunityPluginP
         description={t("plugins:embed.unavailableDescription")}
       />
     );
-  if (!active) return <Notice title={t("plugins:embed.noSurface", { name: plugin.name })} />;
+  // Anything but our own can be reported from here, on every platform.
+  const reportable = plugin.listing?.first_party ? null : plugin.listing;
+  const report = reportable ? (
+    <ReportButton targetType="marketplace_listing" targetId={reportable.id} />
+  ) : null;
+
+  if (!active)
+    return <Notice title={t("plugins:embed.noSurface", { name: plugin.name })} action={report} />;
   if (held)
     return (
       <PluginProviderNotice name={plugin.name} listing={plugin.listing} onContinue={acknowledge} />
     );
   if (error) return <Notice title={t("plugins:embed.failed")} description={error} />;
-
-  // Anything but our own can be reported from here, on every platform.
-  const reportable = plugin.listing?.first_party ? null : plugin.listing;
 
   return (
     <div className="flex h-full flex-col">
@@ -363,11 +368,22 @@ export function CommunityPluginPage({ pluginId, initiativeId }: CommunityPluginP
   );
 }
 
-function Notice({ title, description }: { title: string; description?: string }) {
+function Notice({
+  title,
+  description,
+  action,
+}: {
+  title: string;
+  description?: string;
+  action?: ReactNode;
+}) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{title}</CardTitle>
+        <div className="flex items-center gap-1">
+          <CardTitle>{title}</CardTitle>
+          {action}
+        </div>
         {description ? <CardDescription>{description}</CardDescription> : null}
       </CardHeader>
     </Card>

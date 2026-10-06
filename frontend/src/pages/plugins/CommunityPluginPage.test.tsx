@@ -13,6 +13,7 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { buildUser } from "@/__tests__/factories";
 import { renderPage } from "@/__tests__/helpers/render";
 
 const mint = vi.fn();
@@ -317,11 +318,12 @@ describe("CommunityPluginPage, who a plug-in comes from", () => {
     expect(screen.queryByText("Before you open Automations")).toBeNull();
   });
 
-  it("says who made it once on an iPhone, before anything opens", async () => {
+  it("says who made it once per member on an iPhone, before anything opens", async () => {
     vi.spyOn(Capacitor, "getPlatform").mockReturnValue("ios");
     const user = userEvent.setup();
+    const member = { user: buildUser() };
     const { CommunityPluginPage } = await import("./CommunityPluginPage");
-    const { unmount } = renderPage(() => <CommunityPluginPage pluginId={1} />);
+    const { unmount } = renderPage(() => <CommunityPluginPage pluginId={1} />, { auth: member });
 
     expect(await screen.findByText("Before you open Automations")).toBeInTheDocument();
     expect(screen.getByText("Automations is made by Acme Apps.")).toBeInTheDocument();
@@ -336,9 +338,27 @@ describe("CommunityPluginPage, who a plug-in comes from", () => {
     unmount();
 
     // Remembered: the next open goes straight to the plug-in.
-    renderPage(() => <CommunityPluginPage pluginId={1} />);
+    const again = renderPage(() => <CommunityPluginPage pluginId={1} />, { auth: member });
     expect(await screen.findByTitle("Automations")).toBeInTheDocument();
     expect(screen.queryByText("Before you open Automations")).toBeNull();
+    again.unmount();
+
+    // For that member only: somebody else signed in on this phone is told.
+    renderPage(() => <CommunityPluginPage pluginId={1} />, { auth: { user: buildUser() } });
+    expect(await screen.findByText("Before you open Automations")).toBeInTheDocument();
+  });
+
+  it("offers to report it when nothing here is for this reader", async () => {
+    surfaceAccess = ADMIN_ACCESS.map((one) => ({
+      ...one,
+      openable_community_wide: false,
+      openable_initiatives: [],
+    }));
+    const { CommunityPluginPage } = await import("./CommunityPluginPage");
+    renderPage(() => <CommunityPluginPage pluginId={1} />);
+
+    await screen.findByText(/nothing to show|no page of its own|has no page/i);
+    expect(screen.getByRole("button", { name: "Report" })).toBeInTheDocument();
   });
 
   it("neither introduces nor offers to report a plug-in Morelitea publishes", async () => {

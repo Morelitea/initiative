@@ -4,7 +4,8 @@
  * Shown by the iPhone app the first time a member opens a community plug-in that
  * did not ship with Initiative: who publishes it, that the community and that
  * publisher provide it rather than Initiative, and a way to report it.
- * Continuing is remembered per server, community and plug-in (`pluginNoticeKey`).
+ * Continuing is remembered per server, member, community and plug-in
+ * (`pluginNoticeKey`).
  */
 
 import { useTranslation } from "react-i18next";
@@ -21,9 +22,13 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 
-/** Where the acknowledgement for one plug-in in one community is kept. */
-export const pluginNoticeKey = (server: string, communityId: number, pluginId: number) =>
-  `initiative-plugin-notice:${server}:${communityId}:${pluginId}`;
+/** Where one member's acknowledgement for one plug-in in one community is kept. */
+export const pluginNoticeKey = (
+  server: string,
+  userId: number,
+  communityId: number,
+  pluginId: number
+) => `initiative-plugin-notice:${server}:${userId}:${communityId}:${pluginId}`;
 
 export interface PluginProviderNoticeProps {
   name: string;
