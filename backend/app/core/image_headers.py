@@ -60,10 +60,6 @@ class ImageSpec:
     content_types: frozenset[str]
     keep_aspect: bool = True
 
-    @property
-    def aspect(self) -> float:
-        return self.width / self.height
-
 
 @dataclass(frozen=True)
 class ValidatedImage:
@@ -108,9 +104,12 @@ def validate_image(spec: ImageSpec, data: bytes) -> ValidatedImage:
         raise ImageRejected(ImageMessages.IMAGE_INVALID)
     if header.width > spec.width or header.height > spec.height:
         raise ImageRejected(ImageMessages.IMAGE_WRONG_SIZE)
-    ratio = header.width / header.height
-    if spec.keep_aspect and abs(ratio - spec.aspect) > spec.aspect * ASPECT_TOLERANCE:
-        raise ImageRejected(ImageMessages.IMAGE_WRONG_RATIO)
+    if spec.keep_aspect:
+        # Both shapes on one scale, the gap measured against the larger, so an
+        # image a little wide and one a little tall get the same allowance.
+        shown, wanted = header.width * spec.height, header.height * spec.width
+        if abs(shown - wanted) > max(shown, wanted) * ASPECT_TOLERANCE:
+            raise ImageRejected(ImageMessages.IMAGE_WRONG_RATIO)
     return ValidatedImage(
         data=data,
         sha256=hashlib.sha256(data).hexdigest(),

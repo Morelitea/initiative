@@ -112,8 +112,11 @@ def test_refuses_a_non_square_image() -> None:
 
 def test_allows_a_pixel_of_rounding_off_square() -> None:
     """A canvas resize lands on 1:1; the tolerance is for images prepared
-    elsewhere, so one pixel out is not a refusal."""
+    elsewhere, so one pixel out is not a refusal, and the allowance is a share
+    of the longer side whichever side that is."""
     assert validate_image(AVATAR_SPEC, png(256, 255)).width == 256
+    assert validate_image(AVATAR_SPEC, png(200, 196)).width == 200
+    assert validate_image(AVATAR_SPEC, png(196, 200)).width == 196
 
 
 def test_refuses_bytes_over_the_cap() -> None:
