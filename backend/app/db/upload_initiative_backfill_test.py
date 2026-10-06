@@ -1,7 +1,7 @@
 """Migration 20260928_0414 places every existing upload in the initiative
 whose content shows it. Loaded by path and run on a guild the test builds, the
 way ``role_permission_backfill_migration_test`` runs its revision, after
-20261006_0463's downgrade puts back the table names and 20261005_0459's the
+20261006_0464's downgrade puts back the table names and 20261005_0459's the
 file columns it reads."""
 
 from __future__ import annotations
@@ -36,7 +36,7 @@ from app.testing.schema_harness import route_session_to_guild
 _VERSIONS = Path(__file__).resolve().parents[2] / "alembic" / "versions"
 _MIGRATION = _VERSIONS / "20260928_0414_an_upload_belongs_to_an_initiative.py"
 _FILE_VERSIONS = _VERSIONS / "20261005_0459_file_versions_by_pointer.py"
-_FILES = _VERSIONS / "20261006_0463_documents_are_files.py"
+_FILES = _VERSIONS / "20261006_0464_documents_are_files.py"
 
 
 def _load(path: Path = _MIGRATION) -> ModuleType:

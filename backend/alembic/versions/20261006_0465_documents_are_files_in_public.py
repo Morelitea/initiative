@@ -1,6 +1,6 @@
 """Documents are files in public
 
-The shared half of 20261006_0463:
+The shared half of 20261006_0464:
 
 * **Type** — ``public.document_type`` is ``public.file_type``. Its values do
   not change: a file is ``native``, ``file``, ``whiteboard``, ``smart_link``
@@ -24,8 +24,8 @@ so the next boot restates them before any request is served.
 
 The downgrade reverses each rewrite; the removed view preferences stay removed.
 
-Revision ID: 20261006_0464
-Revises: 20261006_0463
+Revision ID: 20261006_0465
+Revises: 20261006_0464
 Create Date: 2026-10-06
 """
 
@@ -38,8 +38,8 @@ from alembic import op
 from sqlalchemy import text
 from sqlalchemy.engine import Connection
 
-revision = "20261006_0464"
-down_revision = "20261006_0463"
+revision = "20261006_0465"
+down_revision = "20261006_0464"
 branch_labels = None
 depends_on = None
 

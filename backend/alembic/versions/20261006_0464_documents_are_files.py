@@ -39,8 +39,8 @@ triggers held: nothing changed about the rows but their spelling.
 Stored editor content is left as it was written; the reference reader takes
 ``document`` as the file kind.
 
-Revision ID: 20261006_0463
-Revises: 20261006_0462
+Revision ID: 20261006_0464
+Revises: 20261006_0463
 Create Date: 2026-10-06
 """
 
@@ -57,8 +57,8 @@ from sqlalchemy.engine import Connection
 
 from app.db.guild_migrations import run_for_each_guild_schema
 
-revision = "20261006_0463"
-down_revision = "20261006_0462"
+revision = "20261006_0464"
+down_revision = "20261006_0463"
 branch_labels = None
 depends_on = None
 
