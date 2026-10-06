@@ -17,8 +17,7 @@ import { CommentReferences } from "@/components/comments/CommentReferences";
 import { Button } from "@/components/ui/button";
 import { RelativeTime } from "@/components/ui/relative-time";
 import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
-import { useCommunities } from "@/hooks/useCommunities";
-import { communityPath } from "@/lib/communityUrl";
+import { useCommunityPath } from "@/lib/communityUrl";
 import { taskRoute } from "@/lib/tools";
 import { getUserDisplayName } from "@/lib/userDisplay";
 import { cn } from "@/lib/utils";
@@ -34,14 +33,11 @@ export const ProjectActivitySidebar = ({
   projectId,
   initiativeId,
 }: ProjectActivitySidebarProps) => {
-  const { activeCommunityId } = useCommunities();
+  const gp = useCommunityPath();
   const communityId = useActiveCommunityId();
   const { t } = useTranslation(["projects", "common"]);
   const [collapsed, setCollapsed] = useState(true);
   const isEnabled = Boolean(projectId && !collapsed);
-
-  // Helper to create community-scoped paths
-  const gp = (path: string) => (activeCommunityId ? communityPath(activeCommunityId, path) : path);
 
   const activityQuery = useInfiniteQuery<ProjectActivityResponse>({
     queryKey: getProjectActivityFeedQueryKey(communityId, projectId!),
@@ -49,9 +45,7 @@ export const ProjectActivitySidebar = ({
       if (!projectId) {
         throw new Error("Project id required");
       }
-      return projectActivityFeed(communityId, projectId, {
-        page: pageParam as number,
-      }) as unknown as Promise<ProjectActivityResponse>;
+      return projectActivityFeed(communityId, projectId, { page: pageParam as number });
     },
     getNextPageParam: (last) => (last.has_next ? last.page + 1 : undefined),
     initialPageParam: 1,

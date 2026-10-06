@@ -41,7 +41,7 @@ export const ProjectSettingsDetailsTab = ({
   projectId,
   canWriteProject,
 }: ProjectSettingsDetailsTabProps) => {
-  const { t } = useTranslation("projects");
+  const { t } = useTranslation(["projects", "common"]);
 
   // One save writes every field here, so the form keeps following the project
   // — picking up whatever somebody else changed — until there is unsaved
@@ -117,7 +117,7 @@ export const ProjectSettingsDetailsTab = ({
                     </p>
                   </div>
                   <div className="w-full flex-1 space-y-2">
-                    <Label htmlFor="project-name">{t("settings.details.nameLabel")}</Label>
+                    <Label htmlFor="project-name">{t("common:name")}</Label>
                     <Input
                       id="project-name"
                       value={nameText}
@@ -169,7 +169,7 @@ export const ProjectSettingsDetailsTab = ({
               <div className="flex flex-col gap-2">
                 <Button type="submit" disabled={updateProject.isPending || datesInverted}>
                   {updateProject.isPending
-                    ? t("settings.details.saving")
+                    ? t("common:toolSettings.saving")
                     : t("settings.details.saveDetails")}
                 </Button>
                 {savedMessage ? <p className="text-primary text-sm">{savedMessage}</p> : null}
