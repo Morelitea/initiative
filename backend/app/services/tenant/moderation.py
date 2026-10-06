@@ -39,6 +39,7 @@ from app.core.moderation import (
 from app.core.search import SearchEntityType
 from app.core.tools import Tool
 from app.db import cohorts
+from app.db.advisory_locks import LockNamespace, advisory_lock
 from app.db.query import paginated_query
 from app.db.session import set_rls_context
 from app.models.platform import user_profile_view
@@ -216,12 +217,12 @@ async def _place_in_initiative(
         # Two people reporting the same thing in the same instant both look for
         # an open row before either writes one. They queue here instead, so the
         # second joins the first rather than losing the unique index. Held for
-        # the rest of the transaction; the guild id is one half of the key
-        # because advisory locks are cluster-wide where a schema is per-guild.
-        await session.exec(
-            text("SELECT pg_advisory_xact_lock(:guild, hashtext(:key))").bindparams(
-                guild=guild_id, key=f"{initiative_id}:{target.value}:{target_id}"
-            )
+        # the rest of the transaction; the guild id is part of the key
+        # because advisory locks span the database where a schema is per-guild.
+        await advisory_lock(
+            session,
+            LockNamespace.MODERATION_REPORT,
+            f"{guild_id}:{initiative_id}:{target.value}:{target_id}",
         )
         existing = (
             await session.exec(

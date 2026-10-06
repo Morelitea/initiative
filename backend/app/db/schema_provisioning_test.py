@@ -13,6 +13,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import ProgrammingError
 
 import app.db.schema_provisioning as schema_provisioning
+from app.db.advisory_locks import LockNamespace, advisory_lock
 from app.db.guild_ddl import rendered_constraint_names, rendered_trigger_names
 from app.db.schema_provisioning import (
     GuildRoleKind,
@@ -1038,7 +1039,7 @@ async def test_backfill_applies_only_stale_parts_and_waits_for_a_held_guild(
         # but not yet committed, until the sweep is waiting on it.
         async with engine.connect() as other:
             await other.begin()
-            await schema_provisioning._lock_guild(other, held, wait=True)
+            await advisory_lock(other, LockNamespace.GUILD_PROVISION, held)
             await other.exec_driver_sql(
                 f"COMMENT ON SCHEMA \"{guild_schema_name(held)}\" IS '{bundle.stamp}'"
             )
@@ -1050,7 +1051,7 @@ async def test_backfill_applies_only_stale_parts_and_waits_for_a_held_guild(
                         "AND NOT granted AND classid::bigint = :ns "
                         "AND objid::bigint = :gid"
                     ),
-                    {"ns": schema_provisioning._PROVISION_LOCK_NAMESPACE, "gid": held},
+                    {"ns": LockNamespace.GUILD_PROVISION, "gid": held},
                 ):
                     assert not sweep.done(), "the sweep did not wait for the lock"
                     await asyncio.sleep(0.05)

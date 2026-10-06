@@ -43,6 +43,7 @@ from app.core.tools import COMMENT_TARGETS, Tool
 from app.core.user_display import handle_of
 from app.db.guild_standing import ActorContext, InstallContext
 from app.db import cohorts
+from app.db.advisory_locks import LockNamespace, advisory_lock
 from app.db.initiative_rls import entity_tables, governing_path
 from app.db.session import (
     SystemSessionLocal,
@@ -648,18 +649,6 @@ def _nt(key: str, locale: str, **kwargs: str | int) -> str:
 MAX_ROLLED_UP_COMMENTERS = 10
 
 
-async def _lock_rollup_line(session: AsyncSession, key: str) -> None:
-    """Serialize the read-then-write on one recipient's rolled-up line.
-
-    Every rollup in the app does the same thing — look for an unread line to
-    join, then write or extend it — so they all take this. Transaction-scoped,
-    and keyed narrowly enough that only events aimed at the same line ever wait.
-    """
-    await session.exec(
-        select(func.pg_advisory_xact_lock(func.hashtextextended(key, 0)))
-    )
-
-
 def _same_commenter(
     entry: Mapping[str, Any], commenter_id: int | None, commenter_name: str
 ) -> bool:
@@ -755,7 +744,11 @@ async def _roll_up_comment(
     # one. Transaction-scoped and keyed per (recipient, thread), so only
     # comments aimed at the same line ever wait — the same lock the reaction
     # and direct-message rollups take.
-    await _lock_rollup_line(session, f"comment-line:{rollup_key}:{recipient.id}")
+    await advisory_lock(
+        session,
+        LockNamespace.NOTIFICATION_LINE,
+        f"comment-line:{rollup_key}:{recipient.id}",
+    )
     existing = await user_notifications.find_unread_by_data(
         session,
         user_id=recipient.id,
@@ -1556,8 +1549,9 @@ async def _roll_up_reaction(
     to, or start one."""
     data = notice.data
     guild_id = cast(int, notice.guild_id)
-    await _lock_rollup_line(
+    await advisory_lock(
         session,
+        LockNamespace.NOTIFICATION_LINE,
         f"reaction-bell:{guild_id}:{data['target_type']}:{data['target_id']}:"
         f"{recipient.id}",
     )
@@ -1632,8 +1626,9 @@ async def _take_back_reaction(
         return
     target_type, target_id = data["target_type"], data["target_id"]
     reactor_id = data["reactor_id"]
-    await _lock_rollup_line(
+    await advisory_lock(
         session,
+        LockNamespace.NOTIFICATION_LINE,
         f"reaction-bell:{guild_id}:{target_type}:{target_id}:{recipient.id}",
     )
     existing = await user_notifications.find_unread_by_data(

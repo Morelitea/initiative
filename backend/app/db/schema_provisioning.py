@@ -35,6 +35,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
 from app.db import bootstrap
+from app.db.advisory_locks import LockNamespace, advisory_lock
 from app.db import session as db_session
 
 logger = logging.getLogger(__name__)
@@ -681,27 +682,8 @@ async def _existing_roles(conn: AsyncConnection, roles: tuple[str, ...]) -> set[
     return set(rows.scalars())
 
 
-#: Namespace for the per-guild provisioning lock, so the key cannot collide
-#: with another feature's advisory lock on the same guild id. Key 0, which no
-#: guild has, orders the shared trigger functions.
-_PROVISION_LOCK_NAMESPACE = 0x50524F56  # "PROV"
-
 #: How many guilds one process back-fills at once.
 _BACKFILL_CONCURRENCY = 4
-
-
-async def _lock_guild(conn: AsyncConnection, guild_id: int, *, wait: bool) -> bool:
-    """Take the guild's provisioning lock, held to the end of the transaction.
-
-    With ``wait=False``, returns False at once when another process holds it.
-    """
-    params = {"ns": _PROVISION_LOCK_NAMESPACE, "gid": guild_id}
-    if wait:
-        await conn.execute(text("SELECT pg_advisory_xact_lock(:ns, :gid)"), params)
-        return True
-    return bool(
-        await conn.scalar(text("SELECT pg_try_advisory_xact_lock(:ns, :gid)"), params)
-    )
 
 
 async def _apply_parts(
@@ -743,7 +725,7 @@ async def provision_guild_schema(conn: AsyncConnection, guild_id: int) -> str:
 
     Needs a privileged connection (CREATEROLE + CREATE on the database).
     """
-    await _lock_guild(conn, guild_id, wait=True)
+    await advisory_lock(conn, LockNamespace.GUILD_PROVISION, guild_id)
     await _apply_parts(conn, guild_id, PARTS)
     return guild_schema_name(guild_id)
 
@@ -826,7 +808,9 @@ async def _backfill_guild(guild_id: int, *, wait: bool) -> bool | None:
     """
     bundle = await get_provisioning_bundle()
     async with db_session.provisioning_engine.begin() as conn:
-        if not await _lock_guild(conn, guild_id, wait=wait):
+        if not await advisory_lock(
+            conn, LockNamespace.GUILD_PROVISION, guild_id, wait=wait
+        ):
             return None
         # Read again under the lock: another process may have just done it.
         stamp = await conn.scalar(
@@ -873,7 +857,7 @@ async def backfill_guild_schemas() -> BackfillSummary:
         logger.exception("guild_template clean-up failed")
 
     async with db_session.provisioning_engine.begin() as conn:
-        await _lock_guild(conn, 0, wait=True)
+        await advisory_lock(conn, LockNamespace.GUILD_PROVISION, 0)
         await apply_guild_trigger_functions(conn)
 
     # Enumerate on the SYSTEM engine, not the provisioning engine: guild ids

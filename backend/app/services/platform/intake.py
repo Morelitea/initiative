@@ -32,7 +32,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from sqlalchemy import func, text
+from sqlalchemy import func
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -44,6 +44,7 @@ from app.core.intake import (
     meta,
 )
 from app.db import cohorts
+from app.db.advisory_locks import LockNamespace, advisory_lock
 from app.db.session import set_rls_context
 from app.models.platform.app_setting import AppSetting
 from app.models.platform.user import User
@@ -257,13 +258,13 @@ async def _hold_key(
     released by the commit or rollback that ends the transaction, and taken on
     the writer's own session rather than anywhere near the path being watched.
 
-    The guild id is one half of the lock key, because advisory locks are
-    cluster-wide where a schema is per-guild.
+    The guild id is part of the lock key, because advisory locks span the
+    database where a schema is per-guild.
     """
-    await session.exec(
-        text("SELECT pg_advisory_xact_lock(:guild, hashtext(:key))").bindparams(
-            guild=guild_id, key=f"{stream.value}:{dedupe_key}"
-        )
+    await advisory_lock(
+        session,
+        LockNamespace.INTAKE_CASE,
+        f"{guild_id}:{stream.value}:{dedupe_key}",
     )
 
 

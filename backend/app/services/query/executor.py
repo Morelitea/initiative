@@ -37,9 +37,11 @@ from asyncpg.exceptions import (
     SyntaxOrAccessError,
 )
 from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app.core.messages import QueryMessages
 from app.db import cohorts
+from app.db.advisory_locks import LockNamespace, advisory_lock
 from app.db.request_context import QUERYABLE, ContentGrantee, Member, RequestContext
 from app.db.session import set_rls_context
 from app.services.fields.spec import FieldType
@@ -193,12 +195,8 @@ QUERY_MAX_COST = 1_000_000.0
 #: Rows one query may return.
 QUERY_MAX_ROWS = 5_000
 
-#: Names the query surface's locks apart from anything else that takes one.
-#: Advisory locks are keyed by two integers and share one space per database.
-_LOCK_SPACE = 0x51_55_45_52  # "QUER"
 
-
-async def _claim_a_slot(connection: Any, guild_id: int) -> bool:
+async def _claim_a_slot(connection: AsyncConnection, guild_id: int) -> bool:
     """Take one of this guild's slots, or report that it has none free.
 
     The slots are advisory locks rather than a counter in this process, so the
@@ -207,12 +205,9 @@ async def _claim_a_slot(connection: Any, guild_id: int) -> bool:
     or is cancelled gives its slot back without anything having to notice.
     """
     for slot in range(QUERY_MAX_CONCURRENT_PER_GUILD):
-        taken = await connection.fetchval(
-            "SELECT pg_try_advisory_xact_lock($1, $2)",
-            _LOCK_SPACE + int(guild_id),
-            slot,
-        )
-        if taken:
+        if await advisory_lock(
+            connection, LockNamespace.QUERY_SLOT, f"{guild_id}:{slot}", wait=False
+        ):
             return True
     return False
 
@@ -334,7 +329,7 @@ async def execute(
             connection = raw.driver_connection
 
             await _bound_transaction(sqlalchemy_connection)
-            if not await _claim_a_slot(connection, guild_id):
+            if not await _claim_a_slot(sqlalchemy_connection, guild_id):
                 raise QueryError(QueryMessages.BUSY, str(guild_id))
             await set_rls_context(session, routed)
 
@@ -456,7 +451,7 @@ async def _run_compiled(
         await _bound_transaction(
             sqlalchemy_connection, timeout_ms=QUERY_CANVAS_TIMEOUT_MS
         )
-        if not await _claim_a_slot(connection, guild_id):
+        if not await _claim_a_slot(sqlalchemy_connection, guild_id):
             raise QueryError(QueryMessages.BUSY, str(guild_id))
         await set_rls_context(session, routed)
 

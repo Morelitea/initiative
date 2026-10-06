@@ -31,11 +31,12 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Mapping, cast
 
-from sqlalchemy import delete, func, update
+from sqlalchemy import delete, update
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.email_i18n import translate
+from app.db.advisory_locks import LockNamespace, advisory_lock
 from app.core.user_display import handle_of
 from app.core.notification_categories import Channel, NotificationCategory
 from app.models.platform.notification import Notification, NotificationType
@@ -53,18 +54,6 @@ logger = logging.getLogger(__name__)
 
 def _locale(user: User) -> str:
     return getattr(user, "locale", None) or "en"
-
-
-async def _lock_line(session: AsyncSession, key: str) -> None:
-    """Serialize the read-then-write on one recipient's rolled-up line.
-
-    Two messages landing at the same moment would otherwise both find no line to
-    join and write one each. Transaction-scoped, and keyed narrowly enough that
-    only messages in the same conversation ever wait.
-    """
-    await session.exec(
-        select(func.pg_advisory_xact_lock(func.hashtextextended(key, 0)))
-    )
 
 
 async def _dm_device_session_ids(session: AsyncSession, user_id: int) -> set[uuid.UUID]:
@@ -295,7 +284,11 @@ async def _roll_up(
     others: list[str],
 ) -> None:
     match = {"conversation_id": str(conversation_id)}
-    await _lock_line(session, f"dm-bell:{conversation_id}:{recipient.id}")
+    await advisory_lock(
+        session,
+        LockNamespace.NOTIFICATION_LINE,
+        f"dm-bell:{conversation_id}:{recipient.id}",
+    )
     existing = await user_notifications.find_unread_by_data(
         session,
         user_id=recipient.id,

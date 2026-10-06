@@ -32,6 +32,7 @@ from app.core.identify import bearer_plugin_token
 from app.core.tools import Tool
 from app.db import base  # noqa: F401  # ensure models are imported for Alembic
 from app.db import cohorts, gucs
+from app.db.advisory_locks import LockNamespace, advisory_lock
 from app.db.guild_standing import (
     GuildContext,
     InstallContext,
@@ -800,12 +801,6 @@ def _missing_database_error() -> RuntimeError:
     )
 
 
-#: The advisory-lock key a process holds while it migrates. Arbitrary and
-#: app-specific: all it has to be is the same number in every build, and a
-#: different one from the suite's (``conftest.py``).
-MIGRATION_LOCK_KEY = 0x1417A7E50D
-
-
 @asynccontextmanager
 async def migration_lock() -> AsyncGenerator[AsyncConnection, None]:
     """Take the database's migration lock for the duration of the block.
@@ -821,20 +816,20 @@ async def migration_lock() -> AsyncGenerator[AsyncConnection, None]:
     lock_engine = create_async_engine(
         settings.DATABASE_URL, poolclass=NullPool, isolation_level="AUTOCOMMIT"
     )
-    params = {"key": MIGRATION_LOCK_KEY}
     try:
         conn = await lock_engine.connect()
     except InvalidCatalogNameError as exc:
         await lock_engine.dispose()
         raise _missing_database_error() from exc
     try:
-        taken = await conn.scalar(text("SELECT pg_try_advisory_lock(:key)"), params)
-        if not taken:
+        if not await advisory_lock(
+            conn, LockNamespace.MIGRATION, wait=False, xact=False
+        ):
             logger.info(
                 "Another instance is migrating this database; waiting for it to finish."
             )
             waited_from = time.monotonic()
-            await conn.execute(text("SELECT pg_advisory_lock(:key)"), params)
+            await advisory_lock(conn, LockNamespace.MIGRATION, xact=False)
             logger.info(
                 "Migration lock acquired after %.0fs.", time.monotonic() - waited_from
             )

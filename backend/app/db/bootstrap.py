@@ -43,6 +43,7 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.pool import NullPool
 
 from app.core.config import DATABASE_LOGINS, settings
+from app.db.advisory_locks import LockNamespace, advisory_lock
 from app.db.guild_migrations import GUILD_OR_TEMPLATE_SCHEMA_REGEX
 from app.db.public_rls import (
     PLATFORM_ROUTES,
@@ -54,9 +55,10 @@ from app.db.public_rls import (
 
 logger = logging.getLogger(__name__)
 
-#: Serializes the bootstrap across processes. Role DDL writes shared catalogs,
-#: so two starts at once can collide there.
+#: Tried in order for the cluster-wide bootstrap lock. Both are conventionally
+#: present; a provider that exposes neither falls back to the per-database lock.
 #:
+#: Role DDL writes shared catalogs, so two starts at once can collide there.
 #: An advisory lock's key space is per-database, which is enough for replicas of
 #: one deployment (they share a database) but not for two deployments on one
 #: cluster. So the lock is taken on the cluster's maintenance database when that
@@ -65,10 +67,6 @@ logger = logging.getLogger(__name__)
 #:
 #: Two deployments sharing a cluster should not share login-role names; the
 #: names come from the connection URLs precisely so they need not.
-_BOOTSTRAP_LOCK_KEY = 0x1417B007
-
-#: Tried in order for the cluster-wide lock. Both are conventionally present;
-#: a provider that exposes neither falls back to the per-database lock.
 _MAINTENANCE_DATABASES = ("postgres", "template1")
 
 #: Clauses that take a privilege away from a role that already holds it. The
@@ -624,9 +622,7 @@ async def _bootstrap_lock(url: str):
             await engine.dispose()
             continue
         try:
-            await conn.execute(
-                text("SELECT pg_advisory_lock(:key)"), {"key": _BOOTSTRAP_LOCK_KEY}
-            )
+            await advisory_lock(conn, LockNamespace.DATABASE_BOOTSTRAP, xact=False)
             yield
             return
         finally:
@@ -909,10 +905,7 @@ async def ensure_database_bootstrap(
     engine = create_async_engine(url, poolclass=NullPool, echo=False)
     try:
         async with _bootstrap_lock(url), engine.begin() as conn:
-            await conn.execute(
-                text("SELECT pg_advisory_xact_lock(:key)"),
-                {"key": _BOOTSTRAP_LOCK_KEY},
-            )
+            await advisory_lock(conn, LockNamespace.DATABASE_BOOTSTRAP)
             try:
                 await _run_steps(conn, _role_steps(roles))
             except Exception as exc:
