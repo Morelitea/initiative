@@ -312,8 +312,8 @@
     "communityOnHoldWithContact": "{{community}} is on hold. Contact {{contact}} to sort it out.",
     "communityOnHoldDeleting": "{{community}} is on hold and will be deleted on {{date}}. Contact whoever runs this server to sort it out.",
     "communityOnHoldDeletingWithContact": "{{community}} is on hold and will be deleted on {{date}}. Contact {{contact}} to sort it out.",
-    "communityTrialEnding": "{{community}}'s trial ends on {{date}}. Subscribe in the billing portal before then to keep editing.",
-    "communityTrialEndingInApp": "{{community}}'s trial ends on {{date}}. After that it becomes read-only.",
+    "communityTrialEnding": "{{community}}'s trial ends on {{date}}. After that its plan continues and is billed to the payment method on file. Check your billing details, or cancel before then if you don't want to continue.",
+    "communityTrialEndingInApp": "{{community}}'s trial ends on {{date}}. After that its plan continues and is billed to the payment method on file.",
     "communityTrialEnded": "{{community}}'s trial has ended and it is now read-only. Choose a plan in the billing portal to keep editing.",
     "communityTrialEndedInApp": "{{community}}'s trial has ended and it is now read-only.",
     "communityWelcome": "{{community}} is ready. Set up its plan to get started.",
@@ -453,8 +453,7 @@
       "endsDetail": "Your plan ends on {{date}}. After that the community is read-only for 30 days, then put on hold.",
       "pauses": "Pauses {{date}}",
       "resumes": "Resumes {{date}}",
-      "trialDetail": "Trial ends {{date}}. Subscribe before then to keep editing.",
-      "trialDetailInApp": "Trial ends {{date}}. After that the community is read-only.",
+      "trialDetail": "Trial ends on {{date}}; billing starts then.",
       "renews": "Renews {{date}}",
       "renewsWithAmount": "Renews {{date}} · {{amount}}"
     }

@@ -1017,10 +1017,13 @@ def community_trial_pieces(
     """A trial notice as notification mail, in ``locale``.
 
     ``kind`` is one of the billing notice kinds; the words are this
-    deployment's. Written into the notice outbox beside the bell line, so the
-    outbox worker sends it and retries it; the button leads to the community's
-    billing page, which signs the reader in and forwards them to the billing
-    portal to choose a plan.
+    deployment's. The trial is Paddle's: a community in one is already
+    subscribed, and its plan is billed when the trial ends unless it is
+    cancelled first. Written into the notice outbox beside the bell line, so
+    the outbox worker sends it and retries it; the button leads to the
+    community's billing page, which signs the reader in and forwards them to
+    the billing portal — to the plan they have while the trial runs, and to
+    choosing one once it has ended without a payment.
     """
     section = _TRIAL_NOTICE_SECTIONS[kind]
     day = email_date(trial_ends_on, locale)
@@ -1036,7 +1039,9 @@ def community_trial_pieces(
             f"{section}.title", locale=locale, community=community, date=day
         ),
         body=email_t(f"{section}.body", locale=locale, community=community, date=day),
-        link=community_billing_link(guild_id, "upgrade"),
+        link=community_billing_link(
+            guild_id, "manage" if kind == "trial_ending" else "upgrade"
+        ),
         link_label=email_t(f"{section}.buttonLabel", locale=locale),
     )
 

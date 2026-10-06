@@ -139,7 +139,7 @@ describe("CommunityBillingPanel", () => {
     renderWithProviders(<CommunityBillingPanel />);
     expect(screen.getByText("Gold")).toBeInTheDocument();
     expect(
-      screen.getByText(`Trial ends ${longDate(end)}. Subscribe before then to keep editing.`)
+      screen.getByText(`Trial ends on ${longDate(end)}; billing starts then.`)
     ).toBeInTheDocument();
   });
 
@@ -148,7 +148,7 @@ describe("CommunityBillingPanel", () => {
     state.summary = { ...EMPTY, trial_ends_on: end };
     renderWithProviders(<CommunityBillingPanel />);
     expect(
-      screen.getByText(`Trial ends ${longDate(end)}. Subscribe before then to keep editing.`)
+      screen.getByText(`Trial ends on ${longDate(end)}; billing starts then.`)
     ).toBeInTheDocument();
   });
 
@@ -222,7 +222,7 @@ describe("CommunityBillingPanel", () => {
     const { unmount } = renderWithProviders(<CommunityBillingPanel />, phone);
     expect(screen.getByText("Gold")).toBeInTheDocument();
     expect(
-      screen.getByText(`Trial ends ${longDate(trialEnd)}. After that the community is read-only.`)
+      screen.getByText(`Trial ends on ${longDate(trialEnd)}; billing starts then.`)
     ).toBeInTheDocument();
     expect(screen.getByText("Plan changes aren't available in the app.")).toBeInTheDocument();
     expect(screen.queryByRole("button")).toBeNull();

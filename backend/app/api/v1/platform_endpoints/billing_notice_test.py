@@ -2,7 +2,7 @@
 to reach a community's owner.
 
 Pinned: the same double envelope as the tier write (HMAC + one-shot RS256
-jti); exactly-once per ``event_id`` via ``billing_event_log``; only the trial
+jti); exactly-once per ``event_id`` via ``billing_event_log``; only Paddle's
 source and the two trial kinds; the owner billing names while they are still
 a member, else the community's superadmins; nothing for a deleted community;
 and the letter in each recipient's own language.
@@ -73,7 +73,7 @@ async def _notice(guild_id: int, **fields) -> dict:
     return {
         "community_ref": await billing_guild_ref(guild_id),
         "event_id": fields.pop("event_id", f"evt-{secrets.token_hex(6)}"),
-        "source": fields.pop("source", "trial_expiry"),
+        "source": fields.pop("source", "paddle_webhook"),
         "kind": fields.pop("kind", "trial_ending"),
         "recipient_user_ref": fields.pop("recipient_user_ref", None),
         "trial_ends_on": fields.pop("trial_ends_on", "2026-10-08"),
@@ -132,10 +132,12 @@ async def test_the_owner_billing_names_is_told(
     assert letter["category"] is NotificationCategory.account
     pieces = letter["pieces"]
     assert pieces.subject == "Acme's trial ends on 8 October 2026"
+    # Already subscribed through Paddle's trial: the letter leads to the plan
+    # they have, and says it carries on.
     assert pieces.link is not None and pieces.link.endswith(
-        f"/c/{guild_id}/billing?page=upgrade"
+        f"/c/{guild_id}/billing?page=manage"
     )
-    assert "read-only until a plan is chosen" in pieces.body
+    assert "billed to the payment method on file" in pieces.body
 
 
 async def test_an_owner_moved_off_the_seat_falls_back_to_the_superadmins(
@@ -242,6 +244,7 @@ async def test_each_letter_is_in_its_readers_language(
     by_recipient = {letter["user_id"]: letter["pieces"] for letter in letters}
     assert set(by_recipient) == {owner_id, other_seat_id}
     assert by_recipient[owner_id].subject == "Acme's trial has ended"
+    assert by_recipient[owner_id].link.endswith(f"/c/{guild_id}/billing?page=upgrade")
     german = by_recipient[other_seat_id]
     assert german.subject == "Die Testphase von Acme ist beendet"
     assert "schreibgeschützt" in german.body
@@ -267,7 +270,7 @@ async def test_a_replayed_event_tells_nobody_twice(
         )
     ).all()
     assert [(row.op, row.source) for row in rows] == [
-        ("community_notice", "trial_expiry")
+        ("community_notice", "paddle_webhook")
     ]
 
 
@@ -305,7 +308,7 @@ async def test_a_deleted_or_suspended_community_is_recorded_and_told_nothing(
     [
         ({"kind": "trial_extended"}, "BILLING_INVALID_PAYLOAD"),
         ({"kind": "trial_ending", "message": "free text"}, None),
-        ({"source": "paddle_webhook"}, "BILLING_NOTICE_SOURCE_NOT_ALLOWED"),
+        ({"source": "platinum_invoice"}, "BILLING_NOTICE_SOURCE_NOT_ALLOWED"),
         ({"source": "made_up"}, "BILLING_INVALID_PAYLOAD"),
         ({"trial_ends_on": "soon"}, "BILLING_INVALID_PAYLOAD"),
         ({"event_id": "x" * 129}, "BILLING_INVALID_PAYLOAD"),
@@ -370,7 +373,7 @@ async def test_an_unknown_community_is_404_and_consumes_nothing(
     payload = {
         "community_ref": "gbil_nobody",
         "event_id": "evt-unknown",
-        "source": "trial_expiry",
+        "source": "paddle_webhook",
         "kind": "trial_ending",
         "recipient_user_ref": None,
         "trial_ends_on": "2026-10-08",

@@ -312,8 +312,8 @@
     "communityOnHoldWithContact": "{{community}} ist pausiert. Wende dich an {{contact}}, um das zu klären.",
     "communityOnHoldDeleting": "{{community}} ist pausiert und wird am {{date}} gelöscht. Wende dich an die Betreiber dieses Servers, um das zu klären.",
     "communityOnHoldDeletingWithContact": "{{community}} ist pausiert und wird am {{date}} gelöscht. Wende dich an {{contact}}, um das zu klären.",
-    "communityTrialEnding": "Die Testphase von {{community}} endet am {{date}}. Schließe vorher im Abrechnungsportal ein Abo ab, um weiter bearbeiten zu können.",
-    "communityTrialEndingInApp": "Die Testphase von {{community}} endet am {{date}}. Danach ist die Community schreibgeschützt.",
+    "communityTrialEnding": "Die Testphase von {{community}} endet am {{date}}. Danach läuft ihr Tarif weiter und wird über die hinterlegte Zahlungsmethode abgerechnet. Prüfe deine Zahlungsdaten oder kündige vorher, wenn du nicht weitermachen möchtest.",
+    "communityTrialEndingInApp": "Die Testphase von {{community}} endet am {{date}}. Danach läuft ihr Tarif weiter und wird über die hinterlegte Zahlungsmethode abgerechnet.",
     "communityTrialEnded": "Die Testphase von {{community}} ist beendet, die Community ist jetzt schreibgeschützt. Wähle im Abrechnungsportal einen Tarif, um weiter bearbeiten zu können.",
     "communityTrialEndedInApp": "Die Testphase von {{community}} ist beendet, die Community ist jetzt schreibgeschützt.",
     "communityWelcome": "{{community}} ist bereit. Richte den Tarif ein, um loszulegen.",
@@ -453,8 +453,7 @@
       "endsDetail": "Dein Tarif endet am {{date}}. Danach ist die Community 30 Tage lang schreibgeschützt und wird dann pausiert.",
       "pauses": "Pausiert ab {{date}}",
       "resumes": "Läuft wieder ab {{date}}",
-      "trialDetail": "Die Testphase endet am {{date}}. Schließe vorher ein Abo ab, um weiter bearbeiten zu können.",
-      "trialDetailInApp": "Die Testphase endet am {{date}}. Danach ist die Community schreibgeschützt.",
+      "trialDetail": "Die Testphase endet am {{date}}; dann beginnt die Abrechnung.",
       "renews": "Verlängert am {{date}}",
       "renewsWithAmount": "Verlängert am {{date}} · {{amount}}"
     }

@@ -427,7 +427,7 @@
   "communityTrialEnding": {
     "subject": "La prueba de {{community}} termina el {{date}}",
     "title": "La prueba de {{community}} termina el {{date}}",
-    "body": "La prueba de <strong>{{community}}</strong> termina el <strong>{{date}}</strong>. Suscríbete en el portal de facturación antes de esa fecha para seguir editando; después, la comunidad pasará a ser de solo lectura hasta que se elija un plan.",
+    "body": "La prueba de <strong>{{community}}</strong> termina el <strong>{{date}}</strong>. Después, su plan continúa y se cobra al método de pago registrado. Revisa tus datos de facturación o cancela antes de esa fecha si no quieres continuar.",
     "buttonLabel": "Abrir el portal de facturación"
   },
   "communityTrialEnded": {

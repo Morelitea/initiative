@@ -427,7 +427,7 @@
   "communityTrialEnding": {
     "subject": "Die Testphase von {{community}} endet am {{date}}",
     "title": "Die Testphase von {{community}} endet am {{date}}",
-    "body": "Die Testphase von <strong>{{community}}</strong> endet am <strong>{{date}}</strong>. Schließe vorher im Abrechnungsportal ein Abo ab, um weiter bearbeiten zu können – danach ist die Community schreibgeschützt, bis ein Tarif gewählt ist.",
+    "body": "Die Testphase von <strong>{{community}}</strong> endet am <strong>{{date}}</strong>. Danach läuft ihr Tarif weiter und wird über die hinterlegte Zahlungsmethode abgerechnet. Prüfe deine Zahlungsdaten oder kündige vorher, wenn du nicht weitermachen möchtest.",
     "buttonLabel": "Abrechnungsportal öffnen"
   },
   "communityTrialEnded": {
