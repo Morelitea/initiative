@@ -27,6 +27,7 @@ from app.models.platform.user import (
     UserRole,
     UserStatus,
 )
+from app.models.platform.app_setting import AppSetting
 from app.models.platform.user_birthdate import UserBirthdate
 from app.models.platform.user_notification_prefs import UserNotificationPrefs
 from app.models.platform.user_profile_view import MemberProfile
@@ -41,6 +42,7 @@ from app.services.auth import totp as totp_service
 from app.services.platform import api_keys as api_keys_service
 from app.services.platform import billing_ping
 from app.services.platform import identity_refs
+from app.services.platform.retention import ACCOUNT_DELETION
 from app.services.platform import user_avatars as user_avatars_service
 from app.models.tenant.resource_grant import ResourceGrant
 from app.models.tenant.task import TaskAssignee
@@ -1163,8 +1165,8 @@ async def to_operator_read(users: List[User]) -> List["OperatorUserRead"]:
     locks, enrolled, key_counts = await _credential_state([u.id for u in users])
     # Only asked when somebody on this page is actually waiting out a window,
     # which on an ordinary roster is nobody.
-    retention = (
-        await _account_retention_days()
+    deployment = (
+        await _app_settings()
         if any(u.status == UserStatus.deleted for u in users)
         else None
     )
@@ -1175,7 +1177,8 @@ async def to_operator_read(users: List[User]) -> List["OperatorUserRead"]:
         payload.email = primary.get(user.id) or ""
         payload.email_verified = user.id in proven
         payload.birthdate_on_file = user.id in dated
-        payload.purge_at = _erase_at(user, retention)
+        if deployment is not None:
+            payload.purge_at = ACCOUNT_DELETION.ends_at(user, deployment)
         payload.second_factor_enrolled = user.id in enrolled
         payload.api_key_count = key_counts.get(user.id, 0)
         lock = locks.get(user.id)
@@ -1185,8 +1188,8 @@ async def to_operator_read(users: List[User]) -> List["OperatorUserRead"]:
     return out
 
 
-async def _account_retention_days() -> int | None:
-    """The deployment's window for deleted accounts, on its own session.
+async def _app_settings() -> AppSetting:
+    """The deployment's settings, on its own session.
 
     Same reason as :func:`_reach`: this shape is built outside any particular
     request's session, and the setting is one row read once for the whole page.
@@ -1195,24 +1198,7 @@ async def _account_retention_days() -> int | None:
     from app.services.platform import app_settings as app_settings_service
 
     async with SystemSessionLocal() as system_session:
-        row = await app_settings_service.get_app_settings(system_session)
-        return row.deleted_account_retention_days
-
-
-def _erase_at(user: User, retention: int | None) -> datetime | None:
-    """When this account is erased, or None if nothing will erase it.
-
-    ``status_changed_at`` is when the deletion was asked for. ``retention`` of
-    None is a deployment that keeps deleted accounts, and an account that is
-    never erased has no date to show.
-    """
-    if user.status != UserStatus.deleted or user.status_changed_at is None:
-        return None
-    if retention is None:
-        return None
-    from app.services.platform.account_purge import erase_at
-
-    return erase_at(user.status_changed_at, retention)
+        return await app_settings_service.get_app_settings(system_session)
 
 
 async def to_operator_read_one(user: User) -> "OperatorUserRead":

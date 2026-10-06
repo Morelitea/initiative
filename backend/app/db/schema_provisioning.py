@@ -765,7 +765,8 @@ async def provision_guild_schema(conn: AsyncConnection, guild_id: int) -> str:
 
 
 async def drop_guild_schema(conn: AsyncConnection, guild_id: int) -> None:
-    """Drop ``guild_<id>`` (schema + role). Safe if either is already absent."""
+    """Drop ``guild_<id>`` (schema + role) under the guild's provisioning lock.
+    Safe if either is already absent."""
     schema = guild_schema_name(guild_id)
 
     # DROP SCHEMA needs an exclusive lock on the schema's tables (and on
@@ -773,6 +774,9 @@ async def drop_guild_schema(conn: AsyncConnection, guild_id: int) -> None:
     # fast rather than hang: the guild-purge pass reclaims any schema whose row
     # is gone, and this drop is idempotent so that retry recovers cleanly.
     await conn.exec_driver_sql("SET lock_timeout = '10s'")
+    # One drop or provisioning run per guild at a time; a drop that waited
+    # finds the schema and roles already gone.
+    await advisory_lock(conn, LockNamespace.GUILD_PROVISION, guild_id)
     await conn.exec_driver_sql(f'DROP SCHEMA IF EXISTS "{schema}" CASCADE')
     provisioning_login, _ = settings.database_login("DATABASE_URL")
     from app.db.filer_access import filer_role_name

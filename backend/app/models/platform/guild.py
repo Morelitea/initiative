@@ -52,7 +52,7 @@ class CommunityStatus(str, Enum):
     The fifth is not:
 
     - ``deleted``: the guild has been deleted and is being retained for
-      :data:`~app.services.platform.guild_purge.GUILD_RETENTION_DAYS` before
+      :data:`~app.services.platform.retention.COMMUNITY_DELETION` before
       it is destroyed. Nobody in the guild reaches it, its admins included,
       and it is absent from every member's guild list.
 

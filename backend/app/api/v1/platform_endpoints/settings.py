@@ -1,5 +1,4 @@
 import logging
-from datetime import datetime
 from typing import Any, Literal
 
 import httpx
@@ -98,7 +97,7 @@ from app.services import captcha as captcha_service
 from app.services.captcha_config import ResolvedCaptchaConfig
 from app.services.platform import billing as billing_service
 from app.services.platform import billing_ping
-from app.services.platform import guild_purge
+from app.services.platform.retention import COMMUNITY_DELETION
 from app.services.platform import guilds as guilds_service
 from app.services.platform.intake import stream_is_bound
 from app.services import audit as audit_service
@@ -797,28 +796,13 @@ async def get_fcm_config(request: Request) -> FCMConfigResponse:
 # --- Guild storage limits (Operator dashboard → Guilds tab) ---
 
 
-def _guild_purge_at(guild: Guild, retention: int | None) -> datetime | None:
-    """When this guild is destroyed, or None if nothing will destroy it.
-
-    ``status_changed_at`` is the deletion time for a deleted guild, so the date
-    is derived from the columns already loaded rather than stored. ``retention``
-    is the deployment's window; None there means it keeps deleted communities,
-    and a community that is never destroyed has no date to show.
-    """
-    if guild.status != CommunityStatus.deleted.value or guild.status_changed_at is None:
-        return None
-    if retention is None:
-        return None
-    return guild_purge.purge_at(guild.status_changed_at, retention)
-
-
 def _guild_storage_read(
     guild: Guild,
     administration: GuildAdministration | None,
     *,
     member_count: int,
     has_seat: bool,
-    retention: int | None,
+    deployment: AppSetting,
 ) -> PlatformCommunityStorageRead:
     """One row of the Guilds tab.
 
@@ -831,7 +815,7 @@ def _guild_storage_read(
         id=guild.id,
         name=guild.name,
         member_count=member_count,
-        purge_at=_guild_purge_at(guild, retention),
+        purge_at=COMMUNITY_DELETION.ends_at(guild, deployment),
         has_seat=has_seat,
         tier_name=administration.tier_name if administration else None,
         max_storage_bytes=(
@@ -935,7 +919,7 @@ async def list_platform_community_storage(
         page=page,
         page_size=page_size,
     )
-    retention = await guild_purge.retention_days(session)
+    deployment = await app_settings_service.get_app_settings(session)
     counts, seated = await _member_tallies([g.id for g, _ in rows])
     items = [
         _guild_storage_read(
@@ -943,7 +927,7 @@ async def list_platform_community_storage(
             administration,
             member_count=counts.get(g.id, 0),
             has_seat=g.id in seated,
-            retention=retention,
+            deployment=deployment,
         )
         for g, administration in rows
     ]
@@ -1096,7 +1080,7 @@ async def update_platform_community_storage(
         administration,
         member_count=await guilds_service.count_members(session, guild_id=guild_id),
         has_seat=await guilds_service.guild_has_seat(session, guild_id=guild.id),
-        retention=await guild_purge.retention_days(session),
+        deployment=await app_settings_service.get_app_settings(session),
     )
 
 
@@ -1209,7 +1193,7 @@ async def restore_platform_community(
         administration,
         member_count=await guilds_service.count_members(session, guild_id=guild_id),
         has_seat=await guilds_service.guild_has_seat(session, guild_id=guild_id),
-        retention=await guild_purge.retention_days(session),
+        deployment=await app_settings_service.get_app_settings(session),
     )
 
 
