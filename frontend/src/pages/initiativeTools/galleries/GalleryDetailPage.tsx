@@ -60,6 +60,7 @@ import { useCommunityPath } from "@/lib/communityUrl";
 import { formatPeriod } from "@/lib/formatDate";
 import { imageLabel, imageSrc } from "@/lib/galleries";
 import { toast } from "@/lib/mascotToast";
+import { browserTimezone } from "@/lib/timezones";
 import { toolListRoute, toolSettingsRoute } from "@/lib/tools";
 
 type ViewMode = "masonry" | "grid" | "timeline";
@@ -153,7 +154,7 @@ export function GalleryDetailPage() {
     {
       ...(filters.search ? { search: filters.search } : {}),
       ...(filters.tag_ids ? { tag_ids: filters.tag_ids } : {}),
-      tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      tz: browserTimezone(),
     },
     { enabled: viewMode === "timeline" }
   );

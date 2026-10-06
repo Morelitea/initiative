@@ -71,7 +71,7 @@ export const useWritableProjects = (options?: QueryOpts<ProjectListResponse>) =>
   };
   return useQuery<ProjectListResponse>({
     queryKey: getListProjectsQueryKey(communityId, params),
-    queryFn: () => fetchAllPages(listProjects, communityId, params),
+    queryFn: () => fetchAllPages((p) => listProjects(communityId, p), params),
     staleTime: 60 * 1000,
     ...options,
   });

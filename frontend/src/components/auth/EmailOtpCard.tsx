@@ -37,6 +37,7 @@ import { Label } from "@/components/ui/label";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useAuth } from "@/hooks/useAuth";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { browserTimezone } from "@/lib/timezones";
 
 type Step = "address" | "code" | "handle";
 
@@ -138,7 +139,7 @@ export const EmailOtpCard = ({ onCancel, onSignedIn, inviteCode, registration }:
     setError(null);
     try {
       const token = await registerWithCode({
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        timezone: browserTimezone(),
         ...registration,
         registration_ticket: ticket,
         username: username.trim(),

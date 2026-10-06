@@ -18,7 +18,6 @@ import {
 import { useRecurrencePreview } from "@/hooks/useRecurrencePreview";
 import { formatDate, formatDateTime } from "@/lib/formatDate";
 import {
-  browserTimezone,
   createRecurrenceFromPreset,
   detectRecurrencePreset,
   getReferenceDate,
@@ -36,6 +35,7 @@ import {
   withFrequency,
   withMonthlyMode,
 } from "@/lib/recurrence";
+import { browserTimezone } from "@/lib/timezones";
 import { cn } from "@/lib/utils";
 import type { TranslateFn } from "@/types/i18n";
 

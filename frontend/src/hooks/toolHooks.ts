@@ -491,7 +491,7 @@ const fileEndpoints = {
   // `page_size: 0` asks for the complete set, which the server serves in
   // windows; this walks them. A positive page size passes straight through.
   list: (communityId: number, params?: ListFilesParams) =>
-    fetchAllPages(listFiles, communityId, params ?? {}),
+    fetchAllPages((p) => listFiles(communityId, p), params ?? {}),
   myListKey: getListMyFilesQueryKey,
   myList: listMyFiles,
   detailKey: getReadFileQueryKey,

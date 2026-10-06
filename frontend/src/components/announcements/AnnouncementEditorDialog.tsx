@@ -38,7 +38,9 @@ import {
 } from "@/hooks/usePlatformAnnouncements";
 import { validateTriggerRoute } from "@/lib/announcementPages";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { fromLocalDateTimeInput, toLocalDateTimeInput } from "@/lib/formatDate";
 import { toast } from "@/lib/mascotToast";
+import { browserTimezone } from "@/lib/timezones";
 import { resolveHeaderlessApiUrl } from "@/lib/uploadUrl";
 
 const CATEGORIES: AnnouncementCategory[] = [
@@ -56,18 +58,6 @@ const PLATFORM_ROLES = ["member", "support", "moderator", "operator", "owner"] a
 const AUDIENCE_ACCOUNTS: AnnouncementAudienceAccounts[] = ["everyone", "existing", "new"];
 type PlatformRole = (typeof PLATFORM_ROLES)[number];
 
-/** ``<input type="datetime-local">`` wants a local "YYYY-MM-DDTHH:mm". */
-const toLocalInput = (iso: string | null | undefined): string => {
-  if (!iso) return "";
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return "";
-  const offset = date.getTimezoneOffset() * 60_000;
-  return new Date(date.getTime() - offset).toISOString().slice(0, 16);
-};
-
-const fromLocalInput = (value: string): string | null =>
-  value ? new Date(value).toISOString() : null;
-
 //: Mirrors the server's ceiling in ``app.schemas.platform.announcement``.
 const MAX_DISMISSALS_REQUIRED = 10;
 
@@ -75,15 +65,6 @@ const clampDismissals = (raw: string): number => {
   const parsed = Number.parseInt(raw, 10);
   if (!Number.isFinite(parsed)) return 1;
   return Math.min(Math.max(parsed, 1), MAX_DISMISSALS_REQUIRED);
-};
-
-/** What the browser calls the timezone those local times are read in. */
-const localTimeZone = (): string => {
-  try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
-  } catch {
-    return "UTC";
-  }
 };
 
 interface EditorState {
@@ -113,8 +94,8 @@ const initialState = (announcement: AnnouncementOperatorRead | null): EditorStat
   minPlatformRole: (announcement?.min_platform_role ?? "member") as PlatformRole,
   communityAdminsOnly: announcement?.community_admins_only ?? false,
   audienceAccounts: announcement?.audience_accounts ?? "everyone",
-  publishedAt: toLocalInput(announcement?.published_at),
-  expiresAt: toLocalInput(announcement?.expires_at),
+  publishedAt: toLocalDateTimeInput(announcement?.published_at),
+  expiresAt: toLocalDateTimeInput(announcement?.expires_at),
   dismissalsRequired: announcement?.dismissals_required ?? 1,
   triggerRoute: announcement?.trigger_route ?? "",
   sections:
@@ -211,8 +192,8 @@ export const AnnouncementEditorDialog = ({
       min_platform_role: state.minPlatformRole,
       community_admins_only: state.communityAdminsOnly,
       audience_accounts: state.audienceAccounts,
-      published_at: fromLocalInput(state.publishedAt),
-      expires_at: fromLocalInput(state.expiresAt),
+      published_at: fromLocalDateTimeInput(state.publishedAt),
+      expires_at: fromLocalDateTimeInput(state.expiresAt),
       dismissals_required: state.dismissalsRequired,
       trigger_route: state.triggerRoute.trim() || null,
     };
@@ -423,7 +404,7 @@ export const AnnouncementEditorDialog = ({
                       at each reader's. Naming the zone is the only way that is
                       obvious. */}
                   <p className="text-muted-foreground text-xs">
-                    {t("operator.fields.timezoneHint", { zone: localTimeZone() })}
+                    {t("operator.fields.timezoneHint", { zone: browserTimezone() })}
                   </p>
                 </div>
                 <div className="space-y-2">
@@ -445,7 +426,7 @@ export const AnnouncementEditorDialog = ({
                       onClick={() =>
                         setState((previous) => ({
                           ...previous,
-                          publishedAt: toLocalInput(new Date().toISOString()),
+                          publishedAt: toLocalDateTimeInput(new Date().toISOString()),
                         }))
                       }
                     >

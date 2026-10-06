@@ -92,6 +92,7 @@ import { useCommunityPath } from "@/lib/communityUrl";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { getProjectColor } from "@/lib/projectColor";
 import { getItem, setItem } from "@/lib/storage";
+import { browserTimezone } from "@/lib/timezones";
 import { eventRoute, taskRoute, toolListRoute, toolSettingsRoute } from "@/lib/tools";
 
 const STORAGE_KEY = "initiative-calendars-prefs";
@@ -254,7 +255,7 @@ export const CalendarsView = ({
     return JSON.stringify(propertyFilters);
   }, [propertyFilters]);
 
-  const userTimezone = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone, []);
+  const userTimezone = useMemo(browserTimezone, []);
 
   // Task filter conditions (same JSON shape GET /tasks accepts). The date
   // window travels as start_after/start_before on the request (see

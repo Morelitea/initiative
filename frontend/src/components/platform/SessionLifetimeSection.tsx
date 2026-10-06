@@ -17,6 +17,7 @@ import { Label } from "@/components/ui/label";
 import { usePlatformAuthSettings, useUpdatePlatformAuthSettings } from "@/hooks/useSettings";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { toast } from "@/lib/mascotToast";
+import { readOptionalWholeNumber } from "@/lib/text";
 
 export const SessionLifetimeSection = () => {
   const query = usePlatformAuthSettings();
@@ -47,18 +48,12 @@ const SessionLifetimeForm = ({
     onError: (err) => toast.error(getErrorMessage(err, "settings:auth.sessionLifetime.error")),
   });
 
-  const trimmed = value.trim();
-  const parsed = trimmed === "" ? null : Number.parseInt(trimmed, 10);
-  const trimmedIdle = idle.trim();
-  const parsedIdle = trimmedIdle === "" ? null : Number.parseInt(trimmedIdle, 10);
-  const valid =
-    (parsed === null || (Number.isFinite(parsed) && parsed >= 1)) &&
-    (parsedIdle === null || (Number.isFinite(parsedIdle) && parsedIdle >= 1));
+  const maxHours = readOptionalWholeNumber(value, 1);
+  const idleLimit = readOptionalWholeNumber(idle, 1);
+  const valid = maxHours.valid && idleLimit.valid;
   // Saved together, because they are two halves of one answer and the server
   // takes them in one write.
-  const changed =
-    (hours === null ? "" : String(hours)) !== trimmed ||
-    (idleMinutes === null ? "" : String(idleMinutes)) !== trimmedIdle;
+  const changed = maxHours.value !== hours || idleLimit.value !== idleMinutes;
 
   return (
     <SettingsSection
@@ -94,8 +89,8 @@ const SessionLifetimeForm = ({
           disabled={!valid || !changed || update.isPending}
           onClick={() =>
             update.mutate({
-              session_max_hours: parsed,
-              session_idle_minutes: parsedIdle,
+              session_max_hours: maxHours.value,
+              session_idle_minutes: idleLimit.value,
             })
           }
         >

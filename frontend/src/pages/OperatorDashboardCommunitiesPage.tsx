@@ -1,9 +1,11 @@
-import type { PaginationState, SortingState } from "@tanstack/react-table";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { PlatformCommunityStorageRead } from "@/api/generated/initiativeAPI.schemas";
-import { CommunityStatus } from "@/api/generated/initiativeAPI.schemas";
+import {
+  CommunityStatus,
+  ListPlatformCommunityStorageSortBy,
+  type PlatformCommunityStorageRead,
+} from "@/api/generated/initiativeAPI.schemas";
 import { BillingConsoleButton } from "@/components/platform/BillingConsoleButton";
 import { CommunityOperatorSettingsSheet } from "@/components/platform/CommunityOperatorSettingsSheet";
 import { SkeletonRegion, TableSkeleton } from "@/components/skeletons/PageSkeletons";
@@ -21,7 +23,7 @@ import {
 } from "@/components/ui/select";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useAuth } from "@/hooks/useAuth";
-import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { useServerTableState } from "@/hooks/useServerTableState";
 import { usePlatformCommunities, useUpdateCommunityStorage } from "@/hooks/useSettings";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { toast } from "@/lib/mascotToast";
@@ -167,23 +169,10 @@ export const OperatorDashboardCommunitiesPage = () => {
 
   // Searched, sorted and paged on the server, so the table holds one page of
   // the deployment's communities rather than all of them.
-  const [draft, setDraft] = useState("");
-  const search = useDebouncedValue(draft, 250);
-  const [sorting, setSorting] = useState<SortingState>([]);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
-  const sort = sorting[0];
-  const communitiesQuery = usePlatformCommunities(
-    {
-      search: search.trim() || undefined,
-      page,
-      page_size: pageSize,
-      ...(sort?.id === "id" || sort?.id === "name"
-        ? { sort_by: sort.id, sort_dir: sort.desc ? ("desc" as const) : ("asc" as const) }
-        : {}),
-    },
-    { enabled: canManageCommunities }
-  );
+  const table = useServerTableState(Object.values(ListPlatformCommunityStorageSortBy));
+  const communitiesQuery = usePlatformCommunities(table.params, {
+    enabled: canManageCommunities,
+  });
   const rows = communitiesQuery.data?.items ?? [];
   const totalCount = communitiesQuery.data?.total_count ?? 0;
   const { billing } = useAppConfig();
@@ -293,31 +282,9 @@ export const OperatorDashboardCommunitiesPage = () => {
           getRowId={(community) => String(community.id)}
           enableFilterInput
           filterInputPlaceholder={t("communities.filterByName")}
-          filterValue={draft}
-          onFilterValueChange={(value) => {
-            setDraft(value);
-            setPage(1);
-          }}
-          manualSorting
-          sorting={sorting}
-          onSortingChange={(next) => {
-            setSorting(next);
-            setPage(1);
-          }}
           enableResetSorting
           enablePagination
-          manualPagination
-          pageCount={Math.max(1, Math.ceil(totalCount / pageSize))}
-          rowCount={totalCount}
-          pageIndex={page - 1}
-          onPaginationChange={(next: PaginationState) => {
-            if (next.pageSize !== pageSize) {
-              setPageSize(next.pageSize);
-              setPage(1);
-            } else {
-              setPage(next.pageIndex + 1);
-            }
-          }}
+          {...table.tableProps(totalCount)}
         />
         <p className="text-muted-foreground text-xs">
           {billing?.manages_plans ? t("communities.helpTextBilling") : t("communities.helpText")}

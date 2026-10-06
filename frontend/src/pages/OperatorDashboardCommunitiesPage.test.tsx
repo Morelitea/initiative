@@ -645,11 +645,9 @@ describe("OperatorDashboardCommunitiesPage", () => {
       // The purge date is an instant, not a calendar day, so it is drawn in
       // the reader's own timezone — computed here the same way rather than
       // written out, which would only pass in the timezone it was written in.
-      const expected = new Date("2026-11-30T00:00:00Z").toLocaleDateString("en", {
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      });
+      const expected = new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(
+        new Date("2026-11-30T00:00:00Z")
+      );
       expect(
         screen.getByText(`Deleted. Everything in it is destroyed on ${expected}.`)
       ).toBeInTheDocument();

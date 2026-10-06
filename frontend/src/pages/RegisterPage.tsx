@@ -16,6 +16,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { browserTimezone } from "@/lib/timezones";
 
 /**
  * The first account on a fresh deployment, which becomes its owner. Everyone
@@ -42,7 +43,7 @@ export const RegisterPage = () => {
     username_offer: handle.offer ?? undefined,
     // The browser's IANA timezone, so the account starts on the person's wall
     // clock rather than the server's UTC default.
-    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || undefined,
+    timezone: browserTimezone(),
   });
 
   const submitPassword = async (password: string) => {

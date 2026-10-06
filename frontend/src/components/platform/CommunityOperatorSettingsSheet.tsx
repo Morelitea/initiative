@@ -46,6 +46,7 @@ import {
   useUpdateCommunityStorage,
 } from "@/hooks/useSettings";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { formatDate } from "@/lib/formatDate";
 import { toast } from "@/lib/mascotToast";
 
 const GIB = 1024 ** 3;
@@ -86,7 +87,7 @@ export const CommunityOperatorSettingsSheet = ({
    *  binding, one for every community, served beside the list. */
   supportBound: boolean;
 }) => {
-  const { t, i18n } = useTranslation("settings");
+  const { t } = useTranslation("settings");
   const { billing } = useAppConfig();
   const planIsBillings = billing?.manages_plans ?? false;
 
@@ -161,13 +162,7 @@ export const CommunityOperatorSettingsSheet = ({
   // What locks the plan's own controls: a community on its way out, or a plan
   // that billing sets.
   const planLocked = deleted || planIsBillings;
-  const purgeDate = community.purge_at
-    ? new Date(community.purge_at).toLocaleDateString(i18n.resolvedLanguage ?? i18n.language, {
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      })
-    : null;
+  const purgeDate = formatDate(community.purge_at);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>

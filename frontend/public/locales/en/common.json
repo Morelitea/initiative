@@ -19,6 +19,11 @@
   "submit": "Submit",
   "reset": "Reset",
   "done": "Done",
+  "pullToRefresh": {
+    "pull": "Pull to refresh",
+    "release": "Release to refresh",
+    "refreshing": "Refreshing…"
+  },
   "toolViewFilter": {
     "label": "Show",
     "all": "All",
