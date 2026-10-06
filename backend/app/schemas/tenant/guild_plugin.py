@@ -27,7 +27,9 @@ from pydantic import AliasChoices, ConfigDict, Field
 
 from app.models.tenant.plugin_member_consent import ConsentAccess, ConsentStatus
 from app.schemas.base import SanitizedBaseModel
+from app.schemas.platform.marketplace import ListingSource
 from app.schemas.query import PageMeta
+from app.services.marketplace.definitions import published_by_us
 from app.services.marketplace.registration_lookup import InstallState
 from app.services.tenant import plugin_age
 from app.services.tenant import plugin_config as plugin_config_service
@@ -351,6 +353,24 @@ class CommunityPluginDecline(SanitizedBaseModel):
     version: str = Field(max_length=32)
 
 
+class CommunityPluginListingRef(SanitizedBaseModel):
+    """Where an install came from in the catalog, as the plug-in's page shows it.
+
+    Read from the catalog rather than pinned, like the artwork: who publishes a
+    listing is the catalog's to say.
+    """
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    #: The listing's row id, which a report names it by.
+    id: int
+    source: ListingSource  # type: ignore[valid-type]
+    publisher: str
+    #: Whether this project publishes it, so it is neither reported nor
+    #: introduced as somebody else's.
+    first_party: bool
+
+
 class CommunityPluginDetail(CommunityPluginRead):
     """An install plus its connections, for the settings page.
 
@@ -382,6 +402,9 @@ class CommunityPluginDetail(CommunityPluginRead):
     #: version adds: the name the plug-in it lets this one use goes by, keyed by
     #: that plug-in's public id. Its public id when the catalog has no name for it.
     plugin_names: Dict[str, str] = {}
+    #: The catalog listing behind this install. Absent when the catalog no
+    #: longer holds it.
+    listing: Optional[CommunityPluginListingRef] = None
 
 
 class CommunityPluginListResponse(SanitizedBaseModel):
@@ -635,11 +658,13 @@ def serialize_guild_plugin_detail(
     consent_rows: Sequence[Any] = (),
     plugin_names: Optional[Dict[str, str]] = None,
     viewer: AgeViewer,
+    listing: Any = None,
 ) -> CommunityPluginDetail:
     """The install and its connections, from the viewer's own perspective.
 
     ``update_offer`` (an ``plugin_updates.UpdateOffer``) is resolved by the
-    caller, which is the layer holding a session that can read the catalog.
+    caller, which is the layer holding a session that can read the catalog,
+    and so is ``listing`` (the install's ``MarketplaceListing``, if any).
     """
     base = serialize_guild_plugin(
         plugin,
@@ -672,6 +697,16 @@ def serialize_guild_plugin_detail(
             plugin.definition, (install_state or InstallState()).scope_ceiling
         ),
         plugin_names=dict(plugin_names or {}),
+        listing=(
+            CommunityPluginListingRef(
+                id=listing.id,
+                source=listing.source,
+                publisher=listing.publisher,
+                first_party=published_by_us(listing.source, listing.public_id),
+            )
+            if listing is not None and listing.id is not None
+            else None
+        ),
     )
 
 

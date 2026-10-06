@@ -175,6 +175,43 @@ class TestBrowse:
         assert miss.json()["items"] == []
         assert miss.json()["total_count"] == 0
 
+    async def test_the_shelf_narrows_to_the_sources_asked_for(
+        self, client, acting_user, session, listing
+    ):
+        """A client showing only the curated catalogue asks for it by source,
+        so a page is full of what it shows rather than thinned afterwards."""
+        operator_listing = await create_marketplace_listing(
+            session,
+            uid="PRTR000000001A",
+            public_id="tests.operator",
+            name="From the operator",
+        )
+        operator_listing.source = "operator"
+        session.add(operator_listing)
+        await session.commit()
+
+        actor = await acting_user(guild_role=CommunityRole.member)
+        everything = await _shelf(client, actor)
+        assert {"tests.browse", "tests.operator"} <= set(everything)
+
+        curated = await _shelf(client, actor, source=["builtin", "registry"])
+        assert "tests.browse" in curated
+        assert "tests.operator" not in curated
+
+    async def test_a_card_carries_its_id(self, client, acting_user, listing):
+        """A report names a listing by its id."""
+        actor = await acting_user(guild_role=CommunityRole.member)
+        response = await client.get(
+            actor.g("/marketplace/listings"), headers=actor.headers
+        )
+        card = next(
+            item
+            for item in response.json()["items"]
+            if item["public_id"] == "tests.browse"
+        )
+        assert card["id"] == listing.id
+        assert card["first_party"] is True
+
     async def test_pages(self, client, acting_user, session):
         for index in range(3):
             await create_marketplace_listing(

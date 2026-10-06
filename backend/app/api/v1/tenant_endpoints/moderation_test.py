@@ -26,6 +26,7 @@ from app.testing import (
     create_project,
     create_guild_membership,
     create_initiative_member,
+    create_marketplace_listing,
     create_task,
     create_user,
     emitted,
@@ -539,6 +540,69 @@ async def test_any_account_can_be_reported_by_profile(
 
     assert response.status_code == 202
     assert response.json()["venue"] == ReportVenue.platform.value
+
+
+async def test_a_marketplace_listing_is_reported_to_the_platform(
+    client, session, scene, operations
+):
+    """A listing belongs to the server's catalog, so its operators get the
+    report, and the case says which listing it was."""
+    listing = await create_marketplace_listing(
+        session,
+        uid="RPRTMKT0000001",
+        public_id="acme.reported",
+        publisher="Acme",
+    )
+    await set_rls_context(session, Unattributed())
+
+    response = await _report(
+        client,
+        scene["member"],
+        target_type="marketplace_listing",
+        target_id=listing.id,
+        reason="spam",
+        detail="Not what it says it is.",
+        community_id=scene["guild"].id,
+    )
+    assert response.status_code == 202, response.text
+    assert response.json()["venue"] == ReportVenue.platform.value
+
+    await set_rls_context(session, SystemGuild(operations["guild"].id))
+    task = (
+        await session.exec(
+            select(Task).where(Task.project_id == operations["project"].id)
+        )
+    ).one()
+    assert "marketplace_listing" in task.title
+    assert "acme.reported" in (task.description or "")
+    assert "Acme" in (task.description or "")
+
+
+async def test_a_listing_that_does_not_exist_is_not_reportable(client, session, scene):
+    """A listing the catalog holds resolves, and only then does the report go
+    looking for somewhere to land; one it does not hold is refused first."""
+    listing = await create_marketplace_listing(
+        session, uid="RPRTMKT0000002", public_id="acme.real"
+    )
+    await set_rls_context(session, Unattributed())
+
+    real = await _report(
+        client,
+        scene["member"],
+        target_type="marketplace_listing",
+        target_id=listing.id,
+        reason="spam",
+    )
+    missing = await _report(
+        client,
+        scene["member"],
+        target_type="marketplace_listing",
+        target_id=999_999,
+        reason="spam",
+    )
+    # No operations community is bound here, so the real one reaches nobody.
+    assert real.status_code == 503, real.text
+    assert missing.status_code == 404, missing.text
 
 
 async def test_a_reported_community_is_the_cases_subject(

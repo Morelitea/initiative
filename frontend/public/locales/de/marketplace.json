@@ -31,7 +31,9 @@
     "needsUpdate": "Benötigt eine neuere Version der App.",
     "withdrawn": "Wird nicht mehr angeboten.",
     "notFound": "Eintrag nicht gefunden",
-    "notFoundDescription": "Er wurde vielleicht zurückgezogen, oder der Link stimmt nicht."
+    "notFoundDescription": "Er wurde vielleicht zurückgezogen, oder der Link stimmt nicht.",
+    "notAvailableHere": "In dieser App nicht verfügbar",
+    "notAvailableHereDescription": "Dieser Eintrag gehört nicht zum Katalog, den diese App anbietet."
   },
   "install": {
     "title": "{{name}} hinzufügen",

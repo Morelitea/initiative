@@ -131,6 +131,23 @@ class TestInstall:
         (item,) = response.json()["items"]
         assert item["avatar_url"] == "/marketplace/test.svg"
 
+    async def test_the_detail_names_the_listing_behind_the_install(
+        self, client: AsyncClient, acting_user, calendar_plugin
+    ):
+        """The plug-in's page says who made it and offers a report, so the
+        detail read carries the listing's source, publisher and id."""
+        a = await acting_user(guild_role=CommunityRole.superadmin)
+        plugin = await _install(client, a)
+
+        response = await client.get(a.g(f"/plugins/{plugin['id']}"), headers=a.headers)
+        assert response.status_code == 200, response.text
+        assert response.json()["listing"] == {
+            "id": calendar_plugin.id,
+            "source": "builtin",
+            "publisher": "Tests",
+            "first_party": True,
+        }
+
     async def test_the_name_can_be_chosen_at_install(
         self, client: AsyncClient, acting_user, session: AsyncSession, calendar_plugin
     ):

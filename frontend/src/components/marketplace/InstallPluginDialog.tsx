@@ -45,6 +45,7 @@ import { useInstallCommunityPlugin } from "@/hooks/useCommunityPlugins";
 import { useInitiatives } from "@/hooks/useInitiatives";
 import { useCommunityPath } from "@/lib/communityUrl";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { listingShownHere } from "@/lib/marketplaceCuration";
 import { toast } from "@/lib/mascotToast";
 import { STANDING_SCOPES, scopeSentence, toggleScope } from "@/lib/pluginScopes";
 import { communityPluginPath } from "@/lib/pluginSurfaces";
@@ -108,6 +109,9 @@ export function InstallPluginDialog({ listing, open, onOpenChange }: InstallPlug
     setRoles((current) =>
       on ? [...new Set([...current, role])] : current.filter((one) => one !== role)
     );
+
+  // Only the catalogue this app shows can be installed from it.
+  if (!listingShownHere(listing)) return null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

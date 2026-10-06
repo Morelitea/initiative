@@ -214,6 +214,7 @@ async def list_listings(
     query: Optional[str] = None,
     include_unavailable: bool = False,
     bundled_with: Optional[Sequence[str]] = None,
+    sources: Optional[Sequence[str]] = None,
     page: int = 1,
     page_size: int = 50,
 ) -> tuple[Sequence[MarketplaceListing], int]:
@@ -231,6 +232,9 @@ async def list_listings(
     and a registration is how one says it runs that plug-in. The rule is read here
     rather than passed in, so browsing, reading a listing and installing one
     cannot end up disagreeing about what this deployment carries.
+
+    ``sources``, when given, keeps only listings that reached the deployment
+    one of those ways — what a client showing a narrower catalogue asks for.
     """
     statement = select(MarketplaceListing)
     count_statement = select(func.count()).select_from(MarketplaceListing)
@@ -240,6 +244,8 @@ async def list_listings(
         filters.append(MarketplaceListing.available.is_(True))
     if kind:
         filters.append(MarketplaceListing.kind == kind)
+    if sources:
+        filters.append(MarketplaceListing.source.in_(list(sources)))
     if bundled_with:
         filters.append(
             or_(

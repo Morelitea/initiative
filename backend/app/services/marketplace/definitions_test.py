@@ -30,6 +30,7 @@ from app.services.marketplace.definitions import (
     plugin_widget_type,
     normalize_publisher,
     normalize_listing_definition,
+    published_by_us,
     reserved_prefix_problem,
 )
 from app.services.marketplace.manifest_values import IDENTIFIER_CHARS
@@ -131,6 +132,24 @@ class TestReservedNamespace:
     def test_the_prefix_is_matched_at_the_boundary(self):
         # 'coreutils.x' is somebody else's publisher, not the reserved one.
         assert reserved_prefix_problem("coreutils.x", source="registry") is None
+
+
+class TestPublishedByUs:
+    """Built-ins, and the registry's listings under this project's prefix."""
+
+    @pytest.mark.parametrize(
+        ("source", "public_id", "expected"),
+        [
+            ("builtin", "core.project-health", True),
+            ("registry", "morelitea.github", True),
+            ("registry", "acme.github", False),
+            ("registry", "moreliteaco.github", False),
+            ("operator", "morelitea.github", False),
+            ("local", "morelitea.github", False),
+        ],
+    )
+    def test_who_publishes_it(self, source, public_id, expected):
+        assert published_by_us(source, public_id) is expected
 
 
 class TestPluginKinds:

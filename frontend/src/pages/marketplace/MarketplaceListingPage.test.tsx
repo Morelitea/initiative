@@ -11,6 +11,7 @@
  * superadmin adds a plug-in, so anyone else is told who can instead of being
  * offered a button that would be refused.
  */
+import { Capacitor } from "@capacitor/core";
 import { screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -50,12 +51,14 @@ vi.mock("@/hooks/useCommunityPlugins", async (importOriginal) => ({
 
 const pluginListing = () =>
   ({
+    id: 7,
     uid: "GLDCAL00000001",
     public_id: "core.community-calendar",
     kind: "plugin",
     source: "builtin",
     name: "Community calendar",
     publisher: "Initiative",
+    first_party: true,
     description: "The community's own events.",
     avatar_url: "/marketplace/cal.svg",
     images: [],
@@ -204,5 +207,41 @@ describe("MarketplaceListingPage", () => {
 
     await screen.findByRole("heading", { name: "Community calendar" });
     expect(screen.getByRole("button", { name: /Add to community/ })).toBeDisabled();
+  });
+
+  it("offers to report a listing somebody else publishes", async () => {
+    listing = {
+      ...pluginListing(),
+      source: "registry",
+      publisher: "Acme Apps",
+      first_party: false,
+    } as unknown as MarketplaceListingDetail;
+    renderPage(MarketplaceListingPage, { routerSearch: { kind: "plugin" } });
+    await screen.findByRole("heading", { name: "Community calendar" });
+    expect(screen.getByRole("button", { name: "Report" })).toBeInTheDocument();
+  });
+
+  it("offers no report on a listing Morelitea publishes", async () => {
+    renderPage(MarketplaceListingPage, { routerSearch: { kind: "plugin" } });
+    await screen.findByRole("heading", { name: "Community calendar" });
+    expect(screen.queryByRole("button", { name: "Report" })).toBeNull();
+  });
+
+  it("says a listing outside the curated catalogue is not available on an iPhone", async () => {
+    vi.spyOn(Capacitor, "getPlatform").mockReturnValue("ios");
+    listing = { ...pluginListing(), source: "operator" } as unknown as MarketplaceListingDetail;
+    renderPage(MarketplaceListingPage, { routerSearch: { kind: "plugin" } });
+
+    expect(await screen.findByText("Not available in this app")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Community calendar" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Add to community/ })).toBeNull();
+  });
+
+  it("shows a curated listing on an iPhone", async () => {
+    vi.spyOn(Capacitor, "getPlatform").mockReturnValue("ios");
+    listing = { ...pluginListing(), source: "registry" } as unknown as MarketplaceListingDetail;
+    renderPage(MarketplaceListingPage, { routerSearch: { kind: "plugin" } });
+
+    expect(await screen.findByRole("heading", { name: "Community calendar" })).toBeInTheDocument();
   });
 });

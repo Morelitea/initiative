@@ -28,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Close an event's RSVP.** Under an event's **Settings → Attendees**, turn off **Anyone who can see it may RSVP** and only the attendees you add can answer. On, as before, answering adds you to the attendees. A repeating event's occurrences follow the series.
 - **Plug-ins can show your community's usage** on **Community settings › Usage**, below storage and members.
 - **A plug-in's listing shows its minimum age** where it declares one, for the country your browser is set to.
+- **Report a marketplace listing or a plug-in** with the flag on its listing page or at the top of the plug-in. Reports go to whoever runs the server. Plug-ins Morelitea publishes have no flag.
 
 ### Changed
 
@@ -50,6 +51,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The jackalope mascot is called Yonder now**, not Chester.
 - **The phone and desktop apps open straight to sign-in.** The website's front pages (welcome, pricing, download, what's new) are no longer part of the apps.
 - **On iPhone, an app update is sent to the App Store**, not to an APK download.
+- **The iPhone app shows the curated marketplace**: listings that ship with Initiative and those from the Initiative registry. Plug-ins a community already added open too; one Morelitea doesn't publish shows a one-time note first saying who made it.
 - **The Android app connects to `https://` servers only.** **Server operators:** a server on plain `http://` needs HTTPS before the app can reach it; browsers are unaffected.
 - **The phone app never goes back to an update older than itself**, and on iPhone a new feature release arrives through the App Store.
 - **An app installed from Google Play is sent back to Play** when it needs updating.

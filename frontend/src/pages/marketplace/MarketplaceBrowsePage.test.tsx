@@ -6,6 +6,7 @@
  * derived from the community's own dashboards — matched on the listing uid an
  * install pins, not on the name or the public id.
  */
+import { Capacitor } from "@capacitor/core";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -41,6 +42,7 @@ vi.mock("@/hooks/useCommunityPlugins", () => ({
 
 const listing = (overrides: Partial<MarketplaceListingSummary> = {}) =>
   ({
+    id: 1,
     uid: "SPRNT000000001",
     public_id: "core.sprint",
     kind: "dashboard",
@@ -166,5 +168,46 @@ describe("MarketplaceBrowsePage", () => {
     listingsFor.mockReturnValue({ data: { items: [], total: 0 }, isLoading: false });
     renderPage(MarketplaceBrowsePage);
     expect(await screen.findByText(/nothing here yet|no matches/i)).toBeInTheDocument();
+  });
+
+  it("shows only the curated catalogue on an iPhone", async () => {
+    vi.spyOn(Capacitor, "getPlatform").mockReturnValue("ios");
+    listingsFor.mockReturnValue({
+      data: {
+        items: [
+          listing(),
+          listing({
+            uid: "PRTR000000001A",
+            public_id: "acme.extra",
+            name: "Operator extra",
+            source: "operator",
+            publisher: "Acme",
+          }),
+        ],
+        total: 2,
+      },
+      isLoading: false,
+    });
+    renderPage(MarketplaceBrowsePage);
+
+    expect(await screen.findByText("Sprint health")).toBeInTheDocument();
+    expect(screen.queryByText("Operator extra")).toBeNull();
+    expect(listingsFor).toHaveBeenCalledWith(
+      expect.objectContaining({ source: ["builtin", "registry"] })
+    );
+  });
+
+  it("shows the whole catalogue elsewhere", async () => {
+    listingsFor.mockReturnValue({
+      data: {
+        items: [listing({ public_id: "acme.extra", name: "Operator extra", source: "operator" })],
+        total: 1,
+      },
+      isLoading: false,
+    });
+    renderPage(MarketplaceBrowsePage);
+
+    expect(await screen.findByText("Operator extra")).toBeInTheDocument();
+    expect(listingsFor).toHaveBeenCalledWith(expect.objectContaining({ source: undefined }));
   });
 });

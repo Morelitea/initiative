@@ -17,6 +17,7 @@ import type { DashboardRead } from "@/api/generated/initiativeAPI.schemas";
 import { Button } from "@/components/ui/button";
 import { useUpgradeDashboard } from "@/hooks/useDashboards";
 import { useMarketplaceListingByUid } from "@/hooks/useMarketplace";
+import { listingShownHere } from "@/lib/marketplaceCuration";
 import { toast } from "@/lib/mascotToast";
 
 export interface DashboardUpdateBadgeProps {
@@ -37,7 +38,14 @@ export function DashboardUpdateBadge({ dashboard, canEdit }: DashboardUpdateBadg
   // and that version runs on this build — so the button appears only when the
   // upgrade would actually be accepted. Re-deriving it here is how a withdrawn
   // listing ends up offering an update that 409s.
-  if (!listing?.installable || !latest || latest.version === dashboard.listing_version) {
+  // A new version is an install, so it is offered only from the catalogue
+  // this app shows.
+  if (
+    !listing?.installable ||
+    !latest ||
+    latest.version === dashboard.listing_version ||
+    !listingShownHere(listing)
+  ) {
     return null;
   }
 

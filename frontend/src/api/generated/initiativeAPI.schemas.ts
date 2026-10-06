@@ -2657,6 +2657,31 @@ export interface CommunityPluginUpgradeAsks {
 }
 
 /**
+ * How a listing reached this deployment.
+ */
+export type ListingSource = (typeof ListingSource)[keyof typeof ListingSource];
+
+export const ListingSource = {
+  builtin: "builtin",
+  local: "local",
+  operator: "operator",
+  registry: "registry",
+} as const;
+
+/**
+ * Where an install came from in the catalog, as the plug-in's page shows it.
+ *
+ * Read from the catalog rather than pinned, like the artwork: who publishes a
+ * listing is the catalog's to say.
+ */
+export interface CommunityPluginListingRef {
+  id: number;
+  source: ListingSource;
+  publisher: string;
+  first_party: boolean;
+}
+
+/**
  * An install plus its connections, for the settings page.
  *
  * Separate from the list payload because the connection blocks carry the whole
@@ -2694,6 +2719,7 @@ export interface CommunityPluginDetail {
   grantable_scopes: string[];
   pending_update: CommunityPluginUpgradeAsks | null;
   plugin_names: CommunityPluginDetailPluginNames;
+  listing: CommunityPluginListingRef | null;
 }
 
 /**
@@ -5586,18 +5612,6 @@ export interface ListingMediaRead {
 }
 
 /**
- * How a listing reached this deployment.
- */
-export type ListingSource = (typeof ListingSource)[keyof typeof ListingSource];
-
-export const ListingSource = {
-  builtin: "builtin",
-  local: "local",
-  operator: "operator",
-  registry: "registry",
-} as const;
-
-/**
  * What an install copies: the listing itself, or its example.
  */
 export type ListingStartFrom = (typeof ListingStartFrom)[keyof typeof ListingStartFrom];
@@ -5702,12 +5716,14 @@ export interface MarketplaceVersionRead {
  * A listing's full page, including what it would install.
  */
 export interface MarketplaceListingDetail {
+  id: number;
   uid: string;
   public_id: string;
   kind: ListingKind;
   source: ListingSource;
   name: string;
   publisher: string;
+  first_party: boolean;
   description: string;
   avatar_url: string;
   images: string[];
@@ -5729,12 +5745,14 @@ export interface MarketplaceListingDetail {
  * A listing as it appears on a browse card.
  */
 export interface MarketplaceListingSummary {
+  id: number;
   uid: string;
   public_id: string;
   kind: ListingKind;
   source: ListingSource;
   name: string;
   publisher: string;
+  first_party: boolean;
   description: string;
   avatar_url: string;
   images: string[];
@@ -5798,12 +5816,14 @@ export interface MarketplaceShareResult {
  * A listing the signed-in member shared, with anything still waiting.
  */
 export interface MarketplaceSharedListingRead {
+  id: number;
   uid: string;
   public_id: string;
   kind: ListingKind;
   source: ListingSource;
   name: string;
   publisher: string;
+  first_party: boolean;
   description: string;
   avatar_url: string;
   images: string[];
@@ -11306,6 +11326,7 @@ export type ListCalendarEntriesParams = {
 export type ListMarketplaceListingsParams = {
   kind?: ListingKind | null;
   search?: string | null;
+  source?: ListingSource[] | null;
   /**
    * @minimum 1
    */

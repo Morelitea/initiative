@@ -22,7 +22,7 @@
  */
 
 import { Loader2 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { CommunityPluginHandoff } from "@/api/generated/initiativeAPI.schemas";
@@ -30,6 +30,8 @@ import {
   createCommunityPluginHandoff,
   createInitiativePluginHandoff,
 } from "@/api/generated/plugins/plugins";
+import { ReportButton } from "@/components/moderation/ReportButton";
+import { PluginProviderNotice, pluginNoticeKey } from "@/components/plugins/PluginProviderNotice";
 import {
   EditorSkeleton,
   SkeletonPillRow,
@@ -41,8 +43,11 @@ import { useAuth } from "@/hooks/useAuth";
 import { useBillingPortal } from "@/hooks/useBillingPortal";
 import { effectiveThemeColors } from "@/hooks/useColorTheme";
 import { useCommunityPluginDetail } from "@/hooks/useCommunityPluginDetail";
+import { useServer } from "@/hooks/useServer";
 import { useTheme } from "@/hooks/useTheme";
+import { showsCuratedCatalogueOnly } from "@/lib/marketplaceCuration";
 import { embedAllow, pluginEmbeds } from "@/lib/pluginSurfaces";
+import { getItem, setItem } from "@/lib/storage";
 import { DEFAULT_THEME } from "@/lib/themes";
 import { cn } from "@/lib/utils";
 import { localized } from "@/lib/widgets/widgetMeta";
@@ -79,6 +84,24 @@ export function CommunityPluginPage({ pluginId, initiativeId }: CommunityPluginP
   // for.
   const activeId = active?.id ?? null;
 
+  const { user } = useAuth();
+
+  // The iPhone app says who a plug-in comes from before it first opens one
+  // that Morelitea does not publish, and opens nothing until the member
+  // continues.
+  const { getServerOrigin } = useServer();
+  const noticeKey = pluginNoticeKey(getServerOrigin() ?? "", user?.id ?? 0, communityId, pluginId);
+  const [, noteAcknowledged] = useState(0);
+  const held =
+    Boolean(plugin) &&
+    showsCuratedCatalogueOnly() &&
+    !plugin?.listing?.first_party &&
+    getItem(noticeKey) !== "1";
+  const acknowledge = () => {
+    void setItem(noticeKey, "1");
+    noteAcknowledged((count) => count + 1);
+  };
+
   const [handoff, setHandoff] = useState<CommunityPluginHandoff | null>(null);
   const [error, setError] = useState<string | null>(null);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
@@ -106,7 +129,7 @@ export function CommunityPluginPage({ pluginId, initiativeId }: CommunityPluginP
   // Mint for the surface being opened. Re-runs when the surface changes, which
   // is also when the iframe is replaced.
   useEffect(() => {
-    if (!activeId) return;
+    if (!activeId || held) return;
     let cancelled = false;
     setHandoff(null);
     setError(null);
@@ -121,7 +144,7 @@ export function CommunityPluginPage({ pluginId, initiativeId }: CommunityPluginP
     return () => {
       cancelled = true;
     };
-  }, [activeId, mint, t]);
+  }, [activeId, held, mint, t]);
 
   const origin = useMemo(() => {
     if (!handoff?.embed_url) return null;
@@ -143,7 +166,6 @@ export function CommunityPluginPage({ pluginId, initiativeId }: CommunityPluginP
   // effective palette, since an iframe on another origin cannot read this
   // document's custom properties.
   const { resolvedTheme } = useTheme();
-  const { user } = useAuth();
   const colorThemeId = user?.color_theme ?? DEFAULT_THEME;
   const themeColors = useMemo(
     () => effectiveThemeColors(colorThemeId, resolvedTheme),
@@ -276,28 +298,47 @@ export function CommunityPluginPage({ pluginId, initiativeId }: CommunityPluginP
         description={t("plugins:embed.unavailableDescription")}
       />
     );
-  if (!active) return <Notice title={t("plugins:embed.noSurface", { name: plugin.name })} />;
+  // Anything but our own can be reported from here, on every platform.
+  const reportable = plugin.listing?.first_party ? null : plugin.listing;
+  const report = reportable ? (
+    <ReportButton targetType="marketplace_listing" targetId={reportable.id} />
+  ) : null;
+
+  if (!active)
+    return <Notice title={t("plugins:embed.noSurface", { name: plugin.name })} action={report} />;
+  if (held)
+    return (
+      <PluginProviderNotice name={plugin.name} listing={plugin.listing} onContinue={acknowledge} />
+    );
   if (error) return <Notice title={t("plugins:embed.failed")} description={error} />;
 
   return (
     <div className="flex h-full flex-col">
-      {embeds.length > 1 && (
-        <div className="flex shrink-0 gap-1 border-b px-2">
-          {embeds.map((embed) => (
-            <button
-              key={embed.id}
-              type="button"
-              onClick={() => setSurfaceId(embed.id)}
-              className={cn(
-                "border-b-2 px-3 py-2 text-sm",
-                embed.id === active.id
-                  ? "border-primary font-medium"
-                  : "border-transparent text-muted-foreground hover:text-foreground"
-              )}
-            >
-              {localized(embed.name, i18n.language) || embed.id}
-            </button>
-          ))}
+      {(embeds.length > 1 || reportable) && (
+        <div className="flex shrink-0 items-center gap-1 border-b px-2">
+          {embeds.length > 1 &&
+            embeds.map((embed) => (
+              <button
+                key={embed.id}
+                type="button"
+                onClick={() => setSurfaceId(embed.id)}
+                className={cn(
+                  "border-b-2 px-3 py-2 text-sm",
+                  embed.id === active.id
+                    ? "border-primary font-medium"
+                    : "border-transparent text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {localized(embed.name, i18n.language) || embed.id}
+              </button>
+            ))}
+          {reportable && (
+            <ReportButton
+              targetType="marketplace_listing"
+              targetId={reportable.id}
+              className="ml-auto h-8 w-8"
+            />
+          )}
         </div>
       )}
       {handoff?.embed_url ? (
@@ -327,11 +368,22 @@ export function CommunityPluginPage({ pluginId, initiativeId }: CommunityPluginP
   );
 }
 
-function Notice({ title, description }: { title: string; description?: string }) {
+function Notice({
+  title,
+  description,
+  action,
+}: {
+  title: string;
+  description?: string;
+  action?: ReactNode;
+}) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{title}</CardTitle>
+        <div className="flex items-center gap-1">
+          <CardTitle>{title}</CardTitle>
+          {action}
+        </div>
         {description ? <CardDescription>{description}</CardDescription> : null}
       </CardHeader>
     </Card>

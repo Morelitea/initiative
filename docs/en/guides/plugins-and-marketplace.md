@@ -165,6 +165,18 @@ Two things hold whatever you install:
 - **Your access rules still apply.** A dashboard shows *you* only the data you could already reach — same community, initiative, role and sharing checks as everywhere else. Two people on the same dashboard can correctly see different numbers.
 - **Widgets run in a sandbox.** Marketplace widgets run in an isolated runtime that can only hand back something to draw. If one misbehaves, that tile shows an error and the rest of the page carries on.
 
+### Reporting a listing or a plug-in
+
+Something in a plug-in that shouldn't be there? Press the **flag** beside the listing's name, or at the top of an installed plug-in's page, pick a reason, and send it. It goes to whoever runs your server, not to the plug-in's publisher and not to your community's admins, who are free to carry on not knowing.
+
+Plug-ins from Morelitea, who make Initiative, carry no flag. If one misbehaves, that's a bug: tell whoever runs your server, the way you would about anything else that's broken.
+
+### On the iPhone app
+
+The iPhone app shows the **curated catalogue**: the listings that ship with Initiative and the ones from the Initiative registry. Anything your platform owner added themselves is browsed from the website or the other apps.
+
+Plug-ins your community has already added open as usual. The first time you open one Morelitea doesn't publish, you're told who made it, that your community and its publisher provide it rather than Initiative, and where to report it. **Continue**, and it doesn't ask again for that plug-in.
+
 ## Related
 
 - [Profile & preferences](../account/profile-and-preferences.md) — wearing what a decoration pack gave you.

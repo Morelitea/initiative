@@ -8,9 +8,12 @@
  * one. The delivery has to be dropped instead.
  */
 
+import { Capacitor } from "@capacitor/core";
 import { screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { buildUser } from "@/__tests__/factories";
 import { renderPage } from "@/__tests__/helpers/render";
 
 const mint = vi.fn();
@@ -41,6 +44,10 @@ const ADMIN_ACCESS = [
 
 let surfaceAccess = ADMIN_ACCESS;
 
+/** The catalog listing behind the install, as the detail read reports it. */
+type ListingRef = { id: number; source: string; publisher: string; first_party: boolean } | null;
+let listingRef: ListingRef = null;
+
 const detail = {
   id: 1,
   name: "Automations",
@@ -63,7 +70,7 @@ const detail = {
 
 vi.mock("@/hooks/useCommunityPluginDetail", () => ({
   useCommunityPluginDetail: () => ({
-    data: { ...detail, surface_access: surfaceAccess },
+    data: { ...detail, surface_access: surfaceAccess, listing: listingRef },
     isLoading: false,
   }),
 }));
@@ -93,6 +100,7 @@ beforeEach(() => {
   mint.mockReset();
   sale.canSell = false;
   surfaceAccess = ADMIN_ACCESS;
+  listingRef = null;
   postSpy = vi.fn();
   // Every iframe in the page reports the same window, which is the worst case:
   // nothing about the target distinguishes one surface's frame from another's.
@@ -284,5 +292,83 @@ describe("CommunityPluginPage, read inside an initiative", () => {
 
     await screen.findByText(/nothing to show|no page of its own|has no page/i);
     expect(mint).not.toHaveBeenCalled();
+  });
+});
+
+describe("CommunityPluginPage, who a plug-in comes from", () => {
+  beforeEach(() => {
+    mint.mockImplementation((surfaceId: string) => Promise.resolve(handoff(surfaceId)));
+    listingRef = { id: 9, source: "registry", publisher: "Acme Apps", first_party: false };
+  });
+
+  it("offers to report the plug-in on every platform", async () => {
+    const { CommunityPluginPage } = await import("./CommunityPluginPage");
+    renderPage(() => <CommunityPluginPage pluginId={1} />);
+
+    await screen.findByTitle("Automations");
+    expect(screen.getByRole("button", { name: "Report" })).toBeInTheDocument();
+  });
+
+  it("opens straight away on the web, with no notice", async () => {
+    listingRef = { id: 9, source: "operator", publisher: "Acme Apps", first_party: false };
+    const { CommunityPluginPage } = await import("./CommunityPluginPage");
+    renderPage(() => <CommunityPluginPage pluginId={1} />);
+
+    await screen.findByTitle("Automations");
+    expect(screen.queryByText("Before you open Automations")).toBeNull();
+  });
+
+  it("says who made it once per member on an iPhone, before anything opens", async () => {
+    vi.spyOn(Capacitor, "getPlatform").mockReturnValue("ios");
+    const user = userEvent.setup();
+    const member = { user: buildUser() };
+    const { CommunityPluginPage } = await import("./CommunityPluginPage");
+    const { unmount } = renderPage(() => <CommunityPluginPage pluginId={1} />, { auth: member });
+
+    expect(await screen.findByText("Before you open Automations")).toBeInTheDocument();
+    expect(screen.getByText("Automations is made by Acme Apps.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Report" })).toBeInTheDocument();
+    // Nothing is minted, and no frame mounted, until the member continues.
+    expect(screen.queryByTitle("Automations")).toBeNull();
+    expect(mint).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+    expect(await screen.findByTitle("Automations")).toBeInTheDocument();
+    await waitFor(() => expect(mint).toHaveBeenCalled());
+    unmount();
+
+    // Remembered: the next open goes straight to the plug-in.
+    const again = renderPage(() => <CommunityPluginPage pluginId={1} />, { auth: member });
+    expect(await screen.findByTitle("Automations")).toBeInTheDocument();
+    expect(screen.queryByText("Before you open Automations")).toBeNull();
+    again.unmount();
+
+    // For that member only: somebody else signed in on this phone is told.
+    renderPage(() => <CommunityPluginPage pluginId={1} />, { auth: { user: buildUser() } });
+    expect(await screen.findByText("Before you open Automations")).toBeInTheDocument();
+  });
+
+  it("offers to report it when nothing here is for this reader", async () => {
+    surfaceAccess = ADMIN_ACCESS.map((one) => ({
+      ...one,
+      openable_community_wide: false,
+      openable_initiatives: [],
+    }));
+    const { CommunityPluginPage } = await import("./CommunityPluginPage");
+    renderPage(() => <CommunityPluginPage pluginId={1} />);
+
+    await screen.findByText(/nothing to show|no page of its own|has no page/i);
+    expect(screen.getByRole("button", { name: "Report" })).toBeInTheDocument();
+  });
+
+  it("neither introduces nor offers to report a plug-in Morelitea publishes", async () => {
+    vi.spyOn(Capacitor, "getPlatform").mockReturnValue("ios");
+    listingRef = { id: 9, source: "registry", publisher: "Morelitea", first_party: true };
+    const { CommunityPluginPage } = await import("./CommunityPluginPage");
+    renderPage(() => <CommunityPluginPage pluginId={2} />);
+
+    await screen.findByTitle("Automations");
+    expect(screen.queryByText("Before you open Automations")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Report" })).toBeNull();
   });
 });

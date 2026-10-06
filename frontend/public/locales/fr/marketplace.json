@@ -31,7 +31,9 @@
     "needsUpdate": "Nécessite une version plus récente de l'application.",
     "withdrawn": "N'est plus proposé.",
     "notFound": "Fiche introuvable",
-    "notFoundDescription": "Elle a peut-être été retirée, ou le lien est incorrect."
+    "notFoundDescription": "Elle a peut-être été retirée, ou le lien est incorrect.",
+    "notAvailableHere": "Indisponible dans cette application",
+    "notAvailableHereDescription": "Cette fiche ne fait pas partie du catalogue proposé par cette application."
   },
   "install": {
     "title": "Ajouter {{name}}",

@@ -23,6 +23,7 @@ import { DashboardCanvas } from "@/components/initiativeTools/dashboards/Dashboa
 import { InstallListingDialog } from "@/components/marketplace/InstallListingDialog";
 import { InstallPluginDialog } from "@/components/marketplace/InstallPluginDialog";
 import { ListingProvenance } from "@/components/marketplace/ListingProvenance";
+import { ReportButton } from "@/components/moderation/ReportButton";
 import { StatusMessage } from "@/components/StatusMessage";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -41,6 +42,7 @@ import { useWidgetCatalog } from "@/hooks/useDashboards";
 import { useMarketplaceListing } from "@/hooks/useMarketplace";
 import { useCommunityPath } from "@/lib/communityUrl";
 import { minimumAgeFor, parseCommunityShelf } from "@/lib/marketplace";
+import { listingShownHere } from "@/lib/marketplaceCuration";
 import { resolveArtworkUrl } from "@/lib/uploadUrl";
 import { readConfig, readDefinition } from "@/lib/widgets/definition";
 
@@ -97,6 +99,20 @@ export function MarketplaceListingPage() {
     );
   }
 
+  // Reached by a link from outside the shelf this app shows.
+  if (listing && !listingShownHere(listing)) {
+    return (
+      <StatusMessage
+        icon={<SearchX />}
+        title={t("detail.notAvailableHere")}
+        description={t("detail.notAvailableHereDescription")}
+        backTo={gp("/marketplace")}
+        backSearch={backToShelf}
+        backLabel={t("backToMarketplace")}
+      />
+    );
+  }
+
   return (
     <div className="space-y-6">
       <Breadcrumb>
@@ -134,7 +150,12 @@ export function MarketplaceListingPage() {
         <div className="min-w-0 flex-1 space-y-1">
           {listing ? (
             <>
-              <h1 className="font-semibold text-3xl tracking-tight">{listing.name}</h1>
+              <div className="flex items-center gap-1">
+                <h1 className="font-semibold text-3xl tracking-tight">{listing.name}</h1>
+                {!listing.first_party && (
+                  <ReportButton targetType="marketplace_listing" targetId={listing.id} />
+                )}
+              </div>
               <ListingProvenance listing={listing} className="text-sm" />
               <div className="flex flex-wrap items-center gap-2 pt-1">
                 {listing.latest_version && (

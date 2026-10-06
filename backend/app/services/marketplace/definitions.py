@@ -29,6 +29,7 @@ from __future__ import annotations
 from typing import Any, Optional
 
 from app.core.tools import BULK_EXPORT_TOOLS, Tool
+from app.models.platform.publisher import FIRST_PARTY_PUBLISHER_PREFIX, publisher_prefix
 from app.services.marketplace.manifest_values import (
     MAX_PUBLISHER_NAME_LENGTH,
     MAX_NAME_LENGTH,
@@ -62,6 +63,7 @@ __all__ = [
     "GUILD_INSTALLABLE_PLUGIN_KINDS",
     "MOUNTABLE_TOOLS",
     "RESERVED_PUBLIC_ID_PREFIX",
+    "published_by_us",
     "plugin_widget_type",
     "normalize_publisher",
     "normalize_listing_definition",
@@ -171,6 +173,16 @@ RESERVED_PUBLIC_ID_PREFIX = "core."
 
 #: Sources allowed to claim it.
 RESERVED_PREFIX_SOURCES: frozenset[str] = frozenset({"builtin"})
+
+
+def published_by_us(source: str, public_id: str) -> bool:
+    """Whether this project publishes a listing: shipped in this build, or
+    from the registry under this project's own publisher prefix, which the
+    registry's signature binds to it."""
+    return source in RESERVED_PREFIX_SOURCES or (
+        source == "registry"
+        and publisher_prefix(public_id) == FIRST_PARTY_PUBLISHER_PREFIX
+    )
 
 
 # --- attribution ------------------------------------------------------------

@@ -19,7 +19,11 @@ from pydantic import ConfigDict, Field
 from app.schemas.base import RawTextStr, SanitizedBaseModel, TitleStr
 from app.schemas.query import PageMeta
 from app.services.import_engine.contract import EnvelopeImportResult
-from app.services.marketplace.definitions import LISTING_KINDS, LISTING_SOURCES
+from app.services.marketplace.definitions import (
+    LISTING_KINDS,
+    LISTING_SOURCES,
+    published_by_us,
+)
 
 if TYPE_CHECKING:
     from app.models.platform.marketplace import (
@@ -64,6 +68,9 @@ class MarketplaceListingSummary(SanitizedBaseModel):
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
+    #: This deployment's row id. What a report names the listing by; the uid
+    #: and public id are its identity everywhere else.
+    id: int
     uid: str
     public_id: str
     kind: ListingKind  # type: ignore[valid-type]
@@ -73,6 +80,9 @@ class MarketplaceListingSummary(SanitizedBaseModel):
     name: str
     #: Who publishes it. Required in the catalog, so this is always present.
     publisher: str
+    #: Whether this project publishes it, so it is neither reported nor
+    #: introduced as somebody else's.
+    first_party: bool
     description: str
     avatar_url: str
     images: List[str] = []
@@ -272,13 +282,16 @@ def serialize_listing_summary(
     """One browse card. Shared by every surface that lists or reads a listing,
     so a card and the page it opens describe the same thing."""
     version = serialize_version(latest)
+    assert listing.id is not None
     return MarketplaceListingSummary(
+        id=listing.id,
         uid=listing.uid,
         public_id=listing.public_id,
         kind=listing.kind,
         source=listing.source,
         name=listing.name,
         publisher=listing.publisher,
+        first_party=published_by_us(listing.source, listing.public_id),
         # Attribution travels with the provenance that bounds it: a card, the
         # detail page and the install dialog all answer "who wrote this?" from
         # these two fields together, so neither is served without the other.

@@ -18,7 +18,7 @@ writes the guild's own schema: a tool's listing through that tool's importer
 (below), a plug-in through the guild's plug-in routes.
 """
 
-from typing import Annotated, Optional
+from typing import Annotated, List, Optional
 
 from fastapi import (
     APIRouter,
@@ -42,6 +42,7 @@ from app.db.query import build_paginated_response
 from app.models.platform.marketplace import MarketplaceListing
 from app.schemas.platform.marketplace import (
     ListingKind,
+    ListingSource,
     ListingStartFrom,
     MarketplaceInstallRequest,
     MarketplaceInstallResult,
@@ -95,11 +96,13 @@ async def list_marketplace_listings(
     guild_context: GuildContextDep,
     kind: Optional[ListingKind] = Query(default=None),  # type: ignore[valid-type]
     search: Optional[str] = Query(default=None, max_length=200),
+    source: Optional[List[ListingSource]] = Query(default=None),  # type: ignore[valid-type]
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=24, ge=1, le=MAX_PAGE_SIZE),
 ) -> MarketplaceListingPage:
     """A page of listings this guild can install, searchable by name,
-    description, or publisher.
+    description, or publisher, and narrowed to the given ``source`` values
+    when any are named.
 
     A guild with none of a plug-in installed sees the same catalog as before —
     the plug-ins themselves, and the dashboards that stand alone.
@@ -109,6 +112,7 @@ async def list_marketplace_listings(
         kind=kind,
         query=search,
         bundled_with=sorted(await installed_plugin_uids(session)),
+        sources=[value.value for value in source] if source else None,
         page=page,
         page_size=page_size,
     )
