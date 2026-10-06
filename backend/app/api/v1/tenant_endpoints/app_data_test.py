@@ -1521,7 +1521,7 @@ class TestDeclarative:
 # The Usage tab
 # ---------------------------------------------------------------------------
 
-RUN_USAGE = f"app.{PUBLIC_ID}.run-usage"
+SHOP_USAGE = f"app.{PUBLIC_ID}.usage"
 
 
 def _usage_definition(**usage_overrides) -> dict:
@@ -1532,7 +1532,7 @@ def _usage_definition(**usage_overrides) -> dict:
         "features": ["endpoints"],
         "endpoints": [
             {
-                "id": RUN_USAGE,
+                "id": SHOP_USAGE,
                 "direction": "read",
                 "group": "usage",
                 "admin_only": True,
@@ -1608,7 +1608,7 @@ class TestUsage:
         }
         # One call, for the usage endpoint alone.
         assert upstream.count == 1
-        assert json.loads(upstream.calls[0].content)["endpoint"] == RUN_USAGE
+        assert json.loads(upstream.calls[0].content)["endpoint"] == SHOP_USAGE
 
     async def test_a_null_limit_is_unlimited(
         self, client, acting_user, session, upstream

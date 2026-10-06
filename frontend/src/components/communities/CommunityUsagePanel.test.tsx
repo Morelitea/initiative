@@ -60,8 +60,8 @@ describe("CommunityUsagePanel", () => {
     renderWithProviders(<CommunityUsagePanel />);
     expect(screen.getByText("Storage")).toBeInTheDocument();
     expect(screen.getByText("Members")).toBeInTheDocument();
-    // Members: 4/10 — the usage number renders from the community's own row.
-    expect(screen.getByText("4/10")).toBeInTheDocument();
+    // Members: 4 of 10 — the usage number renders from the community's own row.
+    expect(screen.getByText("4 of 10")).toBeInTheDocument();
   });
 
   it("shows no plan or portal UI, even to the seat of a billed deployment", () => {
@@ -101,7 +101,7 @@ describe("CommunityUsagePanel", () => {
     expect(screen.getByText("Unavailable right now")).toBeInTheDocument();
     expect(screen.queryByText(/^0 B/)).not.toBeInTheDocument();
     // The member figure needs no request and still shows.
-    expect(screen.getByText("4/10")).toBeInTheDocument();
+    expect(screen.getByText("4 of 10")).toBeInTheDocument();
   });
 
   it("shows no storage figure while it is still loading", () => {
@@ -132,19 +132,19 @@ describe("CommunityUsagePanel", () => {
       items: [
         {
           app_id: 3,
-          name: "Automations",
+          name: "Acme Shop",
           available: true,
           figures: [
             {
-              key: "monthly_runs_remaining",
-              label: { en: "Monthly runs remaining" },
+              key: "orders",
+              label: { en: "Orders this month" },
               value: 320,
               limited: true,
               limit: 500,
             },
             {
-              key: "run_credits",
-              label: { en: "Run credits" },
+              key: "credits",
+              label: { en: "Credits" },
               value: 1200,
               limited: false,
               limit: null,
@@ -154,10 +154,10 @@ describe("CommunityUsagePanel", () => {
       ],
     };
     renderWithProviders(<CommunityUsagePanel />);
-    expect(screen.getByText("Automations")).toBeInTheDocument();
-    expect(screen.getByText("Monthly runs remaining")).toBeInTheDocument();
-    expect(screen.getByText("320/500")).toBeInTheDocument();
-    expect(screen.getByText("Run credits")).toBeInTheDocument();
+    expect(screen.getByText("Acme Shop")).toBeInTheDocument();
+    expect(screen.getByText("Orders this month")).toBeInTheDocument();
+    expect(screen.getByText("320 of 500")).toBeInTheDocument();
+    expect(screen.getByText("Credits")).toBeInTheDocument();
     expect(screen.getByText("1,200")).toBeInTheDocument();
   });
 
@@ -166,12 +166,12 @@ describe("CommunityUsagePanel", () => {
       items: [
         {
           app_id: 3,
-          name: "Automations",
+          name: "Acme Shop",
           available: true,
           figures: [
             {
-              key: "monthly_runs_remaining",
-              label: { en: "Monthly runs remaining" },
+              key: "orders",
+              label: { en: "Orders this month" },
               value: null,
               limited: true,
               limit: null,
@@ -182,7 +182,7 @@ describe("CommunityUsagePanel", () => {
     };
     state.community = buildCommunity({ id: 7, role: "superadmin", max_users: 10, member_count: 4 });
     renderWithProviders(<CommunityUsagePanel />);
-    expect(screen.getByText("Monthly runs remaining").nextSibling).toHaveTextContent("Unlimited");
+    expect(screen.getByText("Orders this month").nextSibling).toHaveTextContent("Unlimited");
   });
 
   it("names an app it could not read rather than showing zeros", () => {
@@ -190,12 +190,12 @@ describe("CommunityUsagePanel", () => {
       items: [
         {
           app_id: 3,
-          name: "Automations",
+          name: "Acme Shop",
           available: false,
           figures: [
             {
-              key: "run_credits",
-              label: { en: "Run credits" },
+              key: "credits",
+              label: { en: "Credits" },
               value: null,
               limited: false,
               limit: null,
@@ -205,6 +205,6 @@ describe("CommunityUsagePanel", () => {
       ],
     };
     renderWithProviders(<CommunityUsagePanel />);
-    expect(screen.getByText("Run credits").nextSibling).toHaveTextContent("Unavailable right now");
+    expect(screen.getByText("Credits").nextSibling).toHaveTextContent("Unavailable right now");
   });
 });
