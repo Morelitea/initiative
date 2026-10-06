@@ -146,12 +146,12 @@ class ProjectExportTask(SanitizedBaseModel):
     # backup's own ``"task:41"``. It is the name ``links`` point at, and it is
     # never written to a column: it lives for the length of one job.
     external_ref: Optional[str] = None
-    tags: List[ProjectExportTag] = []
-    assignee_handles: List[str] = []
-    checklist: List[ProjectExportChecklistItem] = []
-    properties: List[EnvelopePropertyValue] = Field(
-        default=[], validation_alias=_PROPERTIES
-    )
+    # Required, as the envelope's lists are: every export writes them, so one
+    # missing is a file cut short, where an empty list is a real "none".
+    tags: List[ProjectExportTag]
+    assignee_handles: List[str]
+    checklist: List[ProjectExportChecklistItem]
+    properties: List[EnvelopePropertyValue] = Field(validation_alias=_PROPERTIES)
     # Both default to empty: an envelope written before they existed is a
     # task with nothing said on it and nothing pointing anywhere, which is
     # exactly what an absent field means here.
@@ -176,7 +176,10 @@ class ProjectExportEnvelope(_EnvelopeBase):
     exported_by_handle: Optional[str] = None
 
     project: ProjectExportProject
-    tags: List[ProjectExportTag] = []
-    task_statuses: List[ProjectExportTaskStatus] = []
-    property_definitions: List[ProjectExportPropertyDefinition] = []
-    tasks: List[ProjectExportTask] = []
+    # Required: every export writes these, so a missing one is a truncated or
+    # hand-assembled file, which is refused rather than imported as a project
+    # with nothing in it. An empty list is a real "none" and is accepted.
+    tags: List[ProjectExportTag]
+    task_statuses: List[ProjectExportTaskStatus]
+    property_definitions: List[ProjectExportPropertyDefinition]
+    tasks: List[ProjectExportTask]
