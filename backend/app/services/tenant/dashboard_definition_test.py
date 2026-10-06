@@ -611,7 +611,10 @@ def test_a_malformed_plugin_widget_type_is_refused(widget_type):
 @pytest.mark.parametrize(
     "binding",
     [
-        {"source": "plugin", "endpoint_id": "plugin.acme.shop.orders"},  # no plug-in named
+        {
+            "source": "plugin",
+            "endpoint_id": "plugin.acme.shop.orders",
+        },  # no plug-in named
         {"source": "plugin", "plugin_uid": PLUGIN_UID},  # no source named
         {"source": "plugin", "plugin_uid": PLUGIN_UID, "endpoint_id": "Orders!"},
         {

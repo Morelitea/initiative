@@ -1,11 +1,11 @@
 /**
- * What an app can reach in the community.
+ * What a plug-in can reach in the community.
  *
- * The app's manifest lists the scopes it asks for, and the seat grants any of
+ * The plug-in's manifest lists the scopes it asks for, and the seat grants any of
  * them here. A requested scope this server does not allow is shown but cannot
  * be ticked. Changing something implies reading it, so granting a change
  * includes the read, and taking the read away takes the change with it.
- * Using another app, and acting as a moderator or an admin, are each a row of
+ * Using another plug-in, and acting as a moderator or an admin, are each a row of
  * their own, said as a sentence: none of them is reading or changing a kind of
  * thing.
  *
@@ -32,12 +32,12 @@ import {
 import { toast } from "@/lib/mascotToast";
 
 export interface PluginScopesPanelProps {
-  app: CommunityPluginDetail;
+  plugin: CommunityPluginDetail;
 }
 
 type Access = ScopeAccess;
 
-/** One resource the app asks for, and which of its accesses. */
+/** One resource the plug-in asks for, and which of its accesses. */
 interface ResourceRow {
   resource: string;
   accesses: Access[];
@@ -46,7 +46,7 @@ interface ResourceRow {
 const scopeOf = (resource: string, access: Access) => `${resource}:${access}`;
 
 /** A scope said as a sentence on a row of its own rather than as an access to
- * a resource: using another app, or acting as a moderator or an admin. */
+ * a resource: using another plug-in, or acting as a moderator or an admin. */
 const isSentenceScope = (scope: string) =>
   pluginScopeTarget(scope) !== null || STANDING_SCOPES.has(scope);
 
@@ -67,12 +67,12 @@ const resourceRows = (requested: string[]): ResourceRow[] => {
 const sameSet = (a: string[], b: string[]) =>
   a.length === b.length && a.every((one) => b.includes(one));
 
-export function PluginScopesPanel({ app }: PluginScopesPanelProps) {
-  const { t } = useTranslation(["apps", "common", "nav"]);
-  const setScopes = useSetPluginScopes(app.id);
-  const requested = app.requested_scopes ?? [];
-  const grantable = new Set(app.grantable_scopes ?? []);
-  const granted = app.granted_scopes ?? [];
+export function PluginScopesPanel({ plugin }: PluginScopesPanelProps) {
+  const { t } = useTranslation(["plugins", "common", "nav"]);
+  const setScopes = useSetPluginScopes(plugin.id);
+  const requested = plugin.requested_scopes ?? [];
+  const grantable = new Set(plugin.grantable_scopes ?? []);
+  const granted = plugin.granted_scopes ?? [];
   // What the seat is choosing. Only grantable scopes are ever in it, so a
   // save is never refused for one the server no longer allows.
   const [chosen, setChosen] = useState<string[]>(() =>
@@ -88,7 +88,7 @@ export function PluginScopesPanel({ app }: PluginScopesPanelProps) {
     setScopes.mutate(chosen, {
       onSuccess: (read) => {
         setChosen(read.granted_scopes);
-        toast.success(t("apps:scopes.saved"));
+        toast.success(t("plugins:scopes.saved"));
       },
     });
 
@@ -98,8 +98,8 @@ export function PluginScopesPanel({ app }: PluginScopesPanelProps) {
   return (
     <section className="space-y-3">
       <div>
-        <h3 className="font-medium text-sm">{t("apps:scopes.title")}</h3>
-        <p className="text-muted-foreground text-sm">{t("apps:scopes.description")}</p>
+        <h3 className="font-medium text-sm">{t("plugins:scopes.title")}</h3>
+        <p className="text-muted-foreground text-sm">{t("plugins:scopes.description")}</p>
       </div>
 
       <ul className="divide-y rounded-md border">
@@ -111,7 +111,7 @@ export function PluginScopesPanel({ app }: PluginScopesPanelProps) {
             {row.accesses.map((access) => {
               const scope = scopeOf(row.resource, access);
               const allowed = grantable.has(scope);
-              const id = `scope-${app.id}-${row.resource}-${access}`;
+              const id = `scope-${plugin.id}-${row.resource}-${access}`;
               return (
                 <div key={access} className="flex items-center gap-2">
                   <Checkbox
@@ -121,11 +121,11 @@ export function PluginScopesPanel({ app }: PluginScopesPanelProps) {
                     onCheckedChange={(state) => toggle(row.resource, access, state === true)}
                   />
                   <Label htmlFor={id} className="font-normal">
-                    {access === "read" ? t("apps:scopes.read") : t("apps:scopes.write")}
+                    {access === "read" ? t("plugins:scopes.read") : t("plugins:scopes.write")}
                   </Label>
                   {!allowed && (
                     <span className="text-muted-foreground text-xs">
-                      {t("apps:scopes.notAllowed")}
+                      {t("plugins:scopes.notAllowed")}
                     </span>
                   )}
                 </div>
@@ -135,7 +135,7 @@ export function PluginScopesPanel({ app }: PluginScopesPanelProps) {
         ))}
         {sentenceScopes.map((scope) => {
           const allowed = grantable.has(scope);
-          const id = `scope-${app.id}-${scope.replace(":", "-")}`;
+          const id = `scope-${plugin.id}-${scope.replace(":", "-")}`;
           return (
             <li key={scope} className="flex flex-wrap items-center gap-2 p-3">
               <Checkbox
@@ -147,10 +147,10 @@ export function PluginScopesPanel({ app }: PluginScopesPanelProps) {
                 }
               />
               <Label htmlFor={id} className="font-normal">
-                {scopeSentence(scope, t, app.plugin_names)}
+                {scopeSentence(scope, t, plugin.plugin_names)}
               </Label>
               {!allowed && (
-                <span className="text-muted-foreground text-xs">{t("apps:scopes.notAllowed")}</span>
+                <span className="text-muted-foreground text-xs">{t("plugins:scopes.notAllowed")}</span>
               )}
             </li>
           );

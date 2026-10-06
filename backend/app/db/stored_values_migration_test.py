@@ -241,7 +241,7 @@ async def test_plug_in_values_are_respelled(session) -> None:
     dashboard = await create_dashboard(
         session, initiative, user, definition={"widgets": [_OLD_WIDGET]}
     )
-    listing = await create_marketplace_listing(session, definition=_OLD_DEFINITION)
+    listing = await create_marketplace_listing(session)
     registration = await create_plugin_service_registration(
         session, scope_ceiling=["documents:read", "apps:tests.other"]
     )
@@ -300,6 +300,12 @@ async def test_plug_in_values_are_respelled(session) -> None:
             "marketplace_listings",
             "UPDATE public.marketplace_listings SET kind = 'app' WHERE id = :id",
             {"id": listing.id},
+        )
+        write(
+            "marketplace_listing_versions",
+            "UPDATE public.marketplace_listing_versions "
+            "SET definition = CAST(:d AS jsonb) WHERE listing_id = :id",
+            {"d": json.dumps(_OLD_DEFINITION), "id": listing.id},
         )
         write(
             "identity_refs",

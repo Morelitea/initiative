@@ -33,12 +33,12 @@ import { localized } from "@/lib/widgets/widgetMeta";
 export interface PluginServiceFormValues {
   publicId: string;
   baseUrl: string;
-  /** Where a browser loads the app, or "" when that is the base URL too. */
+  /** Where a browser loads the plug-in, or "" when that is the base URL too. */
   embedOrigin: string;
   allowedOrigins: string[];
   /** Parsed JWKS, or null to leave the stored key set untouched. */
   jwks: Record<string, unknown> | null;
-  /** Where the app publishes its key set, or "" for none. */
+  /** Where the plug-in publishes its key set, or "" for none. */
   jwksUri: string;
   mandatory: boolean;
   /** Vendor values that were typed, by key. "" clears one; a key left out is kept. */
@@ -77,14 +77,14 @@ export interface PluginServiceFormDialogProps {
 }
 
 /**
- * Give one app service its deployment facts. What the app is and may do comes
+ * Give one plug-in service its deployment facts. What the plug-in is and may do comes
  * from its listing, and is not edited here.
  *
  * Its keys are public keys, either pasted as a key set or fetched from the
- * address the app publishes them at. Connect reads the set the app serves at
+ * address the plug-in publishes them at. Connect reads the set the plug-in serves at
  * its saved base URL, shows each key's fingerprint, and pins the set once the
  * operator confirms it. The one secret a registration holds is
- * what the operator supplies for the app's vendor client, as the app's listing
+ * what the operator supplies for the plug-in's vendor client, as the plug-in's listing
  * asks for it: a secret value is written here and never shown again. A listing
  * may also offer the vendor's own setup, which creates the client at the
  * vendor and writes its values back without anyone copying them.
@@ -208,7 +208,7 @@ export const PluginServiceFormDialog = ({
     const typed = form.jwks.trim();
     let jwks: Record<string, unknown> | null = null;
     if (baseUrlEdited && pinnedJwks !== null && form.jwks === pinnedJwks) {
-      // The pinned set is the old address's app. Clear it, so the new address
+      // The pinned set is the old address's plug-in. Clear it, so the new address
       // is connected on its own.
       jwks = {};
     } else if (typed) {
@@ -270,7 +270,7 @@ export const PluginServiceFormDialog = ({
             </p>
           </div>
 
-          {/* A declarative app runs nowhere and signs nothing: only its
+          {/* A declarative plug-in runs nowhere and signs nothing: only its
               vendor values and its switches apply. */}
           {!declarative && (
             <>

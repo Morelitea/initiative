@@ -26,8 +26,8 @@
     "remove": "Eliminar",
     "fullAccess": "Acceso total",
     "fullAccessHint": "Este rol puede ver y editar todo en esta iniciativa, por lo que siempre es editor aquí.",
-    "app": "Complemento",
-    "apps": "Complementos",
+    "plugin": "Complemento",
+    "plugins": "Complementos",
     "pluginFallback": "Complemento {{id}}",
     "pluginGrantHint": "La configuración de la comunidad decide a qué puede acceder un complemento, así que no se puede cambiar aquí.",
     "settingsDescription": "Elige quién puede ver y editar esto."

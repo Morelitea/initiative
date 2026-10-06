@@ -2,7 +2,7 @@
  * One placed widget: its data, its chrome, and its authoring affordances.
  *
  * Sits between the canvas (which owns position) and `WidgetTile` (which owns
- * running the widget and drawing its scene). Everything visible here is app
+ * running the widget and drawing its scene). Everything visible here is plug-in
  * code — the drag handle, the menu, the unbound state — because a widget draws
  * only inside its box and must never be able to render something that looks
  * like the frame around it.
@@ -48,7 +48,7 @@ export interface DashboardWidgetProps {
   binding: WidgetBinding;
   /** The dashboard's own initiative — the only one its widgets read from. */
   initiativeId: number | undefined;
-  /** The dashboard row itself. Only the `app` source needs it: its data is
+  /** The dashboard row itself. Only the `plugin` source needs it: its data is
    *  community-level, so the proxy is told which initiative-scoped surface is
    *  asking and decides against that row's gates. */
   dashboardId?: number;
@@ -80,19 +80,19 @@ export function DashboardWidget({
   const { t } = useTranslation("dashboards");
   const isPluginWidget = isPluginWidgetType(widget.type);
 
-  // An app widget's module lives in the install's pinned definition rather than
+  // A plug-in widget's module lives in the install's pinned definition rather than
   // in this build's registry — the seam `WidgetTile.source` exists for. The
-  // catalog is one shared query per community, so a canvas full of app widgets
+  // catalog is one shared query per community, so a canvas full of plug-in widgets
   // resolves them all from one request.
   //
-  // In sample mode it is fetched too, and only then: a preview draws the app's
-  // *own* sample rows through the app's own module, so what it shows is the
+  // In sample mode it is fetched too, and only then: a preview draws the plug-in's
+  // *own* sample rows through the plug-in's own module, so what it shows is the
   // listing rather than a stand-in. It still issues no data request — no
   // initiative, no dashboard, nothing to fetch.
   const pluginCatalogQuery = usePluginWidgetCatalog(isPluginWidget);
   const moduleSource = isPluginWidget ? pluginWidgetSource(pluginCatalogQuery.data, widget.type) : undefined;
 
-  // Named from its own module, like every widget: an app names its widgets in
+  // Named from its own module, like every widget: a plug-in names its widgets in
   // the manifest, so a marketplace tile has a real title without a locale edit
   // here. Falls back to the type id until the sandbox read resolves.
   const { name, meta } = useWidgetMeta(widget.type, moduleSource);
@@ -123,7 +123,7 @@ export function DashboardWidget({
       ? emptyDataFor("query")
       : sampleData
         ? isPluginWidget
-          ? { source: "app" as const, ...pluginSample }
+          ? { source: "plugin" as const, ...pluginSample }
           : sampleFor(widget.type)
         : live.data;
   // Which columns fill this widget's slots. Resolved here rather than in the

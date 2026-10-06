@@ -15,7 +15,7 @@ const buildRegistration = (
   kind: "container",
   publisher_id: 1,
   publisher_prefix: "core",
-  publisher_name: "Core Apps",
+  publisher_name: "Core Plug-ins",
   publisher_enabled: true,
   base_url: "http://initiative-github:8080",
   embed_origin: null,
@@ -89,7 +89,7 @@ describe("SettingsPluginServicesPage", () => {
   });
 
   describe("capability gate", () => {
-    it("offers nothing to manage without apps.manage", () => {
+    it("offers nothing to manage without plugins.manage", () => {
       registrations = [buildRegistration()];
       // A platform owner still sees nothing: the gate is the capability, never
       // the role.
@@ -97,13 +97,13 @@ describe("SettingsPluginServicesPage", () => {
         auth: { user: buildUser({ role: "owner", capabilities: [] }) },
       });
 
-      expect(screen.getByText("Only platform owners can manage app services.")).toBeInTheDocument();
-      expect(screen.queryByRole("button", { name: "Add app service" })).toBeNull();
+      expect(screen.getByText("Only platform owners can manage plug-in services.")).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Add plug-in service" })).toBeNull();
       expect(screen.queryByText("core.github")).toBeNull();
     });
   });
 
-  describe("whether an app is live", () => {
+  describe("whether a plug-in is live", () => {
     it("labels each registration live or not, with its publisher and listing", () => {
       registrations = [
         buildRegistration({
@@ -126,7 +126,7 @@ describe("SettingsPluginServicesPage", () => {
 
       const [github, slack] = screen.getAllByRole("listitem");
       expect(within(github).getByText("Live")).toBeInTheDocument();
-      expect(within(github).getByText(/Publisher: Core Apps/)).toBeInTheDocument();
+      expect(within(github).getByText(/Publisher: Core Plug-ins/)).toBeInTheDocument();
       expect(within(github).getByText("gh7k2m9p4q1x8z")).toBeInTheDocument();
       // The ceiling is the listing's, shown and not edited.
       expect(
@@ -148,7 +148,7 @@ describe("SettingsPluginServicesPage", () => {
       expect(screen.getByText("Not live")).toBeInTheDocument();
       expect(screen.getByText("Publisher switched off")).toBeInTheDocument();
       expect(
-        screen.getByText(/Every app from Acme is stopped because its publisher is switched off/)
+        screen.getByText(/Every plug-in from Acme is stopped because its publisher is switched off/)
       ).toBeInTheDocument();
     });
 
@@ -182,8 +182,8 @@ describe("SettingsPluginServicesPage", () => {
       const user = userEvent.setup();
       renderAsOperator();
 
-      await user.click(screen.getByRole("button", { name: "Add app service" }));
-      await screen.findByLabelText("App identifier");
+      await user.click(screen.getByRole("button", { name: "Add plug-in service" }));
+      await screen.findByLabelText("Plug-in identifier");
 
       // One switch left in the operator's box: whether every community gets it.
       expect(within(screen.getByRole("dialog")).getAllByRole("switch")).toHaveLength(1);
@@ -191,13 +191,13 @@ describe("SettingsPluginServicesPage", () => {
   });
 
   describe("registering", () => {
-    it("registers a new service with its keys, leaving the listing to the app", async () => {
+    it("registers a new service with its keys, leaving the listing to the plug-in", async () => {
       const user = userEvent.setup();
       renderAsOperator();
 
-      await user.click(screen.getByRole("button", { name: "Add app service" }));
+      await user.click(screen.getByRole("button", { name: "Add plug-in service" }));
 
-      await user.type(await screen.findByLabelText("App identifier"), "acme.shopify");
+      await user.type(await screen.findByLabelText("Plug-in identifier"), "acme.shopify");
       expect(screen.queryByLabelText("Listing")).toBeNull();
       await user.type(screen.getByLabelText("Base URL"), "https://shopify.example.com");
       await user.type(
@@ -210,7 +210,7 @@ describe("SettingsPluginServicesPage", () => {
         {
           public_id: "acme.shopify",
           base_url: "https://shopify.example.com",
-          // Left blank: the app answers both surfaces at the base URL.
+          // Left blank: the plug-in answers both surfaces at the base URL.
           embed_origin: null,
           allowed_origins: null,
           // Nothing pasted: the keys come from the address.
@@ -226,8 +226,8 @@ describe("SettingsPluginServicesPage", () => {
       const user = userEvent.setup();
       renderAsOperator();
 
-      await user.click(screen.getByRole("button", { name: "Add app service" }));
-      await screen.findByLabelText("App identifier");
+      await user.click(screen.getByRole("button", { name: "Add plug-in service" }));
+      await screen.findByLabelText("Plug-in identifier");
 
       expect(screen.queryByText(/shared secret/i)).toBeNull();
       expect(document.querySelector('input[type="password"]')).toBeNull();
@@ -235,13 +235,13 @@ describe("SettingsPluginServicesPage", () => {
       expect(screen.queryByRole("button", { name: "Connect" })).toBeNull();
     });
 
-    it("sends the browser address when the app is published somewhere else", async () => {
+    it("sends the browser address when the plug-in is published somewhere else", async () => {
       const user = userEvent.setup();
       renderAsOperator();
 
-      await user.click(screen.getByRole("button", { name: "Add app service" }));
+      await user.click(screen.getByRole("button", { name: "Add plug-in service" }));
 
-      await user.type(await screen.findByLabelText("App identifier"), "acme.shopify");
+      await user.type(await screen.findByLabelText("Plug-in identifier"), "acme.shopify");
       await user.type(screen.getByLabelText("Base URL"), "http://shopify:8080");
       await user.type(screen.getByLabelText("Browser address"), "https://shop.example.com");
       await user.click(screen.getByRole("button", { name: "Save" }));
@@ -314,7 +314,7 @@ describe("SettingsPluginServicesPage", () => {
       expect(updateMutate.mock.calls[0][0].data.vendor_values).toEqual({ client_id: "gh-app-2" });
     });
 
-    it("asks a declarative app for its vendor values and nothing about where it runs", async () => {
+    it("asks a declarative plug-in for its vendor values and nothing about where it runs", async () => {
       const user = userEvent.setup();
       registrations = [
         buildRegistration({
@@ -328,7 +328,7 @@ describe("SettingsPluginServicesPage", () => {
       ];
       renderAsOperator();
 
-      expect(screen.getByText(/makes this app's calls itself/)).toBeInTheDocument();
+      expect(screen.getByText(/makes this plug-in's calls itself/)).toBeInTheDocument();
       expect(screen.queryByText(/give the address where you run it/)).toBeNull();
       await user.click(screen.getByRole("button", { name: "Edit" }));
       await user.type(await screen.findByLabelText(/Client id/), "gh-app");
@@ -398,7 +398,7 @@ describe("SettingsPluginServicesPage", () => {
       posted.remove();
     });
 
-    it("offers no GitHub App to an app whose listing has no setup", async () => {
+    it("offers no GitHub App to a plug-in whose listing has no setup", async () => {
       const user = userEvent.setup();
       registrations = [
         buildRegistration({
@@ -419,7 +419,7 @@ describe("SettingsPluginServicesPage", () => {
       expect(screen.getByText(/Not live until its vendor client is set/)).toBeInTheDocument();
     });
 
-    it("connects: shows the fingerprints the app serves and pins them once confirmed", async () => {
+    it("connects: shows the fingerprints the plug-in serves and pins them once confirmed", async () => {
       const user = userEvent.setup();
       registrations = [
         buildRegistration({ jwks: null, jwks_uri: "https://gh.example.com/jwks.json" }),
@@ -437,7 +437,7 @@ describe("SettingsPluginServicesPage", () => {
       await user.click(await screen.findByRole("button", { name: "Connect" }));
 
       expect(readKeysMutate).toHaveBeenCalledWith(1, expect.anything());
-      const shown = screen.getByRole("region", { name: "Keys the app serves" });
+      const shown = screen.getByRole("region", { name: "Keys the plug-in serves" });
       expect(within(shown).getByText("Key id: gh-1")).toBeInTheDocument();
       expect(
         within(shown).getByText("NzbLsXh8uDCcd-6MNwXF4W_7noWXFZAfHkxZsRGC9Xs")
@@ -454,7 +454,7 @@ describe("SettingsPluginServicesPage", () => {
         },
         expect.anything()
       );
-      expect(screen.queryByRole("region", { name: "Keys the app serves" })).toBeNull();
+      expect(screen.queryByRole("region", { name: "Keys the plug-in serves" })).toBeNull();
       // The pinned set is what the box now holds, in place of the address.
       expect(screen.getByLabelText("Key set address")).toHaveValue("");
       expect(
@@ -550,9 +550,9 @@ describe("SettingsPluginServicesPage", () => {
       await user.click(screen.getByRole("button", { name: "Pin these keys" }));
 
       expect(
-        await screen.findByText(/The app's keys changed after you checked them/)
+        await screen.findByText(/The plugin's keys changed after you checked them/)
       ).toBeInTheDocument();
-      expect(screen.queryByRole("region", { name: "Keys the app serves" })).toBeNull();
+      expect(screen.queryByRole("region", { name: "Keys the plug-in serves" })).toBeNull();
     });
 
     it("clears the pasted key set when the box is emptied", async () => {
@@ -569,7 +569,7 @@ describe("SettingsPluginServicesPage", () => {
   });
 
   describe("the operator kill switch", () => {
-    it("confirms before stopping an app, and says what stopping means", async () => {
+    it("confirms before stopping a plug-in, and says what stopping means", async () => {
       const user = userEvent.setup();
       registrations = [buildRegistration()];
       renderAsOperator();
@@ -584,7 +584,7 @@ describe("SettingsPluginServicesPage", () => {
       expect(within(dialog).getByText(/stops reaching it immediately/)).toBeInTheDocument();
       expect(within(dialog).getByText(/Nothing is deleted/)).toBeInTheDocument();
 
-      await user.click(within(dialog).getByRole("button", { name: "Disable app service" }));
+      await user.click(within(dialog).getByRole("button", { name: "Disable plug-in service" }));
 
       expect(updateMutate).toHaveBeenCalledWith(
         { registrationId: 1, data: { enabled: false } },
@@ -592,7 +592,7 @@ describe("SettingsPluginServicesPage", () => {
       );
     });
 
-    it("turns an app back on without a confirmation", async () => {
+    it("turns a plug-in back on without a confirmation", async () => {
       const user = userEvent.setup();
       registrations = [buildRegistration({ enabled: false })];
       renderAsOperator();
@@ -608,7 +608,7 @@ describe("SettingsPluginServicesPage", () => {
   });
 
   describe("delete", () => {
-    it("names what is lost and holds out for the app identifier", async () => {
+    it("names what is lost and holds out for the plug-in identifier", async () => {
       const user = userEvent.setup();
       registrations = [buildRegistration()];
       renderAsOperator();
@@ -622,7 +622,7 @@ describe("SettingsPluginServicesPage", () => {
       expect(confirm).toBeDisabled();
 
       await user.type(
-        within(dialog).getByLabelText("Type the app identifier to confirm"),
+        within(dialog).getByLabelText("Type the plug-in identifier to confirm"),
         "core.github"
       );
       await user.click(confirm);

@@ -1,10 +1,10 @@
 /**
- * Configuring an installed app's widget — the three things that were missing.
+ * Configuring an installed plug-in's widget — the three things that were missing.
  *
- * **The source list was empty.** An app widget's type is namespaced
+ * **The source list was empty.** A plug-in widget's type is namespaced
  * `plugin:<uid>:<widget>`, and this dialog looked it up in the built-in widget
  * catalog, which only ever holds this build's own primitives. The lookup missed,
- * `sources` fell back to `[]`, and every app widget on every canvas offered a
+ * `sources` fell back to `[]`, and every plug-in widget on every canvas offered a
  * data-source control with nothing in it.
  *
  * **A parameter with a menu behind it was a text box.** A manifest can say
@@ -13,7 +13,7 @@
  * typed from memory on a form that could have offered the list.
  *
  * **A menu that will not resolve must leave the field typeable.** A source can
- * fail for reasons that say nothing about the value: the app is down, a
+ * fail for reasons that say nothing about the value: the plug-in is down, a
  * credential is unconnected, a sibling has not been chosen yet. A control
  * disabled on any of those makes a configuration that would have worked
  * unreachable, so the fallback is an input rather than a dead select.
@@ -108,19 +108,19 @@ const widget: DefinitionWidget = {
   id: "w1",
   type: WIDGET_TYPE,
   grid: { x: 0, y: 0, w: 6, h: 4 },
-  binding: { source: "app", plugin_uid: PLUGIN_UID, endpoint_id: ORDERS },
+  binding: { source: "plugin", plugin_uid: PLUGIN_UID, endpoint_id: ORDERS },
 };
 
-/** As the picker adds one: an app widget with nothing chosen yet. */
+/** As the picker adds one: a plug-in widget with nothing chosen yet. */
 const unpointed: DefinitionWidget = {
   ...widget,
-  binding: { source: "app", plugin_uid: PLUGIN_UID },
+  binding: { source: "plugin", plugin_uid: PLUGIN_UID },
 };
 
 const isCatalog = (url: string) => url.endsWith("/plugins/widget-catalog");
 const isOptions = (url: string) => url.includes("/options");
 
-/** The app answers a menu, or says it cannot. */
+/** The plug-in answers a menu, or says it cannot. */
 const serve = (options: { menu?: unknown[]; unavailable?: string | null } = {}) =>
   apiGet.mockImplementation((url: string) => {
     if (isCatalog(url)) return Promise.resolve({ data: CATALOG });
@@ -156,7 +156,7 @@ const mount = (which: DefinitionWidget = widget) =>
     { communities: { activeCommunityId: 2 } }
   );
 
-describe("configuring an app widget", () => {
+describe("configuring a plug-in widget", () => {
   it("offers a data source, which the built-in catalog does not know about", async () => {
     // The bug, at its narrowest: the built-in catalog passed in here is empty,
     // exactly as it is for any `plugin:` type, and the control still has an option.
@@ -164,7 +164,7 @@ describe("configuring an app widget", () => {
     mount();
 
     const source = await screen.findByRole("combobox", { name: /data source/i });
-    expect(within(source).getByText("App data")).toBeInTheDocument();
+    expect(within(source).getByText("Plug-in data")).toBeInTheDocument();
   });
 
   it("offers the reads the widget declares, and no others", async () => {
@@ -177,7 +177,7 @@ describe("configuring an app widget", () => {
     expect(screen.getByRole("option", { name: REVENUE })).toBeInTheDocument();
   });
 
-  it("draws a menu for a parameter whose app said where its values come from", async () => {
+  it("draws a menu for a parameter whose plug-in said where its values come from", async () => {
     serve({
       menu: [
         { value: "north", label: null },
@@ -191,7 +191,7 @@ describe("configuring an app widget", () => {
     expect(await screen.findByRole("option", { name: "north" })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "south" })).toBeInTheDocument();
 
-    // And it asked the app, for that parameter, rather than guessing.
+    // And it asked the plug-in, for that parameter, rather than guessing.
     const asked = apiGet.mock.calls.find(([url]) => isOptions(url));
     expect(asked?.[0]).toContain(encodeURIComponent(ORDERS));
     expect(asked?.[1]?.params?.param).toBe("shop");
@@ -210,7 +210,7 @@ describe("configuring an app widget", () => {
     expect(onSave.mock.calls[0][0].binding.params).toEqual({ shop: "north" });
   });
 
-  it("leaves the field typeable when the app will not answer", async () => {
+  it("leaves the field typeable when the plug-in will not answer", async () => {
     // The rule that keeps a form usable through an outage. Not a disabled
     // select and not an empty one: something somebody can type into.
     serve({ unavailable: "unresolved" });
@@ -258,7 +258,7 @@ describe("configuring an app widget", () => {
 });
 
 describe("what a form must not be able to save", () => {
-  it("will not save an app widget that names no read", async () => {
+  it("will not save a plug-in widget that names no read", async () => {
     // `endpoint_id` is required where a definition is normalized, so this
     // would come back 422 — after the dialog had closed, which is the worst
     // place to learn it. The control that fills it is right there.
@@ -287,7 +287,7 @@ describe("what a form must not be able to save", () => {
 
 describe("a parameter that takes several values", () => {
   it("sends an array rather than a joined string", async () => {
-    // `list` exists so an app does not declare a string and document a comma.
+    // `list` exists so a plug-in does not declare a string and document a comma.
     // That only holds if an array is what actually travels.
     serve({
       menu: [

@@ -443,7 +443,10 @@ ACCEPTED = [
                     # No description, layout, widget id or grid: a publisher who
                     # wants one tile per widget writes almost nothing.
                     "widgets": [
-                        {"type": "w", "binding": {"endpoint_id": "plugin.acme.tracker.s"}}
+                        {
+                            "type": "w",
+                            "binding": {"endpoint_id": "plugin.acme.tracker.s"},
+                        }
                     ],
                 }
             ],
@@ -467,7 +470,9 @@ REFUSED_BY_BOTH = [
     pytest.param(
         _manifest(
             features=["endpoints"],
-            endpoints=[{"id": "plugin.acme.tracker.s", "direction": "read", "retries": 3}],
+            endpoints=[
+                {"id": "plugin.acme.tracker.s", "direction": "read", "retries": 3}
+            ],
         ),
         id="endpoint-term-the-contract-does-not-name",
     ),
@@ -522,7 +527,9 @@ REFUSED_BY_BOTH = [
     pytest.param(
         _manifest(
             features=["endpoints"],
-            endpoints=[{"id": "plugin.acme.tracker.s", "direction": "read", "public": 1}],
+            endpoints=[
+                {"id": "plugin.acme.tracker.s", "direction": "read", "public": 1}
+            ],
         ),
         id="endpoint-public-not-a-boolean",
     ),

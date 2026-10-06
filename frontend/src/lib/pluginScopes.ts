@@ -1,5 +1,5 @@
 /**
- * The scopes an app asks a community for, as the seat chooses them.
+ * The scopes a plug-in asks a community for, as the seat chooses them.
  *
  * Shared by the install dialog and the scopes panel, so both tick the same way
  * and say the same thing about each scope.
@@ -11,7 +11,7 @@ import { TOOLS, toolCamelPlural, toolPlural } from "@/lib/tools";
 
 export type ScopeAccess = "read" | "write";
 
-/** The prefix of the scope that lets an app use another app. */
+/** The prefix of the scope that lets a plug-in use another plug-in. */
 export const PLUGIN_SCOPE_PREFIX = "plugins:";
 
 /** The public id a `plugins:` scope names, or null for any other scope. */
@@ -27,10 +27,10 @@ export const STANDING_SCOPES: ReadonlySet<string> = new Set([
   "community:admin",
 ]);
 
-/** Public id → the name that app goes by, as the server read it. */
+/** Public id → the name that plug-in goes by, as the server read it. */
 export type PluginNames = Readonly<Record<string, string>>;
 
-/** A `t` holding the `apps` and `nav` namespaces, whatever else it holds. */
+/** A `t` holding the `plugins` and `nav` namespaces, whatever else it holds. */
 export type ScopeT = TFunction<any>;
 
 /** A scope split into the resource it names and the access it gives. */
@@ -72,23 +72,23 @@ export const scopeResourceLabel = (resource: string, t: ScopeT): string => {
   const tool = TOOLS.find((one) => toolPlural(one) === resource);
   return tool
     ? t(`nav:${toolCamelPlural(tool)}` as never)
-    : t(`apps:scopes.resources.${resource}` as never);
+    : t(`plugins:scopes.resources.${resource}` as never);
 };
 
 /**
- * What granting a scope lets the app do, as a plain sentence: "Read and change
+ * What granting a scope lets the plug-in do, as a plain sentence: "Read and change
  * projects", "See who is in your community, by name", "Use GitHub in this
  * community". A resource with no sentence of its own is said with its label; an
- * app with no name in `pluginNames` is said by its public id.
+ * plug-in with no name in `pluginNames` is said by its public id.
  */
 export const scopeSentence = (scope: string, t: ScopeT, pluginNames: PluginNames = {}): string => {
   const target = pluginScopeTarget(scope);
   if (target !== null) {
-    return t("apps:scopes.usePlugin" as never, { name: pluginNames[target] ?? target });
+    return t("plugins:scopes.usePlugin" as never, { name: pluginNames[target] ?? target });
   }
   const { resource, access } = parseScope(scope);
-  return t(`apps:scopes.sentences.${resource}.${access}` as never, {
-    defaultValue: t(`apps:scopes.sentences.fallback.${access}` as never, {
+  return t(`plugins:scopes.sentences.${resource}.${access}` as never, {
+    defaultValue: t(`plugins:scopes.sentences.fallback.${access}` as never, {
       resource: scopeResourceLabel(resource, t),
     }),
   });

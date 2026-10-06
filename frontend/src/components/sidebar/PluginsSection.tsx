@@ -1,29 +1,29 @@
 /**
- * The community's installed apps, above its initiatives.
+ * The community's installed plug-ins, above its initiatives.
  *
- * Apps are community-wide surfaces, so they sit above the initiatives rather than
+ * Plug-ins are community-wide surfaces, so they sit above the initiatives rather than
  * inside any of them. What shows depends on who is looking:
  *
- * - **Apps installed** — one entry each, for everyone. Whether a member may do
+ * - **Plug-ins installed** — one entry each, for everyone. Whether a member may do
  *   anything *inside* one is that instance's own sharing, enforced where the
  *   content lives.
- * - **No apps** — the section still shows, for everyone. A member cannot add
+ * - **No plug-ins** — the section still shows, for everyone. A member cannot add
  *   one, but they can look at what exists and ask for it, so the shelf is worth
  *   pointing at; what differs is the invitation at the bottom.
  *
  * A surface names the audience it is for, and an entry is only offered to a
- * reader who is in it — an app whose only community-wide surface is for admins does
+ * reader who is in it — a plug-in whose only community-wide surface is for admins does
  * not take a row for a member. The mint settles the same question again under
  * the caller's own session; this is about not pointing at a closed door.
  *
- * Disabled apps are hidden here and stay visible in community settings, which is
- * where an admin turns them back on. So are apps whose service is not set up on
+ * Disabled plug-ins are hidden here and stay visible in community settings, which is
+ * where an admin turns them back on. So are plug-ins whose service is not set up on
  * this server — an entry that opens nothing is worse than no entry, and community
  * settings is where that state is explained.
  *
- * **Every entry does something.** An app with a surface opens it; an app with
+ * **Every entry does something.** A plug-in with a surface opens it; a plug-in with
  * only a credential to supply opens that form where it stands, because "set up
- * my GitHub account" is the app, not a detour through settings. An app that is
+ * my GitHub account" is the plug-in, not a detour through settings. A plug-in that is
  * neither — one contributing widgets or data to somewhere else — has nothing to
  * open, so it sits under a "show more" rather than spending a row on a click
  * that would go nowhere.
@@ -70,26 +70,26 @@ export interface PluginsSectionProps {
 }
 
 export function PluginsSection({ isCommunityAdmin, open, onOpenChange }: PluginsSectionProps) {
-  const { t } = useTranslation(["apps", "nav"]);
+  const { t } = useTranslation(["plugins", "nav"]);
   const gp = useCommunityPath();
   const pluginsQuery = useCommunityPlugins();
   const [showInert, setShowInert] = useState(false);
 
-  // `available` is false when an app's service is not set up on this server, or
+  // `available` is false when a plug-in's service is not set up on this server, or
   // the operator switched it off: there is nothing behind the entry, so it does
   // not appear. Community settings still lists it, which is where that is said.
-  const apps = (pluginsQuery.data?.items ?? []).filter(
-    (app) => app.enabled && app.available !== false
+  const plugins = (pluginsQuery.data?.items ?? []).filter(
+    (plugin) => plugin.enabled && plugin.available !== false
   );
 
-  // An app with somewhere to go leads; one with nothing to open waits under
+  // A plug-in with somewhere to go leads; one with nothing to open waits under
   // "show more" so a community that installs many widget providers still has a
   // readable sidebar. A surface the server says this reader cannot open is not
   // somewhere they can go, so for them it does not count as one.
-  const actionable = apps.filter(
-    (app) => communityPluginPath(app) !== null || pluginHasConnections(app.definition)
+  const actionable = plugins.filter(
+    (plugin) => communityPluginPath(plugin) !== null || pluginHasConnections(plugin.definition)
   );
-  const inert = apps.filter((app) => !actionable.includes(app));
+  const inert = plugins.filter((plugin) => !actionable.includes(plugin));
 
   return (
     <Collapsible open={open} onOpenChange={onOpenChange}>
@@ -97,9 +97,9 @@ export function PluginsSection({ isCommunityAdmin, open, onOpenChange }: Plugins
         <SidebarGroupLabel className="flex items-center gap-2 py-2">
           <Blocks className="h-4 w-4" />
           <CollapsibleTrigger className="flex flex-1 items-center text-left">
-            <span className="flex-1">{t("apps:title")}</span>
+            <span className="flex-1">{t("plugins:title")}</span>
           </CollapsibleTrigger>
-          {apps.length > 0 && (
+          {plugins.length > 0 && (
             <Tooltip delayDuration={300}>
               <TooltipTrigger asChild>
                 <CollapsibleTrigger asChild>
@@ -126,14 +126,14 @@ export function PluginsSection({ isCommunityAdmin, open, onOpenChange }: Plugins
 
         <CollapsibleContent>
           <SidebarGroupContent>
-            {apps.length ? (
+            {plugins.length ? (
               <SidebarMenu>
-                {actionable.map((app) => (
-                  <PluginEntry key={app.id} app={app} isCommunityAdmin={isCommunityAdmin} />
+                {actionable.map((plugin) => (
+                  <PluginEntry key={plugin.id} plugin={plugin} isCommunityAdmin={isCommunityAdmin} />
                 ))}
                 {showInert &&
-                  inert.map((app) => (
-                    <PluginEntry key={app.id} app={app} isCommunityAdmin={isCommunityAdmin} />
+                  inert.map((plugin) => (
+                    <PluginEntry key={plugin.id} plugin={plugin} isCommunityAdmin={isCommunityAdmin} />
                   ))}
                 {inert.length > 0 && (
                   <SidebarMenuItem>
@@ -148,15 +148,15 @@ export function PluginsSection({ isCommunityAdmin, open, onOpenChange }: Plugins
                       />
                       <span className="truncate">
                         {showInert
-                          ? t("apps:showFewer")
-                          : t("apps:showMore", { count: inert.length })}
+                          ? t("plugins:showFewer")
+                          : t("plugins:showMore", { count: inert.length })}
                       </span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 )}
               </SidebarMenu>
             ) : (
-              <p className="px-4 py-2 text-muted-foreground text-sm">{t("apps:none")}</p>
+              <p className="px-4 py-2 text-muted-foreground text-sm">{t("plugins:none")}</p>
             )}
 
             {/* Last, below "show more" as well, so it is always in the same
@@ -166,13 +166,13 @@ export function PluginsSection({ isCommunityAdmin, open, onOpenChange }: Plugins
             <SidebarMenu>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild size="sm">
-                  <Link to={gp("/marketplace")} search={{ kind: ListingKind.app }}>
+                  <Link to={gp("/marketplace")} search={{ kind: ListingKind.plugin }}>
                     {isCommunityAdmin ? (
                       <Plus className="h-4 w-4" />
                     ) : (
                       <Store className="h-4 w-4" />
                     )}
-                    <span>{isCommunityAdmin ? t("apps:add") : t("apps:browse")}</span>
+                    <span>{isCommunityAdmin ? t("plugins:add") : t("plugins:browse")}</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -184,17 +184,17 @@ export function PluginsSection({ isCommunityAdmin, open, onOpenChange }: Plugins
   );
 }
 
-function PluginEntry({ app, isCommunityAdmin }: { app: CommunityPluginRead; isCommunityAdmin: boolean }) {
-  const { t } = useTranslation(["apps"]);
+function PluginEntry({ plugin, isCommunityAdmin }: { plugin: CommunityPluginRead; isCommunityAdmin: boolean }) {
+  const { t } = useTranslation(["plugins"]);
   const gp = useCommunityPath();
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const path = communityPluginPath(app);
+  const path = communityPluginPath(plugin);
   // The listing's own artwork, small. Every listing has one — a listing that
-  // ships none is published with the app's own mark — so there is nothing to
+  // ships none is published with the plug-in's own mark — so there is nothing to
   // fall back to.
-  const icon = app.avatar_url ? (
+  const icon = plugin.avatar_url ? (
     <img
-      src={resolveArtworkUrl(app.avatar_url) ?? undefined}
+      src={resolveArtworkUrl(plugin.avatar_url) ?? undefined}
       alt=""
       aria-hidden
       className="h-4 w-4 shrink-0 rounded-sm object-cover"
@@ -204,8 +204,8 @@ function PluginEntry({ app, isCommunityAdmin }: { app: CommunityPluginRead; isCo
     <Blocks className="h-4 w-4" />
   );
 
-  // Every app has settings, so every entry carries the gear. It waits for a
-  // hover (or a keyboard focus) so a row reads as the app's name rather than a
+  // Every plug-in has settings, so every entry carries the gear. It waits for a
+  // hover (or a keyboard focus) so a row reads as the plug-in's name rather than a
   // pair of controls.
   const settings = (
     <>
@@ -214,17 +214,17 @@ function PluginEntry({ app, isCommunityAdmin }: { app: CommunityPluginRead; isCo
           <SidebarMenuAction
             showOnHover
             onClick={() => setSettingsOpen(true)}
-            aria-label={t("apps:settings.open", { name: app.name })}
+            aria-label={t("plugins:settings.open", { name: plugin.name })}
           >
             <Settings2 className="h-4 w-4" aria-hidden />
           </SidebarMenuAction>
         </TooltipTrigger>
         <TooltipContent side="right">
-          <p>{t("apps:settings.open", { name: app.name })}</p>
+          <p>{t("plugins:settings.open", { name: plugin.name })}</p>
         </TooltipContent>
       </Tooltip>
       <PluginSettingsDialog
-        pluginId={app.id}
+        pluginId={plugin.id}
         isCommunityAdmin={isCommunityAdmin}
         open={settingsOpen}
         onOpenChange={setSettingsOpen}
@@ -238,7 +238,7 @@ function PluginEntry({ app, isCommunityAdmin }: { app: CommunityPluginRead; isCo
         <SidebarMenuButton asChild size="sm">
           <Link to={gp(path)}>
             {icon}
-            <span className="truncate">{app.name}</span>
+            <span className="truncate">{plugin.name}</span>
           </Link>
         </SidebarMenuButton>
         {settings}
@@ -248,12 +248,12 @@ function PluginEntry({ app, isCommunityAdmin }: { app: CommunityPluginRead; isCo
 
   // No surface, but something to connect: clicking the name opens the settings
   // where the member stands rather than sending them to find the same form.
-  if (pluginHasConnections(app.definition)) {
+  if (pluginHasConnections(plugin.definition)) {
     return (
       <SidebarMenuItem>
         <SidebarMenuButton size="sm" onClick={() => setSettingsOpen(true)}>
           {icon}
-          <span className="truncate">{app.name}</span>
+          <span className="truncate">{plugin.name}</span>
         </SidebarMenuButton>
         {settings}
       </SidebarMenuItem>
@@ -264,7 +264,7 @@ function PluginEntry({ app, isCommunityAdmin }: { app: CommunityPluginRead; isCo
     <SidebarMenuItem>
       <SidebarMenuButton size="sm" className="cursor-default hover:bg-transparent">
         {icon}
-        <span className="truncate">{app.name}</span>
+        <span className="truncate">{plugin.name}</span>
       </SidebarMenuButton>
       {settings}
     </SidebarMenuItem>

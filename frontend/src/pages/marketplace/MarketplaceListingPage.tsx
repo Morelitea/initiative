@@ -45,7 +45,7 @@ import { resolveArtworkUrl } from "@/lib/uploadUrl";
 import { readConfig, readDefinition } from "@/lib/widgets/definition";
 
 export function MarketplaceListingPage() {
-  const { t } = useTranslation(["marketplace", "apps"]);
+  const { t } = useTranslation(["marketplace", "plugins"]);
   const { publicId } = useParams({ strict: false }) as { publicId: string };
   const { kind: shelf } = useSearch({ strict: false }) as { kind?: ListingKind };
   const gp = useCommunityPath();
@@ -56,16 +56,16 @@ export function MarketplaceListingPage() {
   const { activeCommunity } = useCommunities();
 
   const listing = listingQuery.data;
-  const isPlugin = listing?.kind === ListingKind.app;
+  const isPlugin = listing?.kind === ListingKind.plugin;
   // Back to the shelf this listing was found on, falling back to the listing's
   // own kind when someone arrived by direct link. Both can be unknown when the
   // listing failed to load, and neither is guaranteed to be a shelf this
   // marketplace has — so the link is built the same way the browse route reads
   // it, and lands on the default shelf rather than on nothing.
   const backToShelf = { kind: parseCommunityShelf(shelf ?? listing?.kind) };
-  // Installing an app is a community-admin action; the server enforces it, and the
+  // Installing a plug-in is a community-admin action; the server enforces it, and the
   // button says so rather than failing after the click.
-  // Adding an app is the superadmin's consent, so only the seat is offered it.
+  // Adding a plug-in is the superadmin's consent, so only the seat is offered it.
   const holdsTheSeat = Boolean(activeCommunity?.can.seat);
   // Whether this community already has it. Every member may read the installs, so
   // this answers for the person asking as well as the one who could act.
@@ -77,7 +77,7 @@ export function MarketplaceListingPage() {
   const pluginInstalls = useCommunityPlugins({ enabled: isPlugin });
   const isInstalled: boolean | undefined =
     isPlugin && !pluginInstalls.isLoading && !pluginInstalls.isError
-      ? (pluginInstalls.data?.items ?? []).some((app) => app.listing_uid === listing?.uid)
+      ? (pluginInstalls.data?.items ?? []).some((plugin) => plugin.listing_uid === listing?.uid)
       : undefined;
 
   if (listingQuery.isError) {
@@ -163,7 +163,7 @@ export function MarketplaceListingPage() {
                 }
               >
                 <Download className="mr-1.5 h-4 w-4" />
-                {isPlugin ? t("apps:install.action") : t("detail.install")}
+                {isPlugin ? t("plugins:install.action") : t("detail.install")}
               </Button>
             )}
             {!listing.installable ? (
@@ -172,13 +172,13 @@ export function MarketplaceListingPage() {
               </span>
             ) : isPlugin && pluginInstalls.isError ? (
               <span className="text-muted-foreground text-xs">
-                {t("apps:install.unknownState")}
+                {t("plugins:install.unknownState")}
               </span>
             ) : (
               isPlugin &&
               !holdsTheSeat &&
               isInstalled === false && (
-                <span className="text-muted-foreground text-xs">{t("apps:install.adminOnly")}</span>
+                <span className="text-muted-foreground text-xs">{t("plugins:install.adminOnly")}</span>
               )
             )}
           </div>
@@ -206,7 +206,7 @@ export function MarketplaceListingPage() {
         </div>
       ) : null}
 
-      {/* An app mounts one of this build's tools; there is no canvas to draw,
+      {/* A plug-in mounts one of this build's tools; there is no canvas to draw,
           so the preview is a dashboard-only affordance. */}
       {!isPlugin && (
         <div className="space-y-2">

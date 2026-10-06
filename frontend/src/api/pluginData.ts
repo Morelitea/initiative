@@ -1,9 +1,9 @@
 /**
- * The widget data plane: what an installed app contributes, and its rows.
+ * The widget data plane: what an installed plug-in contributes, and its rows.
  *
  * Hand-written rather than generated because these routes carry a rule worth
  * keeping visible at the call site. **A widget
- * never names an address.** It names a read endpoint on an installed app, and
+ * never names an address.** It names a read endpoint on an installed plug-in, and
  * the request below carries the dashboard that widget sits on, because the
  * dashboard's own gates are what decide whether this viewer may see anything
  * here at all. There is no variant of this call that omits it.
@@ -93,12 +93,12 @@ export interface PluginParamOptionsRequest {
 }
 
 /**
- * The values one parameter permits, from the read its app named for it.
+ * The values one parameter permits, from the read its plug-in named for it.
  *
  * The one call here that carries no dashboard, and it cannot: a form is filled
  * in before a widget is placed, so there is no dashboard whose gates could
  * decide it. What decides it instead is that the caller does not name what gets
- * called — the source is read out of the app's own declaration, and it is
+ * called — the source is read out of the plug-in's own declaration, and it is
  * fetched on the caller's own credentials.
  */
 export const getPluginParamOptions = ({
@@ -121,8 +121,8 @@ export const getPluginParamOptions = ({
     .then((r) => r.data);
 
 /** Find the install backing a binding's `plugin_uid`, and the widget/endpoint it
- *  names. Returns `undefined` for an app that is not installed here, which is
- *  what an imported definition referencing an app this community does not have
+ *  names. Returns `undefined` for a plug-in that is not installed here, which is
+ *  what an imported definition referencing a plug-in this community does not have
  *  looks like. */
 export const resolvePluginBinding = (
   catalog: PluginWidgetCatalogResponse | undefined,
@@ -137,7 +137,7 @@ export const resolvePluginBinding = (
 
 /** The install a namespaced widget type belongs to, and that widget's own entry.
  *  `undefined` for a type this community has no install for — an imported
- *  definition naming an app nobody here has. */
+ *  definition naming a plug-in nobody here has. */
 export const pluginWidgetEntry = (
   catalog: PluginWidgetCatalogResponse | undefined,
   widgetType: string
@@ -151,7 +151,7 @@ export const pluginWidgetEntry = (
 
 /** The module a namespaced widget type resolves to, from the pinned definition
  *  the install carries. `undefined` means this build has nothing to run — the
- *  app was uninstalled, or its version stopped shipping that widget. */
+ *  plug-in was uninstalled, or its version stopped shipping that widget. */
 export const pluginWidgetSource = (
   catalog: PluginWidgetCatalogResponse | undefined,
   widgetType: string
@@ -183,7 +183,7 @@ const asSample = (raw: unknown): PluginSample => {
   };
 };
 
-/** The sample an app shipped for one of its widgets, in the shape a preview
+/** The sample a plug-in shipped for one of its widgets, in the shape a preview
  *  hands to the sandbox. The catalog has already read it through the endpoint's
  *  returns, exactly as it reads a live answer, so a preview draws the widget a
  *  community would get. Previews never call the network, so this is the only thing

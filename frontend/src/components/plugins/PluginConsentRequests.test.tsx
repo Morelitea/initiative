@@ -1,8 +1,8 @@
 /**
- * What an app asked to do as the viewer, one line per purpose, and the
+ * What a plug-in asked to do as the viewer, one line per purpose, and the
  * viewer's answer.
  *
- * Each request is answered on its own, never beyond what the app asked for:
+ * Each request is answered on its own, never beyond what the plug-in asked for:
  * a request to read offers reading only, and one to read and change offers
  * both. Declining a waiting request and withdrawing an allowed one are the
  * same act on the server, told apart here by what the line said before.
@@ -51,7 +51,7 @@ const consent = (overrides: Partial<CommunityPluginConsentRead> = {}): Community
 const render = (consents: CommunityPluginConsentRead[]) =>
   renderPage(() => (
     <TooltipProvider>
-      <PluginConsentRequests pluginId={3} appName="Auto" consents={consents} />
+      <PluginConsentRequests pluginId={3} pluginName="Auto" consents={consents} />
     </TooltipProvider>
   ));
 
@@ -61,13 +61,13 @@ beforeEach(() => {
 });
 
 describe("PluginConsentRequests", () => {
-  it("shows the app's own words and waits for an answer", async () => {
+  it("shows the plug-in's own words and waits for an answer", async () => {
     render([consent()]);
     expect(await screen.findByText("Auto: “Comment on the linked issue”")).toBeInTheDocument();
     expect(screen.getByText("Waiting for you")).toBeInTheDocument();
   });
 
-  it("offers both levels when the app asked for changes, and answers that one line", async () => {
+  it("offers both levels when the plug-in asked for changes, and answers that one line", async () => {
     render([consent()]);
     fireEvent.click(await screen.findByText("Let it read and change things as me"));
     await waitFor(() =>
@@ -84,7 +84,7 @@ describe("PluginConsentRequests", () => {
     );
   });
 
-  it("never offers more than the app asked for", async () => {
+  it("never offers more than the plug-in asked for", async () => {
     render([consent({ requested_access: ConsentAccess.read })]);
     expect(await screen.findByText("Let it read as me")).toBeInTheDocument();
     expect(screen.queryByText("Let it read and change things as me")).toBeNull();
@@ -113,7 +113,7 @@ describe("PluginConsentRequests", () => {
     await waitFor(() => expect(revokeConsent).toHaveBeenCalledWith(41));
   });
 
-  it("says where a purpose is bound, and which request is app-wide", async () => {
+  it("says where a purpose is bound, and which request is plug-in-wide", async () => {
     render([
       consent({ id: 1, purpose: null, label: "Act as you in its own screens" }),
       consent({ id: 2, initiative_id: 9 }),

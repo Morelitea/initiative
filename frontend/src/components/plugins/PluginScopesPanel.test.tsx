@@ -1,5 +1,5 @@
 /**
- * What reaches the server when the seat grants an app its scopes.
+ * What reaches the server when the seat grants a plug-in its scopes.
  *
  * Changing implies reading, so ticking a change ticks the read and unticking
  * the read unticks the change. A requested scope the server does not allow
@@ -27,7 +27,7 @@ vi.mock("@/hooks/useCommunityPlugins", () => ({
   useSetPluginScopes: () => ({ mutate, isPending: false }),
 }));
 
-const app = (overrides: Partial<CommunityPluginDetail> = {}) =>
+const plugin = (overrides: Partial<CommunityPluginDetail> = {}) =>
   ({
     id: 7,
     name: "WidgetCo",
@@ -51,7 +51,7 @@ beforeEach(() => {
 
 describe("PluginScopesPanel", () => {
   it("includes the read when a change is granted", async () => {
-    renderPage(() => <PluginScopesPanel app={app()} />);
+    renderPage(() => <PluginScopesPanel plugin={plugin()} />);
 
     const projects = await row("Projects");
     projects.getByLabelText("Read and change").click();
@@ -68,7 +68,7 @@ describe("PluginScopesPanel", () => {
     const standings = ["initiatives:moderate", "community:admin"];
     renderPage(() => (
       <PluginScopesPanel
-        app={app({
+        plugin={plugin({
           requested_scopes: ["initiatives:read", ...standings],
           grantable_scopes: ["initiatives:read", ...standings],
           granted_scopes: ["initiatives:read"],
@@ -94,7 +94,7 @@ describe("PluginScopesPanel", () => {
 
   it("takes the change away with the read", async () => {
     renderPage(() => (
-      <PluginScopesPanel app={app({ granted_scopes: ["projects:read", "projects:write"] })} />
+      <PluginScopesPanel plugin={plugin({ granted_scopes: ["projects:read", "projects:write"] })} />
     ));
 
     const projects = await row("Projects");
@@ -108,7 +108,7 @@ describe("PluginScopesPanel", () => {
 
   it("shows a scope the server does not allow, disabled, with the reason", async () => {
     renderPage(() => (
-      <PluginScopesPanel app={app({ grantable_scopes: ["projects:read", "comments:read"] })} />
+      <PluginScopesPanel plugin={plugin({ grantable_scopes: ["projects:read", "comments:read"] })} />
     ));
 
     const projects = await row("Projects");
@@ -118,7 +118,7 @@ describe("PluginScopesPanel", () => {
   });
 
   it("sends the whole set, keeping what was already granted", async () => {
-    renderPage(() => <PluginScopesPanel app={app({ granted_scopes: ["comments:read"] })} />);
+    renderPage(() => <PluginScopesPanel plugin={plugin({ granted_scopes: ["comments:read"] })} />);
 
     const save = await screen.findByRole("button", { name: "Save" });
     // Nothing changed yet.
@@ -131,10 +131,10 @@ describe("PluginScopesPanel", () => {
     expect([...sent[0]].sort()).toEqual(["comments:read", "projects:read"]);
   });
 
-  it("offers the use of another app as a row of its own", async () => {
+  it("offers the use of another plug-in as a row of its own", async () => {
     renderPage(() => (
       <PluginScopesPanel
-        app={app({
+        plugin={plugin({
           requested_scopes: ["projects:read", "plugins:acme.github"],
           grantable_scopes: ["projects:read", "plugins:acme.github"],
           plugin_names: { "acme.github": "GitHub" },
@@ -149,10 +149,10 @@ describe("PluginScopesPanel", () => {
     await waitFor(() => expect(sent).toEqual([["plugins:acme.github"]]));
   });
 
-  it("offers a change alone when the app asks only to change", async () => {
+  it("offers a change alone when the plug-in asks only to change", async () => {
     renderPage(() => (
       <PluginScopesPanel
-        app={app({ requested_scopes: ["tags:write"], grantable_scopes: ["tags:write"] })}
+        plugin={plugin({ requested_scopes: ["tags:write"], grantable_scopes: ["tags:write"] })}
       />
     ));
 

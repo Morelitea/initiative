@@ -35,7 +35,7 @@ function isOutcome(value: unknown): value is Outcome {
 }
 
 /**
- * Where a member lands after an app's vendor flow.
+ * Where a member lands after a plug-in's vendor flow.
  *
  * Deliberately terminal, and deliberately outside the authenticated tree. The
  * connect opens in its own tab, so this is the last thing in that tab and the
@@ -44,11 +44,11 @@ function isOutcome(value: unknown): value is Outcome {
  * login screen at the end of a flow that already succeeded.
  */
 export function PluginConnectedPage() {
-  const { t } = useTranslation(["apps"]);
+  const { t } = useTranslation(["plugins"]);
   const search = useSearch({ strict: false }) as { outcome?: string };
 
   // Anything else is a link that was edited or truncated. `expired` is the
-  // right thing to say about it: start again from the app's settings, which is
+  // right thing to say about it: start again from the plug-in's settings, which is
   // the remedy for every unreadable ending.
   const outcome: Outcome = isOutcome(search.outcome) ? search.outcome : "expired";
   const { icon: Icon, tone } = OUTCOMES[outcome];
@@ -59,11 +59,11 @@ export function PluginConnectedPage() {
         <CardHeader className="items-center text-center">
           <LogoIcon className="mb-2 h-8 w-8" />
           <Icon className={`h-8 w-8 ${tone}`} aria-hidden />
-          <CardTitle>{t(`apps:connected.${outcome}.title`)}</CardTitle>
-          <CardDescription>{t(`apps:connected.${outcome}.body`)}</CardDescription>
+          <CardTitle>{t(`plugins:connected.${outcome}.title`)}</CardTitle>
+          <CardDescription>{t(`plugins:connected.${outcome}.body`)}</CardDescription>
         </CardHeader>
         <CardContent className="text-center text-muted-foreground text-sm">
-          {t("apps:connected.closeTab")}
+          {t("plugins:connected.closeTab")}
         </CardContent>
       </Card>
     </div>

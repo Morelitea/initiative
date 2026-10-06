@@ -2,7 +2,7 @@ import "i18next";
 
 import type access from "../../public/locales/en/access.json";
 import type announcements from "../../public/locales/en/announcements.json";
-import type apps from "../../public/locales/en/apps.json";
+import type plugins from "../../public/locales/en/plugins.json";
 import type auth from "../../public/locales/en/auth.json";
 import type calendars from "../../public/locales/en/calendars.json";
 import type command from "../../public/locales/en/command.json";
@@ -54,7 +54,7 @@ declare module "i18next" {
       auth: typeof auth;
       command: typeof command;
       common: typeof common;
-      apps: typeof apps;
+      plugins: typeof plugins;
       counterGroups: typeof counterGroups;
       marketplace: typeof marketplace;
       dashboards: typeof dashboards;

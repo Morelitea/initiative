@@ -26,8 +26,8 @@
     "remove": "Remove",
     "fullAccess": "Full access",
     "fullAccessHint": "This role can view and edit everything in this initiative, so it's always an editor here.",
-    "app": "Plug-in",
-    "apps": "Plug-ins",
+    "plugin": "Plug-in",
+    "plugins": "Plug-ins",
     "pluginFallback": "Plug-in {{id}}",
     "pluginGrantHint": "The community's settings decide what a plug-in can reach, so it can't be changed here.",
     "settingsDescription": "Choose who can view and edit this."

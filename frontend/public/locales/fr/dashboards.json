@@ -63,7 +63,7 @@
   "bindingSource": {
     "query": "Requête SQL",
     "sheet_range": "Plage de feuille",
-    "app": "Données du plug-in"
+    "plugin": "Données du plug-in"
   },
   "gallery": {
     "title": "Galerie de widgets",
@@ -116,7 +116,7 @@
     "all_counter": "Tous les compteurs",
     "all_document": "Toutes les feuilles de calcul",
     "pluginEndpoint": "Ce qu'il lit",
-    "app": "Plug-in",
+    "plugin": "Plug-in",
     "pluginPlaceholder": "Choisir un plug-in",
     "pluginEndpointPlaceholder": "Choisir une lecture…",
     "pluginNotInstalled": "Ce plug-in n'est pas installé dans cette communauté.",

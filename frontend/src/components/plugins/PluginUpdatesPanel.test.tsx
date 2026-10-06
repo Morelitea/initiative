@@ -35,7 +35,7 @@ vi.mock("@/hooks/useCommunityPluginDetail", () => ({
   useDeclinePluginUpgrade: () => ({ isPending: false, mutate: declined }),
 }));
 
-const app = (overrides: Partial<CommunityPluginDetail>) =>
+const plugin = (overrides: Partial<CommunityPluginDetail>) =>
   ({
     id: 7,
     name: "Community calendar",
@@ -52,7 +52,7 @@ beforeEach(() => {
 
 describe("PluginUpdatesPanel", () => {
   it("shows an install as tracking, and turns that off when asked", async () => {
-    renderPage(() => <PluginUpdatesPanel app={app({})} />);
+    renderPage(() => <PluginUpdatesPanel plugin={plugin({})} />);
 
     const toggle = await screen.findByLabelText("Update automatically");
     expect(toggle).toBeChecked();
@@ -62,7 +62,7 @@ describe("PluginUpdatesPanel", () => {
   });
 
   it("turns tracking back on from the manual state", async () => {
-    renderPage(() => <PluginUpdatesPanel app={app({ auto_update: false })} />);
+    renderPage(() => <PluginUpdatesPanel plugin={plugin({ auto_update: false })} />);
 
     const toggle = await screen.findByLabelText("Update automatically");
     expect(toggle).not.toBeChecked();
@@ -72,7 +72,7 @@ describe("PluginUpdatesPanel", () => {
   });
 
   it("offers the version the server named, and applies it", async () => {
-    renderPage(() => <PluginUpdatesPanel app={app({ update_version: "1.2.0" })} />);
+    renderPage(() => <PluginUpdatesPanel plugin={plugin({ update_version: "1.2.0" })} />);
 
     const button = await screen.findByRole("button", { name: "Update to 1.2.0" });
     button.click();
@@ -80,7 +80,7 @@ describe("PluginUpdatesPanel", () => {
   });
 
   it("offers nothing when the server named no version", async () => {
-    renderPage(() => <PluginUpdatesPanel app={app({ update_version: null })} />);
+    renderPage(() => <PluginUpdatesPanel plugin={plugin({ update_version: null })} />);
 
     expect(await screen.findByText("Up to date")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Update to/ })).not.toBeInTheDocument();
@@ -89,7 +89,7 @@ describe("PluginUpdatesPanel", () => {
   it("says what a version asking for more wants, and accepts it with its scopes", async () => {
     renderPage(() => (
       <PluginUpdatesPanel
-        app={app({
+        plugin={plugin({
           update_version: "1.2.0",
           pending_update: {
             version: "1.2.0",
@@ -114,15 +114,15 @@ describe("PluginUpdatesPanel", () => {
     );
   });
 
-  it("says a version asking to use another app names that app", async () => {
+  it("says a version asking to use another plug-in names that plug-in", async () => {
     renderPage(() => (
       <PluginUpdatesPanel
-        app={app({
+        plugin={plugin({
           update_version: "1.3.0",
           plugin_names: { "acme.github": "GitHub" },
           pending_update: {
             version: "1.3.0",
-            added_scopes: ["apps:acme.github"],
+            added_scopes: ["plugins:acme.github"],
             added_surfaces: [],
             declined: false,
           },
@@ -136,7 +136,7 @@ describe("PluginUpdatesPanel", () => {
   it("declines the version it was shown", async () => {
     renderPage(() => (
       <PluginUpdatesPanel
-        app={app({
+        plugin={plugin({
           update_version: "1.2.0",
           pending_update: {
             version: "1.2.0",
@@ -155,7 +155,7 @@ describe("PluginUpdatesPanel", () => {
   it("says a declined version was declined, and offers only to accept it", async () => {
     renderPage(() => (
       <PluginUpdatesPanel
-        app={app({
+        plugin={plugin({
           update_version: "1.2.0",
           pending_update: {
             version: "1.2.0",
@@ -168,7 +168,7 @@ describe("PluginUpdatesPanel", () => {
     ));
 
     expect(
-      await screen.findByText("You declined version 1.2.0. The app stays on its current version.")
+      await screen.findByText("You declined version 1.2.0. The plug-in stays on its current version.")
     ).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Decline" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Accept and update" })).toBeInTheDocument();

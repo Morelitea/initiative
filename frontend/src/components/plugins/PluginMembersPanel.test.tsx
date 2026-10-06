@@ -1,5 +1,5 @@
 /**
- * The seat's view of each member's answers to an app asking to act as them.
+ * The seat's view of each member's answers to a plug-in asking to act as them.
  *
  * One row per member, listing every request they were asked and where it
  * stands. The admin can end a member's answers, or everybody's, and has no

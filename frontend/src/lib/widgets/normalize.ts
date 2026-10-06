@@ -125,5 +125,5 @@ export const normalizeSheetRange = (
  *  instance config has not filled in yet. */
 export const emptyDataFor = (source: WidgetSource): WidgetData =>
   source === "plugin"
-    ? { source: "app", rows: [], values: {} }
+    ? { source: "plugin", rows: [], values: {} }
     : { source: "rows", columns: [], rows: [] };

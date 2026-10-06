@@ -512,7 +512,7 @@ export const ShareControl = ({
                 <div className="flex items-center gap-2 rounded-md border px-3 py-2">
                   <PluginMark avatarUrl={owningPlugin.avatarUrl} />
                   <span className="min-w-0 flex-1 truncate text-sm">{owningPlugin.name}</span>
-                  <Badge variant="outline">{t("share.app")}</Badge>
+                  <Badge variant="outline">{t("share.plugin")}</Badge>
                   <Badge variant="secondary">{t("share.owner")}</Badge>
                 </div>
               )}
@@ -667,7 +667,7 @@ export const ShareControl = ({
       {/* ── Apps the community granted: shown, never edited here ──────── */}
       {pluginGrants.length > 0 && (
         <div className="space-y-2">
-          <Label className="font-medium text-sm">{t("share.apps")}</Label>
+          <Label className="font-medium text-sm">{t("share.plugins")}</Label>
           <div className="space-y-1">
             {pluginGrants.map((grant) => {
               const pluginId = grant.plugin_install_id as number;

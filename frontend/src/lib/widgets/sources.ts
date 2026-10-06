@@ -80,7 +80,7 @@ export const SOURCES: Record<WidgetSource, SourceDescriptor> = {
       { kind: "text", key: "range", required: true, placeholder: "A1:B10" },
     ],
   },
-  app: {
+  plugin: {
     rowNoun: "row",
     params: [
       { kind: "text", key: "plugin_uid", required: true },

@@ -1,7 +1,7 @@
 /**
- * An app's settings, grouped by connection.
+ * A plug-in's settings, grouped by connection.
  *
- * The grouping is the point rather than a layout choice. An app does not have
+ * The grouping is the point rather than a layout choice. A plug-in does not have
  * "settings" — it has connections, each of which reaches a different system
  * with different permissions, and each of which is supplied by a different
  * person. Showing them as one flat form would hide the distinction that
@@ -9,7 +9,7 @@
  *
  * - A **community connection** is one credential the whole community uses. A community
  *   admin fills it in; everyone else sees whether it is set, because whether an
- *   app can do its job is not a secret. Some are typed and some are not: where
+ *   plug-in can do its job is not a secret. Some are typed and some are not: where
  *   the vendor authorizes an organization through a page of its own, the admin
  *   is sent there and Initiative records what came back, so the form has
  *   nothing in it and a button instead.
@@ -22,8 +22,8 @@
  * as set and renders empty, so typing into it replaces the value and leaving it
  * alone keeps it. That is why the form sends only the keys that were touched.
  *
- * One renderer draws every app's form, from the field types the pinned
- * definition declares — a new app needs no code here.
+ * One renderer draws every plug-in's form, from the field types the pinned
+ * definition declares — a new plug-in needs no code here.
  */
 
 import { KeyRound, Loader2, Plug, ShieldCheck, TriangleAlert } from "lucide-react";
@@ -57,7 +57,7 @@ interface PluginConnectionField {
   label: Record<string, string>;
   required?: boolean;
   options?: string[];
-  /** Returned by the app when a vendor flow finishes — never typed. */
+  /** Returned by the plug-in when a vendor flow finishes — never typed. */
   managed?: boolean;
 }
 
@@ -72,10 +72,10 @@ export interface PluginConnectionsPanelProps {
 }
 
 export function PluginConnectionsPanel({ pluginId, connections, canManage }: PluginConnectionsPanelProps) {
-  const { t } = useTranslation(["apps"]);
+  const { t } = useTranslation(["plugins"]);
 
   if (!connections.length) {
-    return <p className="text-muted-foreground text-sm">{t("apps:connections.none")}</p>;
+    return <p className="text-muted-foreground text-sm">{t("plugins:connections.none")}</p>;
   }
 
   return (
@@ -108,7 +108,7 @@ function ConnectionShell({
   scopeLabel: string;
   children: React.ReactNode;
 }) {
-  const { t, i18n } = useTranslation(["apps"]);
+  const { t, i18n } = useTranslation(["plugins"]);
   const name = localized(connection.label, i18n.language) ?? connection.id;
   const hint = connection.access_hint as { api?: string; scopes?: string[] } | null;
 
@@ -119,9 +119,9 @@ function ConnectionShell({
         <h3 className="font-medium text-sm">{name}</h3>
         <Badge variant="outline">{scopeLabel}</Badge>
         {connection.satisfied ? (
-          <Badge variant="secondary">{t("apps:connections.set")}</Badge>
+          <Badge variant="secondary">{t("plugins:connections.set")}</Badge>
         ) : (
-          <Badge variant="outline">{t("apps:connections.notSet")}</Badge>
+          <Badge variant="outline">{t("plugins:connections.notSet")}</Badge>
         )}
       </header>
 
@@ -129,9 +129,9 @@ function ConnectionShell({
           admin can mint the smallest credential that works. */}
       {hint?.api || hint?.scopes?.length ? (
         <p className="text-muted-foreground text-xs">
-          {t("apps:connections.accessHint", {
+          {t("plugins:connections.accessHint", {
             api: hint.api ?? "—",
-            scopes: hint.scopes?.length ? hint.scopes.join(", ") : t("apps:connections.noScopes"),
+            scopes: hint.scopes?.length ? hint.scopes.join(", ") : t("plugins:connections.noScopes"),
           })}
         </p>
       ) : null}
@@ -152,7 +152,7 @@ function CommunityConnection({
   connection: CommunityPluginConnectionRead;
   canManage: boolean;
 }) {
-  const { t, i18n } = useTranslation(["apps", "common"]);
+  const { t, i18n } = useTranslation(["plugins", "common"]);
   const [draft, setDraft] = useState<Record<string, PluginConfigValue>>({});
   const save = useUpdatePluginConfig(pluginId);
   const clear = useDisconnectPlugin(pluginId);
@@ -187,12 +187,12 @@ function CommunityConnection({
         // PersonalConnection.
         if (started.connect_url) {
           window.open(started.connect_url, "_blank", "noopener,noreferrer");
-          toast.success(t("apps:connections.connectOpened"));
+          toast.success(t("plugins:connections.connectOpened"));
           return;
         }
-        toast.error(t("apps:connections.connectUnavailable"));
+        toast.error(t("plugins:connections.connectUnavailable"));
       },
-      onError: (error) => toast.error(getErrorMessage(error, "apps:error")),
+      onError: (error) => toast.error(getErrorMessage(error, "plugins:error")),
     });
 
   const submit = () => {
@@ -201,9 +201,9 @@ function CommunityConnection({
       {
         onSuccess: () => {
           setDraft({});
-          toast.success(t("apps:connections.saved"));
+          toast.success(t("plugins:connections.saved"));
         },
-        onError: (error) => toast.error(getErrorMessage(error, "apps:error")),
+        onError: (error) => toast.error(getErrorMessage(error, "plugins:error")),
       }
     );
   };
@@ -212,13 +212,13 @@ function CommunityConnection({
     <ConnectionShell
       connection={connection}
       icon={<KeyRound className="h-4 w-4 text-muted-foreground" aria-hidden />}
-      scopeLabel={t("apps:connections.communityScope")}
+      scopeLabel={t("plugins:connections.communityScope")}
     >
       {canManage ? (
         <>
           {vendorFlow && (
             <p className="text-muted-foreground text-sm">
-              {t("apps:connections.communityFlowExplainer")}
+              {t("plugins:connections.communityFlowExplainer")}
             </p>
           )}
           {recorded.length > 0 && (
@@ -251,8 +251,8 @@ function CommunityConnection({
               <Button size="sm" onClick={start} disabled={connect.isPending}>
                 {connect.isPending && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
                 {connection.satisfied
-                  ? t("apps:connections.reconnect")
-                  : t("apps:connections.connect")}
+                  ? t("plugins:connections.reconnect")
+                  : t("plugins:connections.connect")}
               </Button>
             )}
             {typed.length > 0 && (
@@ -268,12 +268,12 @@ function CommunityConnection({
                 disabled={clear.isPending}
                 onClick={() =>
                   clear.mutate(connection.id, {
-                    onSuccess: () => toast.success(t("apps:connections.cleared")),
-                    onError: (error) => toast.error(getErrorMessage(error, "apps:error")),
+                    onSuccess: () => toast.success(t("plugins:connections.cleared")),
+                    onError: (error) => toast.error(getErrorMessage(error, "plugins:error")),
                   })
                 }
               >
-                {t("apps:connections.clear")}
+                {t("plugins:connections.clear")}
               </Button>
             )}
           </div>
@@ -283,8 +283,8 @@ function CommunityConnection({
         // able to tell whether an admin still has something to fill in.
         <p className="text-muted-foreground text-sm">
           {connection.satisfied
-            ? t("apps:connections.memberSet")
-            : t("apps:connections.memberNotSet")}
+            ? t("plugins:connections.memberSet")
+            : t("plugins:connections.memberNotSet")}
         </p>
       )}
     </ConnectionShell>
@@ -303,7 +303,7 @@ function ConnectionFieldInput({
   value: PluginConfigValue;
   onChange: (value: PluginConfigValue) => void;
 }) {
-  const { t, i18n } = useTranslation(["apps"]);
+  const { t, i18n } = useTranslation(["plugins"]);
   const label = localized(field.label, i18n.language) ?? field.key;
   const isSet = connection.has_value[field.key] === true;
   const stored = connection.values[field.key];
@@ -326,7 +326,7 @@ function ConnectionFieldInput({
         <Label htmlFor={id}>{label}</Label>
         <Select value={current ?? ""} onValueChange={onChange}>
           <SelectTrigger id={id}>
-            <SelectValue placeholder={t("apps:connections.choose")} />
+            <SelectValue placeholder={t("plugins:connections.choose")} />
           </SelectTrigger>
           <SelectContent>
             {(field.options ?? []).map((option) => (
@@ -362,7 +362,7 @@ function ConnectionFieldInput({
         type={isSecret ? "password" : field.type === "int" ? "number" : "text"}
         autoComplete={isSecret ? "new-password" : "off"}
         placeholder={
-          isSecret && isSet ? t("apps:connections.secretSet") : t("apps:connections.empty")
+          isSecret && isSet ? t("plugins:connections.secretSet") : t("plugins:connections.empty")
         }
         value={String(current)}
         onChange={(event) =>
@@ -388,7 +388,7 @@ function PersonalConnection({
   pluginId: number;
   connection: CommunityPluginConnectionRead;
 }) {
-  const { t } = useTranslation(["apps", "common"]);
+  const { t } = useTranslation(["plugins", "common"]);
   const connect = useConnectPlugin(pluginId);
   const disconnect = useDisconnectPlugin(pluginId);
 
@@ -401,26 +401,26 @@ function PersonalConnection({
         // this one.
         if (started.connect_url) {
           window.open(started.connect_url, "_blank", "noopener,noreferrer");
-          toast.success(t("apps:connections.connectOpened"));
+          toast.success(t("plugins:connections.connectOpened"));
           return;
         }
-        toast.error(t("apps:connections.connectUnavailable"));
+        toast.error(t("plugins:connections.connectUnavailable"));
       },
-      onError: (error) => toast.error(getErrorMessage(error, "apps:error")),
+      onError: (error) => toast.error(getErrorMessage(error, "plugins:error")),
     });
 
   return (
     <ConnectionShell
       connection={connection}
       icon={<Plug className="h-4 w-4 text-muted-foreground" aria-hidden />}
-      scopeLabel={t("apps:connections.personalScope")}
+      scopeLabel={t("plugins:connections.personalScope")}
     >
-      <p className="text-muted-foreground text-sm">{t("apps:connections.personalExplainer")}</p>
+      <p className="text-muted-foreground text-sm">{t("plugins:connections.personalExplainer")}</p>
 
       {connection.blocked ? (
         <p className="flex items-center gap-2 text-destructive text-sm">
           <TriangleAlert className="h-4 w-4" aria-hidden />
-          {t("apps:connections.blocked")}
+          {t("plugins:connections.blocked")}
         </p>
       ) : (
         <div className="flex flex-wrap items-center gap-2">
@@ -429,14 +429,14 @@ function PersonalConnection({
             // member connects again.
             <span className="flex items-center gap-1.5 text-amber-600 text-sm dark:text-amber-400">
               <TriangleAlert className="h-4 w-4" aria-hidden />
-              {t("apps:connections.expired")}
+              {t("plugins:connections.expired")}
             </span>
           ) : connection.status ? (
             <span className="flex items-center gap-1.5 text-sm">
               <ShieldCheck className="h-4 w-4 text-muted-foreground" aria-hidden />
               {connection.account_label
-                ? t("apps:connections.connectedAs", { account: connection.account_label })
-                : t(`apps:connections.status.${connection.status}`, {
+                ? t("plugins:connections.connectedAs", { account: connection.account_label })
+                : t(`plugins:connections.status.${connection.status}`, {
                     defaultValue: connection.status,
                   })}
             </span>
@@ -444,7 +444,7 @@ function PersonalConnection({
 
           <Button size="sm" onClick={start} disabled={connect.isPending}>
             {connect.isPending && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
-            {connection.status ? t("apps:connections.reconnect") : t("apps:connections.connect")}
+            {connection.status ? t("plugins:connections.reconnect") : t("plugins:connections.connect")}
           </Button>
 
           {connection.status && (
@@ -454,12 +454,12 @@ function PersonalConnection({
               disabled={disconnect.isPending}
               onClick={() =>
                 disconnect.mutate(connection.id, {
-                  onSuccess: () => toast.success(t("apps:connections.disconnected")),
-                  onError: (error) => toast.error(getErrorMessage(error, "apps:error")),
+                  onSuccess: () => toast.success(t("plugins:connections.disconnected")),
+                  onError: (error) => toast.error(getErrorMessage(error, "plugins:error")),
                 })
               }
             >
-              {t("apps:connections.disconnect")}
+              {t("plugins:connections.disconnect")}
             </Button>
           )}
         </div>

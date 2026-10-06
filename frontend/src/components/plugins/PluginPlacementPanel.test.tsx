@@ -76,14 +76,14 @@ vi.mock("@/hooks/useInitiatives", () => ({
   useInitiatives: () => ({ data: roster, isLoading: false }),
 }));
 
-/** A page the app shows inside initiatives. */
+/** A page the plug-in shows inside initiatives. */
 const initiativePage = { id: "board", path: "/board", scopes: ["initiative"] };
 
 /**
  * An install placed in these initiatives, each allowing ``roleIds``. It shows
  * a page inside initiatives unless ``page`` is false.
  */
-const app = (placed: number[], roleIds: number[] = [], page = true) =>
+const plugin = (placed: number[], roleIds: number[] = [], page = true) =>
   ({
     id: 7,
     name: "Automations",
@@ -110,7 +110,7 @@ const tick = async (name: string) => (await screen.findByLabelText(name)).click(
 
 describe("PluginPlacementPanel", () => {
   it("sends the selection the admin built, one tick at a time", async () => {
-    renderPage(() => <PluginPlacementPanel app={app([])} />);
+    renderPage(() => <PluginPlacementPanel plugin={plugin([])} />);
 
     await tick("Platform");
     await waitFor(() => expect(sent).toEqual([{ placed_initiative_ids: [1] }]));
@@ -125,7 +125,7 @@ describe("PluginPlacementPanel", () => {
     // Both boxes are ticked before either save answers. Concurrent requests
     // could be stored in either order; chained ones cannot.
     holdSaves = true;
-    renderPage(() => <PluginPlacementPanel app={app([])} />);
+    renderPage(() => <PluginPlacementPanel plugin={plugin([])} />);
 
     await tick("Platform");
     await waitFor(() => expect(mutateAsync).toHaveBeenCalledTimes(1));
@@ -142,7 +142,7 @@ describe("PluginPlacementPanel", () => {
   it("drops an id whose initiative is gone rather than resubmitting it", async () => {
     // Initiative 9 was chosen once and has since been deleted: it is in the
     // stored placement and on no row of the roster.
-    renderPage(() => <PluginPlacementPanel app={app([1, 9])} />);
+    renderPage(() => <PluginPlacementPanel plugin={plugin([1, 9])} />);
 
     await tick("Marketing");
     await waitFor(() => expect(sent).toEqual([{ placed_initiative_ids: [1, 2] }]));
@@ -159,7 +159,7 @@ describe("PluginPlacementPanel", () => {
         rejectFirst = reject;
       });
     });
-    renderPage(() => <PluginPlacementPanel app={app([])} />);
+    renderPage(() => <PluginPlacementPanel plugin={plugin([])} />);
 
     await tick("Platform");
     await waitFor(() => expect(mutateAsync).toHaveBeenCalledTimes(1));
@@ -174,22 +174,22 @@ describe("PluginPlacementPanel", () => {
     await waitFor(() => expect(sent[2]).toEqual({ placed_initiative_ids: [2] }));
   });
 
-  it("places the app in every current initiative in one choice", async () => {
-    renderPage(() => <PluginPlacementPanel app={app([1])} />);
+  it("places the plug-in in every current initiative in one choice", async () => {
+    renderPage(() => <PluginPlacementPanel plugin={plugin([1])} />);
 
     (await screen.findByLabelText("Every current initiative")).click();
     await waitFor(() => expect(sent).toEqual([{ placed_initiative_ids: [1, 2] }]));
   });
 
-  it("reads an app placed in every initiative as every current one", async () => {
-    renderPage(() => <PluginPlacementPanel app={app([1, 2])} />);
+  it("reads a plug-in placed in every initiative as every current one", async () => {
+    renderPage(() => <PluginPlacementPanel plugin={plugin([1, 2])} />);
 
     expect(await screen.findByLabelText("Every current initiative")).toBeChecked();
     expect(screen.queryByLabelText("Platform")).toBeNull();
   });
 
   it("choosing to pick shows the current placements and saves nothing", async () => {
-    renderPage(() => <PluginPlacementPanel app={app([1, 2])} />);
+    renderPage(() => <PluginPlacementPanel plugin={plugin([1, 2])} />);
 
     (await screen.findByLabelText("Only the initiatives I choose")).click();
     expect(await screen.findByLabelText("Platform")).toBeChecked();
@@ -199,7 +199,7 @@ describe("PluginPlacementPanel", () => {
 
   describe("who can open it", () => {
     it("loads an initiative's roles only when its chooser opens", async () => {
-      renderPage(() => <PluginPlacementPanel app={app([1])} />);
+      renderPage(() => <PluginPlacementPanel plugin={plugin([1])} />);
 
       const trigger = await screen.findByLabelText("Who can open it in Platform");
       expect(trigger).toHaveTextContent("Community admins only");
@@ -213,7 +213,7 @@ describe("PluginPlacementPanel", () => {
     });
 
     it("saves the whole role set for that one initiative", async () => {
-      renderPage(() => <PluginPlacementPanel app={app([1], [11])} />);
+      renderPage(() => <PluginPlacementPanel plugin={plugin([1], [11])} />);
 
       const trigger = await screen.findByLabelText("Who can open it in Platform");
       expect(trigger).toHaveTextContent("1 role");
@@ -231,7 +231,7 @@ describe("PluginPlacementPanel", () => {
     });
 
     it("offers the roles of each placement when placed everywhere", async () => {
-      renderPage(() => <PluginPlacementPanel app={app([1, 2], [11, 12])} />);
+      renderPage(() => <PluginPlacementPanel plugin={plugin([1, 2], [11, 12])} />);
 
       expect(await screen.findByLabelText("Who can open it in Platform")).toHaveTextContent(
         "2 roles"
@@ -239,12 +239,12 @@ describe("PluginPlacementPanel", () => {
       expect(screen.getByLabelText("Who can open it in Marketing")).toBeTruthy();
     });
 
-    it("offers no roles for an app with no page inside initiatives", async () => {
-      renderPage(() => <PluginPlacementPanel app={app([1, 2], [11], false)} />);
+    it("offers no roles for a plug-in with no page inside initiatives", async () => {
+      renderPage(() => <PluginPlacementPanel plugin={plugin([1, 2], [11], false)} />);
 
       expect(
         await screen.findByText(
-          "This app reads and changes things only in the initiatives you choose."
+          "This plug-in reads and changes things only in the initiatives you choose."
         )
       ).toBeTruthy();
       expect(screen.queryByLabelText("Who can open it in Platform")).toBeNull();

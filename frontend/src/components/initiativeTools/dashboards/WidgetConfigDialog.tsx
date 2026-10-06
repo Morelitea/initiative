@@ -80,9 +80,9 @@ import { localized } from "@/lib/widgets/widgetMeta";
 
 import { WidgetTile } from "./WidgetTile";
 
-/** The only source an app widget binds. A namespaced type says which app and
- *  which widget; `app` is what it draws through, always. */
-const PLUGIN_SOURCES: WidgetSource[] = ["app"];
+/** The only source a plug-in widget binds. A namespaced type says which plug-in and
+ *  which widget; `plugin` is what it draws through, always. */
+const PLUGIN_SOURCES: WidgetSource[] = ["plugin"];
 
 export interface WidgetConfigDialogProps {
   widget: DefinitionWidget | null;
@@ -139,29 +139,29 @@ export function WidgetConfigDialog({
     }));
 
   /**
-   * An installed app's widget is not in the built-in catalog, and looking for
+   * An installed plug-in's widget is not in the built-in catalog, and looking for
    * it there is what left this dialog with nothing to offer.
    *
    * The two catalogs answer different questions and are served separately: the
    * built-in one is this build's own vocabulary — size floors, bindable
-   * sources, display options per primitive — while an app's widgets come from
+   * sources, display options per primitive — while a plug-in's widgets come from
    * each install's pinned definition. A namespaced `plugin:<uid>:<widget>` type
    * has never been in the first, so `catalogEntry` missed, `sources` fell back
-   * to `[]`, and the source list rendered empty for every app widget on the
+   * to `[]`, and the source list rendered empty for every plug-in widget on the
    * canvas.
    *
-   * An app widget binds one source and it is always `app` — that is what the
+   * A plug-in widget binds one source and it is always `plugin` — that is what the
    * namespaced type means — so the list does not need looking up at all.
    */
   const isPlugin = isPluginWidgetType(widget?.type ?? "");
-  //: An app's *data*, whoever draws it — its own widget, or one of ours
+  //: A plug-in's *data*, whoever draws it — its own widget, or one of ours
   //: pointed at it with a statement.
   const readsPlugin = isPlugin || binding.source === "plugin";
   const pluginCatalog = usePluginWidgetCatalog(open && readsPlugin);
-  // An app widget resolves its app from its own namespaced type. One of ours
-  // has no such type, so it resolves the app it *named* — which is the only
+  // A plug-in widget resolves its plug-in from its own namespaced type. One of ours
+  // has no such type, so it resolves the plug-in it *named* — which is the only
   // difference between the two, and why the picker below exists at all.
-  const app = useMemo(() => {
+  const plugin = useMemo(() => {
     const byType = pluginWidgetEntry(pluginCatalog.data, widget?.type ?? "");
     if (byType) return byType;
     const named = (pluginCatalog.data?.items ?? []).find(
@@ -171,28 +171,28 @@ export function WidgetConfigDialog({
   }, [pluginCatalog.data, widget?.type, binding.plugin_uid]);
 
   const entry = catalogEntry(catalog, widget?.type ?? "");
-  // A built-in widget reads an app too, as far as the rows are described: a
+  // A built-in widget reads a plug-in too, as far as the rows are described: a
   // statement names what it returns, over columns the endpoint declared it
-  // hands back. Without one they are the app's own shape, which only the app's
+  // hands back. Without one they are the plug-in's own shape, which only the plug-in's
   // own module knows how to draw — so the source is offered and the statement
   // is what makes it usable.
-  const sources: string[] = isPlugin ? PLUGIN_SOURCES : ["query", "sheet_range", "app"];
+  const sources: string[] = isPlugin ? PLUGIN_SOURCES : ["query", "sheet_range", "plugin"];
   const source = binding.source;
   const descriptor = sourceDescriptor(source);
 
   /**
-   * Which of the app's reads this widget may be pointed at.
+   * Which of the plug-in's reads this widget may be pointed at.
    *
    * A widget names the endpoints it draws, and those are the ones offered. One
-   * that names none is offered every read the app has — a publisher who did not
+   * that names none is offered every read the plug-in has — a publisher who did not
    * narrow it has not said it should be narrowed here.
    */
   const pluginEndpoints = useMemo((): PluginEndpointRead[] => {
-    const all = app?.entry.endpoints ?? [];
-    const named = app?.widget?.endpoints ?? [];
+    const all = plugin?.entry.endpoints ?? [];
+    const named = plugin?.widget?.endpoints ?? [];
     if (!named.length) return all;
     return all.filter((candidate) => named.includes(candidate.id));
-  }, [app]);
+  }, [plugin]);
 
   const pluginEndpoint = pluginEndpoints.find((candidate) => candidate.id === binding.endpoint_id);
   const pluginParams = (binding.params ?? {}) as Record<string, unknown>;
@@ -218,29 +218,29 @@ export function WidgetConfigDialog({
     [documents.data]
   );
 
-  // A binding for an app widget names its install. Filled in from the type
+  // A binding for a plug-in widget names its install. Filled in from the type
   // rather than typed: `plugin:<uid>:<widget>` already carries the uid, and a
   // definition whose binding disagrees with its type is one the server refuses.
   const setForm = form.set;
   useEffect(() => {
-    if (!open || !app) return;
+    if (!open || !plugin) return;
     setForm(({ binding }) => ({
       binding:
-        binding.source === "plugin" && binding.plugin_uid === app.entry.plugin_uid
+        binding.source === "plugin" && binding.plugin_uid === plugin.entry.plugin_uid
           ? binding
-          : { ...binding, source: "app", plugin_uid: app.entry.plugin_uid },
+          : { ...binding, source: "plugin", plugin_uid: plugin.entry.plugin_uid },
     }));
-  }, [open, app, setForm]);
+  }, [open, plugin, setForm]);
 
   const setBindingValue = (patch: Partial<WidgetBinding>) =>
     setBinding((current) => ({ ...current, ...patch }));
 
   /**
-   * One of the app endpoint's own parameters.
+   * One of the plug-in endpoint's own parameters.
    *
    * An emptied field is *removed* rather than sent as `""`, because a parameter
    * absent and a parameter answered with nothing are different things to the
-   * app — and an empty list is the same "nothing" as an empty string.
+   * plug-in — and an empty list is the same "nothing" as an empty string.
    *
    * Changing one clears whatever was chosen *from* it. A menu filled through
    * `needs` was filled for the sibling's old value — an aisle belongs to the
@@ -290,16 +290,16 @@ export function WidgetConfigDialog({
     setBinding((current) => ({ ...current, endpoint_id: endpointId, params: undefined }));
 
   /**
-   * An app binding without a read is one the server refuses.
+   * A plug-in binding without a read is one the server refuses.
    *
    * `endpoint_id` is required where a dashboard definition is normalized, so
-   * saving a freshly added app widget that has not been pointed at anything
+   * saving a freshly added plug-in widget that has not been pointed at anything
    * comes back a 422 — after the dialog has already closed, which is the worst
    * place to find out. The control that fills it is right there, so the answer
    * is to not offer the save rather than to explain the failure afterwards.
    */
-  // An app binding without a read is one the server refuses, whichever kind of
-  // widget carries it — and one of ours has an app to name as well.
+  // A plug-in binding without a read is one the server refuses, whichever kind of
+  // widget carries it — and one of ours has a plug-in to name as well.
   const incomplete = readsPlugin && (!binding.endpoint_id || !binding.plugin_uid);
 
   /**
@@ -386,10 +386,10 @@ export function WidgetConfigDialog({
               )}
             </section>
 
-            {/* An app widget's own controls replace these. The registry's two
+            {/* A plug-in widget's own controls replace these. The registry's two
                 slots for it are `plugin_uid` and `endpoint_id`, and neither is a
                 thing to type: one comes from the widget's type, the other is a
-                choice among the reads the app declares. */}
+                choice among the reads the plug-in declares. */}
             {(readsPlugin ? [] : params).map((param) => (
               <ParamControl
                 key={param.key as string}
@@ -406,13 +406,13 @@ export function WidgetConfigDialog({
               <section className="space-y-4">
                 {!isPlugin && (
                   <div className="space-y-2">
-                    <Label htmlFor="plugin-uid">{t("dashboards:config.app")}</Label>
+                    <Label htmlFor="plugin-uid">{t("dashboards:config.plugin")}</Label>
                     <Select
                       value={binding.plugin_uid ?? ""}
                       onValueChange={(next) =>
                         setBindingValue({
                           plugin_uid: next,
-                          // A different app's reads are not this one's.
+                          // A different plug-in's reads are not this one's.
                           endpoint_id: undefined,
                           params: undefined,
                         })
@@ -445,7 +445,7 @@ export function WidgetConfigDialog({
                       ))}
                     </SelectContent>
                   </Select>
-                  {!pluginCatalog.isLoading && !app && (
+                  {!pluginCatalog.isLoading && !plugin && (
                     <p className="text-muted-foreground text-xs">
                       {t("dashboards:config.pluginNotInstalled")}
                     </p>
@@ -453,15 +453,15 @@ export function WidgetConfigDialog({
                 </div>
 
                 {/* The endpoint's own parameters. Which values each permits is
-                    the app's to answer — a repository, a label, a board are all
+                    the plug-in's to answer — a repository, a label, a board are all
                     facts about one install — so a control that offers a menu
-                    gets it from the app rather than from anything written down
+                    gets it from the plug-in rather than from anything written down
                     here. */}
                 {(pluginEndpoint?.params ?? []).map((param) => (
                   <PluginParamControl
                     key={param.key}
                     param={param}
-                    pluginId={app?.entry.plugin_id}
+                    pluginId={plugin?.entry.plugin_id}
                     endpointId={pluginEndpoint?.id}
                     values={pluginParams}
                     open={open}
@@ -617,7 +617,7 @@ function ParamControl({
 }
 
 /**
- * One value, typed, in the type its app declared.
+ * One value, typed, in the type its plug-in declared.
  *
  * The text is held locally for the same reason the list field holds it: what is
  * stored is a *parsed* value, and deriving the text back from it fights whoever
@@ -660,7 +660,7 @@ function PluginParamScalarInput({
 }
 
 /**
- * Several values, typed, where the app could not offer a menu for them.
+ * Several values, typed, where the plug-in could not offer a menu for them.
  *
  * The comma lives here and only here. What goes onto the binding is an array —
  * that is the whole point of a parameter declaring `list` — but a person typing
@@ -707,7 +707,7 @@ function PluginParamListInput({
         value={text}
         onChange={(event) => {
           setText(event.target.value);
-          // Each entry in the type the app declared: `list` says how many, it
+          // Each entry in the type the plug-in declared: `list` says how many, it
           // never says what kind, and the proxy checks every one of them.
           onChange(
             asDeclaredList(
@@ -726,18 +726,18 @@ function PluginParamListInput({
 }
 
 /**
- * One parameter of an app's read endpoint.
+ * One parameter of a plug-in's read endpoint.
  *
- * This is the control that was missing, and the reason every app parameter was
+ * This is the control that was missing, and the reason every plug-in parameter was
  * a text box: a manifest can say `options_from` — "the permitted values are
  * what this other read of mine answers" — and nothing on this side read it. A
  * repository, a label, a board are each a fact about one install, known only to
- * the app holding that install's credential, so they cannot be written into a
+ * the plug-in holding that install's credential, so they cannot be written into a
  * published manifest and there is no list here to fall back on.
  *
  * **A menu that will not resolve leaves the field typeable.** That is the rule,
  * and it is deliberate in both directions. A source can fail to answer for
- * reasons that have nothing to do with the value being wrong — the app is down,
+ * reasons that have nothing to do with the value being wrong — the plug-in is down,
  * nobody has connected a credential yet, a sibling has not been chosen — and a
  * control disabled on any of those grounds has made a configuration that would
  * have worked unreachable until somebody else fixes something. So the fallback
@@ -789,7 +789,7 @@ function PluginParamControl({
   );
 
   // Several values rather than one. `list` is the only thing that says so, and
-  // an array is what travels — the alternative it exists to replace is an app
+  // an array is what travels — the alternative it exists to replace is a plug-in
   // declaring a string and documenting a comma, which nothing here could
   // validate or complete.
   if (param.list) {
@@ -868,7 +868,7 @@ function PluginParamControl({
  * The viewer's own data through the viewer's own session — the preview is not a
  * privileged read, and someone configuring a widget sees exactly what they
  * would see with it placed. It resolves nothing until the widget is on a
- * dashboard, because `app` bindings are decided against that row.
+ * dashboard, because `plugin` bindings are decided against that row.
  */
 function BindingPreview({
   widget,

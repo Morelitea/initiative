@@ -3,7 +3,7 @@
  *
  * A handoff names one surface and is spent on first use, so the page re-mints
  * when a reloading embed asks again. That re-mint is asynchronous, and the tabs
- * of one app all share an origin — so if the reader switches surfaces while it
+ * of one plug-in all share an origin — so if the reader switches surfaces while it
  * is in flight, the origin check cannot tell the arriving token from a correct
  * one. The delivery has to be dropped instead.
  */
@@ -67,8 +67,8 @@ vi.mock("@/hooks/useActiveCommunityId", () => ({ useActiveCommunityId: () => 3 }
 const handoff = (surfaceId: string) => ({
   handoff_token: `token-for-${surfaceId}`,
   expires_in_seconds: 60,
-  embed_url: `https://app.example.com/embed/${surfaceId}`,
-  allowed_origins: ["https://app.example.com"],
+  embed_url: `https://plugin.example.com/embed/${surfaceId}`,
+  allowed_origins: ["https://plugin.example.com"],
   audience: "initiative-plugin:acme.demo",
   surface_id: surfaceId,
 });
@@ -102,7 +102,7 @@ beforeEach(() => {
 const ready = () =>
   window.dispatchEvent(
     new MessageEvent("message", {
-      origin: "https://app.example.com",
+      origin: "https://plugin.example.com",
       data: { type: "initiative-plugin:ready" },
       // An announcement says which window it came from; the page exchanges
       // only with the frame it mounted.
@@ -162,7 +162,7 @@ describe("CommunityPluginPage", () => {
   });
 
   it("ignores an announcement from a window it did not mount", async () => {
-    // An app may hold more than one window at its own address, so the page
+    // A plug-in may hold more than one window at its own address, so the page
     // matches an announcement to the frame it mounted rather than to the
     // origin. The token stays unspent for the frame that does ask.
     mint.mockImplementation((surfaceId: string) => Promise.resolve(handoff(surfaceId)));
@@ -174,7 +174,7 @@ describe("CommunityPluginPage", () => {
 
     window.dispatchEvent(
       new MessageEvent("message", {
-        origin: "https://app.example.com",
+        origin: "https://plugin.example.com",
         data: { type: "initiative-plugin:ready" },
         source: { postMessage: vi.fn() } as unknown as Window,
       })

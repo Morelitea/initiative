@@ -703,7 +703,11 @@ class TestEndpoints:
         # Two plug-ins offering `create-issue` would be two different things under
         # one name, and a caller resolving the wrong one would do the wrong
         # thing successfully.
-        for value in ("orders", "plugin.someone.else.orders", "plugin.tests.widget-co."):
+        for value in (
+            "orders",
+            "plugin.someone.else.orders",
+            "plugin.tests.widget-co.",
+        ):
             with pytest.raises(ListingDefinitionError, match="must start with"):
                 _with_source(id=value)
 

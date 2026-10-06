@@ -357,7 +357,7 @@ describe("realtime resource frames", () => {
     const members = seed(["community-plugin-members", COMMUNITY, ENTITY_ID]);
 
     applyChanges(
-      [{ resource: { type: "apps", id: ENTITY_ID }, parents: [], action: "updated" }],
+      [{ resource: { type: "plugins", id: ENTITY_ID }, parents: [], action: "updated" }],
       COMMUNITY
     );
 
@@ -370,7 +370,7 @@ describe("realtime resource frames", () => {
     const other = seed(["community-plugin", COMMUNITY + 1, ENTITY_ID]);
 
     applyChanges(
-      [{ resource: { type: "apps", id: ENTITY_ID }, parents: [], action: "created" }],
+      [{ resource: { type: "plugins", id: ENTITY_ID }, parents: [], action: "created" }],
       COMMUNITY
     );
 

@@ -1,5 +1,5 @@
 /**
- * What an installed app offers a member, read off its pinned definition.
+ * What an installed plug-in offers a member, read off its pinned definition.
  *
  * Three shapes, and the sidebar treats each differently:
  *
@@ -38,7 +38,7 @@ export interface PluginEmbed {
  *
  * A frame is granted what its manifest named and nothing else, so a surface
  * that named nothing gets an empty attribute. Each entry defaults to the
- * frame's own origin, which is the app's.
+ * frame's own origin, which is the plug-in's.
  */
 export const embedAllow = (embed: Pick<PluginEmbed, "capabilities"> | null | undefined): string =>
   (embed?.capabilities ?? []).join("; ");
@@ -58,23 +58,23 @@ export interface PluginSurfaceSource {
   tool?: string | null;
   artifacts?: { type: string; id: number }[];
   definition?: Record<string, unknown> | null;
-  /** The initiatives the seat placed this app in, one entry each. */
+  /** The initiatives the seat placed this plug-in in, one entry each. */
   placements?: { initiative_id: number }[] | null;
   /** Where the viewer may open each surface. */
   surface_access?: SurfaceAccess[] | null;
 }
 
 /**
- * Whether an app's initiative surfaces appear in one initiative.
+ * Whether a plug-in's initiative surfaces appear in one initiative.
  *
- * An app appears only where it was placed. Placement is the community's own
- * answer to where an app belongs, so it reads the same for everyone — an admin
+ * A plug-in appears only where it was placed. Placement is the community's own
+ * answer to where a plug-in belongs, so it reads the same for everyone — an admin
  * who left an initiative out left it out for themselves too.
  */
 export const placedIn = (
-  app: Pick<PluginSurfaceSource, "placements">,
+  plugin: Pick<PluginSurfaceSource, "placements">,
   initiativeId: number
-): boolean => (app.placements ?? []).some((one) => one.initiative_id === initiativeId);
+): boolean => (plugin.placements ?? []).some((one) => one.initiative_id === initiativeId);
 
 /** The embedded surfaces a definition declares for one scope, whoever reads. */
 export const declaredEmbeds = (
@@ -95,20 +95,20 @@ export const declaredEmbeds = (
 };
 
 /**
- * The embedded surfaces an app offers this reader in one place.
+ * The embedded surfaces a plug-in offers this reader in one place.
  *
  * `initiativeId` is where: absent is the community level. A surface may declare
- * either scope or both, so this is a filter rather than a partition — an app's
+ * either scope or both, so this is a filter rather than a partition — a plug-in's
  * community-wide page and its per-initiative one are often the same surface reached
  * from two places. What the server did not say may be opened is not offered.
  */
 export const pluginEmbeds = (
-  app: Pick<PluginSurfaceSource, "definition" | "surface_access"> | null | undefined,
+  plugin: Pick<PluginSurfaceSource, "definition" | "surface_access"> | null | undefined,
   initiativeId?: number
 ): PluginEmbed[] => {
   const scope: SurfaceScope = initiativeId === undefined ? "community" : "initiative";
-  const access = new Map((app?.surface_access ?? []).map((one) => [one.surface_id, one]));
-  return declaredEmbeds(app?.definition, scope).filter((embed) => {
+  const access = new Map((plugin?.surface_access ?? []).map((one) => [one.surface_id, one]));
+  return declaredEmbeds(plugin?.definition, scope).filter((embed) => {
     const answer = access.get(embed.id);
     if (!answer) return false;
     return initiativeId === undefined
@@ -117,43 +117,43 @@ export const pluginEmbeds = (
   });
 };
 
-/** Whether the app declares any credential to fill in or connect. */
+/** Whether the plug-in declares any credential to fill in or connect. */
 export const pluginHasConnections = (definition?: Record<string, unknown> | null): boolean =>
   Array.isArray(definition?.connections) && definition.connections.length > 0;
 
 /**
- * Where an app's community-wide entry leads.
+ * Where a plug-in's community-wide entry leads.
  *
- * A tool-instance app mounts an existing tool, so it links at the tool's own
- * route — the calendars an app holds are just calendars. It links at the list
- * rather than at one of them, because a member may add more: the app's home is
+ * A tool-instance plug-in mounts an existing tool, so it links at the tool's own
+ * route — the calendars a plug-in holds are just calendars. It links at the list
+ * rather than at one of them, because a member may add more: the plug-in's home is
  * everything it holds, which is still the right address when it holds one. A
- * service app with surfaces this reader can open gets a page. Anything else has
+ * service plug-in with surfaces this reader can open gets a page. Anything else has
  * no route, and the caller decides what to do with the row.
  */
-export const communityPluginPath = (app: PluginSurfaceSource & { id: number }): string | null => {
-  if (app.tool === "calendar") {
-    // No `/i/` prefix on purpose: an app is installed per community, and the
+export const communityPluginPath = (plugin: PluginSurfaceSource & { id: number }): string | null => {
+  if (plugin.tool === "calendar") {
+    // No `/i/` prefix on purpose: a plug-in is installed per community, and the
     // calendars it holds belong to no initiative — the community route is their
     // real address, not a leftover.
     return "/calendars";
   }
-  return pluginEmbeds(app).length ? `/plugins/${app.id}` : null;
+  return pluginEmbeds(plugin).length ? `/plugins/${plugin.id}` : null;
 };
 
 /**
- * Where an app's entry inside one initiative leads.
+ * Where a plug-in's entry inside one initiative leads.
  *
  * The same install — there is one of it per community, not one per initiative —
- * opened somewhere narrower. A tool-instance app has none: the tool it mounted
+ * opened somewhere narrower. A tool-instance plug-in has none: the tool it mounted
  * already lives in an initiative of its own.
  */
 export const initiativePluginPath = (
-  app: PluginSurfaceSource & { id: number },
+  plugin: PluginSurfaceSource & { id: number },
   initiativeId: number
 ): string | null => {
-  if (app.tool || !placedIn(app, initiativeId)) return null;
-  return pluginEmbeds(app, initiativeId).length
-    ? `${initiativeRoute(initiativeId)}/plugins/${app.id}`
+  if (plugin.tool || !placedIn(plugin, initiativeId)) return null;
+  return pluginEmbeds(plugin, initiativeId).length
+    ? `${initiativeRoute(initiativeId)}/plugins/${plugin.id}`
     : null;
 };

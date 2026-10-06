@@ -23,7 +23,7 @@ import { useApiMutation } from "@/hooks/useApiMutation";
 import type { MutationOpts } from "@/types/mutation";
 import type { QueryOpts } from "@/types/query";
 
-/** Every app service this deployment has wired up (`plugins.manage`). */
+/** Every plug-in service this deployment has wired up (`plugins.manage`). */
 export const usePluginServices = (options?: QueryOpts<PluginServiceRegistrationRead[]>) =>
   useQuery<PluginServiceRegistrationRead[]>({
     queryKey: getListPluginServicesQueryKey(),
@@ -68,7 +68,7 @@ export const useDeletePluginService = (options?: MutationOpts<void, number>) =>
   );
 
 /**
- * Read the keys an app serves at its base URL, each with its fingerprint. A
+ * Read the keys a plug-in serves at its base URL, each with its fingerprint. A
  * mutation because it runs when the operator presses Connect, and stores
  * nothing.
  */
@@ -86,7 +86,7 @@ export interface ConnectPluginServiceVariables {
   keys: PluginServicePublishedKey[];
 }
 
-/** Pin the key set the app serves, when it still holds exactly the confirmed keys. */
+/** Pin the key set the plug-in serves, when it still holds exactly the confirmed keys. */
 export const useConnectPluginService = (
   options?: MutationOpts<PluginServiceRegistrationRead, ConnectPluginServiceVariables>
 ) =>
@@ -107,7 +107,7 @@ export interface StartVendorSetupVariables {
   organization: string;
 }
 
-/** Start the vendor's own setup of the app's client: what the browser posts to it, and where. */
+/** Start the vendor's own setup of the plug-in's client: what the browser posts to it, and where. */
 export const useStartVendorSetup = (
   options?: MutationOpts<PluginServiceVendorSetup, StartVendorSetupVariables>
 ) =>

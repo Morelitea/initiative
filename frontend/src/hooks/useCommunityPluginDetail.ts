@@ -1,9 +1,9 @@
 /**
- * One installed app, its connections, and the actions that change them.
+ * One installed plug-in, its connections, and the actions that change them.
  *
  * The detail read is per viewer: a member's own connect state comes back on
  * their request and nobody else's does, so there is no client-side filtering to
- * get wrong. Every mutation invalidates both this app and the community's app list,
+ * get wrong. Every mutation invalidates both this plug-in and the community's plug-in list,
  * because a connection change can flip whether the install still needs
  * configuring — which the list shows.
  */
@@ -54,7 +54,7 @@ export const useCommunityPluginDetail = (pluginId: number) => {
 };
 
 /** Community admins only; the server refuses everyone else. */
-/** One page of the members who connected to the app or answered it. */
+/** One page of the members who connected to the plug-in or answered it. */
 export const useCommunityPluginMembers = (pluginId: number, page: number, enabled: boolean) => {
   const communityId = useActiveCommunityId();
   return useQuery<CommunityPluginMembersResponse>({
@@ -66,7 +66,7 @@ export const useCommunityPluginMembers = (pluginId: number, page: number, enable
 };
 
 // Every mutation below refreshes the same three reads through the shared
-// `() => invalidate(q.apps())`, so a connection change cannot leave the settings page, the
+// `() => invalidate(q.plugins())`, so a connection change cannot leave the settings page, the
 // Members view and the sidebar disagreeing about what is configured — and a
 // write from here refreshes exactly what a frame off the realtime bus does.
 
@@ -76,7 +76,7 @@ export const useUpdatePluginConfig = (pluginId: number) => {
   const communityId = useActiveCommunityId();
   return useMutation<CommunityPluginDetail, unknown, CommunityPluginConfigUpdateValues>({
     mutationFn: (values) => updateCommunityPluginConfig(communityId, pluginId, { values }),
-    onSuccess: () => invalidate(q.apps()),
+    onSuccess: () => invalidate(q.plugins()),
   });
 };
 
@@ -87,7 +87,7 @@ export const useUpgradePlugin = (pluginId: number) => {
     mutationFn: (consent) => upgradeCommunityPlugin(communityId, pluginId, consent),
     // Refreshed on failure too: a refusal means the offer moved, and the panel
     // should show what is offered now.
-    onSettled: () => invalidate(q.apps()),
+    onSettled: () => invalidate(q.plugins()),
   });
 };
 
@@ -96,7 +96,7 @@ export const useDeclinePluginUpgrade = (pluginId: number) => {
   const communityId = useActiveCommunityId();
   return useMutation<CommunityPluginDetail, unknown, string>({
     mutationFn: (version) => declineCommunityPluginUpgrade(communityId, pluginId, { version }),
-    onSettled: () => invalidate(q.apps()),
+    onSettled: () => invalidate(q.plugins()),
   });
 };
 
@@ -104,7 +104,7 @@ export const useConnectPlugin = (pluginId: number) => {
   const communityId = useActiveCommunityId();
   return useMutation<CommunityPluginConnectStart, unknown, string>({
     mutationFn: (connectionId) => connectCommunityPlugin(communityId, pluginId, connectionId),
-    onSuccess: () => invalidate(q.apps()),
+    onSuccess: () => invalidate(q.plugins()),
   });
 };
 
@@ -112,7 +112,7 @@ export const useDisconnectPlugin = (pluginId: number) => {
   const communityId = useActiveCommunityId();
   return useMutation<void, unknown, string>({
     mutationFn: (connectionId) => disconnectCommunityPlugin(communityId, pluginId, connectionId),
-    onSuccess: () => invalidate(q.apps()),
+    onSuccess: () => invalidate(q.plugins()),
   });
 };
 
@@ -126,7 +126,7 @@ export const useRevokeMemberConnection = (pluginId: number) => {
   return useMutation<void, unknown, MemberConnectionTarget>({
     mutationFn: ({ userId, connectionId }) =>
       revokeMemberConnection(communityId, pluginId, userId, connectionId),
-    onSuccess: () => invalidate(q.apps()),
+    onSuccess: () => invalidate(q.plugins()),
   });
 };
 
@@ -139,7 +139,7 @@ export const useBlockMemberConnection = (pluginId: number) => {
       blocked
         ? unblockMemberConnection(communityId, pluginId, userId, connectionId)
         : blockMemberConnection(communityId, pluginId, userId, connectionId),
-    onSuccess: () => invalidate(q.apps()),
+    onSuccess: () => invalidate(q.plugins()),
   });
 };
 
@@ -147,7 +147,7 @@ export const useRevokeAllConnections = (pluginId: number) => {
   const communityId = useActiveCommunityId();
   return useMutation<void, unknown, void>({
     mutationFn: () => revokeAllMemberConnections(communityId, pluginId),
-    onSuccess: () => invalidate(q.apps()),
+    onSuccess: () => invalidate(q.plugins()),
   });
 };
 
@@ -159,16 +159,16 @@ export const useRevokeMemberConsents = (pluginId: number) => {
   const communityId = useActiveCommunityId();
   return useMutation<void, unknown, number>({
     mutationFn: (userId) => revokeMemberConsents(communityId, pluginId, userId),
-    onSuccess: () => invalidate(q.apps()),
+    onSuccess: () => invalidate(q.plugins()),
   });
 };
 
-/** Stop the app acting as anybody, without uninstalling it. */
+/** Stop the plug-in acting as anybody, without uninstalling it. */
 export const useRevokeAllConsents = (pluginId: number) => {
   const communityId = useActiveCommunityId();
   return useMutation<void, unknown, void>({
     mutationFn: () => revokeAllMemberConsents(communityId, pluginId),
-    onSuccess: () => invalidate(q.apps()),
+    onSuccess: () => invalidate(q.plugins()),
   });
 };
 
@@ -177,7 +177,7 @@ export interface ConsentAnswer {
   access: ConsentAccess;
 }
 
-/** Answer one of the app's requests to act as you. */
+/** Answer one of the plug-in's requests to act as you. */
 export const useGrantPluginConsent = (pluginId: number) => {
   const communityId = useActiveCommunityId();
   return useMutation<CommunityPluginConsentRead, unknown, ConsentAnswer>({
@@ -185,7 +185,7 @@ export const useGrantPluginConsent = (pluginId: number) => {
       grantMyConsent(communityId, pluginId, consentId, {
         access,
       }),
-    onSuccess: () => invalidate(q.apps()),
+    onSuccess: () => invalidate(q.plugins()),
   });
 };
 
@@ -194,6 +194,6 @@ export const useRevokePluginConsent = (pluginId: number) => {
   const communityId = useActiveCommunityId();
   return useMutation<void, unknown, number>({
     mutationFn: (consentId) => revokeMyConsent(communityId, pluginId, consentId),
-    onSuccess: () => invalidate(q.apps()),
+    onSuccess: () => invalidate(q.plugins()),
   });
 };

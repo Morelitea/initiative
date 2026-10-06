@@ -1,12 +1,12 @@
 /**
- * What an app has asked to do as you, one line per purpose, and your answer.
+ * What a plug-in has asked to do as you, one line per purpose, and your answer.
  *
- * An app asks for one purpose at a time — "comment on the linked issue as the
+ * A plug-in asks for one purpose at a time — "comment on the linked issue as the
  * person who closed it" — in its own words, which is why the label is shown
- * quoted and attributed to the app rather than as Initiative's. Each line is
+ * quoted and attributed to the plug-in rather than as Initiative's. Each line is
  * answered on its own: allow reading, allow reading and changes (only when the
- * app asked for that much), decline, and later withdraw. The app-wide request,
- * if the app made one, comes first.
+ * plug-in asked for that much), decline, and later withdraw. The plug-in-wide request,
+ * if the plug-in made one, comes first.
  *
  * Every answer is the viewer's own. Nothing here names or answers for anybody
  * else.
@@ -28,12 +28,12 @@ import { toast } from "@/lib/mascotToast";
 
 export interface PluginConsentRequestsProps {
   pluginId: number;
-  appName: string;
+  pluginName: string;
   consents: CommunityPluginConsentRead[];
 }
 
-export function PluginConsentRequests({ pluginId, appName, consents }: PluginConsentRequestsProps) {
-  const { t } = useTranslation(["apps", "common"]);
+export function PluginConsentRequests({ pluginId, pluginName, consents }: PluginConsentRequestsProps) {
+  const { t } = useTranslation(["plugins", "common"]);
   const grant = useGrantPluginConsent(pluginId);
   const revoke = useRevokePluginConsent(pluginId);
   const initiatives = useInitiatives({ enabled: consents.some((c) => c.initiative_id) });
@@ -45,9 +45,9 @@ export function PluginConsentRequests({ pluginId, appName, consents }: PluginCon
   const allow = async (consent: CommunityPluginConsentRead, access: ConsentAccess) => {
     try {
       await grant.mutateAsync({ consentId: consent.id, access });
-      toast.success(t("apps:consent.allowed", { name: appName }));
+      toast.success(t("plugins:consent.allowed", { name: pluginName }));
     } catch (error) {
-      toast.error(getErrorMessage(error, "apps:consent.failed"));
+      toast.error(getErrorMessage(error, "plugins:consent.failed"));
     }
   };
 
@@ -57,19 +57,19 @@ export function PluginConsentRequests({ pluginId, appName, consents }: PluginCon
       await revoke.mutateAsync(consent.id);
       toast.success(
         declining
-          ? t("apps:consent.declinedToast", { name: appName })
-          : t("apps:consent.withdrawnToast", { name: appName })
+          ? t("plugins:consent.declinedToast", { name: pluginName })
+          : t("plugins:consent.withdrawnToast", { name: pluginName })
       );
     } catch (error) {
-      toast.error(getErrorMessage(error, "apps:consent.failed"));
+      toast.error(getErrorMessage(error, "plugins:consent.failed"));
     }
   };
 
   return (
     <div className="space-y-2">
-      <h4 className="font-medium text-sm">{t("apps:consent.title")}</h4>
+      <h4 className="font-medium text-sm">{t("plugins:consent.title")}</h4>
       <p className="text-muted-foreground text-xs">
-        {t("apps:consent.description", { name: appName })}
+        {t("plugins:consent.description", { name: pluginName })}
       </p>
       <ul className="space-y-2">
         {consents.map((consent) => {
@@ -82,19 +82,19 @@ export function PluginConsentRequests({ pluginId, appName, consents }: PluginCon
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div className="min-w-0 space-y-0.5">
                   <p className="break-words text-sm">
-                    {t("apps:consent.inTheirWords", { name: appName, label: consent.label })}
+                    {t("plugins:consent.inTheirWords", { name: pluginName, label: consent.label })}
                   </p>
                   <p className="text-muted-foreground text-xs">
                     {[
-                      consent.purpose == null ? t("apps:consent.pluginWide") : null,
+                      consent.purpose == null ? t("plugins:consent.pluginWide") : null,
                       consent.initiative_id == null
-                        ? t("apps:consent.anywhere")
+                        ? t("plugins:consent.anywhere")
                         : where
-                          ? t("apps:consent.inInitiative", { initiative: where })
-                          : t("apps:consent.inOneInitiative"),
+                          ? t("plugins:consent.inInitiative", { initiative: where })
+                          : t("plugins:consent.inOneInitiative"),
                       askedForChanges
-                        ? t("apps:consent.askedReadWrite")
-                        : t("apps:consent.askedRead"),
+                        ? t("plugins:consent.askedReadWrite")
+                        : t("plugins:consent.askedRead"),
                     ]
                       .filter(Boolean)
                       .join(" · ")}
@@ -110,7 +110,7 @@ export function PluginConsentRequests({ pluginId, appName, consents }: PluginCon
                     disabled={busy}
                     onClick={() => allow(consent, ConsentAccess.read)}
                   >
-                    {granted ? t("apps:consent.readOnly") : t("apps:consent.allowRead")}
+                    {granted ? t("plugins:consent.readOnly") : t("plugins:consent.allowRead")}
                   </Button>
                 )}
                 {askedForChanges &&
@@ -121,12 +121,12 @@ export function PluginConsentRequests({ pluginId, appName, consents }: PluginCon
                       disabled={busy}
                       onClick={() => allow(consent, ConsentAccess.read_write)}
                     >
-                      {t("apps:consent.allowReadWrite")}
+                      {t("plugins:consent.allowReadWrite")}
                     </Button>
                   )}
                 {(granted || consent.status === ConsentStatus.pending) && (
                   <Button size="sm" variant="ghost" disabled={busy} onClick={() => end(consent)}>
-                    {granted ? t("apps:consent.withdraw") : t("apps:consent.decline")}
+                    {granted ? t("plugins:consent.withdraw") : t("plugins:consent.decline")}
                   </Button>
                 )}
               </div>
@@ -142,13 +142,13 @@ function statusKey(consent: CommunityPluginConsentRead) {
   switch (consent.status) {
     case ConsentStatus.granted:
       return consent.granted_access === ConsentAccess.read_write
-        ? "apps:consent.statusReadWrite"
-        : "apps:consent.statusRead";
+        ? "plugins:consent.statusReadWrite"
+        : "plugins:consent.statusRead";
     case ConsentStatus.declined:
-      return "apps:consent.statusDeclined";
+      return "plugins:consent.statusDeclined";
     case ConsentStatus.revoked:
-      return "apps:consent.statusRevoked";
+      return "plugins:consent.statusRevoked";
     default:
-      return "apps:consent.statusPending";
+      return "plugins:consent.statusPending";
   }
 }

@@ -23,10 +23,10 @@ import { InitiativeJoinRequestQueue } from "./InitiativeJoinRequestQueue";
 
 const INITIATIVE_ID = 7;
 
-/** `pluginClient` mounts the queue against the app's own query client — the one
+/** `appClient` mounts the queue against the app's own query client — the one
  *  the invalidation helpers address — so a refresh after an answer is
  *  observable rather than silently landing in another cache. */
-const renderQueue = ({ pluginClient = false }: { pluginClient?: boolean } = {}) =>
+const renderQueue = ({ appClient = false }: { appClient?: boolean } = {}) =>
   renderPage(
     () => (
       <>
@@ -39,7 +39,7 @@ const renderQueue = ({ pluginClient = false }: { pluginClient?: boolean } = {}) 
         activeCommunityId: 1,
         activeCommunity: buildCommunity({ id: 1, role: "admin" }),
       },
-      ...(pluginClient ? { queryClient } : {}),
+      ...(appClient ? { queryClient } : {}),
     }
   );
 
@@ -160,7 +160,7 @@ describe("InitiativeJoinRequestQueue", () => {
       })
     );
 
-    renderQueue({ pluginClient: true });
+    renderQueue({ appClient: true });
 
     await userEvent.click(await screen.findByRole("button", { name: /Approve/ }));
 

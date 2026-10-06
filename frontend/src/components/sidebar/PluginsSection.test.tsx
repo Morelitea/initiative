@@ -1,19 +1,19 @@
 /**
- * Who sees the Apps section, and when.
+ * Who sees the Plug-ins section, and when.
  *
  * The section shows for everyone, because everyone can do something with it:
- * an admin adds an app, and a member browses the same shelf to see what exists
+ * an admin adds a plug-in, and a member browses the same shelf to see what exists
  * and who to ask for it. What differs is the invitation at the bottom.
  *
- * Disabled apps belong in community settings, not here — the sidebar shows what is
+ * Disabled plug-ins belong in community settings, not here — the sidebar shows what is
  * on.
  *
- * An admin-only app is hidden from members for the same reason an empty section
+ * An admin-only plug-in is hidden from members for the same reason an empty section
  * is: it has no sharing to widen, so the entry would refuse everyone who clicked
- * it. The server says which apps those are; this only honors the answer.
+ * it. The server says which plug-ins those are; this only honors the answer.
  *
- * And every visible entry leads somewhere: an app with a surface opens it, an
- * app with a credential to supply opens that form, and an app with neither
+ * And every visible entry leads somewhere: a plug-in with a surface opens it, an
+ * plug-in with a credential to supply opens that form, and a plug-in with neither
  * waits under "show more" rather than spending a row on a dead click.
  */
 import { screen } from "@testing-library/react";
@@ -26,14 +26,14 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 
 import { PluginsSection } from "./PluginsSection";
 
-let apps: Partial<CommunityPluginRead>[] = [];
+let plugins: Partial<CommunityPluginRead>[] = [];
 
 vi.mock("@/hooks/useCommunityPlugins", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/hooks/useCommunityPlugins")>()),
-  useCommunityPlugins: () => ({ data: { items: apps }, isLoading: false }),
+  useCommunityPlugins: () => ({ data: { items: plugins }, isLoading: false }),
 }));
 
-const app = (overrides: Partial<CommunityPluginRead> = {}) =>
+const plugin = (overrides: Partial<CommunityPluginRead> = {}) =>
   ({
     id: 1,
     name: "Community calendar",
@@ -55,73 +55,73 @@ const render = (isCommunityAdmin: boolean) =>
   ));
 
 beforeEach(() => {
-  apps = [];
+  plugins = [];
 });
 
 describe("PluginsSection", () => {
-  it("points a member at the store when the community has no apps", async () => {
+  it("points a member at the store when the community has no plug-ins", async () => {
     // They cannot add one, but they can look and ask, so the shelf is worth
     // pointing at rather than hiding.
     render(false);
-    expect(await screen.findByText("Apps")).toBeInTheDocument();
-    expect(screen.getByText("Browse the app store")).toBeInTheDocument();
-    expect(screen.queryByText("Add an app")).toBeNull();
+    expect(await screen.findByText("Plug-ins")).toBeInTheDocument();
+    expect(screen.getByText("Browse the plug-in store")).toBeInTheDocument();
+    expect(screen.queryByText("Add a plug-in")).toBeNull();
   });
 
-  it("invites an admin to add one when the community has no apps", async () => {
+  it("invites an admin to add one when the community has no plug-ins", async () => {
     render(true);
-    expect(await screen.findByText("Apps")).toBeInTheDocument();
-    expect(screen.getByText("Add an app")).toBeInTheDocument();
-    expect(screen.queryByText("Browse the app store")).toBeNull();
+    expect(await screen.findByText("Plug-ins")).toBeInTheDocument();
+    expect(screen.getByText("Add a plug-in")).toBeInTheDocument();
+    expect(screen.queryByText("Browse the plug-in store")).toBeNull();
   });
 
-  it("lists installed apps for a member", async () => {
-    apps = [app()];
+  it("lists installed plug-ins for a member", async () => {
+    plugins = [plugin()];
     render(false);
     expect(await screen.findByText("Community calendar")).toBeInTheDocument();
     // No add affordance: installing is a community-admin action.
-    expect(screen.queryByText("Add an app")).toBeNull();
-    expect(screen.getByText("Browse the app store")).toBeInTheDocument();
+    expect(screen.queryByText("Add a plug-in")).toBeNull();
+    expect(screen.getByText("Browse the plug-in store")).toBeInTheDocument();
   });
 
-  it("links an app to what it mounted", async () => {
-    apps = [app()];
+  it("links a plug-in to what it mounted", async () => {
+    plugins = [plugin()];
     render(false);
     const link = (await screen.findByText("Community calendar")).closest("a");
-    // The list, not one of them: a member may add calendars to the app, so its
+    // The list, not one of them: a member may add calendars to the plug-in, so its
     // entry leads to everything it holds.
     expect(link?.getAttribute("href")).toContain("/calendars");
     expect(link?.getAttribute("href")).not.toContain("/calendars/12");
   });
 
-  it("still links a tool-instance app that holds nothing yet", async () => {
-    // Its home is where the first one gets made, so an empty app is the one
+  it("still links a tool-instance plug-in that holds nothing yet", async () => {
+    // Its home is where the first one gets made, so an empty plug-in is the one
     // that most needs a row.
-    apps = [app({ artifacts: [] })];
+    plugins = [plugin({ artifacts: [] })];
     render(false);
     const link = (await screen.findByText("Community calendar")).closest("a");
     expect(link?.getAttribute("href")).toContain("/calendars");
   });
 
-  it("hides a disabled app", async () => {
+  it("hides a disabled plug-in", async () => {
     // Turned off means gone from the sidebar; community settings is where it comes
     // back, which is also the only place the switch lives.
-    apps = [app({ enabled: false })];
+    plugins = [plugin({ enabled: false })];
     render(true);
-    await screen.findByText("Apps");
+    await screen.findByText("Plug-ins");
     expect(screen.queryByText("Community calendar")).toBeNull();
   });
 
-  it("still offers the store to a member when every app is disabled", async () => {
-    apps = [app({ enabled: false })];
+  it("still offers the store to a member when every plug-in is disabled", async () => {
+    plugins = [plugin({ enabled: false })];
     render(false);
-    expect(await screen.findByText("Browse the app store")).toBeInTheDocument();
+    expect(await screen.findByText("Browse the plug-in store")).toBeInTheDocument();
     expect(screen.queryByText("Community calendar")).toBeNull();
   });
 
-  it("opens a service app's own page", async () => {
-    apps = [
-      app({
+  it("opens a service plug-in's own page", async () => {
+    plugins = [
+      plugin({
         id: 7,
         name: "Automations",
         tool: null,
@@ -139,20 +139,20 @@ describe("PluginsSection", () => {
   });
 
   it("draws the listing's artwork rather than a generic icon", async () => {
-    apps = [app({ avatar_url: "/marketplace/calendar.svg" })];
+    plugins = [plugin({ avatar_url: "/marketplace/calendar.svg" })];
     render(false);
     const entry = await screen.findByText("Community calendar");
     const artwork = entry.closest("a")?.querySelector("img");
     expect(artwork?.getAttribute("src")).toBe("/marketplace/calendar.svg");
   });
 
-  it("folds an app with nothing to open under 'show more'", async () => {
-    // An app that mounts no tool, declares no surface this reader may open and
+  it("folds a plug-in with nothing to open under 'show more'", async () => {
+    // A plug-in that mounts no tool, declares no surface this reader may open and
     // asks for no credential has nowhere to lead, so it is not worth a row
     // until asked for.
-    apps = [app({ name: "Widgets only", tool: null, artifacts: [] })];
+    plugins = [plugin({ name: "Widgets only", tool: null, artifacts: [] })];
     render(false);
-    await screen.findByText("Apps");
+    await screen.findByText("Plug-ins");
     expect(screen.queryByText("Widgets only")).toBeNull();
 
     (await screen.findByText("1 more")).click();
@@ -160,20 +160,20 @@ describe("PluginsSection", () => {
     expect(entry.closest("a")).toBeNull();
   });
 
-  it("keeps the add affordance below the apps, 'show more' included", async () => {
+  it("keeps the add affordance below the plug-ins, 'show more' included", async () => {
     // Same shape as the initiatives list: adding one is always in the same
-    // place, whether or not the collapsed apps are expanded.
-    apps = [app(), app({ id: 2, name: "Widgets only", tool: null, artifacts: [] })];
+    // place, whether or not the collapsed plug-ins are expanded.
+    plugins = [plugin(), plugin({ id: 2, name: "Widgets only", tool: null, artifacts: [] })];
     render(true);
-    const add = await screen.findByText("Add an app");
+    const add = await screen.findByText("Add a plug-in");
     const more = await screen.findByText("1 more");
     // eslint-disable-next-line no-bitwise -- DOCUMENT_POSITION_FOLLOWING
     expect(more.compareDocumentPosition(add) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it("keeps an app that only has a credential to supply in the list", async () => {
-    apps = [
-      app({
+  it("keeps a plug-in that only has a credential to supply in the list", async () => {
+    plugins = [
+      plugin({
         id: 9,
         name: "GitHub",
         tool: null,
@@ -187,13 +187,13 @@ describe("PluginsSection", () => {
     expect(screen.queryByText("1 more")).toBeNull();
   });
 
-  it("gives every app a settings gear, whatever else its entry does", async () => {
+  it("gives every plug-in a settings gear, whatever else its entry does", async () => {
     // Three shapes of entry — a page, a credential form, nothing at all — and
-    // the gear is on all of them, because every app has something a person may
+    // the gear is on all of them, because every plug-in has something a person may
     // want to check or take back.
-    apps = [
-      app(),
-      app({
+    plugins = [
+      plugin(),
+      plugin({
         id: 9,
         name: "GitHub",
         tool: null,
@@ -207,8 +207,8 @@ describe("PluginsSection", () => {
     expect(screen.getByLabelText("GitHub settings")).toBeInTheDocument();
   });
 
-  it("gives the gear to an app with nothing to open, once it is shown", async () => {
-    apps = [app({ name: "Widgets only", tool: null, artifacts: [] })];
+  it("gives the gear to a plug-in with nothing to open, once it is shown", async () => {
+    plugins = [plugin({ name: "Widgets only", tool: null, artifacts: [] })];
     render(false);
     (await screen.findByText("1 more")).click();
     expect(await screen.findByLabelText("Widgets only settings")).toBeInTheDocument();

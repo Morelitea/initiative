@@ -3,7 +3,7 @@
  *
  * Two readings that are easy to get wrong. A definition pinned before surfaces
  * could say where they belong carries no scopes, and every one of those is
- * community-wide — getting that wrong would empty the app pages of every install
+ * community-wide — getting that wrong would empty the plug-in pages of every install
  * that predates it. And who may open a surface is the server's answer
  * (`surface_access`), so a surface the server did not say opens here is not
  * offered, whatever the definition declares.
@@ -73,7 +73,7 @@ describe("declaredEmbeds", () => {
     expect(declaredEmbeds(definition, "community").map((e) => e.id)).toEqual(["real"]);
   });
 
-  it("has nothing when the app declares no embeds", () => {
+  it("has nothing when the plug-in declares no embeds", () => {
     expect(declaredEmbeds({}, "community")).toEqual([]);
     expect(declaredEmbeds(null, "community")).toEqual([]);
   });
@@ -90,18 +90,18 @@ describe("pluginEmbeds", () => {
 
   it("offers an initiative surface in the initiatives the server listed", () => {
     const definition = { embeds: [embed("runs", ["community", "initiative"])] };
-    const app = { definition, surface_access: [access("runs", false, [4])] };
-    expect(pluginEmbeds(app, 4).map((e) => e.id)).toEqual(["runs"]);
-    expect(pluginEmbeds(app, 5)).toEqual([]);
-    expect(pluginEmbeds(app)).toEqual([]);
+    const plugin = { definition, surface_access: [access("runs", false, [4])] };
+    expect(pluginEmbeds(plugin, 4).map((e) => e.id)).toEqual(["runs"]);
+    expect(pluginEmbeds(plugin, 5)).toEqual([]);
+    expect(pluginEmbeds(plugin)).toEqual([]);
   });
 
   it("keeps an initiative-only surface off the community page", () => {
     // Even if an answer said otherwise, the surface never asked to render there.
     const definition = { embeds: [embed("runs", ["initiative"])] };
-    const app = { definition, surface_access: [access("runs", true, [4])] };
-    expect(pluginEmbeds(app)).toEqual([]);
-    expect(pluginEmbeds(app, 4).map((e) => e.id)).toEqual(["runs"]);
+    const plugin = { definition, surface_access: [access("runs", true, [4])] };
+    expect(pluginEmbeds(plugin)).toEqual([]);
+    expect(pluginEmbeds(plugin, 4).map((e) => e.id)).toEqual(["runs"]);
   });
 
   it("offers nothing the server gave no answer for", () => {
@@ -113,7 +113,7 @@ describe("pluginEmbeds", () => {
 });
 
 describe("communityPluginPath", () => {
-  it("gives an app with a surface this reader opens a page", () => {
+  it("gives a plug-in with a surface this reader opens a page", () => {
     expect(
       communityPluginPath({
         id: 7,
@@ -133,7 +133,7 @@ describe("communityPluginPath", () => {
     ).toBeNull();
   });
 
-  it("gives an app with only initiative surfaces no community page", () => {
+  it("gives a plug-in with only initiative surfaces no community page", () => {
     expect(
       communityPluginPath({
         id: 7,
@@ -143,16 +143,16 @@ describe("communityPluginPath", () => {
     ).toBeNull();
   });
 
-  it("sends a tool-instance app to the tool it mounted", () => {
+  it("sends a tool-instance plug-in to the tool it mounted", () => {
     expect(
       communityPluginPath({ id: 7, tool: "calendar", artifacts: [{ type: "calendar", id: 3 }] })
     ).toBe("/calendars");
   });
 
   it("sends it to the list rather than to one of them", () => {
-    // A member may add calendars to the app, so its home is everything it
+    // A member may add calendars to the plug-in, so its home is everything it
     // holds — the same address whether that is one calendar or six.
-    const app = {
+    const plugin = {
       id: 7,
       tool: "calendar",
       artifacts: [
@@ -160,12 +160,12 @@ describe("communityPluginPath", () => {
         { type: "calendar", id: 4 },
       ],
     };
-    expect(communityPluginPath(app)).toBe("/calendars");
+    expect(communityPluginPath(plugin)).toBe("/calendars");
   });
 });
 
 describe("initiativePluginPath", () => {
-  const app = (openIn: number[]) => ({
+  const plugin = (openIn: number[]) => ({
     id: 7,
     definition: { embeds: [embed("runs", ["initiative"])] },
     placements: [{ initiative_id: 4 }],
@@ -173,11 +173,11 @@ describe("initiativePluginPath", () => {
   });
 
   it("gives a row where the server says the reader opens a surface", () => {
-    expect(initiativePluginPath(app([4]), 4)).toBe("/i/4/plugins/7");
-    expect(initiativePluginPath(app([]), 4)).toBeNull();
+    expect(initiativePluginPath(plugin([4]), 4)).toBe("/i/4/plugins/7");
+    expect(initiativePluginPath(plugin([]), 4)).toBeNull();
   });
 
-  it("gives no row to an app with only a community-wide surface", () => {
+  it("gives no row to a plug-in with only a community-wide surface", () => {
     expect(
       initiativePluginPath(
         {
@@ -191,7 +191,7 @@ describe("initiativePluginPath", () => {
     ).toBeNull();
   });
 
-  it("gives a tool-instance app no row of its own", () => {
+  it("gives a tool-instance plug-in no row of its own", () => {
     // The tool it mounted already lives in an initiative.
     expect(
       initiativePluginPath({ id: 7, tool: "calendar", artifacts: [{ type: "calendar", id: 3 }] }, 4)
@@ -200,21 +200,21 @@ describe("initiativePluginPath", () => {
 });
 
 describe("placedIn", () => {
-  it("offers an app placed nowhere in no initiative", () => {
+  it("offers a plug-in placed nowhere in no initiative", () => {
     expect(placedIn({ placements: [] }, 4)).toBe(false);
     expect(placedIn({ placements: null }, 4)).toBe(false);
     expect(placedIn({}, 4)).toBe(false);
   });
 
-  it("offers a placed app only where it was placed", () => {
-    const app = { placements: [{ initiative_id: 4 }, { initiative_id: 9 }] };
-    expect(placedIn(app, 4)).toBe(true);
-    expect(placedIn(app, 5)).toBe(false);
+  it("offers a placed plug-in only where it was placed", () => {
+    const plugin = { placements: [{ initiative_id: 4 }, { initiative_id: 9 }] };
+    expect(placedIn(plugin, 4)).toBe(true);
+    expect(placedIn(plugin, 5)).toBe(false);
   });
 
-  it("keeps a row out of an initiative the app was placed away from", () => {
-    // Placement is where the app goes, so it reads the same for an admin.
-    const app = {
+  it("keeps a row out of an initiative the plug-in was placed away from", () => {
+    // Placement is where the plug-in goes, so it reads the same for an admin.
+    const plugin = {
       id: 7,
       placements: [{ initiative_id: 9 }],
       definition: {
@@ -222,7 +222,7 @@ describe("placedIn", () => {
       },
       surface_access: [access("runs", false, [9])],
     };
-    expect(initiativePluginPath(app, 9)).toBe("/i/9/plugins/7");
-    expect(initiativePluginPath(app, 4)).toBeNull();
+    expect(initiativePluginPath(plugin, 9)).toBe("/i/9/plugins/7");
+    expect(initiativePluginPath(plugin, 4)).toBeNull();
   });
 });

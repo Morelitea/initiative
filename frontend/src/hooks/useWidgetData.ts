@@ -46,9 +46,9 @@ export interface WidgetBinding {
   document_id?: number | null;
   sheet?: string | null;
   range?: string | null;
-  /** `app`: which installed app, which of its sources, and the arguments the
+  /** `plugin`: which installed plug-in, which of its sources, and the arguments the
    *  source declared. The binding names a listing and a source id — never an
-   *  address. Where the app lives comes from the deployment's registration, and
+   *  address. Where the plug-in lives comes from the deployment's registration, and
    *  only the server ever reads it. */
   plugin_uid?: string | null;
   endpoint_id?: string | null;
@@ -100,8 +100,8 @@ export interface WidgetDataResult {
  * carrying a statement needs it, and only to have the *stored* one run: nothing
  * here says what to run.
  *
- * `dashboardId` is the row the widget sits on, and only the `app` source needs
- * it: an app's data is community-level, so the proxy is told which
+ * `dashboardId` is the row the widget sits on, and only the `plugin` source needs
+ * it: a plug-in's data is community-level, so the proxy is told which
  * initiative-scoped surface is asking and decides the read against *that* row's
  * gates.
  */
@@ -154,7 +154,7 @@ export function useWidgetData(
     scoped && source === "sheet_range" ? (binding.document_id ?? null) : null
   );
 
-  // The app palette is one request per community, shared by every app widget on the
+  // The plug-in palette is one request per community, shared by every plug-in widget on the
   // canvas. It is what turns a binding's `plugin_uid` into an install id and tells
   // us what freshness the source asks for.
   const isPlugin = source === "plugin";
@@ -258,8 +258,8 @@ export function useWidgetData(
         };
       }
 
-      case "app": {
-        // A definition that never had the app filled in, or a canvas with no
+      case "plugin": {
+        // A definition that never had the plug-in filled in, or a canvas with no
         // dashboard behind it (a preview). Neither is an error.
         if (!binding.plugin_uid || !binding.endpoint_id || typeof dashboardId !== "number") {
           return unbound();
@@ -273,9 +273,9 @@ export function useWidgetData(
             refetch,
           };
         }
-        // A catalog that failed to load says nothing about whether this app is
+        // A catalog that failed to load says nothing about whether this plug-in is
         // installed, so it must not be read as "not installed" — that would
-        // render every app widget on the dashboard as unconfigured and invite
+        // render every plug-in widget on the dashboard as unconfigured and invite
         // someone to repoint bindings that were never wrong.
         if (pluginCatalogQuery.isError) {
           return {
@@ -287,10 +287,10 @@ export function useWidgetData(
             errorCode: WidgetErrorCode.PLUGIN_UNAVAILABLE,
           };
         }
-        // The catalog answered and the app is not in it: uninstalled, or
+        // The catalog answered and the plug-in is not in it: uninstalled, or
         // switched off. Said plainly rather than rendered as an access outcome
         // — the definition is the community's and stays stored, and the tile
-        // becomes the surface that asks for the app to be reconnected.
+        // becomes the surface that asks for the plug-in to be reconnected.
         const pluginInstalled = (pluginCatalogQuery.data?.items ?? []).some(
           (item) => item.plugin_uid === binding.plugin_uid
         );
@@ -307,7 +307,7 @@ export function useWidgetData(
         // Installed, but its pinned version stopped offering this source —
         // the catalog answered, so this is absence rather than a failure.
         if (!pluginBinding) return absent({ isLoading: false, isError: false });
-        // An app that stopped answering does not blank a tile that already has
+        // A plug-in that stopped answering does not blank a tile that already has
         // rows: React Query keeps the last good body for this key, and showing
         // it is more useful than showing nothing. The error tile is for when
         // there is genuinely nothing to draw.
@@ -324,10 +324,10 @@ export function useWidgetData(
         const rows = pluginQuery.data?.rows ?? [];
         const values = pluginQuery.data?.values ?? {};
         const meta: DataMeta = { total: rows.length };
-        // A binding with a statement asks a question of the app's rows, and the
+        // A binding with a statement asks a question of the plug-in's rows, and the
         // server answers with a table — the same envelope a query produces. So
-        // a chart can be pointed at an app, while an app's own module keeps
-        // being handed the app's own shape.
+        // a chart can be pointed at a plug-in, while a plug-in's own module keeps
+        // being handed the plug-in's own shape.
         const table = pluginQuery.data?.table;
         if (table) {
           const described = table.columns ?? [];

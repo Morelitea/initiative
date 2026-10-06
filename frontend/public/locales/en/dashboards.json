@@ -63,7 +63,7 @@
   "bindingSource": {
     "query": "SQL query",
     "sheet_range": "Sheet range",
-    "app": "Plug-in data"
+    "plugin": "Plug-in data"
   },
   "gallery": {
     "title": "Widget gallery",
@@ -116,7 +116,7 @@
     "all_counter": "All counters",
     "all_document": "All spreadsheets",
     "pluginEndpoint": "What it reads",
-    "app": "Plug-in",
+    "plugin": "Plug-in",
     "pluginPlaceholder": "Choose a plug-in",
     "pluginEndpointPlaceholder": "Choose a read…",
     "pluginNotInstalled": "This plug-in is not installed in this community.",

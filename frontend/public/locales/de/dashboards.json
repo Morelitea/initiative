@@ -63,7 +63,7 @@
   "bindingSource": {
     "query": "SQL-Abfrage",
     "sheet_range": "Tabellenbereich",
-    "app": "Plug-in-Daten"
+    "plugin": "Plug-in-Daten"
   },
   "gallery": {
     "title": "Widget-Galerie",
@@ -116,7 +116,7 @@
     "all_counter": "Alle Zähler",
     "all_document": "Alle Tabellen",
     "pluginEndpoint": "Was es liest",
-    "app": "Plug-in",
+    "plugin": "Plug-in",
     "pluginPlaceholder": "Plug-in auswählen",
     "pluginEndpointPlaceholder": "Lesevorgang wählen…",
     "pluginNotInstalled": "Dieses Plug-in ist in dieser Community nicht installiert.",

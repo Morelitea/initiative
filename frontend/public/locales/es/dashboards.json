@@ -63,7 +63,7 @@
   "bindingSource": {
     "query": "Consulta SQL",
     "sheet_range": "Rango de hoja",
-    "app": "Datos del complemento"
+    "plugin": "Datos del complemento"
   },
   "gallery": {
     "title": "Galería de widgets",
@@ -116,7 +116,7 @@
     "all_counter": "Todos los contadores",
     "all_document": "Todas las hojas de cálculo",
     "pluginEndpoint": "Qué lee",
-    "app": "Complemento",
+    "plugin": "Complemento",
     "pluginPlaceholder": "Elige un complemento",
     "pluginEndpointPlaceholder": "Elige una lectura…",
     "pluginNotInstalled": "Este complemento no está instalado en esta comunidad.",

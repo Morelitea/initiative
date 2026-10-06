@@ -1,17 +1,17 @@
 /**
- * Where an app's initiative surfaces appear.
+ * Where a plug-in's initiative surfaces appear.
  *
- * An app appears in the initiatives it is placed in and no others. This is
+ * A plug-in appears in the initiatives it is placed in and no others. This is
  * where the seat places it — placement rather than permission, so it reads the
  * same for everyone afterwards, including the admin who set it. "Every current
  * initiative" places it in each initiative that exists now; one created later
  * is placed here like any other.
  *
- * Each initiative the app is placed in also says which of its roles can open
- * the app there. Those roles load when the seat opens that initiative's
+ * Each initiative the plug-in is placed in also says which of its roles can open
+ * the plug-in there. Those roles load when the seat opens that initiative's
  * chooser, not for the whole roster up front.
  *
- * Absent for an app with no initiative surface to place: there would be nothing
+ * Absent for a plug-in with no initiative surface to place: there would be nothing
  * for the choice to move.
  */
 
@@ -33,22 +33,22 @@ import { getErrorMessage } from "@/lib/errorMessage";
 import { toast } from "@/lib/mascotToast";
 
 export interface PluginPlacementPanelProps {
-  app: CommunityPluginDetail;
+  plugin: CommunityPluginDetail;
 }
 
-/** The initiatives the app is placed in. */
-const placedIds = (app: CommunityPluginDetail): number[] =>
-  (app.placements ?? []).map((one) => one.initiative_id);
+/** The initiatives the plug-in is placed in. */
+const placedIds = (plugin: CommunityPluginDetail): number[] =>
+  (plugin.placements ?? []).map((one) => one.initiative_id);
 
-export function PluginPlacementPanel({ app }: PluginPlacementPanelProps) {
-  const { t } = useTranslation(["apps", "common"]);
+export function PluginPlacementPanel({ plugin }: PluginPlacementPanelProps) {
+  const { t } = useTranslation(["plugins", "common"]);
   const initiatives = useInitiatives();
-  const update = useUpdateCommunityPlugin(app.id);
-  // What the admin is choosing right now. Seeded from the app and kept locally
+  const update = useUpdateCommunityPlugin(plugin.id);
+  // What the admin is choosing right now. Seeded from the plug-in and kept locally
   // so ticking several initiatives is one decision, saved per change.
-  const [chosen, setChosen] = useState<number[]>(() => placedIds(app));
+  const [chosen, setChosen] = useState<number[]>(() => placedIds(plugin));
   // Whether the admin asked to pick initiatives one by one. Until they do, an
-  // app placed in every initiative there is reads as "every current one".
+  // plug-in placed in every initiative there is reads as "every current one".
   const [picking, setPicking] = useState(false);
   // The last selection the server took, so a failed save falls back to
   // something true rather than to whatever the cache happens to hold.
@@ -63,11 +63,11 @@ export function PluginPlacementPanel({ app }: PluginPlacementPanelProps) {
   const outstanding = useRef(0);
 
   const roster = initiatives.data ?? [];
-  // Roles decide who opens the app's page, so only an app with one has them.
-  const hasPage = declaredEmbeds(app.definition, "initiative").length > 0;
+  // Roles decide who opens the plug-in's page, so only a plug-in with one has them.
+  const hasPage = declaredEmbeds(plugin.definition, "initiative").length > 0;
   // The roles each stored placement allows, by initiative.
   const placedRoles = new Map(
-    (app.placements ?? []).map((one) => [one.initiative_id, one.role_ids] as const)
+    (plugin.placements ?? []).map((one) => [one.initiative_id, one.role_ids] as const)
   );
   const everywhere = roster.length > 0 && roster.every((one) => chosen.includes(one.id));
   const mode = picking || !everywhere ? "some" : "all";
@@ -89,7 +89,7 @@ export function PluginPlacementPanel({ app }: PluginPlacementPanelProps) {
         settled.current = live;
       })
       .catch((error) => {
-        toast.error(getErrorMessage(error, "apps:error"));
+        toast.error(getErrorMessage(error, "plugins:error"));
       })
       .finally(() => {
         outstanding.current -= 1;
@@ -122,23 +122,23 @@ export function PluginPlacementPanel({ app }: PluginPlacementPanelProps) {
   return (
     <section className="space-y-3">
       <div>
-        <h3 className="font-medium text-sm">{t("apps:placement.title")}</h3>
+        <h3 className="font-medium text-sm">{t("plugins:placement.title")}</h3>
         <p className="text-muted-foreground text-sm">
-          {t(hasPage ? "apps:placement.description" : "apps:placement.descriptionNoPage")}
+          {t(hasPage ? "plugins:placement.description" : "plugins:placement.descriptionNoPage")}
         </p>
       </div>
 
       <RadioGroup value={mode} onValueChange={choose} className="space-y-2">
         <div className="flex items-center gap-2">
-          <RadioGroupItem value="all" id={`placement-all-${app.id}`} />
-          <Label htmlFor={`placement-all-${app.id}`} className="font-normal">
-            {t("apps:placement.all")}
+          <RadioGroupItem value="all" id={`placement-all-${plugin.id}`} />
+          <Label htmlFor={`placement-all-${plugin.id}`} className="font-normal">
+            {t("plugins:placement.all")}
           </Label>
         </div>
         <div className="flex items-center gap-2">
-          <RadioGroupItem value="some" id={`placement-some-${app.id}`} />
-          <Label htmlFor={`placement-some-${app.id}`} className="font-normal">
-            {t("apps:placement.some")}
+          <RadioGroupItem value="some" id={`placement-some-${plugin.id}`} />
+          <Label htmlFor={`placement-some-${plugin.id}`} className="font-normal">
+            {t("plugins:placement.some")}
           </Label>
         </div>
       </RadioGroup>
@@ -151,7 +151,7 @@ export function PluginPlacementPanel({ app }: PluginPlacementPanelProps) {
               <div key={initiative.id} className="flex items-center justify-between gap-2">
                 <span className="text-sm">{initiative.name}</span>
                 <PlacementRoles
-                  pluginId={app.id}
+                  pluginId={plugin.id}
                   initiativeId={initiative.id}
                   initiativeName={initiative.name}
                   roleIds={placedRoles.get(initiative.id) ?? []}
@@ -172,12 +172,12 @@ export function PluginPlacementPanel({ app }: PluginPlacementPanelProps) {
             roster.map((initiative) => (
               <div key={initiative.id} className="flex items-center gap-2">
                 <Checkbox
-                  id={`placement-${app.id}-${initiative.id}`}
+                  id={`placement-${plugin.id}-${initiative.id}`}
                   checked={chosen.includes(initiative.id)}
                   onCheckedChange={(state) => toggle(initiative.id, state === true)}
                 />
                 <Label
-                  htmlFor={`placement-${app.id}-${initiative.id}`}
+                  htmlFor={`placement-${plugin.id}-${initiative.id}`}
                   className="flex-1 font-normal"
                 >
                   {initiative.name}
@@ -185,7 +185,7 @@ export function PluginPlacementPanel({ app }: PluginPlacementPanelProps) {
                 {/* Only a placement the server holds has roles to choose. */}
                 {hasPage && chosen.includes(initiative.id) && placedRoles.has(initiative.id) && (
                   <PlacementRoles
-                    pluginId={app.id}
+                    pluginId={plugin.id}
                     initiativeId={initiative.id}
                     initiativeName={initiative.name}
                     roleIds={placedRoles.get(initiative.id) ?? []}
@@ -195,7 +195,7 @@ export function PluginPlacementPanel({ app }: PluginPlacementPanelProps) {
             ))
           )}
           {chosen.length === 0 && (
-            <p className="text-muted-foreground text-sm">{t("apps:placement.none")}</p>
+            <p className="text-muted-foreground text-sm">{t("plugins:placement.none")}</p>
           )}
         </div>
       )}
@@ -211,9 +211,9 @@ interface PlacementRolesProps {
   roleIds: number[];
 }
 
-/** Who can open the app in one initiative, chosen from a popover. */
+/** Who can open the plug-in in one initiative, chosen from a popover. */
 function PlacementRoles({ pluginId, initiativeId, initiativeName, roleIds }: PlacementRolesProps) {
-  const { t } = useTranslation(["apps", "common"]);
+  const { t } = useTranslation(["plugins", "common"]);
   const [open, setOpen] = useState(false);
 
   return (
@@ -223,18 +223,18 @@ function PlacementRoles({ pluginId, initiativeId, initiativeName, roleIds }: Pla
           size="sm"
           variant="ghost"
           className="h-7 gap-1 px-2 text-muted-foreground text-xs"
-          aria-label={t("apps:placement.roles.open", { name: initiativeName })}
+          aria-label={t("plugins:placement.roles.open", { name: initiativeName })}
         >
           {roleIds.length === 0
-            ? t("apps:placement.roles.adminsOnly")
-            : t("apps:placement.roles.count", { count: roleIds.length })}
+            ? t("plugins:placement.roles.adminsOnly")
+            : t("plugins:placement.roles.count", { count: roleIds.length })}
           <ChevronDown className="h-3 w-3" aria-hidden />
         </Button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-64 space-y-3">
         <div className="space-y-1">
-          <h4 className="font-medium text-sm">{t("apps:placement.roles.title")}</h4>
-          <p className="text-muted-foreground text-xs">{t("apps:placement.roles.adminsAlways")}</p>
+          <h4 className="font-medium text-sm">{t("plugins:placement.roles.title")}</h4>
+          <p className="text-muted-foreground text-xs">{t("plugins:placement.roles.adminsAlways")}</p>
         </div>
         {/* Mounted only while open, so the roles load for this one initiative. */}
         {open && (
@@ -250,7 +250,7 @@ function PlacementRoleChoices({
   initiativeId,
   roleIds,
 }: Omit<PlacementRolesProps, "initiativeName">) {
-  const { t } = useTranslation(["apps", "common"]);
+  const { t } = useTranslation(["plugins", "common"]);
   const roles = useInitiativeRoles(initiativeId);
   const setRoles = useSetPluginPlacementRoles(pluginId);
   // Seeded from the stored placement each time the chooser opens, then kept

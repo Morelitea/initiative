@@ -1,21 +1,21 @@
 /**
- * Adding an app to the community, with the seat's consent.
+ * Adding a plug-in to the community, with the seat's consent.
  *
- * An app belongs to the community, so there is no initiative to choose for it the
+ * A plug-in belongs to the community, so there is no initiative to choose for it the
  * way there is for a dashboard. What the seat does choose is on this one
  * screen, and is confirmed once:
  *
- * 1. **What it can reach.** Each scope the app asks for, as a plain sentence.
+ * 1. **What it can reach.** Each scope the plug-in asks for, as a plain sentence.
  *    Everything this server allows starts ticked, except a standing (acting as
  *    a moderator or an admin), which the seat ticks itself; a scope it does
  *    not allow is shown disabled, with the reason.
- * 2. **Where it appears.** Only for an app with a page inside initiatives:
+ * 2. **Where it appears.** Only for a plug-in with a page inside initiatives:
  *    every current initiative, or the ones picked here.
  * 3. **Who can open it there.** Built-in roles, moderators by default, applied
  *    to every initiative it is placed in.
  *
  * The server installs, grants and places in one transaction, under the same
- * checks the app's settings apply afterwards.
+ * checks the plug-in's settings apply afterwards.
  *
  * Community admins only. The server enforces that; this hides the action rather
  * than offering one that would be refused.
@@ -54,19 +54,19 @@ export interface InstallPluginDialogProps extends DialogProps {
   listing: MarketplaceListingDetail;
 }
 
-/** The built-in initiative roles the seat may let open the app. */
+/** The built-in initiative roles the seat may let open the plug-in. */
 export const ROLE_KINDS = ["moderator", "project_manager", "member"] as const;
 type RoleKind = (typeof ROLE_KINDS)[number];
 
 export function InstallPluginDialog({ listing, open, onOpenChange }: InstallPluginDialogProps) {
-  const { t } = useTranslation(["apps", "common", "nav"]);
+  const { t } = useTranslation(["plugins", "common", "nav"]);
   const navigate = useNavigate();
   const gp = useCommunityPath();
 
   const requested = listing.requested_scopes ?? [];
   const grantable = new Set(listing.grantable_scopes ?? []);
   const hasPage = listing.has_initiative_surfaces ?? false;
-  // An app reaches content only in the initiatives it is placed in, so one
+  // A plug-in reaches content only in the initiatives it is placed in, so one
   // that asks for any access is placed too, whether or not it has a page.
   const placeable = hasPage || requested.length > 0;
 
@@ -91,15 +91,15 @@ export function InstallPluginDialog({ listing, open, onOpenChange }: InstallPlug
         role_kinds: hasPage ? roles : [],
       },
       {
-        onSuccess: (app) => {
-          toast.success(t("apps:install.done", { name: app.name }));
+        onSuccess: (plugin) => {
+          toast.success(t("plugins:install.done", { name: plugin.name }));
           onOpenChange(false);
           // Straight to what it created, when it created something reachable.
-          const path = communityPluginPath(app);
+          const path = communityPluginPath(plugin);
           if (path) navigate({ to: gp(path) });
         },
         onError: (error) => {
-          toast.error(getErrorMessage(error, "apps:error"));
+          toast.error(getErrorMessage(error, "plugins:error"));
         },
       }
     );
@@ -113,16 +113,16 @@ export function InstallPluginDialog({ listing, open, onOpenChange }: InstallPlug
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{t("apps:install.title", { name: listing.name })}</DialogTitle>
-          <DialogDescription>{t("apps:install.description")}</DialogDescription>
+          <DialogTitle>{t("plugins:install.title", { name: listing.name })}</DialogTitle>
+          <DialogDescription>{t("plugins:install.description")}</DialogDescription>
         </DialogHeader>
 
-        {/* An app reaches the whole community, so who wrote it is said here too —
+        {/* A plug-in reaches the whole community, so who wrote it is said here too —
             the same sentence the card and the listing page showed. */}
         <ListingProvenance listing={listing} />
 
         <div className="space-y-1.5">
-          <Label htmlFor="install-plugin-name">{t("apps:install.name")}</Label>
+          <Label htmlFor="install-plugin-name">{t("plugins:install.name")}</Label>
           <Input
             id="install-plugin-name"
             value={name}
@@ -134,7 +134,7 @@ export function InstallPluginDialog({ listing, open, onOpenChange }: InstallPlug
         {requested.length > 0 && (
           <section className="space-y-2" aria-labelledby="install-plugin-reach">
             <h3 id="install-plugin-reach" className="font-medium text-sm">
-              {t("apps:install.reachTitle")}
+              {t("plugins:install.reachTitle")}
             </h3>
             <ul className="space-y-2">
               {requested.map((scope) => {
@@ -158,7 +158,7 @@ export function InstallPluginDialog({ listing, open, onOpenChange }: InstallPlug
                       </Label>
                       {!allowed && (
                         <p className="text-muted-foreground text-xs">
-                          {t("apps:scopes.notAllowed")}
+                          {t("plugins:scopes.notAllowed")}
                         </p>
                       )}
                     </div>
@@ -173,11 +173,11 @@ export function InstallPluginDialog({ listing, open, onOpenChange }: InstallPlug
           <section className="space-y-2" aria-labelledby="install-plugin-where">
             <div>
               <h3 id="install-plugin-where" className="font-medium text-sm">
-                {t("apps:install.whereTitle")}
+                {t("plugins:install.whereTitle")}
               </h3>
               <p className="text-muted-foreground text-xs">
                 {t(
-                  hasPage ? "apps:install.whereDescription" : "apps:install.whereDescriptionNoPage"
+                  hasPage ? "plugins:install.whereDescription" : "plugins:install.whereDescriptionNoPage"
                 )}
               </p>
             </div>
@@ -189,13 +189,13 @@ export function InstallPluginDialog({ listing, open, onOpenChange }: InstallPlug
               <div className="flex items-center gap-2">
                 <RadioGroupItem value="all" id="install-plugin-where-all" />
                 <Label htmlFor="install-plugin-where-all" className="font-normal">
-                  {t("apps:placement.all")}
+                  {t("plugins:placement.all")}
                 </Label>
               </div>
               <div className="flex items-center gap-2">
                 <RadioGroupItem value="some" id="install-plugin-where-some" />
                 <Label htmlFor="install-plugin-where-some" className="font-normal">
-                  {t("apps:placement.some")}
+                  {t("plugins:placement.some")}
                 </Label>
               </div>
             </RadioGroup>
@@ -207,10 +207,10 @@ export function InstallPluginDialog({ listing, open, onOpenChange }: InstallPlug
           <section className="space-y-2" aria-labelledby="install-plugin-who">
             <div>
               <h3 id="install-plugin-who" className="font-medium text-sm">
-                {t("apps:install.whoTitle")}
+                {t("plugins:install.whoTitle")}
               </h3>
               <p className="text-muted-foreground text-xs">
-                {t("apps:placement.roles.adminsAlways")}
+                {t("plugins:placement.roles.adminsAlways")}
               </p>
             </div>
             <div className="space-y-2">
@@ -223,7 +223,7 @@ export function InstallPluginDialog({ listing, open, onOpenChange }: InstallPlug
                     onCheckedChange={(state) => toggleRole(role, state === true)}
                   />
                   <Label htmlFor={`install-plugin-role-${role}`} className="font-normal">
-                    {t(`apps:install.roles.${role}` as never)}
+                    {t(`plugins:install.roles.${role}` as never)}
                   </Label>
                 </div>
               ))}
@@ -241,7 +241,7 @@ export function InstallPluginDialog({ listing, open, onOpenChange }: InstallPlug
             ) : (
               <Download className="mr-1.5 h-4 w-4" />
             )}
-            {t("apps:install.action")}
+            {t("plugins:install.action")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -257,7 +257,7 @@ function InitiativePicker({
   picked: number[];
   onChange: (next: number[]) => void;
 }) {
-  const { t } = useTranslation(["apps", "common"]);
+  const { t } = useTranslation(["plugins", "common"]);
   const initiatives = useInitiatives();
 
   if (initiatives.isLoading) {
@@ -290,7 +290,7 @@ function InitiativePicker({
         </div>
       ))}
       {picked.length === 0 && (
-        <p className="text-muted-foreground text-sm">{t("apps:placement.none")}</p>
+        <p className="text-muted-foreground text-sm">{t("plugins:placement.none")}</p>
       )}
     </div>
   );

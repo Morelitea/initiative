@@ -3,7 +3,7 @@
  *
  * What matters is what reaches the server: every scope the server allows is
  * granted unless the seat unticks it, a scope it does not allow can never be
- * sent, placement is asked of an app with a page inside initiatives or access
+ * sent, placement is asked of a plug-in with a page inside initiatives or access
  * to reach there, and moderators open a page unless the seat says otherwise.
  */
 
@@ -41,7 +41,7 @@ vi.mock("@/hooks/useInitiatives", () => ({
 const listing = (overrides: Partial<MarketplaceListingDetail> = {}) =>
   buildMarketplaceListingDetail({
     uid: "WIDGETCO000001",
-    kind: "app",
+    kind: "plugin",
     name: "WidgetCo",
     requested_scopes: ["projects:read", "projects:write", "members:read"],
     grantable_scopes: ["projects:read", "members:read"],
@@ -113,7 +113,7 @@ describe("InstallPluginDialog", () => {
     expect(body.role_kinds).toEqual(["moderator", "project_manager"]);
   });
 
-  it("places an app with access but no page, and asks nothing about roles", async () => {
+  it("places a plug-in with access but no page, and asks nothing about roles", async () => {
     open({ has_initiative_surfaces: false });
 
     expect(await screen.findByText("Where it works")).toBeInTheDocument();
@@ -127,15 +127,15 @@ describe("InstallPluginDialog", () => {
     expect(body.role_kinds).toEqual([]);
   });
 
-  it("asks to use another app by that app's name, and grants it", async () => {
+  it("asks to use another plug-in by that plug-in's name, and grants it", async () => {
     open({
-      requested_scopes: ["projects:read", "apps:acme.github"],
-      grantable_scopes: ["projects:read", "apps:acme.github"],
+      requested_scopes: ["projects:read", "plugins:acme.github"],
+      grantable_scopes: ["projects:read", "plugins:acme.github"],
       plugin_names: { "acme.github": "GitHub" },
     });
 
     expect(await screen.findByLabelText("Use GitHub in this community")).toBeChecked();
-    expect((await install()).granted_scopes).toEqual(["projects:read", "apps:acme.github"]);
+    expect((await install()).granted_scopes).toEqual(["projects:read", "plugins:acme.github"]);
   });
 
   it("leaves acting as a moderator or an admin for the seat to tick", async () => {
@@ -157,14 +157,14 @@ describe("InstallPluginDialog", () => {
     expect((await install()).granted_scopes).toEqual(["projects:read", "initiatives:moderate"]);
   });
 
-  it("says an app with no name by its public id", async () => {
-    open({ requested_scopes: ["apps:acme.github"], grantable_scopes: [] });
+  it("says a plug-in with no name by its public id", async () => {
+    open({ requested_scopes: ["plugins:acme.github"], grantable_scopes: [] });
 
     const use = await screen.findByLabelText("Use acme.github in this community");
     expect(use).toBeDisabled();
   });
 
-  it("asks nothing about placement for an app with no page and no access", async () => {
+  it("asks nothing about placement for a plug-in with no page and no access", async () => {
     open({ has_initiative_surfaces: false, requested_scopes: [], grantable_scopes: [] });
 
     await screen.findByRole("button", { name: "Add to community" });

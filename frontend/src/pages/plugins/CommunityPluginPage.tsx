@@ -1,11 +1,11 @@
 /**
- * An app's own surface, in an iframe.
+ * A plug-in's own surface, in an iframe.
  *
  * The security shape, which mirrors what the mint endpoint already enforces:
  *
  * 1. The server decides whether a surface may be opened — the install must be
  *    enabled, its registration live, and the seat's placement and roles must
- *    admit the caller. A refusal never reaches the app.
+ *    admit the caller. A refusal never reaches the plug-in.
  * 2. The token is delivered by `postMessage` to the iframe's own origin, never
  *    in the URL, so it stays out of history, referrers and proxy logs.
  * 3. Inbound messages are ignored unless `event.origin` is one the registration
@@ -49,20 +49,20 @@ export interface CommunityPluginPageProps {
   pluginId: number;
   /**
    * The initiative this page is being read inside, if any. It selects the
-   * surfaces on offer, and it travels to the app in the minted token — so the
-   * app can scope what it shows without asking a second question.
+   * surfaces on offer, and it travels to the plug-in in the minted token — so the
+   * plug-in can scope what it shows without asking a second question.
    */
   initiativeId?: number;
 }
 
 export function CommunityPluginPage({ pluginId, initiativeId }: CommunityPluginPageProps) {
-  const { t, i18n } = useTranslation(["apps", "common"]);
+  const { t, i18n } = useTranslation(["plugins", "common"]);
   const communityId = useActiveCommunityId();
   const detail = useCommunityPluginDetail(pluginId);
-  const app = detail.data;
+  const plugin = detail.data;
 
   // Only the surfaces the server says this reader opens here.
-  const embeds = useMemo(() => pluginEmbeds(app, initiativeId), [app, initiativeId]);
+  const embeds = useMemo(() => pluginEmbeds(plugin, initiativeId), [plugin, initiativeId]);
   const [surfaceId, setSurfaceId] = useState<string | null>(null);
   const active = embeds.find((embed) => embed.id === surfaceId) ?? embeds[0] ?? null;
   // The surface as a plain id, so a refetch that hands back an equal-but-new
@@ -107,7 +107,7 @@ export function CommunityPluginPage({ pluginId, initiativeId }: CommunityPluginP
         if (!cancelled) setHandoff(fresh);
       })
       .catch(() => {
-        if (!cancelled) setError(t("apps:embed.handoffFailed"));
+        if (!cancelled) setError(t("plugins:embed.handoffFailed"));
       });
     return () => {
       cancelled = true;
@@ -158,7 +158,7 @@ export function CommunityPluginPage({ pluginId, initiativeId }: CommunityPluginP
     // A token names one surface, and switching tabs replaces the iframe. So a
     // re-mint still in flight when that happens must not deliver: its token is
     // for the surface that was open when it was asked for, and the frame now
-    // waiting shows a different one. Same app, same origin, so the origin check
+    // waiting shows a different one. Same plug-in, same origin, so the origin check
     // cannot tell them apart.
     let cancelled = false;
 
@@ -184,7 +184,7 @@ export function CommunityPluginPage({ pluginId, initiativeId }: CommunityPluginP
       if (!allowed.has(event.origin)) return;
       // This page exchanges with one window: the frame it mounted. An
       // announcement is matched to it by window rather than by origin, since
-      // an app may hold more than one window at the same address.
+      // a plug-in may hold more than one window at the same address.
       const target = iframeRef.current?.contentWindow;
       if (!target || event.source !== target) return;
       const data = event.data;
@@ -204,11 +204,11 @@ export function CommunityPluginPage({ pluginId, initiativeId }: CommunityPluginP
             send(target, fresh);
           })
           .catch(() => {
-            if (!cancelled) setError(tRef.current("apps:embed.handoffFailed"));
+            if (!cancelled) setError(tRef.current("plugins:embed.handoffFailed"));
           });
       } else if (data.type === ERROR) {
         setError(
-          typeof data.message === "string" ? data.message : tRef.current("apps:embed.failed")
+          typeof data.message === "string" ? data.message : tRef.current("plugins:embed.failed")
         );
       }
     };
@@ -246,17 +246,17 @@ export function CommunityPluginPage({ pluginId, initiativeId }: CommunityPluginP
     );
   }
 
-  if (!app) return <Notice title={t("apps:embed.notFound")} />;
-  if (!app.enabled) return <Notice title={t("apps:embed.disabled", { name: app.name })} />;
-  if (!app.available)
+  if (!plugin) return <Notice title={t("plugins:embed.notFound")} />;
+  if (!plugin.enabled) return <Notice title={t("plugins:embed.disabled", { name: plugin.name })} />;
+  if (!plugin.available)
     return (
       <Notice
-        title={t("apps:embed.unavailable", { name: app.name })}
-        description={t("apps:embed.unavailableDescription")}
+        title={t("plugins:embed.unavailable", { name: plugin.name })}
+        description={t("plugins:embed.unavailableDescription")}
       />
     );
-  if (!active) return <Notice title={t("apps:embed.noSurface", { name: app.name })} />;
-  if (error) return <Notice title={t("apps:embed.failed")} description={error} />;
+  if (!active) return <Notice title={t("plugins:embed.noSurface", { name: plugin.name })} />;
+  if (error) return <Notice title={t("plugins:embed.failed")} description={error} />;
 
   return (
     <div className="flex h-full flex-col">
@@ -286,7 +286,7 @@ export function CommunityPluginPage({ pluginId, initiativeId }: CommunityPluginP
           key={active.id}
           ref={iframeRef}
           src={handoff.embed_url}
-          title={app.name}
+          title={plugin.name}
           className="block min-h-0 w-full flex-1 border-0 bg-background"
           // Notably absent: allow-top-navigation, allow-modals,
           // allow-popups-to-escape-sandbox.
@@ -299,7 +299,7 @@ export function CommunityPluginPage({ pluginId, initiativeId }: CommunityPluginP
       ) : (
         <div className="flex flex-1 items-center gap-2 p-4 text-muted-foreground text-sm">
           <Loader2 className="h-4 w-4 animate-spin" />
-          {t("apps:embed.connecting")}
+          {t("plugins:embed.connecting")}
         </div>
       )}
     </div>

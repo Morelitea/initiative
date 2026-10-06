@@ -28,12 +28,13 @@ the old names:
   its arguments carry the published resource type, and provisioning renders
   ``capture_guild_plugins`` with ``plugins`` on the next boot, before any
   request is served.
-* **Roles** — the install floor ``app_install_base`` becomes
-  ``plugin_install_base`` and each ``guild_<id>_app`` becomes
-  ``guild_<id>_plugin``. Roles are cluster-global, so a rename only happens
-  when the new name is free; when both exist (a cluster another database
-  already upgraded), this database's privileges move to the new role and the
-  old one is dropped unless something elsewhere still holds it.
+* **Roles** — each ``guild_<id>_app`` becomes ``guild_<id>_plugin``, renamed
+  when the new name is free; when both exist, this database's privileges move
+  to the new role and the old one is dropped. The install floor is one role the
+  whole cluster shares, so it is never renamed: ``plugin_install_base`` is
+  created, this database's privileges and its own guild roles' memberships move
+  to it, and ``app_install_base`` is dropped only once no other database in the
+  cluster still holds anything through it.
 * **Stored values** — a reference's purpose ``app`` is ``plugin``, and its
   rendered prefix follows (``uapp_…`` -> ``uplu_…``); a listing's ``kind``
   ``app`` is ``plugin``; scopes ``apps:<id>`` are ``plugins:<id>``; a widget
@@ -284,7 +285,7 @@ def _rename_policies(bind: Connection, schema: str) -> None:
 
 
 def _triggers(bind: Connection, schema: str) -> list[tuple[str, str]]:
-    return bind.execute(
+    rows = bind.execute(
         text(
             "SELECT c.relname, tg.tgname FROM pg_trigger tg "
             "JOIN pg_class c ON c.oid = tg.tgrelid "
@@ -293,6 +294,7 @@ def _triggers(bind: Connection, schema: str) -> list[tuple[str, str]]:
         ),
         {"s": schema},
     ).all()
+    return [(table, name) for table, name in rows]
 
 
 def _replace_guild_triggers(bind: Connection, schema: str) -> None:
@@ -331,8 +333,14 @@ def _role_oid(bind: Connection, name: str) -> int | None:
     ).scalar()
 
 
-def _move_privileges(bind: Connection, old: str, new: str) -> None:
-    """Grant ``new`` what ``old`` holds in THIS database, then clear ``old`` here."""
+def _move_privileges(
+    bind: Connection, old: str, new: str, members: list[str] | None = None
+) -> None:
+    """Grant ``new`` what ``old`` holds in THIS database, then clear ``old`` here.
+
+    ``members`` limits the memberships moved to this database's own roles; a
+    role another database's guild holds keeps its membership of ``old``.
+    """
     old_oid = _role_oid(bind, old)
     o, n = _ident(old), _ident(new)
     relations = bind.execute(
@@ -377,15 +385,19 @@ def _move_privileges(bind: Connection, old: str, new: str) -> None:
     ).all()
     for sch, priv in schemas:
         op.execute(f"GRANT {priv} ON SCHEMA {_ident(sch)} TO {n}")
-    members = bind.execute(
-        text(
-            "SELECT r.rolname FROM pg_auth_members m JOIN pg_roles r ON r.oid = m.member "
-            "WHERE m.roleid = :o"
-        ),
-        {"o": old_oid},
-    ).scalars()
-    for member in list(members):
+    held = list(
+        bind.execute(
+            text(
+                "SELECT r.rolname FROM pg_auth_members m "
+                "JOIN pg_roles r ON r.oid = m.member WHERE m.roleid = :o"
+            ),
+            {"o": old_oid},
+        ).scalars()
+    )
+    for member in held if members is None else [m for m in held if m in members]:
         op.execute(f"GRANT {n} TO {_ident(member)}")
+        if members is not None:
+            op.execute(f"REVOKE {o} FROM {_ident(member)}")
     op.execute(f"DROP OWNED BY {o}")
 
 
@@ -401,6 +413,30 @@ def _drop_role_if_unheld(name: str) -> None:
         END $$;
         """
     )
+
+
+def _move_floor(bind: Connection, guild_roles: list[str]) -> None:
+    """Give the install floor its new name without taking it from a sibling.
+
+    The floor is one cluster-global role that every database in the cluster
+    shares, unlike a guild's roles. This database's privileges and its own
+    guild roles' memberships move to ``plugin_install_base``; the old role is
+    dropped only when no other database still holds anything through it.
+    """
+    op.execute(
+        f"""
+        DO $$ BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{_NEW_FLOOR}') THEN
+                CREATE ROLE {_ident(_NEW_FLOOR)} NOLOGIN;
+            END IF;
+        END $$;
+        """
+    )
+    if _role_oid(bind, _OLD_FLOOR) is None:
+        op.execute(f"GRANT USAGE ON SCHEMA public TO {_ident(_NEW_FLOOR)}")
+        return
+    _move_privileges(bind, _OLD_FLOOR, _NEW_FLOOR, members=guild_roles)
+    _drop_role_if_unheld(_OLD_FLOOR)
 
 
 def _converge_role(bind: Connection, old: str, new: str) -> None:
@@ -656,6 +692,7 @@ def upgrade() -> None:
     op.execute(_SECRET_FIELDS_FUNCTION)
 
     prefix = _guild_role_prefix()
+    guild_roles: list[str] = []
     for schema in guild_schema_names(bind):
         _rename_tables_and_columns(bind, schema, _GUILD_TABLES, _GUILD_COLUMNS)
         _rename_derived_names(bind, schema)
@@ -663,16 +700,14 @@ def upgrade() -> None:
         _replace_guild_triggers(bind, schema)
         if schema != "guild_template":
             guild_id = schema.removeprefix("guild_")
-            _converge_role(
-                bind,
-                f"{prefix}guild_{guild_id}_app",
-                f"{prefix}guild_{guild_id}_plugin",
-            )
+            guild_role = f"{prefix}guild_{guild_id}_plugin"
+            _converge_role(bind, f"{prefix}guild_{guild_id}_app", guild_role)
+            guild_roles.append(guild_role)
 
     op.execute("DROP FUNCTION IF EXISTS public.fn_place_following_apps()")
     op.execute("DROP FUNCTION IF EXISTS public.fn_app_secret_fields()")
 
-    _converge_role(bind, _OLD_FLOOR, _NEW_FLOOR)
+    _move_floor(bind, guild_roles)
 
     _respell_public_values(bind)
     for schema in guild_schema_names(bind):

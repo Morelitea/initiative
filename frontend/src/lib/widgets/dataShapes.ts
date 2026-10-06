@@ -77,7 +77,7 @@ export interface TabularData {
  * URL, so an app cannot turn its own rows into rendering.
  */
 export interface PluginRows {
-  source: "app";
+  source: "plugin";
   /** One entry per index across the endpoint's `list` returns. */
   rows: Record<string, unknown>[];
   /** The endpoint's single-valued returns, once. */
@@ -104,7 +104,7 @@ export interface DataMeta {
 export type WidgetData = (TabularData | PluginRows) & { meta?: DataMeta };
 
 /** What a *binding* may name — as distinct from the envelope it produces. */
-export type WidgetSource = "query" | "sheet_range" | "app";
+export type WidgetSource = "query" | "sheet_range" | "plugin";
 
 /** Widget-level display options, already validated by the backend against the
  *  primitive's allow-list (`WIDGET_SPECS[...].options`). Values are strings —

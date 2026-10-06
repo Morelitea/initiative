@@ -39,23 +39,23 @@ import { getErrorMessage } from "@/lib/errorMessage";
 import { toast } from "@/lib/mascotToast";
 import { localized } from "@/lib/widgets/widgetMeta";
 
-export function PluginUpdatesPanel({ app }: { app: CommunityPluginDetail }) {
-  const { t } = useTranslation(["apps", "common"]);
-  const update = useUpdateCommunityPlugin(app.id);
-  const upgrade = useUpgradePlugin(app.id);
-  const pending = app.update_version ?? null;
-  const asks = app.pending_update ?? null;
+export function PluginUpdatesPanel({ plugin }: { plugin: CommunityPluginDetail }) {
+  const { t } = useTranslation(["plugins", "common"]);
+  const update = useUpdateCommunityPlugin(plugin.id);
+  const upgrade = useUpgradePlugin(plugin.id);
+  const pending = plugin.update_version ?? null;
+  const asks = plugin.pending_update ?? null;
 
   return (
     <section className="space-y-3">
       <div className="flex items-center justify-between gap-4">
         <div className="space-y-0.5">
-          <p className="font-medium text-sm">{t("apps:manage.autoUpdate")}</p>
-          <p className="text-muted-foreground text-xs">{t("apps:manage.autoUpdateHelp")}</p>
+          <p className="font-medium text-sm">{t("plugins:manage.autoUpdate")}</p>
+          <p className="text-muted-foreground text-xs">{t("plugins:manage.autoUpdateHelp")}</p>
         </div>
         <Switch
-          aria-label={t("apps:manage.autoUpdate")}
-          checked={app.auto_update}
+          aria-label={t("plugins:manage.autoUpdate")}
+          checked={plugin.auto_update}
           disabled={update.isPending}
           onCheckedChange={(checked) =>
             update.mutate(
@@ -63,9 +63,9 @@ export function PluginUpdatesPanel({ app }: { app: CommunityPluginDetail }) {
               {
                 onSuccess: () =>
                   toast.success(
-                    checked ? t("apps:manage.autoUpdateOn") : t("apps:manage.autoUpdateOff")
+                    checked ? t("plugins:manage.autoUpdateOn") : t("plugins:manage.autoUpdateOff")
                   ),
-                onError: (error) => toast.error(getErrorMessage(error, "apps:error")),
+                onError: (error) => toast.error(getErrorMessage(error, "plugins:error")),
               }
             )
           }
@@ -74,7 +74,7 @@ export function PluginUpdatesPanel({ app }: { app: CommunityPluginDetail }) {
 
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-muted-foreground text-xs">
-          {t("apps:manage.version", { version: app.listing_version })}
+          {t("plugins:manage.version", { version: plugin.listing_version })}
         </span>
         {asks ? null : pending ? (
           <Button
@@ -84,20 +84,20 @@ export function PluginUpdatesPanel({ app }: { app: CommunityPluginDetail }) {
             onClick={() =>
               upgrade.mutate(undefined, {
                 onSuccess: (updated) =>
-                  toast.success(t("apps:manage.upgraded", { version: updated.listing_version })),
-                onError: (error) => toast.error(getErrorMessage(error, "apps:error")),
+                  toast.success(t("plugins:manage.upgraded", { version: updated.listing_version })),
+                onError: (error) => toast.error(getErrorMessage(error, "plugins:error")),
               })
             }
           >
             {upgrade.isPending && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
-            {t("apps:manage.upgradeTo", { version: pending })}
+            {t("plugins:manage.upgradeTo", { version: pending })}
           </Button>
         ) : (
-          <span className="text-muted-foreground text-xs">{t("apps:manage.upToDate")}</span>
+          <span className="text-muted-foreground text-xs">{t("plugins:manage.upToDate")}</span>
         )}
       </div>
 
-      {asks && <PendingUpdate pluginId={app.id} asks={asks} pluginNames={app.plugin_names} />}
+      {asks && <PendingUpdate pluginId={plugin.id} asks={asks} pluginNames={plugin.plugin_names} />}
     </section>
   );
 }
@@ -112,7 +112,7 @@ function PendingUpdate({
   asks: CommunityPluginUpgradeAsks;
   pluginNames?: PluginNames;
 }) {
-  const { t, i18n } = useTranslation(["apps", "common", "nav"]);
+  const { t, i18n } = useTranslation(["plugins", "common", "nav"]);
   const upgrade = useUpgradePlugin(pluginId);
   const decline = useDeclinePluginUpgrade(pluginId);
   const busy = upgrade.isPending || decline.isPending;
@@ -120,7 +120,7 @@ function PendingUpdate({
   /** A refusal because the offer moved says so; the panel then refreshes. */
   const failed = (error: unknown) => {
     const moved = isAxiosError(error) && error.response?.status === 409;
-    toast.error(moved ? t("apps:updates.moved") : getErrorMessage(error, "apps:error"));
+    toast.error(moved ? t("plugins:updates.moved") : getErrorMessage(error, "plugins:error"));
   };
 
   const accept = () =>
@@ -128,27 +128,27 @@ function PendingUpdate({
       { version: asks.version, add_scopes: asks.added_scopes },
       {
         onSuccess: (updated) =>
-          toast.success(t("apps:manage.upgraded", { version: updated.listing_version })),
+          toast.success(t("plugins:manage.upgraded", { version: updated.listing_version })),
         onError: failed,
       }
     );
 
   const refuse = () =>
     decline.mutate(asks.version, {
-      onSuccess: () => toast.success(t("apps:updates.declinedDone", { version: asks.version })),
+      onSuccess: () => toast.success(t("plugins:updates.declinedDone", { version: asks.version })),
       onError: failed,
     });
 
   return (
     <div className="space-y-2 rounded-md border p-3">
-      <p className="font-medium text-sm">{t("apps:updates.wants", { version: asks.version })}</p>
+      <p className="font-medium text-sm">{t("plugins:updates.wants", { version: asks.version })}</p>
       <ul className="list-disc space-y-1 pl-5 text-sm">
         {asks.added_scopes.map((scope) => (
           <li key={scope}>{scopeSentence(scope, t, pluginNames)}</li>
         ))}
         {asks.added_surfaces.map((surface) => (
           <li key={surface.id}>
-            {t("apps:updates.newSurface", {
+            {t("plugins:updates.newSurface", {
               name: localized(surface.name, i18n.language) ?? surface.id,
             })}
           </li>
@@ -156,18 +156,18 @@ function PendingUpdate({
       </ul>
       {asks.declined && (
         <p className="text-muted-foreground text-xs">
-          {t("apps:updates.declined", { version: asks.version })}
+          {t("plugins:updates.declined", { version: asks.version })}
         </p>
       )}
       <div className="flex flex-wrap gap-2">
         <Button size="sm" disabled={busy} onClick={accept}>
           {upgrade.isPending && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
-          {t("apps:updates.accept")}
+          {t("plugins:updates.accept")}
         </Button>
         {!asks.declined && (
           <Button size="sm" variant="outline" disabled={busy} onClick={refuse}>
             {decline.isPending && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
-            {t("apps:updates.decline")}
+            {t("plugins:updates.decline")}
           </Button>
         )}
       </div>

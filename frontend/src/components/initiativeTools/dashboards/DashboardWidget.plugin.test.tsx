@@ -1,6 +1,6 @@
 /**
- * An app's widget on a dashboard: where its module comes from, and what happens
- * when the app behind it does not answer.
+ * A plug-in's widget on a dashboard: where its module comes from, and what happens
+ * when the plug-in behind it does not answer.
  *
  * Three things are pinned here.
  *
@@ -9,13 +9,13 @@
  * own sample rows — and reach nothing at all. The assertion is on the transport:
  * not "it used samples", but "no request was made".
  *
- * **The module comes from the pinned definition.** An app widget's code is not in
+ * **The module comes from the pinned definition.** A plug-in widget's code is not in
  * this build's registry; it arrives with the install and is handed to the same
  * sandbox a built-in runs in. `WidgetTile.source` is that seam, and this checks
  * it is actually threaded rather than falling back to the registry (which would
  * silently render "this widget needs a newer version").
  *
- * **An unreachable app costs one tile.** Not a crash, not a blank, not a
+ * **An unreachable plug-in costs one tile.** Not a crash, not a blank, not a
  * misleading "no data" — a localized error tile, with the rest of the canvas
  * untouched.
  */
@@ -44,7 +44,7 @@ const WIDGET_TYPE = `plugin:${PLUGIN_UID}:summary`;
 const MODULE = "export const render = () => ({ scene: { kind: 'empty' } });";
 
 const binding: WidgetBinding = {
-  source: "app",
+  source: "plugin",
   plugin_uid: PLUGIN_UID,
   endpoint_id: "plugin.acme.shop.orders-summary",
 };
@@ -112,7 +112,7 @@ const mount = (props: { sampleData?: boolean; dashboardId?: number } = {}) =>
     { communities: { activeCommunityId: 2 } }
   );
 
-describe("DashboardWidget with an app source", () => {
+describe("DashboardWidget with a plug-in source", () => {
   it("runs the module the install pinned, over the rows the proxy returned", async () => {
     apiGet.mockImplementation((url: string) => {
       if (catalogUrl(url)) return Promise.resolve({ data: CATALOG });
@@ -138,7 +138,7 @@ describe("DashboardWidget with an app source", () => {
     // Both halves verbatim, plus the host's own count of the rows — nothing on
     // this side reads inside either.
     expect(call.data).toEqual({
-      source: "app",
+      source: "plugin",
       rows: [{ days: "mon", totals: 9 }],
       values: { total: 9 },
       meta: { total: 1 },
@@ -159,11 +159,11 @@ describe("DashboardWidget with an app source", () => {
       string,
       { params: Record<string, unknown> },
     ];
-    expect(url).toBe("/c/2/plugins/3/endpoints/app.acme.shop.orders-summary");
+    expect(url).toBe("/c/2/plugins/3/endpoints/plugin.acme.shop.orders-summary");
     expect(config.params.dashboard_id).toBe(11);
   });
 
-  it("draws an error tile when the app is not answering", async () => {
+  it("draws an error tile when the plug-in is not answering", async () => {
     apiGet.mockImplementation((url: string) => {
       if (catalogUrl(url)) return Promise.resolve({ data: CATALOG });
       return Promise.reject(new Error("502"));
@@ -173,7 +173,7 @@ describe("DashboardWidget with an app source", () => {
 
     expect(await screen.findByText(/not responding/i)).toBeInTheDocument();
     // The module is never run: it has nothing to draw, and running it over an
-    // empty array would claim "no data" rather than "the app is down".
+    // empty array would claim "no data" rather than "the plug-in is down".
     expect(renderWidget).not.toHaveBeenCalled();
   });
 
@@ -190,7 +190,7 @@ describe("DashboardWidget with an app source", () => {
     const call = renderWidget.mock.calls.at(-1)?.[0];
     expect(call.source).toBe(MODULE);
     expect(call.data).toEqual({
-      source: "app",
+      source: "plugin",
       rows: [{ days: "mon", totals: 4 }],
       values: { total: 4 },
     });
@@ -202,8 +202,8 @@ describe("DashboardWidget with an app source", () => {
     expect(WidgetErrorCode.PLUGIN_UNAVAILABLE).toBe("WIDGET_PLUGIN_UNAVAILABLE");
   });
 
-  it("asks for the app to be reconnected when the catalog no longer lists it", async () => {
-    // The definition is kept as-is when its app goes away; the tile is the
+  it("asks for the plug-in to be reconnected when the catalog no longer lists it", async () => {
+    // The definition is kept as-is when its plug-in goes away; the tile is the
     // surface that says so. Distinct from both the restricted state (this is
     // not an access outcome) and the unavailable state (the catalog answered).
     apiGet.mockImplementation((url: string) => {
@@ -219,9 +219,9 @@ describe("DashboardWidget with an app source", () => {
     expect(apiGet.mock.calls.every(([url]) => catalogUrl(url))).toBe(true);
   });
 
-  it("says the app is unavailable when its catalog will not load", async () => {
-    // A catalog that failed says nothing about whether the app is installed.
-    // Reading it as "not installed" would mark every app widget on the board
+  it("says the plug-in is unavailable when its catalog will not load", async () => {
+    // A catalog that failed says nothing about whether the plug-in is installed.
+    // Reading it as "not installed" would mark every plug-in widget on the board
     // unconfigured and invite someone to repoint bindings that were never wrong.
     apiGet.mockImplementation(() => Promise.reject(new Error("503")));
 

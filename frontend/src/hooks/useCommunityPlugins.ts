@@ -1,5 +1,5 @@
 /**
- * Apps installed in the current community.
+ * Plug-ins installed in the current community.
  *
  * Every member reads this — the sidebar has to know what is there — while
  * installing, renaming, disabling and removing are community-admin actions the
@@ -48,8 +48,8 @@ export const useInstallCommunityPlugin = (
   return useCommunityMutation<CommunityPluginRead, CommunityPluginInstall>(
     {
       mutationFn: (communityId, data) => installCommunityPlugin(communityId, data),
-      invalidate: () => invalidate(q.apps()),
-      errorKey: "apps:error",
+      invalidate: () => invalidate(q.plugins()),
+      errorKey: "plugins:error",
     },
     options
   );
@@ -62,8 +62,8 @@ export const useUpdateCommunityPlugin = (
   return useCommunityMutation<CommunityPluginRead, CommunityPluginUpdate>(
     {
       mutationFn: (communityId, data) => updateCommunityPlugin(communityId, pluginId, data),
-      invalidate: () => invalidate(q.apps()),
-      errorKey: "apps:error",
+      invalidate: () => invalidate(q.plugins()),
+      errorKey: "plugins:error",
     },
     options
   );
@@ -73,8 +73,8 @@ export const useUninstallCommunityPlugin = (options?: MutationOpts<void, number>
   return useCommunityMutation<void, number>(
     {
       mutationFn: (communityId, pluginId) => uninstallCommunityPlugin(communityId, pluginId),
-      invalidate: () => invalidate(q.apps()),
-      errorKey: "apps:error",
+      invalidate: () => invalidate(q.plugins()),
+      errorKey: "plugins:error",
     },
     options
   );
@@ -85,7 +85,7 @@ export interface PluginPlacementRoles {
   roleIds: number[];
 }
 
-/** Place the app in one initiative with exactly these roles. */
+/** Place the plug-in in one initiative with exactly these roles. */
 export const useSetPluginPlacementRoles = (
   pluginId: number,
   options?: MutationOpts<PluginPlacementRead, PluginPlacementRoles>
@@ -94,14 +94,14 @@ export const useSetPluginPlacementRoles = (
     {
       mutationFn: (communityId, { initiativeId, roleIds }) =>
         putCommunityPluginPlacement(communityId, pluginId, initiativeId, { role_ids: roleIds }),
-      invalidate: () => invalidate(q.apps()),
-      errorKey: "apps:error",
+      invalidate: () => invalidate(q.plugins()),
+      errorKey: "plugins:error",
     },
     options
   );
 };
 
-/** Grant the app exactly these scopes; any left out are withdrawn. */
+/** Grant the plug-in exactly these scopes; any left out are withdrawn. */
 export const useSetPluginScopes = (
   pluginId: number,
   options?: MutationOpts<CommunityPluginRead, string[]>
@@ -109,8 +109,8 @@ export const useSetPluginScopes = (
   return useCommunityMutation<CommunityPluginRead, string[]>(
     {
       mutationFn: (communityId, granted) => putCommunityPluginScopes(communityId, pluginId, { granted }),
-      invalidate: () => invalidate(q.apps()),
-      errorKey: "apps:scopes.error",
+      invalidate: () => invalidate(q.plugins()),
+      errorKey: "plugins:scopes.error",
     },
     options
   );

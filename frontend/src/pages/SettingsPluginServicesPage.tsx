@@ -30,10 +30,10 @@ const hasKeys = (registration: PluginServiceRegistrationRead): boolean =>
   (registration.jwks !== null && Object.keys(registration.jwks).length > 0);
 
 /**
- * Deployment-level app service registrations (`plugins.manage`).
+ * Deployment-level plug-in service registrations (`plugins.manage`).
  *
- * The operator edits an app's deployment facts here: its addresses, keys and
- * reach, and the kill switch. What the app is and may do comes from its
+ * The operator edits a plug-in's deployment facts here: its addresses, keys and
+ * reach, and the kill switch. What the plug-in is and may do comes from its
  * listing and is shown read-only.
  */
 export const SettingsPluginServicesPage = () => {
@@ -70,7 +70,7 @@ export const SettingsPluginServicesPage = () => {
     const origins = values.allowedOrigins.length > 0 ? values.allowedOrigins : null;
 
     if (editing) {
-      // A declarative app runs nowhere and signs nothing: it has no address,
+      // A declarative plug-in runs nowhere and signs nothing: it has no address,
       // origins or keys to send.
       const placement =
         editing.kind === "declarative"
@@ -263,7 +263,7 @@ export const SettingsPluginServicesPage = () => {
                           disabled={updateService.isPending}
                           onCheckedChange={(checked) => {
                             // Turning it back on is safe; turning it off stops
-                            // the app for every community, so that side confirms.
+                            // the plug-in for every community, so that side confirms.
                             if (checked) setEnabled(registration, true);
                             else setDisabling(registration);
                           }}

@@ -56,7 +56,9 @@ def test_an_installed_plugins_token_is_unsealed_or_refused():
         scopes=frozenset(),
         initiative_id=None,
     )
-    assert identify_token(token, HEADER_CREDENTIALS, bearer=True).plugin_token is not None
+    assert (
+        identify_token(token, HEADER_CREDENTIALS, bearer=True).plugin_token is not None
+    )
     tampered = identify_token(token[:-4] + "AAAA", HEADER_CREDENTIALS, bearer=True)
     assert tampered.refused == AuthMessages.COULD_NOT_VALIDATE_CREDENTIALS
     assert tampered.plugin_token is None

@@ -107,6 +107,6 @@ describe("emptyDataFor", () => {
   });
 
   it("gives an app binding its own empty envelope", () => {
-    expect(emptyDataFor("app")).toEqual({ source: "app", rows: [], values: {} });
+    expect(emptyDataFor("plugin")).toEqual({ source: "plugin", rows: [], values: {} });
   });
 });

@@ -1,22 +1,22 @@
 /**
- * Reading an installed app's widgets, and the rows behind one.
+ * Reading an installed plug-in's widgets, and the rows behind one.
  *
  * Two queries with deliberately different shapes.
  *
  * The **catalog** is per community and shared by every widget on the canvas: one
- * request tells the page which apps contribute widgets, which module draws each
- * one, and what each source declares. It changes only when an app is installed,
+ * request tells the page which plug-ins contribute widgets, which module draws each
+ * one, and what each source declares. It changes only when a plug-in is installed,
  * upgraded, or turned off, so it is cached generously.
  *
  * The **data** query is per widget, per viewer, and carries the dashboard the
  * widget sits on — the surface whose gates decide the read. Its `staleTime`
- * comes from the app's own `cache_ttl_seconds`, capped here as well as on the
- * server: an app asking for a day of freshness would otherwise decide how stale
+ * comes from the plug-in's own `cache_ttl_seconds`, capped here as well as on the
+ * server: a plug-in asking for a day of freshness would otherwise decide how stale
  * a dashboard may look, and the number crossing the wire is a request rather
  * than a promise.
  *
  * Two widgets bound to the same source with the same parameters share a key, so
- * a canvas showing one app's data twice issues one request — the same collapse
+ * a canvas showing one plug-in's data twice issues one request — the same collapse
  * the server does across viewers, done here across tiles.
  */
 
@@ -32,7 +32,7 @@ import {
 } from "@/api/pluginData";
 import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 
-/** The client's own ceiling on how long an app's rows are reused, in seconds.
+/** The client's own ceiling on how long a plug-in's rows are reused, in seconds.
  *  Mirrors the proxy's `MAX_CACHE_TTL_SECONDS`; both exist because a listing
  *  must not be the thing that decides. */
 export const MAX_PLUGIN_STALE_SECONDS = 300;
@@ -64,15 +64,15 @@ export const pluginDataKey = (
     JSON.stringify(Object.entries(params ?? {}).sort(([a], [b]) => (a < b ? -1 : 1))),
   ] as const;
 
-/** Which widgets this community's installed apps contribute. Enabled installs only —
- *  a disabled app's widgets have nothing to draw. */
+/** Which widgets this community's installed plug-ins contribute. Enabled installs only —
+ *  a disabled plug-in's widgets have nothing to draw. */
 export const usePluginWidgetCatalog = (enabled = true) => {
   const communityId = useActiveCommunityId();
   return useQuery<PluginWidgetCatalogResponse>({
     queryKey: pluginWidgetCatalogKey(communityId),
     queryFn: () => getPluginWidgetCatalog(communityId),
     enabled: enabled && Number.isFinite(communityId) && communityId > 0,
-    // Installing or upgrading an app invalidates this explicitly; between those
+    // Installing or upgrading a plug-in invalidates this explicitly; between those
     // it is effectively static for the page's lifetime.
     staleTime: 5 * 60_000,
   });
@@ -91,7 +91,7 @@ export interface PluginDataQuery {
   enabled?: boolean;
 }
 
-/** One app data source, for this viewer, on this dashboard. */
+/** One plug-in data source, for this viewer, on this dashboard. */
 export const usePluginData = ({
   pluginId,
   endpointId,
@@ -136,7 +136,7 @@ export const usePluginData = ({
       }),
     enabled: ready,
     staleTime: staleSeconds * 1000,
-    // An app that is down should not be hammered from every open tile, and the
+    // A plug-in that is down should not be hammered from every open tile, and the
     // tile has something useful to draw meanwhile: React Query keeps serving the
     // last good rows for the stale window while the error is shown.
     retry: false,
@@ -170,7 +170,7 @@ export interface PluginParamOptionsQuery {
 }
 
 /**
- * The values one of an app endpoint's parameters permits.
+ * The values one of a plug-in endpoint's parameters permits.
  *
  * Fetched while a form is open rather than with the canvas, because it is only
  * a form that needs it — and only for the parameters that declared a source.
