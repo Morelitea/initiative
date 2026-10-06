@@ -33,7 +33,7 @@
         },
         "scopes": {
           "type": "array",
-          "maxItems": 54,
+          "maxItems": 56,
           "uniqueItems": true,
           "items": {
             "anyOf": [
@@ -63,6 +63,8 @@
                   "relationships:write",
                   "tags:read",
                   "tags:write",
+                  "properties:read",
+                  "properties:write",
                   "sharing:read",
                   "sharing:write",
                   "members:read",

@@ -101,7 +101,10 @@ _NAMED: dict[str, PluginTableAccess] = {
     "tags": _scoped("tags"),
     "initiatives": _scoped("initiatives"),
     "initiative_roles": _scoped("initiatives"),
-    "property_definitions": _scoped("initiatives"),
+    # Also readable with any tool's scope, so a plug-in setting a value on an
+    # item can read the definitions it chooses from
+    # (``guild_ddl._plugin_predicates``).
+    "property_definitions": _scoped("properties"),
     # No scope of its own: a value takes the scope of the tool that governs the
     # row it is on, per row (``guild_ddl._property_values_scope``).
     "property_values": PluginTableAccess(PluginTableKind.scoped),
