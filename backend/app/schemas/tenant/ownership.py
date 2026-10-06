@@ -1,12 +1,14 @@
 """Payloads for the guild-admin content-ownership screens, and the owning plug-in
 a read model names."""
 
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from pydantic import ConfigDict, Field, model_validator
 
 from app.core.tools import Tool
+from app.models.tenant.resource_grant import ResourceAccessLevel
 from app.schemas.base import SanitizedBaseModel
+from app.schemas.platform.user import UserPublic
 
 
 class OwnerPluginSummary(SanitizedBaseModel):
@@ -18,6 +20,20 @@ class OwnerPluginSummary(SanitizedBaseModel):
     id: int
     name: str
     avatar_url: Optional[str] = None
+
+
+def owner_profile(row: Any) -> Optional[UserPublic]:
+    """The person holding ``row``'s owner grant, or None when nobody does or a
+    plug-in does. Read off the grants the loader brings with their users:
+    ownership is recorded there and nowhere else."""
+    for grant in getattr(row, "grants", None) or []:
+        if (
+            grant.user_id is not None
+            and grant.level == ResourceAccessLevel.owner
+            and grant.user is not None
+        ):
+            return UserPublic.model_validate(grant.user)
+    return None
 
 
 class OwnedContentItem(SanitizedBaseModel):

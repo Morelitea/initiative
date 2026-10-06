@@ -73,6 +73,7 @@ export function buildProject(overrides: Partial<ProjectRead> = {}): ProjectRead 
     owner_id: 1,
     initiative_id: 1,
     community_id: 1,
+    created_by: null,
     start_date: null,
     end_date: null,
     created_at: "2026-01-15T00:00:00.000Z",
