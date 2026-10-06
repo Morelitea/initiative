@@ -949,7 +949,7 @@ async def test_a_setup_naming_a_field_the_listing_dropped_is_refused(
     a = await acting_user()
     row = await _github_registration(session)
     started = await _start(client, a.headers, row.id)
-    await _republish(session, plugin_id="id", client_id="client_id")
+    await _republish(session, app_id="id", client_id="client_id")
 
     response = await _complete(client, a.headers, row.id, started["state"])
 

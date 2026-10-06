@@ -591,7 +591,7 @@ class TestInstallationStyleFlow:
         plugin = await _install(session, a)
 
         start = await _start(client, a, plugin, "workspace")
-        assert start["_url"].path == "/plugins/initiative-test/installations/new"
+        assert start["_url"].path == "/apps/initiative-test/installations/new"
 
         setup = await client.get(
             "/api/v1/plugin-connections/setup",

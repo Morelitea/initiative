@@ -406,10 +406,8 @@ def _mount(tool: Tool, spec: MyToolList) -> None:
             page=page,
             page_size=page_size,
         )
-        response_extras = TOOL_LISTS[tool].response_extras
-        extras = response_extras(values) if response_extras else {}
         return response_model(
-            **build_paginated_response(items, total_count, page, page_size, **extras)
+            **build_paginated_response(items, total_count, page, page_size)
         )
 
     list_rows.__signature__ = _signature(_params(tool, spec.page_size))

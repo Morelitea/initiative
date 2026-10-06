@@ -1,6 +1,7 @@
 """Migration 20260928_0414 places every existing upload in the initiative
 whose content shows it. Loaded by path and run on a guild the test builds, the
-way ``role_permission_backfill_migration_test`` runs its revision."""
+way ``role_permission_backfill_migration_test`` runs its revision, after
+20261005_0459's downgrade puts back the file columns it reads."""
 
 from __future__ import annotations
 
@@ -9,6 +10,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from types import ModuleType
 
+from alembic.migration import MigrationContext
+from alembic.operations import Operations
+from sqlalchemy import text
 from sqlmodel import select
 
 from app.core.config import settings
@@ -28,16 +32,13 @@ from app.testing import (
 )
 from app.testing.schema_harness import route_session_to_guild
 
-_MIGRATION = (
-    Path(__file__).resolve().parents[2]
-    / "alembic"
-    / "versions"
-    / "20260928_0414_an_upload_belongs_to_an_initiative.py"
-)
+_VERSIONS = Path(__file__).resolve().parents[2] / "alembic" / "versions"
+_MIGRATION = _VERSIONS / "20260928_0414_an_upload_belongs_to_an_initiative.py"
+_FILE_VERSIONS = _VERSIONS / "20261005_0459_file_versions_by_pointer.py"
 
 
-def _load() -> ModuleType:
-    spec = importlib.util.spec_from_file_location(_MIGRATION.stem, _MIGRATION)
+def _load(path: Path = _MIGRATION) -> ModuleType:
+    spec = importlib.util.spec_from_file_location(path.stem, path)
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -83,7 +84,18 @@ async def test_the_backfill_places_copies_and_leaves_alone(
     await create_calendar_event(session, calendar, user, description=shows("guild.png"))
 
     schema = f"guild_{guild.id}"
-    await session.run_sync(lambda s: _load()._place(s.connection(), schema))
+
+    def place(sync_session) -> None:
+        bind = sync_session.connection()
+        bind.execute(
+            text("SELECT set_config('search_path', :sp, true)"),
+            {"sp": f"{schema}, public"},
+        )
+        with Operations.context(MigrationContext.configure(bind)):
+            _load(_FILE_VERSIONS)._apply_downgrade()
+        _load()._place(bind, schema)
+
+    await session.run_sync(place)
     await session.commit()
 
     await route_session_to_guild(session, guild.id)
