@@ -25,9 +25,9 @@ interface DashboardCardProps {
 const PREVIEW_WIDTH = 1200;
 
 /**
- * The dashboard itself, shrunk to the card: its canvas and its query widgets'
- * answers as the list sent them, every other widget from sample data. It is a
- * picture: nothing in it can be clicked, and it fetches nothing.
+ * The dashboard's layout, shrunk to the card and blurred: every widget draws
+ * from sample data, so the card shows the dashboard's shape and none of its
+ * numbers. It is a picture: nothing in it can be clicked, and it fetches nothing.
  */
 const DashboardPreview = ({
   dashboard,
@@ -59,7 +59,7 @@ const DashboardPreview = ({
     >
       {scale > 0 ? (
         <div
-          className="absolute top-0 left-0 origin-top-left p-4"
+          className="absolute top-0 left-0 origin-top-left p-4 blur-[6px]"
           style={{ width: PREVIEW_WIDTH, transform: `scale(${scale})` }}
         >
           <DashboardCanvas
@@ -69,7 +69,7 @@ const DashboardPreview = ({
             initiativeId={dashboard.initiative_id}
             dashboardId={dashboard.id}
             canEdit={false}
-            previewAnswers={preview.widgets}
+            sampleData
             onLayoutChange={() => {}}
           />
         </div>

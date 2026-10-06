@@ -530,7 +530,7 @@ async def canvas_widget_data(
     session: AsyncSession, dashboard: Dashboard, guild_id: int
 ) -> dict[str, DashboardWidgetData]:
     """Every query widget on a dashboard the reader may already read, answered
-    together: the canvas route's work, and a list's preview of each row.
+    together: the canvas route's work.
 
     Raises :class:`query_service.QueryError` when the canvas as a whole is
     refused; a single widget's refusal is its own entry."""

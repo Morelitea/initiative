@@ -3540,16 +3540,13 @@ export type DashboardPreviewDefinition = { [key: string]: unknown };
 
 export type DashboardPreviewConfig = { [key: string]: unknown };
 
-export type DashboardPreviewWidgets = { [key: string]: DashboardWidgetData };
-
 /**
- * A dashboard as a list's card draws it: its canvas and its query widgets'
- * answers. Widgets bound to anything else draw from sample data there.
+ * A dashboard as a list's card draws it: its canvas alone. Every widget
+ * draws from sample data there, so a list runs none of their queries.
  */
 export interface DashboardPreview {
   definition: DashboardPreviewDefinition;
   config: DashboardPreviewConfig;
-  widgets: DashboardPreviewWidgets;
 }
 
 export interface DashboardSummary {

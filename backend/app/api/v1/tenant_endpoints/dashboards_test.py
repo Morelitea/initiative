@@ -138,6 +138,8 @@ async def test_list_and_read_dashboard(client: AsyncClient, acting_user, session
     )
     preview = previewed.json()["items"][0]["preview"]
     assert preview["definition"]["widgets"][0]["type"] == "stat"
+    # Its widgets draw from sample data, so the list answers none of them.
+    assert set(preview) == {"definition", "config"}
 
     detail = await client.get(a.g(f"/dashboards/{dashboard.id}"), headers=a.headers)
     assert detail.status_code == 200
