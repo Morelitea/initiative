@@ -12,6 +12,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { buildUser } from "@/__tests__/factories";
 import { server } from "@/__tests__/helpers/msw-server";
 import { buildRouterContext, renderPage } from "@/__tests__/helpers/render";
+import { asPhoneThatMayNotSell } from "@/__tests__/helpers/storeSelling";
 import { StartFlow } from "@/components/start/StartFlow";
 import { catalogUrl } from "@/hooks/useBillingCatalog";
 import { clearStart, readPendingStart } from "@/lib/startFlow";
@@ -81,13 +82,15 @@ const register = vi.fn();
 /** The seeds the suggestions were asked for, in order. */
 const suggestionSeeds: (string | null)[] = [];
 
-const renderStart = (options: { inviteCode?: string; native?: boolean } = {}) =>
-  renderPage(StartPage, {
+const renderStart = (options: { inviteCode?: string; native?: boolean } = {}) => {
+  if (options.native) asPhoneThatMayNotSell();
+  return renderPage(StartPage, {
     initialRoute: "/start",
     routerSearch: options.inviteCode ? { invite_code: options.inviteCode } : undefined,
     auth: { user: null, token: null, register },
     server: { isNativePlatform: options.native ?? false },
   });
+};
 
 const heading = (name: string | RegExp) => screen.findByRole("heading", { name });
 const press = (name: string | RegExp) => userEvent.click(screen.getByRole("button", { name }));
@@ -285,6 +288,7 @@ describe("signed in, making another community in the native app", () => {
       config: { headers: new AxiosHeaders() },
     };
     const createCommunity = vi.fn().mockRejectedValue(refused);
+    asPhoneThatMayNotSell();
     renderPage(() => <StartFlow signedIn />, {
       initialRoute: "/",
       auth: { user: buildUser({ age_confirmed_at: "2026-01-01T00:00:00Z" }) },

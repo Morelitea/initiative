@@ -1,7 +1,7 @@
 /**
  * Plans, as the billing portal describes them.
  *
- * Only on a deployment with a billing portal, and never in the phone app;
+ * Only on a deployment with a billing portal, on a device that may sell;
  * anywhere else the address goes back to the front page. The plans themselves
  * are the portal's grid, framed (`PricingGridFrame`): the same cards in the
  * same steps as the portal's own pricing page, in the reader's language and
@@ -38,7 +38,7 @@ export const PricingPage = () => {
   const { billing, isLoading, sellsPlans, catalog, registrationOpen } = useFrontDoor();
   usePageMeta(t("meta.pricingTitle"), catalog.data?.subhead ?? t("meta.pricingDescription"));
 
-  // Nothing to sell here (no portal, or the phone app): the front page instead.
+  // Nothing to sell here (no portal, or a device that may not): the front page instead.
   if (!isLoading && !sellsPlans) {
     return <Navigate to="/welcome" replace />;
   }

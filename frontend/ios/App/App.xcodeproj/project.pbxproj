@@ -18,6 +18,7 @@
 		CA9211110000000000000B01 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = CA9211110000000000000A01 /* PrivacyInfo.xcprivacy */; };
 		7A1C0E5B2F4D3A1E00C0F002 /* MainViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1C0E5B2F4D3A1E00C0F001 /* MainViewController.swift */; };
 		7A1C0E5B2F4D3A1E00C0F004 /* FirebaseRuntimePlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1C0E5B2F4D3A1E00C0F003 /* FirebaseRuntimePlugin.swift */; };
+		3E9D41C7A2B85F0D6C1E7A02 /* AppEnvironmentPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E9D41C7A2B85F0D6C1E7A01 /* AppEnvironmentPlugin.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -34,6 +35,7 @@
 		958DCC722DB07C7200EA8C5F /* debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = debug.xcconfig; path = ../debug.xcconfig; sourceTree = SOURCE_ROOT; };
 		7A1C0E5B2F4D3A1E00C0F001 /* MainViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainViewController.swift; sourceTree = "<group>"; };
 		7A1C0E5B2F4D3A1E00C0F003 /* FirebaseRuntimePlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirebaseRuntimePlugin.swift; sourceTree = "<group>"; };
+		3E9D41C7A2B85F0D6C1E7A01 /* AppEnvironmentPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppEnvironmentPlugin.swift; sourceTree = "<group>"; };
 		7A1C0E5B2F4D3A1E00C0F005 /* App.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = App.entitlements; sourceTree = "<group>"; };
 		7A1C0E5B2F4D3A1E00C0F00C /* AppRelease.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = AppRelease.entitlements; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -74,6 +76,7 @@
 				504EC3071FED79650016851F /* AppDelegate.swift */,
 				7A1C0E5B2F4D3A1E00C0F001 /* MainViewController.swift */,
 				7A1C0E5B2F4D3A1E00C0F003 /* FirebaseRuntimePlugin.swift */,
+				3E9D41C7A2B85F0D6C1E7A01 /* AppEnvironmentPlugin.swift */,
 				7A1C0E5B2F4D3A1E00C0F005 /* App.entitlements */,
 				7A1C0E5B2F4D3A1E00C0F00C /* AppRelease.entitlements */,
 				504EC30B1FED79650016851F /* Main.storyboard */,
@@ -195,6 +198,7 @@
 				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
 				7A1C0E5B2F4D3A1E00C0F002 /* MainViewController.swift in Sources */,
 				7A1C0E5B2F4D3A1E00C0F004 /* FirebaseRuntimePlugin.swift in Sources */,
+				3E9D41C7A2B85F0D6C1E7A02 /* AppEnvironmentPlugin.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

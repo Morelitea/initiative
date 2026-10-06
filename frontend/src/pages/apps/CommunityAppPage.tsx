@@ -14,6 +14,11 @@
  *    one rather than being stuck until the page is reloaded.
  * 5. The frame is granted the browser features the surface's manifest declared,
  *    and no others.
+ *
+ * The handoff also carries `sells`: whether this host may lead anyone to a
+ * purchase here (a billing portal is configured, and this device may sell —
+ * see `@/lib/storeSelling`). An embedded app hides its own purchase copy when
+ * it is false.
  */
 
 import { Loader2 } from "lucide-react";
@@ -30,6 +35,7 @@ import {
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { useAuth } from "@/hooks/useAuth";
+import { useBillingPortal } from "@/hooks/useBillingPortal";
 import { effectiveThemeColors } from "@/hooks/useColorTheme";
 import { useCommunityAppDetail } from "@/hooks/useCommunityAppDetail";
 import { useTheme } from "@/hooks/useTheme";
@@ -151,6 +157,9 @@ export function CommunityAppPage({ appId, initiativeId }: CommunityAppPageProps)
   themeRef.current = resolvedTheme;
   const themeColorsRef = useRef(themeColors);
   themeColorsRef.current = themeColors;
+  const { canSell } = useBillingPortal();
+  const sellsRef = useRef(canSell);
+  sellsRef.current = canSell;
 
   useEffect(() => {
     if (!origin || !handoff) return;
@@ -173,6 +182,7 @@ export function CommunityAppPage({ appId, initiativeId }: CommunityAppPageProps)
           locale: localeRef.current,
           theme: themeRef.current,
           theme_colors: themeColorsRef.current,
+          sells: sellsRef.current,
         },
         // Never "*": that would hand the token to whatever happens to be
         // loaded in the frame.

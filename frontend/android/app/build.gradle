@@ -100,6 +100,10 @@ dependencies {
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
     implementation project(':capacitor-cordova-android-plugins')
 
+    // Play billing country, to decide whether a Play install may link to the web for plans.
+    // Only getBillingConfigAsync is used; nothing is bought through Play.
+    implementation 'com.android.billingclient:billing:8.0.0'
+
     // Firebase for runtime initialization (push notifications)
     implementation platform('com.google.firebase:firebase-bom:33.7.0')
     implementation 'com.google.firebase:firebase-messaging'

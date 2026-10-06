@@ -110,8 +110,8 @@ const CreateCommunityButton = ({ expanded = false }: { expanded?: boolean }) => 
     } catch (err) {
       billingTab?.close();
       console.error(err);
-      // The server's own line for this sends them to choose a plan, which the
-      // phone app may not do; there it only says why.
+      // The server's own line for this sends them to choose a plan, which a
+      // device that may not sell cannot offer; there it only says why.
       const message =
         !canSell && getErrorCode(err) === "FREE_COMMUNITY_ALREADY_HELD"
           ? t("freeCommunityHeldInApp")

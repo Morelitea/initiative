@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Plans can be changed from the phone apps where the store allows it.** The iPhone app on the US App Store, and the Android app from Google Play in the US, UK, Australia and the EEA, open the billing portal in your browser. Elsewhere the apps still show your plan without offering to change it, and apps embedded in a community are told so too. An Android app installed outside Google Play works like the web.
 - **The pricing page shows the billing portal's own plan cards**, in your language and your currency, laid out the same as on the portal.
 - **App and API integrations may need updating.** See [#2472](https://github.com/Morelitea/initiative/issues/2472). The `route` label of `initiative_page_views_total` now reads `/c/$communityId/…`.
 - **Accounts no longer have a name.** You're your handle, or the display name you set in a community. Saved names are deleted on upgrade. **Server operators:** `FIRST_OWNER_FULL_NAME` is ignored.

@@ -34,6 +34,8 @@ vi.mock("@/hooks/useCommunityBillingSummary", () => ({
   useCommunityBillingSummary: () => ({ data: state.summary, isError: state.summaryError }),
 }));
 
+import { asPhoneThatMayNotSell } from "@/__tests__/helpers/storeSelling";
+
 import { CommunityBillingPanel } from "./CommunityBillingPanel";
 
 const EMPTY: CommunityBillingSummaryRead = {
@@ -213,6 +215,7 @@ describe("CommunityBillingPanel", () => {
   });
 
   it("shows the plan in the phone app without anything to buy", () => {
+    asPhoneThatMayNotSell();
     const phone = { server: { isNativePlatform: true } };
     const trialEnd = dayFromToday(3);
     state.summary = { ...EMPTY, tier_name: "Gold", trial_ends_on: trialEnd };

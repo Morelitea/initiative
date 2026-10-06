@@ -421,7 +421,9 @@
     "errorTitle": "No se pudo abrir la facturación",
     "error": "No se pudo abrir el portal de facturación. Vuelve a probar el enlace en un momento.",
     "nativeTitle": "No disponible en la app",
-    "nativeDescription": "Los cambios de plan no están disponibles en la app."
+    "nativeDescription": "Los cambios de plan no están disponibles en la app.",
+    "openedTitle": "Abierto en tu navegador",
+    "openedDescription": "El portal de facturación está abierto en tu navegador."
   },
   "usagePanel": {
     "title": "Uso",
