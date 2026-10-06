@@ -7,8 +7,9 @@ else:
 * :class:`RelationshipType` — the primitives, each with a fixed reading;
 * :class:`RelationshipSpec` — what is TRUE of each one, in the standard
   vocabulary of binary relations;
-* :data:`ENDPOINT_KINDS` — what may sit on either end, and the permanent code
-  that turns a ``(kind, id)`` pair into one integer.
+* :data:`ENDPOINT_KINDS` — what may sit on either end, and how a ``(kind,
+  id)`` pair becomes one integer (the permanent codes are the kinds' own, in
+  :data:`app.core.tools.KINDS`).
 
 It is dependency-free (no models, no SQLAlchemy) so ``app.db``'s registry layer
 can import it alongside :mod:`app.core.tools`, the same way
@@ -26,7 +27,7 @@ from enum import Enum
 
 from app.core.references import REFERENCEABLE_TYPES
 from app.core.search import SearchEntityType
-from app.core.tools import plural_of
+from app.core.tools import KINDS, Kind
 
 
 class RelationshipType(str, Enum):
@@ -171,58 +172,11 @@ class Provenance(str, Enum):
 PROVENANCES: tuple[Provenance, ...] = tuple(Provenance)
 
 
-@dataclass(frozen=True)
-class EndpointKind:
-    """A kind of thing an edge may name, and how it is addressed.
-
-    ``code`` is **permanent**. It is the high bits of every node id derived from
-    this kind, so changing one silently re-encodes every stored row of that kind
-    while leaving the old rows behind: no error, no drift test in the database,
-    just two encodings of the same thing. Codes are assigned once, never
-    reordered, never reused — the discipline an announcement slug takes, for the
-    same reason.
-    """
-
-    kind: SearchEntityType
-    code: int
-
-    @property
-    def table(self) -> str:
-        """The guild-schema table ids of this kind point at."""
-        return plural_of(self.kind.value)
-
-
-#: Permanent kind codes. Append-only: a new kind takes the next unused number,
-#: and no existing number ever moves. The initial set was assigned in
-#: alphabetical order, which is where the resemblance to alphabetical order
-#: ends — sorting is not how these are derived, because a derived ordinal
-#: changes under you the first time a member is added in the middle.
-_KIND_CODES: dict[str, int] = {
-    "calendar": 1,
-    "calendar_event": 2,
-    "counter": 3,
-    "counter_group": 4,
-    "dashboard": 5,
-    "document": 6,
-    "gallery": 7,
-    "gallery_image": 8,
-    "post": 9,
-    "project": 10,
-    "queue": 11,
-    "queue_item": 12,
-    "tag": 13,
-    "task": 14,
-    "wiki": 15,
-    "wiki_page": 16,
-}
-
 #: What may sit on either end of an edge, keyed by kind. Derived from
 #: ``REFERENCEABLE_TYPES`` — if a reference can name it, an edge can too, and
 #: the resolvers a reference already needs are the ones an endpoint needs.
-ENDPOINT_KINDS: dict[SearchEntityType, EndpointKind] = {
-    kind: EndpointKind(kind=kind, code=_KIND_CODES[kind.value])
-    for kind in REFERENCEABLE_TYPES
-    if kind.value in _KIND_CODES
+ENDPOINT_KINDS: dict[SearchEntityType, Kind] = {
+    kind: KINDS[kind.value] for kind in REFERENCEABLE_TYPES
 }
 
 #: The CHECK constraint's vocabulary, in a stable order.

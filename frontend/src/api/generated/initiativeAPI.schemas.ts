@@ -4861,11 +4861,11 @@ export const EntityType = {
   queue_item: "queue_item",
   calendar_event: "calendar_event",
   counter: "counter",
+  gallery_image: "gallery_image",
+  wiki_page: "wiki_page",
   comment: "comment",
   initiative: "initiative",
   tag: "tag",
-  gallery_image: "gallery_image",
-  wiki_page: "wiki_page",
 } as const;
 
 export type EnvelopeImportRequestEnvelope = { [key: string]: unknown };

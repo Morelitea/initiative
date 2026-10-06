@@ -39,6 +39,28 @@ def test_every_builtin_role_answers_for_every_permission_key():
         assert set(role_permissions) == set(PermissionKey)
 
 
+def test_kinds_keep_their_codes_and_live_where_their_sharing_says():
+    """Codes are the high bits of every stored node id.
+
+    Changing one silently re-encodes a kind: rows written before keep the old
+    value, rows after get the new one, and nothing errors. This is the test that
+    holds that rule, because the database cannot. A kind inside a tool names
+    the tool whose sharing the policies already gate it by.
+    """
+    from app.core.tools import KINDS
+    from app.db.initiative_rls import governing_path
+
+    codes = [kind.code for kind in KINDS.values()]
+    assert len(codes) == len(set(codes))
+    assert all(code > 0 for code in codes)
+    for kind in KINDS.values():
+        if kind.parent is not None:
+            assert governing_path(kind.table) == (
+                kind.parent,
+                ((kind.parent_column, kind.parent.plural),),
+            ), kind.value
+
+
 def test_every_tool_has_an_initiative_master_switch():
     # EVERY tool has an initiative-level `{plural}_enabled` master switch (model
     # column + read/create/update schema fields) — projects and documents
