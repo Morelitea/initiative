@@ -53,6 +53,7 @@ def maximal_manifest() -> dict:
         },
         "features": ["endpoints", "widgets", "embeds", "dashboards"],
         "default_name": "Acme Tracker",
+        "minimum_age": {"default": 16, "US": 13},
         "vendor": {
             "label": {"en": "Acme client"},
             "fields": [
@@ -155,6 +156,10 @@ def maximal_manifest() -> dict:
                         "label": {"en": "Labels"},
                         "list": True,
                     },
+                    # A figure counted against its ceiling, so a summary can
+                    # draw the two as one measure.
+                    {"key": "used", "type": "int", "of": "allowed"},
+                    {"key": "allowed", "type": "int"},
                 ],
                 "group": "reports",
                 "needs_subject": "tasks",
@@ -523,7 +528,9 @@ def _nodes(published: dict, declarative: dict) -> list[tuple[str, dict]]:
         # measured together.
         ("endpoint", {**read, **written, **listed, **labelled}),
         ("endpointParam", read["params"][0]),
-        ("endpointReturn", read["returns"][0]),
+        # `list` and `of` never share a return: a list has no one figure to
+        # count against anything.
+        ("endpointReturn", {**read["returns"][0], **read["returns"][2]}),
         ("widget", widget),
         ("embed", published["embeds"][0]),
         ("bundledDashboard", dashboard),

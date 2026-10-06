@@ -254,7 +254,9 @@
     "graphqlLength": 16384,
     "expressionTimeMs": 1000,
     "expressionDepth": 500,
-    "expressionOutputBytes": 1048576
+    "expressionOutputBytes": 1048576,
+    "minimumAgeRegions": 64,
+    "minimumAgeYears": 21
   },
   "defs": {
     "identifier": {
@@ -627,6 +629,10 @@
         "list": {
           "type": "boolean",
           "description": "Several values rather than one. It matters to a consumer with somewhere to put exactly one \u2014 a form field, a tile's number \u2014 which is why it is a flag rather than a second set of types."
+        },
+        "of": {
+          "ref": "identifier",
+          "description": "Another return of this same endpoint that this one is counted against: 'used' of 'allowed', so a consumer can draw the pair as one measure. Both must be single 'int' returns, and a return is never counted against itself. The other return answering null means there is no ceiling, and the figure stands alone. Absent: a figure in its own right \u2014 a balance, a tally, a date it resets."
         }
       }
     },
@@ -1812,6 +1818,21 @@
       "default_name": {
         "type": "string",
         "maxLength": "nameLength"
+      },
+      "minimum_age": {
+        "type": "object",
+        "minProperties": 1,
+        "maxProperties": "minimumAgeRegions",
+        "propertyNames": {
+          "type": "string",
+          "pattern": "^(default|[A-Z]{2})$"
+        },
+        "additionalProperties": {
+          "type": "integer",
+          "minimum": 13,
+          "maximum": "minimumAgeYears"
+        },
+        "description": "How old somebody must be to use this plug-in, by where they are. Keys are ISO 3166-1 alpha-2 country codes, upper case, and 'default' for every country not listed: {\"default\": 16, \"US\": 13}. The age of digital consent differs by country, inside the EU as well as outside it, which is why a region is a country rather than a regime. Absent, or a country with no entry and no 'default': the deployment's own minimum applies. A declaration, not a gate: whether a deployment enforces it, and how it learns somebody's age and country, are its decisions. At most {minimumAgeRegions} entries, each from 13 to {minimumAgeYears}."
       },
       "hosts": {
         "type": "array",

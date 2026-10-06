@@ -25,6 +25,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Push notifications without Firebase.** Turn on **Send push notifications** and leave the rest empty: your server registers itself once with Morelitea's push relay and sends through it. iPhone pushes always go through the relay; with your own Firebase service account, Android pushes still go straight to Firebase. The relay passes the text on and never keeps it. See **Running a server › Push notifications**.
 - **A timeline can be drawn in years.**
 - **Close an event's RSVP.** Under an event's **Settings → Attendees**, turn off **Anyone who can see it may RSVP** and only the attendees you add can answer. On, as before, answering adds you to the attendees. A repeating event's occurrences follow the series.
+- **Plug-ins can show your community's usage** on **Community settings › Usage**, below storage and members.
+- **A plug-in's listing shows its minimum age** where it declares one, for the country your browser is set to.
 
 ### Changed
 
