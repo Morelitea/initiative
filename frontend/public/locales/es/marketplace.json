@@ -1,6 +1,7 @@
 {
   "title": "Mercado",
   "subtitle": "Paneles listos para usar que puedes añadir a una iniciativa.",
+  "subtitleProjects": "Proyectos listos para usar que puedes copiar en una iniciativa. Cada instalación es un proyecto nuevo y tuyo.",
   "searchPlaceholder": "Buscar en el mercado…",
   "backToMarketplace": "Volver al mercado",
   "browse": "Explorar el mercado",
@@ -35,6 +36,15 @@
     "notAvailableHere": "No disponible en esta aplicación",
     "notAvailableHereDescription": "Este anuncio no forma parte del catálogo que ofrece esta aplicación."
   },
+  "projectPreview": {
+    "showing": "Mostrar el proyecto en blanco o el ejemplo",
+    "blank": "En blanco",
+    "example": "Ejemplo",
+    "day": "Día {{day}}",
+    "week": "Semana {{week}}",
+    "noTasks": "Sin tareas",
+    "properties": "Propiedades"
+  },
   "install": {
     "title": "Añadir {{name}}",
     "description": "Elige dónde va. Puedes renombrarlo ahora o más tarde.",
@@ -43,7 +53,13 @@
     "action": "Añadir",
     "done": "{{name}} añadido.",
     "failed": "No se pudo añadir ese elemento.",
-    "noInitiatives": "Todavía no puedes crear paneles en ninguna iniciativa. Pide acceso a una persona responsable de la iniciativa."
+    "noInitiatives": "Todavía no puedes añadir esto a ninguna iniciativa. Pide acceso a una persona responsable de la iniciativa.",
+    "descriptionCopy": "Elige dónde va. Llega como tu propia copia, que luego puedes renombrar y cambiar.",
+    "startFrom": "Desde dónde empezar",
+    "startBlank": "Empezar en blanco",
+    "startExample": "Empezar desde el ejemplo",
+    "startsOn": "Fecha de inicio",
+    "startsOnHelp": "Sus fechas se mueven para que la más temprana caiga en este día."
   },
   "update": {
     "available": "Versión {{version}} disponible",

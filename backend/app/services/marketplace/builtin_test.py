@@ -22,6 +22,7 @@ import pathlib
 import pytest
 from sqlmodel import select
 
+from app.models.platform.guild import CommunityRole
 from app.models.platform.marketplace import MarketplaceListing
 from app.services.marketplace import catalog as catalog_service
 from app.services.marketplace.builtin import (
@@ -32,6 +33,7 @@ from app.services.query import resolve
 from app.services.tenant.dashboard_definition import WIDGET_SPECS
 from app.services.marketplace.definitions import (
     RESERVED_PUBLIC_ID_PREFIX,
+    TOOL_LISTING_KINDS,
     normalize_publisher,
     normalize_listing_definition,
 )
@@ -158,6 +160,39 @@ class TestShippedManifests:
                 session, listing
             )
             assert version is not None, f"{listing.public_id} is not installable"
+
+    async def test_every_shipped_tool_listing_installs(
+        self, client, acting_user, session
+    ):
+        """Validating reads a listing's shape; only installing runs the
+        importer, which is what places its repeat rules and select values."""
+        await seed_builtin_listings(session)
+        await session.commit()
+        actor = await acting_user(guild_role=CommunityRole.member, initiative=True)
+        for tool in TOOL_LISTING_KINDS.values():
+            setattr(actor.initiative, tool.view_permission, True)
+        session.add(actor.initiative)
+        await session.commit()
+
+        for manifest in load_builtin_manifests():
+            if manifest["kind"] not in TOOL_LISTING_KINDS:
+                continue
+            for start_from in (
+                ("blank", "example") if manifest.get("example") else ("blank",)
+            ):
+                response = await client.post(
+                    actor.g(f"/marketplace/listings/by-uid/{manifest['uid']}/install"),
+                    json={
+                        "initiative_id": actor.initiative.id,
+                        "start_from": start_from,
+                    },
+                    headers=actor.headers,
+                )
+                assert response.status_code == 201, (
+                    manifest["public_id"],
+                    start_from,
+                    response.text,
+                )
 
 
 class TestWithdrawingWhatIsNoLongerShipped:

@@ -10,12 +10,26 @@
  * Everyone reads the same page. What changes is the ending: only the
  * superadmin adds a plug-in, so anyone else is told who can instead of being
  * offered a button that would be refused.
+ *
+ * A project listing is drawn from the listing alone, and installing it is a
+ * copy into an initiative the viewer may create projects in.
  */
 import { Capacitor } from "@capacitor/core";
-import { screen } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { format } from "date-fns";
+import { HttpResponse } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { communityCan } from "@/__tests__/factories";
+import {
+  buildInitiative,
+  buildMarketplaceListingDetail,
+  buildProjectListingEnvelope,
+  communityCan,
+  initiativeCan,
+} from "@/__tests__/factories";
+import { communityHttp } from "@/__tests__/helpers/communityHttp";
+import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
 import type { MarketplaceListingDetail } from "@/api/generated/initiativeAPI.schemas";
 
@@ -30,10 +44,14 @@ let installsState: "ready" | "loading" | "error" = "ready";
 vi.mock("@/hooks/useMarketplace", () => ({
   useMarketplaceListing: () => ({ data: listing, isError: failed }),
 }));
-vi.mock("@/hooks/useDashboards", () => ({ useWidgetCatalog: () => ({ data: undefined }) }));
+vi.mock("@/hooks/useDashboards", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/hooks/useDashboards")>()),
+  useWidgetCatalog: () => ({ data: undefined }),
+}));
 vi.mock("@/hooks/useCommunities", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/hooks/useCommunities")>()),
   useCommunities: () => ({
+    activeCommunityId: 1,
     activeCommunity: { role: communityRole, can: communityCan(communityRole) },
   }),
 }));
@@ -243,5 +261,111 @@ describe("MarketplaceListingPage", () => {
     renderPage(MarketplaceListingPage, { routerSearch: { kind: "plugin" } });
 
     expect(await screen.findByRole("heading", { name: "Community calendar" })).toBeInTheDocument();
+  });
+});
+
+describe("a project listing", () => {
+  const projectListing = (overrides: Partial<MarketplaceListingDetail> = {}) =>
+    buildMarketplaceListingDetail({
+      uid: "LAUNCH00000001",
+      kind: "project",
+      name: "Launch plan",
+      definition: { ...buildProjectListingEnvelope() },
+      ...overrides,
+    });
+
+  it("draws the board from the listing alone", async () => {
+    const envelope = buildProjectListingEnvelope();
+    listing = projectListing({
+      // Stored out of order: the columns follow their positions.
+      definition: { ...envelope, task_statuses: [...envelope.task_statuses].reverse() },
+    });
+    renderPage(MarketplaceListingPage, { routerSearch: { kind: "project" } });
+
+    const columns = await screen.findAllByRole("region");
+    expect(columns.map((column) => column.getAttribute("aria-label"))).toEqual([
+      "To do",
+      "Doing",
+      "Done",
+    ]);
+    const todo = within(columns[0]);
+    expect(todo.getByText("Draft the announcement")).toBeInTheDocument();
+    // Dates read from the earliest one, since installing moves them all.
+    expect(todo.getByText("Due: Day 3")).toBeInTheDocument();
+    expect(todo.getByText("Due: Week 4")).toBeInTheDocument();
+    expect(todo.getByText("High")).toBeInTheDocument();
+    expect(todo.getByText("1/2 items")).toBeInTheDocument();
+    expect(todo.getByText("Small")).toBeInTheDocument();
+    expect(screen.getByText("Small, Large")).toBeInTheDocument();
+    // Nothing to switch to without an example.
+    expect(screen.queryByRole("radio", { name: "Example" })).toBeNull();
+  });
+
+  it("switches the preview to the example", async () => {
+    listing = projectListing({
+      example: {
+        ...buildProjectListingEnvelope(),
+        tasks: [{ ...buildProjectListingEnvelope().tasks[0], title: "Announcement drafted" }],
+      },
+    });
+    const user = userEvent.setup();
+    renderPage(MarketplaceListingPage, { routerSearch: { kind: "project" } });
+
+    await user.click(await screen.findByRole("radio", { name: "Example" }));
+
+    expect(screen.getByText("Announcement drafted")).toBeInTheDocument();
+    expect(screen.queryByText("Draft the announcement")).toBeNull();
+  });
+
+  it("installs a copy of the example from the day picked, and opens it", async () => {
+    let sent: unknown;
+    server.use(
+      communityHttp.get("/initiatives/", () =>
+        HttpResponse.json([
+          buildInitiative({ id: 12, name: "Garden", can: initiativeCan({ create: ["project"] }) }),
+        ])
+      ),
+      communityHttp.post("/marketplace/listings/by-uid/:uid/install", async ({ request }) => {
+        sent = await request.json();
+        return HttpResponse.json({
+          kind: "project",
+          listing_uid: "LAUNCH00000001",
+          listing_version: "1.0.0",
+          result: { entity_id: 40, entity_title: "Launch plan" },
+        });
+      })
+    );
+    listing = projectListing({ example: { ...buildProjectListingEnvelope() } });
+    const user = userEvent.setup();
+    const { router } = renderPage(MarketplaceListingPage, { routerSearch: { kind: "project" } });
+
+    await user.click(await screen.findByRole("button", { name: /Add to an initiative/ }));
+    const dialog = await screen.findByRole("dialog");
+    await within(dialog).findByText("Garden");
+    await user.click(within(dialog).getByLabelText("Start from the example"));
+    expect(within(dialog).getByText("Start date")).toBeInTheDocument();
+    await user.click(within(dialog).getByRole("button", { name: "Add" }));
+
+    await waitFor(() => expect(router.state.location.pathname).toBe("/c/1/i/12/projects/40"));
+    expect(sent).toEqual({
+      initiative_id: 12,
+      start_from: "example",
+      starts_on: format(new Date(), "yyyy-MM-dd"),
+    });
+  });
+
+  it("asks for no start date or starting point when the listing has neither", async () => {
+    listing = projectListing({
+      definition: {
+        ...buildProjectListingEnvelope({ project: { name: "Launch plan" }, tasks: [] }),
+      },
+    });
+    const user = userEvent.setup();
+    renderPage(MarketplaceListingPage, { routerSearch: { kind: "project" } });
+
+    await user.click(await screen.findByRole("button", { name: /Add to an initiative/ }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).queryByText("Start date")).toBeNull();
+    expect(within(dialog).queryByLabelText("Start from the example")).toBeNull();
   });
 });

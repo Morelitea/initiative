@@ -21,17 +21,17 @@ export const USER_SHELVES = [ListingKind.profile_pack] as const;
 
 export const COMMUNITY_SHELVES = [
   ListingKind.dashboard,
+  ListingKind.project,
   ListingKind.plugin,
   ListingKind.auto,
 ] as const;
 
 /**
  * Kinds the server publishes that no shelf shows yet: the tool marketplaces
- * other than dashboards. Each one exists in the API — browse, detail and
- * install — and is surfaced by moving it into `COMMUNITY_SHELVES`.
+ * other than dashboards and projects. Each one exists in the API — browse,
+ * detail and install — and is surfaced by moving it into `COMMUNITY_SHELVES`.
  */
 export const UNSHELVED_KINDS = [
-  ListingKind.project,
   ListingKind.file,
   ListingKind.queue,
   ListingKind.counter_group,

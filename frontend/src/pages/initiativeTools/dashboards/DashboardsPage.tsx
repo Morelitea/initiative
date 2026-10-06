@@ -11,8 +11,8 @@ type DashboardsViewProps = {
 /**
  * An initiative's dashboards, as cards.
  *
- * The one tool with a marketplace shelf of its own, so the list and its empty
- * state both offer browsing it — the other way to end up with a dashboard.
+ * A tool with a marketplace shelf of its own, so the list and its empty state
+ * both offer browsing it — the other way to end up with a dashboard.
  */
 export const DashboardsView = (props: DashboardsViewProps) => (
   <ToolIndexPage tool={Tool.dashboard} {...props} />

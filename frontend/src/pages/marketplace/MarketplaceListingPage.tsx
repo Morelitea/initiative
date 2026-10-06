@@ -11,6 +11,9 @@
  * would be misleading twice over: it would look empty for a new initiative that
  * has nothing yet, and it would read as if the listing already knew about
  * their work.
+ *
+ * A project listing has no canvas: it is drawn from its own envelope, statuses
+ * and tasks as the listing carries them, and reads nothing either.
  */
 
 import { Link, useParams, useSearch } from "@tanstack/react-router";
@@ -23,6 +26,7 @@ import { DashboardCanvas } from "@/components/initiativeTools/dashboards/Dashboa
 import { InstallListingDialog } from "@/components/marketplace/InstallListingDialog";
 import { InstallPluginDialog } from "@/components/marketplace/InstallPluginDialog";
 import { ListingProvenance } from "@/components/marketplace/ListingProvenance";
+import { ProjectListingPreview } from "@/components/marketplace/ProjectListingPreview";
 import { ReportButton } from "@/components/moderation/ReportButton";
 import { StatusMessage } from "@/components/StatusMessage";
 import { Badge } from "@/components/ui/badge";
@@ -43,6 +47,7 @@ import { useMarketplaceListing } from "@/hooks/useMarketplace";
 import { useCommunityPath } from "@/lib/communityUrl";
 import { minimumAgeFor, parseCommunityShelf } from "@/lib/marketplace";
 import { listingShownHere } from "@/lib/marketplaceCuration";
+import { listingKindTool } from "@/lib/tools";
 import { resolveArtworkUrl } from "@/lib/uploadUrl";
 import { readConfig, readDefinition } from "@/lib/widgets/definition";
 
@@ -59,6 +64,8 @@ export function MarketplaceListingPage() {
 
   const listing = listingQuery.data;
   const isPlugin = listing?.kind === ListingKind.plugin;
+  // The tool a listing installs into; none for a plug-in or an automation.
+  const tool = listing ? listingKindTool(listing.kind) : null;
   // What the plug-in declares for the viewer's region; nothing enforces it here.
   const minimumAge = isPlugin
     ? minimumAgeFor(listing?.definition, globalThis.navigator?.language)
@@ -187,7 +194,8 @@ export function MarketplaceListingPage() {
                 // something the community may already have is the one action this
                 // page should not take on a guess.
                 disabled={
-                  !listing.installable || (isPlugin && (!holdsTheSeat || isInstalled === undefined))
+                  !listing.installable ||
+                  (isPlugin ? !holdsTheSeat || isInstalled === undefined : !tool)
                 }
               >
                 <Download className="mr-1.5 h-4 w-4" />
@@ -236,9 +244,16 @@ export function MarketplaceListingPage() {
         </div>
       ) : null}
 
-      {/* A plug-in mounts one of this build's tools; there is no canvas to draw,
-          so the preview is a dashboard-only affordance. */}
-      {!isPlugin && (
+      {/* Each tool previews its own way: a project as its board, a dashboard on
+          its canvas. A plug-in mounts one of this build's tools and has nothing
+          of its own to draw. */}
+      {listing?.kind === ListingKind.project && (
+        <div className="space-y-2">
+          <h2 className="font-medium text-sm">{t("detail.preview")}</h2>
+          <ProjectListingPreview definition={listing.definition} example={listing.example} />
+        </div>
+      )}
+      {(!listing || listing.kind === ListingKind.dashboard) && (
         <div className="space-y-2">
           <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
             <h2 className="font-medium text-sm">{t("detail.preview")}</h2>
@@ -266,12 +281,16 @@ export function MarketplaceListingPage() {
         </div>
       )}
 
-      {listing &&
-        (isPlugin ? (
-          <InstallPluginDialog listing={listing} open={installing} onOpenChange={setInstalling} />
-        ) : (
-          <InstallListingDialog listing={listing} open={installing} onOpenChange={setInstalling} />
-        ))}
+      {listing && isPlugin ? (
+        <InstallPluginDialog listing={listing} open={installing} onOpenChange={setInstalling} />
+      ) : listing && tool ? (
+        <InstallListingDialog
+          listing={listing}
+          tool={tool}
+          open={installing}
+          onOpenChange={setInstalling}
+        />
+      ) : null}
     </div>
   );
 }

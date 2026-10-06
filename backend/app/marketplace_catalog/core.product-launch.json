@@ -1,0 +1,403 @@
+{
+  "uid": "BTGZYMPXW6NYQM",
+  "public_id": "core.product-launch",
+  "kind": "project",
+  "name": "Product launch",
+  "publisher": "Initiative",
+  "description": "Six weeks from kickoff to launch day, and one more to learn from it.",
+  "long_description": "A countdown that starts on the day you install it: the brief, a beta, the docs, the announcement, support, a go or no-go call, launch day itself and a retrospective two weeks after. Pick the kickoff date when you install, and every task lands in the right week.\n\nEach task belongs to product, engineering, marketing or support, so each team can filter to its own part. Move the launch and the rest is yours to drag. The template does not know about your holidays.",
+  "avatar_url": "/marketplace/core-product-launch.svg",
+  "images": [],
+  "version": "1.0.0",
+  "release_notes": "The first version.",
+  "definition": {
+    "type": "initiative-project",
+    "schema_version": 1,
+    "app_version": "0.74.0",
+    "exported_at": "2000-01-03T00:00:00",
+    "project": {
+      "name": "Product launch",
+      "icon": "🚀",
+      "description": "From kickoff to launch day. Every task's dates count from the kickoff.",
+      "is_template": false,
+      "start_date": "2000-01-03",
+      "end_date": "2000-02-28",
+      "properties": []
+    },
+    "tags": [],
+    "task_statuses": [
+      {
+        "name": "To do",
+        "category": "todo",
+        "position": 0,
+        "color": null,
+        "icon": null,
+        "is_default": true
+      },
+      {
+        "name": "In progress",
+        "category": "in_progress",
+        "position": 1,
+        "color": null,
+        "icon": null,
+        "is_default": false
+      },
+      {
+        "name": "Blocked",
+        "category": "in_progress",
+        "position": 2,
+        "color": "#F97316",
+        "icon": "circle-pause",
+        "is_default": false
+      },
+      {
+        "name": "Done",
+        "category": "done",
+        "position": 3,
+        "color": null,
+        "icon": null,
+        "is_default": false
+      }
+    ],
+    "property_definitions": [
+      {
+        "name": "Workstream",
+        "type": "select",
+        "position": 0.0,
+        "color": null,
+        "options": [
+          {
+            "value": "product",
+            "label": "Product",
+            "color": "#8B5CF6"
+          },
+          {
+            "value": "engineering",
+            "label": "Engineering",
+            "color": "#3B82F6"
+          },
+          {
+            "value": "marketing",
+            "label": "Marketing",
+            "color": "#EC4899"
+          },
+          {
+            "value": "support",
+            "label": "Support",
+            "color": "#10B981"
+          }
+        ]
+      }
+    ],
+    "tasks": [
+      {
+        "title": "Write the launch brief",
+        "description": "One page. If it needs two, the launch is two launches.",
+        "priority": "high",
+        "start_date": "2000-01-03T12:00:00+00:00",
+        "due_date": "2000-01-06T12:00:00+00:00",
+        "recurrence": null,
+        "status_name": "To do",
+        "position": 0.0,
+        "tags": [],
+        "assignee_handles": [],
+        "checklist": [
+          {
+            "text": "Who it is for",
+            "done": false
+          },
+          {
+            "text": "The problem it solves",
+            "done": false
+          },
+          {
+            "text": "What is in and what is out",
+            "done": false
+          },
+          {
+            "text": "How we will know it worked",
+            "done": false
+          }
+        ],
+        "properties": [
+          {
+            "property_name": "Workstream",
+            "property_type": "select",
+            "value_text": "product"
+          }
+        ]
+      },
+      {
+        "title": "Set the launch date",
+        "description": "Check it against holidays, other launches and the support rota.",
+        "priority": "medium",
+        "start_date": "2000-01-05T12:00:00+00:00",
+        "due_date": "2000-01-07T12:00:00+00:00",
+        "recurrence": null,
+        "status_name": "To do",
+        "position": 1.0,
+        "tags": [],
+        "assignee_handles": [],
+        "checklist": [],
+        "properties": [
+          {
+            "property_name": "Workstream",
+            "property_type": "select",
+            "value_text": "product"
+          }
+        ]
+      },
+      {
+        "title": "Recruit beta testers",
+        "description": "Ten people who will actually reply.",
+        "priority": "medium",
+        "start_date": "2000-01-08T12:00:00+00:00",
+        "due_date": "2000-01-13T12:00:00+00:00",
+        "recurrence": null,
+        "status_name": "To do",
+        "position": 2.0,
+        "tags": [],
+        "assignee_handles": [],
+        "checklist": [],
+        "properties": [
+          {
+            "property_name": "Workstream",
+            "property_type": "select",
+            "value_text": "marketing"
+          }
+        ]
+      },
+      {
+        "title": "Run the beta",
+        "description": "Two weeks. Collect everything in one place.",
+        "priority": "medium",
+        "start_date": "2000-01-17T12:00:00+00:00",
+        "due_date": "2000-01-31T12:00:00+00:00",
+        "recurrence": null,
+        "status_name": "To do",
+        "position": 3.0,
+        "tags": [],
+        "assignee_handles": [],
+        "checklist": [],
+        "properties": [
+          {
+            "property_name": "Workstream",
+            "property_type": "select",
+            "value_text": "engineering"
+          }
+        ]
+      },
+      {
+        "title": "Fix what the beta found",
+        "description": "Sort by how many testers hit it, not by who complained loudest.",
+        "priority": "high",
+        "start_date": "2000-01-31T12:00:00+00:00",
+        "due_date": "2000-02-07T12:00:00+00:00",
+        "recurrence": null,
+        "status_name": "To do",
+        "position": 4.0,
+        "tags": [],
+        "assignee_handles": [],
+        "checklist": [],
+        "properties": [
+          {
+            "property_name": "Workstream",
+            "property_type": "select",
+            "value_text": "engineering"
+          }
+        ]
+      },
+      {
+        "title": "Write the help articles",
+        "description": "Every question a beta tester asked is a heading.",
+        "priority": "medium",
+        "start_date": "2000-01-24T12:00:00+00:00",
+        "due_date": "2000-02-07T12:00:00+00:00",
+        "recurrence": null,
+        "status_name": "To do",
+        "position": 5.0,
+        "tags": [],
+        "assignee_handles": [],
+        "checklist": [],
+        "properties": [
+          {
+            "property_name": "Workstream",
+            "property_type": "select",
+            "value_text": "support"
+          }
+        ]
+      },
+      {
+        "title": "Draft the announcement",
+        "description": "Say what changed for the reader, not what we built.",
+        "priority": "medium",
+        "start_date": "2000-01-31T12:00:00+00:00",
+        "due_date": "2000-02-08T12:00:00+00:00",
+        "recurrence": null,
+        "status_name": "To do",
+        "position": 6.0,
+        "tags": [],
+        "assignee_handles": [],
+        "checklist": [
+          {
+            "text": "Blog post",
+            "done": false
+          },
+          {
+            "text": "Email",
+            "done": false
+          },
+          {
+            "text": "Social posts",
+            "done": false
+          },
+          {
+            "text": "Changelog entry",
+            "done": false
+          }
+        ],
+        "properties": [
+          {
+            "property_name": "Workstream",
+            "property_type": "select",
+            "value_text": "marketing"
+          }
+        ]
+      },
+      {
+        "title": "Prepare support",
+        "description": "Nobody should hear about the launch from a customer.",
+        "priority": "medium",
+        "start_date": "2000-02-07T12:00:00+00:00",
+        "due_date": "2000-02-11T12:00:00+00:00",
+        "recurrence": null,
+        "status_name": "To do",
+        "position": 7.0,
+        "tags": [],
+        "assignee_handles": [],
+        "checklist": [
+          {
+            "text": "FAQ",
+            "done": false
+          },
+          {
+            "text": "Saved replies",
+            "done": false
+          },
+          {
+            "text": "Who is on call on launch day",
+            "done": false
+          }
+        ],
+        "properties": [
+          {
+            "property_name": "Workstream",
+            "property_type": "select",
+            "value_text": "support"
+          }
+        ]
+      },
+      {
+        "title": "Go or no-go",
+        "description": "Everyone with a blocker says so now.",
+        "priority": "high",
+        "start_date": "2000-02-12T12:00:00+00:00",
+        "due_date": "2000-02-12T12:00:00+00:00",
+        "recurrence": null,
+        "status_name": "To do",
+        "position": 8.0,
+        "tags": [],
+        "assignee_handles": [],
+        "checklist": [],
+        "properties": [
+          {
+            "property_name": "Workstream",
+            "property_type": "select",
+            "value_text": "product"
+          }
+        ]
+      },
+      {
+        "title": "Launch day",
+        "description": "Ship it, say so, and watch closely.",
+        "priority": "urgent",
+        "start_date": "2000-02-14T12:00:00+00:00",
+        "due_date": "2000-02-14T12:00:00+00:00",
+        "recurrence": null,
+        "status_name": "To do",
+        "position": 9.0,
+        "tags": [],
+        "assignee_handles": [],
+        "checklist": [
+          {
+            "text": "Release",
+            "done": false
+          },
+          {
+            "text": "Publish the announcement",
+            "done": false
+          },
+          {
+            "text": "Send the email",
+            "done": false
+          },
+          {
+            "text": "Watch the error rates",
+            "done": false
+          },
+          {
+            "text": "Thank the beta testers",
+            "done": false
+          }
+        ],
+        "properties": [
+          {
+            "property_name": "Workstream",
+            "property_type": "select",
+            "value_text": "product"
+          }
+        ]
+      },
+      {
+        "title": "Collect feedback",
+        "description": "Tag every launch-related ticket so you can count them.",
+        "priority": "medium",
+        "start_date": "2000-02-15T12:00:00+00:00",
+        "due_date": "2000-02-21T12:00:00+00:00",
+        "recurrence": null,
+        "status_name": "To do",
+        "position": 10.0,
+        "tags": [],
+        "assignee_handles": [],
+        "checklist": [],
+        "properties": [
+          {
+            "property_name": "Workstream",
+            "property_type": "select",
+            "value_text": "support"
+          }
+        ]
+      },
+      {
+        "title": "Retrospective",
+        "description": "What to keep, what to drop, and what to try next time.",
+        "priority": "medium",
+        "start_date": "2000-02-28T12:00:00+00:00",
+        "due_date": "2000-02-28T12:00:00+00:00",
+        "recurrence": null,
+        "status_name": "To do",
+        "position": 11.0,
+        "tags": [],
+        "assignee_handles": [],
+        "checklist": [],
+        "properties": [
+          {
+            "property_name": "Workstream",
+            "property_type": "select",
+            "value_text": "product"
+          }
+        ]
+      }
+    ]
+  }
+}

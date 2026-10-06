@@ -3,6 +3,7 @@ import type {
   MarketplaceListingSummary,
   MarketplaceVersionRead,
 } from "@/api/generated/initiativeAPI.schemas";
+import type { ProjectListingEnvelope } from "@/lib/projectListing";
 
 let counter = 0;
 
@@ -69,6 +70,61 @@ export function buildMarketplaceListingDetail(
     grantable_scopes: [],
     plugin_names: {},
     has_initiative_surfaces: false,
+    ...overrides,
+  };
+}
+
+/**
+ * What a project listing publishes: its export envelope, dated as a listing
+ * stores dates, with the project starting on the anchor day (2000-01-03).
+ *
+ * Three columns, a select property, and two tasks in the first column: one due
+ * on the third day with half its checklist done, one due in the fourth week.
+ */
+export function buildProjectListingEnvelope(
+  overrides: Partial<ProjectListingEnvelope> = {}
+): ProjectListingEnvelope {
+  return {
+    project: { name: "Launch plan", start_date: "2000-01-03", end_date: "2000-01-31" },
+    task_statuses: [
+      { name: "To do", category: "todo", position: 0, color: "#94A3B8", icon: "circle" },
+      { name: "Doing", category: "in_progress", position: 1, color: null, icon: null },
+      { name: "Done", category: "done", position: 2, color: "#34D399", icon: "circle-check" },
+    ],
+    property_definitions: [
+      {
+        name: "Size",
+        type: "select",
+        position: 0,
+        options: [
+          { value: "s", label: "Small", color: "#60A5FA" },
+          { value: "l", label: "Large", color: "#F97316" },
+        ],
+      },
+    ],
+    tasks: [
+      {
+        title: "Draft the announcement",
+        priority: "high",
+        start_date: null,
+        due_date: "2000-01-05T00:00:00",
+        status_name: "To do",
+        checklist: [
+          { text: "Outline", done: true },
+          { text: "Review", done: false },
+        ],
+        properties: [{ property_name: "Size", property_type: "select", value_text: "s" }],
+      },
+      {
+        title: "Ship it",
+        priority: "low",
+        start_date: null,
+        due_date: "2000-01-24T00:00:00",
+        status_name: "To do",
+        checklist: [],
+        properties: [],
+      },
+    ],
     ...overrides,
   };
 }

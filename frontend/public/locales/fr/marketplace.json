@@ -1,6 +1,7 @@
 {
   "title": "Catalogue",
   "subtitle": "Des tableaux de bord prêts à l'emploi, à ajouter à une initiative.",
+  "subtitleProjects": "Des projets prêts à l'emploi, à copier dans une initiative. Chaque installation crée un nouveau projet qui vous appartient.",
   "searchPlaceholder": "Rechercher dans le catalogue…",
   "backToMarketplace": "Retour au catalogue",
   "browse": "Parcourir le catalogue",
@@ -35,6 +36,15 @@
     "notAvailableHere": "Indisponible dans cette application",
     "notAvailableHereDescription": "Cette fiche ne fait pas partie du catalogue proposé par cette application."
   },
+  "projectPreview": {
+    "showing": "Afficher le projet vide ou l'exemple",
+    "blank": "Vide",
+    "example": "Exemple",
+    "day": "Jour {{day}}",
+    "week": "Semaine {{week}}",
+    "noTasks": "Aucune tâche",
+    "properties": "Propriétés"
+  },
   "install": {
     "title": "Ajouter {{name}}",
     "description": "Choisissez sa destination. Vous pourrez le renommer maintenant ou plus tard.",
@@ -43,7 +53,13 @@
     "action": "Ajouter",
     "done": "{{name}} ajouté.",
     "failed": "Impossible d'ajouter cette fiche.",
-    "noInitiatives": "Vous ne pouvez encore créer de tableaux de bord dans aucune initiative. Demandez l'accès à une personne responsable de l'initiative."
+    "noInitiatives": "Vous ne pouvez encore ajouter ceci à aucune initiative. Demandez l'accès à une personne responsable de l'initiative.",
+    "descriptionCopy": "Choisissez sa destination. Il arrive comme votre propre copie, que vous pourrez renommer et modifier ensuite.",
+    "startFrom": "Point de départ",
+    "startBlank": "Commencer à vide",
+    "startExample": "Commencer à partir de l'exemple",
+    "startsOn": "Date de début",
+    "startsOnHelp": "Ses dates sont décalées pour que la plus ancienne tombe ce jour-là."
   },
   "update": {
     "available": "Version {{version}} disponible",
