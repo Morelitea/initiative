@@ -81,7 +81,6 @@ from app.services.import_engine.zip_bounds import (
     read_json_member,
     read_member,
 )
-from app.services.tenant import tags as tags_service
 
 # Apply order within an initiative — convention, not correctness (cross-tool
 # references in envelopes are display text only).
@@ -877,9 +876,9 @@ async def _apply_file_entry(
     from app.models.tenant.document import Document, DocumentType
     from app.models.tenant.upload import Upload
     from app.schemas.tenant.import_envelopes import EnvelopePropertyValue
-    from app.services.import_engine.common import ensure_tag
     from app.services.import_engine.importers._base import (
         PropertyRestore,
+        TagRestore,
         grant_ownership,
     )
     from app.services.tenant import file_versions
@@ -975,19 +974,7 @@ async def _apply_file_entry(
                     session, document, created_by=user.id, **stored
                 )
 
-            for tag_name in entry.tags:
-                resolved = await ensure_tag(
-                    session,
-                    name=tag_name,
-                    color="#6b7280",
-                )
-                session.add(
-                    tags_service.tag_edge(
-                        tags_service.TOOL_TAG_LINKS[Tool.document],
-                        document.id,
-                        resolved.id,
-                    )
-                )
+            await TagRestore(session).attach(document, entry.tags)
             props = PropertyRestore(
                 session, initiative_id=initiative.id, context=context
             )
@@ -1012,7 +999,7 @@ async def _apply_file_entry(
         detail=EnvelopeImportResult(
             entity_id=document.id,
             entity_title=document.name,
-            created={"documents": 1},
+            created={Tool.document.plural: 1},
             unmatched_handles=unmatched_handles,
         ),
     )
