@@ -341,6 +341,8 @@ async def answer_occurrence(
     if override is not None:
         await answer_on(session, override, user_id, answer, join=join)
         return
+    # Closed, an answer comes from the series' list or from someone who already
+    # answered this occurrence while it was open.
     if (
         not join
         and not (
@@ -349,6 +351,11 @@ async def answer_occurrence(
                     exists().where(
                         CalendarEventAttendee.calendar_event_id == series.id,
                         CalendarEventAttendee.user_id == user_id,
+                    )
+                    | exists().where(
+                        CalendarEventAnswer.calendar_event_id == series.id,
+                        CalendarEventAnswer.user_id == user_id,
+                        CalendarEventAnswer.original_start == at,
                     )
                 )
             )

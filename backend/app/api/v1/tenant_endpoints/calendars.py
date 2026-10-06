@@ -219,12 +219,14 @@ async def update_calendar(
         guild_context,
         access="write",
     )
-    for field, value in calendar_in.model_dump(exclude_unset=True).items():
-        setattr(calendar, field, value)
-    calendar.updated_at = datetime.now(timezone.utc)
-    session.add(calendar)
-    await attachments_service.claim_uploads(session, calendar)
-    await session.commit()
+    data = calendar_in.model_dump(exclude_unset=True)
+    if data:
+        for field, value in data.items():
+            setattr(calendar, field, value)
+        calendar.updated_at = datetime.now(timezone.utc)
+        session.add(calendar)
+        await attachments_service.claim_uploads(session, calendar)
+        await session.commit()
 
     hydrated = await _refetch_calendar(session, calendar.id)
     return serialize_tool(
