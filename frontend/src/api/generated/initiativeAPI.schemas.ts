@@ -7614,17 +7614,22 @@ export interface ProjectTaskSummary {
 export interface ProjectRead {
   archived_at: string | null;
   can: ProjectCan;
+  id: number;
+  initiative_id: number;
+  community_id: number;
+  created_by: number | null;
+  created_at: string;
+  updated_at: string;
+  comments_enabled: boolean;
+  tags: TagSummary[];
+  properties: PropertySummary[];
+  grants: ResourceGrantSchema[];
   name: string;
   description: string | null;
   icon: string | null;
   start_date: string | null;
   end_date: string | null;
-  id: number;
   owner_id: number | null;
-  initiative_id: number;
-  community_id: number | null;
-  created_at: string;
-  updated_at: string;
   is_template: boolean;
   pinned_at: string | null;
   default_view_mode: ProjectReadDefaultViewMode;
@@ -7635,10 +7640,6 @@ export interface ProjectRead {
   last_viewed_at: string | null;
   task_summary: ProjectTaskSummary;
   task_statuses: TaskStatusRead[];
-  comments_enabled: boolean;
-  tags: TagSummary[];
-  properties: PropertySummary[];
-  grants: ResourceGrantSchema[];
 }
 
 export interface ProjectListResponse {

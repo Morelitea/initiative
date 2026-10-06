@@ -21,11 +21,10 @@ from app.schemas.tenant.property import PropertiesOnCreate
 from app.schemas.query import PageMeta
 
 from app.models.tenant.document import DocumentType
-from app.models.tenant.resource_grant import ResourceAccessLevel
 from app.schemas.tenant.resource_grant import ResourceGrantSchema, initiative_readable
 from app.schemas.platform.user import UserPublic
 from app.schemas.tenant.initiative import InitiativeSummary
-from app.schemas.tenant.ownership import OwnerPluginSummary
+from app.schemas.tenant.ownership import OwnerPluginSummary, owner_profile
 from app.schemas.tenant.tool import ToolSummaryBase, serialize_tool
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -118,7 +117,7 @@ class DocumentSummary(DocumentBase, ToolSummaryBase):
 
         version = row.current_version
         return {
-            "owner": _document_owner(row),
+            "owner": owner_profile(row),
             "owner_plugin": owner_plugin_of(row),
             "smart_link_url": smart_link_url(row),
             **{name: getattr(version, name, None) for name in _FILE_FIELDS},
@@ -182,22 +181,6 @@ def _serialize_project_links(
         )
         for related in projects
     ]
-
-
-def _document_owner(document: "Document") -> Optional[UserPublic]:
-    """The user holding the document's owner grant, or None when it is unowned.
-
-    Read off the grants the loader brings with their users, as a project reads
-    its own; ownership is recorded there and nowhere else.
-    """
-    for grant in getattr(document, "grants", None) or []:
-        if (
-            grant.user_id is not None
-            and grant.level == ResourceAccessLevel.owner
-            and grant.user
-        ):
-            return UserPublic.model_validate(grant.user)
-    return None
 
 
 def smart_link_url(document: Any) -> Optional[str]:

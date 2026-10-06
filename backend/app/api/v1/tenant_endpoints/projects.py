@@ -3,12 +3,10 @@ from typing import Annotated, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import and_, case, func
-from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import selectinload, undefer
 from sqlmodel import delete, select
 
-from app.services.permissions import Action
 from app.services.tenant import attachments as attachments_service
 from app.api.actor_route import ActorRoute
 from app.api.deps import (
@@ -27,7 +25,6 @@ from app.models.tenant.project import (
 )
 from app.models.tenant.resource_grant import (
     ResourceGrant,
-    ResourceAccessLevel,
 )
 from app.models.tenant.project_order import ProjectOrder
 from app.models.tenant.project_favorite import ProjectFavorite
@@ -57,7 +54,7 @@ from app.services.tenant import filter_presets as filter_presets_service
 from app.services.tenant import task_statuses as task_statuses_service
 from app.core.messages import ProjectMessages
 from app.schemas.tenant.project import (
-    ProjectCan,
+    project_can,
     ProjectCreate,
     ProjectRead,
     ProjectTaskSummary,
@@ -66,15 +63,9 @@ from app.schemas.tenant.project import (
     ProjectActivityEntry,
     ProjectActivityResponse,
 )
-from app.schemas.tenant.task_status import TaskStatusRead
-from app.schemas.platform.user import UserPublic
 from app.schemas.tenant.comment import CommentAuthor
-from app.schemas.tenant.initiative import (
-    InitiativeSummary,
-)
 from app.services.tenant import project_grants
-from app.schemas.tenant.property import annotated_properties
-from app.schemas.tenant.tag import annotated_tags
+from app.schemas.tenant.tool import serialize_tool
 
 router = APIRouter(route_class=ActorRoute)
 
@@ -109,7 +100,7 @@ async def _attach_task_summaries(session: SessionDep, projects: List[Project]) -
 
     for project in projects:
         summary = summary_map.get(project.id or 0, ProjectTaskSummary())
-        setattr(project, "_task_summary", summary)
+        object.__setattr__(project, "task_summary", summary)
 
 
 async def _get_project_or_404(
@@ -228,25 +219,16 @@ async def _project_reads(
 
     context = require_actor_context(session)
     return [
-        _build_project_payload(
+        serialize_tool(
+            ProjectRead,
             project,
             context=context,
-            favorite_ids=favorite_ids,
-            view_map=view_map,
             user_id=user_id,
+            is_favorited=project.id in favorite_ids,
+            last_viewed_at=view_map.get(project.id or 0),
         )
         for project in projects
     ]
-
-
-def _project_can(
-    project: Project, user_id: int | None, *, context: ActorContext
-) -> ProjectCan:
-    """What the reader may do to the project, configuring it included."""
-    return ProjectCan(
-        **permissions_service.client_access(project, user_id, context=context),
-        configure=permissions_service.allows(project, Action.configure),
-    )
 
 
 def _slim_project_reads(
@@ -277,7 +259,7 @@ def _slim_project_reads(
                 archived_at=project.archived_at,
                 pinned_at=project.pinned_at,
                 community_id=context.guild_id,
-                can=_project_can(project, user_id, context=context),
+                can=project_can(project, user_id, context=context),
             ).model_copy(
                 # Set after construction: the field's alias keeps
                 # ``model_validate`` off the ORM row.
@@ -328,70 +310,6 @@ async def _project_metadata_for_user(
         )
     )
     return set(favorites.all()), dict(views.all())
-
-
-def _project_task_statuses(project: Project) -> List[TaskStatusRead]:
-    """Serialize the project's task statuses (ordered by position).
-
-    Returns an empty list when the relationship wasn't eager-loaded — the slim
-    and list projections don't load it, so this must never trigger a lazy load
-    on the async session (which would raise). Detail reads load it via
-    ``_get_project_or_404``.
-    """
-    if "task_statuses" in sa_inspect(project).unloaded:
-        return []
-    statuses = sorted(project.task_statuses, key=lambda s: (s.position, s.id or 0))
-    return [TaskStatusRead.model_validate(status) for status in statuses]
-
-
-def _project_owner(project: Project) -> Optional[UserPublic]:
-    """The user holding the project's owner grant, or None when it is unowned.
-
-    Read off the eagerly-loaded grants rather than a column on the project:
-    ``resource_grants`` is where ownership is recorded, so there is nothing to
-    keep in step.
-    """
-    for grant in project.grants or []:
-        if (
-            grant.user_id is not None
-            and grant.level == ResourceAccessLevel.owner
-            and grant.user is not None
-        ):
-            return UserPublic.model_validate(grant.user)
-    return None
-
-
-def _build_project_payload(
-    project: Project,
-    *,
-    context: ActorContext,
-    favorite_ids: set[int],
-    view_map: dict[int, datetime],
-    user_id: int | None = None,
-) -> ProjectRead:
-    payload = ProjectRead.model_validate(project)
-    if project.initiative:
-        payload.initiative = InitiativeSummary.model_validate(project.initiative)
-    project_id = project.id or 0
-    summary = getattr(project, "_task_summary", None)
-    if not isinstance(summary, ProjectTaskSummary):
-        summary = ProjectTaskSummary()
-    return payload.model_copy(
-        update={
-            "community_id": context.guild_id,
-            "is_favorited": project_id in favorite_ids,
-            "last_viewed_at": view_map.get(project_id),
-            "task_summary": summary,
-            "task_statuses": _project_task_statuses(project),
-            "tags": annotated_tags(project),
-            "properties": annotated_properties(project),
-            "grants": permissions_service.serialize_grants(project, context=context),
-            "can": _project_can(project, user_id, context=context),
-            "owner_id": ownership_service.owner_user_id_of(project),
-            "owner": _project_owner(project),
-            "owner_plugin": ownership_service.owner_plugin_of(project),
-        }
-    )
 
 
 async def _project_read_for_user(
