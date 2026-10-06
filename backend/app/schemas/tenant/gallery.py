@@ -88,7 +88,7 @@ class GalleryListResponse(PageMeta):
 
 class GalleryImageUpdate(PropertiesOnUpdate):
     title: Optional[TitleStr] = Field(default=None, max_length=255)
-    caption: Optional[str] = Field(default=None, max_length=2000)
+    caption: Optional[MentionStr] = Field(default=None, max_length=2000)
     tag_ids: Optional[List[int]] = None
 
 
