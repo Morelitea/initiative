@@ -313,6 +313,12 @@ MAX_PARAMS_PER_ENDPOINT = contract.cap("paramsPerEndpoint")
 #: that returns a dozen fields is ordinary where one taking a dozen is not.
 MAX_RETURNS_PER_ENDPOINT = contract.cap("returnsPerEndpoint")
 MAX_EMBEDS = contract.cap("embeds")
+#: How many countries a minimum age may name, and the oldest it may ask for.
+MAX_MINIMUM_AGE_REGIONS = contract.cap("minimumAgeRegions")
+MAX_MINIMUM_AGE_YEARS = contract.cap("minimumAgeYears")
+#: The youngest a minimum age may be: the youngest age of digital consent any
+#: regime sets. The contract's lower bound, which it states literally.
+MIN_MINIMUM_AGE_YEARS = 13
 #: A plug-in ships a handful of arrangements of its own widgets, not a library of
 #: them. Each becomes a catalog row, so this is also how many listings a single
 #: publish can create.
@@ -1919,8 +1925,85 @@ def _returns(raw: Any, *, what: str) -> list[dict[str, Any]]:
             cleaned["label"] = label
         if value.get("list") is True:
             cleaned["list"] = True
+        if value.get("of") is not None:
+            cleaned["of"] = check_identifier(
+                value.get("of"), what=f"{what} return {key!r} of"
+            )
         returns.append(cleaned)
+    _check_measures(returns, what=what)
     return returns
+
+
+def _minimum_age(raw: Any) -> dict[str, int] | None:
+    """How old somebody must be to use the plug-in, by country.
+
+    Keys are ISO 3166-1 alpha-2 codes and ``default``. Refused rather than
+    trimmed when any entry is wrong: an age the publisher declared for
+    compliance and this build quietly dropped is the one mistake here nobody
+    would notice. Stored as declared; nothing here enforces it.
+    """
+    if raw is None:
+        return None
+    declared = require_mapping(raw, "service plug-in: minimum_age")
+    if not declared:
+        fail("service plug-in: minimum_age names no region")
+    if len(declared) > MAX_MINIMUM_AGE_REGIONS:
+        fail(
+            "service plug-in: minimum_age names more than "
+            f"{MAX_MINIMUM_AGE_REGIONS} regions"
+        )
+    cleaned: dict[str, int] = {}
+    for region, age in declared.items():
+        if region != "default" and not (
+            isinstance(region, str)
+            and len(region) == 2
+            and region.isascii()
+            and region.isalpha()
+            and region.isupper()
+        ):
+            fail(
+                f"service plug-in: minimum_age region {region!r} is not an "
+                "ISO 3166-1 alpha-2 code or 'default'"
+            )
+        if (
+            not isinstance(age, int)
+            or isinstance(age, bool)
+            or not MIN_MINIMUM_AGE_YEARS <= age <= MAX_MINIMUM_AGE_YEARS
+        ):
+            fail(
+                f"service plug-in: minimum_age for {region!r} must be a whole "
+                f"number from {MIN_MINIMUM_AGE_YEARS} to {MAX_MINIMUM_AGE_YEARS}"
+            )
+        cleaned[region] = age
+    return cleaned
+
+
+def _check_measures(returns: list[dict[str, Any]], *, what: str) -> None:
+    """Every ``of`` names a sibling the pair can be drawn with.
+
+    ``of`` counts one return against another — used of allowed — so a summary
+    can be drawn as one measure. That only means something between two single
+    whole numbers: a list has no one figure, and a date has no proportion.
+    """
+    by_key = {value["key"]: value for value in returns}
+    for value in returns:
+        ceiling_key = value.get("of")
+        if ceiling_key is None:
+            continue
+        if ceiling_key == value["key"]:
+            fail(f"{what} return {value['key']!r} is counted against itself")
+        ceiling = by_key.get(ceiling_key)
+        if ceiling is None:
+            fail(
+                f"{what} return {value['key']!r} is counted against "
+                f"{ceiling_key!r}, which is not a return of this endpoint"
+            )
+        for half in (value, ceiling):
+            if half["type"] != "int" or half.get("list"):
+                fail(
+                    f"{what} return {half['key']!r} is not a single 'int', so "
+                    f"{value['key']!r} of {ceiling_key!r} cannot be drawn"
+                )
 
 
 def _actors(raw: Any, *, what: str) -> list[str]:
@@ -2692,6 +2775,10 @@ def normalize_service_plugin_definition(
     )
     if default_name is not None:
         cleaned["default_name"] = default_name
+
+    minimum_age = _minimum_age(body.get("minimum_age"))
+    if minimum_age is not None:
+        cleaned["minimum_age"] = minimum_age
 
     _check_features(cleaned["features"], cleaned)
     check_json_size(
