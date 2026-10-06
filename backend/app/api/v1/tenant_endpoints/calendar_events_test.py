@@ -21,7 +21,6 @@ from app.core.messages import (
     CalendarEventMessages,
     CommonMessages,
     PropertyMessages,
-    RelationshipMessages,
 )
 from app.models.platform.guild import CommunityRole
 from app.models.platform.notification import Notification, NotificationType
@@ -31,7 +30,6 @@ from app.models.tenant.resource_grant import ResourceGrant
 from app.testing import (
     create_calendar,
     create_calendar_event,
-    create_document,
     create_guild_calendar,
     create_initiative,
     create_property_definition,
@@ -1218,32 +1216,6 @@ class TestGuildCalendarEvents:
         cleared = await client.put(route, headers=a.headers, json={"values": []})
         assert cleared.status_code == 200, cleared.text
         assert cleared.json() == []
-
-    async def test_documents_cannot_be_linked(
-        self, client: AsyncClient, acting_user, session
-    ):
-        """Documents belong to an initiative; a guild calendar holds guild-level
-        content only, so an event there cannot link one."""
-        a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
-        document = await create_document(session, a.initiative, a.user)
-        calendar = await create_guild_calendar(session, a.guild, a.user)
-
-        # Asked of the create path, which is where an event names its documents
-        # now that the per-tool attach route is one generic one. Both ask the
-        # same seam — see ``relationships_test``.
-        response = await client.post(
-            a.g("/calendar-events/"),
-            headers=a.headers,
-            json={
-                "title": "Guild night",
-                "calendar_id": calendar.id,
-                "start_at": "2026-10-01T18:00:00Z",
-                "end_at": "2026-10-01T20:00:00Z",
-                "document_ids": [document.id],
-            },
-        )
-        assert response.status_code == 400
-        assert response.json()["detail"] == RelationshipMessages.CROSS_INITIATIVE
 
     async def test_an_event_cannot_move_across_the_scope_line(
         self, client: AsyncClient, acting_user, session

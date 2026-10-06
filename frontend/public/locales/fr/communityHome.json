@@ -76,8 +76,6 @@
     "noComments": "Aucun commentaire pour l'instant",
     "loadError": "Impossible de charger les commentaires récents. Veuillez réessayer plus tard.",
     "unknownAuthor": "Inconnu",
-    "onTask": "sur {{taskTitle}}",
-    "onDocument": "sur {{documentTitle}}",
     "onEntity": "sur {{entityName}}",
     "inProject": "dans {{projectName}}",
     "readMore": "Lire la suite",

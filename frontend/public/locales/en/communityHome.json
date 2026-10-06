@@ -76,8 +76,6 @@
     "noComments": "No comments yet",
     "loadError": "Failed to load recent comments. Please try again later.",
     "unknownAuthor": "Unknown",
-    "onTask": "on {{taskTitle}}",
-    "onDocument": "on {{documentTitle}}",
     "onEntity": "on {{entityName}}",
     "inProject": "in {{projectName}}",
     "readMore": "Read more",

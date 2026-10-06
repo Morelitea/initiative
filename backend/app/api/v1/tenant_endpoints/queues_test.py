@@ -245,18 +245,20 @@ async def test_add_queue_item(client: AsyncClient, acting_user):
 async def test_an_item_attaches_only_what_a_picker_could(
     client: AsyncClient, acting_user, session: AsyncSession
 ):
-    """A new item's documents and tasks answer to what the relationships surface
-    asks of a link: both ends in one initiative, neither archived."""
+    """A new item's tasks answer to what the relationships surface asks of a
+    link: both ends in one initiative, neither archived."""
     a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     queue_data = await _create_queue_via_api(client, a)
     elsewhere = await create_initiative(session, a.guild, a.user)
-    foreign_doc = await create_document(session, elsewhere, a.user)
+    foreign_task = await create_task(
+        session, await create_project(session, elsewhere, a.user)
+    )
     archived_task = await create_task(
         session, a.project, archived_at=datetime.now(timezone.utc)
     )
 
     for attach, detail in (
-        ({"document_ids": [foreign_doc.id]}, RelationshipMessages.CROSS_INITIATIVE),
+        ({"task_ids": [foreign_task.id]}, RelationshipMessages.CROSS_INITIATIVE),
         ({"task_ids": [archived_task.id]}, RelationshipMessages.ENDPOINT_ARCHIVED),
     ):
         refused = await client.post(
@@ -856,7 +858,7 @@ async def test_member_without_permission_cannot_view(client: AsyncClient, acting
 
 
 # ---------------------------------------------------------------------------
-# Item associations (tags, documents, tasks)
+# Item associations (tags, tasks)
 # ---------------------------------------------------------------------------
 
 
@@ -1008,7 +1010,7 @@ async def test_a_queue_read_as_a_whole_carries_what_its_items_hold(
     a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     queue_data = await _create_queue_via_api(client, a)
     item = await _add_item_via_api(client, a, queue_data["id"], "Elara")
-    doc = await create_document(session, a.initiative, a.user)
+    task = await create_task(session, a.project)
 
     linked = await client.post(
         a.g("/relationships/"),
@@ -1016,7 +1018,7 @@ async def test_a_queue_read_as_a_whole_carries_what_its_items_hold(
         json={
             "source": {"type": "queue_item", "id": item["id"]},
             "relationship_type": "attached",
-            "target": {"type": "document", "id": doc.id},
+            "target": {"type": "task", "id": task.id},
         },
     )
     assert linked.status_code == 201, linked.text
@@ -1024,21 +1026,20 @@ async def test_a_queue_read_as_a_whole_carries_what_its_items_hold(
     read = await client.get(a.g(f"/queues/{queue_data['id']}"), headers=a.headers)
     assert read.status_code == 200
     (row,) = read.json()["items"]
-    assert [d["document_id"] for d in row["documents"]] == [doc.id]
+    assert [t["task_id"] for t in row["tasks"]] == [task.id]
 
 
 async def test_an_items_attachment_count_covers_every_kind(
     client: AsyncClient, acting_user, session
 ):
     """A row saying "3 attachments" means three things. An item may be pinned to
-    any of the fourteen kinds, so the count cannot be the two lists added up."""
+    any kind a link can name, so the count is not the length of its task list."""
     a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     queue_data = await _create_queue_via_api(client, a)
     item = await _add_item_via_api(client, a, queue_data["id"], "Elara")
 
     doc = await create_document(session, a.initiative, a.user)
     task = await create_task(session, a.project)
-    # Neither of the two kinds the item serialises a list for.
     other_project = await create_project(session, a.initiative, a.user)
 
     for kind, entity_id in (
@@ -1060,9 +1061,7 @@ async def test_an_items_attachment_count_covers_every_kind(
     read = await client.get(a.g(f"/queues/{queue_data['id']}"), headers=a.headers)
     (row,) = read.json()["items"]
     assert row["attachment_count"] == 3
-    # The typed lists still only know about their own two kinds, which is why
-    # the count is asked for separately.
-    assert len(row["documents"]) + len(row["tasks"]) == 2
+    assert len(row["tasks"]) == 1
 
 
 async def test_a_copy_starts_its_rotation_over_with_its_items(
@@ -1126,7 +1125,7 @@ async def test_a_copy_starts_its_rotation_over_with_its_items(
         None,
     )
     assert len(first["tags"]) == 1
-    assert [d["document_id"] for d in first["documents"]] == [document.id]
+    assert first["attachment_count"] == 1
     assert (second["label"], second["user_id"]) == ("Theirs", None)
 
 

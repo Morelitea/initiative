@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **The documents table drops its Projects column**; a document's links show on its own page, as every tool's do. The API drops what nothing read: document list `projects`, `yjs_updated_at`, `sort_by`/`sort_dir` and the `ids` filter, and the attached-document fields on queue items and calendar events (link them as relationships).
 - **A project list works like every other tool's**: grid, list and tag layouts, the shared filters and table sorting. Drag projects into your own order on the first page; pin and favourite from each card. The pinned section and the favourites-only filter are gone, and favourites stay in the sidebar.
 - **Apps are now called plug-ins**, everywhere: in the interface, the API (`/api/v1/plugins`, `/api/v1/plugin-platform/…`, the `plugins.manage` capability), the plug-in kit and the database. Installed plug-ins must be updated to the renamed plug-in kit, because the old names are no longer accepted. **Server operators:** rename `APP_PLATFORM_SIGNING_KEY_ID`, `APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM` and `APP_SERVICES_CONFIG` to `PLUGIN_PLATFORM_SIGNING_KEY_ID`, `PLUGIN_PLATFORM_SIGNING_PRIVATE_KEY_PEM` and `PLUGIN_SERVICES_CONFIG`.
 - **Dashboard queries read a file's type, size and name through `current_version`** (`current_version.file_size` on `documents` and `gallery_images`), the version the file shows. The new `document_versions` and `gallery_image_versions` datasets hold every version.

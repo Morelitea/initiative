@@ -8,7 +8,6 @@
     "comments_other": "{{count}} comentarios"
   },
   "columns": {
-    "projects": "Proyectos",
     "owner": "Propietario",
     "type": "Tipo",
     "community": "Comunidad",

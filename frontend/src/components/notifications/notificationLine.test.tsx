@@ -185,6 +185,17 @@ describe("notificationText — mentions", () => {
 
     expect(line).toContain("notifications.mentionComment");
   });
+
+  it("names and links the document whose body mentioned you", () => {
+    const mention = notice("mention", {
+      entity_type: "document",
+      entity_id: 9,
+      entity_name: "Flight plan",
+    });
+
+    expect(notificationText(mention, t)).toContain("Flight plan");
+    expect(notificationLink(mention)).toBe("/go/document/9");
+  });
 });
 
 describe("a plug-in asking to act as the reader", () => {

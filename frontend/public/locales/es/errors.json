@@ -147,7 +147,6 @@
   "DOCUMENT_OWNER_REQUIRED": "Se requiere permiso de propietario del documento",
   "DOCUMENT_NO_ACCESS": "No tienes acceso a este documento",
   "DOCUMENT_NAME_ALREADY_EXISTS": "Ya existe un documento con este título en esta iniciativa",
-  "DOCUMENT_TOO_MANY_IDS": "Se solicitaron demasiados documentos a la vez (máximo 100)",
   "DOCUMENT_NAME_REQUIRED": "El título del documento es obligatorio",
   "DOCUMENT_AI_NATIVE_ONLY": "La generación de resúmenes con IA solo está disponible para documentos nativos",
   "DOCUMENT_SMART_LINK_URL_REQUIRED": "Se requiere una URL para los documentos de enlace inteligente",

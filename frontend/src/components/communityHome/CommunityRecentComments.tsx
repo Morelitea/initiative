@@ -11,11 +11,7 @@ import { MessageSquare } from "lucide-react";
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import {
-  ReactionTarget,
-  type RecentActivityEntry,
-  Tool,
-} from "@/api/generated/initiativeAPI.schemas";
+import { ReactionTarget, type RecentActivityEntry } from "@/api/generated/initiativeAPI.schemas";
 import { CommentContent } from "@/components/comments/CommentContent";
 import { CommentReferences } from "@/components/comments/CommentReferences";
 import { ReactionBar } from "@/components/reactions/ReactionBar";
@@ -67,10 +63,10 @@ const CommentEntry = ({ entry }: { entry: RecentActivityEntry }) => {
   const isTruncated = useIsTruncated(contentRef, !expanded);
 
   // A null initiative names a community-level address, which the route builders
-  // handle; the task/document columns are the older shape of the same parent.
+  // handle.
   const initiativeId = entry.initiative_id ?? null;
   const tool = TOOLS.find((candidate) => candidate === entry.entity_type) ?? null;
-  const taskId = entry.entity_type === "task" ? entry.entity_id : entry.task_id;
+  const taskId = entry.entity_type === "task" ? entry.entity_id : null;
 
   let linkTo: string | undefined;
   if (taskId) {
@@ -81,20 +77,14 @@ const CommentEntry = ({ entry }: { entry: RecentActivityEntry }) => {
     );
   } else if (tool && entry.entity_id) {
     linkTo = gp(toolDetailRoute(tool, initiativeId, entry.entity_id));
-  } else if (entry.document_id) {
-    linkTo = gp(toolDetailRoute(Tool.document, initiativeId, entry.document_id));
   }
 
   const contextParts: string[] = [];
-  if (entry.task_title) {
-    contextParts.push(t("recentComments.onTask", { taskTitle: entry.task_title }));
-  } else if (entry.document_name) {
-    contextParts.push(t("recentComments.onDocument", { documentTitle: entry.document_name }));
-  } else if (entry.entity_name) {
+  if (entry.entity_name) {
     contextParts.push(t("recentComments.onEntity", { entityName: entry.entity_name }));
   }
-  // A comment on the project itself already names it, so it isn't also "in" it.
-  if (entry.project_name && entry.entity_type !== Tool.project) {
+  // A task comment also names the project its task is in.
+  if (entry.project_name) {
     contextParts.push(t("recentComments.inProject", { projectName: entry.project_name }));
   }
 

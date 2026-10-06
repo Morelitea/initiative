@@ -565,8 +565,9 @@ describe("CommunityHomePage", () => {
       {
         comment_id: 11,
         content: "Ready for the review",
-        task_id: 4,
-        task_title: "Fuel check",
+        entity_type: "task",
+        entity_id: 4,
+        entity_name: "Fuel check",
         project_id: 1,
         project_name: "Lunar Lander",
         initiative_id: 5,

@@ -73,12 +73,11 @@ class JoinRequestStatus(str, Enum):
 
 
 # Permission keys for role-based access control — derived from the Tool enum,
-# one `{plural}_enabled` + `create_{plural}` pair per tool, plus the few
-# EXTRA_PERMISSION_KEYS that are not a tool of their own
-# (documents_enabled, create_documents, …, counter_groups_enabled,
-# create_counter_groups). A new Tool member gets its keys automatically; only
-# the DB CHECK constraint on initiative_role_permissions still needs a guild
-# migration to accept the new values.
+# one `{plural}_enabled` + `create_{plural}` pair per tool (projects_enabled,
+# create_projects, …), plus the few EXTRA_PERMISSION_KEYS that are not a tool of
+# their own. A new Tool member gets its keys automatically; only the DB CHECK
+# constraint on initiative_role_permissions still needs a guild migration to
+# accept the new values.
 #: Role keys that are not a tool's pair. Each is a capability inside a tool
 #: rather than the tool itself, defaults to off for an ordinary role, and is
 #: held by every manager role.

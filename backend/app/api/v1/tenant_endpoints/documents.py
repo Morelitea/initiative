@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from datetime import datetime, timezone
-from typing import Annotated, Any, List, Optional, Sequence
+from typing import Annotated, Any, List, Optional
 
 from fastapi import (
     APIRouter,
@@ -21,12 +21,9 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.audit_events import AuditEventType
-from app.core.relationships import Related, RelationshipType
 from app.core.search import SearchEntityType
-from app.models.tenant.project import Project
 from app.services.permissions import Action
 from app.services.tenant import content_references
-from app.services.tenant import relationships
 from app.services.tenant.relationships import Endpoint
 from app.api.actor_route import ActorRoute
 from app.api.deps import (
@@ -48,7 +45,6 @@ from app.api.deps import (
 from app.core.messages import (
     AttachmentMessages,
     DocumentMessages,
-    InitiativeMessages,
 )
 from app.core.rate_limit import limiter
 from app.db.session import require_actor_context
@@ -101,42 +97,11 @@ from app.services.tenant.collaboration import (
 logger = logging.getLogger(__name__)
 
 
-async def attached_projects(
-    session: AsyncSession, documents: Sequence[Document]
-) -> dict[int, list[Related]]:
-    """Which projects each of these documents is attached to.
-
-    One call for the whole page. The list endpoints below serialise documents in
-    a comprehension, so anything per-document here would be a query per row on
-    the busiest read in the tool.
-    """
-    return await relationships.related_for_many(
-        session,
-        SearchEntityType.document,
-        [d.id for d in documents if d.id is not None],
-        relationship_type=RelationshipType.attached,
-        other_kind=SearchEntityType.project,
-        model=Project,
-    )
-
-
 router = APIRouter(route_class=ActorRoute)
 
 #: The routes an installed plug-in may call, under the documents scopes.
 DocumentsRead = Annotated[ActorContext, Depends(plugin_scope("documents:read"))]
 DocumentsWrite = Annotated[ActorContext, Depends(plugin_scope("documents:write"))]
-
-# Upper bound on the ``ids`` filter, matching the page_size ceiling: the
-# filter hydrates one page worth of known documents.
-MAX_DOCUMENT_IDS = 100
-
-
-async def get_initiative_or_404(session: SessionDep, *, initiative_id: int) -> None:
-    """Refuse with 404 unless ``initiative_id`` is an initiative of this guild."""
-    if await session.get(Initiative, initiative_id) is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=InitiativeMessages.NOT_FOUND
-        )
 
 
 def _file_download_response(
@@ -191,7 +156,6 @@ def visible_document_conditions(
     user_id: int | None,
     *,
     initiative_id: Optional[int] = None,
-    ids: Optional[List[int]] = None,
     search: Optional[str] = None,
     tag_ids: Optional[List[int]] = None,
     untagged: Optional[bool] = None,
@@ -217,9 +181,6 @@ def visible_document_conditions(
         tag_ids=tag_ids,
     )
 
-    if ids is not None:
-        conditions.append(Document.id.in_(tuple(ids)))
-
     if is_template is not None:
         conditions.append(Document.is_template == is_template)
 
@@ -241,8 +202,8 @@ async def serialize_document_page(
 ) -> list[DocumentSummary]:
     """Serialize one page of documents — the rows a document list answers with.
 
-    Everything a card shows beyond the row itself (its tags, its comment count,
-    the projects it is attached to) is a grouped query over the whole page, run
+    Everything a card shows beyond the row itself (its tags, its comment count)
+    is a grouped query over the whole page, run
     once here rather than per row. The order is already settled by the caller
     and is preserved.
 
@@ -254,15 +215,9 @@ async def serialize_document_page(
     await properties_service.annotate_properties(session, documents)
     await documents_service.annotate_comment_counts(session, documents)
     await ownership_service.annotate_owner_plugins(session, documents)
-    attached = await attached_projects(session, documents)
     context = require_actor_context(session)
     return [
-        serialize_document_summary(
-            document,
-            context=context,
-            user_id=user_id,
-            projects=attached.get(document.id, []),
-        )
+        serialize_document_summary(document, context=context, user_id=user_id)
         for document in documents
     ]
 
@@ -813,7 +768,8 @@ async def notify_mentions(
         key="mention.document",
         values={"actor": name, "document": document.name},
         data={
-            "document_id": document.id,
+            "entity_type": Tool.document.value,
+            "entity_id": document.id,
             "mentioned_by_name": name,
             "mentioned_by_id": current_user.id,
         },
