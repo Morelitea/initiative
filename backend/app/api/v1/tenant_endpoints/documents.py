@@ -53,7 +53,6 @@ from app.models.tenant.document import (
     DocumentFileVersion,
     DocumentType,
 )
-from app.models.tenant.initiative import Initiative
 from app.models.platform.notification import NotificationType
 from app.models.platform.user import User
 from app.schemas.tenant.document import (
@@ -173,7 +172,6 @@ def visible_document_conditions(
     conditions = tool_listing.base_conditions(
         Tool.document,
         Document,
-        Initiative.documents_enabled,
         user_id,
         context=context,
         initiative_id=initiative_id,

@@ -17,12 +17,10 @@ from sqlmodel import select
 
 from app.core.messages import QueueMessages
 from app.db.query import ids_in
-from app.models.tenant.initiative import Initiative
 from app.models.tenant.queue import (
     Queue,
     QueueItem,
 )
-from app.models.tenant.resource_grant import ResourceGrant
 from app.schemas.tenant.queue import QueueTurnPreview
 from app.services.permissions import with_tool
 from app.services.tenant import properties as properties_service
@@ -44,7 +42,7 @@ def list_loader_options() -> list:
     request holds on it. Lighter than :func:`get_queue`, which also loads the
     items for the detail read."""
     return [
-        selectinload(Queue.grants).selectinload(ResourceGrant.role),
+        selectinload(Queue.grants),
         selectinload(Queue.initiative),
         undefer(Queue.actions),
     ]
@@ -62,7 +60,7 @@ async def get_queue(
         .where(Queue.id == queue_id)
         .options(
             selectinload(Queue.items).selectinload(QueueItem.user),
-            selectinload(Queue.grants).selectinload(ResourceGrant.role),
+            selectinload(Queue.grants),
             selectinload(Queue.initiative),
             undefer(Queue.actions),
         )
@@ -77,32 +75,6 @@ async def get_queue(
         await tags_service.annotate_tags(session, queue.items or [])
         await properties_service.annotate_properties(session, queue.items or [])
     return queue
-
-
-async def list_queue_ids_for_export(
-    session: AsyncSession,
-    current_user,
-    guild_id: int,
-    *,
-    initiative_ids: list[int],
-) -> list[int]:
-    """Ids of every queue the user may export in the given initiatives —
-    DAC-visible to the user (a request that reaches the whole guild sees all),
-    feature-flag respected. Deterministic order for stable backup output."""
-
-    if not initiative_ids:
-        return []
-    conditions = [
-        Queue.initiative_id.in_(initiative_ids),
-        Initiative.queues_enabled == True,  # noqa: E712
-    ]
-    statement = (
-        select(Queue.id)
-        .join(Initiative, Initiative.id == Queue.initiative_id)
-        .where(*conditions)
-        .order_by(Queue.id.asc())
-    )
-    return list(await session.exec(statement))
 
 
 async def get_queue_item(

@@ -74,7 +74,6 @@ from app.models.tenant.counter import CounterGroup
 from app.models.tenant.dashboard import Dashboard
 from app.models.tenant.document import Document, DocumentType
 from app.models.tenant.gallery import Gallery
-from app.models.tenant.initiative import Initiative
 from app.models.tenant.post import Post
 from app.models.tenant.project import Project
 from app.models.tenant.project_order import ProjectOrder
@@ -383,10 +382,6 @@ class ToolListSpec:
 
     tool: Tool
     model: Any
-    #: The initiative's master switch for this tool. Checked against
-    #: ``Tool.view_permission`` below, so the table can be read at a glance
-    #: without becoming a second source of truth for the column's name.
-    enabled_column: Any
     response_model: Any
     #: (req) -> eager loads for the page query
     loader_options: Callable[["ListRequest"], list]
@@ -424,17 +419,6 @@ class ToolListSpec:
     #: Whether an installed plug-in may list this tool, under its read scope.
     serves_plugins: bool = True
 
-    def __post_init__(self) -> None:
-        # The switch column is spelled out in the table for readability; this
-        # keeps it from drifting from the name the Tool enum derives
-        # everywhere else.
-        if self.enabled_column.key != self.tool.view_permission:
-            raise ValueError(
-                f"{self.tool.value}: enabled_column is "
-                f"{self.enabled_column.key!r}, expected "
-                f"{self.tool.view_permission!r}"
-            )
-
 
 # ---------------------------------------------------------------------------
 # Shared hook bodies
@@ -448,7 +432,6 @@ async def _default_conditions(spec: ToolListSpec, req: ListRequest) -> list:
         *tool_listing.base_conditions(
             spec.tool,
             spec.model,
-            spec.enabled_column,
             req.user_id,
             context=req.guild_context,
             initiative_id=values.get("initiative_id"),
@@ -722,7 +705,6 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
         read_model=ProjectRead,
         read_row=projects_endpoints.read_after_write,
         model=Project,
-        enabled_column=Initiative.projects_enabled,
         response_model=ProjectListResponse,
         loader_options=lambda req: projects_endpoints.project_load_options(
             slim=bool(req.values.get("slim"))
@@ -783,7 +765,6 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
         read_model=DocumentRead,
         read_row=documents_endpoints.read_after_write,
         model=Document,
-        enabled_column=Initiative.documents_enabled,
         response_model=DocumentListResponse,
         loader_options=_loads(documents_service.list_loader_options),
         default_order=_order(Document.updated_at.desc(), Document.id.desc()),
@@ -834,7 +815,6 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
         read_model=QueueRead,
         read_row=queues_endpoints.read_after_write,
         model=Queue,
-        enabled_column=Initiative.queues_enabled,
         response_model=QueueListResponse,
         loader_options=_loads(queues_service.list_loader_options),
         default_order=_order(Queue.updated_at.desc(), Queue.id.desc()),
@@ -877,7 +857,6 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
         read_model=CounterGroupRead,
         read_row=counters_endpoints.read_after_write,
         model=CounterGroup,
-        enabled_column=Initiative.counter_groups_enabled,
         response_model=CounterGroupListResponse,
         loader_options=_loads(counters_service.list_loader_options),
         default_order=_order(CounterGroup.updated_at.desc(), CounterGroup.id.desc()),
@@ -908,7 +887,6 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
         read_model=CalendarRead,
         read_row=calendars_endpoints.read_after_write,
         model=Calendar,
-        enabled_column=Initiative.calendars_enabled,
         response_model=CalendarListResponse,
         loader_options=_loads(calendars_service.calendar_loader_options),
         default_order=_order(Calendar.name.asc(), Calendar.id.asc()),
@@ -952,7 +930,6 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
             "the viewer's own access to the sources it binds."
         ),
         model=Dashboard,
-        enabled_column=Initiative.dashboards_enabled,
         response_model=DashboardListResponse,
         loader_options=_loads(dashboards_service.dashboard_loader_options),
         default_order=_order(Dashboard.name.asc(), Dashboard.id.asc()),
@@ -976,7 +953,6 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
         read_model=PostRead,
         read_row=posts_endpoints.read_after_write,
         model=Post,
-        enabled_column=Initiative.posts_enabled,
         response_model=PostListResponse,
         loader_options=_loads(posts_service.list_loader_options),
         default_order=_post_order,
@@ -1047,7 +1023,6 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
         read_model=GalleryRead,
         read_row=galleries_endpoints.read_after_write,
         model=Gallery,
-        enabled_column=Initiative.galleries_enabled,
         response_model=GalleryListResponse,
         loader_options=_loads(galleries_service.list_loader_options),
         default_order=_order(Gallery.updated_at.desc(), Gallery.id.desc()),
@@ -1075,7 +1050,6 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
         read_model=WikiRead,
         read_row=wikis_endpoints.read_after_write,
         model=Wiki,
-        enabled_column=Initiative.wikis_enabled,
         response_model=WikiListResponse,
         loader_options=_loads(wikis_service.list_loader_options),
         default_order=_order(Wiki.updated_at.desc(), Wiki.id.desc()),

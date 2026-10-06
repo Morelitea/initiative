@@ -24,7 +24,6 @@ from app.models.tenant.calendar_event import (
     CalendarEventAttendee,
 )
 from app.models.tenant.initiative import Initiative
-from app.models.tenant.resource_grant import ResourceGrant
 from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
 
@@ -58,7 +57,7 @@ def guild_scoped(calendar: Calendar) -> bool:
 def calendar_loader_options() -> list:
     """Eager-load everything calendar serialization + authorization needs."""
     return [
-        selectinload(Calendar.grants).selectinload(ResourceGrant.role),
+        selectinload(Calendar.grants),
         selectinload(Calendar.initiative),
         undefer(Calendar.actions),
     ]

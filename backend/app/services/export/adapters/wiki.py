@@ -127,15 +127,6 @@ class WikiAdapter(ToolExportAdapter):
         await properties_service.annotate_properties(session, pages)
         return wiki, pages, []
 
-    async def initiative_ids(
-        self, session: AsyncSession, user: User, guild_id: int, initiative_id: int, /
-    ) -> list[int]:
-        from app.services.tenant.wikis import list_wiki_ids_for_export
-
-        return await list_wiki_ids_for_export(
-            session, user, guild_id, initiative_ids=[initiative_id]
-        )
-
     async def reach(
         self, session: AsyncSession, params: dict, loaded: list[Loaded], /
     ) -> set[int]:

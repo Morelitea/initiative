@@ -19,8 +19,6 @@ from app.models.tenant.counter import (
     Counter,
     CounterGroup,
 )
-from app.models.tenant.initiative import Initiative
-from app.models.tenant.resource_grant import ResourceGrant
 from app.db.query import ids_in
 from app.schemas.tenant.counter import (
     CounterPreview,
@@ -47,7 +45,7 @@ def list_loader_options() -> list:
     """Eager-load what a counter-group *list* row needs: its sharing, the level
     the request holds on it and its tags."""
     return [
-        selectinload(CounterGroup.grants).selectinload(ResourceGrant.role),
+        selectinload(CounterGroup.grants),
         selectinload(CounterGroup.initiative),
         undefer(CounterGroup.actions),
     ]
@@ -111,7 +109,7 @@ async def get_counter_group(
         .where(CounterGroup.id == group_id)
         .options(
             selectinload(CounterGroup.counters),
-            selectinload(CounterGroup.grants).selectinload(ResourceGrant.role),
+            selectinload(CounterGroup.grants),
             selectinload(CounterGroup.initiative),
             undefer(CounterGroup.actions),
         )
@@ -125,32 +123,6 @@ async def get_counter_group(
         await properties_service.annotate_properties(session, [group])
         await properties_service.annotate_properties(session, group.counters or [])
     return group
-
-
-async def list_counter_group_ids_for_export(
-    session: AsyncSession,
-    current_user,
-    guild_id: int,
-    *,
-    initiative_ids: list[int],
-) -> list[int]:
-    """Ids of every counter group the user may export in the given initiatives —
-    DAC-visible to the user (a request that reaches the whole guild sees all),
-    feature-flag respected. Deterministic order for stable backup output."""
-
-    if not initiative_ids:
-        return []
-    conditions = [
-        CounterGroup.initiative_id.in_(initiative_ids),
-        Initiative.counter_groups_enabled == True,  # noqa: E712
-    ]
-    statement = (
-        select(CounterGroup.id)
-        .join(Initiative, Initiative.id == CounterGroup.initiative_id)
-        .where(*conditions)
-        .order_by(CounterGroup.id.asc())
-    )
-    return list(await session.exec(statement))
 
 
 async def get_counter(
