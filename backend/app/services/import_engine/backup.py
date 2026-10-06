@@ -880,6 +880,7 @@ async def _apply_file_entry(
         PropertyRestore,
         grant_ownership,
     )
+    from app.services.tenant import file_versions
     from app.services.tenant.attachments import MAX_DOCUMENT_FILE_SIZE
     from app.services.tenant.documents_spreadsheet import DocumentContentError
     from app.services.tenant.spreadsheet_import import (
@@ -893,6 +894,7 @@ async def _apply_file_entry(
             **base, status="failed", error=ImportEngineMessages.IMPORT_INVALID_ENVELOPE
         )
     asset = assets_by_key.get(storage_key)
+    stored: dict[str, Any] = {}
     if storage_key.lower().endswith(TEXT_TABLE_SUFFIXES):
         try:
             data = await asyncio.to_thread(
@@ -918,9 +920,24 @@ async def _apply_file_entry(
         upload = (
             await session.exec(select(Upload).where(Upload.filename == storage_key))
         ).one_or_none()
-        if upload is None:
-            # Uploads were excluded from this backup (or the blob was not
-            # restored) — recorded, not silently dropped.
+        # The original name lives in the manifest's asset record — the
+        # uploads row's filename IS the storage key.
+        filename = asset.original_filename if asset is not None else storage_key
+        content_type = (
+            await file_versions.stored_file_type(
+                Document,
+                routed_guild_id(session),
+                storage_key,
+                filename=filename,
+                hint=upload.content_type,
+            )
+            if upload is not None
+            else None
+        )
+        if upload is None or content_type is None:
+            # Uploads were excluded from this backup, the blob was not
+            # restored, or it is not a file a document holds — recorded, not
+            # silently dropped.
             return EntryResult(
                 **base,
                 status="skipped",
@@ -932,15 +949,13 @@ async def _apply_file_entry(
             content={},
             initiative_id=initiative.id,
             created_by=user.id,
-            file_url=f"/uploads/{routed_guild_id(session)}/{storage_key}",
-            # The original name lives in the manifest's asset record — the
-            # uploads row's filename IS the storage key.
-            original_filename=(
-                asset.original_filename if asset is not None else storage_key
-            ),
-            file_content_type=upload.content_type,
-            file_size=upload.size_bytes,
         )
+        stored = {
+            "file_url": f"/uploads/{routed_guild_id(session)}/{storage_key}",
+            "original_filename": filename,
+            "file_content_type": content_type,
+            "file_size": upload.size_bytes,
+        }
 
     try:
         async with session.begin_nested():
@@ -953,6 +968,10 @@ async def _apply_file_entry(
                 target_initiative=initiative,
                 importer=user,
             )
+            if stored:
+                await file_versions.add_version(
+                    session, document, created_by=user.id, **stored
+                )
 
             for tag_name in entry.tags:
                 resolved = await ensure_tag(

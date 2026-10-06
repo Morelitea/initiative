@@ -22,9 +22,8 @@ after that does anything decode a pixel — to make the thumbnail, boxed so a
 picture that cannot be thumbnailed is still stored.
 """
 
-import logging
 from datetime import datetime, timezone
-from typing import Annotated, List, Optional, cast
+from typing import Annotated, Any, List, Optional, cast
 
 from fastapi import (
     APIRouter,
@@ -37,7 +36,6 @@ from fastapi import (
     status,
 )
 from sqlalchemy import func
-from sqlalchemy.exc import DataError, IntegrityError
 from sqlmodel import select
 
 from app.api import resource_access
@@ -72,8 +70,6 @@ from app.schemas.tenant.gallery import (
     GalleryRead,
     GalleryUpdate,
     serialize_gallery_image,
-    serialize_gallery_image_version,
-    serialize_gallery_image_versions,
 )
 from app.schemas.tenant.tool import serialize_tool
 from app.schemas.tenant.timeline import TimelineResponse
@@ -81,46 +77,11 @@ from app.services.permissions import Action
 from app.services import storage_config
 from app.services.tenant import attachments as attachments_service
 from app.services.tenant import comments as comments_service
+from app.services.tenant import file_versions
 from app.services.tenant import galleries as galleries_service
 from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
 from app.services.tenant import timeline as timeline_service
-
-logger = logging.getLogger(__name__)
-
-#: Which commit failures prove nothing was written.
-#:
-#: A constraint the server rejected is definitive: the transaction is gone,
-#: and the blobs written for it are bytes nothing will ever reference. A lost
-#: connection is not — Postgres may have committed and failed to say so — and
-#: the two must not be treated alike, because they fail in opposite
-#: directions. A blob left behind is waste somebody can sweep up; a blob
-#: deleted out from under a committed row is a picture that is broken
-#: forever.
-_DEFINITIVELY_NOT_COMMITTED = (IntegrityError, DataError)
-
-
-def _discard_orphans(guild_id: int, urls: list[str], failure: BaseException) -> None:
-    """Take back blobs a failed commit left behind — but only where the
-    failure proves they are orphans. Anything ambiguous keeps its bytes and
-    says so, so the waste is findable rather than the picture missing."""
-    urls = [url for url in urls if url]
-    if not urls:
-        return
-    if isinstance(failure, _DEFINITIVELY_NOT_COMMITTED):
-        attachments_service.delete_blobs(
-            guild_id, attachments_service.upload_names(urls)
-        )
-        return
-    logger.warning(
-        "Left %d uploaded blob(s) in place after an inconclusive commit "
-        "failure (%s); they are orphaned only if the transaction did not "
-        "land: %s",
-        len(urls),
-        type(failure).__name__,
-        ", ".join(urls),
-    )
-
 
 #: How many pictures one page carries. A picture is a thumbnail and a few
 #: fields, so this is generous — the point is that the grid fetches the next
@@ -255,22 +216,43 @@ async def _store_blob(
     )
 
 
-async def _store_thumbnail(
+async def _store_picture(
     session: RLSSessionDep,
     guild_context: GuildContext,
     gallery: Gallery,
-    thumbnail: galleries_service.Thumbnail | None,
-) -> str | None:
-    if thumbnail is None:
-        return None
-    return await _store_blob(
-        session,
-        guild_context,
-        gallery,
-        thumbnail.data,
-        thumbnail.extension,
-        thumbnail.content_type,
+    file: UploadFile,
+) -> dict[str, Any]:
+    """Read, check and store an uploaded picture and its thumbnail, and return
+    the version columns they were stored as."""
+    # Pick up a backend/credential change saved in another worker before writing.
+    await storage_config.ensure_storage_config_fresh(session)
+    contents, mime, extension, width, height, thumb = await _read_picture(
+        session, guild_context, file
     )
+    file_url = await _store_blob(
+        session, guild_context, gallery, contents, extension, mime
+    )
+    thumbnail_url = (
+        await _store_blob(
+            session,
+            guild_context,
+            gallery,
+            thumb.data,
+            thumb.extension,
+            thumb.content_type,
+        )
+        if thumb is not None
+        else None
+    )
+    return {
+        "file_url": file_url,
+        "thumbnail_url": thumbnail_url,
+        "file_content_type": mime,
+        "file_size": len(contents),
+        "original_filename": file.filename,
+        "width": width,
+        "height": height,
+    }
 
 
 def _image_scope(
@@ -300,7 +282,9 @@ def _image_scope(
         conditions.append(
             func.coalesce(GalleryImage.title, "").ilike(needle)
             | func.coalesce(GalleryImage.caption, "").ilike(needle)
-            | func.coalesce(GalleryImage.original_filename, "").ilike(needle)
+            | GalleryImage.current_version.has(
+                GalleryImageVersion.original_filename.ilike(needle)
+            )
         )
     return conditions
 
@@ -573,61 +557,27 @@ async def upload_gallery_image(
     gallery = await resource_access.load_authorized(
         session, Tool.gallery, gallery_id, current_user, guild_context, access="write"
     )
-    # Pick up a backend/credential change saved in another worker before writing.
-    await storage_config.ensure_storage_config_fresh(session)
-    contents, mime, extension, width, height, thumb = await _read_picture(
-        session, guild_context, file
-    )
-    file_url = await _store_blob(
-        session, guild_context, gallery, contents, extension, mime
-    )
-    thumbnail_url = await _store_thumbnail(session, guild_context, gallery, thumb)
+    stored = await _store_picture(session, guild_context, gallery, file)
 
     now = datetime.now(timezone.utc)
     image = GalleryImage(
         gallery_id=gallery.id,
         title=(title or "").strip()[:255] or None,
         caption=(caption or "").strip() or None,
-        file_url=file_url,
-        thumbnail_url=thumbnail_url,
-        file_content_type=mime,
-        file_size=len(contents),
-        original_filename=file.filename,
-        width=width,
-        height=height,
         created_by=current_user.id,
         created_at=now,
         updated_at=now,
     )
     session.add(image)
     await session.flush()
-    session.add(
-        GalleryImageVersion(
-            gallery_image_id=image.id,
-            version_number=1,
-            file_url=file_url,
-            thumbnail_url=thumbnail_url,
-            file_content_type=mime,
-            file_size=len(contents),
-            original_filename=file.filename,
-            width=width,
-            height=height,
-            created_by=current_user.id,
-        )
+    version = await file_versions.add_version(
+        session, image, created_by=current_user.id, **stored
     )
     # A gallery that just gained a picture has changed, and the list orders by
     # that.
     gallery.updated_at = now
     session.add(gallery)
-    # The blobs are in storage and the rows that account for them are not
-    # committed yet, so a failure here can strand them — see
-    # :func:`_discard_orphans` for which failures that is true of.
-    try:
-        await session.commit()
-    except Exception as failed:
-        await session.rollback()
-        _discard_orphans(guild_context.guild_id, [file_url, thumbnail_url], failed)
-        raise
+    await file_versions.commit_version(session, guild_context.guild_id, version)
 
     hydrated = await _refetch_image(session, image.id)
     return serialize_gallery_image(hydrated, context=guild_context)
@@ -788,48 +738,17 @@ async def upload_gallery_image_version(
     image = await resource_access.load_child(
         session, GalleryImage, image_id, access="write", parent_id=gallery_id
     )
-    gallery = image.gallery
-    await storage_config.ensure_storage_config_fresh(session)
-    contents, mime, extension, width, height, thumb = await _read_picture(
-        session, guild_context, file
+    stored = await _store_picture(session, guild_context, image.gallery, file)
+    version = await file_versions.add_version(
+        session, image, created_by=current_user.id, **stored
     )
-    file_url = await _store_blob(
-        session, guild_context, gallery, contents, extension, mime
+    await file_versions.commit_version(
+        session,
+        guild_context.guild_id,
+        version,
+        conflict=GalleryMessages.VERSION_CONFLICT,
     )
-    thumbnail_url = await _store_thumbnail(session, guild_context, gallery, thumb)
-
-    version = GalleryImageVersion(
-        gallery_image_id=image.id,
-        version_number=await galleries_service.next_version_number(session, image.id),
-        file_url=file_url,
-        thumbnail_url=thumbnail_url,
-        file_content_type=mime,
-        file_size=len(contents),
-        original_filename=file.filename,
-        width=width,
-        height=height,
-        created_by=current_user.id,
-    )
-    session.add(version)
-    galleries_service.mirror_version(image, version)
-    image.updated_at = datetime.now(timezone.utc)
-    session.add(image)
-    try:
-        await session.commit()
-    except Exception as failed:
-        await session.rollback()
-        _discard_orphans(guild_context.guild_id, [file_url, thumbnail_url], failed)
-        if isinstance(failed, IntegrityError):
-            # A concurrent upload claimed the same version number between the
-            # MAX() read and this commit. Ask the caller to retry rather than
-            # surfacing a 500.
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=GalleryMessages.VERSION_CONFLICT,
-            ) from failed
-        raise
-    await session.refresh(version)
-    return serialize_gallery_image_version(version, is_current=True)
+    return file_versions.read(GalleryImageVersionRead, version, image)
 
 
 @router.get(
@@ -847,12 +766,10 @@ async def list_gallery_image_versions(
     image = await resource_access.load_child(
         session, GalleryImage, image_id, parent_id=gallery_id
     )
-    result = await session.exec(
-        select(GalleryImageVersion)
-        .where(GalleryImageVersion.gallery_image_id == image.id)
-        .order_by(GalleryImageVersion.version_number.desc())
-    )
-    return serialize_gallery_image_versions(list(result.all()))
+    return [
+        file_versions.read(GalleryImageVersionRead, version, image)
+        for version in await file_versions.versions_newest_first(session, image)
+    ]
 
 
 @router.delete(
@@ -873,44 +790,8 @@ async def delete_gallery_image_version(
     image = await resource_access.load_child(
         session, GalleryImage, image_id, action=Action.delete, parent_id=gallery_id
     )
-    # Serialize concurrent deletes on the same picture: two owner DELETEs that
-    # both observe two versions could otherwise each remove one and leave none.
-    await session.exec(
-        select(GalleryImage).where(GalleryImage.id == image.id).with_for_update()
+    deleted = await file_versions.delete_version(
+        session, image, version_id, GalleryMessages
     )
-    versions = list(
-        (
-            await session.exec(
-                select(GalleryImageVersion)
-                .where(GalleryImageVersion.gallery_image_id == image.id)
-                .order_by(GalleryImageVersion.version_number.desc())
-            )
-        ).all()
-    )
-    if len(versions) <= 1:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=GalleryMessages.CANNOT_DELETE_LAST_VERSION,
-        )
-    target = next((v for v in versions if v.id == version_id), None)
-    if target is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=GalleryMessages.VERSION_NOT_FOUND,
-        )
-    is_current = target.version_number == versions[0].version_number
-    doomed_urls = galleries_service.image_blob_urls(target)
-
-    await session.delete(target)
-    if is_current:
-        promoted = next((v for v in versions if v.id != version_id), None)
-        if promoted is not None:
-            galleries_service.mirror_version(image, promoted)
-            image.updated_at = datetime.now(timezone.utc)
-            session.add(image)
     await session.commit()
-    # Once the version is gone, and only if nothing else shows its files.
-    released = await attachments_service.release_unshown(
-        guild_context.guild_id, doomed_urls
-    )
-    attachments_service.delete_blobs(guild_context.guild_id, released)
+    await file_versions.release_files(guild_context.guild_id, deleted)

@@ -1,0 +1,263 @@
+"""A file kept as numbered versions: a file document's, a gallery picture's.
+
+The parent row names the version it shows (``current_version_id``) and the
+version rows are its history. Both tools take the same steps through here:
+number a new version and make it current, copy one for a duplicate, delete
+one and point back at the newest left, and take back the stored files a
+failed or finished write leaves behind. Every version a row is given has a
+type its tool accepts, since that type decides how the file is shown.
+
+A parent's versions are read off its ``versions`` relationship, so the steps
+work for any model that keeps one.
+"""
+
+import asyncio
+import logging
+from collections.abc import Collection
+from datetime import datetime, timezone
+from typing import Any, Protocol, TypeVar
+
+from fastapi import HTTPException, status
+from pydantic import BaseModel
+from sqlalchemy import Column, func
+from sqlalchemy import inspect as sa_inspect
+from sqlalchemy.exc import DataError, IntegrityError
+from sqlmodel import select
+from sqlmodel.ext.asyncio.session import AsyncSession
+
+from app.schemas.tenant.tool import from_row
+from app.services.tenant import attachments as attachments_service
+
+logger = logging.getLogger(__name__)
+
+ReadT = TypeVar("ReadT", bound=BaseModel)
+
+#: Which commit failures prove nothing was written.
+#:
+#: A constraint the server rejected is definitive: the transaction is gone,
+#: and the blobs written for it are bytes nothing will ever reference. A lost
+#: connection is not — Postgres may have committed and failed to say so — and
+#: the two must not be treated alike, because they fail in opposite
+#: directions. A blob left behind is waste somebody can sweep up; a blob
+#: deleted out from under a committed row is a file that is broken forever.
+_DEFINITIVELY_NOT_COMMITTED = (IntegrityError, DataError)
+
+
+class VersionMessages(Protocol):
+    """The refusals a tool answers version requests with."""
+
+    VERSION_NOT_FOUND: str
+    CANNOT_DELETE_LAST_VERSION: str
+
+
+def _history(parent: Any) -> tuple[type, Column]:
+    """The version model ``parent`` keeps, and its column naming the parent."""
+    relationship = sa_inspect(type(parent)).relationships["versions"]
+    (column,) = relationship.remote_side
+    return relationship.mapper.class_, column
+
+
+def _stored(version: Any) -> list[str | None]:
+    """The stored files a version names: its file, and a picture's thumbnail."""
+    return [version.file_url, getattr(version, "thumbnail_url", None)]
+
+
+def _allowed(model: type) -> Collection[str]:
+    """The types a ``model`` row's file may be: what an upload of one accepts,
+    which is what decides how the file is shown."""
+    from app.models.tenant.document import Document
+    from app.models.tenant.gallery import GalleryImage
+    from app.services.tenant.galleries import PICTURE_EXTENSIONS
+
+    return {
+        Document: attachments_service.ALLOWED_DOCUMENT_MIME_TYPES,
+        GalleryImage: PICTURE_EXTENSIONS,
+    }[model]
+
+
+def file_type(
+    model: type, data: bytes, *, filename: str | None, hint: str | None
+) -> str | None:
+    """The type ``data`` takes as a ``model`` row's file, read from its bytes
+    by the rule an upload of one follows (``filename`` and ``hint`` are what
+    that rule falls back on), or ``None`` where it is not a file the row may
+    hold."""
+    from app.models.tenant.gallery import GalleryImage
+    from app.services.tenant import galleries
+
+    try:
+        if model is GalleryImage:
+            return galleries.validate_image(data)[0].content_type
+        return attachments_service.validate_document_file(data, filename, hint)[0]
+    except ValueError:
+        return None
+
+
+async def stored_file_type(
+    model: type,
+    guild_id: int,
+    key: str,
+    *,
+    filename: str | None = None,
+    hint: str | None = None,
+) -> str | None:
+    """:func:`file_type` for a file already stored in the community under
+    ``key``, or ``None`` where nothing is stored there."""
+    from app.services.import_engine.engine import read_payload
+
+    data = await asyncio.to_thread(read_payload, guild_id, key)
+    if data is None:
+        return None
+    return file_type(model, data, filename=filename, hint=hint)
+
+
+def _make_current(parent: Any, version: Any) -> None:
+    parent.current_version = version
+    parent.updated_at = datetime.now(timezone.utc)
+
+
+def _new_version(session: AsyncSession, parent: Any, fields: dict[str, Any]) -> Any:
+    """Add a version of ``parent``'s file and make it current. Its type is one
+    ``parent`` may show; anything else raises ``ValueError``."""
+    content_type = fields.get("file_content_type")
+    if content_type not in _allowed(type(parent)):
+        raise ValueError(f"Unsupported file type: {content_type}")
+    model, _ = _history(parent)
+    version = model(**fields)
+    session.add(version)
+    _make_current(parent, version)
+    return version
+
+
+async def versions_newest_first(session: AsyncSession, parent: Any) -> list[Any]:
+    model, column = _history(parent)
+    result = await session.exec(
+        select(model)
+        .where(column == parent.id)
+        .order_by(model.version_number.desc())
+    )
+    return list(result.all())
+
+
+async def add_version(session: AsyncSession, parent: Any, **fields: Any) -> Any:
+    """A new version of ``parent``'s file, numbered after its last and made
+    current. ``fields`` are the version's columns: its file, its type and who
+    made it."""
+    model, column = _history(parent)
+    last = await session.scalar(
+        select(func.max(model.version_number)).where(column == parent.id)
+    )
+    number = (last or 0) + 1
+    return _new_version(
+        session, parent, {**fields, column.key: parent.id, "version_number": number}
+    )
+
+
+def copy_version(
+    session: AsyncSession, version: Any, copy: Any, **values: Any
+) -> Any:
+    """Version 1 of ``copy``, carrying ``version``'s file, made current.
+    ``values`` set what differs from it: the copy's author, a copied file."""
+    model, column = _history(copy)
+    carried = {
+        c.name: getattr(version, c.name)
+        for c in model.__table__.columns
+        if not (c.primary_key or c.foreign_keys)
+        and c.name not in ("version_number", "created_at")
+    }
+    return _new_version(
+        session,
+        copy,
+        {**carried, **values, column.key: copy.id, "version_number": 1},
+    )
+
+
+def discard_orphans(
+    guild_id: int, urls: list[str | None], failure: BaseException
+) -> None:
+    """Take back blobs a failed commit left behind — but only where the
+    failure proves they are orphans. Anything ambiguous keeps its bytes and
+    says so, so the waste is findable rather than the file missing."""
+    kept = [url for url in urls if url]
+    if not kept:
+        return
+    if isinstance(failure, _DEFINITIVELY_NOT_COMMITTED):
+        attachments_service.delete_blobs(
+            guild_id, attachments_service.upload_names(kept)
+        )
+        return
+    logger.warning(
+        "Left %d uploaded blob(s) in place after an inconclusive commit "
+        "failure (%s); they are orphaned only if the transaction did not "
+        "land: %s",
+        len(kept),
+        type(failure).__name__,
+        ", ".join(kept),
+    )
+
+
+async def commit_version(
+    session: AsyncSession, guild_id: int, version: Any, *, conflict: str | None = None
+) -> None:
+    """Commit the write that added ``version``, whose files are already
+    stored. When the commit fails its files are taken back (see
+    :func:`discard_orphans`); with ``conflict``, a version number another
+    upload took first is answered 409 with it."""
+    urls = _stored(version)
+    try:
+        await session.commit()
+    except Exception as failed:
+        await session.rollback()
+        discard_orphans(guild_id, urls, failed)
+        if conflict is not None and isinstance(failed, IntegrityError):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT, detail=conflict
+            ) from failed
+        raise
+
+
+async def delete_version(
+    session: AsyncSession, parent: Any, version_id: int, messages: VersionMessages
+) -> Any:
+    """Delete one of ``parent``'s versions and return it; the caller commits,
+    then calls :func:`release_files`. Deleting the current version makes the
+    newest one left current. The last version is kept."""
+    model = type(parent)
+    # One deletion at a time per parent, read fresh once it holds the lock, so
+    # two deletions cannot each take one of its last two versions.
+    await session.exec(
+        select(model)
+        .where(model.id == parent.id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    versions = await versions_newest_first(session, parent)
+    if len(versions) <= 1:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=messages.CANNOT_DELETE_LAST_VERSION,
+        )
+    target = next((v for v in versions if v.id == version_id), None)
+    if target is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=messages.VERSION_NOT_FOUND
+        )
+    if parent.current_version_id == target.id:
+        _make_current(parent, next(v for v in versions if v is not target))
+        # The parent points elsewhere before the version it showed goes.
+        await session.flush()
+    await session.delete(target)
+    return target
+
+
+async def release_files(guild_id: int, version: Any) -> None:
+    """Delete a deleted version's stored files, once that has committed and
+    where nothing else shows them."""
+    released = await attachments_service.release_unshown(guild_id, _stored(version))
+    attachments_service.delete_blobs(guild_id, released)
+
+
+def read(schema: type[ReadT], version: Any, parent: Any) -> ReadT:
+    """``version`` in ``schema``, saying whether ``parent`` shows it."""
+    current = version.id == parent.current_version_id
+    return from_row(schema, version, is_current=current)

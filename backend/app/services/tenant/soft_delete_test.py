@@ -467,76 +467,55 @@ async def test_trash_listings_page_newest_first(session: AsyncSession, client):
     assert {i["deleted_by_id"] for i in mine_items} == {user.id}
 
 
-async def test_purge_document_uploads_removes_all_version_blobs(session: AsyncSession):
-    """A purged file document must clean up the Upload rows for ALL of its
-    historical versions, not just the current blob mirrored on the documents
-    row."""
+async def test_purging_a_file_document_takes_every_version(session: AsyncSession):
+    """A purged file document takes every version of its file with it — the
+    version rows, the one it points at included, and their Upload rows."""
     from sqlmodel import select
 
     from app.models.tenant.document import DocumentFileVersion
-    from app.services.tenant.attachments import purge_document_uploads
+    from app.services.tenant import file_versions
+    from app.services.tenant.soft_delete import hard_purge_entity
+    from app.testing.factories import create_document
 
     user = await create_user(session)
     guild = await create_guild(session, creator=user)
     initiative = await create_initiative(session, guild, user)
-
-    # Current blob (mirrored on the document) + one historical version blob.
-    current_name = "doc_v2.pdf"
-    old_name = "doc_v1.pdf"
-    for name in (current_name, old_name):
-        session.add(
-            Upload(
-                filename=name,
-                created_by=user.id,
-                size_bytes=10,
-            )
-        )
-    doomed = Document(
-        initiative_id=initiative.id,
+    names = ["doc_v1.pdf", "doc_v2.pdf"]
+    doomed = await create_document(
+        session,
+        initiative,
+        user,
         name="Doomed file",
         document_type=DocumentType.file,
-        content={},
-        file_url=f"/uploads/{current_name}",
-        file_content_type="application/pdf",
-        file_size=10,
-        original_filename=current_name,
-        created_by=user.id,
+        file_url=f"/uploads/{names[0]}",
+        original_filename=names[0],
     )
-    session.add(doomed)
-    await session.flush()
     session.add_all(
-        [
-            DocumentFileVersion(
-                document_id=doomed.id,
-                version_number=1,
-                file_url=f"/uploads/{old_name}",
-                file_content_type="application/pdf",
-                file_size=10,
-                original_filename=old_name,
-                created_by=user.id,
-            ),
-            DocumentFileVersion(
-                document_id=doomed.id,
-                version_number=2,
-                file_url=f"/uploads/{current_name}",
-                file_content_type="application/pdf",
-                file_size=10,
-                original_filename=current_name,
-                created_by=user.id,
-            ),
-        ]
+        Upload(filename=name, created_by=user.id, size_bytes=10) for name in names
+    )
+    newest = await file_versions.add_version(
+        session,
+        doomed,
+        created_by=user.id,
+        file_url=f"/uploads/{names[1]}",
+        file_content_type="application/pdf",
+        original_filename=names[1],
     )
     await session.commit()
+    assert (newest.version_number, doomed.current_version_id) == (2, newest.id)
 
-    await purge_document_uploads(session, [doomed])
+    await soft_delete_entity(
+        session, doomed, deleted_by_user_id=user.id, retention_days=30
+    )
+    await session.commit()
+    await hard_purge_entity(session, doomed)
     await session.commit()
 
-    remaining = (
-        await session.exec(
-            select(Upload).where(Upload.filename.in_([current_name, old_name]))
-        )
-    ).all()
-    assert remaining == []
+    uploads = await session.exec(select(Upload).where(Upload.filename.in_(names)))
+    versions = await session.exec(
+        select(DocumentFileVersion).where(DocumentFileVersion.document_id == doomed.id)
+    )
+    assert (uploads.all(), versions.all()) == ([], [])
 
 
 # ---------------------------------------------------------------------------

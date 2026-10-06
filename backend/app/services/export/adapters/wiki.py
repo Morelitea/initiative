@@ -354,14 +354,15 @@ def filed_document_records(
         }
         doc_type = getattr(document.document_type, "value", document.document_type)
         if doc_type == DocumentType.file.value:
-            key = (document.file_url or "").split("/")[-1]
-            if not key or not storage.exists(key):
+            version = document.current_version
+            key = version.file_url.split("/")[-1] if version is not None else ""
+            if version is None or not key or not storage.exists(key):
                 continue
             record["upload"] = {
                 "name": document.name,
                 "storage_key": key,
-                "original_filename": document.original_filename,
-                "content_type": document.file_content_type,
+                "original_filename": version.original_filename,
+                "content_type": version.file_content_type,
                 "tags": sorted(tag.name for tag in document.tags or []),
                 "properties": exported_properties(document),
             }
@@ -370,7 +371,7 @@ def filed_document_records(
                     key=key,
                     data={
                         "storage_key": key,
-                        "content_type": document.file_content_type,
+                        "content_type": version.file_content_type,
                     },
                     filename=f"assets/{key}",
                     format="file",

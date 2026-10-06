@@ -39,7 +39,7 @@ from app.models.tenant._mixins import (
 from app.models.tenant.calendar import Calendar
 from app.models.tenant.calendar_event import CalendarEvent, CalendarEventAttendee
 from app.models.tenant.counter import Counter, CounterGroup
-from app.models.tenant.gallery import Gallery, GalleryImage, GalleryImageVersion
+from app.models.tenant.gallery import Gallery, GalleryImage
 from app.models.tenant.post import Post
 from app.models.tenant.post_poll import PostPoll, PostPollOption
 from app.models.tenant.project import Project
@@ -52,6 +52,7 @@ from app.services import notifications as notifications_service
 from app.services.tenant import attachments as attachments_service
 from app.services.tenant import calendar_occurrences as occurrences_service
 from app.services.tenant import documents as documents_service
+from app.services.tenant import file_versions
 from app.services.tenant import filter_presets as filter_presets_service
 from app.services.tenant import named_people, project_grants
 from app.services.tenant import properties as properties_service
@@ -367,7 +368,7 @@ async def _queue_contents(
 
 async def _gallery_contents(
     session: AsyncSession, source: Gallery, copy: Gallery, actor: ActorContext
-) -> list[GalleryImage]:
+) -> list[Any]:
     images = (
         await session.exec(
             select(GalleryImage).where(GalleryImage.gallery_id == source.id)
@@ -384,29 +385,16 @@ async def _gallery_contents(
             "created_by": actor.user_id or image.created_by,
         },
     )
-    session.add_all(
-        GalleryImageVersion(
-            gallery_image_id=clone.id,
-            version_number=1,
-            created_by=clone.created_by,
-            **{c: getattr(clone, c) for c in _IMAGE_FILE_COLUMNS},
+    versions = [
+        file_versions.copy_version(
+            session, image.current_version, clone, created_by=clone.created_by
         )
-        for _, clone in pairs
-    )
+        for image, clone in pairs
+        if image.current_version is not None
+    ]
     copy.cover_image_id = {s.id: c.id for s, c in pairs}.get(source.cover_image_id)
-    return [clone for _, clone in pairs]
-
-
-#: What a picture's version records about its file.
-_IMAGE_FILE_COLUMNS = (
-    "file_url",
-    "thumbnail_url",
-    "file_content_type",
-    "file_size",
-    "original_filename",
-    "width",
-    "height",
-)
+    # The versions name the files, so they are what is claimed for the copy.
+    return [*(clone for _, clone in pairs), *versions]
 
 
 async def _post_contents(

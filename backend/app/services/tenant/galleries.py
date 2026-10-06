@@ -60,7 +60,7 @@ logger = logging.getLogger(__name__)
 
 #: What a picture in a gallery may be. Exactly what ``read_image_header``
 #: recognizes: the raster formats an ``<img>`` draws.
-_EXTENSIONS: dict[str, str] = {
+PICTURE_EXTENSIONS: dict[str, str] = {
     "image/png": ".png",
     "image/jpeg": ".jpg",
     "image/webp": ".webp",
@@ -87,9 +87,9 @@ def validate_image(contents: bytes) -> tuple[ImageHeader, str]:
     if not contents:
         raise EmptyImageError()
     header = read_image_header(contents)
-    if header is None or header.content_type not in _EXTENSIONS:
+    if header is None or header.content_type not in PICTURE_EXTENSIONS:
         raise InvalidImageError()
-    return header, _EXTENSIONS[header.content_type]
+    return header, PICTURE_EXTENSIONS[header.content_type]
 
 
 @dataclass(frozen=True)
@@ -319,32 +319,6 @@ async def annotate_version_counts(
     counts = dict(result.all())
     for image in rows:
         object.__setattr__(image, "version_count", counts.get(image.id, 1))
-
-
-async def next_version_number(session: AsyncSession, image_id: int) -> int:
-    current = await session.scalar(
-        select(func.max(GalleryImageVersion.version_number)).where(
-            GalleryImageVersion.gallery_image_id == image_id
-        )
-    )
-    return (current or 0) + 1
-
-
-def mirror_version(image: GalleryImage, version: GalleryImageVersion) -> None:
-    """Copy a version's file fields onto the picture row, which is what every
-    surface reads — the version table is history."""
-    image.file_url = version.file_url
-    image.thumbnail_url = version.thumbnail_url
-    image.file_content_type = version.file_content_type
-    image.file_size = version.file_size
-    image.original_filename = version.original_filename
-    image.width = version.width
-    image.height = version.height
-
-
-def image_blob_urls(image: Any) -> list[str]:
-    """Every stored blob a picture row names — the file and its thumbnail."""
-    return [url for url in (image.file_url, image.thumbnail_url) if url]
 
 
 async def list_gallery_ids_for_export(
