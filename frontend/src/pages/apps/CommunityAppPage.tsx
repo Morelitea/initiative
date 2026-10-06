@@ -14,6 +14,11 @@
  *    one rather than being stuck until the page is reloaded.
  * 5. The frame is granted the browser features the surface's manifest declared,
  *    and no others.
+ *
+ * The handoff also carries `sells`: whether this host may lead anyone to a
+ * purchase here (a billing portal is configured, and this device may sell —
+ * see `@/lib/storeSelling`). An embedded app hides its own purchase copy when
+ * it is false.
  */
 
 import { Loader2 } from "lucide-react";
@@ -30,6 +35,7 @@ import {
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { useAuth } from "@/hooks/useAuth";
+import { useBillingPortal } from "@/hooks/useBillingPortal";
 import { effectiveThemeColors } from "@/hooks/useColorTheme";
 import { useCommunityAppDetail } from "@/hooks/useCommunityAppDetail";
 import { useTheme } from "@/hooks/useTheme";
@@ -151,6 +157,11 @@ export function CommunityAppPage({ appId, initiativeId }: CommunityAppPageProps)
   themeRef.current = resolvedTheme;
   const themeColorsRef = useRef(themeColors);
   themeColorsRef.current = themeColors;
+  // Asked at delivery rather than read at render: a phone's store may not
+  // have answered yet when the frame announces itself.
+  const { sellsNow } = useBillingPortal();
+  const sellsNowRef = useRef(sellsNow);
+  sellsNowRef.current = sellsNow;
 
   useEffect(() => {
     if (!origin || !handoff) return;
@@ -162,7 +173,10 @@ export function CommunityAppPage({ appId, initiativeId }: CommunityAppPageProps)
     // cannot tell them apart.
     let cancelled = false;
 
-    const send = (target: Window, token: CommunityAppHandoff) => {
+    const send = async (target: Window, token: CommunityAppHandoff) => {
+      const sells = await sellsNowRef.current();
+      // Dropped if the surface changed, or the frame was replaced, meanwhile.
+      if (cancelled || iframeRef.current?.contentWindow !== target) return;
       target.postMessage(
         {
           type: HANDOFF,
@@ -173,6 +187,7 @@ export function CommunityAppPage({ appId, initiativeId }: CommunityAppPageProps)
           locale: localeRef.current,
           theme: themeRef.current,
           theme_colors: themeColorsRef.current,
+          sells,
         },
         // Never "*": that would hand the token to whatever happens to be
         // loaded in the frame.
@@ -191,9 +206,12 @@ export function CommunityAppPage({ appId, initiativeId }: CommunityAppPageProps)
       if (!data || typeof data !== "object" || typeof data.type !== "string") return;
 
       if (data.type === READY) {
+        const failed = () => {
+          if (!cancelled) setError(tRef.current("apps:embed.handoffFailed"));
+        };
         if (!spentRef.current) {
-          send(target, handoff);
           spentRef.current = true;
+          send(target, handoff).catch(failed);
           return;
         }
         void mint()
@@ -201,7 +219,7 @@ export function CommunityAppPage({ appId, initiativeId }: CommunityAppPageProps)
             // Dropped if the surface changed while this was in flight, or if
             // the frame that asked is no longer the mounted one.
             if (cancelled || iframeRef.current?.contentWindow !== target) return;
-            send(target, fresh);
+            return send(target, fresh);
           })
           .catch(() => {
             if (!cancelled) setError(tRef.current("apps:embed.handoffFailed"));

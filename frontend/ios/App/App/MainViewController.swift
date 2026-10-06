@@ -6,6 +6,7 @@ import WebKit
 class MainViewController: CAPBridgeViewController {
     override func capacitorDidLoad() {
         bridge?.registerPluginInstance(FirebaseRuntimePlugin())
+        bridge?.registerPluginInstance(AppEnvironmentPlugin())
 
         guard let handler = (bridge as? CapacitorBridge)?.webViewDelegationHandler else {
             return

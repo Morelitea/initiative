@@ -421,7 +421,9 @@
     "errorTitle": "Couldn't open billing",
     "error": "The billing portal couldn't be opened. Try the link again in a moment.",
     "nativeTitle": "Not available in the app",
-    "nativeDescription": "Plan changes aren't available in the app."
+    "nativeDescription": "Plan changes aren't available in the app.",
+    "openedTitle": "Opened in your browser",
+    "openedDescription": "The billing portal is open in your browser."
   },
   "usagePanel": {
     "title": "Usage",

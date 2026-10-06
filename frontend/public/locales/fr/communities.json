@@ -421,7 +421,9 @@
     "errorTitle": "Impossible d’ouvrir la facturation",
     "error": "Le portail de facturation n’a pas pu être ouvert. Réessayez le lien dans un instant.",
     "nativeTitle": "Indisponible dans l’application",
-    "nativeDescription": "Les changements de forfait ne sont pas disponibles dans l’application."
+    "nativeDescription": "Les changements de forfait ne sont pas disponibles dans l’application.",
+    "openedTitle": "Ouvert dans votre navigateur",
+    "openedDescription": "Le portail de facturation est ouvert dans votre navigateur."
   },
   "usagePanel": {
     "title": "Utilisation",

@@ -1,3 +1,5 @@
+import { Browser } from "@capacitor/browser";
+import { Capacitor } from "@capacitor/core";
 import { useParams, useSearch } from "@tanstack/react-router";
 import { CreditCard, Loader2, ShieldAlert } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -5,24 +7,26 @@ import { useTranslation } from "react-i18next";
 
 import { StatusMessage } from "@/components/StatusMessage";
 import { type BillingPortalPage, useBillingPortal } from "@/hooks/useBillingPortal";
-import { useServer } from "@/hooks/useServer";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { useStoreSellingAnswer } from "@/lib/storeSelling";
 
 /**
  * `/c/$communityId/billing?page=…`: mints a portal handoff for the community and
  * replaces this tab with the portal, so Back does not land here again.
  *
- * The app on a phone goes nowhere and says only that plans are not changed
- * there: the app stores refuse an app that points anyone to a purchase
- * outside their own checkout, so it names no browser, portal or link.
+ * A phone app opens the portal in the system browser sheet instead, where its
+ * store allows a link to a web purchase (`@/lib/storeSelling`). Where it does
+ * not, the page goes nowhere and says only that plans are not changed in the
+ * app: it names no browser, portal or link.
  */
 export const BillingForwardPage = () => {
   const { t } = useTranslation("communities");
   const { communityId } = useParams({ strict: false }) as { communityId?: string };
   const { page } = useSearch({ strict: false }) as { page?: BillingPortalPage };
-  const { isNativePlatform } = useServer();
+  const sellsHere = useStoreSellingAnswer();
   const { billing, isLoading, portalUrl } = useBillingPortal();
   const [error, setError] = useState<string | null>(null);
+  const [opened, setOpened] = useState(false);
   // Once per visit, StrictMode's second effect included: each request mints a token.
   const started = useRef(false);
 
@@ -30,18 +34,26 @@ export const BillingForwardPage = () => {
   const target: BillingPortalPage = page === "upgrade" ? "upgrade" : "manage";
 
   useEffect(() => {
-    if (started.current || isNativePlatform || isLoading || !billing) return;
+    if (started.current || sellsHere !== true || isLoading || !billing) return;
     started.current = true;
     if (!Number.isInteger(id) || id <= 0) {
       setError(t("billingForward.error"));
       return;
     }
     portalUrl(id, target)
-      .then((url) => {
-        if (url) window.location.replace(url);
+      .then(async (url) => {
+        if (!url) return;
+        const platform = Capacitor.getPlatform();
+        if (platform !== "ios" && platform !== "android") {
+          window.location.replace(url);
+          return;
+        }
+        // The phone apps open the portal in the browser sheet and stay here.
+        await Browser.open({ url });
+        setOpened(true);
       })
       .catch((err: unknown) => setError(getErrorMessage(err, "communities:billingForward.error")));
-  }, [billing, id, isLoading, isNativePlatform, portalUrl, t, target]);
+  }, [billing, id, isLoading, sellsHere, portalUrl, t, target]);
 
   const message = (icon: React.ReactNode, title: string, description: string) => (
     <div className="flex min-h-screen items-center justify-center">
@@ -55,7 +67,7 @@ export const BillingForwardPage = () => {
     </div>
   );
 
-  if (isNativePlatform) {
+  if (sellsHere === false) {
     return message(
       <CreditCard />,
       t("billingForward.nativeTitle"),
@@ -71,6 +83,13 @@ export const BillingForwardPage = () => {
   }
   if (error) {
     return message(<ShieldAlert />, t("billingForward.errorTitle"), error);
+  }
+  if (opened) {
+    return message(
+      <CreditCard />,
+      t("billingForward.openedTitle"),
+      t("billingForward.openedDescription")
+    );
   }
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-3 px-6 text-center">

@@ -64,8 +64,8 @@ export const CommunityContextMenu = ({
   const atUserLimit = community.max_users != null && community.member_count >= community.max_users;
   // Where a billing portal exists the cap travels with the plan, so a full
   // community leads there — for the seat, which is who the portal answers. An
-  // ordinary admin, or anyone in the phone app, sees the plain "community is
-  // full" wording instead.
+  // ordinary admin, or anyone where nothing may be sold, sees the plain
+  // "community is full" wording instead.
   const upgradeForSeats = atUserLimit && canSell && community.can.seat;
 
   const handleInviteMembers = async () => {
