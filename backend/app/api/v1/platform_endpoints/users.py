@@ -1297,8 +1297,7 @@ async def add_my_address(
     # Whether this deployment can send at all is settled before the address is
     # looked at, so the refusal is about the server rather than about who holds
     # what. Everything after this point answers identically.
-    app_settings = await app_settings_service.get_app_settings(session)
-    if not (app_settings.smtp_host and app_settings.smtp_from_address):
+    if not await email_service.email_configured(session):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=AuthMessages.SMTP_NOT_CONFIGURED,

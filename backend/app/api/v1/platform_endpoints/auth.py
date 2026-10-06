@@ -38,6 +38,7 @@ from app.core import auth_context
 from app.core.rate_limit import MAIL_SENDS, get_inet_client_ip, limiter
 from app.core.encryption import (
     decrypt_field,
+    normalize_email,
     SALT_EMAIL,
     SALT_OIDC_CLIENT_SECRET,
 )
@@ -159,14 +160,16 @@ from app.services.auth.oidc.provider import (
     OidcProvider,
 )
 from app.services.auth import provider_registry
-from app.services.auth.provider_registry import provider_callback_url
+from app.services.auth.provider_registry import (
+    frontend_callback_url,
+    provider_callback_url,
+)
 from app.services.auth.platform_provider import (
     PLATFORM_OIDC_SLUG,
     get_platform_provider,
     is_login_ready,
 )
 from app.services.auth.sessions import RefreshOutcome
-from app.services.platform import app_settings as app_settings_service
 from app.services.platform import auth_posture
 from app.services.platform import dm_settings as dm_settings_service
 from app.services import email as email_service
@@ -390,12 +393,9 @@ async def _register_account(
 
     smtp_configured = False
     try:
-        app_settings = await app_settings_service.get_app_settings(session)
-        smtp_configured = bool(
-            app_settings.smtp_host and app_settings.smtp_from_address
-        )
+        smtp_configured = await email_service.email_configured(session)
 
-        normalized_email = details.email.lower().strip()
+        normalized_email = normalize_email(details.email)
         is_first_user = await _registration_gate(
             request,
             session,
@@ -641,13 +641,13 @@ async def begin_passkey_sign_up(
     await _registration_gate(
         request,
         session,
-        email=payload.email.lower().strip(),
+        email=normalize_email(payload.email),
         invite=(invite_code or "").strip() or None,
         captcha_token=payload.captcha_token,
     )
 
     ceremony = passkey_service.begin_sign_up(
-        account_name=payload.email.lower().strip(),
+        account_name=normalize_email(payload.email),
         display_name=payload.username.strip(),
     )
     await challenge_service.create(
@@ -1182,11 +1182,6 @@ def _provider_state_key(row: AuthProvider) -> str:
     return row.slug
 
 
-def _frontend_redirect_uri() -> str:
-    base = settings.APP_URL.rstrip("/")
-    return f"{base}/oidc/callback"
-
-
 # Carries a validated SPA return path from /auth/{slug}/login to the web
 # callback (e.g. the guild page a step-up started from). Scoped to the auth
 # routes and short-lived — it only needs to survive one IdP round trip.
@@ -1472,7 +1467,7 @@ def _error_redirect(is_mobile: bool | None, error: str) -> RedirectResponse:
     if is_mobile:
         url = f"{MOBILE_CALLBACK_URI}?{urlencode(params)}"
     else:
-        url = f"{_frontend_redirect_uri()}?{urlencode(params)}"
+        url = f"{frontend_callback_url()}?{urlencode(params)}"
     return RedirectResponse(url)
 
 
@@ -1537,7 +1532,7 @@ async def _complete_provider_login(
 
     email_claim = claims.get("email")
     email = (
-        email_claim.strip().lower()
+        normalize_email(email_claim)
         if isinstance(email_claim, str) and email_claim.strip()
         else None
     )
@@ -1584,11 +1579,29 @@ async def _complete_provider_login(
         return _error_redirect(is_mobile, OidcMessages.EMAIL_UNVERIFIED)
 
     identity = resolution.identity
+    matched = resolution.outcome is ResolutionOutcome.EMAIL_MATCH
     # Set where this sign-in proves an address the person added themselves.
     proved_at = datetime.now(timezone.utc)
     proved_address: str | None = None
     proved_id: int | None = None
-    if resolution.outcome is ResolutionOutcome.EMAIL_MATCH:
+    # The address this provider asserts for the account. A provisioned account
+    # already holds it; a linked one existed first, so this is where a work
+    # address arrives beside whatever the person signed up with. A matched
+    # account's address is proved below, by the rule an emailed code uses.
+    row = (
+        await addresses.ensure_address(
+            system_session,
+            user_id=user.id,
+            email=email,
+            source=addresses.SOURCE_OIDC,
+            verified=email_verified and not matched,
+            provider_id=provider_row.id,
+            now=proved_at,
+        )
+        if email
+        else None
+    )
+    if matched:
         # Platform policy: a verified IdP email claims its matching local
         # account (parity with the previous flow); the link makes every later
         # login resolve by (provider, subject).
@@ -1604,26 +1617,12 @@ async def _complete_provider_login(
         )
         # An address the account had not proved is proved here for the first
         # time, and the account starts from that proof, as it does when an
-        # emailed code is the first proof.
-        retired = not await addresses.holds_address(
-            system_session, user_id=user.id, email=email
-        )
-        if retired:
-            # The proof, the retirement and the link land in one commit.
-            await addresses.retire_credentials_predating_proof(
-                system_session, user=user
+        # emailed code is the first proof. The proof, the retirement and the
+        # link land in one commit.
+        if row is not None and row.id is not None:
+            await addresses.prove_at_sign_in(
+                system_session, user=user, address_id=row.id, now=proved_at
             )
-            row = await addresses.ensure_address(
-                system_session,
-                user_id=user.id,
-                email=email,
-                source=addresses.SOURCE_OIDC,
-                verified=True,
-                provider_id=provider_row.id,
-                now=proved_at,
-            )
-            if await addresses.proved_a_new_way_in(system_session, row, at=proved_at):
-                proved_address, proved_id = email, row.id
         identity = await link_identity(
             system_session,
             user=user,
@@ -1631,25 +1630,10 @@ async def _complete_provider_login(
             subject=completion.subject,
             email_verified=email_verified,
         )
-        if retired:
-            # Connections opened on the credentials retired above close now.
-            await content_sockets.revoke_user_everywhere(user.id)
-
-    # The address this provider asserts for the account. A provisioned account
-    # already holds it; a linked one existed first, so this is where a work
-    # address arrives beside whatever the person signed up with.
-    if email:
-        row = await addresses.ensure_address(
-            system_session,
-            user_id=user.id,
-            email=email,
-            source=addresses.SOURCE_OIDC,
-            verified=email_verified,
-            provider_id=provider_row.id,
-            now=proved_at,
-        )
-        if await addresses.proved_a_new_way_in(system_session, row, at=proved_at):
-            proved_address, proved_id = email, row.id
+    if row is not None and await addresses.proved_a_new_way_in(
+        system_session, row, at=proved_at
+    ):
+        proved_address, proved_id = email, row.id
 
     # Profile refresh from the verified claims.
     if avatar_url and user.avatar_url != avatar_url:
@@ -1749,7 +1733,7 @@ async def _complete_provider_login(
     # path in the short-lived cookie; re-validate before echoing it, and
     # clear the cookie either way.
     next_path = request.cookies.get(OIDC_NEXT_COOKIE, "")
-    frontend_uri = _frontend_redirect_uri()
+    frontend_uri = frontend_callback_url()
     if is_safe_next_path(next_path):
         frontend_uri = f"{frontend_uri}?{urlencode({'next': next_path})}"
     oidc_response = RedirectResponse(frontend_uri)
@@ -2022,15 +2006,14 @@ async def request_password_reset(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=AuthMessages.SMTP_NOT_CONFIGURED,
         )
-    normalized_email = addresses.normalize(payload.email)
-    if not await MAIL_SENDS.take(normalized_email):
+    if not await MAIL_SENDS.take(payload.email):
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail=AuthMessages.RATE_LIMITED,
         )
     # Held, not necessarily confirmed: an account that never confirmed the
     # address it signed up with is exactly the one a reset has to reach.
-    user = await addresses.account_holding(system_session, normalized_email)
+    user = await addresses.account_holding(system_session, payload.email)
     if user is not None and user.status == UserStatus.active:
         token = await user_tokens.create_token(
             system_session,

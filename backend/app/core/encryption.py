@@ -98,16 +98,22 @@ def _get_fernet(salt: bytes, secret_key: str) -> Fernet:
     return _fernets[cache_key]
 
 
+def normalize_email(email: str) -> str:
+    """The form an address is compared, hashed and stored in."""
+    return email.lower().strip()
+
+
 def hash_email(email: str, *, secret_key: str | None = None) -> str:
-    """Deterministic HMAC-SHA256 of normalized email, keyed with SECRET_KEY.
+    """Deterministic HMAC-SHA256 of the normalized email, keyed with SECRET_KEY.
 
     Used for equality lookups (WHERE email_hash = ?) and unique constraints. Pass
     ``secret_key`` to hash under a specific key (the rotation sweep recomputes hashes
     under the new key); default uses the live SECRET_KEY.
     """
-    normalized = email.lower().strip()
     return _hmac.new(
-        _resolve_secret_key(secret_key).encode(), normalized.encode(), _hashlib.sha256
+        _resolve_secret_key(secret_key).encode(),
+        normalize_email(email).encode(),
+        _hashlib.sha256,
     ).hexdigest()
 
 

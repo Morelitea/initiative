@@ -1,7 +1,5 @@
 """Shared rate limiter configuration for the application."""
 
-import hashlib
-import hmac
 import ipaddress
 import logging
 import time
@@ -14,6 +12,7 @@ from slowapi.util import get_remote_address
 from starlette.requests import Request
 
 from app.core.config import settings
+from app.core.encryption import hash_email
 from app.core.identify import identify, identify_url_token
 
 logger = logging.getLogger(__name__)
@@ -180,9 +179,9 @@ class AddressAllowance:
     limit: RateLimitItem
 
     def _key(self, address: str) -> str:
-        return hmac.new(
-            settings.SECRET_KEY.encode(), address.encode(), hashlib.sha256
-        ).hexdigest()[:32]
+        # The address's lookup digest, at the length the counters have always
+        # been keyed by.
+        return hash_email(address)[:32]
 
     async def left(self, address: str) -> bool:
         """Whether the address has anything left in the current window."""

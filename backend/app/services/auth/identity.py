@@ -38,7 +38,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.audit_events import AuditEventType
 from app.core.config import settings
-from app.core.encryption import encrypt_token
+from app.core.encryption import encrypt_token, normalize_email
 from app.core.login_methods import LoginMethod, methods_from_values
 from app.services.auth import addresses
 from app.core.security import USABLE_HASH_PREFIXES
@@ -129,8 +129,7 @@ async def resolve_oidc_identity(
     # caller's policy decision, and only a verified address may match an
     # existing account (an unverified match is refused outright).
     if email:
-        normalized = email.lower().strip()
-        existing = await addresses.account_holding(session, normalized)
+        existing = await addresses.account_holding(session, email)
         if existing is not None:
             if not email_verified:
                 logger.warning(
@@ -550,7 +549,7 @@ async def _provision(
     # as in the existing flow. It is not a mailbox, so it is never marked
     # verified.
     if email:
-        normalized = email.lower().strip()
+        normalized = normalize_email(email)
         verified = email_verified
     else:
         normalized = f"{subject}@oidc.local"

@@ -275,7 +275,7 @@ async def _put_back_address(
     await _still_primary(session, user_id=user_id, address_id=undo.get("primary_id"))
     if await addresses.find_user_by_address(session, email) is not None:
         raise UndoRefused()
-    digest = hash_email(addresses.normalize(email))
+    digest = hash_email(email)
     # A claim this account made on the address since gives way to the proof
     # being put back.
     await session.exec(

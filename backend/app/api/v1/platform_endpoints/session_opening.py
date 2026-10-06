@@ -315,19 +315,18 @@ async def prove_password(
     attempt pays the same work.
     """
     await require_login_method(session, LoginMethod.password)
-    normalized_email = email.lower().strip()
-    if not await SIGN_IN_FAILURES.left(normalized_email):
+    if not await SIGN_IN_FAILURES.left(email):
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail=AuthMessages.SIGN_IN_LOCKED,
         )
     # Any of the account's addresses signs it in, resolved on the system engine
     # because there is nobody to scope a policy to until it returns.
-    user = await addresses.find_user_by_address(system_session, normalized_email)
+    user = await addresses.find_user_by_address(system_session, email)
     # An address its holder has not confirmed admits nobody, but it is worth
     # saying so: resolved here only so the refusal below can name the reason.
     unconfirmed = (
-        await addresses.account_awaiting_confirmation(system_session, normalized_email)
+        await addresses.account_awaiting_confirmation(system_session, email)
         if user is None
         else None
     )
@@ -340,7 +339,7 @@ async def prove_password(
     if not user or not password_matches:
         # Recorded whether or not the address resolved; the record keeps no
         # identity when there was none to keep.
-        await SIGN_IN_FAILURES.take(normalized_email)
+        await SIGN_IN_FAILURES.take(email)
         await record_sign_in_failure(
             system_session, user, method="password", reason="bad_password"
         )
@@ -374,8 +373,8 @@ async def prove_password(
         await _upgrade_password_hash(system_session, user=user, password=password)
     # Which of the account's addresses was used, for the account page and for
     # telling an address in use from one nobody has signed in with.
-    await addresses.note_sign_in(system_session, email=normalized_email)
-    await SIGN_IN_FAILURES.clear(normalized_email)
+    await addresses.note_sign_in(system_session, email=email)
+    await SIGN_IN_FAILURES.clear(email)
     return user
 
 
