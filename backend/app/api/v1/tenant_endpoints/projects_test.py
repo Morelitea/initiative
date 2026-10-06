@@ -1174,16 +1174,20 @@ async def test_favoriting_a_project_lists_it_until_it_is_unfavorited(
     assert sent
     assert not [statement for statement in sent if "FROM tasks" in statement], sent
 
-    # An archived project leaves the favorites, as it leaves the list.
+    removed = await client.delete(url, headers=user.headers)
+    assert removed.status_code == 204
+    listed = await client.get(user.g("/projects/favorites"), headers=user.headers)
+    assert listed.json() == []
+
+    # Favorited again, an archived project leaves the favorites as it leaves
+    # the list.
+    assert (await client.post(url, headers=user.headers)).status_code == 204
     archived = await client.post(
         user.g(f"/archive/project/{project.id}"), headers=user.headers
     )
     assert archived.status_code == 200, archived.text
     listed = await client.get(user.g("/projects/favorites"), headers=user.headers)
     assert listed.json() == []
-
-    removed = await client.delete(url, headers=user.headers)
-    assert removed.status_code == 204
 
 
 async def test_reordering_puts_the_named_projects_first_and_keeps_the_rest(
