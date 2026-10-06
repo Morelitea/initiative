@@ -89,7 +89,11 @@ describe("ICalImportDialog", () => {
       }),
       communityHttp.post("/calendar-events/import", ({ request }) => {
         paths.push(new URL(request.url).pathname);
-        return HttpResponse.json({ events_created: 2, events_failed: 0, errors: [] });
+        return HttpResponse.json({
+          events_created: 2,
+          events_failed: 2,
+          errors: [{ problem: "not_saved", title: "Dress rehearsal" }, { problem: "no_start" }],
+        });
       })
     );
 
@@ -104,7 +108,10 @@ describe("ICalImportDialog", () => {
     await userEvent.click(screen.getByRole("button", { name: "Import Events" }));
 
     expect(await screen.findByText("Import complete!")).toBeInTheDocument();
-    expect(screen.getByText("2 events created")).toBeInTheDocument();
+    expect(screen.getByText("2 events created, 2 events failed")).toBeInTheDocument();
+    // Each problem in the reader's language, naming the event it was about.
+    expect(screen.getByText("Couldn't save “Dress rehearsal”")).toBeInTheDocument();
+    expect(screen.getByText("Skipped “Untitled”: it has no start date")).toBeInTheDocument();
     expect(paths).toEqual([
       "/api/v1/c/1/calendar-events/import/parse",
       "/api/v1/c/1/calendar-events/import",

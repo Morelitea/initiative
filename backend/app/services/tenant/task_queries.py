@@ -1315,6 +1315,7 @@ async def query_guild_tasks(
     include_archived: bool = False,
     start_after: Optional[datetime] = None,
     start_before: Optional[datetime] = None,
+    initiative_id: Optional[int] = None,
 ) -> list[TaskListRead]:
     """Fetch every guild task matching the filter (no pagination).
 
@@ -1322,7 +1323,8 @@ async def query_guild_tasks(
     the whole matching set is small. Mirrors ``list_tasks`` minus paging: same
     parse → guild query builder → eager loads → sort → annotate → serialize path,
     so access + shaping are identical. ``start_after``/``start_before`` bound the
-    result to the calendar window regardless of ``conditions``.
+    result to the calendar window, and ``initiative_id`` to one initiative's
+    projects, regardless of ``conditions``.
     """
     q = await parse_task_list_query(session, conditions, sorting, tz)
     build = await guild_task_query_builder(
@@ -1338,6 +1340,8 @@ async def query_guild_tasks(
     window = _task_calendar_window_clause(start_after, start_before)
     if window is not None:
         statement = statement.where(window)
+    if initiative_id is not None:
+        statement = statement.where(Project.initiative_id == initiative_id)
     rows = list((await session.exec(statement)).all())
     return await list_reads(session, rows, routed_guild_id(session))
 
