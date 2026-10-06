@@ -1,4 +1,4 @@
-"""This server's registration with Morelitea's push relay.
+"""This server's registration with BeyondersStudio's push relay.
 
 The relay sends pushes to the official app for any server: iPhone pushes
 always, and Android pushes for a server with no Firebase service account of

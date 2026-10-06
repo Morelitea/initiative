@@ -4,7 +4,7 @@
  * A hidden row or column is not drawn. The virtualizer keeps a hidden line in its layout at zero size, so the
  * lines after it sit at the right offsets. Drawing it anyway puts its cells
  * at the same offset as the next line's, which is what
- * https://github.com/Morelitea/initiative/issues/1562 showed: hiding a row
+ * https://github.com/beyonders-studio/initiative/issues/1562 showed: hiding a row
  * left its text painted on top of the row below.
  *
  * The virtualizer is stubbed because jsdom gives every element a size of

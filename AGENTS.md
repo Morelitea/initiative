@@ -380,7 +380,7 @@ The path depends on where the table lives:
 
 ## Docker Deployment
 
-This project uses GitHub Actions to automatically build and publish Docker images to Docker Hub.
+This project uses GitHub Actions to automatically build and publish Docker images to the GitHub Container Registry (`ghcr.io/beyonders-studio/initiative`).
 
 ### How It Works
 
@@ -391,12 +391,7 @@ This project uses GitHub Actions to automatically build and publish Docker image
 
 ### Setup Requirements
 
-**First-time setup** (see `.github/DOCKER_SETUP.md` for details):
-
-1. Create a Docker Hub access token with Read & Write permissions
-2. Add GitHub secrets:
-   - `DOCKERHUB_USERNAME` - Your Docker Hub username
-   - `DOCKERHUB_TOKEN` - Your Docker Hub access token
+No registry secrets: the workflows push with their own `GITHUB_TOKEN` (`packages: write`). See `.github/DOCKER_SETUP.md`; after the package's first push, set its visibility to public once so anyone can pull it.
 
 ### Deployment Workflow
 
@@ -411,15 +406,15 @@ The typical deployment process:
 # 3. tag-release.yml auto-creates the version tag
 #    docker-publish.yml builds, publishes, and notifies
 
-# 4. Verify on Docker Hub
-# Check: https://hub.docker.com/r/USERNAME/initiative/tags
+# 4. Verify on GHCR
+# Check: https://github.com/beyonders-studio/initiative/pkgs/container/initiative
 ```
 
 The GitHub Actions workflow will:
 
 - Build the Docker image with the new version
 - Tag it appropriately (e.g., `latest`, `0.1`, `0.1.1`)
-- Push to Docker Hub
+- Push to GHCR
 - Support both x86_64 and ARM architectures
 
 ### Using Published Images
@@ -439,7 +434,7 @@ docker-compose up -d
 
 This will:
 
-- Pull the latest image from Docker Hub (`morelitea/initiative:latest`)
+- Pull the latest image from GHCR (`ghcr.io/beyonders-studio/initiative:latest`)
 - Start PostgreSQL 17 database
 - Configure automatic restarts and health checks
 - Mount persistent volumes for uploads
@@ -447,8 +442,8 @@ This will:
 Or pull and run manually:
 
 ```bash
-docker pull morelitea/initiative:latest
-docker pull morelitea/initiative:0.1.1  # specific version
+docker pull ghcr.io/beyonders-studio/initiative:latest
+docker pull ghcr.io/beyonders-studio/initiative:0.1.1  # specific version
 ```
 
 ### Manual Deployment

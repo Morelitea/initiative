@@ -216,7 +216,7 @@ describe("CreateInitiativeWizard", () => {
     expect(more).toHaveAttribute("target", "_blank");
     expect(more).toHaveAttribute(
       "href",
-      "https://morelitea.github.io/initiative/en/guides/initiatives/"
+      "https://beyonders-studio.github.io/initiative/en/guides/initiatives/"
     );
   });
 

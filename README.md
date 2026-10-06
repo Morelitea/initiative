@@ -1,11 +1,11 @@
 # Initiative
 
-[![User Guide](https://img.shields.io/badge/📖_User_Guide-Learn_how_to_use_Initiative-6f42c1?style=for-the-badge)](https://morelitea.github.io/initiative/)
+[![User Guide](https://img.shields.io/badge/📖_User_Guide-Learn_how_to_use_Initiative-6f42c1?style=for-the-badge)](https://beyonders-studio.github.io/initiative/)
 
-[![CI](https://github.com/Morelitea/initiative/actions/workflows/ci.yml/badge.svg?branch=main&event=push)](https://github.com/Morelitea/initiative/actions/workflows/ci.yml?query=branch%3Amain+event%3Apush)
-[![Latest Release](https://img.shields.io/github/v/release/Morelitea/initiative?sort=semver)](https://github.com/Morelitea/initiative/releases)
-[![License](https://img.shields.io/github/license/Morelitea/initiative)](https://github.com/Morelitea/initiative/blob/main/LICENSE)
-[![Docker](https://img.shields.io/docker/v/morelitea/initiative?sort=semver\&label=Docker)](https://hub.docker.com/r/morelitea/initiative)
+[![CI](https://github.com/beyonders-studio/initiative/actions/workflows/ci.yml/badge.svg?branch=main&event=push)](https://github.com/beyonders-studio/initiative/actions/workflows/ci.yml?query=branch%3Amain+event%3Apush)
+[![Latest Release](https://img.shields.io/github/v/release/beyonders-studio/initiative?sort=semver)](https://github.com/beyonders-studio/initiative/releases)
+[![License](https://img.shields.io/github/license/beyonders-studio/initiative)](https://github.com/beyonders-studio/initiative/blob/main/LICENSE)
+[![Container](https://img.shields.io/badge/container-ghcr.io%2Fbeyonders--studio%2Finitiative-2496ED?logo=docker&logoColor=white)](https://github.com/beyonders-studio/initiative/pkgs/container/initiative)
 
 
 
@@ -74,7 +74,7 @@ We're also building **Initiative Cloud** for groups who don't want to manage the
 
 ```bash
 # 1. Download the example compose file
-curl -O https://raw.githubusercontent.com/Morelitea/initiative/main/docker-compose.example.yml
+curl -O https://raw.githubusercontent.com/beyonders-studio/initiative/main/docker-compose.example.yml
 cp docker-compose.example.yml docker-compose.yml
 
 # 2. Edit configuration — set a secure SECRET_KEY at minimum
@@ -104,11 +104,11 @@ See [Key Environment Variables](#key-environment-variables) for full configurati
 > [!CAUTION]
 > **Do not use `dev` images for production or customer deployments.** `dev` contains experimental work that may not make it into a stable release. Use `latest` or a tagged release from `main`.
 
-### Docker Hub Images
+### Container Images
 
 ```bash
-docker pull morelitea/initiative:latest    # latest release
-docker pull morelitea/initiative:0.71      # specific minor
+docker pull ghcr.io/beyonders-studio/initiative:latest    # latest release
+docker pull ghcr.io/beyonders-studio/initiative:0.71      # specific minor
 ```
 
 Images support `linux/amd64` and `linux/arm64` architectures.
@@ -121,9 +121,9 @@ Initiative is a **PWA** — open it over HTTPS and install it from the browser (
 
 **Android** also has a native Capacitor app, which adds push notifications. It pulls each new web bundle from your server over the air, so you only reinstall when the native shell changes.
 
-[<img src="https://raw.githubusercontent.com/ImranR98/Obtainium/main/assets/graphics/badge_obtainium.png" alt="Get it on Obtainium" width="240">](https://apps.obtainium.imranr.dev/redirect?r=obtainium%3A%2F%2Fadd%2Fhttps%3A%2F%2Fgithub.com%2FMorelitea%2Finitiative)
+[<img src="https://raw.githubusercontent.com/ImranR98/Obtainium/main/assets/graphics/badge_obtainium.png" alt="Get it on Obtainium" width="240">](https://apps.obtainium.imranr.dev/redirect?r=obtainium%3A%2F%2Fadd%2Fhttps%3A%2F%2Fgithub.com%2Fbeyonders-studio%2Finitiative)
 
-Or take the newest [release](https://github.com/Morelitea/initiative/releases) with an `.apk` attached — the app is only rebuilt when the native shell changes, so most releases carry none. Full instructions: [Installing the app](https://morelitea.github.io/initiative/en/getting-started/install-the-app/).
+Or take the newest [release](https://github.com/beyonders-studio/initiative/releases) with an `.apk` attached — the app is only rebuilt when the native shell changes, so most releases carry none. Full instructions: [Installing the app](https://beyonders-studio.github.io/initiative/en/getting-started/install-the-app/).
 
 ---
 
@@ -278,8 +278,8 @@ The application in this repository is **open source** under the [GNU Affero Gene
 
 | Repository | License | What it is |
 |---|---|---|
-| [Morelitea/initiative](https://github.com/Morelitea/initiative) | AGPL-3.0 | The application: backend, frontend, and mobile builds |
-| [initiative-plugin-sdk](https://github.com/Morelitea/initiative-plugin-sdk) | MIT | The SDK and CLI for writing a plug-in for Initiative |
-| [initiative-developer](https://github.com/Morelitea/initiative-developer) | MIT | The plug-in registry, and the GitHub plug-in to start your own from |
+| [beyonders-studio/initiative](https://github.com/beyonders-studio/initiative) | AGPL-3.0 | The application: backend, frontend, and mobile builds |
+| [initiative-plugin-sdk](https://github.com/beyonders-studio/initiative-plugin-sdk) | MIT | The SDK and CLI for writing a plug-in for Initiative |
+| [initiative-developer](https://github.com/beyonders-studio/initiative-developer) | MIT | The plug-in registry, and the GitHub plug-in to start your own from |
 
 **What isn't:** automations and billing are proprietary, are not published, and are not part of this repository. They exist to run Initiative Cloud; a self-hosted install is the complete product without them.

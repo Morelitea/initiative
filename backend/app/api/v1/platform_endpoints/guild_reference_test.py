@@ -252,7 +252,7 @@ async def test_a_signed_body_of_the_wrong_shape_is_answered(
 # An installation token, for a plug-in the registry gave a sector
 # ---------------------------------------------------------------------------
 
-SECTORED_ID = "morelitea.auto"
+SECTORED_ID = "beyonders-studio.auto"
 SECTORED_UID = "MRXAVT00000001"
 
 

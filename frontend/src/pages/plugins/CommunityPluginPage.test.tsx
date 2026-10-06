@@ -361,9 +361,9 @@ describe("CommunityPluginPage, who a plug-in comes from", () => {
     expect(screen.getByRole("button", { name: "Report" })).toBeInTheDocument();
   });
 
-  it("neither introduces nor offers to report a plug-in Morelitea publishes", async () => {
+  it("neither introduces nor offers to report a plug-in BeyondersStudio publishes", async () => {
     vi.spyOn(Capacitor, "getPlatform").mockReturnValue("ios");
-    listingRef = { id: 9, source: "registry", publisher: "Morelitea", first_party: true };
+    listingRef = { id: 9, source: "registry", publisher: "BeyondersStudio", first_party: true };
     const { CommunityPluginPage } = await import("./CommunityPluginPage");
     renderPage(() => <CommunityPluginPage pluginId={2} />);
 

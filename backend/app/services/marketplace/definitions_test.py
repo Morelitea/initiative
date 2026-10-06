@@ -141,11 +141,11 @@ class TestPublishedByUs:
         ("source", "public_id", "expected"),
         [
             ("builtin", "core.project-health", True),
-            ("registry", "morelitea.github", True),
+            ("registry", "beyonders-studio.github", True),
             ("registry", "acme.github", False),
-            ("registry", "moreliteaco.github", False),
-            ("operator", "morelitea.github", False),
-            ("local", "morelitea.github", False),
+            ("registry", "beyonders-studioco.github", False),
+            ("operator", "beyonders-studio.github", False),
+            ("local", "beyonders-studio.github", False),
         ],
     )
     def test_who_publishes_it(self, source, public_id, expected):

@@ -197,7 +197,7 @@ async def check_pre_baseline_db(conn: AsyncConnection) -> None:
         f"Pre-v0.53.2 database detected (revision: {revision}).\n\n"
         f"This version's migration history starts at the v0.53.5 baseline;\n"
         f"older databases must step through a v0.53.x release first:\n\n"
-        f"  1. Deploy any v0.53.x image (e.g. morelitea/initiative:0.53.5)\n"
+        f"  1. Deploy any v0.53.x image (e.g. ghcr.io/beyonders-studio/initiative:0.53.5)\n"
         f"     and let it boot once — its migrations and startup conversion\n"
         f"     bring the database to the baseline state.\n"
         f"  2. Then deploy this version and restart.\n\n"
@@ -224,7 +224,7 @@ async def migrate_database() -> None:
 
 
 #: Where to report a start that failed.
-ISSUES_URL = "https://github.com/Morelitea/initiative/issues"
+ISSUES_URL = "https://github.com/beyonders-studio/initiative/issues"
 
 _URL_CREDENTIALS = re.compile(r"(://)[^/@\s]+@")
 

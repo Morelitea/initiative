@@ -87,7 +87,7 @@ export function CommunityPluginPage({ pluginId, initiativeId }: CommunityPluginP
   const { user } = useAuth();
 
   // The iPhone app says who a plug-in comes from before it first opens one
-  // that Morelitea does not publish, and opens nothing until the member
+  // that BeyondersStudio does not publish, and opens nothing until the member
   // continues.
   const { getServerOrigin } = useServer();
   const noticeKey = pluginNoticeKey(getServerOrigin() ?? "", user?.id ?? 0, communityId, pluginId);

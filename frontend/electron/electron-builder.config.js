@@ -12,7 +12,7 @@ module.exports = {
     name: "initiative",
     desktopName: "initiative.desktop",
     version,
-    homepage: "https://github.com/Morelitea/initiative",
+    homepage: "https://github.com/beyonders-studio/initiative",
     author: { name: "Beyonders Studio", email: "hello@beyonders.studio" },
   },
   directories: {
@@ -56,6 +56,6 @@ module.exports = {
   // installers. The app sets the release it updates from itself.
   publish: {
     provider: "generic",
-    url: "https://github.com/Morelitea/initiative/releases/download/v${version}",
+    url: "https://github.com/beyonders-studio/initiative/releases/download/v${version}",
   },
 };

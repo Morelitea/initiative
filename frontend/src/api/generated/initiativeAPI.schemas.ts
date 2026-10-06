@@ -10070,7 +10070,7 @@ export const SmartChipKind = {
 
 export type GetVersion200 = { [key: string]: string };
 
-export type GetLatestDockerhubVersion200 = { [key: string]: string | null };
+export type GetLatestReleaseVersion200 = { [key: string]: string | null };
 
 export type GetChangelogParams = {
   version?: string | null;

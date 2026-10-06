@@ -38,8 +38,8 @@ __all__ = [
 PUBLISHER_PREFIX_MAX_LENGTH = 120
 
 #: The publisher of the plug-ins this project ships, seeded at boot.
-FIRST_PARTY_PUBLISHER_PREFIX = "morelitea"
-FIRST_PARTY_PUBLISHER_NAME = "Morelitea"
+FIRST_PARTY_PUBLISHER_PREFIX = "beyonders-studio"
+FIRST_PARTY_PUBLISHER_NAME = "BeyondersStudio"
 
 
 class PublisherSource:

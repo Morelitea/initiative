@@ -500,6 +500,7 @@ jobs:
       && !contains(needs.*.result, 'cancelled') }}
     permissions:
       contents: read
+      packages: write  # the push to GHCR
       id-token: write  # the image's signature
     uses: ./.github/workflows/dev-build.yml
     # inherit, not a list: the build's environment secrets (OTA_SIGNING_KEY)

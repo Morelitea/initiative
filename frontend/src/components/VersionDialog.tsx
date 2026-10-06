@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useChangelog } from "@/hooks/useSettings";
-import { CHANGELOG_URL } from "@/lib/links";
+import { CHANGELOG_URL, RELEASES_URL } from "@/lib/links";
 import { cn } from "@/lib/utils";
 
 /**
@@ -97,14 +97,14 @@ export const VersionDialog = ({
             )}
             {hasUpdate && (
               <p className="text-muted-foreground text-sm">
-                {t("version.newVersionOnDockerHub")}{" "}
+                {t("version.newVersionOnGitHub")}{" "}
                 <a
-                  href="https://hub.docker.com/r/morelitea/initiative"
+                  href={RELEASES_URL}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-primary hover:underline"
                 >
-                  Docker Hub
+                  GitHub
                 </a>
               </p>
             )}

@@ -20,7 +20,7 @@ import type {
 import type {
   ChangelogResponse,
   GetChangelogParams,
-  GetLatestDockerhubVersion200,
+  GetLatestReleaseVersion200,
   GetVersion200,
   HTTPValidationError,
 } from "../initiativeAPI.schemas";
@@ -151,70 +151,70 @@ export function useGetVersion<
 }
 
 /**
- * The latest released version on Docker Hub (e.g. "0.3.1"). When Docker Hub
- * cannot be reached this is the last version it named, or ``None`` if it has
- * named none since the process started.
+ * The latest released version (e.g. "0.3.1"), read from the project's
+ * GitHub releases. When GitHub cannot be reached this is the last version it
+ * named, or ``None`` if it has named none since the process started.
  *
  * The answer is fetched once and reused for every caller until it expires,
- * so a request never waits on Docker Hub unless the answer has run out.
- * @summary Get Latest Dockerhub Version
+ * so a request never waits on GitHub unless the answer has run out.
+ * @summary Get Latest Release Version
  */
-export const getLatestDockerhubVersion = (
+export const getLatestReleaseVersion = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<GetLatestDockerhubVersion200>(
+  return apiMutator<GetLatestReleaseVersion200>(
     { url: `/api/v1/version/latest`, method: "GET", signal },
     options
   );
 };
 
-export const getGetLatestDockerhubVersionQueryKey = () => {
+export const getGetLatestReleaseVersionQueryKey = () => {
   return [`/api/v1/version/latest`] as const;
 };
 
-export const getGetLatestDockerhubVersionQueryOptions = <
-  TData = Awaited<ReturnType<typeof getLatestDockerhubVersion>>,
+export const getGetLatestReleaseVersionQueryOptions = <
+  TData = Awaited<ReturnType<typeof getLatestReleaseVersion>>,
   TError = ErrorType<unknown>,
 >(options?: {
   query?: Partial<
-    UseQueryOptions<Awaited<ReturnType<typeof getLatestDockerhubVersion>>, TError, TData>
+    UseQueryOptions<Awaited<ReturnType<typeof getLatestReleaseVersion>>, TError, TData>
   >;
   request?: SecondParameter<typeof apiMutator>;
 }) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey = queryOptions?.queryKey ?? getGetLatestDockerhubVersionQueryKey();
+  const queryKey = queryOptions?.queryKey ?? getGetLatestReleaseVersionQueryKey();
 
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof getLatestDockerhubVersion>>> = ({
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getLatestReleaseVersion>>> = ({
     signal,
-  }) => getLatestDockerhubVersion(requestOptions, signal);
+  }) => getLatestReleaseVersion(requestOptions, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof getLatestDockerhubVersion>>,
+    Awaited<ReturnType<typeof getLatestReleaseVersion>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type GetLatestDockerhubVersionQueryResult = NonNullable<
-  Awaited<ReturnType<typeof getLatestDockerhubVersion>>
+export type GetLatestReleaseVersionQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getLatestReleaseVersion>>
 >;
-export type GetLatestDockerhubVersionQueryError = ErrorType<unknown>;
+export type GetLatestReleaseVersionQueryError = ErrorType<unknown>;
 
-export function useGetLatestDockerhubVersion<
-  TData = Awaited<ReturnType<typeof getLatestDockerhubVersion>>,
+export function useGetLatestReleaseVersion<
+  TData = Awaited<ReturnType<typeof getLatestReleaseVersion>>,
   TError = ErrorType<unknown>,
 >(
   options: {
     query: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof getLatestDockerhubVersion>>, TError, TData>
+      UseQueryOptions<Awaited<ReturnType<typeof getLatestReleaseVersion>>, TError, TData>
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getLatestDockerhubVersion>>,
+          Awaited<ReturnType<typeof getLatestReleaseVersion>>,
           TError,
-          Awaited<ReturnType<typeof getLatestDockerhubVersion>>
+          Awaited<ReturnType<typeof getLatestReleaseVersion>>
         >,
         "initialData"
       >;
@@ -222,19 +222,19 @@ export function useGetLatestDockerhubVersion<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetLatestDockerhubVersion<
-  TData = Awaited<ReturnType<typeof getLatestDockerhubVersion>>,
+export function useGetLatestReleaseVersion<
+  TData = Awaited<ReturnType<typeof getLatestReleaseVersion>>,
   TError = ErrorType<unknown>,
 >(
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof getLatestDockerhubVersion>>, TError, TData>
+      UseQueryOptions<Awaited<ReturnType<typeof getLatestReleaseVersion>>, TError, TData>
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getLatestDockerhubVersion>>,
+          Awaited<ReturnType<typeof getLatestReleaseVersion>>,
           TError,
-          Awaited<ReturnType<typeof getLatestDockerhubVersion>>
+          Awaited<ReturnType<typeof getLatestReleaseVersion>>
         >,
         "initialData"
       >;
@@ -242,35 +242,35 @@ export function useGetLatestDockerhubVersion<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetLatestDockerhubVersion<
-  TData = Awaited<ReturnType<typeof getLatestDockerhubVersion>>,
+export function useGetLatestReleaseVersion<
+  TData = Awaited<ReturnType<typeof getLatestReleaseVersion>>,
   TError = ErrorType<unknown>,
 >(
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof getLatestDockerhubVersion>>, TError, TData>
+      UseQueryOptions<Awaited<ReturnType<typeof getLatestReleaseVersion>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
- * @summary Get Latest Dockerhub Version
+ * @summary Get Latest Release Version
  */
 
-export function useGetLatestDockerhubVersion<
-  TData = Awaited<ReturnType<typeof getLatestDockerhubVersion>>,
+export function useGetLatestReleaseVersion<
+  TData = Awaited<ReturnType<typeof getLatestReleaseVersion>>,
   TError = ErrorType<unknown>,
 >(
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof getLatestDockerhubVersion>>, TError, TData>
+      UseQueryOptions<Awaited<ReturnType<typeof getLatestReleaseVersion>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getGetLatestDockerhubVersionQueryOptions(options);
+  const queryOptions = getGetLatestReleaseVersionQueryOptions(options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;

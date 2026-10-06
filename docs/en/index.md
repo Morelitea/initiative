@@ -140,4 +140,4 @@ And yes, the app is also called Initiative. We know. The [glossary](reference/gl
 
 ## Built in the open
 
-Initiative is developed in public, and what people using it say genuinely shapes what gets built next. So if something here is unclear, wrong, or conspicuously missing, tell us — [the project's on GitHub](https://github.com/Morelitea/initiative), and we do actually read it.
+Initiative is developed in public, and what people using it say genuinely shapes what gets built next. So if something here is unclear, wrong, or conspicuously missing, tell us — [the project's on GitHub](https://github.com/beyonders-studio/initiative), and we do actually read it.

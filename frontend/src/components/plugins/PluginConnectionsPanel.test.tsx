@@ -106,10 +106,10 @@ describe("a community credential granted at the vendor", () => {
       ...vendorFlow,
       satisfied: true,
       has_value: { owner: true },
-      values: { owner: "morelitea" },
+      values: { owner: "beyonders-studio" },
     });
 
-    expect(await screen.findByText("morelitea")).toBeInTheDocument();
+    expect(await screen.findByText("beyonders-studio")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Reconnect" })).toBeInTheDocument();
   });
 
