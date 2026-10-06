@@ -583,8 +583,8 @@ def test_every_service_field_survives_a_publish(published):
     declared = contract.manifest_schema()["properties"]["service"]["properties"]
     assert set(declared) == set(published["service"])
     assert published["service"]["scopes"] == [
-        "plugins:acme.github",
         "comments:read",
+        "plugins:acme.github",
         "projects:write",
     ]
 
