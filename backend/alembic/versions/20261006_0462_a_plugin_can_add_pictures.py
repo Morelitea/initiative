@@ -40,5 +40,16 @@ def downgrade() -> None:
 
 
 def _apply_downgrade() -> None:
+    bind = op.get_bind()
+    for table in _TABLES:
+        if bind.execute(
+            sa.text(f"SELECT 1 FROM {table} WHERE created_by IS NULL LIMIT 1")
+        ).first():
+            raise NotImplementedError(
+                "A picture, picture version or upload a plug-in added has no "
+                "creator, so created_by cannot be made NOT NULL again without "
+                "losing those rows. Roll forward, or restore from a backup taken "
+                "before this revision."
+            )
     for table in _TABLES:
         op.alter_column(table, "created_by", existing_type=sa.Integer(), nullable=False)
