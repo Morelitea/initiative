@@ -37,7 +37,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlalchemy.orm import defer, selectinload, undefer
 
 from app.core.messages import WikiMessages
-from app.models.tenant.resource_grant import ResourceGrant
 from app.models.tenant.wiki import Wiki, WikiPage, WikiPageOrder
 from app.services.permissions import with_tool
 from app.services.tenant import properties as properties_service
@@ -49,7 +48,7 @@ def list_loader_options() -> list:
     """Eager-load what a wiki *list* row needs: its sharing, the level the
     request holds on it, and the page it opens on."""
     return [
-        selectinload(Wiki.grants).selectinload(ResourceGrant.role),
+        selectinload(Wiki.grants),
         selectinload(Wiki.initiative),
         undefer(Wiki.actions),
         selectinload(Wiki.home_page),

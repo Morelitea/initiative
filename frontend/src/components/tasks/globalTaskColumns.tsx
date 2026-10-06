@@ -312,7 +312,7 @@ export function globalTaskColumns({
                   task,
                   initiativeId != null
                     ? toolDetailRoute(Tool.project, initiativeId, projectIdentifier)
-                    : entityRefRoute("project", projectIdentifier)
+                    : entityRefRoute(Tool.project, projectIdentifier)
                 )}
                 className="font-medium text-primary text-sm hover:underline"
               >

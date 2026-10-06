@@ -65,7 +65,6 @@ from app.schemas.tenant.ical import (
 from app.api import resource_access, tool_copy
 from app.core.tools import Tool
 from app.db.session import require_guild_context
-from app.models.tenant.resource_grant import ResourceGrant
 from app.services import permissions as permissions_service
 from app.services.permissions import Action
 from app.services.tenant import calendar_events as events_service
@@ -547,9 +546,7 @@ def _calendar_event_loader_options():
     """
     return (
         selectinload(CalendarEvent.attendees).selectinload(CalendarEventAttendee.user),
-        selectinload(CalendarEvent.calendar)
-        .selectinload(Calendar.grants)
-        .selectinload(ResourceGrant.role),
+        selectinload(CalendarEvent.calendar).selectinload(Calendar.grants),
         selectinload(CalendarEvent.calendar).selectinload(Calendar.initiative),
         selectinload(CalendarEvent.calendar).undefer(Calendar.actions),
     )

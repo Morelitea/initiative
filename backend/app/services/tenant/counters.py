@@ -19,7 +19,6 @@ from app.models.tenant.counter import (
     Counter,
     CounterGroup,
 )
-from app.models.tenant.resource_grant import ResourceGrant
 from app.db.query import ids_in
 from app.schemas.tenant.counter import (
     CounterPreview,
@@ -46,7 +45,7 @@ def list_loader_options() -> list:
     """Eager-load what a counter-group *list* row needs: its sharing, the level
     the request holds on it and its tags."""
     return [
-        selectinload(CounterGroup.grants).selectinload(ResourceGrant.role),
+        selectinload(CounterGroup.grants),
         selectinload(CounterGroup.initiative),
         undefer(CounterGroup.actions),
     ]
@@ -110,7 +109,7 @@ async def get_counter_group(
         .where(CounterGroup.id == group_id)
         .options(
             selectinload(CounterGroup.counters),
-            selectinload(CounterGroup.grants).selectinload(ResourceGrant.role),
+            selectinload(CounterGroup.grants),
             selectinload(CounterGroup.initiative),
             undefer(CounterGroup.actions),
         )

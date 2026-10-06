@@ -852,9 +852,7 @@ async def test_a_draft_is_not_exported(board: Actor, session):
     live = await create_post(session, board.initiative, board.user, name="Up")
     await _draft(session, board, name="Not up")
 
-    ids = await PostAdapter().initiative_ids(
-        session, board.user, board.guild.id, board.initiative.id
-    )
+    ids = await PostAdapter().initiative_ids(session, board.initiative.id)
     assert ids == [live.id]
 
 

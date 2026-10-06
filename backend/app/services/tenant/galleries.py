@@ -35,7 +35,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.image_headers import ImageHeader, read_image_header
 from app.models.tenant.gallery import Gallery, GalleryImage, GalleryImageVersion
-from app.models.tenant.resource_grant import ResourceGrant
 from app.services.permissions import with_tool
 from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
@@ -162,7 +161,7 @@ def list_loader_options() -> list:
     """Eager-load what a gallery *list* row needs: its sharing, the level the
     request holds on it, its tags, and the cover it chose."""
     return [
-        selectinload(Gallery.grants).selectinload(ResourceGrant.role),
+        selectinload(Gallery.grants),
         selectinload(Gallery.initiative),
         undefer(Gallery.actions),
         selectinload(Gallery.cover_image),

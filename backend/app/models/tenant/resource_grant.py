@@ -40,7 +40,6 @@ from app.core.tools import Tool  # noqa: F401  (re-exported for grant callers)
 from app.models.tenant._mixins import CreatedByMixin
 
 if TYPE_CHECKING:  # pragma: no cover
-    from app.models.tenant.initiative import InitiativeRoleModel
     from app.models.platform.user_profile_view import MemberProfile
 
 
@@ -174,13 +173,6 @@ class ResourceGrant(CreatedByMixin, table=True):
         sa_column=Column(DateTime(timezone=True), nullable=False),
     )
 
-    # For serialization (role grants surface the role's name/display_name).
-    role: Optional["InitiativeRoleModel"] = Relationship(
-        sa_relationship_kwargs={
-            "foreign_keys": "ResourceGrant.role_id",
-            "viewonly": True,
-        }
-    )
     user: Optional["MemberProfile"] = Relationship(
         sa_relationship_kwargs={
             "primaryjoin": "foreign(ResourceGrant.user_id) == MemberProfile.id",

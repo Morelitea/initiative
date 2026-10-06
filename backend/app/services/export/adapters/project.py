@@ -148,7 +148,7 @@ class ProjectAdapter(ToolExportAdapter):
         )
         return await build_project_export(
             session,
-            project_id=project.id,
+            project,
             exported_by_handle=handle_of(user),
             source_instance_url=settings.APP_URL,
             source_guild_id=guild_id,

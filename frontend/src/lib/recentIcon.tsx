@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import type { RecentItemRead, Tool } from "@/api/generated/initiativeAPI.schemas";
+import { type RecentItemRead, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { documentIcon } from "@/lib/documentIcon";
 import { TOOL_ICONS } from "@/lib/tools";
 import { cn } from "@/lib/utils";
@@ -15,11 +15,11 @@ import { cn } from "@/lib/utils";
  */
 export function renderRecentIcon(item: RecentItemRead): ReactNode {
   switch (item.entity_type) {
-    case "project": {
+    case Tool.project: {
       if (!item.icon) return null;
       return <span className="text-base leading-none">{item.icon}</span>;
     }
-    case "document": {
+    case Tool.document: {
       const { Icon, colorClass } = documentIcon(item);
       return <Icon className={cn("h-4 w-4", colorClass)} />;
     }

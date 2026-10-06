@@ -133,9 +133,7 @@ def list_loader_options() -> list:
         selectinload(Document.initiative),
         undefer(Document.actions),
         undefer(Document.smart_link_url),
-        selectinload(Document.grants).options(
-            selectinload(ResourceGrant.role), selectinload(ResourceGrant.user)
-        ),
+        selectinload(Document.grants).selectinload(ResourceGrant.user),
     ]
 
 

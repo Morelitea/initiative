@@ -251,7 +251,6 @@ def _filters(params: dict, section: BackupSection):
 async def _section_ids(
     session: AsyncSession,
     user: User,
-    guild_id: int,
     params: dict,
     section: BackupSection,
     initiative_id: int,
@@ -263,7 +262,7 @@ async def _section_ids(
         user,
         section.tool,
         _filters(params, section),
-        await section.adapter.initiative_ids(session, user, guild_id, initiative_id),
+        await section.adapter.initiative_ids(session, initiative_id),
     )
 
 
@@ -282,7 +281,7 @@ def _include_uploads(params: dict) -> bool:
 
 
 async def _enumerate(
-    session: AsyncSession, user: User, guild_id: int, params: dict, initiatives
+    session: AsyncSession, user: User, params: dict, initiatives
 ) -> dict[str, dict[int, list[int]]]:
     """Per tool, per initiative: the entity ids the creator may export."""
     ids: dict[str, dict[int, list[int]]] = {tool: {} for tool in _TOOLS}
@@ -291,7 +290,7 @@ async def _enumerate(
             if not _included(params, section.key):
                 continue
             ids[section.key][initiative.id] = await _section_ids(
-                session, user, guild_id, params, section, initiative.id
+                session, user, params, section, initiative.id
             )
     return ids
 
@@ -314,7 +313,7 @@ async def _count_scope(
     only the referenced ones here would let an over-cap export through to the
     worker and fail it there instead of answering now."""
 
-    ids = await _enumerate(session, user, guild_id, params, initiatives)
+    ids = await _enumerate(session, user, params, initiatives)
     total = sum(
         len(v) for per_initiative in ids.values() for v in per_initiative.values()
     )
@@ -588,7 +587,7 @@ class _ScopeBuilder:
             return
         adapter = section.adapter
         ids = await _section_ids(
-            self.session, self.user, self.guild_id, self.params, section, initiative.id
+            self.session, self.user, self.params, section, initiative.id
         )
         if ids:
             batched = adapter.prepares or section.preload is not None
@@ -1552,7 +1551,7 @@ async def estimate_backup(
     initiatives = await _resolve_scope(
         session, user, guild_id, params, scope_kind=scope
     )
-    ids = await _enumerate(session, user, guild_id, params, initiatives)
+    ids = await _enumerate(session, user, params, initiatives)
 
     tools: dict[str, BackupToolEstimate] = {}
     estimated_rows = 0

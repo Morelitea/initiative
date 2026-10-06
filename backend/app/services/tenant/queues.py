@@ -21,7 +21,6 @@ from app.models.tenant.queue import (
     Queue,
     QueueItem,
 )
-from app.models.tenant.resource_grant import ResourceGrant
 from app.schemas.tenant.queue import QueueTurnPreview
 from app.services.permissions import with_tool
 from app.services.tenant import properties as properties_service
@@ -43,7 +42,7 @@ def list_loader_options() -> list:
     request holds on it. Lighter than :func:`get_queue`, which also loads the
     items for the detail read."""
     return [
-        selectinload(Queue.grants).selectinload(ResourceGrant.role),
+        selectinload(Queue.grants),
         selectinload(Queue.initiative),
         undefer(Queue.actions),
     ]
@@ -61,7 +60,7 @@ async def get_queue(
         .where(Queue.id == queue_id)
         .options(
             selectinload(Queue.items).selectinload(QueueItem.user),
-            selectinload(Queue.grants).selectinload(ResourceGrant.role),
+            selectinload(Queue.grants),
             selectinload(Queue.initiative),
             undefer(Queue.actions),
         )

@@ -24,7 +24,6 @@ from app.core.tools import Tool
 from app.models.tenant.post import Post, board_time, pin_is_live
 from app.models.tenant.post_poll import PostPoll
 from app.models.tenant.post_read import PostRead
-from app.models.tenant.resource_grant import ResourceGrant
 from app.services import permissions as permissions_service
 
 
@@ -32,7 +31,7 @@ def list_loader_options() -> list:
     """Eager-load what a post *list* row needs: its sharing, its initiative,
     the level the request holds on it, and its tags."""
     return [
-        selectinload(Post.grants).selectinload(ResourceGrant.role),
+        selectinload(Post.grants),
         selectinload(Post.initiative),
         undefer(Post.actions),
         # Who wrote it. A notice is signed — the board shows the person above

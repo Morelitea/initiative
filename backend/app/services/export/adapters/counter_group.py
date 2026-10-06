@@ -22,7 +22,6 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
-
 from app.core.tools import Tool, tool_envelope_type
 from app.models.platform.user import User
 from app.models.tenant.counter import Counter, CounterGroup

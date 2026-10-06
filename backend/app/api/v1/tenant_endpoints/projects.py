@@ -35,7 +35,6 @@ from app.models.tenant.task import (
     TaskStatusCategory,
 )
 from app.models.tenant.comment import Comment, in_thread
-from app.models.tenant.initiative import Initiative
 from app.models.platform.user import User
 from app.api import resource_access, tool_copy
 from app.core.tools import Tool
@@ -151,9 +150,7 @@ def project_load_options(*, slim: bool = False) -> list:
             undefer(Project.actions),
         ]
     return [
-        selectinload(Project.grants).options(
-            selectinload(ResourceGrant.role), selectinload(ResourceGrant.user)
-        ),
+        selectinload(Project.grants).selectinload(ResourceGrant.user),
         selectinload(Project.initiative),
         undefer(Project.actions),
     ]
@@ -180,7 +177,6 @@ def visible_project_conditions(
     conditions = tool_listing.base_conditions(
         Tool.project,
         Project,
-        Initiative.projects_enabled,
         user_id,
         context=context,
         initiative_id=initiative_id,
