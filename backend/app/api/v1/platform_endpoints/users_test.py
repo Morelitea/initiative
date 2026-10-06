@@ -1005,8 +1005,8 @@ async def test_password_change_keeps_this_device_signed_in(client, session):
     """Changing the password revokes every other session, but THIS device gets
     a fresh server-side session: both cookies are re-issued, the new refresh
     chain rotates, and it claims the password just re-checked and no
-    provider's sign-in. A change refused over another field leaves the
-    password and the sessions as they were."""
+    provider's sign-in. A change sent with another field is refused and leaves
+    the password and the sessions as they were."""
     from app.models.platform.auth_session import AuthSession
 
     user = await create_user(session, email="pwkeep@example.com")
@@ -1029,7 +1029,7 @@ async def test_password_change_keeps_this_device_signed_in(client, session):
         json={
             "password": "newpassword456",
             "current_password": "testpassword123",
-            "task_completion_visual_feedback": "fireworks",
+            "locale": "fr",
         },
     )
     assert refused.status_code == 422

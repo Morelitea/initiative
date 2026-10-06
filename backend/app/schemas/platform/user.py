@@ -892,6 +892,14 @@ class UserSelfUpdate(SanitizedBaseModel):
             raise ValueError("avatar_url must be an https:// URL")
         return value
 
+    @model_validator(mode="after")
+    def _password_alone(self) -> "UserSelfUpdate":
+        # A new password is written on a commit of its own, so it travels with
+        # nothing but the one it replaces.
+        if self.password and self.model_fields_set - {"password", "current_password"}:
+            raise ValueError("password is changed on a request of its own")
+        return self
+
 
 class AccountDeletionRequest(SanitizedBaseModel):
     """Request from a user to deactivate or anonymize (soft-delete) their own account.

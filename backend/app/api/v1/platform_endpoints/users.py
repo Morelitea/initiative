@@ -1463,13 +1463,24 @@ async def update_me(
     if password:
         # Re-authenticate with the current password before changing it. An
         # account that holds none answers with a recent sign-in instead.
-        await require_password_or_recent_proof(
+        password_proved = await require_password_or_recent_proof(
             request,
             system_session,
             current_user,
             update_data.get("current_password"),
         )
         await enforce_password_policy(password)
+        # A request of its own (``UserSelfUpdate`` holds it to that), committed
+        # with the session that keeps this device signed in.
+        await set_password(
+            request,
+            system_session,
+            user=current_user,
+            password=password,
+            via="self_service",
+            response=response,
+            password_proved=password_proved,
+        )
 
     if "avatar_url" in update_data:
         url_value = update_data["avatar_url"]
@@ -1561,17 +1572,6 @@ async def update_me(
     current_user.updated_at = datetime.now(timezone.utc)
     session.add(current_user)
     await session.commit()
-    if password:
-        # Written once every other field has been taken, with the session that
-        # keeps this device signed in.
-        await set_password(
-            request,
-            system_session,
-            user=current_user,
-            password=password,
-            via="self_service",
-            response=response,
-        )
     await session.refresh(current_user)
     if "presence" in update_data:
         # A change made from an open tab takes effect for readers immediately,

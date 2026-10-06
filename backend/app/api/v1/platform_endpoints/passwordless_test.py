@@ -928,6 +928,7 @@ async def test_a_password_nobody_signs_in_with_is_not_asked_for(
     while ago does not."""
     await _withdraw_passwords(session)
     fresh = await _account(session, f"nopw-fresh-{slug}@example.com")
+    fresh_id = fresh.id
     stale = await _account(session, f"nopw-stale-{slug}@example.com")
 
     answered = await route(client, session, fresh, await _proof_headers(session, fresh))
@@ -938,6 +939,16 @@ async def test_a_password_nobody_signs_in_with_is_not_asked_for(
     assert answered.status_code == ok, answered.text
     assert refused.status_code == 403, refused.text
     assert refused.json()["detail"] == "RECENT_PROOF_REQUIRED"
+    if slug == "set-a-password":
+        # Nobody was asked for the password, so the new session claims none.
+        live = (
+            await session.exec(
+                select(AuthSession.amr).where(
+                    AuthSession.user_id == fresh_id, AuthSession.revoked_at.is_(None)
+                )
+            )
+        ).all()
+        assert live == [[]]
 
 
 async def test_the_account_says_whether_its_password_is_asked_for(

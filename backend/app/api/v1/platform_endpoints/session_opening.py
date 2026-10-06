@@ -49,7 +49,6 @@ from app.core.rate_limit import SIGN_IN_FAILURES, get_inet_client_ip
 from app.core.security import (
     REFRESH_COOKIE_NAME,
     get_password_hash,
-    has_usable_password,
     mint_access_token,
     password_needs_rehash,
     verify_sign_in_password,
@@ -712,6 +711,7 @@ async def set_password(
     password: str | None,
     via: PasswordVia,
     response: Response | None = None,
+    password_proved: bool = False,
 ) -> None:
     """Set, change, reset or give up the account's password.
 
@@ -730,7 +730,7 @@ async def set_password(
     ``response``, where given, keeps this device signed in: a session is opened
     in place of the one the request is on, and both cookies are set on it. A
     new password starts that session over: it claims the password where the
-    account held one going in, which is what the caller re-checked, and no
+    caller re-checked the one the account held (``password_proved``), and no
     community's sign-in. Giving the password up leaves every other way in as it
     was, so that session carries what the one it replaces had proved, which
     communities asking for a sign-in of their own it had satisfied, and each
@@ -754,8 +754,6 @@ async def set_password(
         if response is not None
         else None
     )
-    # Read before the hash below replaces it.
-    held_password = has_usable_password(account.hashed_password)
     issued: OpenedSession | None = None
     async with session_store(system_session, user_id=user_id):
         now = datetime.now(timezone.utc)
@@ -786,7 +784,7 @@ async def set_password(
                     prior.provider_auth,
                 )
             else:
-                amr = ["pwd"] if password is not None and held_password else []
+                amr = ["pwd"] if password is not None and password_proved else []
                 providers, provider_auth = [], None
             # Minted at the ``token_version`` the revocation just bumped.
             issued = await issue_session(
