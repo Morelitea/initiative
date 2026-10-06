@@ -52,7 +52,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The sign-in page says which server you're signing in to.** In the phone app, tap its name to switch servers.
 - **API access is set per member.** A community's superadmin turns one person's personal API keys on or off from the **API access** column in **Community settings › Users**, which stops keys they already made too. It replaces the community-wide switch on the **Security** tab and, like it, applies only where the server grants the community the security standard. Members of a community that had keys switched off start with them off. Personal API keys never reach a community through an access grant.
 - **Rate limits count per account, not per network**, so people sharing an office address no longer share a limit or lock each other out.
-- **The API drops `GET /dashboards/{id}/widgets/{widget_id}/query`.** `GET /dashboards/{id}/data` answers every widget on a dashboard.
+- **The API drops `GET /dashboards/{id}/widgets/{widget_id}/query`.** `GET /dashboards/{id}/data` answers every query widget on a dashboard.
 - **Links in notification emails sent before this release no longer open.** Open the notification in the app instead.
 - **User settings are reorganised.** **Interface** is now **Preferences**, and the **Danger Zone** tab has moved into **Account**.
 - **One header for every tool page**, with status, tags and properties editable in place, and a tidier, more consistent layout throughout.

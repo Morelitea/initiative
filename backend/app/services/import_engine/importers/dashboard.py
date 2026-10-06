@@ -114,8 +114,9 @@ def _normalized_canvas(
     an archive from a newer version, or one that referenced a plug-in that is not
     installed here — yields an empty canvas rather than failing the whole
     import: the dashboard arrives, empty, for somebody to rebuild, which is
-    more use than losing it and everything queued behind it. Config the
-    definition does not accept is dropped the same way.
+    more use than losing it and everything queued behind it. A widget's config
+    the definition does not accept is dropped the same way, one widget at a
+    time.
     """
     from app.services.tenant.dashboard_definition import (
         DashboardDefinitionError,
@@ -127,11 +128,22 @@ def _normalized_canvas(
         definition = normalize_dashboard_definition(raw_definition or {})
     except DashboardDefinitionError:
         definition = normalize_dashboard_definition({})
-    try:
-        config = normalize_dashboard_config(raw_config or {}, definition)
-    except DashboardDefinitionError:
-        config = {"widgets": {}}
-    return definition, config
+    # Each widget's settings stand alone: one the definition refuses is
+    # dropped without taking the other widgets' settings with it.
+    raw_widgets = (raw_config or {}).get("widgets")
+    widgets: dict[str, Any] = {}
+    for widget_id, values in (
+        raw_widgets.items() if isinstance(raw_widgets, dict) else ()
+    ):
+        try:
+            widgets.update(
+                normalize_dashboard_config(
+                    {"widgets": {widget_id: values}}, definition
+                )["widgets"]
+            )
+        except DashboardDefinitionError:
+            continue
+    return definition, {"widgets": widgets}
 
 
 async def _resolved_listing(
