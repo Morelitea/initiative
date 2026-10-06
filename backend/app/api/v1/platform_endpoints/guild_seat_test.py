@@ -182,10 +182,11 @@ async def test_the_seat_deletes_the_community_and_then_itself(
         json={
             "action": "deactivate",
             "password": "testpassword123",
-            "confirmation_text": "DELETE",
+            "confirmation_text": "DEACTIVATE MY ACCOUNT",
         },
     )
     assert refused.status_code == 400
+    assert refused.json()["detail"] == "CANNOT_VACATE_LAST_SUPERADMIN"
 
     # The seat's own way through: delete the community.
     deleted = await client.request(

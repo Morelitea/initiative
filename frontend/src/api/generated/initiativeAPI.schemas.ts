@@ -3760,7 +3760,6 @@ export interface DefaultFilter {
  */
 export interface DeletionEligibilityResponse {
   can_delete: boolean;
-  blockers: string[];
   sole_superadmin_communities: string[];
 }
 
@@ -6293,7 +6292,6 @@ export interface OperatorCatalogScanResult {
  */
 export interface OperatorDeletionEligibilityResponse {
   can_delete: boolean;
-  blockers: string[];
   community_blockers: CommunityBlockerInfo[];
 }
 

@@ -41,7 +41,6 @@ class OperatorDeletionEligibilityResponse(SanitizedBaseModel):
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     can_delete: bool
-    blockers: List[str] = Field(default_factory=list)
     community_blockers: List[CommunityBlockerInfo] = Field(
         default_factory=list,
         validation_alias=AliasChoices("community_blockers", "guild_blockers"),

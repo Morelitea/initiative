@@ -1626,16 +1626,9 @@ async def check_deletion_eligibility(
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> DeletionEligibilityResponse:
     """Check if the current user can be deleted and what blockers exist."""
-    can_delete, blockers = await users_service.check_deletion_eligibility(
-        session, current_user.id
-    )
-
+    sole_seats = await users_service.is_last_guild_superadmin(session, current_user.id)
     return DeletionEligibilityResponse(
-        can_delete=can_delete,
-        blockers=blockers,
-        sole_superadmin_communities=await users_service.is_last_guild_superadmin(
-            session, current_user.id
-        ),
+        can_delete=not sole_seats, sole_superadmin_communities=sole_seats
     )
 
 
@@ -1692,14 +1685,10 @@ async def delete_own_account(
     # Holding a guild's only superadmin seat is the only blocker. Content the
     # user owns is released on the way out and left unowned for a guild admin to
     # claim, so there is nothing to hand over first.
-    can_delete, blockers = await users_service.check_deletion_eligibility(
-        session, current_user.id
-    )
-
-    if not can_delete:
+    if await users_service.is_last_guild_superadmin(session, current_user.id):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Cannot delete account: {'; '.join(blockers)}",
+            detail=GuildMessages.CANNOT_VACATE_LAST_SUPERADMIN,
         )
 
     if request.action == "deactivate":

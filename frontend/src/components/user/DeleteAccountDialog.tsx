@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { UserRead } from "@/api/generated/initiativeAPI.schemas";
+import { ConfirmPhraseField, EligibilityStep } from "@/components/account/DeletionSteps";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { DialogFooter } from "@/components/ui/dialog";
@@ -26,12 +27,6 @@ import type { DialogWithSuccessProps } from "@/types/dialog";
  */
 type SelfAction = "deactivate" | "soft_delete";
 type DeletionStep = "choose-type" | "check-blockers" | "confirm";
-
-interface DeletionEligibilityResponse {
-  can_delete: boolean;
-  blockers: string[];
-  sole_superadmin_communities: string[];
-}
 
 interface DeleteAccountDialogProps extends DialogWithSuccessProps {
   user: UserRead;
@@ -58,7 +53,6 @@ export function DeleteAccountDialog({
   const initialStep: DeletionStep = initialAction ? "check-blockers" : "choose-type";
   const { step, go, back, canGoBack, reset } = useWizard<DeletionStep>(initialStep);
   const [action, setAction] = useState<SelfAction>(initialAction ?? "deactivate");
-  const [eligibility, setEligibility] = useState<DeletionEligibilityResponse | null>(null);
   const [password, setPassword] = useState("");
   const [confirmationText, setConfirmationText] = useState("");
 
@@ -71,24 +65,23 @@ export function DeleteAccountDialog({
   //     ``initialAction``. Without this, clicking "Delete Account"
   //     would still show ``action === "deactivate"`` from the initial
   //     mount.
-  //   - On close: per-attempt fields (eligibility, password,
-  //     confirmation text, project transfers) are cleared so the next
-  //     open is a clean slate.
+  //   - On close: per-attempt fields (the eligibility answer, password,
+  //     confirmation text) are cleared so the next open is a clean slate.
   useEffect(() => {
     reset();
     setAction(initialAction ?? "deactivate");
     if (!open) {
-      setEligibility(null);
       setPassword("");
       setConfirmationText("");
     }
   }, [open, initialAction, reset]);
 
-  // Fetch deletion eligibility
-  const { refetch: checkEligibility, isFetching: isCheckingEligibility } =
-    useMyDeletionEligibility();
+  const {
+    data: eligibility,
+    refetch: checkEligibility,
+    isFetching: isCheckingEligibility,
+  } = useMyDeletionEligibility(open);
 
-  // Fetch initiative members for project transfer
   const deleteAccount = useDeleteOwnAccount({
     onSuccess: () => {
       toast.success(
@@ -109,9 +102,7 @@ export function DeleteAccountDialog({
   // ``initialAction`` skipped the chooser.
   const runEligibilityCheck = useCallback(async () => {
     const result = await checkEligibility();
-    if (!result.data) return;
-    setEligibility(result.data);
-    if (result.data.can_delete) {
+    if (result.data?.can_delete) {
       go("confirm");
     }
   }, [checkEligibility, go]);
@@ -235,54 +226,28 @@ export function DeleteAccountDialog({
 
         {/* Step 2: Check Blockers */}
         {step === "check-blockers" && (
-          <div className="space-y-4">
-            {isCheckingEligibility && (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-              </div>
+          <EligibilityStep
+            checking={isCheckingEligibility}
+            canDelete={eligibility?.can_delete}
+            blockers={(eligibility?.sole_superadmin_communities ?? []).map((communityName) =>
+              t("deleteAccount.soleSuperadminBlocker", { communityName })
             )}
-
-            {eligibility && !eligibility.can_delete && (
-              <Alert variant="destructive">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>
-                  <div className="mb-2 font-semibold">
-                    {t(
-                      action === "deactivate"
-                        ? "deleteAccount.cannotDeactivate"
-                        : "deleteAccount.cannotDelete"
-                    )}
-                  </div>
-                  <ul className="list-inside list-disc space-y-1">
-                    {eligibility.blockers.map((blocker) => (
-                      <li key={blocker}>{blocker}</li>
-                    ))}
-                  </ul>
-                  <p className="mt-2 text-sm">
-                    {t(
-                      action === "deactivate"
-                        ? "deleteAccount.resolveIssuesDeactivate"
-                        : "deleteAccount.resolveIssues"
-                    )}
-                  </p>
-                </AlertDescription>
-              </Alert>
+            blockedTitle={t(
+              action === "deactivate"
+                ? "deleteAccount.cannotDeactivate"
+                : "deleteAccount.cannotDelete"
             )}
-
-            {eligibility?.can_delete && (
-              <>
-                <Alert className="border-green-500/50 bg-green-50 dark:bg-green-950">
-                  <AlertDescription>
-                    {t(
-                      action === "deactivate"
-                        ? "deleteAccount.eligibleDeactivate"
-                        : "deleteAccount.eligible"
-                    )}
-                  </AlertDescription>
-                </Alert>
-              </>
+            blockedHint={t(
+              action === "deactivate"
+                ? "deleteAccount.resolveIssuesDeactivate"
+                : "deleteAccount.resolveIssues"
             )}
-          </div>
+            eligibleText={t(
+              action === "deactivate"
+                ? "deleteAccount.eligibleDeactivate"
+                : "deleteAccount.eligible"
+            )}
+          />
         )}
 
         {/* Step 3: Confirm */}
@@ -315,19 +280,11 @@ export function DeleteAccountDialog({
               </div>
             )}
 
-            <div className="space-y-2">
-              <Label htmlFor="confirmation">
-                {t("deleteAccount.typeToConfirmPrefix")}{" "}
-                <span className="font-bold font-mono">{expectedConfirmation}</span>{" "}
-                {t("deleteAccount.typeToConfirmSuffix")}
-              </Label>
-              <Input
-                id="confirmation"
-                value={confirmationText}
-                onChange={(e) => setConfirmationText(e.target.value)}
-                placeholder={expectedConfirmation}
-              />
-            </div>
+            <ConfirmPhraseField
+              phrase={expectedConfirmation}
+              value={confirmationText}
+              onChange={setConfirmationText}
+            />
           </div>
         )}
       </div>

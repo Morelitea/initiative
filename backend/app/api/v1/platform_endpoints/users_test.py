@@ -644,7 +644,7 @@ async def test_self_service_password_change_revokes_sessions_on_every_device(
 
 
 async def test_deletion_eligibility_surfaces_the_services_answer(client, acting_user):
-    """The endpoint hands back the verdict and the reasons behind it. What
+    """The endpoint hands back the verdict and the communities behind it. What
     makes the verdict what it is — holding a community's sole seat — is proved
     at the service (``app/services/platform/users_test.py``)."""
     a = await acting_user(guild_role=CommunityRole.member)
@@ -654,7 +654,7 @@ async def test_deletion_eligibility_surfaces_the_services_answer(client, acting_
     assert response.status_code == 200
     body = response.json()
     assert body["can_delete"] is True
-    assert body["blockers"] == []
+    assert body["sole_superadmin_communities"] == []
 
 
 async def test_delete_user_as_admin(client, session, acting_user, monkeypatch):
