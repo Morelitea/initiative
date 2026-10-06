@@ -1128,7 +1128,7 @@ requires-dist = [
     { name = "boto3", specifier = ">=1.35,<2" },
     { name = "cryptography", specifier = ">=50.0.0" },
     { name = "email-validator", specifier = ">=2.3.0,<3" },
-    { name = "fastapi", specifier = ">=0.136.1,<0.143" },
+    { name = "fastapi", specifier = ">=0.136.1,<0.142" },
     { name = "fastmcp", specifier = ">=3.4.2" },
     { name = "google-auth", specifier = ">=2.53.0" },
     { name = "greenlet", specifier = ">=3.0" },
