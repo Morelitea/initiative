@@ -24,6 +24,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Filters can match all or any.** Choose once at the top, add a group for the other kind, and choose to leave out, include, or count only archived work and templates. Deleted things are never counted.
 - **Push notifications without Firebase.** Turn on **Send push notifications** and leave the rest empty: your server registers itself once with Morelitea's push relay and sends through it. iPhone pushes always go through the relay; with your own Firebase service account, Android pushes still go straight to Firebase. The relay passes the text on and never keeps it. See **Running a server › Push notifications**.
 - **A timeline can be drawn in years.**
+- **Plug-ins can show your community's usage** on **Community settings › Usage**, below storage and members.
+- **A plug-in's listing shows its minimum age** where it declares one, for the country your browser is set to.
 
 ### Changed
 

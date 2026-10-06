@@ -6,6 +6,7 @@ import {
   COMMUNITY_SHELVES,
   DEFAULT_COMMUNITY_SHELF,
   isUserShelf,
+  minimumAgeFor,
   parseCommunityShelf,
   parseListingKind,
   UNSHELVED_KINDS,
@@ -58,5 +59,21 @@ describe("reading a kind out of the URL", () => {
 
   it("defaults to a shelf the community actually has", () => {
     expect(COMMUNITY_SHELVES).toContain(DEFAULT_COMMUNITY_SHELF);
+  });
+});
+
+describe("minimumAgeFor", () => {
+  const definition = { minimum_age: { default: 16, US: 13 } };
+
+  it("reads the viewer's region first, then the default", () => {
+    expect(minimumAgeFor(definition, "en-US")).toBe(13);
+    expect(minimumAgeFor(definition, "de-DE")).toBe(16);
+    expect(minimumAgeFor(definition, "en")).toBe(16);
+  });
+
+  it("says nothing where the plug-in declares nothing for the viewer", () => {
+    expect(minimumAgeFor({ minimum_age: { US: 13 } }, "fr-FR")).toBeNull();
+    expect(minimumAgeFor({}, "en-US")).toBeNull();
+    expect(minimumAgeFor(null, undefined)).toBeNull();
   });
 });

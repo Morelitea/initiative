@@ -717,6 +717,35 @@ def test_a_localized_object_with_nothing_usable_is_refused(validator):
             ),
             "a community summary naming an endpoint that is not a read",
         ),
+        (
+            _manifest(
+                features=["endpoints"],
+                endpoints=[
+                    {
+                        "id": "plugin.acme.tracker.standing",
+                        "direction": "read",
+                        "returns": [{"key": "used", "type": "int", "of": "allowed"}],
+                    }
+                ],
+            ),
+            "a return counted against one the endpoint does not return",
+        ),
+        (
+            _manifest(
+                features=["endpoints"],
+                endpoints=[
+                    {
+                        "id": "plugin.acme.tracker.standing",
+                        "direction": "read",
+                        "returns": [
+                            {"key": "used", "type": "int", "of": "allowed"},
+                            {"key": "allowed", "type": "int", "list": True},
+                        ],
+                    }
+                ],
+            ),
+            "a return counted against a list, which has no one figure",
+        ),
     ],
 )
 def test_the_platform_enforces_what_the_schema_cannot(manifest, why, validator):
@@ -931,3 +960,24 @@ def test_is_admin_only_reads_both_contracts(declared, expected):
     from app.services.marketplace.service_plugins import is_admin_only
 
     assert is_admin_only(declared) is expected
+
+
+@pytest.mark.parametrize(
+    "minimum_age",
+    [{"gdpr": 16}, {"us": 13}, {"USA": 13}, {"default": 12}, {"default": 22}, {}],
+)
+def test_a_minimum_age_is_by_country_and_bounded(minimum_age, validator):
+    """A region is a country or ``default`` — GDPR is not one age — and an age
+    the publisher declared for compliance is refused whole when wrong rather
+    than quietly trimmed. The schema and the platform agree on every case."""
+    manifest = _manifest(minimum_age=minimum_age)
+    assert list(validator.iter_errors(manifest)) != []
+    with pytest.raises(ValueError):
+        platform_accepts(manifest)
+
+
+def test_a_minimum_age_is_kept_as_declared(validator):
+    manifest = _manifest(minimum_age={"default": 16, "US": 13, "FR": 15})
+    assert list(validator.iter_errors(manifest)) == []
+    stored = normalize_listing_definition("plugin", manifest)
+    assert stored["minimum_age"] == {"default": 16, "US": 13, "FR": 15}
