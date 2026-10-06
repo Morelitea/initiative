@@ -30,6 +30,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+from collections.abc import Container
 from datetime import timedelta
 
 from sqlalchemy import text
@@ -39,7 +40,12 @@ from app.db.backfill_uploads_to_s3 import BackfillSummary, backfill_uploads_to_s
 from app.db import session as db_session
 from app.db.session import SystemSessionLocal
 from app.db.public_rls import PUBLIC_RLS, render_table_rls
-from app.db.system_grants import ROLE_GRANTS, grant_statements, revoke_statements
+from app.db.system_grants import (
+    ROLE_GRANTS,
+    grant_statements,
+    grantee,
+    revoke_statements,
+)
 from app.core.clock import utcnow
 
 logger = logging.getLogger(__name__)
@@ -72,22 +78,27 @@ _table_lock = asyncio.Lock()
 _table_ready = False
 
 
-def _table_ddl() -> str:
+def _table_ddl(present: Container[str]) -> str:
     """The table, then its row security and grants as the shared-table
-    registry declares them. Every role's grants are revoked before any are
-    granted, so a table created by an earlier build converges on the registry,
-    the schema's default grants to the two request-path floors are taken back
-    where it gives them none, and a login named by both login fields keeps the
-    verbs of each."""
+    registry declares them. Every role in ``present`` (catalog names) has its
+    grants revoked before any are granted, so a table created by an earlier
+    build converges on the registry, the schema's default grants to the two
+    request-path floors are taken back where it gives them none, and a login
+    named by both login fields keeps the verbs of each."""
     return "\n".join(
         [
             f"{_CREATE_TABLE.strip()};",
             render_table_rls(_TABLE, PUBLIC_RLS[_TABLE]),
             *(
                 f"{statement};"
-                for render in (revoke_statements, grant_statements)
                 for role in ROLE_GRANTS
-                for statement in render(role, [_TABLE])
+                if grantee(role) in present
+                for statement in revoke_statements(role, [_TABLE])
+            ),
+            *(
+                f"{statement};"
+                for role in ROLE_GRANTS
+                for statement in grant_statements(role, [_TABLE])
             ),
         ]
     )
@@ -100,9 +111,8 @@ class BackfillAlreadyRunning(RuntimeError):
 async def _ensure_table() -> None:
     """Create the UNLOGGED status table once per process (idempotent).
 
-    DDL runs on the provisioning engine; RLS is forced with no policies so only
-    the BYPASSRLS system engine (which the reads/writes use) reaches it, with the
-    verbs the registry grants it (:func:`_table_ddl`).
+    The provisioning engine creates the table and applies the grants declared
+    in the shared-table registry (:func:`_table_ddl`).
     """
     global _table_ready
     if _table_ready:
@@ -111,8 +121,15 @@ async def _ensure_table() -> None:
         if _table_ready:
             return
         async with db_session.provisioning_engine.begin() as conn:
+            present = (
+                await conn.execute(
+                    text("SELECT rolname FROM pg_roles WHERE rolname = ANY(:names)"),
+                    {"names": [grantee(role) for role in ROLE_GRANTS]},
+                )
+            ).scalars()
+            ddl = _table_ddl(set(present))
             raw = await conn.get_raw_connection()
-            await raw.driver_connection.execute(_table_ddl())
+            await raw.driver_connection.execute(ddl)
         _table_ready = True
 
 

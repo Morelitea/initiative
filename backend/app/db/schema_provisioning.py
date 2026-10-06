@@ -1191,19 +1191,14 @@ async def ensure_system_engine_bypassrls() -> None:
         raise SystemExit(_bypassrls_exit_message(admin_login))
 
 
-# --- shared-table grant healing (issue #835, deeper than the BYPASSRLS check) -
+# --- shared-table grant healing (issue #835) ----------------------------------
 #
-# BYPASSRLS (above) lets the system engine skip RLS *policies*; it does NOT skip
-# table-level privilege checks. A restored/recreated cluster can bring the
-# system login back with LOGIN + BYPASSRLS but WITHOUT the per-table GRANTs the
-# migrations applied — roles are cluster state, and an already-stamped database
-# never re-runs the grant-issuing migrations. Seeding then stops one gate
-# deeper: "permission denied for table guilds" while seeding the primary guild
-# it can read (BYPASSRLS) but not INSERT (no grant). `backfill_guild_schemas`
-# re-asserts GUILD-schema grants on every boot; this does the same for the
-# shared `public` tables, from the audited `system_grants` registry, additively
-# and idempotently, for the logins the deployment's URLs connect as. The bare
-# request login is healed the same way — a restore loses its grants too.
+# Roles are cluster state, and an already-stamped database never re-runs the
+# migrations that issued its grants, so a restored or recreated cluster can
+# bring the logins back without their per-table grants. `backfill_guild_schemas`
+# re-asserts guild-schema grants on every boot; this does the same for the
+# shared `public` tables, from the `system_grants` registry, additively and
+# idempotently, for the logins the deployment's URLs connect as.
 
 #: Every column-owned sequence of the named ``public`` tables, serial or
 #: identity, qualified and quoted.

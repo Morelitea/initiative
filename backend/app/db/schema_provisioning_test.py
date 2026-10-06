@@ -1407,7 +1407,10 @@ async def test_shared_grants_reach_the_configured_login_or_stop_boot(
             await schema_provisioning.ensure_shared_table_grants()
         message = str(excinfo.value)
         assert "DATABASE_URL_ADMIN" in message
-        assert f'GRANT SELECT, INSERT ON TABLE {probe} TO "{role}";' in message
+        assert (
+            f'GRANT SELECT, INSERT ON TABLE public."{_PROBE_TABLE}" TO "{role}";'
+            in message
+        )
     finally:
         await _drop_probe_table(engine)
         await bound_engine.dispose()

@@ -74,14 +74,17 @@ def test_grant_statements_name_the_role_as_the_catalog_holds_it(monkeypatch):
 
 
 def test_a_login_both_fields_name_keeps_the_verbs_of_each(monkeypatch):
-    """The storage backfill table's grants revoke every role first, so a
-    deployment whose app and admin URLs share one login keeps the system
-    engine's verbs on it."""
+    """The storage backfill table's grants revoke every present role first, so
+    a deployment whose app and admin URLs share one login keeps the system
+    engine's verbs on it; a role the catalog does not hold is left out."""
     url = "postgresql+asyncpg://shared:pw@h:5432/d"
     monkeypatch.setattr(settings, "DATABASE_URL_APP", url)
     monkeypatch.setattr(settings, "DATABASE_URL_ADMIN", url)
+    absent = role_name("plugin_install_base")
+    present = {system_grants.grantee(role) for role in system_grants.ROLE_GRANTS}
 
-    statements = _table_ddl().splitlines()
+    statements = _table_ddl(present - {absent}).splitlines()
+    assert not [s for s in statements if absent in s]
     to_login = [s for s in statements if s.endswith('"shared";')]
     assert to_login == [
         'REVOKE ALL ON TABLE public."storage_backfill_state" FROM "shared";',
