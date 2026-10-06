@@ -72,14 +72,13 @@ from app.api.v1.platform_endpoints.session_cookies import (
 from app.api.v1.platform_endpoints.session_opening import (
     PASSWORD_LEG,
     SECOND_FACTOR_PURPOSES,
-    count_wrong_answer,
     current_session_row,
     MOBILE_CALLBACK_URI,
     first_leg_of,
     mint_for,
     open_session,
     prove_password,
-    refuse_if_locked,
+    prove_second_factor,
     require_login_method,
     second_factor_outstanding,
     upgrade_session,
@@ -853,12 +852,6 @@ async def answer_second_factor(
         )
 
     user_id = challenge.user_id
-    try:
-        await refuse_if_locked(system_session, user_id)
-    except HTTPException:
-        # The attempt the claim took stands.
-        await system_session.commit()
-        raise
     # Before the factor is read, not after: a code presented to an account that
     # cannot sign in anyway should not be spent on finding that out.
     user = await system_session.get(User, user_id)
@@ -868,33 +861,20 @@ async def answer_second_factor(
             status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INACTIVE_USER
         )
 
-    if payload.recovery_code:
-        accepted = await totp_service.consume_recovery_code(
-            system_session, user_id=user_id, code=payload.recovery_code
-        )
-        method, factor_amr = "recovery_code", ["mfa"]
-        refusal = AuthMessages.RECOVERY_CODE_INVALID
-    else:
-        accepted = await totp_service.verify_code(
-            system_session, user_id=user_id, code=payload.code or ""
-        )
-        method, factor_amr = "totp", ["otp", "mfa"]
-        refusal = AuthMessages.TOTP_INVALID
-
-    if not accepted:
-        # The attempt is already counted against the challenge, which stands
-        # until it runs out; this records the refusal and lets them try again.
-        await audit_service.record(
+    try:
+        proof = await prove_second_factor(
             system_session,
-            event_type=AuditEventType.AUTH_SECOND_FACTOR_FAILED,
-            actor_user_id=None,
-            target_user_id=user_id,
-            target_type="user",
-            target_id=user_id,
-            detail={"method": method},
+            user_id=user_id,
+            code=payload.code,
+            recovery_code=payload.recovery_code,
+            during="sign_in",
+            signed_in=False,
         )
-        await count_wrong_answer(system_session, user_id)
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=refusal)
+    except HTTPException:
+        # The attempt the claim took stands, and the challenge with it until
+        # it runs out, so they can try again.
+        await system_session.commit()
+        raise
 
     if not await challenge_service.consume(system_session, challenge):
         # Spent between the claim and here, so the session it bought is not
@@ -905,18 +885,6 @@ async def answer_second_factor(
             detail=AuthMessages.TOTP_CHALLENGE_INVALID,
         )
 
-    if method == "recovery_code":
-        await audit_service.record(
-            system_session,
-            event_type=AuditEventType.AUTH_RECOVERY_CODE_USED,
-            actor_user_id=user_id,
-            detail={
-                "remaining": await totp_service.remaining_recovery_codes(
-                    system_session, user_id=user_id
-                )
-            },
-        )
-
     leg, _ = first_leg_of(challenge.purpose)
     return await open_session(
         request,
@@ -924,8 +892,8 @@ async def answer_second_factor(
         system_session,
         user_id=user_id,
         token_version=user.token_version,
-        amr=[*leg.amr, *factor_amr],
-        audit_detail={"method": leg.method, "second_factor": method},
+        amr=[*leg.amr, *proof.amr],
+        audit_detail={"method": leg.method, "second_factor": proof.method},
     )
 
 
