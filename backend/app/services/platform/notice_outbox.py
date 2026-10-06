@@ -23,7 +23,7 @@ import asyncio
 import logging
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
-from typing import Any, Mapping, Sequence, cast
+from typing import Any, Iterable, Mapping, Sequence, cast
 
 from sqlalchemy import delete, func, insert, text, update
 from sqlmodel import select
@@ -109,6 +109,19 @@ def row(
     }
 
 
+def _policy_of(
+    policies: Mapping[int | None, notification_policy.NotificationPolicy],
+    guild_id: int | None,
+    data: Mapping[str, Any],
+) -> notification_policy.NotificationPolicy:
+    """The answer a row is sent under: its community's, and the stricter of
+    every community a push of its own gathers from."""
+    policy = policies[guild_id]
+    for gid in data.get("communities", ()):
+        policy = policy.stricter_than(policies[gid])
+    return policy
+
+
 async def notice(
     session: AsyncSession,
     recipient: User,
@@ -119,6 +132,7 @@ async def notice(
     push: tuple[str, str] | None = None,
     push_data: Mapping[str, Any] | None = None,
     email: email_service.EmailPieces | None = None,
+    communities: Iterable[int | None] = (),
     **fields: Any,
 ) -> dict[str, Any]:
     """One recipient's row, holding no more than the notice may say.
@@ -128,8 +142,19 @@ async def notice(
     redacts, the push and the email say the kind of thing that happened rather
     than what it was about. Whether the recipient wants each channel is the
     worker's question.
+
+    ``communities`` are the ones a push of its own gathers from — a digest's,
+    a hold summary's. The row keeps them, and each one's switches are applied
+    alongside, here and at send.
     """
-    policy = await notification_policy.for_send(session, guild_id)
+    gathered = sorted({gid for gid in communities if gid is not None})
+    if gathered:
+        data = {**data, "communities": gathered}
+    policy = _policy_of(
+        await notification_policy.for_send_many(session, {guild_id, *gathered}),
+        guild_id,
+        data,
+    )
     category = category_of(notification_type)
     locale = getattr(recipient, "locale", None) or "en"
     if push is not None:
@@ -363,14 +388,16 @@ async def _push(
     stand now: a community that has turned push off since sends nothing, and
     one that has started redacting sends the kind of thing that happened."""
     policies = await notification_policy.for_send_many(
-        session, {row.guild_id for row in rows}
+        session,
+        {row.guild_id for row in rows}
+        | {gid for row in rows for gid in row.data.get("communities", ())},
     )
     allowed: list[NoticeOutboxItem] = []
     pushes: list[push_notifications.Push] = []
     for row in rows:
         notification_type = NotificationType(row.type)
         shown = notification_policy.apply(
-            policies[row.guild_id],
+            _policy_of(policies, row.guild_id, row.data),
             (row.push_title or "", row.push_body or ""),
             category=category_of(notification_type),
             locale=getattr(accounts.get(row.user_id), "locale", None) or "en",

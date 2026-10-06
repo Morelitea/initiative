@@ -991,28 +991,20 @@ async def _queue_push(
     session: AsyncSession,
     user: User,
     push: push_notifications.Push,
-    policy: notification_policy.NotificationPolicy = notification_policy.UNRESTRICTED,
+    communities: Iterable[int | None],
 ) -> bool:
     """Hand a push of its own to the notice worker, which sends it and tries
-    again if it fails. ``policy`` is what the communities it gathers from
-    answer, applied alongside the deployment's. Returns whether one may go at
-    all: none does from a deployment that sends no push."""
-    shown = notification_policy.apply(
-        policy,
-        (push.title, push.body),
-        category=category_of(push.notification_type),
-        locale=_recipient_locale(user),
-    )
-    if shown is None:
-        return False
+    again if it fails, under the switches of the ``communities`` it gathers
+    from as well as the deployment's. Returns whether one may go at all."""
     item = await notice_outbox.notice(
         session,
         user,
         push.notification_type,
         {},
         guild_id=None,
-        push=shown,
+        push=(push.title, push.body),
         push_data=push.data,
+        communities=communities,
         kind="push",
     )
     if item["push_title"] is None:
@@ -1097,18 +1089,17 @@ def wants_digest(
 
 async def _digest_batch(
     session: AsyncSession, batch: list[dict]
-) -> tuple[list[dict], list[dict], notification_policy.NotificationPolicy]:
+) -> tuple[list[dict], list[dict]]:
     """The items of a digest each channel may still carry, per community.
 
     A digest gathers from every community an account is in, so what may leave
     with it is answered one community at a time: items from one that declines a
     channel are left out of it. An email item from one asking for redacted
     notifications is marked, so the composer writes that line as the kind of
-    thing that happened; a push is one line, so it is redacted when any of its
-    items' communities asks.
+    thing that happened; a push is one line, sent under the switches of every
+    community its items come from.
 
-    Returns ``(for_email, for_push, push_policy)`` — the items each channel
-    carries, and the answer the push is sent under.
+    Returns ``(for_email, for_push)`` — the items each channel carries.
     """
     policies = await notification_policy.for_send_many(
         session, {item.get("community_id") for item in batch}
@@ -1119,10 +1110,7 @@ async def _digest_batch(
         if (policy := policies[item.get("community_id")]).email
     ]
     for_push = [item for item in batch if policies[item.get("community_id")].push]
-    push_policy = notification_policy.UNRESTRICTED
-    for item in for_push:
-        push_policy = push_policy.stricter_than(policies[item.get("community_id")])
-    return for_email, for_push, push_policy
+    return for_email, for_push
 
 
 def digest_scan(spec: DigestSpec, *, now: datetime) -> Scan:
@@ -1234,7 +1222,7 @@ async def _send_digests(
         channels = await _channels(
             session, user, notification_type=sample_type(spec.category)
         )
-        email_batch, push_batch, push_policy = await _digest_batch(session, batch)
+        email_batch, push_batch = await _digest_batch(session, batch)
         # Each channel is handed to its outbox, which tries a failed send again
         # itself, so the items never go back to waiting.
         if channels.email and email_batch:
@@ -1255,7 +1243,12 @@ async def _send_digests(
                     user_id,
                 )
         if channels.push and push_batch:
-            await _queue_push(session, user, spec.push(user, push_batch), push_policy)
+            await _queue_push(
+                session,
+                user,
+                spec.push(user, push_batch),
+                {item.get("community_id") for item in push_batch},
+            )
         if spec.stamp is not None:
             setattr(user, spec.stamp, now)
             session.add(user)
@@ -2064,7 +2057,7 @@ async def _send_overdue(
         channels = await _channels(
             session, user, notification_type=NotificationType.overdue_tasks
         )
-        email_tasks, push_tasks, push_policy = await _digest_batch(session, tasks)
+        email_tasks, push_tasks = await _digest_batch(session, tasks)
         if channels.email and email_tasks:
             delivered = await email_outbox.enqueue(
                 session,
@@ -2086,7 +2079,10 @@ async def _send_overdue(
         if channels.push and push_tasks:
             delivered = (
                 await _queue_push(
-                    session, user, _overdue_push(user, push_tasks), push_policy
+                    session,
+                    user,
+                    _overdue_push(user, push_tasks),
+                    {item.get("community_id") for item in push_tasks},
                 )
                 or delivered
             )
@@ -2324,6 +2320,7 @@ async def _run_hold_summary_pass(session: AsyncSession, *, now: datetime) -> Non
                 _nt(f"{key}.body", locale, count=sum(count for _, _, count in rows)),
                 {"type": f"{lift.kind.value}_summary", "target_path": "/notifications"},
             ),
+            {guild_id for _, guild_id, _ in rows},
         )
         await _record_lift(
             session, user_id=user.id, prefs=prefs, lift=lift, summarised=summarised

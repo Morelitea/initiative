@@ -142,30 +142,38 @@ async def test_a_redacting_community_writes_down_no_more_than_it_will_say(
 
 async def test_a_push_of_its_own_writes_no_line(session: AsyncSession, fcm):
     """A digest or a hold summary is a push and nothing else: the bell already
-    holds what it counts."""
+    holds what it counts. It goes under the switches of the communities it
+    gathers from as they stand when it is sent."""
     pushed, _answer = fcm
     recipient = await create_user(session)
+    guild = await create_guild(session, creator=recipient)
     await create_push_token(session, recipient)
     await notice_outbox.enqueue(
         session,
         [
-            notice_outbox.row(
-                recipient.id,
-                None,
+            await notice_outbox.notice(
+                session,
+                recipient,
                 NotificationType.overdue_tasks,
                 {},
-                kind="push",
-                push_title="2 tasks overdue",
-                push_body="Q3 budget and 1 more",
+                guild_id=None,
+                push=("2 tasks overdue", "Q3 budget and 1 more"),
                 push_data={"target_path": "/"},
+                communities={guild.id},
+                kind="push",
             )
         ],
     )
+    guild.redact_notification_content = True
+    session.add(guild)
     await session.commit()
 
     await _deliver(session, datetime.now(timezone.utc))
 
-    assert pushed == ["2 tasks overdue"]
+    title, _body = notification_policy.redacted_line(
+        category_of(NotificationType.overdue_tasks), "en"
+    )
+    assert pushed == [title]
     assert await _lines(session, recipient.id) == []
     assert await _waiting(session) == []
 

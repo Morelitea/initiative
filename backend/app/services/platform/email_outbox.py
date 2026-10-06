@@ -411,7 +411,6 @@ async def _send_one(
     user: User,
     rows: list[EmailOutboxItem],
     now: datetime,
-    policies: Mapping[int | None, notification_policy.NotificationPolicy],
 ) -> None:
     """Compose and send one account's due mail, then settle it.
 
@@ -428,6 +427,9 @@ async def _send_one(
     locale = getattr(user, "locale", None) or "en"
     if rows:
         stale = await _already_read(session, rows)
+        policies = await notification_policy.for_send_many(
+            session, {row.guild_id for row in rows}
+        )
         refused = set()
         for row in rows:
             if row.id in stale:
@@ -620,15 +622,10 @@ async def _run_pass(session: AsyncSession, *, now: datetime) -> None:
         )
     )
     user_ids = [row.user_id for row in result.all()]
-    # The switches as they stand for this pass, read once per community.
-    policies: dict[int | None, notification_policy.NotificationPolicy] = {}
     for user_id in user_ids:
         rows = await _claim(session, user_id=user_id, now=now)
         if not rows:
             continue
-        unread = {row.guild_id for row in rows if not row.security} - policies.keys()
-        if unread:
-            policies.update(await notification_policy.load_many(unread))
         user = (
             await session.exec(select(User).where(User.id == user_id))
         ).one_or_none()
@@ -637,7 +634,7 @@ async def _run_pass(session: AsyncSession, *, now: datetime) -> None:
             # the rows, and there is nobody to send to meanwhile.
             await session.commit()
             continue
-        await _send_one(session, user=user, rows=rows, now=now, policies=policies)
+        await _send_one(session, user=user, rows=rows, now=now)
         await session.commit()
 
 
