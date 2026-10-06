@@ -1782,10 +1782,12 @@ async def create_calendar_event(
     creator: User,
     *,
     title: str | None = None,
+    attendees: list[User] | None = None,
     commit: bool = True,
     **overrides: Any,
 ) -> CalendarEvent:
-    """Create a test calendar event with sensible defaults.
+    """Create a test calendar event with sensible defaults, and optional
+    attendees.
 
     Defaults to a one-hour event starting "now"; callers that care about
     the timing should override ``start_at`` / ``end_at``. Events carry no
@@ -1810,6 +1812,13 @@ async def create_calendar_event(
     if commit:
         await session.commit()
         await session.refresh(event)
+    elif attendees:
+        await session.flush()
+
+    for user in attendees or []:
+        session.add(CalendarEventAttendee(calendar_event_id=event.id, user_id=user.id))
+    if commit and attendees:
+        await session.commit()
 
     return event
 

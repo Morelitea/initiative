@@ -98,7 +98,6 @@
   "RESERVED_SIGIL_IN_NAME": "Les noms et les titres ne peuvent pas contenir # ni @.",
   "FIELD_CANNOT_BE_NULL": "Ce champ ne peut pas rester vide.",
   "PROJECT_NOT_FOUND": "Projet introuvable",
-  "PROJECT_IS_ARCHIVED": "Le projet est archivé",
   "CONTENT_IS_FROZEN": "Cet élément est archivé ou dans la corbeille. Restaurez-le avant de le modifier.",
   "PARENT_IS_FROZEN": "L'élément qui le contient est archivé ou dans la corbeille. Restaurez-le d'abord.",
   "PROJECT_OWNER_REQUIRED": "Permission de propriétaire du projet requise",

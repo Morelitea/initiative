@@ -606,9 +606,12 @@ export const useDeleteCalendar = <TError = ErrorType<HTTPValidationError>, TCont
   return useMutation(getDeleteCalendarMutationOptions(options), queryClient);
 };
 /**
- * Replace the calendar's entire sharing state in one call — the body is
- * the full list of grants (all-initiative-members / per-user / per-role).
- * Every non-owner grant is rebuilt from it; the owner is always preserved.
+ * Replace the calendar's entire sharing state in one call — the body is the
+ * full list of grants (all-initiative-members / per-user / per-role). Every
+ * non-owner grant is rebuilt from it; the owner is always preserved.
+ *
+ * Anyone the new sharing no longer lets open the calendar is taken off
+ * whatever in it names them.
  * @summary Set Calendar Grants
  */
 export const setCalendarGrants = (
