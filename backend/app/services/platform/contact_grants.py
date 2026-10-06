@@ -19,16 +19,15 @@ Two rules here are worth finding when you come back to this module:
 from __future__ import annotations
 
 from datetime import datetime, timezone
-
-import asyncio
+from functools import partial
 import logging
 from typing import Any
 
-from sqlalchemy import event, or_, text
+from sqlalchemy import or_, text
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import Session as SyncSession
 from sqlmodel import col, select
 
+from app.db import post_commit
 from app.models.platform.contact_grant import (
     ContactGrant,
     ContactGrantKind,
@@ -482,13 +481,8 @@ async def to_reads(
 
 logger = logging.getLogger(__name__)
 
-#: Accounts whose grants this session has earned a re-test for, but has not
-#: committed the reason for yet.
-_PENDING_SWEEP_KEY = "contact_grants_pending_sweep"
-
-# ``loop.create_task`` keeps only a weak reference, so a fire-and-forget sweep
-# can be collected mid-flight. Hold them until they finish.
-_inflight: set[asyncio.Task] = set()
+#: Keys a sweep per account per transaction.
+_SWEEP_KEY = "contact_grants_sweep"
 
 
 def queue_stale_grant_sweep(session: Any, user_id: int | None) -> None:
@@ -497,32 +491,19 @@ def queue_stale_grant_sweep(session: Any, user_id: int | None) -> None:
     The sweep reads the state the change left behind, so it cannot run while
     that change is still uncommitted — a membership deleted but not committed
     still answers ``dm_mutual_ask`` as present, and the channel that rested on
-    it would be kept. Queueing here and running on ``after_commit`` is the same
-    shape ``account_stream.queue_account_signal`` uses for the same reason.
+    it would be kept. Registered with ``post_commit.after_commit``, which
+    ``user_stream.queue_frame`` uses for the same reason.
 
-    A rollback discards the queue, so nothing is revoked for a change that did
+    A rollback discards the sweep, so nothing is revoked for a change that did
     not happen. And a sweep that never runs costs correctness nothing: rule 3
     recomputes ``mutual_ask`` on every call, so a row left behind grants no
     access — it is only tidier for it to be gone.
     """
     if user_id is None:
         return
-    pending: set[int] = session.info.setdefault(_PENDING_SWEEP_KEY, set())
-    pending.add(user_id)
-
-
-def _spawn(coro: Any) -> None:
-    try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        # No loop (a sync script, a test driving a sync session). The rows are
-        # committed either way and the rule recomputes, so there is nothing to
-        # deliver to.
-        coro.close()
-        return
-    task = loop.create_task(coro)
-    _inflight.add(task)
-    task.add_done_callback(_inflight.discard)
+    post_commit.after_commit(
+        session, partial(_sweep_quietly, user_id), key=(_SWEEP_KEY, user_id)
+    )
 
 
 async def _sweep_quietly(user_id: int) -> None:
@@ -530,20 +511,3 @@ async def _sweep_quietly(user_id: int) -> None:
         await revoke_stale_message_grants(None, user_id=user_id)
     except Exception:  # pragma: no cover - best effort, the rule still holds
         logger.debug("contact_grants: stale sweep failed", exc_info=True)
-
-
-def _run_pending(sync_session: SyncSession) -> None:
-    pending = sync_session.info.pop(_PENDING_SWEEP_KEY, None)
-    if not pending:
-        return
-    for user_id in pending:
-        _spawn(_sweep_quietly(user_id))
-
-
-def _discard_pending(sync_session: SyncSession, *_args: Any) -> None:
-    sync_session.info.pop(_PENDING_SWEEP_KEY, None)
-
-
-event.listens_for(SyncSession, "after_commit")(_run_pending)
-event.listens_for(SyncSession, "after_rollback")(_discard_pending)
-event.listens_for(SyncSession, "after_soft_rollback")(_discard_pending)

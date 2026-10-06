@@ -62,6 +62,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.api.deps import GuildAccessError, establish_guild_access
 from app.core import auth_context
 from app.core.tools import Tool
+from app.db import post_commit
 from app.db import session as db_session
 from app.db.cohorts import request_sessionmaker
 from app.db.session import RLS_CONTEXT_MAX_AGE_SECONDS
@@ -261,7 +262,6 @@ class ContentSockets:
         # open here. Two tabs are one person.
         self._present: dict[int, dict[int, int]] = {}
         self._loop_task: Optional[asyncio.Task[None]] = None
-        self._background: set[asyncio.Task[None]] = set()
 
     # ── membership ─────────────────────────────────────────────────────────
 
@@ -349,7 +349,9 @@ class ContentSockets:
                 sub.user_id,
                 sub.guild_id,
             )
-            self._spawn(self._disconnect(sub, code=status.WS_1013_TRY_AGAIN_LATER))
+            post_commit.spawn(
+                self._disconnect(sub, code=status.WS_1013_TRY_AGAIN_LATER)
+            )
 
     def emit_json(self, room: RoomKey, message: Mapping[str, Any]) -> None:
         """Send one JSON frame to every JSON socket in a room."""
@@ -592,11 +594,6 @@ class ContentSockets:
         self.leave(sub.websocket)
         with contextlib.suppress(Exception):
             await sub.websocket.close(code=code)
-
-    def _spawn(self, coro: Awaitable[None]) -> None:
-        task = asyncio.ensure_future(coro)
-        self._background.add(task)
-        task.add_done_callback(self._background.discard)
 
     def _ensure_loop(self) -> None:
         if self._loop_task is None or self._loop_task.done():

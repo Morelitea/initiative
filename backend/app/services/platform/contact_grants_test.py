@@ -6,11 +6,10 @@ open channel unless the pair connected first; and removing a connection re-tests
 the grant rather than deleting it, so two co-members keep talking.
 """
 
-import asyncio
-
 import pytest
 from sqlalchemy import text
 
+from app.db import post_commit
 from app.models.platform.contact_grant import (
     ContactGrant,
     ContactGrantKind,
@@ -274,13 +273,6 @@ async def _open_channel_between_co_members(session):
     return guild, a, b
 
 
-async def _drain_sweeps() -> None:
-    """Wait for the after-commit sweeps this test set going."""
-    pending = list(contact_grants_service._inflight)
-    if pending:
-        await asyncio.gather(*pending, return_exceptions=True)
-
-
 async def _grant_exists_fresh(a, b, kind) -> bool:
     """Ask a connection of its own.
 
@@ -311,23 +303,35 @@ async def test_the_sweep_waits_for_the_commit(session):
     assert await _grant_exists_fresh(a, b, ContactGrantKind.message)
 
     await session.commit()
-    await _drain_sweeps()
+    await post_commit.settle(session)
 
     assert not await _grant_exists_fresh(a, b, ContactGrantKind.message)
 
 
-async def test_a_rollback_discards_the_queue():
+async def test_a_rollback_discards_its_own_sweeps(session, monkeypatch):
     """A change that did not happen revokes nothing.
 
-    The hook, on its own: a rolled-back session leaves no sweep behind to run.
+    A rolled-back savepoint drops the sweep queued inside it and keeps the
+    transaction's other one; a rolled-back transaction drops them all.
     """
+    swept: list[int] = []
 
-    class _Session:
-        info: dict = {}
+    async def _sweep(_session, *, user_id: int) -> int:
+        swept.append(user_id)
+        return 0
 
-    fake = _Session()
-    contact_grants_service.queue_stale_grant_sweep(fake, 7)
-    assert fake.info[contact_grants_service._PENDING_SWEEP_KEY] == {7}
+    monkeypatch.setattr(contact_grants_service, "revoke_stale_message_grants", _sweep)
 
-    contact_grants_service._discard_pending(fake)
-    assert contact_grants_service._PENDING_SWEEP_KEY not in fake.info
+    contact_grants_service.queue_stale_grant_sweep(session, 7)
+    savepoint = await session.begin_nested()
+    contact_grants_service.queue_stale_grant_sweep(session, 8)
+    await savepoint.rollback()
+    await session.commit()
+    await post_commit.settle(session)
+    assert swept == [7]
+
+    contact_grants_service.queue_stale_grant_sweep(session, 9)
+    await session.rollback()
+    await session.commit()
+    await post_commit.settle(session)
+    assert swept == [7]

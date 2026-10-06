@@ -19,7 +19,7 @@ from app.core.guild_auth_options import CommunityAuthOption
 from app.core.intake import IntakeStream
 from app.core.encryption import encrypt_field, normalize_email, SALT_EMAIL
 from app.core.messages import GuildMessages
-from app.db import cohorts
+from app.db import cohorts, post_commit
 from app.db.advisory_locks import LockNamespace, advisory_lock
 from app.db.guild_migrations import GUILD_SCHEMA_REGEX
 from app.db.query import apply_pagination
@@ -436,7 +436,7 @@ def enroll_new_member_in_auto_join_initiatives(
             )
             await guild_session.commit()
 
-    cohorts.after_commit(session, enroll_in_auto_join_initiatives)
+    post_commit.after_commit(session, enroll_in_auto_join_initiatives)
 
 
 def align_admin_initiative_roles(
@@ -474,7 +474,7 @@ def align_admin_initiative_roles(
             )
             await guild_session.commit()
 
-    cohorts.after_commit(session, align_guild_admin_membership_roles)
+    post_commit.after_commit(session, align_guild_admin_membership_roles)
 
 
 async def _assert_member_capacity(

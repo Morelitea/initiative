@@ -39,7 +39,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.config import settings
 from app.api import content_socket
 from app.core.rate_limit import limiter
-from app.db import cohorts
+from app.db import cohorts, post_commit
 from app.db.advisory_locks import LockNamespace
 from app.db.session import (
     clear_rls_context,
@@ -879,8 +879,9 @@ async def _schema_test_harness(engine, _worker_engines, monkeypatch, request):
     )
     yield
     try:
-        # Community steps a commit started finish before the pools close.
-        await cohorts.settle_all()
+        # Work a commit started, and every task spawned beside it, finishes
+        # before the pools close.
+        await post_commit.settle_all()
     finally:
         for worker_engine in engines.app_engines():
             await worker_engine.dispose()
@@ -955,7 +956,7 @@ async def session(engine) -> AsyncGenerator[AsyncSession, None]:
     # auto-join initiatives, say) finishes before the tables it reads are
     # emptied or dropped below. After the rollback, so that work is not left
     # waiting on a lock the test's own transaction held.
-    await cohorts.settle_all()
+    await post_commit.settle_all()
 
     # Session is now closed (its rollback released any lock on public.guilds the
     # create-guild endpoint's trailing SELECT left held). Clean up on a fresh

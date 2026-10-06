@@ -25,11 +25,10 @@ import logging
 from collections.abc import Iterable, Mapping
 from datetime import datetime, timezone
 from enum import Enum
+from functools import partial
 from typing import Any, Optional
 from uuid import uuid4
 
-from sqlalchemy import event
-from sqlalchemy.orm import Session, SessionTransaction
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core import audit_context
@@ -39,29 +38,9 @@ from app.core.audit_events import (
     AuditCategory,
     AuditEventType,
 )
+from app.db import post_commit
 
 audit_logger = logging.getLogger("audit")
-
-#: Envelopes staged in a session, each with the transaction it was staged in,
-#: waiting on the commit. Kept on ``Session.info`` rather than in a module
-#: global so concurrent requests never share a queue.
-_PENDING = "audit_pending_envelopes"
-
-
-def _current_transaction(session: AsyncSession) -> SessionTransaction:
-    """The innermost transaction open on ``session``, begun here if none is:
-    a record needs one to ride, so that a rollback before the first
-    statement still discards it."""
-    sync = session.sync_session
-    return sync.get_nested_transaction() or sync.get_transaction() or sync.begin()
-
-
-def _within(txn: SessionTransaction | None, ancestor: SessionTransaction) -> bool:
-    while txn is not None:
-        if txn is ancestor:
-            return True
-        txn = txn.parent
-    return False
 
 
 def _identifies_the_caller(event_type: AuditEventType) -> bool:
@@ -87,35 +66,6 @@ def _write(envelope: dict[str, Any]) -> None:
         audit_logger.info(json.dumps(envelope, separators=(",", ":")))
     except Exception:  # pragma: no cover - a broken handler, not our logic
         logging.getLogger(__name__).exception("audit log line could not be emitted")
-
-
-@event.listens_for(Session, "after_commit")
-def _emit_committed_envelopes(session: Session) -> None:
-    """Ship the lines for work that actually landed."""
-    for _txn, envelope in session.info.pop(_PENDING, []):
-        _write(envelope)
-
-
-@event.listens_for(Session, "after_soft_rollback")
-def _discard_uncommitted_envelopes(
-    session: Session, previous_transaction: SessionTransaction
-) -> None:
-    """Drop the lines for work that did not land.
-
-    A savepoint's rollback drops what was staged inside it and keeps the
-    rest; the outermost rollback drops everything.
-    """
-    pending = session.info.get(_PENDING)
-    if not pending:
-        return
-    if previous_transaction.parent is None:
-        session.info.pop(_PENDING, None)
-        return
-    session.info[_PENDING] = [
-        (txn, envelope)
-        for txn, envelope in pending
-        if not _within(txn, previous_transaction)
-    ]
 
 
 async def record(
@@ -146,9 +96,7 @@ async def record(
         target_id=target_id,
         detail=detail,
     )
-    session.info.setdefault(_PENDING, []).append(
-        (_current_transaction(session), envelope)
-    )
+    post_commit.after_commit(session, partial(_write, envelope))
     return envelope
 
 

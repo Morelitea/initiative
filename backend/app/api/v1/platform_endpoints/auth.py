@@ -29,7 +29,7 @@ from app.api.deps import (
     get_current_user_optional,
     SystemSessionDep,
 )
-from app.db import cohorts
+from app.db import post_commit
 from app.db import session as db_session
 from app.db.session import set_rls_context
 from app.core.config import API_V1_STR, is_device, settings
@@ -552,7 +552,7 @@ async def _register_account(
                 role=CommunityRole.member,
             )
             await session.commit()
-            await cohorts.settle(session)
+            await post_commit.settle(session)
         elif details.community is None:
             await session.commit()
         else:
@@ -1678,7 +1678,7 @@ async def _complete_provider_login(
         user_id=user.id,
         claims=dict(claims or {}),
     )
-    await cohorts.settle(system_session)
+    await post_commit.settle(system_session)
     # It commits and rolls back the communities at capacity, either of which
     # leaves this copy of the account stale.
     await system_session.refresh(user)
@@ -1935,7 +1935,7 @@ async def confirm_verification(
                 undo={"kind": "proved", "address_id": proved_id},
             ),
         )
-    await cohorts.settle(system_session)
+    await post_commit.settle(system_session)
     return VerificationSendResponse(status="verified")
 
 

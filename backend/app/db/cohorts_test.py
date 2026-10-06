@@ -5,8 +5,6 @@ request and a system pool on the worker's database, and with a route outside a
 connection's cohort refused rather than counted.
 """
 
-import asyncio
-
 import pytest
 from sqlalchemy import text
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -199,33 +197,3 @@ async def test_reads_that_may_trail_use_the_replica_when_there_is_one(
     finally:
         for engine in engines:
             await engine.dispose()
-
-
-async def test_a_step_runs_once_its_transaction_commits():
-    ran: list[str] = []
-
-    def step(name: str) -> cohorts.Step:
-        async def record() -> None:
-            await asyncio.sleep(0.01)
-            ran.append(name)
-
-        return record
-
-    async with cohorts.system_session(None) as session:
-        await session.exec(text("SELECT 1"))
-        cohorts.after_commit(session, step("rolled back"))
-        await session.rollback()
-
-        await session.exec(text("SELECT 1"))
-        savepoint = await session.begin_nested()
-        cohorts.after_commit(session, step("savepoint rolled back"))
-        await savepoint.rollback()
-        savepoint = await session.begin_nested()
-        cohorts.after_commit(session, step("savepoint released"))
-        await savepoint.commit()
-        await cohorts.settle(session)
-        assert ran == []
-
-        await session.commit()
-        await cohorts.settle(session)
-    assert ran == ["savepoint released"]
