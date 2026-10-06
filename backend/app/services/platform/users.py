@@ -40,7 +40,7 @@ from app.models.tenant.resource_grant import ResourceGrant
 from app.models.tenant.task import TaskAssignee
 from app.models.platform.notification import Notification
 from app.models.tenant.project_order import ProjectOrder
-from app.models.tenant.project_activity import ProjectFavorite
+from app.models.tenant.project_favorite import ProjectFavorite
 from app.models.tenant.recent_view import RecentView
 from app.models.tenant.reaction_digest import ReactionDigestItem
 from app.models.tenant.ai_member_key import GuildAIMemberKey

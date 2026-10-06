@@ -327,10 +327,11 @@ async def test_an_edge_is_invisible_to_a_reader_who_clears_only_one_end(
         initiative_role="member",
     )
     response = await client.get(
-        reader.g(f"/projects/{owner.project.id}"), headers=reader.headers
+        reader.g(f"/relationships/?entity=project:{owner.project.id}"),
+        headers=reader.headers,
     )
     assert response.status_code == 200, response.text
-    assert response.json()["documents"] == []
+    assert response.json() == []
 
 
 async def test_a_tag_edge_is_still_gated_by_the_other_end(

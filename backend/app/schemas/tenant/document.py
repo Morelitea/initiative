@@ -159,15 +159,6 @@ class DocumentFileVersionRead(SanitizedBaseModel):
     is_current: bool = False
 
 
-class ProjectDocumentSummary(SanitizedBaseModel):
-    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
-
-    document_id: int
-    name: str
-    updated_at: datetime
-    attached_at: datetime
-
-
 def _serialize_project_links(
     projects: Sequence[Related],
 ) -> List[DocumentProjectLink]:
@@ -278,26 +269,6 @@ def serialize_document_file_versions(
         )
         for v in versions
     ]
-
-
-def serialize_project_document_link(
-    related: Related,
-) -> ProjectDocumentSummary | None:
-    """One attached document, from the project's side.
-
-    ``None`` when the far end is gone or the reader cannot open it: the edge
-    cleared the gate, the document did not, and an attachment nobody may read
-    is simply absent from the answer.
-    """
-    document = related.entity
-    if document is None or getattr(document, "id", None) is None:
-        return None
-    return ProjectDocumentSummary(
-        document_id=document.id,
-        name=document.name,
-        updated_at=document.updated_at,
-        attached_at=related.linked_at,
-    )
 
 
 class SpreadsheetImportRead(SanitizedBaseModel):

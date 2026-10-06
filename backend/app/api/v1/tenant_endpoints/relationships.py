@@ -19,8 +19,7 @@ behalf answers to them too:
 * **Both ends of a link made here are in one initiative.** The table permits a
   cross-initiative edge — that is where the graph gets its reach, and content
   references will make them — but choosing one in a picker is not how they
-  should arrive. ``DOCUMENT_WRONG_INITIATIVE`` is the same refusal by the same
-  name.
+  should arrive.
 * **An archived thing takes no new links, and gives none up.** Archiving is a
   statement that a project is finished with, and the policy has no opinion on
   it. Asked of whichever end has the state — only projects and tasks do.

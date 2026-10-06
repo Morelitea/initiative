@@ -326,13 +326,9 @@ class ProjectMessages:
     IS_ARCHIVED = "PROJECT_IS_ARCHIVED"
     INVALID_TEMPLATE = "PROJECT_INVALID_TEMPLATE"
     INITIATIVE_REQUIRED = "PROJECT_INITIATIVE_REQUIRED"
-    PIN_PERMISSION_REQUIRED = "PROJECT_PIN_PERMISSION_REQUIRED"
     # Configuring the project itself (pinning, default view, filter
     # presets) — a project manager, the project owner, or a guild admin.
     CONFIGURE_REQUIRED = "PROJECT_CONFIGURE_REQUIRED"
-    DOCUMENT_WRONG_INITIATIVE = "PROJECT_DOCUMENT_WRONG_INITIATIVE"
-    # A PAM grant confers content read/write only, never access-control
-    # management (adding/removing members or changing permission levels).
 
 
 class TaskMessages:
@@ -750,7 +746,6 @@ class UserMessages:
 
 class ProjectExportMessages:
     SCHEMA_VERSION_UNSUPPORTED = "PROJECT_EXPORT_SCHEMA_VERSION_UNSUPPORTED"
-    INVALID_PAYLOAD = "PROJECT_EXPORT_INVALID_PAYLOAD"
     NO_TASK_STATUSES = "PROJECT_EXPORT_NO_TASK_STATUSES"
 
 
