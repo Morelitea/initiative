@@ -119,6 +119,9 @@ interface AuthContextValue {
   completeOidcLogin: (credential?: NativeSession) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
+  /** Take an account the server just answered with (a write's response) as
+   *  the newest read. */
+  acceptUser: (user: UserRead) => void;
 }
 
 export const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -333,6 +336,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     appliedReadRef.current = readId;
     applyRead(me);
   }, [applyRead]);
+
+  const acceptUser = useCallback(
+    (nextUser: UserRead) => {
+      readSeqRef.current += 1;
+      appliedReadRef.current = readSeqRef.current;
+      applyRead(nextUser);
+    },
+    [applyRead]
+  );
 
   /**
    * Take up a session the server just issued and read the account it belongs
@@ -667,6 +679,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     completeOidcLogin,
     logout,
     refreshUser,
+    acceptUser,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
