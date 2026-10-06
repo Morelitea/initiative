@@ -1049,6 +1049,7 @@ async def test_soft_delete_user_empties_the_shared_tables(
     from app.models.platform.email_outbox import EmailOutboxItem
     from app.models.platform.notification import Notification
     from app.models.platform.profile_favorite import ProfileFavorite
+    from app.models.platform.user_birthdate import UserBirthdate
     from app.models.platform.user_cookie_consent import UserCookieConsent
     from app.models.platform.user_decoration import UserDecoration
     from app.models.platform.user_dm_guild_optout import UserDmGuildOptout
@@ -1088,6 +1089,7 @@ async def test_soft_delete_user_empties_the_shared_tables(
             ),
             AnnouncementReadReceipt(user_id=user.id, announcement_key="builtin:x"),
             UserCookieConsent(user_id=user.id, version=1),
+            UserBirthdate(user_id=user.id, birthdate_encrypted="sealed"),
             DmDevice(user_id=user.id, identity_key=b"i", fingerprint_key=b"f"),
             DmConversationMember(conversation_id=conversation.id, user_id=user.id),
             DmConversationMember(conversation_id=conversation.id, user_id=other.id),
@@ -1120,6 +1122,7 @@ async def test_soft_delete_user_empties_the_shared_tables(
         (EmailOutboxItem, EmailOutboxItem.user_id),
         (AnnouncementReadReceipt, AnnouncementReadReceipt.user_id),
         (UserCookieConsent, UserCookieConsent.user_id),
+        (UserBirthdate, UserBirthdate.user_id),
         (DmDevice, DmDevice.user_id),
         (DmConversationMember, DmConversationMember.user_id),
         (UserDmSettings, UserDmSettings.user_id),

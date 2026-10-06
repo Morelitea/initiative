@@ -1343,10 +1343,12 @@ async def test_being_asked_by_one_community_does_not_close_another(
     assert still_open.status_code == 200, still_open.text
 
 
-async def test_confirming_twice_keeps_the_first_answer(
+async def test_a_kept_date_stands_against_a_second_answer(
     client: AsyncClient, acting_user
 ):
-    """The record is when they first said it, not when they last clicked."""
+    """Once a date is on file it is not re-answered: a date somebody could
+    rewrite until a plug-in let them in is not one. The first answer's record
+    does not move."""
     a = await acting_user("member", age_confirmed_at=None)
 
     first = await client.post(
@@ -1356,13 +1358,14 @@ async def test_confirming_twice_keeps_the_first_answer(
     )
     second = await client.post(
         "/api/v1/me/age-confirmation",
-        json={"birthdate": ADULT_BIRTHDATE},
+        json={"birthdate": _birthdate_for_age(40)},
         headers=a.headers,
     )
 
     assert first.status_code == 200
-    assert second.status_code == 200
-    assert first.json()["age_confirmed_at"] == second.json()["age_confirmed_at"]
+    assert first.json()["birthdate_on_file"] is True
+    assert second.status_code == 409
+    assert second.json()["detail"] == "USER_AGE_ANSWER_STANDS"
 
 
 async def test_the_answer_stands_against_a_second_try(
@@ -1395,19 +1398,20 @@ async def test_the_answer_stands_against_a_second_try(
         pytest.param(9, 422, id="an answer that does not"),
     ],
 )
-async def test_the_date_is_not_kept_anywhere(
+async def test_the_date_is_kept_only_encrypted(
     client: AsyncClient,
     session: AsyncSession,
     acting_user,
     years: int,
     expected_status: int,
 ):
-    """The promise the surface makes: we asked, we did not write it down. The
-    fact is recorded either way — confirmed, or answered under the minimum.
-
-    Checked against the row rather than against intent — every column of the
-    account is searched for the date that was just sent.
+    """The date is kept — a plug-in's minimum age differs by country — but only
+    in ``user_birthdates``, encrypted, and never on the account row or in a
+    reply. The fact is recorded beside it either way.
     """
+    from app.core.encryption import SALT_BIRTHDATE, decrypt_field
+    from app.models.platform.user_birthdate import UserBirthdate
+
     a = await acting_user("member", age_confirmed_at=None)
     birthdate = _birthdate_for_age(years)
 
@@ -1418,7 +1422,7 @@ async def test_the_date_is_not_kept_anywhere(
     )
     assert response.status_code == expected_status, response.text
 
-    # Nothing in the reply carries it back either.
+    # Nothing in the reply carries it back.
     assert birthdate not in response.text
 
     await session.refresh(a.user)
@@ -1435,6 +1439,47 @@ async def test_the_date_is_not_kept_anywhere(
         assert birthdate not in rendered, f"users.{column} holds the date"
         # The date reshaped is still the date.
         assert f"{day}/{month}/{year}" not in rendered, f"users.{column} holds the date"
+
+    kept = (
+        await session.exec(
+            select(UserBirthdate).where(UserBirthdate.user_id == a.user.id)
+        )
+    ).one()
+    assert birthdate not in kept.birthdate_encrypted
+    assert decrypt_field(kept.birthdate_encrypted, SALT_BIRTHDATE) == birthdate
+
+
+async def test_lifting_the_block_forgets_the_kept_date(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """A mistyped year is put right by answering again, so the date goes too."""
+    from app.models.platform.user_birthdate import UserBirthdate
+
+    subject = await acting_user("member", age_confirmed_at=None)
+    support = await acting_user(UserRole.support)
+    await client.post(
+        "/api/v1/me/age-confirmation",
+        json={"birthdate": _birthdate_for_age(9)},
+        headers=subject.headers,
+    )
+
+    lifted = await client.delete(
+        f"/api/v1/operator/users/{subject.user.id}/age-block", headers=support.headers
+    )
+    again = await client.post(
+        "/api/v1/me/age-confirmation",
+        json={"birthdate": ADULT_BIRTHDATE},
+        headers=subject.headers,
+    )
+
+    assert lifted.status_code == 200, lifted.text
+    assert again.status_code == 200, again.text
+    kept = (
+        await session.exec(
+            select(UserBirthdate).where(UserBirthdate.user_id == subject.user.id)
+        )
+    ).all()
+    assert len(kept) == 1
 
 
 @pytest.mark.parametrize(

@@ -1095,6 +1095,7 @@ async def claim_my_username(
 async def confirm_my_age(
     payload: AgeConfirmation,
     session: UserSessionDep,
+    system_session: SystemSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> UserRead:
     """Answer, once, whether this account is old enough for the open parts.
@@ -1110,10 +1111,16 @@ async def confirm_my_age(
     answered under age, keeps every private community it belongs to and
     everything in them.
 
-    **The date is not kept.** It is read here, compared against the minimum, and
-    goes out of scope with the request — there is no column for it, nothing logs
-    it, and no audit record carries it. What is written is a timestamp saying
-    the question was answered, which is what shows the deployment asked.
+    **The date is kept, encrypted** (``user_birthdates``, system engine only),
+    because a plug-in's minimum age differs by country and one "old enough"
+    answer cannot say whether somebody may use it. Nothing logs it, no audit
+    record carries it, and no response returns it — ``birthdate_on_file`` says
+    only that it is there. Beside it is the timestamp saying the question was
+    answered, which is what shows the deployment asked.
+
+    **A kept date stands.** Answering again once one is on file is refused like
+    an under-age answer is: a date somebody could rewrite until a plug-in let
+    them in is not one. Putting it right is the same support ticket.
 
     The comparison is the server's because it is the one that decides. A client
     could work out the same answer, and a client's answer is not evidence.
@@ -1127,7 +1134,11 @@ async def confirm_my_age(
     somebody with ``users.age_unblock``, which is a support ticket rather than
     an appeal to the same form.
     """
-    if current_user.age_below_minimum_at is not None:
+    if (
+        current_user.age_below_minimum_at is not None
+        or await users_service.birthdate_of(system_session, user_id=current_user.id)
+        is not None
+    ):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=UserMessages.AGE_ANSWER_STANDS,
@@ -1142,6 +1153,10 @@ async def confirm_my_age(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=UserMessages.AGE_INVALID_BIRTHDATE,
         ) from exc
+    await users_service.keep_birthdate(
+        system_session, user_id=current_user.id, birthdate=payload.birthdate
+    )
+    await system_session.commit()
     current_user.updated_at = datetime.now(timezone.utc)
     session.add(current_user)
     await session.commit()

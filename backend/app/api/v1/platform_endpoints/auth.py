@@ -487,6 +487,12 @@ async def _register_account(
         await session.flush()
         # The verification letter proves this row, so it is named by id.
         address_id = address.id
+        # The date of birth, kept encrypted beside the answer it gave, in the
+        # same transaction as the account: a registration that fails keeps none.
+        if details.birthdate is not None:
+            await users_service.keep_birthdate(
+                session, user_id=user.id, birthdate=details.birthdate
+            )
         await dm_settings_service.seed_for_new_account(session, user_id=user.id)
         # The way in. A password is on the row already; a key is a row of its
         # own, and the set of codes beside it is how an account holding no

@@ -104,6 +104,7 @@ from app.models.platform.user_email_assertion import UserEmailAssertion
 from app.models.platform.sign_in_lock import SignInLock
 from app.models.platform.user_totp import UserTotp
 from app.models.platform.user_totp_secret import UserTotpSecret
+from app.models.platform.user_birthdate import UserBirthdate
 from app.models.platform.mfa_recovery_code import MfaRecoveryCode
 from app.models.platform.auth_challenge import AuthChallenge
 from app.models.platform.user_token import UserToken
@@ -262,6 +263,7 @@ __all__ = [
     "GuildPluginUserConnection",
     "UserTotp",
     "UserTotpSecret",
+    "UserBirthdate",
     "MfaRecoveryCode",
     "AuthChallenge",
 ]
