@@ -22,9 +22,10 @@ Every version's ``file_content_type`` becomes NOT NULL: the type decides how
 the file is shown, and it is always one its tool accepts. A version with no
 type, or one its tool does not show, takes the type its original filename's
 extension names, or failing that its stored name's, from the mapping as it
-stands at this revision. One that no name types takes its tool's fallback
-(``text/plain`` for a document, ``image/png`` for a picture), so the upgrade
-always completes; the file still downloads under its own name.
+stands at this revision. One that no name types, or whose type is still not
+one its tool shows, takes its tool's fallback (``text/plain`` for a document,
+``image/png`` for a picture), so the upgrade always completes and every
+version can be copied; the file still downloads under its own name.
 
 The search triggers on both tables name the columns that go, so they are
 dropped first; the search generation comment is cleared so the next boot
@@ -164,13 +165,18 @@ _FALLBACK_TYPE = {
 }
 
 
+def _allowed(versions: str) -> str:
+    """The types a version table's files may be, as a SQL list."""
+    return ", ".join(f"'{mime}'" for mime in sorted(set(_TYPES[versions].values())))
+
+
 def _typed_by_extension(versions: str, column: str) -> str:
     """Give each version whose type is missing, or not one its tool shows,
     the type its ``column`` (a filename or a stored name) ends in, where that
     extension names one."""
     types = _TYPES[versions]
     pairs = ", ".join(f"('{ext}', '{mime}')" for ext, mime in types.items())
-    allowed = ", ".join(f"'{mime}'" for mime in sorted(set(types.values())))
+    allowed = _allowed(versions)
     return (
         f"UPDATE {versions} AS v SET file_content_type = t.mime"  # noqa: S608
         f" FROM (VALUES {pairs}) AS t(ext, mime)"
@@ -249,6 +255,7 @@ def _apply_upgrade() -> None:
         *(
             f"UPDATE {versions} SET file_content_type = '{fallback}'"  # noqa: S608
             " WHERE file_content_type IS NULL"
+            f" OR file_content_type NOT IN ({_allowed(versions)})"
             for versions, fallback in _FALLBACK_TYPE.items()
         ),
         *(_point(parent) for parent in _VERSIONED),

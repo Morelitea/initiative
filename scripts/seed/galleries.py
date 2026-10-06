@@ -443,6 +443,8 @@ async def _picture(c: Community, gallery: Gallery, im: dict) -> GalleryImage:
             created_at=version_at,
         )
         image.updated_at = version_at
+        # The next rendition is numbered after this one, which it reads back.
+        await c.session.flush()
     assert image is not None
     await c.session.flush()
     c.ids["gallery_image_versions"].extend(

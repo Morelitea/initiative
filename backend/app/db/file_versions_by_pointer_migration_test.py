@@ -44,7 +44,8 @@ async def test_old_files_get_versions_types_and_pointers(
 ) -> None:
     """A file with versions points at its newest. A file an import wrote with
     no version gets version 1, typed by its name, or by its tool's fallback
-    when no name types it. The downgrade puts the copied columns back."""
+    when no name types it, as does one stored under a type its tool does not
+    show. The downgrade puts the copied columns back."""
     from app.core.config import settings
 
     monkeypatch.setattr(settings, "UPLOADS_DIR", str(tmp_path / "uploads"))
@@ -92,6 +93,16 @@ async def test_old_files_get_versions_types_and_pointers(
             ),
             {"url": url, "name": filename, "id": document.id},
         )
+    # A picture an import stored under a type its gallery does not show.
+    await (await session.connection()).execute(
+        text(
+            f"UPDATE {schema}.gallery_image_versions"
+            " SET file_content_type = 'application/octet-stream',"
+            " original_filename = 'foo.bin', file_url = '/uploads/1/foo.bin'"
+            " WHERE gallery_image_id = :id"
+        ),
+        {"id": picture.id},
+    )
     copied = (
         await (await session.connection()).execute(
             text(f"SELECT file_url FROM {schema}.documents WHERE id = :id"),
