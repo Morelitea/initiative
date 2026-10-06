@@ -1,5 +1,4 @@
 {
-  "title": "Projekte",
   "addProject": "Projekt hinzufügen",
   "loading": "Projekte werden geladen…",
   "loadError": "Projekte konnten nicht geladen werden.",
@@ -7,12 +6,6 @@
   "noProjects": "Noch keine Projekte. Erstelle eins, um loszulegen.",
   "noMatchingProjects": "Keine Projekte entsprechen deinen Filtern.",
   "onlyPinnedMatch": "Nur angeheftete Projekte entsprechen deinen Filtern.",
-  "accessRestricted": "Zugriff eingeschränkt",
-  "accessRestrictedDescription": "Du hast keine Berechtigung, Projekte in dieser Initiative anzuzeigen. Wende dich an die Community-Administration oder an einen Initiativenmanager, wenn du glaubst, dass dies ein Fehler ist.",
-  "view": {
-    "grid": "Raster",
-    "list": "Liste"
-  },
   "filters": {
     "heading": "Filter",
     "searchLabel": "Name oder Beschreibung",
@@ -83,7 +76,6 @@
   "archived": {
     "loading": "Archivierte Projekte werden geladen…",
     "loadError": "Archivierte Projekte konnten nicht geladen werden.",
-    "unarchive": "Archivierung aufheben",
     "noArchived": "Keine archivierten Projekte",
     "noArchivedDescription": "Aktive Projekte bleiben im Tab „Aktiv“."
   },
@@ -91,15 +83,10 @@
     "title": "Projekt erstellen",
     "description": "Gib dem Projekt einen Namen, eine optionale Beschreibung und eine zugehörige Initiative.",
     "iconLabel": "Symbol (optional)",
-    "nameLabel": "Name",
     "namePlaceholder": "Grundlagen-Überarbeitung",
     "descriptionLabel": "Beschreibung (Markdown wird unterstützt)",
     "descriptionPlaceholder": "Teile Kontext, um der Initiative bei der Priorisierung zu helfen.",
     "initiativeLabel": "Initiative",
-    "loadingInitiatives": "Initiativen werden geladen…",
-    "initiativeLoadError": "Initiativen konnten nicht geladen werden.",
-    "selectInitiative": "Initiative auswählen",
-    "noInitiatives": "Keine Initiativen verfügbar.",
     "templateLabel": "Vorlage (optional)",
     "loadingTemplates": "Vorlagen werden geladen…",
     "templateLoadError": "Vorlagen konnten nicht geladen werden.",
@@ -137,7 +124,6 @@
   "tabsBar": {
     "loadingRecent": "Aktuelle Elemente werden geladen…",
     "closeItem": "{{name}} schließen",
-    "close": "Schließen",
     "closeOthers": "Andere schließen",
     "closeAll": "Alle schließen"
   },
@@ -179,14 +165,12 @@
     "add": "Hinzufügen",
     "existingStatuses": "Vorhandene Status",
     "saveChanges": "Änderungen speichern",
-    "nameColumn": "Name",
     "categoryColumn": "Kategorie",
     "iconColumn": "Symbol",
     "colorColumn": "Farbe",
     "iconPlaceholder": "Symbol auswählen",
     "colorPlaceholder": "Farbe auswählen",
     "defaultColumn": "Standard",
-    "actionsColumn": "Aktionen",
     "noStatuses": "Noch keine Status konfiguriert.",
     "deleteTitle": "Status löschen",
     "deleteStatus": "{{name}} löschen",
@@ -212,8 +196,6 @@
     "unknownError": "Unbekannter Fehler"
   },
   "settings": {
-    "title": "Projekteinstellungen",
-    "breadcrumbSettings": "Einstellungen",
     "tabTaskStatuses": "Aufgabenstatus",
     "details": {
       "description": "Aktualisiere das Symbol, den Namen und die Beschreibung, die im gesamten Arbeitsbereich angezeigt werden.",
@@ -221,9 +203,7 @@
       "identityDescription": "Gib dem Projekt einen einprägsamen Namen und ein Emoji.",
       "iconLabel": "Symbol",
       "iconHint": "Wähle ein Emoji, damit dieses Projekt leicht zu erkennen ist.",
-      "nameLabel": "Name",
       "namePlaceholder": "Produkt-Roadmap",
-      "saving": "Wird gespeichert...",
       "saveDetails": "Änderungen speichern",
       "detailsUpdated": "Projektdetails aktualisiert",
       "updateError": "Projekt konnte nicht aktualisiert werden.",
@@ -278,7 +258,6 @@
     "archiveDialogDescription": "Dadurch wird {{count}} Aufgabe archiviert. Archivierte Aufgaben sind standardmäßig ausgeblendet, können aber über den Filter angezeigt werden.",
     "archiveDialogDescription_other": "Dadurch werden {{count}} Aufgaben archiviert. Archivierte Aufgaben sind standardmäßig ausgeblendet, können aber über den Filter angezeigt werden.",
     "archiveConfirm": "Archivieren",
-    "archiving": "Wird archiviert…",
     "archivedSuccess": "{{count}} Aufgabe archiviert",
     "archivedSuccess_other": "{{count}} Aufgaben archiviert",
     "archiveError": "Aufgaben konnten nicht archiviert werden.",
@@ -314,7 +293,6 @@
     "due": "Fällig: {{date}}",
     "dropHere": "Aufgaben hier ablegen",
     "noTasks": "Noch keine Aufgaben.",
-    "archiving": "Wird archiviert…",
     "archiveDone": "Erledigte Aufgaben archivieren",
     "taskCount_one": "{{count}} Aufgabe",
     "taskCount_other": "{{count}} Aufgaben",
@@ -391,9 +369,8 @@
   "preview": {
     "updated": "Aktualisiert {{date}}",
     "tasksDone": "{{completed}}/{{total}} erledigt",
-    "templateBadge": "Vorlage",
-    "archivedBadge": "Archiviert",
-    "archivedOn": "Archiviert am {{date}}"
+    "archivedOn": "Archiviert am {{date}}",
+    "reorder": "Projekt neu anordnen"
   },
   "activitySidebar": {
     "title": "Projektaktivität",

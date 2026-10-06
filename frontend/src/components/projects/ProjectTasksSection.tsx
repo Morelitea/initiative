@@ -238,7 +238,7 @@ export const ProjectTasksSection = ({
   initialComposerOpen,
   onComposerOpenChange,
 }: ProjectTasksSectionProps) => {
-  const { t } = useTranslation("projects");
+  const { t } = useTranslation(["projects", "common"]);
   // Nothing is exported from an initiative that keeps its content in.
   const keepsContentIn = Boolean(useInitiative(initiativeId).data?.keep_content_in);
   const communityId = useActiveCommunityId();
@@ -1299,7 +1299,9 @@ export const ProjectTasksSection = ({
                 disabled={archiveDoneTasks.isPending}
               >
                 <Archive className="h-4 w-4" />
-                {archiveDoneTasks.isPending ? t("tasks.archiving") : t("tasks.archiveDoneTasks")}
+                {archiveDoneTasks.isPending
+                  ? t("common:toolSettings.archive.archiving")
+                  : t("tasks.archiveDoneTasks")}
               </Button>
             </div>
           )}

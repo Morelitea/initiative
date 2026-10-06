@@ -31,7 +31,7 @@ import { ProjectsView } from "./initiativeTools/projects/ProjectsPage";
 import { QueuesView } from "./initiativeTools/queues/QueuesPage";
 import { WikisView } from "./initiativeTools/wikis/WikisPage";
 
-type ToolViewProps = { fixedInitiativeId: number; canCreate?: boolean };
+type ToolViewProps = { fixedInitiativeId: number; canCreate: boolean };
 
 // Each tool's list view. A new tool adds one line here (the drift test
 // asserts every tool has an entry); the tab ORDER is not restated — it is the

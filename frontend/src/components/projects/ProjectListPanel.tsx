@@ -68,9 +68,6 @@ type ProjectListPanelProps = {
   /** Dialogs owned by {@link toolbarMenuItems}. Rendered outside the menu,
    *  which unmounts its content on close. */
   toolbarMenuDialogs?: ReactNode;
-  /** Name each project's initiative on its card. Off inside an initiative,
-   *  where every card would carry the same name. */
-  showInitiativeLabel?: boolean;
   /** Leading control on the toolbar row — the status filter takes this slot,
    *  where the eye lands first rather than at the end of a row of buttons. */
   leadingToolbar?: ReactNode;
@@ -97,7 +94,6 @@ export const ProjectListPanel = ({
   toolbarMenuItems,
   toolbarMenuDialogs,
   leadingToolbar,
-  showInitiativeLabel = true,
   renderItemActions,
 }: ProjectListPanelProps) => {
   const { t } = useTranslation(["projects", "access", "common"]);
@@ -110,8 +106,8 @@ export const ProjectListPanel = ({
   const { filteredProjects, pinnedProjects, sortedProjects, viewMode } = view;
 
   const viewOptions: ToolViewOption<"grid" | "list" | "tags">[] = [
-    { value: "grid", label: t("view.grid"), icon: LayoutGrid },
-    { value: "list", label: t("view.list"), icon: List },
+    { value: "grid", label: t("common:toolbar.viewGrid"), icon: LayoutGrid },
+    { value: "list", label: t("common:toolbar.viewList"), icon: List },
     { value: "tags", label: t("common:toolbar.viewTags"), icon: Tags },
   ];
   // The tags view draws cards, as the grid does.
@@ -164,7 +160,6 @@ export const ProjectListPanel = ({
       project={project}
       viewMode={itemMode}
       actions={itemActions(project)}
-      showInitiative={showInitiativeLabel}
     />
   );
 
@@ -183,7 +178,7 @@ export const ProjectListPanel = ({
           onToggle={(options) => selection.toggle(project, options)}
           label={project.name}
         >
-          <ProjectItem project={project} viewMode={itemMode} showInitiative={showInitiativeLabel} />
+          <ProjectItem project={project} viewMode={itemMode} />
         </SelectableGridItem>
       ))}
     </div>
@@ -204,7 +199,6 @@ export const ProjectListPanel = ({
               project={project}
               viewMode={itemMode}
               actions={itemActions(project)}
-              showInitiative={showInitiativeLabel}
             />
           ))}
         </div>
@@ -317,17 +311,16 @@ type ProjectItemProps = {
   project: ProjectRead;
   viewMode: "grid" | "list";
   actions?: ReactNode;
-  showInitiative?: boolean;
 };
 
-const ProjectItem = ({ project, viewMode, actions, showInitiative }: ProjectItemProps) =>
+const ProjectItem = ({ project, viewMode, actions }: ProjectItemProps) =>
   viewMode === "list" ? (
-    <ProjectRowLink project={project} actions={actions} showInitiative={showInitiative} />
+    <ProjectRowLink project={project} actions={actions} />
   ) : (
-    <ProjectCardLink project={project} actions={actions} showInitiative={showInitiative} />
+    <ProjectCardLink project={project} actions={actions} />
   );
 
-const SortableProjectItem = ({ project, viewMode, actions, showInitiative }: ProjectItemProps) => {
+const SortableProjectItem = ({ project, viewMode, actions }: ProjectItemProps) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: project.id.toString(),
   });
@@ -346,19 +339,9 @@ const SortableProjectItem = ({ project, viewMode, actions, showInitiative }: Pro
   return (
     <div ref={setNodeRef} style={style} className={isDragging ? "opacity-70" : undefined}>
       {viewMode === "list" ? (
-        <ProjectRowLink
-          project={project}
-          actions={actions}
-          showInitiative={showInitiative}
-          dragHandleProps={dragHandleProps}
-        />
+        <ProjectRowLink project={project} actions={actions} dragHandleProps={dragHandleProps} />
       ) : (
-        <ProjectCardLink
-          project={project}
-          actions={actions}
-          showInitiative={showInitiative}
-          dragHandleProps={dragHandleProps}
-        />
+        <ProjectCardLink project={project} actions={actions} dragHandleProps={dragHandleProps} />
       )}
     </div>
   );

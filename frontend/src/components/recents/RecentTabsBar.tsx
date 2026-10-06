@@ -43,7 +43,7 @@ export const RecentTabsBar = ({
   onCloseOthers,
   onCloseAll,
 }: RecentTabsBarProps) => {
-  const { t } = useTranslation("projects");
+  const { t } = useTranslation(["projects", "common"]);
 
   if (!loading && (!items || items.length === 0)) {
     return null;
@@ -92,7 +92,7 @@ export const RecentTabsBar = ({
                 </ContextMenuTrigger>
                 <ContextMenuContent>
                   <ContextMenuItem onSelect={() => onClose(item)}>
-                    {t("tabsBar.close")}
+                    {t("common:close")}
                   </ContextMenuItem>
                   <ContextMenuItem
                     onSelect={() => onCloseOthers(item)}
