@@ -11,8 +11,8 @@ policies, and the schema's default grants revoked from the two base roles, so
 no request role reads a date. The table is new and empty, so nothing is
 backfilled and there is no DML to order against the lockdown.
 
-Revision ID: 20261006_0463
-Revises: 20261006_0462
+Revision ID: 20261006_0464
+Revises: 20261006_0463
 Create Date: 2026-10-06
 """
 
@@ -23,8 +23,8 @@ from alembic import op
 
 from app.core.config import settings
 
-revision = "20261006_0463"
-down_revision = "20261006_0462"
+revision = "20261006_0464"
+down_revision = "20261006_0463"
 branch_labels = None
 depends_on = None
 
