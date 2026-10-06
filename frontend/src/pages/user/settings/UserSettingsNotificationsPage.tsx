@@ -1,11 +1,12 @@
 import { Link } from "@tanstack/react-router";
 import { Bell, type LucideIcon, Mail, Monitor, Smartphone } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type {
   Channel,
   EmailCadence,
+  EmailScheduleInput,
   NotificationCategoryRead,
   NotificationLevel,
   UserRead,
@@ -29,6 +30,7 @@ import {
   useUpdateNotificationPreferences as useWritePreferences,
 } from "@/hooks/useNotificationPreferences";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
+import { useServerForm } from "@/hooks/useServerForm";
 import { useFcmConfig } from "@/hooks/useSettings";
 import { useUpdateNotificationPreferences } from "@/hooks/useUsers";
 import { toast } from "@/lib/mascotToast";
@@ -100,24 +102,18 @@ export const UserSettingsNotificationsPage = ({
   const { data: preferences, isLoading } = useNotificationPreferences();
   const writePreferences = useWritePreferences();
 
-  const [reminderMinutes, setReminderMinutes] = useState<number>(
-    user.event_reminder_minutes_before ?? DEFAULT_REMINDER_MINUTES
-  );
+  // The lead time the account holds, or the one just picked until its save
+  // settles.
+  const [pendingReminder, setPendingReminder] = useState<number | null>(null);
+  const reminderMinutes =
+    pendingReminder ?? user.event_reminder_minutes_before ?? DEFAULT_REMINDER_MINUTES;
   const [pauseFromDay, setPauseFromDay] = useState("");
   const [pauseUntilDay, setPauseUntilDay] = useState("");
-  const [quietStart, setQuietStart] = useState("22:00");
-  const [quietEnd, setQuietEnd] = useState("07:00");
-
-  useEffect(() => {
-    setReminderMinutes(user.event_reminder_minutes_before ?? DEFAULT_REMINDER_MINUTES);
-  }, [user]);
-
-  useEffect(() => {
-    if (preferences?.quiet_hours) {
-      setQuietStart(preferences.quiet_hours.start);
-      setQuietEnd(preferences.quiet_hours.end);
-    }
-  }, [preferences?.quiet_hours]);
+  const quietHours = useServerForm(
+    preferences?.quiet_hours ?? undefined,
+    (saved) => ({ start: saved?.start ?? "22:00", end: saved?.end ?? "07:00" }),
+    "quiet-hours"
+  );
 
   const updateSchedule = useUpdateNotificationPreferences();
 
@@ -136,43 +132,15 @@ export const UserSettingsNotificationsPage = ({
       onError: () => toast.error(t("notifications.timing.saveError")),
     });
 
-  const setCadence = (cadence: EmailCadence) =>
-    writeTiming({
-      email: {
-        cadence,
-        at: schedule?.at ?? "21:00",
-        weekday: schedule?.weekday ?? 1,
-        personal_instant: schedule?.personal_instant ?? true,
-      },
-    });
-
-  const setClock = (at: string) =>
-    writeTiming({
-      email: {
-        cadence: schedule?.cadence ?? "instant",
-        at,
-        weekday: schedule?.weekday ?? 1,
-        personal_instant: schedule?.personal_instant ?? true,
-      },
-    });
-
-  const setWeekday = (weekday: number) =>
-    writeTiming({
-      email: {
-        cadence: schedule?.cadence ?? "instant",
-        at: schedule?.at ?? "21:00",
-        weekday,
-        personal_instant: schedule?.personal_instant ?? true,
-      },
-    });
-
-  const setLane = (personal_instant: boolean) =>
+  // The schedule is written whole, so each change carries the rest of it.
+  const writeEmail = (patch: Partial<EmailScheduleInput>) =>
     writeTiming({
       email: {
         cadence: schedule?.cadence ?? "instant",
         at: schedule?.at ?? "21:00",
         weekday: schedule?.weekday ?? 1,
-        personal_instant,
+        personal_instant: schedule?.personal_instant ?? true,
+        ...patch,
       },
     });
 
@@ -247,10 +215,14 @@ export const UserSettingsNotificationsPage = ({
   };
 
   const saveQuietHours = (enabled: boolean) => {
-    writePreferences.mutate(
-      enabled ? { quiet_hours: { start: quietStart, end: quietEnd } } : { clear_quiet_hours: true },
-      { onError: () => toast.error(t("notifications.toggleError")) }
-    );
+    const sent = quietHours.values;
+    writePreferences.mutate(enabled ? { quiet_hours: sent } : { clear_quiet_hours: true }, {
+      onSuccess: () => quietHours.settle(sent),
+      onError: () => {
+        quietHours.reset();
+        toast.error(t("notifications.toggleError"));
+      },
+    });
   };
 
   const reminderLabel = (minutes: number): string => {
@@ -261,17 +233,17 @@ export const UserSettingsNotificationsPage = ({
   };
 
   const handleReminderMinutesChange = (raw: string) => {
-    const previous = reminderMinutes;
     const next = Number(raw);
-    setReminderMinutes(next);
+    setPendingReminder(next);
     updateSchedule.mutate(
       { event_reminder_minutes_before: next },
       {
         onSuccess: async () => {
           await refreshUser();
+          setPendingReminder(null);
         },
         onError: () => {
-          setReminderMinutes(previous);
+          setPendingReminder(null);
           toast.error(t("notifications.toggleError"));
         },
       }
@@ -410,7 +382,7 @@ export const UserSettingsNotificationsPage = ({
             <Label htmlFor="email-cadence">{t("notifications.timing.cadence.label")}</Label>
             <Select
               value={schedule?.cadence ?? "instant"}
-              onValueChange={(value) => setCadence(value as EmailCadence)}
+              onValueChange={(value) => writeEmail({ cadence: value as EmailCadence })}
             >
               <SelectTrigger id="email-cadence">
                 <SelectValue />
@@ -429,7 +401,7 @@ export const UserSettingsNotificationsPage = ({
               <Label htmlFor="email-weekday">{t("notifications.timing.day")}</Label>
               <Select
                 value={String(schedule?.weekday ?? 1)}
-                onValueChange={(value) => setWeekday(Number(value))}
+                onValueChange={(value) => writeEmail({ weekday: Number(value) })}
               >
                 <SelectTrigger id="email-weekday">
                   <SelectValue />
@@ -452,7 +424,7 @@ export const UserSettingsNotificationsPage = ({
               defaultValue={schedule?.at ?? "21:00"}
               onBlur={(event) => {
                 if (event.target.value && event.target.value !== schedule?.at) {
-                  setClock(event.target.value);
+                  writeEmail({ at: event.target.value });
                 }
               }}
             />
@@ -474,7 +446,7 @@ export const UserSettingsNotificationsPage = ({
             <Switch
               checked={schedule.personal_instant}
               aria-label={t("notifications.timing.personalInstant")}
-              onCheckedChange={setLane}
+              onCheckedChange={(personal_instant) => writeEmail({ personal_instant })}
             />
           </SettingsRow>
         )}
@@ -503,8 +475,8 @@ export const UserSettingsNotificationsPage = ({
                   <Input
                     id="quiet-start"
                     type="time"
-                    value={quietStart}
-                    onChange={(event) => setQuietStart(event.target.value)}
+                    value={quietHours.values.start}
+                    onChange={(event) => quietHours.set({ start: event.target.value })}
                     onBlur={() => saveQuietHours(true)}
                   />
                 </div>
@@ -513,8 +485,8 @@ export const UserSettingsNotificationsPage = ({
                   <Input
                     id="quiet-end"
                     type="time"
-                    value={quietEnd}
-                    onChange={(event) => setQuietEnd(event.target.value)}
+                    value={quietHours.values.end}
+                    onChange={(event) => quietHours.set({ end: event.target.value })}
                     onBlur={() => saveQuietHours(true)}
                   />
                 </div>

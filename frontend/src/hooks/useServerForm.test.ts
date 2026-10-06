@@ -46,7 +46,7 @@ describe("useServerForm", () => {
     expect(result.current.values.name).toBe("Renamed by somebody else");
   });
 
-  it("keeps unsaved work when a later answer would overwrite it", () => {
+  it("keeps unsaved work when a later answer would overwrite it, until it is reset", () => {
     const { result, rerender } = renderForm(entity());
 
     act(() => result.current.set({ name: "Half-written" }));
@@ -54,6 +54,11 @@ describe("useServerForm", () => {
 
     expect(result.current.values.name).toBe("Half-written");
     expect(result.current.edited).toBe(true);
+
+    act(() => result.current.reset());
+
+    expect(result.current.values.name).toBe("Renamed by somebody else");
+    expect(result.current.edited).toBe(false);
   });
 
   it("leaves the fields alone when the same answer arrives again", () => {

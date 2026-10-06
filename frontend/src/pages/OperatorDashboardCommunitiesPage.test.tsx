@@ -252,7 +252,7 @@ describe("OperatorDashboardCommunitiesPage", () => {
       expect(input().value).toBe(""); // blank meaning unlimited
       typeAndLeave(input(), typed);
 
-      expect(mutate).toHaveBeenCalledWith({ communityId: 8, data: saves });
+      expect(mutate).toHaveBeenCalledWith({ communityId: 8, data: saves }, expect.anything());
     });
 
     it("does not save when the value is left unchanged", async () => {
@@ -268,7 +268,7 @@ describe("OperatorDashboardCommunitiesPage", () => {
 
       typeAndLeave(input(), "");
 
-      expect(mutate).toHaveBeenCalledWith({ communityId: 7, data: cleared });
+      expect(mutate).toHaveBeenCalledWith({ communityId: 7, data: cleared }, expect.anything());
     });
 
     it.each(rejects)("reverts %s without saving", async (_label, value) => {
@@ -344,16 +344,21 @@ describe("OperatorDashboardCommunitiesPage", () => {
     });
 
     it("shows what a save actually stored, not what was typed", async () => {
-      await openSheet("Capped Community");
+      const user = userEvent.setup();
+      const { rerender } = renderPage();
+      await user.click(await screen.findByLabelText("Manage settings for Capped Community"));
       typeAndLeave(storageInput(), "5.0");
 
-      act(() =>
-        updateCallbacks.onSuccess?.({
-          ...communitiesData[0],
-          max_storage_bytes: 5 * GIB,
-        })
-      );
-      expect(storageInput().value).toBe("5");
+      // The save lands, and the refetched list carries what was stored.
+      const capped = communitiesData[0];
+      communitiesData[0] = { ...capped, max_storage_bytes: 5 * GIB };
+      try {
+        act(() => mutate.mock.calls[0][1].onSuccess());
+        rerender(<OperatorDashboardCommunitiesPage />);
+        expect(storageInput().value).toBe("5");
+      } finally {
+        communitiesData[0] = capped;
+      }
     });
   });
 

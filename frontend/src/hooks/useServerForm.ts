@@ -27,6 +27,8 @@ export interface ServerForm<V> {
    * every time somebody is quick.
    */
   settle: (saved: V) => void;
+  /** Drop what was typed and follow the server again: a refused or empty entry. */
+  reset: () => void;
 }
 
 interface State<V> {
@@ -106,5 +108,9 @@ export function useServerForm<S, V extends object>(
     );
   }, []);
 
-  return { values: state.values, set, edited: state.edited, settle };
+  const reset = useCallback(() => {
+    setState((previous) => ({ ...previous, values: previous.seeded, edited: false }));
+  }, []);
+
+  return { values: state.values, set, edited: state.edited, settle, reset };
 }
