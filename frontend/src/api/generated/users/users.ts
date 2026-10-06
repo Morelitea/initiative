@@ -3239,7 +3239,8 @@ export const useMakeMyAddressPrimary = <
   return useMutation(getMakeMyAddressPrimaryMutationOptions(options), queryClient);
 };
 /**
- * Check if the current user can be deleted and what blockers exist.
+ * Check if the current user can be deleted and what blockers exist:
+ * the ones ``delete_own_account`` refuses on.
  * @summary Check Deletion Eligibility
  */
 export const checkDeletionEligibility = (

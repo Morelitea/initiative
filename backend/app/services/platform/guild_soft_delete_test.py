@@ -179,19 +179,15 @@ async def test_deleting_the_community_unblocks_deleting_the_account(
     holder, guild = await _seated_guild(session)
     await create_guild_membership(session, user=await create_user(session), guild=guild)
 
-    can_delete, blockers = await users_service.check_deletion_eligibility(
-        session, holder.id
-    )
-    assert can_delete is False and blockers, "precondition: the seat blocks"
+    assert await users_service.is_last_guild_superadmin(session, holder.id) == [
+        guild.name
+    ], "precondition: the seat blocks"
 
     row = (await session.exec(select(Guild).where(Guild.id == guild.id))).one()
     await guilds_service.soft_delete_guild(session, row, actor_user_id=holder.id)
     await session.commit()
 
-    can_delete, blockers = await users_service.check_deletion_eligibility(
-        session, holder.id
-    )
-    assert can_delete is True, blockers
+    assert await users_service.is_last_guild_superadmin(session, holder.id) == []
 
 
 # ── Restore ─────────────────────────────────────────────────────────────────

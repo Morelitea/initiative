@@ -2,15 +2,12 @@ import { AlertCircle, ChevronLeft, Loader2, RefreshCw } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type {
-  OperatorDeletionEligibilityResponse,
-  OperatorUserRead,
-} from "@/api/generated/initiativeAPI.schemas";
+import type { OperatorUserRead } from "@/api/generated/initiativeAPI.schemas";
+import { ConfirmPhraseField, EligibilityStep } from "@/components/account/DeletionSteps";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DialogFooter } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { WizardDialog } from "@/components/ui/wizard-dialog";
@@ -96,18 +93,15 @@ export function OperatorDeleteUserDialog({
   onSuccess,
   targetUser,
 }: OperatorDeleteUserDialogProps) {
-  const { t } = useTranslation("settings");
+  const { t } = useTranslation(["settings", "errors"]);
   const validActions = validActionsFor(targetUser.status);
   const { step, go, back, canGoBack, reset } = useWizard<DeletionStep>("choose-type");
   const [action, setAction] = useState<OperatorAction>(validActions[0]);
-  const [eligibility, setEligibility] = useState<OperatorDeletionEligibilityResponse | null>(null);
   const [confirmationText, setConfirmationText] = useState("");
   const [agreedToConsequences, setAgreedToConsequences] = useState(false);
   // Ticked on the consent screen to take the windowed deletion instead of the
   // permanent one. It changes what is submitted, not just what is shown.
   const [preferWindow, setPreferWindow] = useState(false);
-
-  // State for blocker resolution
 
   // Reset state when dialog opens/closes. Default action falls back to
   // whatever's valid for the target's current status, so a deactivated
@@ -116,16 +110,17 @@ export function OperatorDeleteUserDialog({
     if (!open) {
       reset();
       setAction(validActions[0]);
-      setEligibility(null);
       setConfirmationText("");
       setAgreedToConsequences(false);
       setPreferWindow(false);
     }
   }, [open, validActions, reset]);
 
-  // Fetch deletion eligibility
-  const { refetch: checkEligibility, isFetching: isCheckingEligibility } =
-    useUserDeletionEligibility(targetUser.id);
+  const {
+    data: eligibility,
+    refetch: checkEligibility,
+    isFetching: isCheckingEligibility,
+  } = useUserDeletionEligibility(targetUser.id, open);
 
   const deleteUser = useOperatorDeleteUser(targetUser.id, {
     onSuccess: (data) => {
@@ -141,11 +136,8 @@ export function OperatorDeleteUserDialog({
   // Check again once the blocker is resolved inside the community.
   const refreshEligibility = async () => {
     const result = await checkEligibility();
-    if (result.data) {
-      setEligibility(result.data);
-      if (result.data.can_delete) {
-        go("confirm");
-      }
+    if (result.data?.can_delete) {
+      go("confirm");
     }
   };
 
@@ -154,14 +146,10 @@ export function OperatorDeleteUserDialog({
     if (step === "choose-type") {
       go("check-blockers");
       const result = await checkEligibility();
-      if (result.data) {
-        setEligibility(result.data);
-
-        if (!result.data.can_delete && result.data.community_blockers.length > 0) {
-          go("resolve-blockers");
-        } else if (result.data.can_delete) {
-          go("confirm");
-        }
+      if (result.data?.can_delete) {
+        go("confirm");
+      } else if (result.data?.community_blockers.length) {
+        go("resolve-blockers");
       }
     } else if (step === "check-blockers" || step === "resolve-blockers") {
       if (eligibility?.can_delete) {
@@ -264,40 +252,19 @@ export function OperatorDeleteUserDialog({
 
           {/* Step 2: Check Blockers */}
           {step === "check-blockers" && (
-            <div className="space-y-4">
-              {isCheckingEligibility && (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                </div>
-              )}
-
-              {eligibility && !eligibility.can_delete && (
-                <Alert variant="destructive">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>
-                    <div className="mb-2 font-semibold">
-                      {t("operatorDeleteUser.blockersTitle")}
-                    </div>
-                    <ul className="list-inside list-disc space-y-1">
-                      {eligibility.blockers.map((blocker) => (
-                        <li key={blocker}>{blocker}</li>
-                      ))}
-                    </ul>
-                    <p className="mt-2 text-sm">{t("operatorDeleteUser.blockersDescription")}</p>
-                  </AlertDescription>
-                </Alert>
-              )}
-
-              {eligibility?.can_delete && (
-                <>
-                  <Alert className="border-green-500/50 bg-green-50 dark:bg-green-950">
-                    <AlertDescription>
-                      {t("operatorDeleteUser.confirmDescription")}
-                    </AlertDescription>
-                  </Alert>
-                </>
-              )}
-            </div>
+            <EligibilityStep
+              checking={isCheckingEligibility}
+              canDelete={eligibility?.can_delete}
+              blockers={[
+                ...(eligibility?.last_owner ? [t("errors:OPERATOR_CANNOT_DELETE_LAST_OWNER")] : []),
+                ...(eligibility?.community_blockers ?? []).map(({ community_name }) =>
+                  t("operatorDeleteUser.communityBlockerTitle", { communityName: community_name })
+                ),
+              ]}
+              blockedTitle={t("operatorDeleteUser.blockersTitle")}
+              blockedHint={t("operatorDeleteUser.blockersDescription")}
+              eligibleText={t("operatorDeleteUser.confirmDescription")}
+            />
           )}
 
           {/* Step 2.5: Resolve Blockers */}
@@ -374,15 +341,11 @@ export function OperatorDeleteUserDialog({
                 </AlertDescription>
               </Alert>
 
-              <div className="space-y-2">
-                <Label htmlFor="confirmation">{t("operatorDeleteUser.confirmDescription")}</Label>
-                <Input
-                  id="confirmation"
-                  value={confirmationText}
-                  onChange={(e) => setConfirmationText(e.target.value.toUpperCase())}
-                  placeholder={confirmationRequired}
-                />
-              </div>
+              <ConfirmPhraseField
+                phrase={confirmationRequired}
+                value={confirmationText}
+                onChange={(value) => setConfirmationText(value.toUpperCase())}
+              />
 
               {action === "hard_delete" && (
                 <div className="space-y-3">

@@ -107,6 +107,10 @@ async def is_last_guild_superadmin(session: AsyncSession, user_id: int) -> List[
     """Names of the communities where this account holds the only superadmin
     seat.
 
+    Holding one is the only thing that stops this account being deleted.
+    Owning content does not: ownership is released on the way out and the
+    content is left unowned for a guild admin to claim.
+
     An ordinary admin does not count: a community left with admins but no
     seat has nobody inside who can appoint one, reach its billing, or change
     its sign-in. A community whose only member is this account
@@ -115,52 +119,6 @@ async def is_last_guild_superadmin(session: AsyncSession, user_id: int) -> List[
     from app.services.platform.guilds import stranded_seats
 
     return [name for _, name in await stranded_seats(session, user_id=user_id)]
-
-
-async def check_deletion_eligibility(
-    session: AsyncSession,
-    user_id: int,
-    *,
-    operator_context: bool = False,
-) -> tuple[bool, List[str]]:
-    """
-    Check if user can be deleted.
-    Returns: (can_delete, blockers)
-
-    The only blocker is holding a community's sole superadmin seat, which would
-    leave it with nobody who can appoint one, reach its billing, or change its
-    sign-in. Being its last ordinary admin is not one: every community has a
-    superadmin, so there is always somebody left who can promote another.
-
-    Owning content is not a blocker: ownership is released on the way out and
-    the content is left unowned for a guild admin to claim, so there is nothing
-    for the departing user to decide.
-
-    Args:
-        session: Database session
-        user_id: ID of the user to check
-        operator_context: If True, word the blockers for an operator reading another account
-    """
-    blockers = []
-
-    for guild_name in await is_last_guild_superadmin(session, user_id):
-        if operator_context:
-            blockers.append(
-                f"User is the only superadmin of community '{guild_name}'. "
-                f"They can make another member superadmin, or somebody holding "
-                f"break-glass access to the community can appoint one, or delete "
-                f"the community, from its settings."
-            )
-        else:
-            blockers.append(
-                f"You are the only superadmin of community '{guild_name}'. "
-                f"Make another user superadmin or delete the community before "
-                f"deleting your account."
-            )
-
-    can_delete = len(blockers) == 0
-
-    return can_delete, blockers
 
 
 async def _end_plugin_access(
