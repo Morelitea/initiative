@@ -194,7 +194,6 @@
   "USER_INVALID_TIME_FORMAT": "El formato de hora debe ser system, 12 o 24",
   "USER_INVALID_REMINDER_MINUTES": "Tiempo de recordatorio no válido",
   "USER_INVALID_TASK_COMPLETION_VISUAL_FEEDBACK": "Efecto de comentarios al completar tarea desconocido",
-  "USER_CANNOT_REMOVE_LAST_OWNER": "No se puede quitar al último propietario de la plataforma",
   "USER_CANNOT_DELETE_SELF": "No puedes eliminar tu propia cuenta",
   "USER_NOT_IN_COMMUNITY": "El usuario no es parte de esta comunidad",
   "QUEUE_NOT_FOUND": "Cola no encontrada",

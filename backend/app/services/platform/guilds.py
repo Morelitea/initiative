@@ -2583,8 +2583,13 @@ async def remove_user_from_guild(
     *,
     guild_id: int,
     user_id: int,
+    actor_user_id: int,
 ) -> None:
     """Remove a user from a guild, its initiatives, and its plug-ins.
+
+    Leaving and being removed by an admin both come here: ``actor_user_id`` is
+    the person themselves when they leave, and the admin when they are removed,
+    and the record and the plug-in revocations say which it was.
 
     Leaving a guild ends what that guild's plug-ins let this person reach at an
     outside vendor: the credentials they connected under this guild's authority
@@ -2598,6 +2603,7 @@ async def remove_user_from_guild(
     from app.services.tenant import plugin_member_consents as consents_service
     from app.services.tenant import initiatives as initiatives_service
 
+    left = actor_user_id == user_id
     # Read before the delete below takes the row: the record says which standing
     # the person held when they left.
     previous_role = (
@@ -2617,7 +2623,9 @@ async def remove_user_from_guild(
     )
 
     await plugin_connections_service.delete_member_connections(
-        session, user_id=user_id, reason="left_guild"
+        session,
+        user_id=user_id,
+        reason="left_guild" if left else "removed_from_guild",
     )
     # Leaving ends what this guild's plug-ins may do as this person, the same way it
     # ends what they reach at a vendor.
@@ -2636,14 +2644,14 @@ async def remove_user_from_guild(
         await audit_service.record(
             session,
             event_type=AuditEventType.GUILD_MEMBER_REMOVED,
-            actor_user_id=user_id,
+            actor_user_id=actor_user_id,
             target_user_id=user_id,
             guild_id=guild_id,
             target_type="guild",
             target_id=guild_id,
             detail={
                 "role": previous_role.value if previous_role else None,
-                "via": "left",
+                "via": "left" if left else "admin",
             },
         )
         # Same reason as the insert side: what is asked of this account can

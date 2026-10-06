@@ -143,7 +143,7 @@ async def test_membership_insert_fires_exactly_one_ping(
     # so the session must be routed to the guild first.
     await route_session_to_guild(session, guild.id)
     await guilds_service.remove_user_from_guild(
-        session, guild_id=guild.id, user_id=user.id
+        session, guild_id=guild.id, user_id=user.id, actor_user_id=user.id
     )
     await _drain_pings()
     assert sent_pings == [guild.id, guild.id]
@@ -158,7 +158,7 @@ async def test_noop_removal_does_not_ping(session, billing_configured, sent_ping
 
     await route_session_to_guild(session, guild.id)
     await guilds_service.remove_user_from_guild(
-        session, guild_id=guild.id, user_id=stranger.id
+        session, guild_id=guild.id, user_id=stranger.id, actor_user_id=stranger.id
     )
     await _drain_pings()
     assert sent_pings == []

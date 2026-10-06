@@ -194,7 +194,6 @@
   "USER_INVALID_TIME_FORMAT": "Le format de l'heure doit être system, 12 ou 24",
   "USER_INVALID_REMINDER_MINUTES": "Délai de rappel invalide",
   "USER_INVALID_TASK_COMPLETION_VISUAL_FEEDBACK": "Effet de fin de tâche inconnu",
-  "USER_CANNOT_REMOVE_LAST_OWNER": "Impossible de retirer le dernier propriétaire de plateforme",
   "USER_CANNOT_DELETE_SELF": "Vous ne pouvez pas supprimer votre propre compte",
   "USER_NOT_IN_COMMUNITY": "L'utilisateur ne fait pas partie de cette communauté",
   "QUEUE_NOT_FOUND": "File introuvable",

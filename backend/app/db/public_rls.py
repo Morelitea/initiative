@@ -1086,6 +1086,13 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
                     ("public",),
                     using=routed_and_own("guild_id", "user_id"),
                 ),
+                # The routed community's admin removes one of its members.
+                Policy(
+                    "guild_memberships_admin_delete",
+                    DELETE,
+                    ("app_guild_base",),
+                    using=routed_admin_write("guild_id"),
+                ),
                 # The reader's own rows and the routed community's, for the bare
                 # login, the platform floor, and the roles that own the member
                 # projections, the direct-message rules and the billing path.

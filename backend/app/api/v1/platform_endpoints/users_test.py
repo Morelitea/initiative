@@ -15,7 +15,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.profile_decorations import SHIPPED_DECORATIONS
 from app.db.query import MAX_ID_FILTER_VALUES
-from app.models.platform.guild import CommunityRole
+from app.models.platform.guild import CommunityRole, GuildMembership
 from app.models.platform.user import Presence, User, UserStatus
 from app.models.platform.user_decoration import UserDecoration
 from app.models.platform.user_dm_settings import DmPolicy
@@ -657,21 +657,44 @@ async def test_deletion_eligibility_surfaces_the_services_answer(client, acting_
     assert body["blockers"] == []
 
 
-async def test_delete_user_as_admin(client, acting_user, monkeypatch):
-    """A guild admin removes a member from the guild, and billing hears of it."""
-    from app.services.platform import billing_ping
+async def test_delete_user_as_admin(client, session, acting_user, monkeypatch):
+    """A guild admin removes a member from the guild the way leaving removes
+    them: billing hears of it, the member's account stream is told their
+    memberships changed, and their contact channels are re-tested. The
+    member's platform role plays no part: here they are the platform owner."""
+    from app.services.platform import account_stream, billing_ping
+    from app.services.platform import contact_grants as contact_grants_service
 
     admin = await acting_user(guild_role=CommunityRole.admin)
-    member = await acting_user(guild_role=CommunityRole.member, guild=admin.guild)
+    member = await acting_user(
+        "owner", guild_role=CommunityRole.member, guild=admin.guild
+    )
+    guild_id, member_id = admin.guild.id, member.user.id
     pinged: list[int] = []
+    signalled: list[tuple[int | None, str]] = []
+    swept: list[int | None] = []
     monkeypatch.setattr(billing_ping, "notify_membership_changed", pinged.append)
+    monkeypatch.setattr(
+        account_stream,
+        "queue_account_signal",
+        lambda _session, user_id, action="changed": signalled.append((user_id, action)),
+    )
+    monkeypatch.setattr(
+        contact_grants_service,
+        "queue_stale_grant_sweep",
+        lambda _session, user_id: swept.append(user_id),
+    )
 
     response = await client.delete(
-        admin.g(f"/users/{member.user.id}"), headers=admin.headers
+        admin.g(f"/users/{member_id}"), headers=admin.headers
     )
 
     assert response.status_code == 204
-    assert pinged == [admin.guild.id]
+    session.expire_all()
+    assert await session.get(GuildMembership, (guild_id, member_id)) is None
+    assert pinged == [guild_id]
+    assert signalled == [(member_id, "membership")]
+    assert swept == [member_id]
 
 
 async def test_user_cannot_update_email_via_patch(client, acting_user):
