@@ -62,6 +62,7 @@ from app.services import email as email_service
 from app.services.auth import addresses
 from app.services.auth.assurance import SECOND_FACTOR_AMR
 from app.services.auth import challenges as challenge_service
+from app.services.auth import passkeys as passkey_service
 from app.services.auth import sessions as session_service
 from app.services.auth import sign_in_locks
 from app.services.auth import subject as subject_service
@@ -89,6 +90,24 @@ async def require_login_method(session: AsyncSession, method: LoginMethod) -> No
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=SettingsMessages.LOGIN_METHOD_NOT_PERMITTED,
+        )
+
+
+async def require_passkeys_allowed(session: AsyncSession) -> None:
+    """Refuse a passkey ceremony — a sign-in, a sign-up, a registration or a
+    step-up — this deployment would not accept.
+
+    Two things: the deployment permits passkeys, by the same rule as every
+    other way in, and its address can carry one — a plain-http or IP-literal
+    address cannot, and saying so is better than a ceremony the browser will
+    refuse. The credentials an account already holds are left where they are;
+    while either refusal stands they simply stop being a way in.
+    """
+    await require_login_method(session, LoginMethod.passkey)
+    if passkey_service.site_refusal() is not None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=AuthMessages.PASSKEY_SITE_UNSUPPORTED,
         )
 
 

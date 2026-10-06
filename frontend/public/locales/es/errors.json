@@ -705,7 +705,6 @@
   "PASSKEY_NOT_FOUND": "Esa clave de acceso no es de esta cuenta.",
   "PASSKEY_SITE_UNSUPPORTED": "Las claves de acceso necesitan que este sitio tenga un nombre de dominio propio y https. Todavía no los tiene, así que no se pueden añadir aquí.",
   "PASSKEY_SIGN_IN_INVALID": "Esa clave de acceso no ha funcionado. Inténtalo de nuevo o inicia sesión de otra forma.",
-  "PASSKEY_NOT_PERMITTED": "Este sitio no ofrece claves de acceso.",
   "SETTINGS_LOGIN_METHODS_NO_PRIMARY": "Deja al menos una forma de empezar un inicio de sesión: una contraseña, el inicio de sesión único, una clave de acceso o un código enviado por correo. Un código de autenticación las acompaña, no las sustituye.",
   "COMMUNITY_AUTH_FACTOR_REQUIRED": "Esta comunidad pide un código de tu aplicación de autenticación. Introduce uno para continuar.",
   "COMMUNITY_AUTH_PASSKEY_REQUIRED": "Esta comunidad pide una clave de acceso. Presenta una para continuar.",

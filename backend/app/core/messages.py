@@ -103,8 +103,6 @@ class AuthMessages:
     #: The assertion did not verify, named a credential nobody registered, or
     #: its challenge is not standing. One code for all of those.
     PASSKEY_SIGN_IN_INVALID = "PASSKEY_SIGN_IN_INVALID"
-    #: The deployment does not offer passkeys.
-    PASSKEY_NOT_PERMITTED = "PASSKEY_NOT_PERMITTED"
     #: The password is the account's only way to start a session, so it stays.
     PASSWORD_IS_LAST_METHOD = "PASSWORD_IS_LAST_METHOD"
     #: The passkey is the account's only way to start a session, so it stays.
