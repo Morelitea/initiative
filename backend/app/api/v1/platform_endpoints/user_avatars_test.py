@@ -13,7 +13,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.db.public_rls import platform_tier, role_name
 from app.models.platform.notification import Notification, NotificationType
 from app.models.platform.user import User, UserRole
-from app.models.platform.user_avatar import UserAvatar
+from app.core.image_headers import validate_image
+from app.models.platform.user_avatar import AVATAR_SPEC, UserAvatar
 from app.services.platform import user_avatars as service
 from app.services.platform.user_avatars_test import jpeg, png
 from app.testing.factories import (
@@ -61,7 +62,7 @@ async def test_upload_stores_the_picture_and_names_it_on_the_user(
 
     assert response.status_code == 200
     body = response.json()
-    digest = service.validate_avatar(png(256, 256)).sha256
+    digest = validate_image(AVATAR_SPEC, png(256, 256)).sha256
     assert body["avatar_url"] == f"/api/v1/users/{user.id}/avatar/{digest}"
     # The blob does not travel in the payload any more.
     assert "avatar_base64" not in body
@@ -79,7 +80,7 @@ async def test_anyone_may_fetch_a_picture_without_a_session(
     rather than only by the browser that asked."""
     user = await create_user(session)
     await _upload(client, get_auth_headers(user))
-    digest = service.validate_avatar(png(256, 256)).sha256
+    digest = validate_image(AVATAR_SPEC, png(256, 256)).sha256
 
     response = await client.get(f"/api/v1/users/{user.id}/avatar/{digest}")
 
@@ -97,7 +98,7 @@ async def test_a_stale_digest_is_not_served_the_current_picture(
     that is no longer current must not return whatever is."""
     user = await create_user(session)
     await _upload(client, get_auth_headers(user))
-    stale = service.validate_avatar(png(256, 256)).sha256
+    stale = validate_image(AVATAR_SPEC, png(256, 256)).sha256
     await _upload(client, get_auth_headers(user), jpeg(128, 128))
 
     response = await client.get(f"/api/v1/users/{user.id}/avatar/{stale}")
@@ -110,7 +111,7 @@ async def test_removing_a_picture_makes_its_url_stop_working(
 ):
     user = await create_user(session)
     await _upload(client, get_auth_headers(user))
-    digest = service.validate_avatar(png(256, 256)).sha256
+    digest = validate_image(AVATAR_SPEC, png(256, 256)).sha256
 
     deleted = await client.delete("/api/v1/me/avatar", headers=get_auth_headers(user))
 
@@ -121,18 +122,32 @@ async def test_removing_a_picture_makes_its_url_stop_working(
 
 
 @pytest.mark.parametrize(
-    "data,filename",
+    "data,filename,status,detail",
     [
         (
             b'<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256"/>',
             "a.svg",
+            400,
+            "USER_AVATAR_INVALID_IMAGE",
         ),
-        (png(512, 512), "big.png"),
-        (png(256, 100), "wide.png"),
+        (png(512, 512), "big.png", 400, "USER_AVATAR_TOO_LARGE_DIMENSIONS"),
+        (png(256, 100), "wide.png", 400, "USER_AVATAR_NOT_SQUARE"),
+        (b"", "empty.png", 400, "IMAGE_EMPTY"),
+        (
+            png(256, 256, pad=AVATAR_SPEC.max_bytes),
+            "heavy.png",
+            413,
+            "IMAGE_TOO_LARGE",
+        ),
     ],
 )
 async def test_refused_uploads(
-    client: AsyncClient, session: AsyncSession, data: bytes, filename: str
+    client: AsyncClient,
+    session: AsyncSession,
+    data: bytes,
+    filename: str,
+    status: int,
+    detail: str,
 ):
     user = await create_user(session)
 
@@ -142,7 +157,8 @@ async def test_refused_uploads(
         files={"file": (filename, data, "image/png")},
     )
 
-    assert response.status_code == 400
+    assert response.status_code == status
+    assert response.json()["detail"] == detail
     assert (
         await session.exec(select(UserAvatar).where(UserAvatar.user_id == user.id))
     ).first() is None
@@ -335,11 +351,9 @@ async def test_storing_does_not_depend_on_what_the_read_saw(
     is forced here rather than raced for, so this fails deterministically if
     the write stops being an upsert.
     """
-    from app.services.platform import user_avatars as service
-
     user = await create_user(session)
     await service.store_avatar(
-        session, user=user, avatar=service.validate_avatar(png(256, 256))
+        session, user=user, avatar=validate_image(AVATAR_SPEC, png(256, 256))
     )
     await session.commit()
 
@@ -350,7 +364,7 @@ async def test_storing_does_not_depend_on_what_the_read_saw(
     monkeypatch.setattr(service, "get_avatar", saw_nothing)
 
     await service.store_avatar(
-        session, user=user, avatar=service.validate_avatar(jpeg(256, 256))
+        session, user=user, avatar=validate_image(AVATAR_SPEC, jpeg(256, 256))
     )
     await session.commit()
 

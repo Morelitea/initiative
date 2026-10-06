@@ -17,13 +17,14 @@ which is decided by ``app.services.platform.guild_images``, not here.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
 
 from pydantic import ConfigDict
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, LargeBinary, String
 from sqlmodel import Field, SQLModel
+
+from app.core.image_headers import RASTER_CONTENT_TYPES, ImageSpec
 
 
 class GuildImageVariant(str, Enum):
@@ -42,46 +43,25 @@ class GuildImageVariant(str, Enum):
     full = "full"
 
 
-@dataclass(frozen=True)
-class ImageSpec:
-    """What a variant must be, and who it may be shown to.
-
-    ``published`` is the half that is not about pixels: it says this variant is
-    part of what a guild publishes by listing itself in the directory, and so
-    may be served to someone who is not in the guild. The front-page banner is
-    not — a stranger has no front page to see it on.
-    """
-
-    width: int
-    height: int
-    max_bytes: int
-    published: bool
-
-    @property
-    def aspect(self) -> float:
-        return self.width / self.height
-
-
-#: The single source of truth for each variant's geometry, weight, and
-#: audience. The settings page resizes to it, the upload endpoint checks
-#: against it, and the authorization check reads ``published`` from it.
+#: Each variant's geometry and weight. The settings page resizes to it and the
+#: upload endpoint holds an upload to it.
 IMAGE_SPECS: dict[GuildImageVariant, ImageSpec] = {
-    GuildImageVariant.icon: ImageSpec(256, 256, 64 * 1024, published=True),
-    GuildImageVariant.card: ImageSpec(1040, 260, 60 * 1024, published=True),
-    GuildImageVariant.full: ImageSpec(2400, 600, 350 * 1024, published=False),
+    GuildImageVariant.icon: ImageSpec(256, 256, 64 * 1024, RASTER_CONTENT_TYPES),
+    GuildImageVariant.card: ImageSpec(1040, 260, 60 * 1024, RASTER_CONTENT_TYPES),
+    GuildImageVariant.full: ImageSpec(2400, 600, 350 * 1024, RASTER_CONTENT_TYPES),
 }
+
+#: The variants that are part of what a guild publishes by listing itself in
+#: the directory, and so may be served to someone who is not in the guild. The
+#: front-page banner is not — a stranger has no front page to see it on.
+PUBLISHED_VARIANTS: frozenset[GuildImageVariant] = frozenset(
+    {GuildImageVariant.icon, GuildImageVariant.card}
+)
 
 #: The renditions one banner upload produces, in the order they are stored.
 BANNER_VARIANTS: tuple[GuildImageVariant, ...] = (
     GuildImageVariant.full,
     GuildImageVariant.card,
-)
-
-#: Raster only, and no SVG: these are rendered rather than downloaded, so the
-#: force-download handling that makes an SVG attachment safe has nothing to
-#: apply to.
-IMAGE_CONTENT_TYPES: frozenset[str] = frozenset(
-    {"image/webp", "image/png", "image/jpeg", "image/gif"}
 )
 
 

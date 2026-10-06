@@ -460,27 +460,14 @@ class Rule:
         names = [k for k, rule in _rules(ctx).items() if rule.area == self.area]
         if self.key != next(k for k in names if k in moved):
             return
-        before = {k: moved[k][0] for k in names if k in moved}
-        after = {k: moved[k][1] for k in names if k in moved}
-        actor_id = ctx.actor.id if ctx.actor else None
-        if ctx.guild_id is None:
-            await app_settings_service.record_settings_area(
-                ctx.session,
-                actor_user_id=actor_id,
-                area=self.area,
-                before=before,
-                row=ctx.settings,
-                fields=tuple(after),
-            )
-        else:
-            await guilds_service.record_settings_change(
-                ctx.session,
-                guild_id=ctx.guild_id,
-                actor_user_id=actor_id,
-                area=self.area,
-                before=before,
-                after=after,
-            )
+        await audit_service.record_settings_change(
+            ctx.session,
+            guild_id=ctx.guild_id,
+            actor_user_id=ctx.actor.id if ctx.actor else None,
+            area=self.area,
+            before={k: moved[k][0] for k in names if k in moved},
+            after={k: moved[k][1] for k in names if k in moved},
+        )
 
 
 async def _drop_push_tokens(ctx: RuleContext, before: Any, after: Any) -> None:

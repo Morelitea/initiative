@@ -253,6 +253,20 @@ def queue_frame(
     return frames.setdefault((user_id, frame["resource"]), frame)
 
 
+def queue_signals(
+    session: Any, user_ids: Iterable[int], resource: str, action: str = "changed"
+) -> None:
+    """Note one channel's signal for each of a set of accounts.
+
+    Deliberately not narrowed to this process's own sockets. That narrowing
+    would have to happen before ``publish``, which is also what puts a frame
+    on the cross-worker bus — so an account connected only to another worker
+    would never be published for at all. Callers pass the whole set they mean.
+    """
+    for user_id in user_ids:
+        queue_frame(session, user_id, build_frame(resource, action))
+
+
 class _Frames(dict[tuple[int, str], Dict[str, Any]]):
     """One transaction's frames, keyed by ``(user_id, resource)``."""
 

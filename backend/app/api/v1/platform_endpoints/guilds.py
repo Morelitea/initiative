@@ -45,7 +45,8 @@ from app.db.query import build_paginated_response
 from app.core.capabilities import Capability, user_has_capability
 from app.core.config import settings
 from app.core.login_methods import SecondFactorRequirement
-from app.core.messages import BillingMessages, GuildMessages
+from app.core.image_headers import validate_image
+from app.core.messages import BillingMessages, GuildMessages, ImageMessages
 from app.core.rate_limit import limiter
 from app.core.security import (
     HandoffSigningNotConfiguredError,
@@ -746,7 +747,7 @@ async def update_community(
         ),
         location_provided=location_provided,
     )
-    await guilds_service.record_settings_change(
+    await audit_service.record_settings_change(
         session,
         guild_id=guild_id,
         actor_user_id=current_user.id,
@@ -755,7 +756,7 @@ async def update_community(
         after=audit_service.snapshot(guild, _GUILD_PROFILE_FIELDS),
     )
     if retention_days_provided:
-        await guilds_service.record_settings_change(
+        await audit_service.record_settings_change(
             session,
             guild_id=guild_id,
             actor_user_id=current_user.id,
@@ -861,18 +862,17 @@ async def _store_guild_images(
     the caller's authority to be doing this at all was established against a
     real membership before this is reached.
     """
-    renditions = []
+    renditions = {}
     for variant, upload in uploads:
+        spec = IMAGE_SPECS[variant]
         try:
-            data = await read_upload_bounded(upload, IMAGE_SPECS[variant].max_bytes)
+            data = await read_upload_bounded(upload, spec.max_bytes)
         except FileTooLargeError:
             raise HTTPException(
                 status_code=status.HTTP_413_CONTENT_TOO_LARGE,
-                detail=GuildMessages.IMAGE_TOO_LARGE,
+                detail=ImageMessages.IMAGE_TOO_LARGE,
             )
-        renditions.append(
-            images_service.validate_rendition(variant, data, upload.content_type)
-        )
+        renditions[variant] = validate_image(spec, data)
 
     await images_service.set_images(session, guild_id=guild_id, renditions=renditions)
 

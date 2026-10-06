@@ -37,7 +37,7 @@ from app.models.platform.contact_grant import (
 )
 from app.models.platform.user_ignore import UserIgnore
 from app.services.platform import contact_notifications
-from app.services.platform import contacts_stream
+from app.services.platform import contacts_stream, user_stream
 from app.services.platform import presence as presence_service
 from app.services.platform import user_ignores
 from app.schemas.platform.dm import (
@@ -399,7 +399,7 @@ async def revoke_stale_message_grants(
             # Both sides of every pair that actually went — which is already
             # the bound worth having: a community's worth of revocations costs
             # the pairs revoked, not the size of the membership.
-            contacts_stream.queue_many(system_session, touched)
+            user_stream.queue_signals(system_session, touched, contacts_stream.RESOURCE)
             await system_session.commit()
     return dropped
 

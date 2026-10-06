@@ -42,7 +42,7 @@ from app.core.capabilities import Capability
 from app.db.session import set_rls_context
 from app.core.messages import AnnouncementMessages
 from app.models.platform.announcement import (
-    ANNOUNCEMENT_IMAGE_MAX_BYTES,
+    ANNOUNCEMENT_IMAGE_SPEC,
     Announcement,
 )
 from app.models.platform.user import User
@@ -248,7 +248,7 @@ async def upload_announcement_image(
 ) -> AnnouncementImageRead:
     """Store one picture and return the URL a section should point at."""
     try:
-        data = await read_upload_bounded(file, ANNOUNCEMENT_IMAGE_MAX_BYTES)
+        data = await read_upload_bounded(file, ANNOUNCEMENT_IMAGE_SPEC.max_bytes)
     except FileTooLargeError:
         raise HTTPException(
             status_code=status.HTTP_413_CONTENT_TOO_LARGE,

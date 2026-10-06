@@ -133,6 +133,17 @@ class AuthMessages:
     CAPTCHA_INVALID = "CAPTCHA_INVALID"
 
 
+class ImageMessages:
+    # An uploaded picture that does not meet its ``ImageSpec``. Each names the
+    # rule it broke, so the page can say what to do about it rather than
+    # "that didn't work".
+    IMAGE_EMPTY = "IMAGE_EMPTY"
+    IMAGE_TOO_LARGE = "IMAGE_TOO_LARGE"
+    IMAGE_INVALID = "IMAGE_INVALID"
+    IMAGE_WRONG_SIZE = "IMAGE_WRONG_SIZE"
+    IMAGE_WRONG_RATIO = "IMAGE_WRONG_RATIO"
+
+
 class GuildMessages:
     # The frontend error map still carries NO_GUILD_MEMBERSHIP for servers
     # that predate path-based guild resolution; the backend itself only
@@ -223,14 +234,6 @@ class GuildMessages:
     # the one above because there is nothing to click: the answer stands, and
     # the reply has to say so rather than ask again.
     AGE_BELOW_MINIMUM = "COMMUNITY_AGE_BELOW_MINIMUM"
-    # A guild icon or banner rendition that is not one. Each names the rule it
-    # broke, so the settings page can say what to do about it rather than
-    # "that didn't work".
-    IMAGE_EMPTY = "IMAGE_EMPTY"
-    IMAGE_TOO_LARGE = "IMAGE_TOO_LARGE"
-    IMAGE_INVALID = "IMAGE_INVALID"
-    IMAGE_WRONG_SIZE = "IMAGE_WRONG_SIZE"
-    IMAGE_WRONG_RATIO = "IMAGE_WRONG_RATIO"
     IMAGE_NOT_FOUND = "IMAGE_NOT_FOUND"
     BANNER_COLOR_INVALID = "BANNER_COLOR_INVALID"
     # Banner text is black or white; nothing between the two is offered.
@@ -913,7 +916,6 @@ class AnnouncementMessages:
     NOT_FOUND = "ANNOUNCEMENT_NOT_FOUND"
     IMAGE_NOT_FOUND = "ANNOUNCEMENT_IMAGE_NOT_FOUND"
     IMAGE_TOO_LARGE = "ANNOUNCEMENT_IMAGE_TOO_LARGE"
-    IMAGE_UNSUPPORTED_TYPE = "ANNOUNCEMENT_IMAGE_UNSUPPORTED_TYPE"
 
 
 class CalendarMessages:

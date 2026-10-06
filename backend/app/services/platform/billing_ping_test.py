@@ -185,79 +185,6 @@ def known_ref(monkeypatch):
     monkeypatch.setattr(billing_ping, "existing_ref", _existing_ref)
 
 
-async def test_payment_issue_unconfigured_makes_no_call(monkeypatch, known_ref):
-    seen = _answering(monkeypatch, lambda r: httpx.Response(200, json={}))
-    assert await billing_ping.guild_payment_failed(7) is False
-    assert seen == []
-
-
-async def test_payment_issue_without_a_ref_makes_no_call_and_mints_nothing(
-    session, billing_configured, monkeypatch
-):
-    guild = await create_guild(session)
-    await session.commit()
-    seen = _answering(monkeypatch, lambda r: httpx.Response(200, json={}))
-    assert await billing_ping.guild_payment_failed(guild.id) is False
-    assert seen == []
-    assert (
-        await existing_ref(
-            entity_type=IdentityEntity.guild,
-            entity_id=guild.id,
-            purpose=IdentityPurpose.billing,
-        )
-        is None
-    )
-
-
-async def test_payment_issue_sends_only_the_ref_signed(
-    billing_configured, known_ref, monkeypatch
-):
-    seen = _answering(
-        monkeypatch, lambda r: httpx.Response(200, json={"payment_failed": True})
-    )
-    assert await billing_ping.guild_payment_failed(7) is True
-    (request,) = seen
-    assert request.method == "POST"
-    assert str(request.url) == "https://billing.internal/api/v1/payment-issue"
-    body = request.content
-    assert json.loads(body) == {"community_ref": "gbil_known"}
-    ts = request.headers["X-Billing-Timestamp"]
-    message = "\n".join(
-        ["POST", "/api/v1/payment-issue", ts, hashlib.sha256(body).hexdigest()]
-    ).encode()
-    expected = hmac.new(_SECRET.encode(), message, hashlib.sha256).hexdigest()
-    assert request.headers["X-Billing-Signature"] == expected
-
-
-@pytest.mark.parametrize(
-    "response",
-    [
-        httpx.Response(200, json={"payment_failed": False}),
-        httpx.Response(200, json={"payment_failed": "true"}),
-        httpx.Response(200, json=[True]),
-        httpx.Response(200, content=b"not json"),
-        httpx.Response(200, json={"payment_failed": True, "pad": "x" * 300}),
-        httpx.Response(302, headers={"Location": "https://elsewhere"}),
-        httpx.Response(500, json={"payment_failed": True}),
-    ],
-)
-async def test_payment_issue_anything_but_a_plain_true_is_false(
-    billing_configured, known_ref, monkeypatch, response
-):
-    _answering(monkeypatch, lambda r: response)
-    assert await billing_ping.guild_payment_failed(7) is False
-
-
-async def test_payment_issue_unreachable_is_false(
-    billing_configured, known_ref, monkeypatch
-):
-    def _down(request):
-        raise httpx.ConnectError("down")
-
-    _answering(monkeypatch, _down)
-    assert await billing_ping.guild_payment_failed(7) is False
-
-
 _SUMMARY = {
     "tier_name": "Gold",
     "trial_ends_on": None,
@@ -266,6 +193,25 @@ _SUMMARY = {
     "scheduled_change": {"action": "cancel", "on": "2026-11-01"},
     "payment_failed": False,
 }
+
+
+@pytest.mark.parametrize(
+    "response,failed",
+    [
+        (httpx.Response(200, json={**_SUMMARY, "payment_failed": True}), True),
+        (httpx.Response(200, json=_SUMMARY), False),
+        (httpx.Response(200, json={**_SUMMARY, "payment_failed": "true"}), False),
+        (httpx.Response(500, json={**_SUMMARY, "payment_failed": True}), False),
+    ],
+)
+async def test_payment_failed_is_the_plan_summary_flag(
+    billing_configured, known_ref, monkeypatch, response, failed
+):
+    """Read from the plan summary: a summary billing cannot give says no."""
+    seen = _answering(monkeypatch, lambda r: response)
+    assert await billing_ping.guild_payment_failed(7) is failed
+    (request,) = seen
+    assert str(request.url) == "https://billing.internal/api/v1/plan-summary"
 
 
 async def test_plan_summary_unconfigured_makes_no_call(monkeypatch, known_ref):
@@ -394,7 +340,7 @@ async def test_a_lifecycle_ping_names_only_a_guild_billing_already_knows(
     assert posted == []
 
     known = await create_guild(session)
-    ref = await billing_ping.billing_guild_ref(guild_id=known.id)
+    ref = await billing_ping.billing_ref(IdentityEntity.guild, known.id)
     await billing_ping._send_lifecycle_ping(known.id)
     assert [json.loads(body)["community_ref"] for body in posted] == [ref]
 

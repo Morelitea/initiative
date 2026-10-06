@@ -9,11 +9,11 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from collections.abc import Sequence
+from collections.abc import AsyncIterator, Sequence
+from contextlib import asynccontextmanager
+from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any
 
-from app.core.audit_events import AuditEventType
 from app.core.transitions import Transition
 from app.services import audit as audit_service
 from app.core.config import settings as app_config
@@ -302,16 +302,6 @@ async def _ensure_secrets_row(session: AsyncSession) -> AppSettingSecret:
     return secrets_row
 
 
-async def _write_secret(
-    session: AsyncSession, *, column: str, encrypted: str | None
-) -> None:
-    """Store one credential column on the system engine, and commit it."""
-    secrets_row = await _ensure_secrets_row(session)
-    setattr(secrets_row, column, encrypted)
-    session.add(secrets_row)
-    await session.commit()
-
-
 async def ensure_settings_row(session: AsyncSession) -> AppSetting:
     """The stored singleton, put in place here if boot has not already.
 
@@ -543,36 +533,89 @@ PUSH_FIELDS: tuple[str, ...] = (
 )
 
 
-async def record_settings_area(
+@dataclass(frozen=True)
+class _SecretChange:
+    """An area's credential column: the stored row, and what this save leaves."""
+
+    row: AppSettingSecret
+    field: str
+    stored: str | None
+    new: str | None
+    provided: bool
+
+
+async def _secret_change(
+    system_session: AsyncSession,
+    *,
+    field: str,
+    salt: str,
+    value: str | None,
+    provided: bool,
+) -> _SecretChange:
+    """Read the area's stored credential and encrypt the one being saved.
+
+    Left as stored unless ``provided``; a provided blank clears it.
+    """
+    row = await get_app_setting_secrets(system_session)
+    stored = new = getattr(row, field)
+    if provided:
+        normalized = _normalize_optional_string(value)
+        new = encrypt_field(normalized, salt) if normalized else None
+    return _SecretChange(row, field, stored, new, provided)
+
+
+@asynccontextmanager
+async def _settings_area(
     session: AsyncSession,
     *,
-    actor_user_id: int | None,
     area: str,
-    before: dict[str, Any],
-    row: AppSetting,
     fields: tuple[str, ...],
-    extras: dict[str, Any] | None = None,
-    secrets_after: dict[str, Any] | None = None,
-) -> None:
-    """Stage the record for one area of the settings row, if it moved.
+    actor_user_id: int | None,
+    secret: _SecretChange | None = None,
+) -> AsyncIterator[AppSetting]:
+    """Save one area of the settings row with its record, in one commit.
 
-    Staged in the same transaction as the write, so the two land together.
-    A caller that names no actor — boot-time seeding — records nothing.
-    ``secrets_after`` carries the area's credential column as it will be
-    stored on ``app_setting_secrets``; ``before`` carries it as it was.
+    Yields the stored row for the caller to change. On leaving, the fields
+    that moved are recorded and the row is committed. ``secret`` is the
+    area's credential: named in the record when it moves, never valued, and
+    stored afterwards by :func:`_store_secret`, once the row it hangs off is
+    committed.
     """
-    if actor_user_id is None:
-        return
-    after = {**audit_service.snapshot(row, fields), **(secrets_after or {})}
-    changed = audit_service.changed_fields(before, after)
-    if not changed["changed"] and not any((extras or {}).values()):
-        return
-    await audit_service.record(
+    row = await ensure_settings_row(session)
+    before = audit_service.snapshot(row, fields)
+    yield row
+    session.add(row)
+    after = audit_service.snapshot(row, fields)
+    extras = None
+    if secret is not None:
+        before[secret.field] = secret.stored
+        after[secret.field] = secret.new
+        extras = {"secret_changed": secret.stored != secret.new}
+    await audit_service.record_settings_change(
         session,
-        event_type=AuditEventType.PLATFORM_SETTINGS_CHANGED,
+        guild_id=None,
         actor_user_id=actor_user_id,
-        detail={"area": area, **changed, **(extras or {})},
+        area=area,
+        before=before,
+        after=after,
+        extras=extras,
     )
+    await session.commit()
+    await session.refresh(row)
+
+
+async def _store_secret(
+    system_session: AsyncSession, secret: _SecretChange
+) -> AppSettingSecret:
+    """Store the area's credential on the system engine when it was provided,
+    and return the credentials row as it now stands."""
+    if not secret.provided:
+        return secret.row
+    secrets_row = await _ensure_secrets_row(system_session)
+    setattr(secrets_row, secret.field, secret.new)
+    system_session.add(secrets_row)
+    await system_session.commit()
+    return await get_app_setting_secrets(system_session)
 
 
 async def update_interface_settings(
@@ -588,23 +631,13 @@ async def update_interface_settings(
     ``cookie_consent_enabled`` is an independent decision and is left alone when
     omitted, so saving a colour does not silently answer it.
     """
-    settings_row = await ensure_settings_row(session)
-    before = audit_service.snapshot(settings_row, INTERFACE_FIELDS)
-    settings_row.light_accent_color = light_accent_color.strip() or "#2563eb"
-    settings_row.dark_accent_color = dark_accent_color.strip() or "#60a5fa"
-    if cookie_consent_enabled is not None:
-        settings_row.cookie_consent_enabled = bool(cookie_consent_enabled)
-    session.add(settings_row)
-    await record_settings_area(
-        session,
-        actor_user_id=actor_user_id,
-        area="interface",
-        before=before,
-        row=settings_row,
-        fields=INTERFACE_FIELDS,
-    )
-    await session.commit()
-    await session.refresh(settings_row)
+    async with _settings_area(
+        session, area="interface", fields=INTERFACE_FIELDS, actor_user_id=actor_user_id
+    ) as settings_row:
+        settings_row.light_accent_color = light_accent_color.strip() or "#2563eb"
+        settings_row.dark_accent_color = dark_accent_color.strip() or "#60a5fa"
+        if cookie_consent_enabled is not None:
+            settings_row.cookie_consent_enabled = bool(cookie_consent_enabled)
     return settings_row
 
 
@@ -659,20 +692,15 @@ async def update_marketplace_settings(
     actor_user_id: int,
 ) -> AppSetting:
     """Set whether members' shares go on the shelf without review."""
-    settings_row = await ensure_settings_row(session)
-    before = audit_service.snapshot(settings_row, MARKETPLACE_FIELDS)
-    settings_row.marketplace_members_publish_directly = bool(members_publish_directly)
-    session.add(settings_row)
-    await record_settings_area(
+    async with _settings_area(
         session,
-        actor_user_id=actor_user_id,
         area="marketplace",
-        before=before,
-        row=settings_row,
         fields=MARKETPLACE_FIELDS,
-    )
-    await session.commit()
-    await session.refresh(settings_row)
+        actor_user_id=actor_user_id,
+    ) as settings_row:
+        settings_row.marketplace_members_publish_directly = bool(
+            members_publish_directly
+        )
     return settings_row
 
 
@@ -693,20 +721,13 @@ async def update_marketplace_registry_settings(
     actor_user_id: int,
 ) -> AppSetting:
     """Follow the marketplace registry, or stop. What already arrived stays."""
-    settings_row = await ensure_settings_row(session)
-    before = audit_service.snapshot(settings_row, MARKETPLACE_REGISTRY_FIELDS)
-    settings_row.marketplace_registry_enabled = bool(enabled)
-    session.add(settings_row)
-    await record_settings_area(
+    async with _settings_area(
         session,
-        actor_user_id=actor_user_id,
         area="marketplace_registry",
-        before=before,
-        row=settings_row,
         fields=MARKETPLACE_REGISTRY_FIELDS,
-    )
-    await session.commit()
-    await session.refresh(settings_row)
+        actor_user_id=actor_user_id,
+    ) as settings_row:
+        settings_row.marketplace_registry_enabled = bool(enabled)
     return settings_row
 
 
@@ -759,32 +780,26 @@ async def update_community_settings(
     counted from each hold, so changing it moves the date for every community
     already on hold.
     """
-    settings_row = await ensure_settings_row(session)
-    before = audit_service.snapshot(settings_row, COMMUNITY_FIELDS)
-    settings_row.community_directory_enabled = bool(community_directory_enabled)
-    if community_age_gate_enabled is not None:
-        settings_row.community_age_gate_enabled = bool(community_age_gate_enabled)
-    if default_dm_policy is not None:
-        settings_row.default_dm_policy = default_dm_policy
-    if direct_messages_enabled is not None:
-        settings_row.direct_messages_enabled = bool(direct_messages_enabled)
-    if retention_provided:
-        settings_row.deleted_community_retention_days = deleted_community_retention_days
-    if account_retention_provided:
-        settings_row.deleted_account_retention_days = deleted_account_retention_days
-    if hold_deletion_provided:
-        settings_row.on_hold_community_deletion_days = on_hold_community_deletion_days
-    session.add(settings_row)
-    await record_settings_area(
-        session,
-        actor_user_id=actor_user_id,
-        area="community",
-        before=before,
-        row=settings_row,
-        fields=COMMUNITY_FIELDS,
-    )
-    await session.commit()
-    await session.refresh(settings_row)
+    async with _settings_area(
+        session, area="community", fields=COMMUNITY_FIELDS, actor_user_id=actor_user_id
+    ) as settings_row:
+        settings_row.community_directory_enabled = bool(community_directory_enabled)
+        if community_age_gate_enabled is not None:
+            settings_row.community_age_gate_enabled = bool(community_age_gate_enabled)
+        if default_dm_policy is not None:
+            settings_row.default_dm_policy = default_dm_policy
+        if direct_messages_enabled is not None:
+            settings_row.direct_messages_enabled = bool(direct_messages_enabled)
+        if retention_provided:
+            settings_row.deleted_community_retention_days = (
+                deleted_community_retention_days
+            )
+        if account_retention_provided:
+            settings_row.deleted_account_retention_days = deleted_account_retention_days
+        if hold_deletion_provided:
+            settings_row.on_hold_community_deletion_days = (
+                on_hold_community_deletion_days
+            )
     return settings_row
 
 
@@ -811,45 +826,28 @@ async def update_email_settings(
     the settings row, and a password is never stored without the save it came
     with. Returns both rows.
     """
-    settings_row = await ensure_settings_row(session)
-    secrets_row = await get_app_setting_secrets(system_session)
-    stored_password = secrets_row.smtp_password_encrypted
-    before = {
-        **audit_service.snapshot(settings_row, EMAIL_FIELDS),
-        EMAIL_SECRET_FIELD: stored_password,
-    }
-    new_password = stored_password
-    if password_provided:
-        normalized = _normalize_optional_string(password)
-        new_password = (
-            encrypt_field(normalized, SALT_SMTP_PASSWORD) if normalized else None
-        )
-    settings_row.smtp_host = _normalize_optional_string(host)
-    settings_row.smtp_port = port if port else None
-    settings_row.smtp_secure = bool(secure)
-    settings_row.smtp_reject_unauthorized = bool(reject_unauthorized)
-    settings_row.smtp_username = _normalize_optional_string(username)
-    settings_row.smtp_from_address = _normalize_optional_string(from_address)
-    settings_row.smtp_test_recipient = _normalize_optional_string(test_recipient)
-    session.add(settings_row)
-    await record_settings_area(
-        session,
-        actor_user_id=actor_user_id,
-        area="email",
-        before=before,
-        row=settings_row,
-        fields=EMAIL_FIELDS,
-        extras={"password_changed": stored_password != new_password},
-        secrets_after={EMAIL_SECRET_FIELD: new_password},
+    secret = await _secret_change(
+        system_session,
+        field=EMAIL_SECRET_FIELD,
+        salt=SALT_SMTP_PASSWORD,
+        value=password,
+        provided=password_provided,
     )
-    await session.commit()
-    await session.refresh(settings_row)
-    if password_provided:
-        await _write_secret(
-            system_session, column=EMAIL_SECRET_FIELD, encrypted=new_password
-        )
-        secrets_row = await get_app_setting_secrets(system_session)
-    return settings_row, secrets_row
+    async with _settings_area(
+        session,
+        area="email",
+        fields=EMAIL_FIELDS,
+        actor_user_id=actor_user_id,
+        secret=secret,
+    ) as settings_row:
+        settings_row.smtp_host = _normalize_optional_string(host)
+        settings_row.smtp_port = port if port else None
+        settings_row.smtp_secure = bool(secure)
+        settings_row.smtp_reject_unauthorized = bool(reject_unauthorized)
+        settings_row.smtp_username = _normalize_optional_string(username)
+        settings_row.smtp_from_address = _normalize_optional_string(from_address)
+        settings_row.smtp_test_recipient = _normalize_optional_string(test_recipient)
+    return settings_row, await _store_secret(system_session, secret)
 
 
 async def update_storage_settings(
@@ -873,44 +871,28 @@ async def update_storage_settings(
     row and its record, then the secret key on the system engine, then the
     process-wide storage config is reloaded. Returns both rows.
     """
-    settings_row = await ensure_settings_row(session)
-    secrets_row = await get_app_setting_secrets(system_session)
-    stored_secret = secrets_row.s3_secret_access_key_encrypted
-    before = {
-        **audit_service.snapshot(settings_row, STORAGE_FIELDS),
-        STORAGE_SECRET_FIELD: stored_secret,
-    }
-    new_secret = stored_secret
-    if secret_provided:
-        normalized = _normalize_optional_string(s3_secret_access_key)
-        new_secret = (
-            encrypt_field(normalized, SALT_S3_SECRET_KEY) if normalized else None
-        )
-    settings_row.storage_backend = (backend or "local").lower()
-    settings_row.s3_bucket = _normalize_optional_string(s3_bucket)
-    settings_row.s3_region = (s3_region or "us-east-1").strip() or "us-east-1"
-    settings_row.s3_endpoint_url = _normalize_optional_string(s3_endpoint_url)
-    settings_row.s3_access_key_id = _normalize_optional_string(s3_access_key_id)
-    settings_row.s3_use_path_style = bool(s3_use_path_style)
-    settings_row.s3_local_fallback = bool(s3_local_fallback)
-    session.add(settings_row)
-    await record_settings_area(
-        session,
-        actor_user_id=actor_user_id,
-        area="storage",
-        before=before,
-        row=settings_row,
-        fields=STORAGE_FIELDS,
-        extras={"secret_changed": stored_secret != new_secret},
-        secrets_after={STORAGE_SECRET_FIELD: new_secret},
+    secret = await _secret_change(
+        system_session,
+        field=STORAGE_SECRET_FIELD,
+        salt=SALT_S3_SECRET_KEY,
+        value=s3_secret_access_key,
+        provided=secret_provided,
     )
-    await session.commit()
-    await session.refresh(settings_row)
-    if secret_provided:
-        await _write_secret(
-            system_session, column=STORAGE_SECRET_FIELD, encrypted=new_secret
-        )
-        secrets_row = await get_app_setting_secrets(system_session)
+    async with _settings_area(
+        session,
+        area="storage",
+        fields=STORAGE_FIELDS,
+        actor_user_id=actor_user_id,
+        secret=secret,
+    ) as settings_row:
+        settings_row.storage_backend = (backend or "local").lower()
+        settings_row.s3_bucket = _normalize_optional_string(s3_bucket)
+        settings_row.s3_region = (s3_region or "us-east-1").strip() or "us-east-1"
+        settings_row.s3_endpoint_url = _normalize_optional_string(s3_endpoint_url)
+        settings_row.s3_access_key_id = _normalize_optional_string(s3_access_key_id)
+        settings_row.s3_use_path_style = bool(s3_use_path_style)
+        settings_row.s3_local_fallback = bool(s3_local_fallback)
+    secrets_row = await _store_secret(system_session, secret)
     # Refresh the process-wide resolved storage config so the live request path
     # picks up new creds/backend immediately (lazy import avoids a cycle: the
     # storage_config module reads get_app_settings from here).
@@ -937,39 +919,23 @@ async def update_captcha_settings(
     resolved config, so the next registration verifies against what was just
     saved rather than what was saved at boot.
     """
-    settings_row = await ensure_settings_row(session)
-    secrets_row = await get_app_setting_secrets(system_session)
-    stored_secret = secrets_row.captcha_secret_key_encrypted
-    before = {
-        **audit_service.snapshot(settings_row, CAPTCHA_FIELDS),
-        CAPTCHA_SECRET_FIELD: stored_secret,
-    }
-    new_secret = stored_secret
-    if secret_provided:
-        normalized = _normalize_optional_string(secret_key)
-        new_secret = (
-            encrypt_field(normalized, SALT_CAPTCHA_SECRET_KEY) if normalized else None
-        )
-    settings_row.captcha_provider = _normalize_optional_string(provider)
-    settings_row.captcha_site_key = _normalize_optional_string(site_key)
-    session.add(settings_row)
-    await record_settings_area(
-        session,
-        actor_user_id=actor_user_id,
-        area="captcha",
-        before=before,
-        row=settings_row,
-        fields=CAPTCHA_FIELDS,
-        extras={"secret_changed": stored_secret != new_secret},
-        secrets_after={CAPTCHA_SECRET_FIELD: new_secret},
+    secret = await _secret_change(
+        system_session,
+        field=CAPTCHA_SECRET_FIELD,
+        salt=SALT_CAPTCHA_SECRET_KEY,
+        value=secret_key,
+        provided=secret_provided,
     )
-    await session.commit()
-    await session.refresh(settings_row)
-    if secret_provided:
-        await _write_secret(
-            system_session, column=CAPTCHA_SECRET_FIELD, encrypted=new_secret
-        )
-        secrets_row = await get_app_setting_secrets(system_session)
+    async with _settings_area(
+        session,
+        area="captcha",
+        fields=CAPTCHA_FIELDS,
+        actor_user_id=actor_user_id,
+        secret=secret,
+    ) as settings_row:
+        settings_row.captcha_provider = _normalize_optional_string(provider)
+        settings_row.captcha_site_key = _normalize_optional_string(site_key)
+    secrets_row = await _store_secret(system_session, secret)
     from app.services import captcha_config
 
     await captcha_config.refresh_captcha_config(session)
@@ -993,42 +959,26 @@ async def update_push_settings(
 
     Same order and the same reasons as :func:`update_captcha_settings`.
     """
-    settings_row = await ensure_settings_row(session)
-    secrets_row = await get_app_setting_secrets(system_session)
-    stored_secret = secrets_row.fcm_service_account_json_encrypted
-    before = {
-        **audit_service.snapshot(settings_row, PUSH_FIELDS),
-        PUSH_SECRET_FIELD: stored_secret,
-    }
-    new_secret = stored_secret
-    if secret_provided:
-        normalized = _normalize_optional_string(service_account_json)
-        new_secret = (
-            encrypt_field(normalized, SALT_FCM_SERVICE_ACCOUNT) if normalized else None
-        )
-    settings_row.fcm_enabled = bool(enabled)
-    settings_row.fcm_project_id = _normalize_optional_string(project_id)
-    settings_row.fcm_application_id = _normalize_optional_string(application_id)
-    settings_row.fcm_api_key = _normalize_optional_string(api_key)
-    settings_row.fcm_sender_id = _normalize_optional_string(sender_id)
-    session.add(settings_row)
-    await record_settings_area(
-        session,
-        actor_user_id=actor_user_id,
-        area="push",
-        before=before,
-        row=settings_row,
-        fields=PUSH_FIELDS,
-        extras={"secret_changed": stored_secret != new_secret},
-        secrets_after={PUSH_SECRET_FIELD: new_secret},
+    secret = await _secret_change(
+        system_session,
+        field=PUSH_SECRET_FIELD,
+        salt=SALT_FCM_SERVICE_ACCOUNT,
+        value=service_account_json,
+        provided=secret_provided,
     )
-    await session.commit()
-    await session.refresh(settings_row)
-    if secret_provided:
-        await _write_secret(
-            system_session, column=PUSH_SECRET_FIELD, encrypted=new_secret
-        )
-        secrets_row = await get_app_setting_secrets(system_session)
+    async with _settings_area(
+        session,
+        area="push",
+        fields=PUSH_FIELDS,
+        actor_user_id=actor_user_id,
+        secret=secret,
+    ) as settings_row:
+        settings_row.fcm_enabled = bool(enabled)
+        settings_row.fcm_project_id = _normalize_optional_string(project_id)
+        settings_row.fcm_application_id = _normalize_optional_string(application_id)
+        settings_row.fcm_api_key = _normalize_optional_string(api_key)
+        settings_row.fcm_sender_id = _normalize_optional_string(sender_id)
+    secrets_row = await _store_secret(system_session, secret)
     from app.services.platform import push_config
 
     await push_config.refresh_push_config(session)

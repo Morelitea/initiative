@@ -49,7 +49,7 @@ from app.services.auth import addresses
 from app.services.platform import billing as billing_service
 from app.services.platform import billing_ping
 
-from app.services.platform import account_stream
+from app.services.platform import account_stream, user_stream
 from app.services.platform import contact_grants as contact_grants_service
 from app.services.platform.retention import COMMUNITY_DELETION, COMMUNITY_HOLD
 from app.db.request_context import Platform, SystemGuild, Unattributed
@@ -263,30 +263,6 @@ async def get_primary_guild(session: AsyncSession) -> Guild:
 async def get_primary_guild_id(session: AsyncSession) -> int:
     guild = await get_primary_guild(session)
     return guild.id  # ty: ignore[invalid-return-type]
-
-
-async def record_settings_change(
-    session: AsyncSession,
-    *,
-    guild_id: int,
-    actor_user_id: int | None,
-    area: str,
-    before: dict[str, object],
-    after: dict[str, object],
-) -> None:
-    """Record one area of a guild's settings, when that area moved."""
-    changes = audit_service.changed_fields(before, after)
-    if not changes["changed"]:
-        return
-    await audit_service.record(
-        session,
-        event_type=AuditEventType.GUILD_SETTINGS_CHANGED,
-        actor_user_id=actor_user_id,
-        guild_id=guild_id,
-        target_type="guild",
-        target_id=guild_id,
-        detail={"area": area, **changes},
-    )
 
 
 async def get_guild(session: AsyncSession, guild_id: int) -> Guild:
@@ -2050,7 +2026,7 @@ async def _signal_members_present(
     rows = await session.exec(
         select(GuildMembership.user_id).where(GuildMembership.guild_id == guild_id)
     )
-    account_stream.queue_for_members(session, rows.all(), action)
+    user_stream.queue_signals(session, rows.all(), account_stream.RESOURCE, action)
 
 
 async def assert_community_directory_enabled(session: AsyncSession) -> None:

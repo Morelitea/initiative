@@ -2523,6 +2523,7 @@ async def billing_guild_ref(guild_id: int) -> str:
     that posts to the billing boundary needs the value that boundary would
     actually receive — which is the one the service itself would mint.
     """
+    from app.models.platform.identity_ref import IdentityEntity
     from app.services.platform import identity_refs
 
-    return await identity_refs.billing_guild_ref(guild_id=guild_id)
+    return await identity_refs.billing_ref(IdentityEntity.guild, guild_id)

@@ -14,7 +14,7 @@ from app.models.platform.contact_grant import ContactGrantKind
 from app.models.platform.user_dm_settings import DmPolicy
 from app.models.platform.user_ignore import UserIgnore
 from app.services.platform import contact_grants as contact_grants_service
-from app.services.platform import contacts_stream, notify_bus, user_ignores
+from app.services.platform import contacts_stream, notify_bus, user_ignores, user_stream
 from app.testing.sockets import FakeWebSocket, settle
 from app.testing import create_user
 from sqlalchemy import text
@@ -159,7 +159,7 @@ async def test_a_fan_out_publishes_for_everyone_it_names(
 
     monkeypatch.setattr(notify_bus, "notify", _capture)
 
-    contacts_stream.queue_many(session, [here.id, away.id])
+    user_stream.queue_signals(session, [here.id, away.id], contacts_stream.RESOURCE)
     await session.commit()
     await settle()
 

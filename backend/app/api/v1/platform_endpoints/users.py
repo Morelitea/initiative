@@ -126,6 +126,7 @@ from app.core.encryption import SALT_EMAIL, decrypt_field
 from app.core.messages import (
     AuthMessages,
     GuildMessages,
+    ImageMessages,
     InitiativeMessages,
     LegalMessages,
     UserMessages,
@@ -148,7 +149,8 @@ from app.services.platform import legal as legal_service
 from app.services.content_sockets import sockets as content_sockets
 from app.services.platform import presence
 from app.services.platform import usernames as username_service
-from app.models.platform.user_avatar import AVATAR_CONTENT_TYPES, AVATAR_MAX_BYTES
+from app.models.platform.user_avatar import AVATAR_SPEC
+from app.services.tenant.attachments import FileTooLargeError, read_upload_bounded
 from app.models.platform.user_profile_view import (
     GuildMember,
     MemberProfile,
@@ -1990,7 +1992,7 @@ async def read_user_avatar(user_id: int, digest: str, session: SessionDep) -> Re
     responses={
         200: {
             "description": "The picture.",
-            "content": {media: {} for media in sorted(AVATAR_CONTENT_TYPES)},
+            "content": {media: {} for media in sorted(AVATAR_SPEC.content_types)},
         }
     },
 )
@@ -2039,7 +2041,13 @@ async def upload_my_avatar(
     Runs on the request-path session, where the row policies allow the caller
     to write their own avatar and no other.
     """
-    data = await file.read(AVATAR_MAX_BYTES + 1)
+    try:
+        data = await read_upload_bounded(file, AVATAR_SPEC.max_bytes)
+    except FileTooLargeError:
+        raise HTTPException(
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+            detail=ImageMessages.IMAGE_TOO_LARGE,
+        )
     validated = user_avatars_service.validate_avatar(data)
 
     # Records the serving URL on the user row too, so every payload that

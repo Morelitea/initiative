@@ -36,16 +36,3 @@ def queue_account_signal(
     behind it closely enough to correct that.
     """
     user_stream.queue_frame(session, user_id, user_stream.build_frame(RESOURCE, action))
-
-
-def queue_for_members(session: Any, user_ids: Any, action: str = "changed") -> None:
-    """Signal a set of accounts at once — a whole community's members.
-
-    Listing a community changes the answer for everybody already in it, which
-    is the one fan-out this channel has. Callers pass the whole set: each frame
-    goes to this worker's sockets and onto the bus for every other worker's,
-    and a caller that narrowed to its own sockets first would be answering for
-    processes it cannot see.
-    """
-    for user_id in user_ids:
-        queue_account_signal(session, user_id, action)
