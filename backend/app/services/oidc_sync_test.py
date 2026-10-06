@@ -1,15 +1,11 @@
-"""Claim sync and auto-join enrolment share a user's first arrival in a guild.
-
-Coverage here is deliberately narrow: it pins the ordering between the two, the
-invariant that is easy to break and silent when broken. The module's wider
-behaviour — the stale sweep, role changes, idempotency — is still uncovered and
-tracked in #1279.
-"""
+"""Claim sync: a user's first arrival in a guild beside auto-join enrolment,
+and leaving a tenant whose rules no longer grant a membership."""
 
 import pytest
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.db import post_commit
 from app.db.session import set_rls_context
 from app.models.platform.guild import GuildMembership, CommunityRole
 from app.models.platform.platform_provider_default import PlatformProviderDefault
@@ -18,8 +14,10 @@ from app.models.platform.oidc_claim_mapping import (
     OIDCClaimMapping,
     OIDCMappingTargetType,
 )
+from app.models.tenant.guild_plugin_user_connection import GuildPluginUserConnection
 from app.models.tenant.initiative import InitiativeMember
 from app.services.oidc_sync import sync_oidc_assignments
+from app.services.tenant import plugin_revocation
 from app.services.tenant.initiatives import get_role_by_name
 from app.testing.factories import (
     NARROWED_CLAIM,
@@ -27,7 +25,9 @@ from app.testing.factories import (
     create_guild_provider_connection,
     create_auth_provider,
     create_guild,
+    create_guild_plugin,
     create_initiative,
+    create_plugin_user_connection,
     create_user,
 )
 from app.db.request_context import SystemGuild, Unattributed
@@ -214,30 +214,60 @@ async def test_a_community_that_has_not_connected_follows_the_deployment_default
 
 
 async def test_leaving_the_tenant_hands_back_what_its_rules_granted(
-    session: AsyncSession,
+    session: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ):
     """The same group asserted for somebody the connection no longer admits
-    releases the membership that provider's rules gave them."""
+    releases the membership that provider's rules gave them, as leaving does:
+    the plug-in credentials they connected there end with it."""
+    revoked: list = []
+
+    async def _capture(intents):
+        revoked.extend(intents)
+
+    monkeypatch.setattr(plugin_revocation, "dispatch_revocations", _capture)
     owner = await create_user(session)
     guild = await create_guild(session, creator=owner)
+    guild_id = guild.id
     provider = await create_auth_provider(session, slug="corp")
     await create_guild_provider_connection(session, guild=guild, provider=provider)
     person = await create_user(session)
-    await _guild_rule(session, provider_id=provider.id, guild_id=guild.id)
+    person_id = person.id
+    plugin = await create_guild_plugin(
+        session,
+        guild,
+        owner,
+        definition={
+            "plugin_kind": "service",
+            "service": {"public_id": "tests.sync", "protocol": 1},
+            "connections": [{"id": "github", "scope": "member"}],
+        },
+    )
+    await create_plugin_user_connection(session, plugin, person)
+    await _guild_rule(session, provider_id=provider.id, guild_id=guild_id)
     await session.commit()
 
-    await _sync(session, user_id=person.id, provider_id=provider.id, claims=_ADMITTED)
-    assert await _joined(session, person.id) == {guild.id}
+    await _sync(session, user_id=person_id, provider_id=provider.id, claims=_ADMITTED)
+    assert await _joined(session, person_id) == {guild_id}
 
     result = await _sync(
         session,
-        user_id=person.id,
+        user_id=person_id,
         provider_id=provider.id,
         claims={NARROWED_CLAIM: "elsewhere.example"},
     )
+    await post_commit.settle_all()
 
-    assert result.guilds_removed == [guild.id]
-    assert await _joined(session, person.id) == set()
+    assert result.guilds_removed == [guild_id]
+    assert await _joined(session, person_id) == set()
+    await set_rls_context(session, SystemGuild(guild_id))
+    assert (
+        await session.exec(
+            select(GuildPluginUserConnection).where(
+                GuildPluginUserConnection.user_id == person_id
+            )
+        )
+    ).all() == []
+    assert [i.reason for i in revoked] == ["claim_sync"]
 
 
 async def test_auto_join_still_covers_what_the_claims_do_not(session: AsyncSession):

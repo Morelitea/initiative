@@ -54,6 +54,7 @@ from app.models.tenant.wiki import Wiki, WikiPage
 from app.models.tenant.post_poll import PostPoll, PostPollOption
 from app.models.tenant.guild_plugin import GuildPlugin
 from app.models.tenant.guild_plugin_secret import GuildPluginSecret
+from app.models.tenant.guild_plugin_user_connection import GuildPluginUserConnection
 from app.models.tenant.calendar_event import CalendarEvent, CalendarEventAttendee
 from app.models.tenant.comment import Comment
 from app.models.tenant.counter import Counter, CounterGroup
@@ -67,6 +68,7 @@ from app.services.marketplace import catalog as marketplace_catalog
 from app.services.marketplace.registration_lookup import invalidate_registrations
 from app.services.tenant import file_versions
 from app.services.tenant import plugin_schedules
+from app.services.tenant.plugin_config import mint_connection_ref
 from app.services.tenant.dashboard_definition import (
     normalize_dashboard_definition,
 )
@@ -1219,6 +1221,33 @@ async def create_guild_plugin(
     await plugin_installs.record(guild.id, plugin)
     await plugin_schedules.reconcile(guild.id, plugin.id, plugin.definition)
     return plugin
+
+
+async def create_plugin_user_connection(
+    session: AsyncSession,
+    plugin: GuildPlugin,
+    user: User,
+    *,
+    connection_id: str = "github",
+    **overrides: Any,
+) -> GuildPluginUserConnection:
+    """A member's credential for one of ``plugin``'s connections, as a
+    completed flow leaves it."""
+    await route_session_to_guild(session, guild_of(plugin))
+    row = GuildPluginUserConnection(
+        **{
+            "plugin_id": plugin.id,
+            "connection_id": connection_id,
+            "user_id": user.id,
+            "connection_ref": mint_connection_ref(),
+            "status": "connected",
+            **overrides,
+        }
+    )
+    session.add(row)
+    await session.commit()
+    await session.refresh(row)
+    return row
 
 
 _TEST_PLUGIN_KEY = ec.generate_private_key(ec.SECP256R1())
