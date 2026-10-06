@@ -168,8 +168,8 @@
         "comments_other": "{{count}} commentaires",
         "images_one": "{{count}} image ({{size}})",
         "images_other": "{{count}} images ({{size}})",
-        "files_one": "{{count}} fichier joint, en document sur sa tâche ({{size}})",
-        "files_other": "{{count}} fichiers joints, chacun en document sur sa tâche ({{size}})",
+        "files_one": "{{count}} fichier joint, en fichier sur sa tâche ({{size}})",
+        "files_other": "{{count}} fichiers joints, chacun en fichier sur sa tâche ({{size}})",
         "sprints_one": "{{count}} sprint dans {{calendars}} calendrier(s)",
         "sprints_other": "{{count}} sprints dans {{calendars}} calendrier(s)",
         "propertiesTitle": "Champs qui deviennent des propriétés",
@@ -216,12 +216,12 @@
         "attachments_other": "{{count}} fichiers joints restent de côté, car les pièces jointes étaient désactivées",
         "commentsResolved_one": "{{count}} commentaire en ligne résolu",
         "commentsResolved_other": "{{count}} commentaires en ligne résolus",
-        "attachmentsArriving_one": "{{count}} pièce jointe ({{size}}) : les images là où les pages les montrent, les fichiers comme documents dans le wiki",
-        "attachmentsArriving_other": "{{count}} pièces jointes ({{size}}) : les images là où les pages les montrent, les fichiers comme documents dans le wiki",
+        "attachmentsArriving_one": "{{count}} pièce jointe ({{size}}) : les images là où les pages les montrent, les fichiers dans le wiki",
+        "attachmentsArriving_other": "{{count}} pièces jointes ({{size}}) : les images là où les pages les montrent, les fichiers dans le wiki",
         "attachmentsSkipped_one": "{{count}} pièce jointe trop volumineuse ou illisible",
         "attachmentsSkipped_other": "{{count}} pièces jointes trop volumineuses ou illisibles",
-        "filesBlocked_one": "{{count}} fichier, car les documents sont désactivés dans cette initiative",
-        "filesBlocked_other": "{{count}} fichiers, car les documents sont désactivés dans cette initiative",
+        "filesBlocked_one": "{{count}} fichier, car les fichiers sont désactivés dans cette initiative",
+        "filesBlocked_other": "{{count}} fichiers, car les fichiers sont désactivés dans cette initiative",
         "dropped": "Laissé de côté : {{items}}"
       }
     }
@@ -269,7 +269,7 @@
     "source": {
       "backup": "Sauvegarde",
       "initiative-project": "Projet",
-      "initiative-document": "Document",
+      "initiative-file": "Fichier",
       "initiative-queue": "File",
       "initiative-calendar": "Calendrier",
       "initiative-post": "Publication",

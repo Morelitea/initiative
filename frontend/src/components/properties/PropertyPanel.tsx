@@ -48,7 +48,7 @@ const valuesOf = (properties: PropertySummary[]) =>
  * no Save button.
  *
  * Keyed by the row: a host that stays on screen while it moves to another row
- * (a wiki page's drawer, a document opened from a document) gets a fresh one,
+ * (a wiki page's drawer, a file opened from a file) gets a fresh one,
  * so one row's edits and additions never reach the next.
  */
 export const PropertyPanel = (props: PropertyPanelProps) => (

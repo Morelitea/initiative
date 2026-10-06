@@ -53,7 +53,7 @@ export const buildUniqueOptionSlug = (label: string, existing: PropertyOption[])
  * Normalize a draft option list for submission. The editor UI only collects a
  * label per option; the stored ``value`` slug is derived here. An option that
  * already carries a value (i.e. loaded from an existing definition) keeps it
- * verbatim so persisted task/document values stay attached; a freshly added
+ * verbatim so persisted task/file values stay attached; a freshly added
  * option derives its value from the label. Colliding slugs are disambiguated
  * with a numeric suffix, blank rows are dropped.
  */

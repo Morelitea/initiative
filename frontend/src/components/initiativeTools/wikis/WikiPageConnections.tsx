@@ -13,7 +13,7 @@ interface WikiPageConnectionsProps {
 }
 
 /**
- * What this page — or a document filed in the wiki — connects to: the same
+ * What this page — or a file filed in the wiki — connects to: the same
  * Connections section every tool shows.
  *
  * Read-only here. A wiki is explored rather than administered, and its links

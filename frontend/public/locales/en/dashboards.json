@@ -114,7 +114,7 @@
     "all_calendar": "All calendars",
     "all_counter_group": "All counter groups",
     "all_counter": "All counters",
-    "all_document": "All spreadsheets",
+    "all_file": "All spreadsheets",
     "pluginEndpoint": "What it reads",
     "plugin": "Plug-in",
     "pluginPlaceholder": "Choose a plug-in",
@@ -242,7 +242,7 @@
     "is_null": "is empty"
   },
   "bindingParam": {
-    "document": "Spreadsheet",
+    "file": "Spreadsheet",
     "sheet": "Sheet",
     "range": "Range",
     "plugin_uid": "Plug-in",

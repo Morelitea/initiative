@@ -154,7 +154,7 @@ export function EventSettingsPage() {
   // details toast.
   const saveTags = useUpdateCalendarEvent(eventId);
 
-  // Tags persist immediately on change (like tasks/documents), no Save button.
+  // Tags persist immediately on change (like tasks/files), no Save button.
   // Optimistically update, then roll back to the prior selection if the save
   // fails (the hook surfaces an error toast on its own).
   const handleTagsChange = (newTags: TagSummary[]) => {

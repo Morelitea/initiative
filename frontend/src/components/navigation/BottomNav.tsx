@@ -71,7 +71,7 @@ export function BottomNav() {
 
   // Hide the add button entirely on a create-context route where the user lacks
   // permission. Non-create routes (no registration) fall back to the global menu,
-  // which itself hides when the user can create neither tasks nor documents in
+  // which itself hides when the user can create neither tasks nor files in
   // any of their communities.
   const canCreateGlobal = globalCreate.tool || globalCreate.task;
   const hideAdd = isCreateContext ? action === null : !canCreateGlobal;
@@ -180,9 +180,9 @@ export function BottomNav() {
                   </DropdownMenuItem>
                 )}
                 {globalCreate.tool && (
-                  <DropdownMenuItem onSelect={() => getOpenCreateToolWizard(Tool.document)?.()}>
+                  <DropdownMenuItem onSelect={() => getOpenCreateToolWizard(Tool.file)?.()}>
                     <FilePlus className="mr-2 h-4 w-4" />
-                    {t("bottomNav.addDocument")}
+                    {t("bottomNav.addFile")}
                   </DropdownMenuItem>
                 )}
               </DropdownMenuContent>

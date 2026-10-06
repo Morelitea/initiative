@@ -26,7 +26,7 @@ interface DrawingCanvasProps {
 }
 
 /** The whiteboard editor, on one drawing. Saving hands back the scene in the
- * shape a whiteboard document stores; cancelling hands back nothing. */
+ * shape a whiteboard file stores; cancelling hands back nothing. */
 export default function DrawingCanvas({
   initialData,
   theme,
@@ -44,7 +44,7 @@ export default function DrawingCanvas({
     }
     const elements = current.getSceneElements();
     const allFiles = current.getFiles();
-    // The same trimmed form a whiteboard document saves: what is on the
+    // The same trimmed form a whiteboard file saves: what is on the
     // canvas, the view settings worth keeping, and only the pictures still
     // in use.
     const serialized = JSON.parse(

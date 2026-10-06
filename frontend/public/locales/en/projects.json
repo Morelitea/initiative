@@ -188,8 +188,8 @@
     "presetMoveUp": "Move preset up",
     "presetMoveDown": "Move preset down"
   },
-  "documents": {
-    "newDocument": "New document"
+  "files": {
+    "newFile": "New file"
   },
   "tasks": {
     "projectTasks": "Project tasks",

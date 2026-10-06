@@ -60,9 +60,9 @@
       "noDestination": "This export is over {{limit}} and this server has no export folder set up, so it can't be downloaded. Ask whoever runs this server to configure one."
     },
     "report": {
-      "documentNative": "Text documents",
-      "documentSpreadsheet": "Spreadsheets",
-      "documentOthersNote": "Whiteboards and links export as JSON; uploaded files ride along unchanged."
+      "fileNative": "Text documents",
+      "fileSpreadsheet": "Spreadsheets",
+      "fileOthersNote": "Whiteboards and links export as JSON; uploaded files ride along unchanged."
     },
     "format": {
       "prompt": "Choose a format"
@@ -162,7 +162,7 @@
       "tasks": "Tasks",
       "events": "Events",
       "project": "Project",
-      "document": "Document",
+      "file": "File",
       "queue": "Queue",
       "calendar": "Calendar",
       "post": "Post",

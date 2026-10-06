@@ -2,7 +2,7 @@ import { Copy, Loader2, Tags, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { DocumentType, TagSummary, Tool } from "@/api/generated/initiativeAPI.schemas";
+import type { FileType, TagSummary, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { BulkAccessBar } from "@/components/access/BulkAccessBar";
 import {
   type BulkAccessItem,
@@ -26,8 +26,8 @@ interface GridSelectionLike<T> {
 /** A selected row, as the bulk actions read it. */
 type BulkItem = BulkAccessItem & {
   tags?: TagSummary[] | null;
-  /** A document's type, which decides the formats it exports to. */
-  document_type?: DocumentType;
+  /** A file's type, which decides the formats it exports to. */
+  file_type?: FileType;
 };
 
 interface BulkAccessSectionProps<T extends BulkItem> {

@@ -1,10 +1,10 @@
 /**
  * Links between things, as the one endpoint that serves all of them.
  *
- * The five per-tool attach routes — a project's documents, a queue item's
- * documents and tasks, an event's documents — were the same request with
+ * The five per-tool attach routes — a project's files, a queue item's
+ * files and tasks, an event's files — were the same request with
  * different kinds in it. So is everything here: what varies between attaching a
- * document to a project and a task to a queue item is which two things are
+ * file to a project and a task to a queue item is which two things are
  * named, and that is an argument.
  */
 

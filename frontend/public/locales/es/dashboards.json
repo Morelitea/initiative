@@ -114,7 +114,7 @@
     "all_calendar": "Todos los calendarios",
     "all_counter_group": "Todos los grupos de contadores",
     "all_counter": "Todos los contadores",
-    "all_document": "Todas las hojas de cálculo",
+    "all_file": "Todas las hojas de cálculo",
     "pluginEndpoint": "Qué lee",
     "plugin": "Complemento",
     "pluginPlaceholder": "Elige un complemento",
@@ -242,7 +242,7 @@
     "due": "Vence"
   },
   "bindingParam": {
-    "document": "Hoja de cálculo",
+    "file": "Hoja de cálculo",
     "sheet": "Hoja",
     "range": "Rango",
     "plugin_uid": "Complemento",

@@ -5,10 +5,10 @@
  * its own copy of these tests. The cases come from the page's own `TOOL_INDEX`:
  * add a tool with an entry and it is covered here the moment it exists.
  *
- * What only one tool's list takes — a queue's status, a document's type — is
+ * What only one tool's list takes — a queue's status, a file's type — is
  * asked of that tool alone, at the bottom. So is what only one tool configures
  * today (files dropped on the list, the reader's own order): the page does it
- * for any tool whose entry asks, and documents and projects are the ones that do.
+ * for any tool whose entry asks, and files and projects are the ones that do.
  */
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -57,8 +57,8 @@ const shared = (key: string) => translate(key, { ns: "common" });
  * loudly rather than render a blank.
  */
 const CARD_FIELDS: Partial<Record<Tool, Record<string, unknown>>> = {
-  document: {
-    document_type: "native",
+  file: {
+    file_type: "native",
     featured_image_url: null,
     is_template: false,
     properties: [],
@@ -428,15 +428,15 @@ describe("the tool index page's bulk actions", () => {
     const readOnly = { ...ownerCan(), edit: false, delete: false };
     const templates = [
       {
-        ...row(Tool.document, { id: 6, name: "Brief template" }),
+        ...row(Tool.file, { id: 6, name: "Brief template" }),
         is_template: true,
         can: readOnly,
       },
-      { ...row(Tool.document, { id: 7, name: "Memo template" }), is_template: true, can: readOnly },
+      { ...row(Tool.file, { id: 7, name: "Memo template" }), is_template: true, can: readOnly },
     ];
-    const requests = stubList(Tool.document, templates);
+    const requests = stubList(Tool.file, templates);
     server.use(
-      communityHttp.post("/documents/:id/duplicate", ({ params }) =>
+      communityHttp.post("/files/:id/duplicate", ({ params }) =>
         params.id === "6"
           ? HttpResponse.json({ id: 60, initiative_id: INITIATIVE_ID })
           : new HttpResponse(null, { status: 500 })
@@ -445,7 +445,7 @@ describe("the tool index page's bulk actions", () => {
 
     // The app's own client, which the bulk action's refresh reaches.
     renderPage(
-      () => <ToolIndexPage tool={Tool.document} fixedInitiativeId={INITIATIVE_ID} canCreate />,
+      () => <ToolIndexPage tool={Tool.file} fixedInitiativeId={INITIATIVE_ID} canCreate />,
       { routerSearch: { status: "templates" }, queryClient }
     );
     onTestFinished(() => queryClient.clear());
@@ -464,59 +464,55 @@ describe("the tool index page's bulk actions", () => {
   });
 });
 
-describe("the document index page", () => {
-  const entry = toolIndexEntry(Tool.document) as ToolIndexEntry;
-  const documents = (key: string) => translate(key, { ns: "documents" });
+describe("the file index page", () => {
+  const entry = toolIndexEntry(Tool.file) as ToolIndexEntry;
+  const files = (key: string) => translate(key, { ns: "files" });
 
   /** Rendered in the layout a reader left the list in. */
   const renderIn = (layout: "grid" | "list" | "tags", canCreate = true) => {
     const queryClient = createTestQueryClient();
     queryClient.setQueryData(VIEW_PREFERENCES_QUERY_KEY, {
-      items: { [`${Tool.document}:view-mode`]: layout },
+      items: { [`${Tool.file}:view-mode`]: layout },
     });
     return renderPage(
       () => (
-        <ToolIndexPage
-          tool={Tool.document}
-          fixedInitiativeId={INITIATIVE_ID}
-          canCreate={canCreate}
-        />
+        <ToolIndexPage tool={Tool.file} fixedInitiativeId={INITIATIVE_ID} canCreate={canCreate} />
       ),
       { queryClient }
     );
   };
 
   it("narrows by type within the view being shown", async () => {
-    const requests = stubList(Tool.document, []);
+    const requests = stubList(Tool.file, []);
 
-    renderIndex(Tool.document);
+    renderIndex(Tool.file);
     await screen.findByText(copy(entry, "emptyTitle"));
-    expect(requests.at(-1)?.get("document_type")).toBeNull();
+    expect(requests.at(-1)?.get("file_type")).toBeNull();
 
     await userEvent.click(screen.getByRole("button", { name: shared("toolbar.filters") }));
-    await userEvent.click(screen.getByRole("combobox", { name: documents("filters.type") }));
+    await userEvent.click(screen.getByRole("combobox", { name: files("filters.type") }));
     await userEvent.click(
-      await screen.findByRole("option", { name: documents("filters.types.whiteboard") })
+      await screen.findByRole("option", { name: files("filters.types.whiteboard") })
     );
 
-    await waitFor(() => expect(requests.at(-1)?.get("document_type")).toBe("whiteboard"));
+    await waitFor(() => expect(requests.at(-1)?.get("file_type")).toBe("whiteboard"));
     expect(requests.at(-1)?.get("is_template")).toBe("false");
   });
 
   it("is made from a dialog of its own", async () => {
-    stubList(Tool.document, []);
+    stubList(Tool.file, []);
 
-    renderIndex(Tool.document);
+    renderIndex(Tool.file);
     await userEvent.click(await screen.findByRole("button", { name: copy(entry, "create") }));
 
     const dialog = await screen.findByRole("dialog");
     expect(
-      within(dialog).getByRole("tab", { name: documents("create.tabUpload") })
+      within(dialog).getByRole("tab", { name: files("create.tabUpload") })
     ).toBeInTheDocument();
   });
 
   it("opens its table newest first, and remembers another order for the next visit", async () => {
-    const requests = stubList(Tool.document, [row(Tool.document, { id: 1, name: "Brief" })]);
+    const requests = stubList(Tool.file, [row(Tool.file, { id: 1, name: "Brief" })]);
 
     const first = renderIn("list");
     await screen.findByText("Brief");
@@ -542,34 +538,32 @@ describe("the document index page", () => {
     it.each(["tags", "grid", "list"] as const)(
       "opens an upload holding a file dropped on the %s layout",
       async (layout) => {
-        stubList(Tool.document, [row(Tool.document, { id: 1, name: "Existing" })]);
+        stubList(Tool.file, [row(Tool.file, { id: 1, name: "Existing" })]);
 
         const { container } = renderIn(layout);
         await screen.findByText("Existing");
         const root = container.querySelector(".relative.space-y-6") as HTMLElement;
         fireEvent.dragEnter(root, drag([]));
-        expect(screen.getByText(documents("dropToUpload"))).toBeInTheDocument();
+        expect(screen.getByText(files("dropToUpload"))).toBeInTheDocument();
         fireEvent.drop(root, drag([brief()]));
 
         const dialog = await screen.findByRole("dialog");
         expect(
-          within(dialog).getByRole("tab", { name: documents("create.tabUpload") })
+          within(dialog).getByRole("tab", { name: files("create.tabUpload") })
         ).toHaveAttribute("aria-selected", "true");
         expect(within(dialog).getByText("site-brief.pdf")).toBeInTheDocument();
-        expect(within(dialog).getByLabelText(documents("create.titleLabel"))).toHaveValue(
-          "site-brief"
-        );
+        expect(within(dialog).getByLabelText(files("create.titleLabel"))).toHaveValue("site-brief");
       }
     );
 
-    it("takes no drop from somebody who may not create documents", async () => {
-      stubList(Tool.document, [row(Tool.document, { id: 1, name: "Existing" })]);
+    it("takes no drop from somebody who may not create files", async () => {
+      stubList(Tool.file, [row(Tool.file, { id: 1, name: "Existing" })]);
 
       const { container } = renderIn("list", false);
       await screen.findByText("Existing");
       const root = container.querySelector(".relative.space-y-6") as HTMLElement;
       fireEvent.dragEnter(root, drag([]));
-      expect(screen.queryByText(documents("dropToUpload"))).not.toBeInTheDocument();
+      expect(screen.queryByText(files("dropToUpload"))).not.toBeInTheDocument();
       fireEvent.drop(root, drag([brief()]));
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     });

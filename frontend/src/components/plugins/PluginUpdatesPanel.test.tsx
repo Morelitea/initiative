@@ -93,7 +93,7 @@ describe("PluginUpdatesPanel", () => {
           update_version: "1.2.0",
           pending_update: {
             version: "1.2.0",
-            added_scopes: ["documents:write"],
+            added_scopes: ["files:write"],
             added_surfaces: [{ id: "planner", name: { en: "Planner" } }],
             declined: false,
           },
@@ -109,7 +109,7 @@ describe("PluginUpdatesPanel", () => {
 
     screen.getByRole("button", { name: "Accept and update" }).click();
     expect(upgraded).toHaveBeenCalledWith(
-      { version: "1.2.0", add_scopes: ["documents:write"] },
+      { version: "1.2.0", add_scopes: ["files:write"] },
       expect.anything()
     );
   });
@@ -140,7 +140,7 @@ describe("PluginUpdatesPanel", () => {
           update_version: "1.2.0",
           pending_update: {
             version: "1.2.0",
-            added_scopes: ["documents:read"],
+            added_scopes: ["files:read"],
             added_surfaces: [],
             declined: false,
           },
@@ -159,7 +159,7 @@ describe("PluginUpdatesPanel", () => {
           update_version: "1.2.0",
           pending_update: {
             version: "1.2.0",
-            added_scopes: ["documents:read"],
+            added_scopes: ["files:read"],
             added_surfaces: [],
             declined: true,
           },

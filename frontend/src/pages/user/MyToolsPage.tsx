@@ -3,7 +3,7 @@
  *
  * Pick a tool from the rail, see everything of that kind that reaches you —
  * across every community you're in, not one at a time. It replaced the
- * separate My Projects and My Documents pages, which were the same table twice
+ * separate My Projects and My Files pages, which were the same table twice
  * for two of the six tools.
  *
  * Two things are its own, and the rest is shared with the community front page

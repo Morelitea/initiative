@@ -236,9 +236,9 @@
         "read": "Read projects",
         "write": "Read and change projects"
       },
-      "documents": {
-        "read": "Read documents",
-        "write": "Read and change documents"
+      "files": {
+        "read": "Read files",
+        "write": "Read and change files"
       },
       "queues": {
         "read": "Read queues",

@@ -24,7 +24,7 @@ import { downloadBlob } from "@/lib/csv";
 const ESTIMATE = {
   tools: {
     project: { count: 3, disabled: false },
-    document: { count: 5, disabled: false },
+    file: { count: 5, disabled: false },
     queue: { count: 0, disabled: true },
     counter_group: { count: 2, disabled: false },
     calendar: { count: 4, disabled: false },
@@ -116,7 +116,7 @@ describe("ExportWizard", () => {
 
     // The confirm summary matches the payload: the deselected tool AND the
     // disabled tool (Queues) are absent from the "will export" list.
-    const summary = screen.getByText(/documents/i, { selector: "p" });
+    const summary = screen.getByText(/files/i, { selector: "p" });
     expect(summary.textContent).not.toMatch(/queues/i);
     expect(summary.textContent).not.toMatch(/counters/i);
     expect(summary.textContent).toMatch(/projects/i);
@@ -129,7 +129,7 @@ describe("ExportWizard", () => {
     expect(params.get("include_uploads")).toBe("true");
     expect(JSON.parse(params.get("include")!)).toMatchObject({
       project: true,
-      document: true,
+      file: true,
       counter_group: false,
       // Disabled tools submit as excluded — matching their locked-off switch.
       queue: false,
@@ -141,7 +141,7 @@ describe("ExportWizard", () => {
     expect(await screen.findByText(/export ready/i)).toBeInTheDocument();
   });
 
-  it("submits per-tool report formats including the document per-type map", async () => {
+  it("submits per-tool report formats including the file per-type map", async () => {
     let sent: URL | null = null;
     stubJobLifecycle((url) => {
       sent = url;
@@ -169,7 +169,7 @@ describe("ExportWizard", () => {
     expect(params.get("mode")).toBe("report");
     const formats = JSON.parse(params.get("formats")!);
     expect(formats.project).toBe("csv");
-    expect(formats.document).toEqual({ native: "pdf", spreadsheet: "xlsx" });
+    expect(formats.file).toEqual({ native: "pdf", spreadsheet: "xlsx" });
     expect(formats.calendar).toBe("ics");
     expect(params.get("include_uploads")).toBeNull();
   });
@@ -325,7 +325,7 @@ describe("ExportWizard", () => {
     expect(JSON.parse(sent!.searchParams.get("filters")!)).toEqual(expected);
   });
 
-  it("narrows projects and documents by templates, and documents to untagged ones", async () => {
+  it("narrows projects and files by templates, and files to untagged ones", async () => {
     const estimates: URLSearchParams[] = [];
     server.use(
       communityHttp.get("/exports/estimate", ({ request }) => {
@@ -353,29 +353,27 @@ describe("ExportWizard", () => {
       })
     );
 
-    const documents = screen.getByRole("group", { name: "Documents" });
-    await user.click(within(documents).getByRole("button", { name: "Filter Documents" }));
+    const files = screen.getByRole("group", { name: "Files" });
+    await user.click(within(files).getByRole("button", { name: "Filter Files" }));
     await user.click(
-      within(within(documents).getByRole("radiogroup", { name: "Templates" })).getByRole("radio", {
+      within(within(files).getByRole("radiogroup", { name: "Templates" })).getByRole("radio", {
         name: "Without templates",
       })
     );
-    await user.click(within(documents).getByRole("switch", { name: "Untagged only" }));
+    await user.click(within(files).getByRole("switch", { name: "Untagged only" }));
 
     const expected = {
       project: { is_template: true },
-      document: { is_template: false, untagged: true },
+      file: { is_template: false, untagged: true },
     };
     await waitFor(() =>
       expect(JSON.parse(estimates.at(-1)?.get("filters") ?? "null")).toEqual(expected)
     );
-    expect(within(documents).getByRole("button", { name: "Filter Documents" })).toHaveTextContent(
-      "2"
-    );
+    expect(within(files).getByRole("button", { name: "Filter Files" })).toHaveTextContent("2");
 
     await user.click(screen.getByRole("button", { name: "Next" }));
     expect(screen.getByText("Projects: Templates only")).toBeInTheDocument();
-    expect(screen.getByText("Documents: Without templates · Untagged only")).toBeInTheDocument();
+    expect(screen.getByText("Files: Without templates · Untagged only")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /start export/i }));
     await waitFor(() => expect(sent).not.toBeNull());

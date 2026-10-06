@@ -250,7 +250,7 @@ export const AddQueueItemDialog = ({
             </div>
           </div>
 
-          {/* One list, any kind — in place of a documents-only picker beside a
+          {/* One list, any kind — in place of a files-only picker beside a
               tasks-only one. No subject to leave out: the item does not exist
               yet. */}
           <EntityLinkField

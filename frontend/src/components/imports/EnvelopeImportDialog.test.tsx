@@ -23,7 +23,7 @@ const initiative = buildInitiative({
     manage: false,
     moderate: false,
     view: [],
-    create: [Tool.queue, Tool.document, Tool.project, Tool.gallery],
+    create: [Tool.queue, Tool.file, Tool.project, Tool.gallery],
   },
 });
 
@@ -191,7 +191,7 @@ describe("EnvelopeImportDialog", () => {
 
   it("rejects a file whose type belongs to a different tool", async () => {
     renderWithProviders(<EnvelopeImportDialog tool={Tool.queue} open onOpenChange={() => {}} />);
-    selectFile({ type: "initiative-document", name: "Notes", schema_version: 1 });
+    selectFile({ type: "initiative-file", name: "Notes", schema_version: 1 });
     expect(await screen.findByText(/import it from that tool's page/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^import$/i })).toBeDisabled();
   });
@@ -224,7 +224,7 @@ describe("EnvelopeImportDialog", () => {
 
     // The earlier read finishes last with a wrong-tool payload — it must NOT
     // overwrite the newer selection's accepted state.
-    releaseSlow(JSON.stringify({ type: "initiative-document", name: "Stale" }));
+    releaseSlow(JSON.stringify({ type: "initiative-file", name: "Stale" }));
     await new Promise((r) => setTimeout(r, 0));
     expect(screen.queryByText(/import it from that tool's page/i)).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^import$/i })).not.toBeDisabled();

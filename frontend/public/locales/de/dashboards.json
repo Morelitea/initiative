@@ -114,7 +114,7 @@
     "all_calendar": "Alle Kalender",
     "all_counter_group": "Alle Zählergruppen",
     "all_counter": "Alle Zähler",
-    "all_document": "Alle Tabellen",
+    "all_file": "Alle Tabellen",
     "pluginEndpoint": "Was es liest",
     "plugin": "Plug-in",
     "pluginPlaceholder": "Plug-in auswählen",
@@ -242,7 +242,7 @@
     "due": "Fällig"
   },
   "bindingParam": {
-    "document": "Tabelle",
+    "file": "Tabelle",
     "sheet": "Blatt",
     "range": "Bereich",
     "plugin_uid": "Plug-in",

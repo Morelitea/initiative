@@ -51,7 +51,7 @@ interface CommentThreadProps {
   onEdit: (commentId: number, content: string) => Promise<boolean>;
   currentUserId?: number;
   initiativeId: number;
-  /** The thing the thread is on, as a reference (`document:12`). Never offered
+  /** The thing the thread is on, as a reference (`file:12`). Never offered
    *  by a reply or an edit — see `CommentInput.subject`. */
   subject?: string | null;
   isSubmitting?: boolean;

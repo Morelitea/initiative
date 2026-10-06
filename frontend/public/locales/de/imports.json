@@ -168,8 +168,8 @@
         "comments_other": "{{count}} Kommentare",
         "images_one": "{{count}} Bild ({{size}})",
         "images_other": "{{count}} Bilder ({{size}})",
-        "files_one": "{{count}} angehängte Datei, als Dokument an ihrer Aufgabe ({{size}})",
-        "files_other": "{{count}} angehängte Dateien, jeweils als Dokument an ihrer Aufgabe ({{size}})",
+        "files_one": "{{count}} angehängte Datei, an ihrer Aufgabe ({{size}})",
+        "files_other": "{{count}} angehängte Dateien, jeweils an ihrer Aufgabe ({{size}})",
         "sprints_one": "{{count}} Sprint in {{calendars}} Kalender(n)",
         "sprints_other": "{{count}} Sprints in {{calendars}} Kalender(n)",
         "propertiesTitle": "Felder, die zu Eigenschaften werden",
@@ -216,12 +216,12 @@
         "attachments_other": "{{count}} angehängte Dateien bleiben zurück, weil Anhänge ausgeschaltet waren",
         "commentsResolved_one": "{{count}} erledigter Inline-Kommentar",
         "commentsResolved_other": "{{count}} erledigte Inline-Kommentare",
-        "attachmentsArriving_one": "{{count}} Anhang ({{size}}): Bilder dort, wo die Seiten sie zeigen, Dateien als Dokumente im Wiki",
-        "attachmentsArriving_other": "{{count}} Anhänge ({{size}}): Bilder dort, wo die Seiten sie zeigen, Dateien als Dokumente im Wiki",
+        "attachmentsArriving_one": "{{count}} Anhang ({{size}}): Bilder dort, wo die Seiten sie zeigen, Dateien im Wiki",
+        "attachmentsArriving_other": "{{count}} Anhänge ({{size}}): Bilder dort, wo die Seiten sie zeigen, Dateien im Wiki",
         "attachmentsSkipped_one": "{{count}} Anhang, der zu groß ist oder nicht gelesen werden konnte",
         "attachmentsSkipped_other": "{{count}} Anhänge, die zu groß sind oder nicht gelesen werden konnten",
-        "filesBlocked_one": "{{count}} Datei, weil in dieser Initiative Dokumente ausgeschaltet sind",
-        "filesBlocked_other": "{{count}} Dateien, weil in dieser Initiative Dokumente ausgeschaltet sind",
+        "filesBlocked_one": "{{count}} Datei, weil in dieser Initiative Dateien ausgeschaltet sind",
+        "filesBlocked_other": "{{count}} Dateien, weil in dieser Initiative Dateien ausgeschaltet sind",
         "dropped": "Ausgelassen: {{items}}"
       }
     }
@@ -269,7 +269,7 @@
     "source": {
       "backup": "Backup",
       "initiative-project": "Projekt",
-      "initiative-document": "Dokument",
+      "initiative-file": "Datei",
       "initiative-queue": "Warteschlange",
       "initiative-calendar": "Kalender",
       "initiative-post": "Beitrag",
