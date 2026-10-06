@@ -107,7 +107,7 @@ export function buildProjectListingEnvelope(
         title: "Draft the announcement",
         priority: "high",
         start_date: null,
-        due_date: "2000-01-05T00:00:00",
+        due_date: "2000-01-05T09:00:00",
         status_name: "To do",
         checklist: [
           { text: "Outline", done: true },
@@ -119,7 +119,7 @@ export function buildProjectListingEnvelope(
         title: "Ship it",
         priority: "low",
         start_date: null,
-        due_date: "2000-01-24T00:00:00",
+        due_date: "2000-01-24T09:00:00",
         status_name: "To do",
         checklist: [],
         properties: [],

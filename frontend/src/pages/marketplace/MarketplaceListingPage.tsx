@@ -12,8 +12,9 @@
  * has nothing yet, and it would read as if the listing already knew about
  * their work.
  *
- * A project listing has no canvas: it is drawn from its own envelope, statuses
- * and tasks as the listing carries them, and reads nothing either.
+ * A project listing is drawn the same way, on the real board: its own
+ * envelope's statuses and tasks, dated from today, and nothing read from the
+ * community either.
  */
 
 import { Link, useParams, useSearch } from "@tanstack/react-router";
@@ -250,7 +251,7 @@ export function MarketplaceListingPage() {
       {listing?.kind === ListingKind.project && (
         <div className="space-y-2">
           <h2 className="font-medium text-sm">{t("detail.preview")}</h2>
-          <ProjectListingPreview definition={listing.definition} example={listing.example} />
+          <ProjectListingPreview listing={listing} />
         </div>
       )}
       {(!listing || listing.kind === ListingKind.dashboard) && (

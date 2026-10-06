@@ -17,7 +17,7 @@
 import { Capacitor } from "@capacitor/core";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { format } from "date-fns";
+import { addDays, format } from "date-fns";
 import { HttpResponse } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -32,6 +32,7 @@ import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
 import type { MarketplaceListingDetail } from "@/api/generated/initiativeAPI.schemas";
+import { formatDate } from "@/lib/formatDate";
 
 import { MarketplaceListingPage } from "./MarketplaceListingPage";
 
@@ -274,7 +275,7 @@ describe("a project listing", () => {
       ...overrides,
     });
 
-  it("draws the board from the listing alone", async () => {
+  it("draws the listing on the real project board, dated from today", async () => {
     const envelope = buildProjectListingEnvelope();
     listing = projectListing({
       // Stored out of order: the columns follow their positions.
@@ -282,26 +283,23 @@ describe("a project listing", () => {
     });
     renderPage(MarketplaceListingPage, { routerSearch: { kind: "project" } });
 
-    const columns = await screen.findAllByRole("region");
-    expect(columns.map((column) => column.getAttribute("aria-label"))).toEqual([
-      "To do",
-      "Doing",
-      "Done",
-    ]);
-    const todo = within(columns[0]);
-    expect(todo.getByText("Draft the announcement")).toBeInTheDocument();
-    // Dates read from the earliest one, since installing moves them all.
-    expect(todo.getByText("Due: Day 3")).toBeInTheDocument();
-    expect(todo.getByText("Due: Week 4")).toBeInTheDocument();
-    expect(todo.getByText("High")).toBeInTheDocument();
-    expect(todo.getByText("1/2 items")).toBeInTheDocument();
-    expect(todo.getByText("Small")).toBeInTheDocument();
-    expect(screen.getByText("Small, Large")).toBeInTheDocument();
+    const title = await screen.findByRole("link", { name: "Draft the announcement" });
+    expect(
+      screen.getAllByRole("button", { name: /^Collapse / }).map((b) => b.getAttribute("aria-label"))
+    ).toEqual(["Collapse To do", "Collapse Doing", "Collapse Done"]);
+    // A preview task has nowhere of its own to open, so its title stays here.
+    expect(title).toHaveAttribute("href", `/c/1/marketplace/${listing?.public_id}`);
+    // The project starts today, as installing it today would have it, so the
+    // task due two days in is due the day after tomorrow.
+    const card = title.closest("[data-kanban-scroll-lock]") as HTMLElement;
+    expect(card).toHaveTextContent(formatDate(format(addDays(new Date(), 2), "yyyy-MM-dd")));
+    expect(within(card).getByText("1/2 items")).toBeInTheDocument();
+    expect(within(card).getByText("Small")).toBeInTheDocument();
     // Nothing to switch to without an example.
     expect(screen.queryByRole("radio", { name: "Example" })).toBeNull();
   });
 
-  it("switches the preview to the example", async () => {
+  it("opens on the example, and switches to the blank", async () => {
     listing = projectListing({
       example: {
         ...buildProjectListingEnvelope(),
@@ -311,10 +309,11 @@ describe("a project listing", () => {
     const user = userEvent.setup();
     renderPage(MarketplaceListingPage, { routerSearch: { kind: "project" } });
 
-    await user.click(await screen.findByRole("radio", { name: "Example" }));
+    expect(await screen.findByText("Announcement drafted")).toBeInTheDocument();
+    await user.click(screen.getByRole("radio", { name: "Blank" }));
 
-    expect(screen.getByText("Announcement drafted")).toBeInTheDocument();
-    expect(screen.queryByText("Draft the announcement")).toBeNull();
+    expect(screen.getByText("Draft the announcement")).toBeInTheDocument();
+    expect(screen.queryByText("Announcement drafted")).toBeNull();
   });
 
   it("installs a copy of the example from the day picked, and opens it", async () => {

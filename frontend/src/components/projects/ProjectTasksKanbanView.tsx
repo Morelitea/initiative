@@ -15,6 +15,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
 import type {
+  PropertyDefinitionRead,
   TaskListRead,
   TaskPriority,
   TaskStatusRead,
@@ -56,6 +57,9 @@ type ProjectTasksKanbanViewProps = {
   onToggleCollapse: (statusId: number) => void;
   onArchiveDoneTasks?: (statusId: number) => void;
   isArchivingDoneTasks?: boolean;
+  /** The properties the cards can show. When given, the board asks for none:
+   *  a listing's preview has no initiative to ask. */
+  propertyDefinitions?: PropertyDefinitionRead[];
 };
 
 export const ProjectTasksKanbanView = ({
@@ -76,6 +80,7 @@ export const ProjectTasksKanbanView = ({
   onToggleCollapse,
   onArchiveDoneTasks,
   isArchivingDoneTasks,
+  propertyDefinitions: givenDefinitions,
 }: ProjectTasksKanbanViewProps) => {
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   useHorizontalDragScroll(scrollContainerRef);
@@ -84,7 +89,11 @@ export const ProjectTasksKanbanView = ({
   // the table's property columns, so the menu lists the properties a task
   // here can actually carry. No default-hidden ids: a board that has never
   // been configured shows everything, as it did before the menu existed.
-  const { data: propertyDefinitions = [] } = useProperties({ initiativeId });
+  const { data: fetchedDefinitions = [] } = useProperties({
+    initiativeId,
+    enabled: !givenDefinitions,
+  });
+  const propertyDefinitions = givenDefinitions ?? fetchedDefinitions;
   // The hook holds this in state, so its identity is stable between changes —
   // which is what lets the memoized card skip re-rendering on every parent pass.
   const [fieldVisibility, setFieldVisibility] = usePersistedColumnVisibility(

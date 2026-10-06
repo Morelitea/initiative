@@ -39,11 +39,7 @@
   "projectPreview": {
     "showing": "Afficher le projet vide ou l'exemple",
     "blank": "Vide",
-    "example": "Exemple",
-    "day": "Jour {{day}}",
-    "week": "Semaine {{week}}",
-    "noTasks": "Aucune tâche",
-    "properties": "Propriétés"
+    "example": "Exemple"
   },
   "install": {
     "title": "Ajouter {{name}}",

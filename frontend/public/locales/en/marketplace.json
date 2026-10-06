@@ -39,11 +39,7 @@
   "projectPreview": {
     "showing": "Show the blank project or the example",
     "blank": "Blank",
-    "example": "Example",
-    "day": "Day {{day}}",
-    "week": "Week {{week}}",
-    "noTasks": "No tasks",
-    "properties": "Properties"
+    "example": "Example"
   },
   "install": {
     "title": "Add {{name}}",
