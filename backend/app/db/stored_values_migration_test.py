@@ -178,6 +178,7 @@ _NEW_DEFINITION = {
 _OLD_WIDGET = {
     "type": "app:SHPAPP00000001:summary",
     "binding": {"source": "app", "app_uid": "SHPAPP00000001", "endpoint_id": _ENDPOINT},
+    "sample_data": {_ENDPOINT: {"rows": []}},
 }
 _NEW_WIDGET = {
     "type": "plugin:SHPAPP00000001:summary",
@@ -186,6 +187,7 @@ _NEW_WIDGET = {
         "plugin_uid": "SHPAPP00000001",
         "endpoint_id": "plugin.tests.plugin-service.summary",
     },
+    "sample_data": {"plugin.tests.plugin-service.summary": {"rows": []}},
 }
 
 

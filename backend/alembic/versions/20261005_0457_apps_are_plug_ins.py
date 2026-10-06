@@ -484,6 +484,10 @@ def _respell(value: Any) -> Any:
         out: dict[str, Any] = {}
         for key, item in value.items():
             key = _KEY_RENAMES.get(key, key)
+            # A map keyed by endpoint id (a widget's ``sample_data``) or by scope.
+            key = _endpoint(key)
+            if _SCOPE.fullmatch(key):
+                key = "plugins:" + key[len("apps:") :]
             item = _respell(item)
             if key == "type" and isinstance(item, str) and item.startswith("app:"):
                 item = "plugin:" + item[len("app:") :]
