@@ -205,7 +205,6 @@
   "QUEUE_CREATE_PERMISSION_REQUIRED": "Berechtigung zum Erstellen von Warteschlangen erforderlich",
   "QUEUE_WRITE_ACCESS_REQUIRED": "Schreibzugriff für diese Warteschlange erforderlich",
   "QUEUE_OWNER_REQUIRED": "Eigentümerberechtigung für die Warteschlange erforderlich",
-  "QUEUE_NOT_ACTIVE": "Die Warteschlange ist nicht aktiv",
   "QUEUE_NO_ITEMS": "Die Warteschlange enthält keine Elemente",
   "QUEUE_NO_CURRENT_ITEM": "Kein aktuelles Element zum Anhalten",
   "QUEUE_ITEM_NOT_HELD": "Dieses Element ist derzeit nicht angehalten",

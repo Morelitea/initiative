@@ -205,7 +205,6 @@
   "QUEUE_CREATE_PERMISSION_REQUIRED": "Permission required to create queues",
   "QUEUE_WRITE_ACCESS_REQUIRED": "Write access required for this queue",
   "QUEUE_OWNER_REQUIRED": "Queue owner permission required",
-  "QUEUE_NOT_ACTIVE": "Queue is not active",
   "QUEUE_NO_ITEMS": "Queue has no items",
   "QUEUE_NO_CURRENT_ITEM": "No current item to hold",
   "QUEUE_ITEM_NOT_HELD": "This item isn't currently held",

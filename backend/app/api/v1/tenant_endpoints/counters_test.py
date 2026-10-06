@@ -99,6 +99,13 @@ async def test_create_counter_group(client: AsyncClient, acting_user):
     assert data["initiative_id"] == a.initiative.id
     assert data["created_by"] == a.user.id
 
+    blank = await client.post(
+        a.g("/counter-groups/"),
+        headers=a.headers,
+        json={"name": "  ", "initiative_id": a.initiative.id},
+    )
+    assert blank.status_code == 422, blank.text
+
 
 async def test_create_counter_group_non_pm_forbidden(client: AsyncClient, acting_user):
     admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
@@ -495,6 +502,16 @@ async def test_update_null_non_nullable_fields_is_refused(
             json={field: None},
         )
         assert response.status_code == 422, field
+
+    # Nor is a name blanked, on a counter or its group, or given blank.
+    for path, method, body in (
+        (f"/counters/{counter['id']}", "PATCH", {"name": "  "}),
+        (f"/counter-groups/{group['id']}", "PATCH", {"name": None}),
+        (f"/counter-groups/{group['id']}", "PATCH", {"name": "  "}),
+        (f"/counter-groups/{group['id']}/counters", "POST", {"name": "  "}),
+    ):
+        response = await client.request(method, a.g(path), headers=a.headers, json=body)
+        assert response.status_code == 422, (path, body)
 
 
 async def test_update_step_zero_rejected(client: AsyncClient, acting_user):

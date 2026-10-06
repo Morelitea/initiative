@@ -3,8 +3,8 @@
 Each test installs a plug-in the way a community does (``install_plugin``: placed in
 initiative A and not in B, granted scopes by the seat), seals an installation
 token for it, and calls the queue and counter routes that name a scope: the
-reads, create and update, the item edit, and the queue's and counters' own
-commands.
+reads, create and update, adding, editing and deleting items and counters, and
+the queue's and counters' own commands.
 """
 
 from __future__ import annotations
@@ -141,6 +141,7 @@ async def test_a_queue_write_needs_the_write_scope(
         ("post", "/queues/", {"name": "No", "initiative_id": installed.placed.id}),
         ("patch", f"/queues/{queue.id}", {"name": "No"}),
         ("patch", f"/queue-items/{item.id}", {"label": "No"}),
+        ("post", f"/queues/{queue.id}/items", {"label": "No"}),
         ("post", f"/queues/{queue.id}/next", None),
         ("post", f"/queues/{queue.id}/start", None),
     ):
@@ -198,6 +199,13 @@ async def test_what_it_creates_is_its_own_and_it_runs_the_turns(
     assert renamed.status_code == 200, renamed.text
     assert renamed.json()["name"] == "Renamed by the plug-in"
 
+    added = await client.post(
+        guild_url(guild_id, f"/queues/{queue.id}/items"),
+        headers=headers,
+        json={"label": "Passing through"},
+    )
+    assert added.status_code == 201, added.text
+
     first = await create_queue_item(session, queue, label="First", position=20)
     second = await create_queue_item(session, queue, label="Second", position=10)
 
@@ -206,13 +214,13 @@ async def test_what_it_creates_is_its_own_and_it_runs_the_turns(
     )
     assert started.status_code == 200, started.text
     assert started.json()["is_active"] is True
-    assert started.json()["current_item"]["id"] == first.id
+    assert started.json()["current_item_id"] == first.id
 
     advanced = await client.post(
         guild_url(guild_id, f"/queues/{queue.id}/next"), headers=headers
     )
     assert advanced.status_code == 200, advanced.text
-    assert advanced.json()["current_item"]["id"] == second.id
+    assert advanced.json()["current_item_id"] == second.id
 
     stopped = await client.post(
         guild_url(guild_id, f"/queues/{queue.id}/stop"), headers=headers
@@ -380,6 +388,10 @@ async def test_a_counter_write_needs_the_write_scope(
         ("post", f"{base}/step", {"direction": "up"}),
         ("post", f"{base}/set", {"count": "3"}),
         ("post", f"{base}/reset", None),
+        ("post", f"/counter-groups/{group.id}/counters", {"name": "No"}),
+        ("patch", base, {"name": "No"}),
+        ("post", f"/counter-groups/{group.id}/reset-all", None),
+        ("post", f"/counter-groups/{group.id}/sort", {"field": "name"}),
     ):
         response = await client.request(
             method, guild_url(guild_id, path), headers=headers, json=payload
@@ -435,8 +447,14 @@ async def test_what_it_creates_is_its_own_and_it_steps_the_counters(
     assert renamed.status_code == 200, renamed.text
     assert renamed.json()["description"] == "Kept by the plug-in"
 
-    counter = await create_counter(session, group, name="Round", initial_count=1)
-    base = guild_url(guild_id, f"/counters/{counter.id}")
+    added = await client.post(
+        guild_url(guild_id, f"/counter-groups/{group.id}/counters"),
+        headers=headers,
+        json={"name": "Round", "initial_count": "1"},
+    )
+    assert added.status_code == 201, added.text
+    counter_id = added.json()["id"]
+    base = guild_url(guild_id, f"/counters/{counter_id}")
 
     stepped = await client.post(
         f"{base}/step", headers=headers, json={"direction": "up"}
@@ -457,7 +475,7 @@ async def test_what_it_creates_is_its_own_and_it_steps_the_counters(
     assert_names_nobody(reset.text, [installed.seat.user.id, guild_id])
 
     await route_session_to_guild(session, guild_id)
-    stored = await session.get(Counter, counter.id, populate_existing=True)
+    stored = await session.get(Counter, counter_id, populate_existing=True)
     assert stored is not None and stored.count == Decimal("1")
 
 

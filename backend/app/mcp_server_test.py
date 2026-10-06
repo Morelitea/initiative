@@ -145,6 +145,8 @@ async def test_mcp_tools_are_curated():
         assert any(stem in n.replace("_", "") for n in names), (
             f"no MCP tool reads {tool.value}"
         )
+    # And what those tools hold reads back by its own id.
+    assert {"read_queue_item", "read_counter", "read_wiki_page"} <= set(names)
 
     # Join requests sit on the initiatives router and would otherwise ride in on
     # its tag, but they name who asked to be let in and quote their note — a

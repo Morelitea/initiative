@@ -156,7 +156,7 @@ export function QueueDetailPage() {
     );
   }
 
-  const currentItemId = queue.current_item?.id ?? null;
+  const currentItemId = queue.current_item_id;
 
   return (
     <div className="space-y-6">

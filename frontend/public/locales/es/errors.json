@@ -203,7 +203,6 @@
   "QUEUE_CREATE_PERMISSION_REQUIRED": "Se requiere permiso para crear colas",
   "QUEUE_WRITE_ACCESS_REQUIRED": "Se requiere acceso de escritura para esta cola",
   "QUEUE_OWNER_REQUIRED": "Se requiere permiso de propietario de la cola",
-  "QUEUE_NOT_ACTIVE": "La cola no está activa",
   "QUEUE_NO_ITEMS": "La cola no tiene elementos",
   "QUEUE_NO_CURRENT_ITEM": "No hay turno actual para retener",
   "QUEUE_ITEM_NOT_HELD": "Este elemento no está retenido",

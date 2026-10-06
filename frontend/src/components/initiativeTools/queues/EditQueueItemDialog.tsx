@@ -147,7 +147,7 @@ export const EditQueueItemDialog = ({
         label: trimmedLabel,
         position: position ? Number(position) : undefined,
         color: color || undefined,
-        notes: notes.trim() || undefined,
+        notes: notes.trim() || null,
         is_visible: isVisible,
         user_id: userId,
         ...(tagsChanged ? { tag_ids: tagIds } : {}),
