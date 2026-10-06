@@ -14,7 +14,7 @@ import { render, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { buildCommunity, buildUser } from "@/__tests__/factories";
+import { buildCommunity, buildPage, buildUser } from "@/__tests__/factories";
 import { createTestQueryClient } from "@/__tests__/helpers/render";
 
 const get = vi.fn();
@@ -104,7 +104,11 @@ describe("a community list that arrives for the wrong account", () => {
 
     // Somebody else is here now, and their own read is already under way.
     currentUser = userB;
-    get.mockResolvedValue({ data: [buildCommunity({ id: 99 })] });
+    get.mockImplementation((path: string) =>
+      Promise.resolve({
+        data: path === "/access-grants/" ? buildPage([]) : [buildCommunity({ id: 99 })],
+      })
+    );
     view.rerender(
       <CommunityProvider>
         <div />
