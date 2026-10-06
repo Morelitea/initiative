@@ -1,13 +1,8 @@
 {
-  "title": "Galeries",
-  "gallery": "Galerie",
-  "galleries": "Galeries",
   "createGallery": "Nouvelle galerie",
   "createGalleryDescription": "Une collection d’images — maquettes, captures, exports de design. Nommez-la maintenant ; les images s’ajoutent sur sa page, quarante d’un coup si vous voulez.",
   "creating": "Création...",
-  "name": "Nom",
   "namePlaceholder": "Visuels boutique, Écran principal tour 4...",
-  "description": "Description",
   "descriptionPlaceholder": "Ce que montrent ces images",
   "initiative": "Initiative",
   "selectInitiative": "Sélectionner une initiative",
@@ -31,7 +26,6 @@
   "views": {
     "label": "Vue",
     "masonry": "Mosaïque",
-    "grid": "Grille",
     "timeline": "Chronologie"
   },
   "groups": {
@@ -73,11 +67,7 @@
     "oldestFirst": "Plus anciennes d’abord",
     "noMatchingPictures": "Aucune image ne correspond à vos filtres."
   },
-  "lightbox": {
-    "details": "Détails"
-  },
   "sheet": {
-    "title": "Image",
     "description": "Le nom de cette image, qui l’a ajoutée et son historique.",
     "titleLabel": "Titre",
     "titlePlaceholder": "Qu’est-ce que c’est ?",

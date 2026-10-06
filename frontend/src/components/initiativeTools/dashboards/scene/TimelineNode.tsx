@@ -51,7 +51,7 @@ const MIN_WIDTH_FOR_CAPTION = 8;
  * why "now" rides in on the node instead of being read from this side's clock.
  */
 export function TimelineNode({ node }: { node: Node }) {
-  const { t, i18n } = useTranslation("dashboards");
+  const { t, i18n } = useTranslation(["dashboards", "common"]);
   const locale = i18n.language;
 
   const weekStart = useMemo(() => weekStartDay(locale), [locale]);
@@ -204,7 +204,7 @@ export function TimelineNode({ node }: { node: Node }) {
               className="absolute bottom-0 -translate-x-1/2 whitespace-nowrap rounded-sm bg-primary px-1 font-medium text-3xs text-primary-foreground leading-4"
               style={{ left: `${nowAt}%` }}
             >
-              {t("timeline.today")}
+              {t("common:calendar.today")}
             </div>
           )}
         </div>

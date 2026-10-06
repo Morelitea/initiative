@@ -146,18 +146,18 @@ export function EventSettingsPage() {
   const range = useEventTiming(details.values);
 
   const updateEvent = useUpdateCalendarEvent(eventId, {
-    onSuccess: () => toast.success(t("detailsUpdated")),
+    onSuccess: () => toast.success(t("common:toolSettings.detailsUpdated")),
   });
 
   const setAttendees = useSetEventAttendees(eventId, {
-    onSuccess: () => toast.success(t("detailsUpdated")),
+    onSuccess: () => toast.success(t("common:toolSettings.detailsUpdated")),
   });
 
   // Its own instance of the update, so a tag change saves without the
   // details toast.
   const saveTags = useUpdateCalendarEvent(eventId);
   const saveRsvpOpen = useUpdateCalendarEvent(eventId, {
-    onSuccess: () => toast.success(t("detailsUpdated")),
+    onSuccess: () => toast.success(t("common:toolSettings.detailsUpdated")),
   });
 
   // Tags persist immediately on change (like tasks/documents), no Save button.
@@ -313,7 +313,7 @@ export function EventSettingsPage() {
       {/* Details */}
       <Card>
         <CardHeader>
-          <CardTitle>{t("details")}</CardTitle>
+          <CardTitle>{t("common:toolSettings.tabDetails")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
@@ -346,7 +346,7 @@ export function EventSettingsPage() {
             {updateEvent.isPending ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
-                {t("saving")}
+                {t("common:toolSettings.saving")}
               </>
             ) : (
               t("common:save")
@@ -493,7 +493,7 @@ export function EventSettingsPage() {
             {setAttendees.isPending ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
-                {t("saving")}
+                {t("common:toolSettings.saving")}
               </>
             ) : (
               t("common:save")
@@ -505,7 +505,7 @@ export function EventSettingsPage() {
       {/* Tags */}
       <Card>
         <CardHeader>
-          <CardTitle>{t("tags")}</CardTitle>
+          <CardTitle>{t("common:toolSettings.tags")}</CardTitle>
         </CardHeader>
         <CardContent>
           <TagPicker selectedTags={tags} onChange={handleTagsChange} />
@@ -534,7 +534,7 @@ export function EventSettingsPage() {
       {/* Danger Zone */}
       <Card className="border-destructive/50">
         <CardHeader>
-          <CardTitle className="text-destructive">{t("dangerZone")}</CardTitle>
+          <CardTitle className="text-destructive">{t("common:toolSettings.dangerZone")}</CardTitle>
           <CardDescription>{t("dangerZoneDescription")}</CardDescription>
         </CardHeader>
         <CardContent>

@@ -1,14 +1,8 @@
 {
-  "title": "Zähler",
-  "group": "Zählergruppe",
-  "groups": "Zählergruppen",
-  "counter": "Zähler",
   "noGroups": "Noch keine Zählergruppen",
   "noGroupsDescription": "Zählergruppen bündeln zusammengehörige Zahlenwerte (wie HP, Munition oder Scores), die du erhöhen, verringern oder direkt setzen kannst.",
   "createGroup": "Zählergruppe erstellen",
-  "name": "Name",
   "namePlaceholder": "Gruppennamen eingeben",
-  "description": "Beschreibung",
   "descriptionPlaceholder": "Optionale Beschreibung",
   "initiative": "Initiative",
   "selectInitiative": "Initiative auswählen",
@@ -31,7 +25,6 @@
   "viewModeRequiresBounds": "Fortschrittsbalken und Kreis (Uhr) erfordern sowohl Min. als auch Max.",
   "increment": "Erhöhen",
   "decrement": "Verringern",
-  "reset": "Zurücksetzen",
   "resetAll": "Alle zurücksetzen",
   "resetAllConfirm": "Jeden Zähler in dieser Gruppe auf seinen Anfangswert zurücksetzen?",
   "sort": "Sortieren",
@@ -41,12 +34,10 @@
   "sortCountDesc": "Stand (hoch→niedrig)",
   "noCounters": "Keine Zähler in dieser Gruppe",
   "noCountersDescription": "Füge Zähler hinzu, um mit dem Verfolgen von Werten zu beginnen.",
-  "reorder": "Neu anordnen",
   "dragToReorder": "Zum Neuanordnen ziehen",
   "switchToGridView": "Zur Rasteransicht wechseln",
   "switchToRowView": "Zur Zeilenansicht wechseln",
   "more": "Weitere Aktionen",
-  "permissions": "Berechtigungen",
   "error": "Etwas ist schiefgelaufen",
   "loading": "Zähler werden geladen...",
   "loadError": "Zähler konnten nicht geladen werden.",
@@ -69,16 +60,10 @@
     "notFound": "Zähler in dieser Gruppe nicht gefunden"
   },
   "createFirst": "Erstelle deine erste Zählergruppe",
-  "details": "Details",
-  "access": "Zugriff",
-  "advanced": "Erweitert",
-  "dangerZone": "Gefahrenzone",
-  "dangerZoneDescription": "Destruktive Aktionen. Gelöschte Gruppen landen im Papierkorb und können wiederhergestellt werden, bevor der Aufbewahrungszeitraum endet.",
   "filters": {
     "heading": "Filter",
     "searchGroups": "Zählergruppen suchen...",
     "searchLabel": "Name oder Beschreibung",
     "noMatchingGroups": "Keine Zählergruppen entsprechen deinen Filtern."
-  },
-  "tags": "Tags"
+  }
 }

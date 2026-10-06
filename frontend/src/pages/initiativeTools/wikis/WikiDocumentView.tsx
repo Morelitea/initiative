@@ -118,7 +118,7 @@ export const WikiDocumentView = () => {
       <div className="flex h-full min-h-0 flex-col">
         <WikiChrome
           wiki={wiki}
-          pageTitle={document_?.name || t("pages.untitled")}
+          pageTitle={document_?.name || t("common:untitled")}
           pageUpdatedAt={document_?.updated_at}
           // Writing happens where the document lives, so this screen offers no
           // mode to enter.

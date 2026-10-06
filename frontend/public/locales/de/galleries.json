@@ -1,13 +1,8 @@
 {
-  "title": "Galerien",
-  "gallery": "Galerie",
-  "galleries": "Galerien",
   "createGallery": "Neue Galerie",
   "createGalleryDescription": "Eine Bildersammlung – Mockups, Screenshots, exportierte Entwürfe. Gib ihr jetzt einen Namen; die Bilder kommen auf ihrer Seite hinein, gern vierzig auf einmal.",
   "creating": "Wird erstellt...",
-  "name": "Name",
   "namePlaceholder": "Store-Assets, Live-Screen Runde 4...",
-  "description": "Beschreibung",
   "descriptionPlaceholder": "Wovon diese Bilder sind",
   "initiative": "Initiative",
   "selectInitiative": "Initiative auswählen",
@@ -31,7 +26,6 @@
   "views": {
     "label": "Ansicht",
     "masonry": "Mauerwerk",
-    "grid": "Raster",
     "timeline": "Zeitleiste"
   },
   "groups": {
@@ -73,11 +67,7 @@
     "oldestFirst": "Älteste zuerst",
     "noMatchingPictures": "Keine Bilder entsprechen deinen Filtern."
   },
-  "lightbox": {
-    "details": "Details"
-  },
   "sheet": {
-    "title": "Bild",
     "description": "Wie dieses Bild heißt, wer es hinzugefügt hat und sein Verlauf.",
     "titleLabel": "Titel",
     "titlePlaceholder": "Was ist das?",

@@ -72,7 +72,7 @@ export const WikiSidebarContent = ({
   activePageId,
   onBack,
 }: WikiSidebarContentProps) => {
-  const { t } = useTranslation("wikis");
+  const { t } = useTranslation(["wikis", "common"]);
   const gp = useCommunityPath();
   const navigate = useNavigate();
 
@@ -187,7 +187,7 @@ export const WikiSidebarContent = ({
                         )}
                       >
                         <span className="min-w-0 flex-1 truncate">
-                          {page.title || t("pages.untitled")}
+                          {page.title || t("common:untitled")}
                         </span>
                       </Link>
                     </SidebarMenuButton>

@@ -267,7 +267,7 @@ export function QueryBuilder({ spec, onChange, initiativeId }: QueryBuilderProps
       </section>
 
       <section className="space-y-2">
-        <Label>{t("dashboards:filterBuilder.heading")}</Label>
+        <Label>{t("common:toolbar.filters")}</Label>
         <FilterBuilder
           dataset={spec.dataset}
           initiativeId={initiativeId}
