@@ -190,17 +190,20 @@ Leave it off unless you want that surface. See [API keys & integrations](../acco
 
 ## The Initiative registry and plug-ins
 
-Your server follows the Initiative registry from the moment it starts, and runs the plug-ins your communities add. Both are managed from **Settings → Platform → Integrations**; see [Running plug-ins](plugins.md). These settings change where the registry is read from and how plug-ins are wired up.
+Nothing to set. Your server follows the Initiative registry from the moment it starts, and the plug-ins your communities add are set up from **Settings → Platform → Integrations**. See [Running plug-ins](plugins.md).
 
-| Variable | What it does | Default |
-|---|---|---|
-| `MARKETPLACE_REGISTRY_URL` | Where the registry is read from. Point it at a mirror, or a curated copy signed with the same key. | Initiative's public registry |
-| `MARKETPLACE_REGISTRY_ROOT` | A path to a different signing key, for a registry somebody else signs. Its listings and plug-ins arrive as usual. | The key built into Initiative |
-| `MARKETPLACE_REGISTRY_TOKEN` | A token for a registry that asks for one. It is sent only to the registry's own address. | None |
-| `MARKETPLACE_REGISTRY_TTL_SECONDS` | How often the server checks for updates. At least 60. | `900` |
-| `PLUGIN_SERVICES_CONFIG` | A JSON file of plug-in services to set up at every start, in place of the form. See [Setting it up from a file](plugins.md#setting-it-up-from-a-file). | — |
-| `PLUGIN_PLATFORM_SIGNING_PRIVATE_KEY_PEM` / `PLUGIN_PLATFORM_SIGNING_KEY_ID` | Your own key for signing what Initiative sends plug-ins. Unset, Initiative makes and keeps one itself. | — |
-| `EXPRESSION_WORKERS` | How many small helper processes each server process may run for plug-ins whose calls Initiative makes itself. They start on first use and an idle one leaves after five minutes. 1 to 16. | `2` |
+??? techspec "Mirrors, other registries, and plug-ins from a file"
+    Leave all of these unset unless you have the particular reason each one is for.
+
+    | Variable | What it's for | Default |
+    |---|---|---|
+    | `MARKETPLACE_REGISTRY_URL` | A mirror of the Initiative registry, for a network that can't reach it directly. Everything from it is still checked against the key built into Initiative. A server with no internet access at all uploads a [registry bundle](plugins.md#the-initiative-registry) instead. | The Initiative registry |
+    | `MARKETPLACE_REGISTRY_TOKEN` | A token for a mirror that asks for one. It is sent only to the registry's own address. | None |
+    | `MARKETPLACE_REGISTRY_TTL_SECONDS` | How often the server checks for updates. At least 60. | `900` |
+    | `MARKETPLACE_REGISTRY_ROOT` | A path to a different signing key. The server then trusts a registry somebody else signs, in place of the Initiative registry. | The key built into Initiative |
+    | `PLUGIN_SERVICES_CONFIG` | A JSON file of plug-in services to set up at every start, in place of the form. See [Setting it up from a file](plugins.md#setting-it-up-from-a-file). | — |
+    | `PLUGIN_PLATFORM_SIGNING_PRIVATE_KEY_PEM` / `PLUGIN_PLATFORM_SIGNING_KEY_ID` | Your own key for signing what Initiative sends plug-ins. Unset, Initiative makes and keeps one itself. | — |
+    | `EXPRESSION_WORKERS` | How many small helper processes each server process may run for plug-ins Initiative runs itself. They start on first use, and an idle one leaves after five minutes. 1 to 16. | `2` |
 
 ## Your own marketplace listings
 
