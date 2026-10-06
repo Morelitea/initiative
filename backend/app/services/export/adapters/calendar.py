@@ -126,10 +126,7 @@ class CalendarAdapter(ToolExportAdapter):
             self.tool,
             filters,
             await list_calendar_ids_for_export(
-                session,
-                user,
-                guild_id,
-                initiative_id=_optional_int(params, "initiative_id"),
+                session, initiative_id=_optional_int(params, "initiative_id")
             ),
         )
 
@@ -267,7 +264,7 @@ def _envelope(calendar: Calendar, event_dicts: list[dict]) -> dict[str, Any]:
 def _window(filters: BaseModel | None, tz: str | None) -> list:
     """The WHERE legs of the export's ``events`` range, its all-day days read
     in ``tz``; none without a range."""
-    from app.api.v1.tenant_endpoints.calendar_events import series_in_window
+    from app.services.tenant.calendar_events import series_in_window
 
     window = getattr(filters, "events", None)
     if window is None:

@@ -25,7 +25,6 @@ from functools import lru_cache
 from typing import Any, Callable
 
 from app.services.fields import calendar_events as calendar_events_dataset
-from app.services.fields import counters as counters_dataset
 from app.services.fields import members as members_dataset
 from app.services.fields import projects as projects_dataset
 from app.services.fields import task_assignees as task_assignees_dataset
@@ -41,8 +40,8 @@ _BUILDERS: dict[str, Callable[[], Dataset]] = {
     "tasks": tasks_dataset.build,
     "projects": projects_dataset.build,
     "calendar_events": calendar_events_dataset.build,
-    "counter_groups": counters_dataset.build_groups,
-    "counters": counters_dataset.build_counters,
+    "counter_groups": tool_datasets.build_counter_groups,
+    "counters": tool_datasets.build_counters,
     "task_statuses": task_statuses_dataset.build,
     "task_assignees": task_assignees_dataset.build,
     "members": members_dataset.build,

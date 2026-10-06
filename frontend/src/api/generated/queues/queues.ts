@@ -58,10 +58,7 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
 };
 
 /**
- * List queues visible to the current user.
- *
- * DAC: Queues with explicit QueuePermission or role-based permission.
- * Guild admins see all queues.
+ * List queues visible to the current user (guild admins see all).
  * @summary List Queues
  */
 export const listQueues = (

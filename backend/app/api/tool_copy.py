@@ -38,12 +38,12 @@ from app.models.tenant._mixins import (
 )
 from app.models.tenant.calendar import Calendar
 from app.models.tenant.calendar_event import CalendarEvent, CalendarEventAttendee
-from app.models.tenant.counter import Counter, CounterGroup
+from app.models.tenant.counter import Counter
 from app.models.tenant.gallery import Gallery, GalleryImage
 from app.models.tenant.post import Post
 from app.models.tenant.post_poll import PostPoll, PostPollOption
 from app.models.tenant.project import Project
-from app.models.tenant.queue import Queue, QueueItem
+from app.models.tenant.queue import QueueItem
 from app.models.tenant.task import Task
 from app.models.tenant.wiki import Wiki, WikiPage
 from app.schemas.base import RESERVED_SIGIL_CODE, RESERVED_SIGILS
@@ -336,34 +336,30 @@ def _beside(source: Any, copy: Any) -> bool:
     return source.initiative_id == copy.initiative_id
 
 
-async def _counter_group_contents(
-    session: AsyncSession, source: CounterGroup, copy: CounterGroup, actor: ActorContext
-) -> list[Counter]:
-    counters = (
-        await session.exec(select(Counter).where(Counter.counter_group_id == source.id))
-    ).all()
-    pairs = await _copy_children(
-        session,
-        counters,
-        beside=_beside(source, copy),
-        values=lambda _: {"counter_group_id": copy.id},
-    )
-    return [clone for _, clone in pairs]
+def _rows_inside(model: type, *carried: str) -> Contents:
+    """The contents of a tool that is a list of ``model`` rows: each copied
+    into the copy, keeping ``carried`` of the references a copy otherwise
+    drops."""
+    parent = resource_access.parent_column(model)
 
+    async def contents(
+        session: AsyncSession, source: Any, copy: Any, actor: ActorContext
+    ) -> list[Any]:
+        rows = (
+            await session.exec(select(model).where(getattr(model, parent) == source.id))
+        ).all()
+        pairs = await _copy_children(
+            session,
+            rows,
+            beside=_beside(source, copy),
+            values=lambda row: {
+                parent: copy.id,
+                **{column: getattr(row, column) for column in carried},
+            },
+        )
+        return [clone for _, clone in pairs]
 
-async def _queue_contents(
-    session: AsyncSession, source: Queue, copy: Queue, actor: ActorContext
-) -> list[QueueItem]:
-    items = (
-        await session.exec(select(QueueItem).where(QueueItem.queue_id == source.id))
-    ).all()
-    pairs = await _copy_children(
-        session,
-        items,
-        beside=_beside(source, copy),
-        values=lambda item: {"queue_id": copy.id, "user_id": item.user_id},
-    )
-    return [clone for _, clone in pairs]
+    return contents
 
 
 async def _gallery_contents(
@@ -635,11 +631,11 @@ TOOL_COPIERS: dict[Tool, ToolCopier] = {
         name_takes_sigils=True,
     ),
     Tool.counter_group: ToolCopier(
-        copies=frozenset({Counter}), contents=_counter_group_contents
+        copies=frozenset({Counter}), contents=_rows_inside(Counter)
     ),
     Tool.queue: ToolCopier(
         copies=frozenset({QueueItem}),
-        contents=_queue_contents,
+        contents=_rows_inside(QueueItem, "user_id"),
         # A copy starts its rotation from the top.
         reset={"is_active": False, "current_round": 1},
     ),

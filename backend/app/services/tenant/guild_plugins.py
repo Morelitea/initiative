@@ -67,6 +67,8 @@ from app.services import audit as audit_service
 from app.services.marketplace import registration_lookup
 from app.services.marketplace.service_plugins import is_admin_only
 from app.services.platform import guilds as guilds_service
+from app.schemas.tenant.resource_grant import initiative_readable
+from app.services.tenant import calendars as calendars_service
 from app.services.tenant import plugin_config as plugin_config_service
 from app.services.tenant import plugin_connections as connections_service
 from app.services.tenant import plugin_member_consents as consents_service
@@ -128,7 +130,7 @@ class ArtifactHandler:
 
 
 async def _create_calendar(
-    session: AsyncSession, *, plugin: GuildPlugin, name: str
+    session: AsyncSession, *, plugin: GuildPlugin, name: str, guild_id: int
 ) -> None:
     calendar = Calendar(
         # No initiative: this belongs to the guild. Its grants decide who reads
@@ -139,38 +141,15 @@ async def _create_calendar(
     )
     session.add(calendar)
     await session.flush()
-
-    # Creating it wrote an owner row naming whoever asked, where the request
-    # names somebody; the calendar is the install's.
-    await session.exec(
-        delete(ResourceGrant).where(
-            col(ResourceGrant.resource_type) == "calendar",
-            col(ResourceGrant.resource_id) == calendar.id,
-            col(ResourceGrant.level) == ResourceAccessLevel.owner,
-        )
-    )
-    session.add(
-        ResourceGrant(
-            resource_type="calendar",
-            resource_id=calendar.id,
-            plugin_install_id=plugin.id,
-            level=ResourceAccessLevel.owner,
-            initiative_id=None,
-        )
-    )
     # Shared with the guild from the start — a plug-in nobody can see is not
-    # useful, and narrowing it afterwards is one edit to its sharing. At guild
-    # scope the everyone grant reads as every member of the guild.
-    session.add(
-        ResourceGrant(
-            resource_type="calendar",
-            resource_id=calendar.id,
-            all_initiative_members=True,
-            level=ResourceAccessLevel.read,
-            initiative_id=None,
-        )
+    # useful, and narrowing it afterwards is one edit to its sharing.
+    await calendars_service.give_to_install(
+        session,
+        calendar,
+        install_id=plugin.id,
+        guild_id=guild_id,
+        grants=initiative_readable(),
     )
-    await session.flush()
 
 
 async def _remove_calendar(
@@ -336,7 +315,9 @@ async def find_mounting_plugin(
     return None
 
 
-async def create_plugin_artifacts(session: AsyncSession, plugin: GuildPlugin) -> None:
+async def create_plugin_artifacts(
+    session: AsyncSession, plugin: GuildPlugin, *, guild_id: int
+) -> None:
     """Create what the plug-in mounts, owned by its install.
 
     Only a tool instance produces anything. An embed opens a surface that
@@ -356,7 +337,7 @@ async def create_plugin_artifacts(session: AsyncSession, plugin: GuildPlugin) ->
         # teaching about a new one.
         raise ValueError(f"cannot mount {tool!r} at guild scope")
 
-    await handler.create(session, plugin=plugin, name=plugin.name)
+    await handler.create(session, plugin=plugin, name=plugin.name, guild_id=guild_id)
 
 
 async def install_plugin(
@@ -400,7 +381,7 @@ async def install_plugin(
     )
     session.add(plugin)
     await session.flush()
-    await create_plugin_artifacts(session, plugin)
+    await create_plugin_artifacts(session, plugin, guild_id=guild_id)
     # Staged in the caller's transaction, after the flush that gives the install
     # its id, so the record and the install land together or not at all.
     await audit_service.record(

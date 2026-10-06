@@ -1132,20 +1132,6 @@ export interface CalendarCreate {
 }
 
 /**
- * Compact per-attendee snapshot for list responses.
- *
- * Carries the id + avatar fields the SPA needs to render tinted,
- * image-backed avatars on the calendar list view. The full
- * ``CalendarEventAttendeeRead`` (with RSVP status + timestamps) is
- * still exposed on the detail endpoint.
- */
-export interface CalendarEventAttendeePreview {
-  user_id: number;
-  name: string;
-  avatar_url: string | null;
-}
-
-/**
  * Supported value types for a property definition.
  */
 export type PropertyType = (typeof PropertyType)[keyof typeof PropertyType];
@@ -1215,6 +1201,20 @@ export interface ContentCan {
   edit: boolean;
 }
 
+/**
+ * Compact per-attendee snapshot for list responses.
+ *
+ * Carries the id + avatar fields the SPA needs to render tinted,
+ * image-backed avatars on the calendar list view. The full
+ * ``CalendarEventAttendeeRead`` (with RSVP status + timestamps) is
+ * still exposed on the detail endpoint.
+ */
+export interface CalendarEventAttendeePreview {
+  user_id: number;
+  name: string;
+  avatar_url: string | null;
+}
+
 export interface CalendarEventSummary {
   /**
    * @minLength 1
@@ -1236,14 +1236,12 @@ export interface CalendarEventSummary {
   initiative_id: number | null;
   community_id: number;
   created_by: number | null;
-  attendee_count: number;
-  attendee_names: string[];
-  attendee_previews: CalendarEventAttendeePreview[];
   properties: PropertySummary[];
   tags: TagSummary[];
   can: ContentCan;
   created_at: string;
   updated_at: string;
+  attendee_previews: CalendarEventAttendeePreview[];
 }
 
 export type TaskPriority = (typeof TaskPriority)[keyof typeof TaskPriority];
@@ -1449,9 +1447,6 @@ export interface CalendarEventRead {
   initiative_id: number | null;
   community_id: number;
   created_by: number | null;
-  attendee_count: number;
-  attendee_names: string[];
-  attendee_previews: CalendarEventAttendeePreview[];
   properties: PropertySummary[];
   tags: TagSummary[];
   can: ContentCan;
@@ -3317,10 +3312,8 @@ export interface CounterGroupListResponse {
 }
 
 /**
- * Serialized counter. Numeric fields are returned as plain decimal
- * strings (e.g. "0", "12.5") rather than ``Decimal`` so JSON never emits
- * PostgreSQL's exponent notation (``0E-10``) from ``Numeric(20, 10)``
- * columns.
+ * Serialized counter. Numeric fields are plain decimal strings (e.g. "0",
+ * "12.5"), never exponent notation.
  */
 export interface CounterRead {
   id: number;

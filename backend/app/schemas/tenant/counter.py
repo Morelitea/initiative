@@ -5,7 +5,7 @@ from decimal import Decimal
 from enum import Enum
 from typing import Annotated, Any, List, Literal, Optional, TYPE_CHECKING
 
-from pydantic import AliasChoices, ConfigDict, Field, model_validator
+from pydantic import AliasChoices, BeforeValidator, ConfigDict, Field, model_validator
 
 from app.core.identity_boundary import GuildId
 from app.core.messages import CounterMessages
@@ -18,7 +18,7 @@ from app.schemas.tenant.property import (
     annotated_properties,
 )
 from app.schemas.tenant.resource_grant import ResourceGrantSchema, initiative_readable
-from app.schemas.tenant.tool import ToolSummaryBase
+from app.schemas.tenant.tool import ToolSummaryBase, from_row
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.db.guild_standing import ActorContext
@@ -36,19 +36,39 @@ CounterNumber = Annotated[
 ]
 
 
+def format_decimal(value: Decimal) -> str:
+    """Return a plain decimal string with no exponent and no trailing zeros.
+
+    PostgreSQL's ``Numeric(20, 10)`` round-trips zeros as ``Decimal('0E-10')``,
+    which Python's default JSON encoder emits as ``"0E-10"`` — confusing to
+    display and parse on the client. ``format(value, "f")`` gives fixed-point
+    notation; we then trim trailing zeros after the decimal point but keep
+    a single ``"0"`` when there's no integer part.
+    """
+    text = format(value, "f")
+    if "." in text:
+        text = text.rstrip("0").rstrip(".")
+    return text or "0"
+
+
+#: A counter's number as a read sends it: plain decimal text
+#: (:func:`format_decimal`), never ``Decimal``'s exponent notation.
+DecimalText = Annotated[
+    str,
+    BeforeValidator(lambda v: format_decimal(v) if isinstance(v, Decimal) else v),
+]
+
+
 def _validate_counter_constraints(
     *,
     view_mode: CounterViewMode,
     min_value: Optional[Decimal],
     max_value: Optional[Decimal],
-    step: Decimal,
 ) -> None:
     if view_mode != CounterViewMode.number and (min_value is None or max_value is None):
         raise ValueError(CounterMessages.VIEW_MODE_REQUIRES_BOUNDS)
     if min_value is not None and max_value is not None and min_value > max_value:
         raise ValueError(CounterMessages.MIN_GREATER_THAN_MAX)
-    if step <= 0:
-        raise ValueError(CounterMessages.STEP_MUST_BE_POSITIVE)
 
 
 class CounterBase(SanitizedBaseModel):
@@ -68,8 +88,9 @@ class CounterBase(SanitizedBaseModel):
             view_mode=self.view_mode,
             min_value=self.min,
             max_value=self.max,
-            step=self.step,
         )
+        if self.step <= 0:
+            raise ValueError(CounterMessages.STEP_MUST_BE_POSITIVE)
         return self
 
 
@@ -124,11 +145,8 @@ class CounterSortRequest(SanitizedBaseModel):
 
 
 class CounterRead(SanitizedBaseModel):
-    """Serialized counter. Numeric fields are returned as plain decimal
-    strings (e.g. "0", "12.5") rather than ``Decimal`` so JSON never emits
-    PostgreSQL's exponent notation (``0E-10``) from ``Numeric(20, 10)``
-    columns.
-    """
+    """Serialized counter. Numeric fields are plain decimal strings (e.g. "0",
+    "12.5"), never exponent notation."""
 
     model_config = ConfigDict(
         from_attributes=True, json_schema_serialization_defaults_required=True
@@ -141,13 +159,13 @@ class CounterRead(SanitizedBaseModel):
     )
     name: str
     color: Optional[str] = None
-    count: str
-    min: Optional[str] = None
-    max: Optional[str] = None
-    step: str
-    initial_count: str
+    count: DecimalText
+    min: Optional[DecimalText] = None
+    max: Optional[DecimalText] = None
+    step: DecimalText
+    initial_count: DecimalText
     view_mode: CounterViewMode
-    position: str
+    position: DecimalText
     properties: List[PropertySummary] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime
@@ -186,7 +204,7 @@ class CounterPreview(SanitizedBaseModel):
     id: int
     name: str
     color: Optional[str] = None
-    count: str
+    count: DecimalText
 
 
 class CounterGroupSummary(CounterGroupBase, ToolSummaryBase):
@@ -219,42 +237,12 @@ class CounterGroupRead(CounterGroupSummary):
 # ---------------------------------------------------------------------------
 
 
-def format_decimal(value: Decimal) -> str:
-    """Return a plain decimal string with no exponent and no trailing zeros.
-
-    PostgreSQL's ``Numeric(20, 10)`` round-trips zeros as ``Decimal('0E-10')``,
-    which Python's default JSON encoder emits as ``"0E-10"`` — confusing to
-    display and parse on the client. ``format(value, "f")`` gives fixed-point
-    notation; we then trim trailing zeros after the decimal point but keep
-    a single ``"0"`` when there's no integer part.
-    """
-    text = format(value, "f")
-    if "." in text:
-        text = text.rstrip("0").rstrip(".")
-    return text or "0"
-
-
-def _format_optional_decimal(value: Optional[Decimal]) -> Optional[str]:
-    return format_decimal(value) if value is not None else None
-
-
 def serialize_counter(counter: "Counter", *, context: ActorContext) -> CounterRead:
-    return CounterRead(
-        id=counter.id,
-        counter_group_id=counter.counter_group_id,
-        community_id=context.guild_id,
-        name=counter.name,
-        color=counter.color,
-        count=format_decimal(counter.count),
-        min=_format_optional_decimal(counter.min),
-        max=_format_optional_decimal(counter.max),
-        step=format_decimal(counter.step),
-        initial_count=format_decimal(counter.initial_count),
-        view_mode=counter.view_mode,
-        position=format_decimal(counter.position),
+    return from_row(
+        CounterRead,
+        counter,
+        guild_id=context.guild_id,
         properties=annotated_properties(counter),
-        created_at=counter.created_at,
-        updated_at=counter.updated_at,
     )
 
 

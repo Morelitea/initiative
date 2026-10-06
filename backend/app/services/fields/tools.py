@@ -7,14 +7,14 @@ cannot say for itself.
 
 They live together rather than one module each because there is nothing to say
 about any of them individually. A dataset that grows a computed field or a
-relation worth explaining earns its own module then, the way tasks and counters
-have.
+relation worth explaining earns its own module then, the way tasks have.
 """
 
 from __future__ import annotations
 
 from app.core.tools import Tool
 from app.models.tenant.calendar import Calendar
+from app.models.tenant.counter import Counter, CounterGroup
 from app.models.tenant.dashboard import Dashboard
 from app.models.tenant.file import File, FileVersion
 from app.models.tenant.gallery import Gallery, GalleryImage, GalleryImageVersion
@@ -77,6 +77,34 @@ def build_queue_items() -> Dataset:
             Relation(
                 name="queue",
                 hops=(Hop(dataset="queues", left="queue_id", right="id"),),
+            ),
+        ),
+    )
+
+
+def build_counter_groups() -> Dataset:
+    return Dataset(
+        model=CounterGroup,
+        tool=Tool.counter_group,
+        fields=derive_fields(CounterGroup),
+    )
+
+
+def build_counters() -> Dataset:
+    """One counter in a group. Its own dataset for the reason queue items
+    have one: what one counter reads is a question about the counters, and the
+    group is what they are grouped by."""
+    return Dataset(
+        model=Counter,
+        tool=Tool.counter_group,
+        name_override="counters",
+        fields=derive_fields(Counter),
+        relations=(
+            Relation(
+                name="counter_group",
+                hops=(
+                    Hop(dataset="counter_groups", left="counter_group_id", right="id"),
+                ),
             ),
         ),
     )

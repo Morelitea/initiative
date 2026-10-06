@@ -12,46 +12,23 @@ any initiative and reaching into none. Its ``initiative_id`` is NULL, so
 anything derived from an initiative has nothing to derive from and refuses.
 """
 
-from sqlalchemy import or_
+from typing import Any, Sequence
+
 from sqlalchemy.orm import selectinload, undefer
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.platform.user import User
+from app.core.tools import Tool
 from app.models.tenant.calendar import Calendar
 from app.models.tenant.calendar_event import (
     CalendarEvent,
     CalendarEventAttendee,
 )
-from app.models.tenant.initiative import Initiative
+from app.services import permissions as permissions_service
+from app.services.tenant import ownership as ownership_service
 from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
-
-
-def tool_enabled_clause():
-    """Calendars whose tool is switched on.
-
-    An initiative calendar answers to that initiative's ``calendars_enabled``
-    switch. A guild calendar answers to no initiative, so the switch has nothing
-    to say about it — installing the plug-in is what turned it on, and removing the
-    plug-in is what takes it away.
-
-    Use this only where the question is "every calendar in scope". A query for
-    *one initiative's* calendars must keep comparing ``initiative_id`` directly:
-    a guild calendar belongs to no initiative and so belongs in no initiative's
-    view.
-    """
-    return or_(
-        Calendar.initiative_id.is_(None),
-        Calendar.initiative_id.in_(
-            select(Initiative.id).where(Initiative.calendars_enabled == True)  # noqa: E712
-        ),
-    )
-
-
-def guild_scoped(calendar: Calendar) -> bool:
-    """Whether this calendar belongs to the guild rather than an initiative."""
-    return calendar.initiative_id is None
+from app.services.tenant.tool_listing import initiative_switch_clause
 
 
 def calendar_loader_options() -> list:
@@ -107,11 +84,7 @@ def _event_export_loader_options() -> list:
 
 
 async def list_calendar_ids_for_export(
-    session: AsyncSession,
-    current_user: User,
-    guild_id: int,
-    *,
-    initiative_id: int | None = None,
+    session: AsyncSession, *, initiative_id: int | None = None
 ) -> list[int]:
     """Ids of every calendar the user may export — the enumeration behind
     "export my calendars": calendars whose tool is on, DAC-visible to the user
@@ -125,7 +98,7 @@ async def list_calendar_ids_for_export(
     lists nothing everywhere else."""
 
     conditions = [
-        tool_enabled_clause(),
+        initiative_switch_clause(Tool.calendar, Calendar, guild_level_rows=True)
     ]
     if initiative_id is not None:
         conditions.append(Calendar.initiative_id == initiative_id)
@@ -136,3 +109,34 @@ async def list_calendar_ids_for_export(
         .order_by(Calendar.name.asc(), Calendar.id.asc())
     )
     return list(await session.exec(statement))
+
+
+async def give_to_install(
+    session: AsyncSession,
+    calendar: Calendar,
+    *,
+    install_id: int,
+    guild_id: int,
+    grants: Sequence[Any],
+    actor_user_id: int | None = None,
+) -> None:
+    """Make a guild calendar the install's, shared by ``grants``. Uninstalling
+    trashes what the install owns; the owner grant names the install row, so
+    an uninstall holding that row finishes first and this write fails. At
+    guild scope an everyone grant reads as every member of the guild."""
+    await ownership_service.set_resource_owner(
+        session,
+        tool=Tool.calendar,
+        row=calendar,
+        new_owner=ownership_service.Owner(plugin_install_id=install_id),
+    )
+    await permissions_service.replace_resource_grants(
+        session,
+        resource_type=Tool.calendar.value,
+        resource_id=calendar.id,
+        guild_id=guild_id,
+        initiative_id=None,
+        owner_id=None,
+        grants=grants,
+        actor_user_id=actor_user_id,
+    )
