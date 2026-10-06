@@ -97,7 +97,7 @@ export const useUpgradeDashboard = (
         queryClient.setQueryData(getReadDashboardQueryKey(communityId, dashboardId), updated);
         return invalidateDashboardAndList(dashboardId);
       },
-      errorKey: "dashboards:error",
+      errorKey: "marketplace:update.failed",
     },
     options
   );

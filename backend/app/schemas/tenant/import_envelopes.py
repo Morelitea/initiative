@@ -16,9 +16,10 @@ from __future__ import annotations
 
 from typing import Any, Literal, Optional
 
-from pydantic import ConfigDict, model_validator
+from pydantic import ConfigDict, Field, model_validator
 
 from app.models.tenant.property import PropertyType
+from app.models.tenant.wiki import WikiPageOrder, WikiReadingWidth
 from app.schemas.base import SanitizedBaseModel
 
 CURRENT_SCHEMA_VERSION = 1
@@ -165,13 +166,24 @@ class WikiEnvelope(_EnvelopeBase):
 
     What it deliberately drops is the sharing, for the reason every envelope
     drops it: who may read this is a fact about the community it was written
-    in, not about the writing. ``home_page`` crosses as a slug like the tree.
+    in, not about the writing. ``home_page`` and ``template_page`` cross as
+    slugs like the tree.
+
+    The settings are absent in an export taken before they were carried, and
+    a wiki imported from one keeps the defaults.
     """
 
     type: Literal["initiative-wiki"]
     name: str
     description: Optional[str] = None
     home_page: Optional[str] = None
+    template_page: Optional[str] = None
+    page_order: Optional[WikiPageOrder] = None
+    contents_depth: Optional[int] = Field(default=None, ge=2, le=4)
+    show_connections: Optional[bool] = None
+    show_updated_at: Optional[bool] = None
+    reading_width: Optional[WikiReadingWidth] = None
+    accent_color: Optional[str] = Field(default=None, max_length=32)
     tags: list[str] = []
     properties: list[EnvelopePropertyValue] = []
     pages: list[WikiPageEnvelope] = []

@@ -170,8 +170,8 @@ async def test_the_tool_reads_stop_short_of_these():
     assert not [n for n in names if "widget_catalog" in n or "installed_listing" in n]
 
     # The one that has to be present, because it is the whole point of reading
-    # a dashboard: what a tile on it currently says.
-    assert any("run_widget_query" in n for n in names)
+    # a dashboard: what its tiles currently say.
+    assert any("load_dashboard_data" in n for n in names)
 
 
 async def test_comment_reads_are_exposed():
