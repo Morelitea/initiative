@@ -49,7 +49,6 @@ from app.api.deps import (
 from app.core.messages import PostMessages
 from app.core.tools import Tool
 from app.models.platform.user import User
-from app.models.tenant.initiative import Initiative
 from app.models.tenant.post import Post, board_time
 from app.models.tenant.post_poll import PostPoll
 from app.schemas.tenant.post import (
@@ -258,7 +257,6 @@ def board_conditions(
     conditions = tool_listing.base_conditions(
         Tool.post,
         Post,
-        Initiative.posts_enabled,
         user_id,
         context=context,
         initiative_id=initiative_id,

@@ -88,14 +88,15 @@ def apply_tool_order(
 
 
 def initiative_switch_clause(
+    tool: Tool,
     model,
-    enabled_column,
     *,
     guild_level_rows: bool = False,
 ) -> ColumnElement[bool]:
     """Rows whose initiative has this tool switched on.
 
-    One spelling for all nine tools, from the one column the registry names.
+    One spelling for every tool, from the initiative's switch column the tool
+    names (``Tool.view_permission``).
     An initiative with the tool off has nothing to list, so the switch is a
     plain leg of the WHERE rather than a lookup the handler makes first: asking
     for that initiative by id and asking for the whole guild then answer the
@@ -106,7 +107,7 @@ def initiative_switch_clause(
     tool on and no initiative has anything to say about it.
     """
     enabled = model.initiative_id.in_(
-        select(Initiative.id).where(enabled_column.is_(True))
+        select(Initiative.id).where(getattr(Initiative, tool.view_permission).is_(True))
     )
     if guild_level_rows:
         return or_(model.initiative_id.is_(None), enabled)
@@ -116,7 +117,6 @@ def initiative_switch_clause(
 def base_conditions(
     tool: Tool,
     model,
-    enabled_column,
     user_id: int | None,
     *,
     context: ActorContext,
@@ -134,9 +134,7 @@ def base_conditions(
     appends the one it means (``archive.archive_filter_clause``).
     """
     conditions: list = [
-        initiative_switch_clause(
-            model, enabled_column, guild_level_rows=guild_level_rows
-        ),
+        initiative_switch_clause(tool, model, guild_level_rows=guild_level_rows),
         permissions_service.listing_scope_clause(
             tool,
             model.id,

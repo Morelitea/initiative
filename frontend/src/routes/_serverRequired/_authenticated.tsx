@@ -250,9 +250,9 @@ function AppLayout() {
   // ProjectActivitySidebar still wants the active project directly — and the
   // initiative it sits in, since a task's URL names that too.
   const activeProjectId =
-    activeRecentKey?.entityType === "project" ? activeRecentKey.entityId : null;
+    activeRecentKey?.entityType === Tool.project ? activeRecentKey.entityId : null;
   const activeProjectInitiativeId =
-    activeRecentKey?.entityType === "project" ? activeRecentKey.initiativeId : null;
+    activeRecentKey?.entityType === Tool.project ? activeRecentKey.initiativeId : null;
 
   // const isDark = document.documentElement.classList.contains("dark");
 
