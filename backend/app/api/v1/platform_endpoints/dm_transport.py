@@ -25,7 +25,7 @@ from fastapi import (
 
 from app.api.deps import UserSessionDep, CurrentUser
 from app.core import audit_context
-from app.core.auth_context import session_credential
+from app.core import auth_context
 from app.core.messages import DirectMessageTransportMessages as Messages
 from app.core.rate_limit import limiter
 from app.core.user_display import handle_of
