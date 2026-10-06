@@ -13,6 +13,7 @@ import type {
 import { getListMyTasksQueryKey, listMyTasks } from "@/api/generated/tasks/tasks";
 import { useLiveClockValue } from "@/hooks/useRelativeTime";
 import { useViewPreference } from "@/hooks/useViewPreference";
+import { browserTimezone } from "@/lib/timezones";
 
 /** A pinned task, addressed by community because task ids collide across communities. */
 export type FocusPin = {
@@ -257,7 +258,7 @@ export function useFocusSummary() {
   // A stored blob predates any later field, and is user-writable via the API.
   const prefs = useMemo<FocusPreferences>(() => normalizePreferences(prefsRaw), [prefsRaw]);
 
-  const timezone = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone, []);
+  const timezone = useMemo(browserTimezone, []);
 
   // Local midnight, off the shared clock: the list starts clean each morning,
   // so a tab left open overnight rolls over on its own instead of showing

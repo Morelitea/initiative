@@ -11,6 +11,7 @@ import { Card, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { ProgressCircle } from "@/components/ui/progress-circle";
 import { useCommunityPath } from "@/lib/communityUrl";
+import { formatDate } from "@/lib/formatDate";
 import { toolDetailRoute } from "@/lib/tools";
 
 /** A project on its initiative's list. The unread mark is the list's to draw,
@@ -54,13 +55,13 @@ export const ProjectCard = ({ project }: { project: ProjectRead }) => {
               <div>
                 <p>
                   {t("preview.updated", {
-                    date: new Date(project.updated_at).toLocaleDateString(undefined),
+                    date: formatDate(project.updated_at),
                   })}
                 </p>
                 {project.archived_at ? (
                   <p>
                     {t("preview.archivedOn", {
-                      date: new Date(project.archived_at).toLocaleDateString(undefined),
+                      date: formatDate(project.archived_at),
                     })}
                   </p>
                 ) : null}

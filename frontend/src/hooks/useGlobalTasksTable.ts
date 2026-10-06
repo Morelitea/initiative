@@ -23,6 +23,7 @@ import { useViewPreference } from "@/hooks/useViewPreference";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { toast } from "@/lib/mascotToast";
 import { statusForCategory } from "@/lib/taskStatusDefaults";
+import { browserTimezone } from "@/lib/timezones";
 
 const SORT_DEFAULTS: SortField[] = [
   { field: "date_group", dir: "asc" },
@@ -225,7 +226,7 @@ export function useGlobalTasksTable() {
   }, [statusFilters, priorityFilters, communityFilters, propertyFiltersKey, setPage]);
 
   // --- User timezone for server-side date_group calculation ---
-  const userTimezone = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone, []);
+  const userTimezone = useMemo(browserTimezone, []);
 
   // --- Tasks query ---
   const tasksParams = useMemo((): ListMyTasksParams => {

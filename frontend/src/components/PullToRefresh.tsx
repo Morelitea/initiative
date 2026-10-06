@@ -1,6 +1,7 @@
 import { Capacitor } from "@capacitor/core";
 import { Loader2 } from "lucide-react";
 import type { ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { cn } from "@/lib/utils";
@@ -28,6 +29,7 @@ export function PullToRefresh({
   enabled = true,
   className,
 }: PullToRefreshProps) {
+  const { t } = useTranslation("common");
   const { pullDistance, isRefreshing, containerProps } = usePullToRefresh({
     threshold,
     maxPull,
@@ -73,10 +75,10 @@ export function PullToRefresh({
           />
           <span className="font-medium text-muted-foreground text-xs">
             {isRefreshing
-              ? "Refreshing..."
+              ? t("pullToRefresh.refreshing")
               : readyToRefresh
-                ? "Release to refresh"
-                : "Pull to refresh"}
+                ? t("pullToRefresh.release")
+                : t("pullToRefresh.pull")}
           </span>
         </div>
       </div>

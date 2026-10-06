@@ -19,6 +19,11 @@
   "submit": "Absenden",
   "reset": "Zurücksetzen",
   "done": "Fertig",
+  "pullToRefresh": {
+    "pull": "Zum Aktualisieren ziehen",
+    "release": "Zum Aktualisieren loslassen",
+    "refreshing": "Wird aktualisiert…"
+  },
   "toolViewFilter": {
     "label": "Anzeigen",
     "all": "Alle",

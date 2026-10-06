@@ -73,7 +73,7 @@ export const useTask = (taskId: number | null, options?: QueryOpts<TaskRead>) =>
 export const tasksQuery = (communityId: number, params: ListTasksParams) => ({
   queryKey: getListTasksQueryKey(communityId, params),
   // page_size=0 walks the server's fetch-all windows for the complete set.
-  queryFn: () => fetchAllPages(listTasks, communityId, params),
+  queryFn: () => fetchAllPages((p) => listTasks(communityId, p), params),
 });
 
 export const useTasks = (params: ListTasksParams, options?: QueryOpts<TaskListResponse>) => {

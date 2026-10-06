@@ -18,6 +18,7 @@ import { useImportIcalEvents, useParseIcalFile } from "@/hooks/useCalendarEvents
 import { useCalendarsList } from "@/hooks/useCalendars";
 import { useWizard } from "@/hooks/useWizard";
 import { toast } from "@/lib/mascotToast";
+import { browserTimezone } from "@/lib/timezones";
 import type { DialogProps } from "@/types/dialog";
 
 type Step = "upload" | "result";
@@ -67,7 +68,7 @@ export const ICalImportDialog = ({
 
   const MAX_ICS_SIZE = 2_000_000;
   // Dates and floating times in the file are read in the importer's zone.
-  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const tz = browserTimezone();
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];

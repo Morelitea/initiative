@@ -33,6 +33,7 @@ import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { useServerForm } from "@/hooks/useServerForm";
 import { useFcmConfig } from "@/hooks/useSettings";
 import { useUpdateNotificationPreferences } from "@/hooks/useUsers";
+import { formatDate } from "@/lib/formatDate";
 import { toast } from "@/lib/mascotToast";
 
 // Lead-time presets (minutes) for the event reminder. 0 = "at the time of the
@@ -76,13 +77,6 @@ const dayEnd = (day: string): string => {
   const [year, month, date] = day.split("-").map(Number);
   return new Date(year, month - 1, date, 23, 59, 59, 0).toISOString();
 };
-
-const asDay = (value: string): string =>
-  new Date(value).toLocaleDateString(undefined, {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
 
 interface UserSettingsNotificationsPageProps {
   user: UserRead;
@@ -505,10 +499,10 @@ export const UserSettingsNotificationsPage = ({
           <SettingsRow
             label={
               running
-                ? t("notifications.timing.pause.active", { until: asDay(booked.until) })
+                ? t("notifications.timing.pause.active", { until: formatDate(booked.until) })
                 : t("notifications.timing.pause.scheduled", {
-                    from: asDay(booked.since),
-                    until: asDay(booked.until),
+                    from: formatDate(booked.since),
+                    until: formatDate(booked.until),
                   })
             }
             description={t("notifications.timing.pause.note")}

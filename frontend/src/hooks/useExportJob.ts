@@ -13,6 +13,7 @@ import {
 } from "@/lib/exportDownload";
 import { toast } from "@/lib/mascotToast";
 import { getItem, removeItem, setItem } from "@/lib/storage";
+import { browserTimezone } from "@/lib/timezones";
 
 const POLL_MS = 2000;
 const TERMINAL = new Set(["done", "failed", "expired"]);
@@ -116,7 +117,7 @@ export function useExportJob({ resumePending = false }: UseExportJobOptions = {}
         // tz: report timestamps ("generated at …") render in the browser's
         // zone, not UTC. First so an explicit caller tz in params wins.
         params: {
-          tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          tz: browserTimezone(),
           ...options.params,
         },
         responseType: "blob",

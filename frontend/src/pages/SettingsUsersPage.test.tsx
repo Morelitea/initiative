@@ -27,11 +27,14 @@ const state = vi.hoisted(() => ({
 vi.mock("@/hooks/useAppConfig", () => ({ useAppConfig: () => ({ billing: state.billing }) }));
 
 const mintHandoff = vi.hoisted(() => vi.fn());
-const listInvites = vi.hoisted(() => vi.fn().mockResolvedValue([]));
+const listInvites = vi.hoisted(() => vi.fn());
 vi.mock("@/api/generated/communities/communities", () => ({
   createCommunityInvite: vi.fn(),
   deleteCommunityInvite: vi.fn(),
-  listCommunityInvites: listInvites,
+  useListCommunityInvites: (communityId: number, options?: { query?: { enabled?: boolean } }) => {
+    if (options?.query?.enabled !== false) listInvites(communityId);
+    return { data: [], isLoading: false, isError: false, refetch: vi.fn() };
+  },
   createCommunityBillingHandoff: mintHandoff,
 }));
 

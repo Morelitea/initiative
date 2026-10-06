@@ -67,10 +67,13 @@ describe("SessionLifetimeSection", () => {
     });
   });
 
-  it("will not save an unchanged limit", () => {
+  it("will not save an unchanged or fractional limit", () => {
     settings = { ...base, session_max_hours: 12 };
     renderWithProviders(<SessionLifetimeSection />);
 
+    expect(screen.getByRole("button", { name: /save/i })).toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText(/hours/i), { target: { value: "1.5" } });
     expect(screen.getByRole("button", { name: /save/i })).toBeDisabled();
   });
 

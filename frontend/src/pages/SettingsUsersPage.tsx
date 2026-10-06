@@ -1,19 +1,14 @@
 import { Link } from "@tanstack/react-router";
-import type { PaginationState } from "@tanstack/react-table";
 import { Copy, Download, HandCoins, IdCard, RefreshCcw, Trash2, UserMinus } from "lucide-react";
-import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { type FormEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
   createCommunityInvite,
   deleteCommunityInvite,
-  listCommunityInvites,
+  useListCommunityInvites,
 } from "@/api/generated/communities/communities";
-import type {
-  CommunityInviteRead,
-  CommunityRole,
-  UserCommunityMember,
-} from "@/api/generated/initiativeAPI.schemas";
+import type { CommunityRole, UserCommunityMember } from "@/api/generated/initiativeAPI.schemas";
 import { MemberDisplayNameDialog } from "@/components/communities/MemberDisplayNameDialog";
 import { RemoveCommunityMemberDialog } from "@/components/communities/RemoveCommunityMemberDialog";
 import { TransferContentOwnershipDialog } from "@/components/communities/TransferContentOwnershipDialog";
@@ -44,8 +39,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { useBillingPortal } from "@/hooks/useBillingPortal";
 import { useCommunities } from "@/hooks/useCommunities";
 import { useCommunityAuthSettings } from "@/hooks/useCommunityAuthPolicy";
-import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useRelativeTime } from "@/hooks/useRelativeTime";
+import { useServerTableState } from "@/hooks/useServerTableState";
 import {
   useExportCommunityUsersCsv,
   useSetMemberApiAccess,
@@ -127,9 +122,14 @@ export const SettingsUsersPage = () => {
   const atUserLimit = maxUsers !== null && usedSeats >= maxUsers;
   const planName = activeCommunity?.tier_name ?? null;
 
-  const [invites, setInvites] = useState<CommunityInviteRead[]>([]);
-  const [invitesLoading, setInvitesLoading] = useState(false);
-  const [invitesError, setInvitesError] = useState<string | null>(null);
+  const invitesQuery = useListCommunityInvites(activeCommunityId ?? 0, {
+    query: { enabled: managesInvites && activeCommunityId !== null },
+  });
+  const invites = invitesQuery.data ?? [];
+  // What the last create or delete reported; a failed load is the query's own.
+  const [inviteActionError, setInviteActionError] = useState<string | null>(null);
+  const invitesError =
+    inviteActionError ?? (invitesQuery.isError ? t("users.unableToLoadInvites") : null);
   const [inviteSubmitting, setInviteSubmitting] = useState(false);
   const [inviteMaxUses, setInviteMaxUses] = useState<number>(1);
   const [inviteExpiresDays, setInviteExpiresDays] = useState<number>(7);
@@ -143,44 +143,10 @@ export const SettingsUsersPage = () => {
     member: UserCommunityMember | null;
   } | null>(null);
 
-  const loadInvites = useCallback(async () => {
-    if (!activeCommunityId) {
-      setInvites([]);
-      return;
-    }
-    setInvitesLoading(true);
-    setInvitesError(null);
-    try {
-      const data = await (listCommunityInvites(activeCommunityId) as unknown as Promise<
-        CommunityInviteRead[]
-      >);
-      setInvites(data);
-    } catch (error) {
-      console.error("Failed to load invites", error);
-      setInvitesError(t("users.unableToLoadInvites"));
-    } finally {
-      setInvitesLoading(false);
-    }
-  }, [activeCommunityId, t]);
-
-  useEffect(() => {
-    if (managesInvites) {
-      void loadInvites();
-    }
-  }, [managesInvites, loadInvites]);
-
-  const inviteRows = useMemo(() => invites, [invites]);
-
   // Searched and paged on the server: the table only ever holds the page on
   // screen.
-  const [draft, setDraft] = useState("");
-  const search = useDebouncedValue(draft, 250);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
-  const usersQuery = useUsers(
-    { search: search.trim() || undefined, page, page_size: pageSize },
-    { enabled: isCommunityAdmin }
-  );
+  const table = useServerTableState();
+  const usersQuery = useUsers(table.params, { enabled: isCommunityAdmin });
   const rows = usersQuery.data?.items ?? [];
   const totalCount = usersQuery.data?.total_count ?? 0;
 
@@ -408,7 +374,7 @@ export const SettingsUsersPage = () => {
       return;
     }
     setInviteSubmitting(true);
-    setInvitesError(null);
+    setInviteActionError(null);
     try {
       const expiresAt =
         inviteExpiresDays > 0
@@ -418,14 +384,11 @@ export const SettingsUsersPage = () => {
         max_uses: inviteMaxUses > 0 ? inviteMaxUses : null,
         expires_at: expiresAt,
       };
-      await createCommunityInvite(
-        activeCommunityId,
-        payload as Parameters<typeof createCommunityInvite>[1]
-      );
-      await loadInvites();
+      await createCommunityInvite(activeCommunityId, payload);
+      await invitesQuery.refetch();
     } catch (error) {
       console.error(error);
-      setInvitesError(getErrorMessage(error, "communities:users.unableToCreateInvite"));
+      setInviteActionError(getErrorMessage(error, "communities:users.unableToCreateInvite"));
     } finally {
       setInviteSubmitting(false);
     }
@@ -435,12 +398,13 @@ export const SettingsUsersPage = () => {
     if (!activeCommunityId) {
       return;
     }
+    setInviteActionError(null);
     try {
       await deleteCommunityInvite(activeCommunityId, inviteId);
-      await loadInvites();
+      await invitesQuery.refetch();
     } catch (error) {
       console.error(error);
-      setInvitesError(t("users.unableToDeleteInvite"));
+      setInviteActionError(t("users.unableToDeleteInvite"));
     }
   };
 
@@ -462,7 +426,14 @@ export const SettingsUsersPage = () => {
               <CardTitle>{t("users.invitesTitle")}</CardTitle>
               <p className="text-muted-foreground text-sm">{t("users.invitesDescription")}</p>
             </div>
-            <Button variant="ghost" size="icon" onClick={() => loadInvites()}>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => {
+                setInviteActionError(null);
+                void invitesQuery.refetch();
+              }}
+            >
               <RefreshCcw className="h-4 w-4" />
               <span className="sr-only">{t("users.refreshInvites")}</span>
             </Button>
@@ -512,17 +483,17 @@ export const SettingsUsersPage = () => {
               </p>
             ) : null}
             <div className="h-px bg-border" />
-            {invitesLoading ? (
+            {invitesQuery.isLoading ? (
               <SkeletonRegion label={t("users.loadingInvites")}>
                 <ListSkeleton rows={2} avatar={false} />
               </SkeletonRegion>
             ) : null}
             {invitesError ? <p className="text-destructive text-sm">{invitesError}</p> : null}
-            {!invitesLoading && !inviteRows.length ? (
+            {!invitesQuery.isLoading && !invites.length ? (
               <p className="text-muted-foreground text-sm">{t("users.noActiveInvites")}</p>
             ) : null}
             <div className="space-y-3">
-              {inviteRows.map((invite) => {
+              {invites.map((invite) => {
                 const link = inviteLinkForCode(invite.code);
                 return (
                   <div
@@ -588,7 +559,7 @@ export const SettingsUsersPage = () => {
             variant="outline"
             size="sm"
             onClick={exportAllUsersCsv}
-            disabled={totalCount === 0 && !search.trim()}
+            disabled={totalCount === 0 && !table.params.search}
           >
             <Download className="h-4 w-4" />
             {t("users.exportAll")}
@@ -601,24 +572,8 @@ export const SettingsUsersPage = () => {
             getRowId={(row) => String(row.id)}
             enableFilterInput
             filterInputPlaceholder={t("users.filterByHandle")}
-            filterValue={draft}
-            onFilterValueChange={(value) => {
-              setDraft(value);
-              setPage(1);
-            }}
             enablePagination
-            manualPagination
-            pageCount={Math.max(1, Math.ceil(totalCount / pageSize))}
-            rowCount={totalCount}
-            pageIndex={page - 1}
-            onPaginationChange={(next: PaginationState) => {
-              if (next.pageSize !== pageSize) {
-                setPageSize(next.pageSize);
-                setPage(1);
-              } else {
-                setPage(next.pageIndex + 1);
-              }
-            }}
+            {...table.tableProps(totalCount)}
           />
         </CardContent>
       </Card>
