@@ -25,8 +25,7 @@ from app.api.v1.platform_endpoints.password_recheck import (
     require_password_or_recent_proof,
 )
 from app.api.v1.platform_endpoints.session_opening import (
-    count_wrong_answer,
-    refuse_if_locked,
+    prove_second_factor,
     replace_session,
     require_login_method,
 )
@@ -256,34 +255,29 @@ async def recover_with_code(
     if user is None:
         await SIGN_IN_FAILURES.take(address)
         raise _recovery_code_invalid()
-    await refuse_if_locked(system_session, user.id)
     if user.status != UserStatus.active or has_usable_password(user.hashed_password):
         await SIGN_IN_FAILURES.take(address)
         await _record_recovery_refusal(system_session, user_id=user.id)
         raise _recovery_code_invalid()
-    if not await totp_service.consume_recovery_code(
-        system_session, user_id=user.id, code=payload.recovery_code
-    ):
-        await SIGN_IN_FAILURES.take(address)
-        await _record_recovery_refusal(system_session, user_id=user.id)
-        await count_wrong_answer(system_session, user.id)
-        raise _recovery_code_invalid()
+    try:
+        await prove_second_factor(
+            system_session,
+            user_id=user.id,
+            code=None,
+            recovery_code=payload.recovery_code,
+            during="recover",
+            signed_in=False,
+        )
+    except HTTPException as exc:
+        if exc.status_code == status.HTTP_400_BAD_REQUEST:
+            await SIGN_IN_FAILURES.take(address)
+        raise
 
     user.hashed_password = get_password_hash(payload.password)
     user.password_set_at = datetime.now(timezone.utc)
     # Staged before ``revoke_user_sessions`` below, which commits this session:
     # ``user`` is bound to it, so the password, the spent code, the revocations
-    # and these two records land on one commit.
-    await audit_service.record(
-        system_session,
-        event_type=AuditEventType.AUTH_RECOVERY_CODE_USED,
-        actor_user_id=user.id,
-        detail={
-            "remaining": await totp_service.remaining_recovery_codes(
-                system_session, user_id=user.id
-            )
-        },
-    )
+    # and these records land on one commit.
     await audit_service.record(
         system_session,
         event_type=AuditEventType.AUTH_PASSWORD_CHANGED,

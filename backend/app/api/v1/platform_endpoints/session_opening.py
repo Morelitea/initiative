@@ -11,7 +11,8 @@ compliance setting narrows every token minted for it, on every path.
 What each route keeps for itself is the proving. :func:`prove_password` is that
 proving for the two routes that take a password, and
 :func:`second_factor_outstanding` is what both of them, and the emailed code,
-answer with when the account holds a second factor.
+answer with when the account holds a second factor. :func:`prove_second_factor`
+takes that factor's answer, at a sign-in and wherever else it is asked for.
 
 :func:`open_session` is a fresh sign-in, :func:`replace_session` the session a
 caller carries on with after retiring every credential the account held, and
@@ -57,6 +58,7 @@ from app.models.platform.user import SIGN_IN_STATUSES, User
 from app.schemas.platform.token import Token
 from app.services import audit as audit_service
 from app.services.auth import addresses
+from app.services.auth.assurance import SECOND_FACTOR_AMR
 from app.services.auth import challenges as challenge_service
 from app.services.auth import sessions as session_service
 from app.services.auth import sign_in_locks
@@ -355,6 +357,81 @@ async def prove_password(
     await addresses.note_sign_in(system_session, email=normalized_email)
     await SIGN_IN_FAILURES.clear(normalized_email)
     return user
+
+
+@dataclass(frozen=True)
+class SecondFactorProof:
+    """Which of the account's codes answered, and what a session records for it."""
+
+    method: str
+    amr: tuple[str, ...]
+
+
+async def prove_second_factor(
+    system_session: AsyncSession,
+    *,
+    user_id: int,
+    code: str | None,
+    recovery_code: str | None,
+    during: str,
+    signed_in: bool,
+) -> SecondFactorProof:
+    """Take a code from the authenticator, or one of the recovery codes, or
+    the refusal.
+
+    The one check for every route that asks for the account's second factor,
+    so each asks the same questions in the same order: whether the account is
+    locked, then whether the answer is right. A recovery code is taken when one
+    is presented, and a code from the authenticator otherwise. A wrong answer
+    is recorded, counted against the account and committed; a right one starts
+    the count over, and a spent recovery code is recorded with how many are
+    left, both staged for the caller to commit.
+
+    ``during`` names the errand in the audit line, and ``signed_in`` says
+    whether the account's holder is the actor on it or the request is a
+    sign-in nobody is authenticated for yet.
+    """
+    await refuse_if_locked(system_session, user_id)
+
+    if recovery_code:
+        accepted = await totp_service.consume_recovery_code(
+            system_session, user_id=user_id, code=recovery_code
+        )
+        proof = SecondFactorProof(method="recovery_code", amr=(SECOND_FACTOR_AMR,))
+        refusal = AuthMessages.RECOVERY_CODE_INVALID
+    else:
+        accepted = await totp_service.verify_code(
+            system_session, user_id=user_id, code=code or ""
+        )
+        proof = SecondFactorProof(method="totp", amr=("otp", SECOND_FACTOR_AMR))
+        refusal = AuthMessages.TOTP_INVALID
+
+    if not accepted:
+        await audit_service.record(
+            system_session,
+            event_type=AuditEventType.AUTH_SECOND_FACTOR_FAILED,
+            actor_user_id=user_id if signed_in else None,
+            target_user_id=user_id,
+            target_type="user",
+            target_id=user_id,
+            detail={"method": proof.method, "during": during},
+        )
+        await count_wrong_answer(system_session, user_id)
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=refusal)
+
+    await sign_in_locks.record_success(system_session, user_id)
+    if recovery_code:
+        await audit_service.record(
+            system_session,
+            event_type=AuditEventType.AUTH_RECOVERY_CODE_USED,
+            actor_user_id=user_id,
+            detail={
+                "remaining": await totp_service.remaining_recovery_codes(
+                    system_session, user_id=user_id
+                )
+            },
+        )
+    return proof
 
 
 @dataclass(frozen=True)
