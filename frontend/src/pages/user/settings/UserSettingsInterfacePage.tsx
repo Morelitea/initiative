@@ -281,8 +281,14 @@ export const UserSettingsInterfacePage = ({ user, acceptUser }: UserSettingsInte
         void i18n.changeLanguage(variables.locale);
       }
       toast.success(t("interface.updateSuccess"));
-      // The response is the saved account, so the fields read from it.
-      acceptUser(saved);
+      // The fields this save sent read from its answer; everything else on the
+      // account stays as the last full read had it.
+      acceptUser({
+        ...user,
+        ...Object.fromEntries(
+          Object.keys(variables).map((key) => [key, saved[key as keyof UserRead]])
+        ),
+      });
       dropPrefs(variables);
     },
     onError: (_error, variables) => {
