@@ -1554,19 +1554,29 @@ async def announce_on_hold(session: AsyncSession, guild_id: int) -> None:
             for user in seat_holders
         ],
     )
+    # Each letter in a savepoint of its own: one that cannot be queued is
+    # logged and leaves the bell lines and the other letters to commit.
     for user in seat_holders:
-        await email_outbox.enqueue_account_letter(
-            user,
-            email_service.community_on_hold_pieces(
-                community=guild.name,
-                contact=contact,
-                guild_id=guild_id,
-                delete_at=delete_at,
-                plan_managed=billing_service.billing_managed(),
-                locale=user.locale or "en",
-            ),
-            session=session,
-        )
+        try:
+            async with session.begin_nested():
+                await email_outbox.enqueue_account_letter(
+                    user,
+                    email_service.community_on_hold_pieces(
+                        community=guild.name,
+                        contact=contact,
+                        guild_id=guild_id,
+                        delete_at=delete_at,
+                        plan_managed=billing_service.billing_managed(),
+                        locale=user.locale or "en",
+                    ),
+                    session=session,
+                )
+        except Exception:
+            logger.exception(
+                "On-hold letter for user %s of community %s was not queued",
+                user.id,
+                guild_id,
+            )
     await session.commit()
 
 
