@@ -804,54 +804,50 @@ export const useCreateWikiPage = <TError = ErrorType<HTTPValidationError>, TCont
   return useMutation(getCreateWikiPageMutationOptions(options), queryClient);
 };
 /**
- * Put an existing document in this wiki.
+ * Put an existing file in this wiki.
  *
  * Two gates, because two things are involved: write on the wiki, because the
- * wiki is what gains a page, and read on the document, because you cannot put
+ * wiki is what gains a page, and read on the file, because you cannot put
  * something in front of people that you cannot see yourself.
  *
- * The document is not moved or copied. It joins by an edge — ``document
+ * The file is not moved or copied. It joins by an edge — ``file
  * part_of wiki`` — so it keeps its address, its sharing and its history, and
  * goes on belonging to whatever else it already belonged to.
- * @summary Add Document To Wiki
+ * @summary Add File To Wiki
  */
-export const addDocumentToWiki = (
+export const addFileToWiki = (
   communityId: number,
   wikiId: number,
-  documentId: number,
+  fileId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<WikiPageTree>(
-    {
-      url: `/api/v1/c/${communityId}/wikis/${wikiId}/documents/${documentId}`,
-      method: "PUT",
-      signal,
-    },
+    { url: `/api/v1/c/${communityId}/wikis/${wikiId}/files/${fileId}`, method: "PUT", signal },
     options
   );
 };
 
-export const getAddDocumentToWikiMutationKey = () => ["addDocumentToWiki"] as const;
+export const getAddFileToWikiMutationKey = () => ["addFileToWiki"] as const;
 
-export const getAddDocumentToWikiMutationOptions = <
+export const getAddFileToWikiMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof addDocumentToWiki>>,
+    Awaited<ReturnType<typeof addFileToWiki>>,
     TError,
-    AddDocumentToWikiMutationVariables,
+    AddFileToWikiMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof addDocumentToWiki>>,
+  Awaited<ReturnType<typeof addFileToWiki>>,
   TError,
-  AddDocumentToWikiMutationVariables,
+  AddFileToWikiMutationVariables,
   TContext
 > => {
-  const mutationKey = getAddDocumentToWikiMutationKey();
+  const mutationKey = getAddFileToWikiMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -859,94 +855,88 @@ export const getAddDocumentToWikiMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof addDocumentToWiki>>,
-    AddDocumentToWikiMutationVariables
+    Awaited<ReturnType<typeof addFileToWiki>>,
+    AddFileToWikiMutationVariables
   > = (props) => {
-    const { communityId, wikiId, documentId } = props ?? {};
+    const { communityId, wikiId, fileId } = props ?? {};
 
-    return addDocumentToWiki(communityId, wikiId, documentId, requestOptions);
+    return addFileToWiki(communityId, wikiId, fileId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type AddDocumentToWikiMutationResult = NonNullable<
-  Awaited<ReturnType<typeof addDocumentToWiki>>
->;
+export type AddFileToWikiMutationResult = NonNullable<Awaited<ReturnType<typeof addFileToWiki>>>;
 
-export type AddDocumentToWikiMutationError = ErrorType<HTTPValidationError>;
-export type AddDocumentToWikiMutationVariables = {
+export type AddFileToWikiMutationError = ErrorType<HTTPValidationError>;
+export type AddFileToWikiMutationVariables = {
   communityId: number;
   wikiId: number;
-  documentId: number;
+  fileId: number;
 };
 
 /**
- * @summary Add Document To Wiki
+ * @summary Add File To Wiki
  */
-export const useAddDocumentToWiki = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
+export const useAddFileToWiki = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof addDocumentToWiki>>,
+      Awaited<ReturnType<typeof addFileToWiki>>,
       TError,
-      AddDocumentToWikiMutationVariables,
+      AddFileToWikiMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof addDocumentToWiki>>,
+  Awaited<ReturnType<typeof addFileToWiki>>,
   TError,
-  AddDocumentToWikiMutationVariables,
+  AddFileToWikiMutationVariables,
   TContext
 > => {
-  return useMutation(getAddDocumentToWikiMutationOptions(options), queryClient);
+  return useMutation(getAddFileToWikiMutationOptions(options), queryClient);
 };
 /**
- * Take a document back out of this wiki.
+ * Take a file back out of this wiki.
  *
- * The wiki loses a page; the document loses nothing. Write on the wiki is the
+ * The wiki loses a page; the file loses nothing. Write on the wiki is the
  * only gate — this is a decision about what the wiki contains.
- * @summary Remove Document From Wiki
+ * @summary Remove File From Wiki
  */
-export const removeDocumentFromWiki = (
+export const removeFileFromWiki = (
   communityId: number,
   wikiId: number,
-  documentId: number,
+  fileId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<void>(
-    {
-      url: `/api/v1/c/${communityId}/wikis/${wikiId}/documents/${documentId}`,
-      method: "DELETE",
-      signal,
-    },
+    { url: `/api/v1/c/${communityId}/wikis/${wikiId}/files/${fileId}`, method: "DELETE", signal },
     options
   );
 };
 
-export const getRemoveDocumentFromWikiMutationKey = () => ["removeDocumentFromWiki"] as const;
+export const getRemoveFileFromWikiMutationKey = () => ["removeFileFromWiki"] as const;
 
-export const getRemoveDocumentFromWikiMutationOptions = <
+export const getRemoveFileFromWikiMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof removeDocumentFromWiki>>,
+    Awaited<ReturnType<typeof removeFileFromWiki>>,
     TError,
-    RemoveDocumentFromWikiMutationVariables,
+    RemoveFileFromWikiMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof removeDocumentFromWiki>>,
+  Awaited<ReturnType<typeof removeFileFromWiki>>,
   TError,
-  RemoveDocumentFromWikiMutationVariables,
+  RemoveFileFromWikiMutationVariables,
   TContext
 > => {
-  const mutationKey = getRemoveDocumentFromWikiMutationKey();
+  const mutationKey = getRemoveFileFromWikiMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -954,77 +944,74 @@ export const getRemoveDocumentFromWikiMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof removeDocumentFromWiki>>,
-    RemoveDocumentFromWikiMutationVariables
+    Awaited<ReturnType<typeof removeFileFromWiki>>,
+    RemoveFileFromWikiMutationVariables
   > = (props) => {
-    const { communityId, wikiId, documentId } = props ?? {};
+    const { communityId, wikiId, fileId } = props ?? {};
 
-    return removeDocumentFromWiki(communityId, wikiId, documentId, requestOptions);
+    return removeFileFromWiki(communityId, wikiId, fileId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type RemoveDocumentFromWikiMutationResult = NonNullable<
-  Awaited<ReturnType<typeof removeDocumentFromWiki>>
+export type RemoveFileFromWikiMutationResult = NonNullable<
+  Awaited<ReturnType<typeof removeFileFromWiki>>
 >;
 
-export type RemoveDocumentFromWikiMutationError = ErrorType<HTTPValidationError>;
-export type RemoveDocumentFromWikiMutationVariables = {
+export type RemoveFileFromWikiMutationError = ErrorType<HTTPValidationError>;
+export type RemoveFileFromWikiMutationVariables = {
   communityId: number;
   wikiId: number;
-  documentId: number;
+  fileId: number;
 };
 
 /**
- * @summary Remove Document From Wiki
+ * @summary Remove File From Wiki
  */
-export const useRemoveDocumentFromWiki = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
+export const useRemoveFileFromWiki = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof removeDocumentFromWiki>>,
+      Awaited<ReturnType<typeof removeFileFromWiki>>,
       TError,
-      RemoveDocumentFromWikiMutationVariables,
+      RemoveFileFromWikiMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof removeDocumentFromWiki>>,
+  Awaited<ReturnType<typeof removeFileFromWiki>>,
   TError,
-  RemoveDocumentFromWikiMutationVariables,
+  RemoveFileFromWikiMutationVariables,
   TContext
 > => {
-  return useMutation(getRemoveDocumentFromWikiMutationOptions(options), queryClient);
+  return useMutation(getRemoveFileFromWikiMutationOptions(options), queryClient);
 };
 /**
- * File a borrowed document under a page of this wiki, or at its top, and
+ * File a borrowed file under a page of this wiki, or at its top, and
  * put it in order there.
  *
- * Where it sits is recorded on the wiki, not on the document: the same
- * document can sit somewhere else entirely in another wiki.
+ * Where it sits is recorded on the wiki, not on the file: the same
+ * file can sit somewhere else entirely in another wiki.
  *
- * Write on the wiki is the whole gate, and read on the document is implied by
+ * Write on the wiki is the whole gate, and read on the file is implied by
  * it already being in a wiki this person may write: where it sits is a
- * decision about the wiki, not a change to the document — which is why the
- * document itself is never written.
- * @summary Move Wiki Document
+ * decision about the wiki, not a change to the file — which is why the
+ * file itself is never written.
+ * @summary Move Wiki File
  */
-export const moveWikiDocument = (
+export const moveWikiFile = (
   communityId: number,
   wikiId: number,
-  documentId: number,
+  fileId: number,
   wikiPageMove: BodyType<WikiPageMove>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<WikiPageTree>(
     {
-      url: `/api/v1/c/${communityId}/wikis/${wikiId}/documents/${documentId}/move`,
+      url: `/api/v1/c/${communityId}/wikis/${wikiId}/files/${fileId}/move`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
       data: wikiPageMove,
@@ -1034,26 +1021,26 @@ export const moveWikiDocument = (
   );
 };
 
-export const getMoveWikiDocumentMutationKey = () => ["moveWikiDocument"] as const;
+export const getMoveWikiFileMutationKey = () => ["moveWikiFile"] as const;
 
-export const getMoveWikiDocumentMutationOptions = <
+export const getMoveWikiFileMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof moveWikiDocument>>,
+    Awaited<ReturnType<typeof moveWikiFile>>,
     TError,
-    MoveWikiDocumentMutationVariables,
+    MoveWikiFileMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof moveWikiDocument>>,
+  Awaited<ReturnType<typeof moveWikiFile>>,
   TError,
-  MoveWikiDocumentMutationVariables,
+  MoveWikiFileMutationVariables,
   TContext
 > => {
-  const mutationKey = getMoveWikiDocumentMutationKey();
+  const mutationKey = getMoveWikiFileMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1061,50 +1048,48 @@ export const getMoveWikiDocumentMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof moveWikiDocument>>,
-    MoveWikiDocumentMutationVariables
+    Awaited<ReturnType<typeof moveWikiFile>>,
+    MoveWikiFileMutationVariables
   > = (props) => {
-    const { communityId, wikiId, documentId, data } = props ?? {};
+    const { communityId, wikiId, fileId, data } = props ?? {};
 
-    return moveWikiDocument(communityId, wikiId, documentId, data, requestOptions);
+    return moveWikiFile(communityId, wikiId, fileId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type MoveWikiDocumentMutationResult = NonNullable<
-  Awaited<ReturnType<typeof moveWikiDocument>>
->;
-export type MoveWikiDocumentMutationBody = BodyType<WikiPageMove>;
-export type MoveWikiDocumentMutationError = ErrorType<HTTPValidationError>;
-export type MoveWikiDocumentMutationVariables = {
+export type MoveWikiFileMutationResult = NonNullable<Awaited<ReturnType<typeof moveWikiFile>>>;
+export type MoveWikiFileMutationBody = BodyType<WikiPageMove>;
+export type MoveWikiFileMutationError = ErrorType<HTTPValidationError>;
+export type MoveWikiFileMutationVariables = {
   communityId: number;
   wikiId: number;
-  documentId: number;
+  fileId: number;
   data: BodyType<WikiPageMove>;
 };
 
 /**
- * @summary Move Wiki Document
+ * @summary Move Wiki File
  */
-export const useMoveWikiDocument = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
+export const useMoveWikiFile = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof moveWikiDocument>>,
+      Awaited<ReturnType<typeof moveWikiFile>>,
       TError,
-      MoveWikiDocumentMutationVariables,
+      MoveWikiFileMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof moveWikiDocument>>,
+  Awaited<ReturnType<typeof moveWikiFile>>,
   TError,
-  MoveWikiDocumentMutationVariables,
+  MoveWikiFileMutationVariables,
   TContext
 > => {
-  return useMutation(getMoveWikiDocumentMutationOptions(options), queryClient);
+  return useMutation(getMoveWikiFileMutationOptions(options), queryClient);
 };
 /**
  * One page by its own id, which is all a link to it, a mention or a
