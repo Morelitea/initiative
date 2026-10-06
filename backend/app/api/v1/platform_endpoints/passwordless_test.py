@@ -22,6 +22,7 @@ from app.core.security import (
 from app.models.platform.auth_session import AuthSession
 from app.models.platform.guild import CommunityRole
 from app.models.platform.mfa_recovery_code import MfaRecoveryCode
+from app.models.platform.sign_in_lock import SignInLock
 from app.models.platform.user import User, UserStatus
 from app.models.platform.user_email import UserEmail
 from app.models.platform.user_passkey import UserPasskey
@@ -649,10 +650,14 @@ async def test_a_recovery_that_does_not_land_leaves_the_account_as_it_was(
 async def test_recovering_sets_the_password_and_clears_the_sessions(
     client: AsyncClient, session: AsyncSession, capfd
 ):
+    """The code stands in for the password, as the mailed link does, so the
+    wrong answers counted before it start over along with everything else."""
     user = await _account(session, "pl-recover@example.com", password=None)
     user_id = user.id
     codes = await _issue_codes(session, user)
     elsewhere_id = (await _another_session(session, user)).id
+    await sign_in_locks.record_failure(session, user_id)
+    await session.commit()
     capfd.readouterr()
 
     response = await client.post(
@@ -674,6 +679,7 @@ async def test_recovering_sets_the_password_and_clears_the_sessions(
     retired = await session.get(AuthSession, elsewhere_id)
     assert retired is not None
     assert retired.revoked_at is not None
+    assert await session.get(SignInLock, user_id) is None
 
     written = emitted(capfd)
     used = _events(written, user_id, AuditEventType.AUTH_RECOVERY_CODE_USED)
