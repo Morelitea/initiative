@@ -329,13 +329,19 @@ async def test_the_deployment_can_decline_email_for_everybody(
 def reads(monkeypatch) -> list[int | None]:
     """Every time the switches are actually read, by community."""
     calls: list[int | None] = []
-    real = notification_policy.load
+    real, real_many = notification_policy.load, notification_policy.load_many
 
     async def _load(guild_id):
         calls.append(guild_id)
         return await real(guild_id)
 
+    async def _load_many(guild_ids):
+        guild_ids = set(guild_ids)
+        calls.extend(sorted(gid for gid in guild_ids if gid is not None))
+        return await real_many(guild_ids)
+
     monkeypatch.setattr(notification_policy, "load", _load)
+    monkeypatch.setattr(notification_policy, "load_many", _load_many)
     return calls
 
 
