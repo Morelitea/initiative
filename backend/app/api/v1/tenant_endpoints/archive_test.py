@@ -140,6 +140,13 @@ async def test_a_task_cannot_be_taken_out_from_under_an_archived_project(
     await session.refresh(task)
     assert task.archived_at is not None
 
+    # One that is not there is refused as a task, not as its project.
+    missing = await client.post(
+        a.g(f"/unarchive/task/{task.id + 1000}"), headers=a.headers
+    )
+    assert missing.status_code == 404
+    assert missing.json()["detail"] == "TASK_NOT_FOUND"
+
 
 async def test_the_project_going_back_takes_its_tasks_with_it(
     client: AsyncClient, session: AsyncSession, acting_user
