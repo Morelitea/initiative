@@ -51,8 +51,8 @@ def after_commit(session: Any, step: StepT, key: Hashable | None = None) -> Step
     already registered under ``key`` in the innermost one open is kept and
     returned, so a caller can add to it. A released savepoint's steps join the
     transaction around it, where one already under the same key is kept — and,
-    as a mapping, takes the entries it lacks from the savepoint's. Returns the
-    step that will run.
+    where it has a ``join`` method, is handed the savepoint's to take what it
+    adds. Returns the step that will run.
 
     ``session`` is an ``AsyncSession`` or a sync ``Session``. A session with no
     transaction open begins one here, so a rollback before its first statement
@@ -144,9 +144,9 @@ def _fold_steps(session: SyncSession, released: SessionTransaction) -> None:
         held = folded.setdefault(
             (released.parent if txn is released else txn, key), step
         )
-        if held is not step and isinstance(held, dict) and isinstance(step, dict):
-            for entry, value in step.items():
-                held.setdefault(entry, value)
+        join = getattr(held, "join", None) if held is not step else None
+        if join is not None:
+            join(step)
     session.info[_STEPS_KEY] = folded
 
 

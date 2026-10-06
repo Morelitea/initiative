@@ -256,6 +256,17 @@ def queue_frame(
 class _Frames(dict[tuple[int, str], Dict[str, Any]]):
     """One transaction's frames, keyed by ``(user_id, resource)``."""
 
+    def join(self, released: Mapping[tuple[int, str], Dict[str, Any]]) -> None:
+        """Take a released savepoint's frames: each one this lacks, and for one
+        it holds already, what the savepoint's names beside its own."""
+        for key, frame in released.items():
+            held = self.setdefault(key, frame)
+            if held is frame:
+                continue
+            for kind, named in frame["ids"].items():
+                kept = held["ids"].setdefault(kind, [])
+                kept.extend(item for item in named if item not in kept)
+
     async def __call__(self) -> None:
         await asyncio.gather(
             *(publish(user_ids, frame) for user_ids, frame in _grouped(self))
