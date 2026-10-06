@@ -1174,10 +1174,19 @@ class Settings(BaseSettings):
     # floor in ``app.core.password_policy`` still applies.
     HIBP_CHECK_ENABLED: bool = True
 
+    @field_validator("OIDC_SCOPES", mode="before")
+    @classmethod
+    def _blank_oidc_scopes_are_the_default(cls, value: object) -> object:
+        """A blank value reads as unset: the default scope list."""
+        if isinstance(value, str) and not value.strip():
+            return list(DEFAULT_OIDC_SCOPES)
+        return value
+
     @field_validator("OIDC_SCOPES")
     @classmethod
-    def _blank_oidc_scopes_are_the_default(cls, value: list[str]) -> list[str]:
-        return value or list(DEFAULT_OIDC_SCOPES)
+    def _scopeless_oidc_scopes_ask_for_the_basics(cls, value: list[str]) -> list[str]:
+        """A value that names no scope asks for the sign-in basics alone."""
+        return value or ["openid", "profile", "email"]
 
     @field_validator("AUTH_LOGIN_METHODS")
     @classmethod

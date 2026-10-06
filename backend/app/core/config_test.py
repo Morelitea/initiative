@@ -564,7 +564,8 @@ def test_auth_login_methods_blank_means_unset():
 
 def test_list_settings_read_from_the_environment(monkeypatch):
     """Every list setting takes items separated by commas and/or spaces, or a
-    JSON list; a blank OIDC_SCOPES is the default scope list, as an unset one is."""
+    JSON list; a blank OIDC_SCOPES is the default scope list, as an unset one is,
+    and one naming no scope asks for openid, profile and email."""
     monkeypatch.setenv(
         "CORS_ALLOWED_ORIGINS", "https://a.example.com, https://b.example.com"
     )
@@ -580,6 +581,8 @@ def test_list_settings_read_from_the_environment(monkeypatch):
     assert settings.OIDC_SCOPES == ["openid", "profile", "groups"]
 
     monkeypatch.setenv("OIDC_SCOPES", " , ")
+    assert _settings().OIDC_SCOPES == ["openid", "profile", "email"]
+    monkeypatch.setenv("OIDC_SCOPES", " ")
     blank = _settings().OIDC_SCOPES
     monkeypatch.delenv("OIDC_SCOPES")
     assert blank == _settings().OIDC_SCOPES == list(DEFAULT_OIDC_SCOPES)
