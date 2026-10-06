@@ -1452,13 +1452,6 @@ async def update_me(
     # payload (identities can't change within this request). The caller's own
     # links, read on their platform tier.
     is_sso_account = await has_federated_identity(session, user_id=current_user.id)
-    if not update_data:
-        payload = await users_service.to_self_read(current_user)
-        payload.has_federated_identity = is_sso_account
-        payload.has_password = has_usable_password(current_user.hashed_password)
-        payload.password_required = await password_confirms(session, current_user)
-        return payload
-
     password = update_data.get("password")
     if password:
         # Re-authenticate with the current password before changing it. An
@@ -1471,7 +1464,8 @@ async def update_me(
         )
         await enforce_password_policy(password)
         # A request of its own (``UserSelfUpdate`` holds it to that), committed
-        # with the session that keeps this device signed in.
+        # with the session that keeps this device signed in. Its commit is the
+        # request's only write; the account is read back for the answer.
         await set_password(
             request,
             system_session,
@@ -1481,6 +1475,14 @@ async def update_me(
             response=response,
             password_proved=password_proved,
         )
+        await session.refresh(current_user)
+
+    if password or not update_data:
+        payload = await users_service.to_self_read(current_user)
+        payload.has_federated_identity = is_sso_account
+        payload.has_password = has_usable_password(current_user.hashed_password)
+        payload.password_required = await password_confirms(session, current_user)
+        return payload
 
     if "avatar_url" in update_data:
         url_value = update_data["avatar_url"]

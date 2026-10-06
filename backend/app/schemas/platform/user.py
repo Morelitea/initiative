@@ -20,6 +20,7 @@ from app.schemas.query import PageMeta
 from app.core.capabilities import Capability, standing_capabilities
 from app.core.cookie_categories import CookieCategory
 from app.core.email_masking import mask_email
+from app.core.messages import UserMessages
 from app.core.emoji import validate_emoji
 from app.models.platform.account_change_hold import HeldChangeKind
 from app.core.profile_decorations import (
@@ -897,7 +898,7 @@ class UserSelfUpdate(SanitizedBaseModel):
         # A new password is written on a commit of its own, so it travels with
         # nothing but the one it replaces.
         if self.password and self.model_fields_set - {"password", "current_password"}:
-            raise ValueError("password is changed on a request of its own")
+            raise ValueError(UserMessages.PASSWORD_CHANGED_ALONE)
         return self
 
 

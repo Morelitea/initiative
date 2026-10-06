@@ -1033,6 +1033,7 @@ async def test_password_change_keeps_this_device_signed_in(client, session):
         },
     )
     assert refused.status_code == 422
+    assert refused.json()["detail"][0]["msg"].endswith("USER_PASSWORD_CHANGED_ALONE")
     assert not refused.cookies.get("refresh_token")
 
     change = await client.patch(
@@ -1041,6 +1042,7 @@ async def test_password_change_keeps_this_device_signed_in(client, session):
     )
     assert change.status_code == 200
     assert change.cookies.get("refresh_token")  # fresh chain for this device
+    assert change.json()["has_password"] is True
 
     session.expire_all()
     live = (

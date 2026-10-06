@@ -187,6 +187,7 @@
   "USER_INVALID_PASSWORD": "Ungültiges Passwort",
   "USER_CURRENT_PASSWORD_REQUIRED": "Gib dein aktuelles Passwort ein, um es zu ändern.",
   "USER_CURRENT_PASSWORD_INCORRECT": "Dein aktuelles Passwort ist falsch.",
+  "USER_PASSWORD_CHANGED_ALONE": "Ändere dein Passwort für sich allein und speichere danach deine anderen Einstellungen.",
   "USER_CONFIRMATION_MISMATCH": "Der Bestätigungstext muss 'DELETE MY ACCOUNT' lauten",
   "USER_API_KEY_NOT_FOUND": "API-Schlüssel nicht gefunden",
   "USER_API_KEY_READ_ONLY": "Dieser API-Schlüssel ist schreibgeschützt und kann keine Änderungen vornehmen.",
